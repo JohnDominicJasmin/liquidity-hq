@@ -188,7 +188,11 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json({ stats, candles: closes.length });
+    /* Historical hit-rates. They only change when an outcome resolves, which
+       is hours apart, so an hour of edge cache is conservative (#177). */
+    return NextResponse.json({ stats, candles: closes.length }, {
+      headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200' },
+    });
   } catch (e) {
     return apiError('signal-accuracy', e, 500, 'Request failed');
   }

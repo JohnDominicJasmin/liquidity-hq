@@ -2,6 +2,8 @@
 import { useMarket } from '@/lib/marketStore';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
+import { useAuth } from '@/components/AuthProvider';
+import { isGatedTf } from '@/lib/limits';
 
 type Bias = 'bullish' | 'bearish' | 'neutral';
 
@@ -43,7 +45,18 @@ function BiasBadge({ bias }: { bias: Bias }) {
   );
 }
 
-function RsiRow({ tf, rsi, bias, last }: { tf: string; rsi: number | null; bias: Bias; last?: boolean }) {
+/* `locked` strips the SIGNAL, then blurs what is left (#310).
+ *
+ * Order matters and it is the whole point. A blur that leaves the red/green
+ * showing still leaks the call: someone who cannot read "62" can still read
+ * bullish-or-bearish from the colour, and the badge carries it on its own. So
+ * the bias is forced to 'neutral' BEFORE render - an absent colour is a fact,
+ * whereas a blur radius is a guess about how much is unreadable.
+ *
+ * Same shape as #273, where backtesting was gated and still advertised: the
+ * feature was blocked and the information was not. */
+function RsiRow({ tf, rsi, bias, last, locked }: { tf: string; rsi: number | null; bias: Bias; last?: boolean; locked?: boolean }) {
+  if (locked) { rsi = null; bias = 'neutral'; }
   const pct = rsi != null ? Math.min(100, Math.max(0, rsi)) : 0;
   return (
     <div style={{
@@ -55,7 +68,18 @@ function RsiRow({ tf, rsi, bias, last }: { tf: string; rsi: number | null; bias:
       borderBottom: last ? 'none' : '1px solid rgba(255,255,255,0.05)',
     }}>
       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt2)' }}>{tf}</span>
-      <div style={{ position: 'relative', height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.08)' }}>
+      {/* Only the SIGNAL is obscured - the timeframe label above stays sharp, so a
+          free user can see that 5m and 15m exist and are Pro rather than facing
+          an unexplained smear. aria-hidden on each blurred part keeps a screen
+          reader from reading out a value the screen is deliberately hiding. */}
+      {/* dir="ltr": a QUANTITATIVE AXIS DOES NOT MIRROR (#353).
+           An RSI track runs 0 on the left to 100 on the right, with the 50
+           midline fixed at 50%. Mirroring it inverts the reading - an
+           oversold bar would render as overbought, perfectly, and lie.
+           This one is STATIC (left: '50%'), which is why the #353 survey
+           missed it: that enumeration filtered for COMPUTED offsets, and a
+           hardcoded percentage on an axis mirrors just as wrongly. */}
+      <div dir="ltr" aria-hidden={locked || undefined} style={{ position: 'relative', height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.08)', ...(locked ? { filter: 'blur(5px)' } : {}) }}>
         <div style={{
           position: 'absolute', left: 0, top: 0, bottom: 0,
           width: `${pct}%`, borderRadius: 3,
@@ -67,14 +91,15 @@ function RsiRow({ tf, rsi, bias, last }: { tf: string; rsi: number | null; bias:
           width: 1, background: 'rgba(255,255,255,0.2)',
         }} />
       </div>
-      <span style={{
+      <span aria-hidden={locked || undefined} style={{
         fontSize: 'var(--fs-label)', fontWeight: 700, textAlign: 'right',
         color: rsi == null ? 'var(--txt3)' : valColor(bias),
         fontFamily: 'var(--font-mono), monospace',
+        ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}),
       }}>
         {rsi != null ? rsi.toFixed(0) : '-'}
       </span>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div aria-hidden={locked || undefined} style={{ display: 'flex', justifyContent: 'flex-end', ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}) }}>
         <BiasBadge bias={bias} />
       </div>
     </div>
@@ -84,6 +109,15 @@ function RsiRow({ tf, rsi, bias, last }: { tf: string; rsi: number | null; bias:
 export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) {
   const { t } = useLabels();
   const { store } = useMarket();
+  /* Same `entitled` the rest of the app gates on - Pro OR active trial - so this
+     card and the timeframe switcher in Arena can never disagree about who is a
+     paying user (#310). */
+  const { entitled, loading: authLoading } = useAuth();
+  /* Locked only once we KNOW the user is not entitled. While auth resolves,
+     nothing is blurred: a Pro user briefly seeing their own paid signal smeared
+     is a worse error than a free user seeing it a moment longer, and the row is
+     re-rendered the instant the role lands. */
+  const locked = (tf: string) => !authLoading && !entitled && isGatedTf(tf);
   const coin = (coinProp ?? store.selectedCoin) as ReturnType<typeof useMarket>['store']['selectedCoin'];
   const d = store.coins[coin];
 
@@ -103,7 +137,18 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   const biasWeekly = getBias(rsiWeekly);
   const biasMonthly = getBias(rsiMonthly);
 
-  const biases = [bias5m, bias14, bias1h, bias4h, biasDaily, biasWeekly, biasMonthly];
+  /* GATED ROWS ARE EXCLUDED FROM THE VERDICT (#310).
+   *
+   * Blurring 5m and 15m while still counting them would leak them straight back
+   * out: the headline verdict is derived from the same biases, so a free user
+   * could read the hidden signal off the aggregate. The majority threshold below
+   * already scales to however many timeframes are wired in, so dropping two
+   * needs no other change - it becomes a 5-timeframe majority instead of 7. */
+  const biases = [
+    ...(locked('5m')  ? [] : [bias5m]),
+    ...(locked('15m') ? [] : [bias14]),
+    bias1h, bias4h, biasDaily, biasWeekly, biasMonthly,
+  ];
   const bullCount = biases.filter(b => b === 'bullish').length;
   const bearCount = biases.filter(b => b === 'bearish').length;
   // Majority of however many timeframes are wired in - scales automatically
@@ -165,8 +210,8 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
         <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>{t('MULTI_TF_ALIGNMENT_COL_BIAS')}</span>
       </div>
 
-      <RsiRow tf="5m"  rsi={rsi5m} bias={bias5m} />
-      <RsiRow tf="15m" rsi={rsi14} bias={bias14} />
+      <RsiRow tf="5m"  rsi={rsi5m} bias={bias5m} locked={locked('5m')} />
+      <RsiRow tf="15m" rsi={rsi14} bias={bias14} locked={locked('15m')} />
       <RsiRow tf="1h"  rsi={rsi1h} bias={bias1h} />
       <RsiRow tf="4h"  rsi={rsi4h} bias={bias4h} />
       <RsiRow tf="1D"  rsi={rsiDaily} bias={biasDaily} />

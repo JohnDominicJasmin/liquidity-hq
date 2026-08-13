@@ -3,16 +3,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getCheckoutUrl } from '@/lib/checkout';
+import { getCheckoutUrl, isCheckoutConfigured } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
 import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 
-const CHECKOUT_CONFIGURED = !!(
-  process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
-  process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
-);
+const CHECKOUT_CONFIGURED = isCheckoutConfigured();
 
 const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
 
@@ -43,7 +40,22 @@ const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
   ['UPGRADE_PRO_FEATURE_EVERYTHING_FREE'],
   ['UPGRADE_PRO_FEATURE_FAST_TIMEFRAMES'],
   ['UPGRADE_PRO_FEATURE_CONFLUENCE'],
-  ['UPGRADE_PRO_FEATURE_BACKTESTING'],
+  /* Backtesting is NOT listed while /backtest is hidden (#273).
+   *
+   * The page was hidden because the feature is not ready (#264), and this list
+   * was still selling "Full strategy backtesting" at $25/mo for a route that
+   * redirects to /dashboard. Someone paying partly for that line would have got
+   * nothing - which is worse than not offering it yet.
+   *
+   * The label key and its default are deliberately left in place. Putting this
+   * back when the feature ships should be uncommenting one array entry, not
+   * re-adding a string across every locale.
+   *
+   *   ['UPGRADE_PRO_FEATURE_BACKTESTING'],
+   *
+   * This has to move in step with the redirect in proxy.ts - same rule as
+   * ROUTES/HIDDEN_ROUTES in the QA suite. If the route comes back and this does
+   * not, we ship a Pro feature nobody is told they are buying. */
   ['UPGRADE_PRO_FEATURE_ONCHAIN_MACRO'],
   ['UPGRADE_PRO_FEATURE_TELEGRAM'],
   ['UPGRADE_PRO_FEATURE_UNLIMITED_ALERTS'],

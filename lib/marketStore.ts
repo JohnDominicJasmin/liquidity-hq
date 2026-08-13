@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext } from 'react';
 import type { CoinId } from './coins';
+import type { RealYield } from './realYield';
 export type { CoinId } from './coins';
 export { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS } from './coins';
 
@@ -94,20 +95,33 @@ export function fmtVol(v: number): string {
   return '$' + v.toFixed(0);
 }
 
+export type FundingBand = 'heavyPos' | 'mildPos' | 'neutral' | 'mildNeg' | 'heavyNeg';
+
 export interface FundingClass {
   label: string;
   cls: string;
   rpm: 'pos' | 'neg' | 'neu';
   note: string;
+  /* Which of the five bands this rate fell into (#244).
+     `note` already held the right sentence for each band and was computed and
+     then never shown: both tooltips rendered ONE static string describing the
+     strongly-positive case, so a negative funding rate was explained as "too
+     many people are leveraged long - whales often dump". That is the inverse of
+     what negative funding means and the inverse of the action this function
+     would have given (Go LONG, not Go SHORT).
+     `band` exists rather than wiring `note` straight in because `note` is a
+     hardcoded English string and the tooltips go through t() - using it would
+     take that surface out of the label system and out of i18n. */
+  band: FundingBand;
 }
 
 export function classifyFunding(rate: number): FundingClass {
   const r = rate * 100;
-  if (r >= 0.05) return { label: 'Heavily positive', cls: 'fund-pos', rpm: 'pos', note: 'Too many longs overleveraged. Whales dump DOWN to liquidate them. Go SHORT.' };
-  if (r >= 0.01) return { label: 'Mildly positive', cls: 'fund-pos', rpm: 'pos', note: 'Longs paying shorts. Slight bullish bias but not extreme.' };
-  if (r <= -0.03) return { label: 'Heavily negative', cls: 'fund-neg', rpm: 'neg', note: 'Too many shorts overleveraged. Whales squeeze UP to liquidate them. Go LONG.' };
-  if (r <= -0.005) return { label: 'Mildly negative', cls: 'fund-neg', rpm: 'neg', note: 'Shorts paying longs. Slight bearish bias but not extreme.' };
-  return { label: 'Neutral', cls: 'fund-neu', rpm: 'neu', note: 'No extreme positioning. Lower raid probability. Trade with caution.' };
+  if (r >= 0.05) return { label: 'Heavily positive', cls: 'fund-pos', rpm: 'pos', band: 'heavyPos', note: 'Too many longs overleveraged. Whales dump DOWN to liquidate them. Go SHORT.' };
+  if (r >= 0.01) return { label: 'Mildly positive', cls: 'fund-pos', rpm: 'pos', band: 'mildPos', note: 'Longs paying shorts. Slight bullish bias but not extreme.' };
+  if (r <= -0.03) return { label: 'Heavily negative', cls: 'fund-neg', rpm: 'neg', band: 'heavyNeg', note: 'Too many shorts overleveraged. Whales squeeze UP to liquidate them. Go LONG.' };
+  if (r <= -0.005) return { label: 'Mildly negative', cls: 'fund-neg', rpm: 'neg', band: 'mildNeg', note: 'Shorts paying longs. Slight bearish bias but not extreme.' };
+  return { label: 'Neutral', cls: 'fund-neu', rpm: 'neu', band: 'neutral', note: 'No extreme positioning. Lower raid probability. Trade with caution.' };
 }
 
 export type MarketStore = {
@@ -141,6 +155,11 @@ export type MarketStore = {
   dxyChg: number | null;     // 24h % change
   jpy: number | null;        // USD/JPY spot
   jpyChg: number | null;     // 24h % change - yen carry-trade direction
+  /* 10Y real yield (#311). Whole object, not a number + change pair like the
+     others, because this one carries its own staleness: FRED publishes it once
+     per business day and crypto trades through the weekend, so "how old is
+     this" is part of the reading rather than metadata about it. */
+  real10y: RealYield | null;
   spx: number | null;        // S&P 500
   spxChg: number | null;
   gold: number | null;       // Gold spot $/oz
@@ -185,6 +204,7 @@ export const defaultStore: MarketStore = {
   btcLiqLevels: [],
   dxy: null, dxyChg: null,
   jpy: null, jpyChg: null,
+  real10y: null,
   spx: null, spxChg: null,
   gold: null, goldChg: null,
   cbPremium: null, cbPremiumPct: null,
@@ -361,3 +381,18 @@ export function computeFibLevels(high: number, low: number, price: number): {
     };
   });
 }
+
+/* Label key for a funding rate's tooltip (#244).
+ *
+ * Five keys, one per band, chosen by the classification that already exists.
+ * The first sentence is identical in all five - the mechanic of funding does not
+ * depend on its sign - and only the interpretation changes. */
+export const FUNDING_TIP_KEY: Record<FundingBand,
+  'FUNDING_TIP_HEAVY_POS' | 'FUNDING_TIP_MILD_POS' | 'FUNDING_TIP_NEUTRAL'
+  | 'FUNDING_TIP_MILD_NEG' | 'FUNDING_TIP_HEAVY_NEG'> = {
+  heavyPos: 'FUNDING_TIP_HEAVY_POS',
+  mildPos:  'FUNDING_TIP_MILD_POS',
+  neutral:  'FUNDING_TIP_NEUTRAL',
+  mildNeg:  'FUNDING_TIP_MILD_NEG',
+  heavyNeg: 'FUNDING_TIP_HEAVY_NEG',
+};

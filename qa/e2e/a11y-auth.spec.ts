@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { BASELINE } from './_shared';
+import { BASELINE, gotoGuarded } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /**
@@ -105,16 +105,16 @@ test.describe('accessibility (signed in)', () => {
       await gotoSignedIn(page, '/settings');
       // Absence fails the test. A settings page that did not render is not
       // "zero findings" - the same vacuous-pass trap the rest of this file guards.
-      await page.waitForSelector('.st-page', { state: 'visible', timeout: 40_000 });
+      await page.waitForSelector('[data-testid="settings-page"]', { state: 'visible', timeout: 40_000 });
       // The push-notification row renders only after the browser permission
       // query resolves, and it is one of the controls under test - measuring
       // before it exists silently under-counts.
-      await page.waitForSelector('button.st-toggle', { state: 'visible', timeout: 40_000 });
+      await page.waitForSelector('[data-testid="settings-toggle"]', { state: 'visible', timeout: 40_000 });
       await page.waitForTimeout(1500);
 
-      const unnamed = await unnamedIn(page, `.st-page ${CONTROLS}`);
+      const unnamed = await unnamedIn(page, `[data-testid="settings-page"] ${CONTROLS}`);
       const orphanLabels = await page.evaluate(() =>
-        [...document.querySelectorAll('.st-page label')]
+        [...document.querySelectorAll('[data-testid="settings-page"] label')]
           .filter(l => !l.getAttribute('for') && !l.querySelector('input,select,textarea'))
           .map(l => ((l as HTMLElement).innerText || '').trim().slice(0, 40)));
 
@@ -159,11 +159,11 @@ test.describe('accessibility (signed in)', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      await page.goto('/journal', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('input.tj-inp', { state: 'visible', timeout: 40_000 });
+      await gotoGuarded(page, '/journal', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('[data-testid="journal-input"]', { state: 'visible', timeout: 40_000 });
 
       const pairs = await page.evaluate(() =>
-        [...document.querySelectorAll('.tj-field')].map(f => {
+        [...document.querySelectorAll('[data-testid="journal-field"]')].map(f => {
           const lbl = f.querySelector('label');
           const ctl = f.querySelector('input,select,textarea');
           if (!lbl || !ctl) return null;
@@ -176,7 +176,7 @@ test.describe('accessibility (signed in)', () => {
           };
         }).filter(Boolean) as { visible: string; aria: string; htmlFor: string; wraps: boolean }[]);
 
-      expect(pairs.length, 'no .tj-field label/control pairs found - the form did not render').toBeGreaterThan(0);
+      expect(pairs.length, 'no journal-field label/control pairs found - the form did not render').toBeGreaterThan(0);
 
       const nameless = pairs.filter(p => !p.aria && !p.htmlFor && !p.wraps);
       expect(nameless, `log-trade fields with no name at all: ${JSON.stringify(nameless)}`).toEqual([]);
@@ -198,20 +198,20 @@ test.describe('accessibility (signed in)', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      await page.goto('/journal', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('button.tj-tab', { state: 'visible', timeout: 40_000 });
+      await gotoGuarded(page, '/journal', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('[data-testid="journal-tab"]', { state: 'visible', timeout: 40_000 });
       await page.evaluate(() => {
-        const b = [...document.querySelectorAll('button.tj-tab')]
+        const b = [...document.querySelectorAll('[data-testid="journal-tab"]')]
           .find(x => /history/i.test((x as HTMLElement).innerText || ''));
         (b as HTMLElement | undefined)?.click();
       });
       // Needs account A's fixture trade to exist. If it does not, this fails
       // rather than passing on an empty history - which would be a false green.
-      await page.waitForSelector('button.tj-edit-btn', { state: 'visible', timeout: 40_000 });
-      await page.evaluate(() => (document.querySelector('button.tj-edit-btn') as HTMLElement).click());
-      await page.waitForSelector('.tj-edit-form', { state: 'visible', timeout: 20_000 });
+      await page.waitForSelector('[data-testid="journal-edit"]', { state: 'visible', timeout: 40_000 });
+      await page.evaluate(() => (document.querySelector('[data-testid="journal-edit"]') as HTMLElement).click());
+      await page.waitForSelector('[data-testid="journal-edit-form"]', { state: 'visible', timeout: 20_000 });
 
-      const unnamed = await unnamedIn(page, `.tj-edit-form ${CONTROLS}`);
+      const unnamed = await unnamedIn(page, `[data-testid="journal-edit-form"] ${CONTROLS}`);
       testInfo.attach('journal-inline-edit-unnamed.txt', { body: unnamed.join('\n'), contentType: 'text/plain' });
       expect(
         unnamed.length,
@@ -228,10 +228,10 @@ test.describe('accessibility (signed in)', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      await page.goto('/journal', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('button.tj-tab', { state: 'visible', timeout: 40_000 });
+      await gotoGuarded(page, '/journal', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('[data-testid="journal-tab"]', { state: 'visible', timeout: 40_000 });
       await page.evaluate(() => {
-        const b = [...document.querySelectorAll('button.tj-tab')]
+        const b = [...document.querySelectorAll('[data-testid="journal-tab"]')]
           .find(x => ((x as HTMLElement).innerText || '').trim().toLowerCase().startsWith('rules'));
         (b as HTMLElement | undefined)?.click();
       });
@@ -301,23 +301,23 @@ test.describe('accessibility (signed in)', () => {
 
     const forms: { label: string; path: string; toPassword: boolean; act: () => Promise<void> }[] = [
       { label: '/login password', path: '/login', toPassword: true, act: async () => {
-          await page.fill('input.login-email-input', 'qa-nonexistent@example.com');
+          await page.fill('[data-testid="login-email"]', 'qa-nonexistent@example.com');
           await page.fill('input[type=password]', 'wrong-password-123');
           await page.press('input[type=password]', 'Enter');
         } },
       { label: '/login magic link', path: '/login', toPassword: false, act: async () => {
-          await page.fill('input.login-email-input', 'qa-nonexistent@example.com');
-          await page.press('input.login-email-input', 'Enter');
+          await page.fill('[data-testid="login-email"]', 'qa-nonexistent@example.com');
+          await page.press('[data-testid="login-email"]', 'Enter');
         } },
       { label: '/forgot-password', path: '/forgot-password', toPassword: false, act: async () => {
-          await page.fill('input.login-email-input', 'qa-nonexistent@example.com');
-          await page.press('input.login-email-input', 'Enter');
+          await page.fill('[data-testid="login-email"]', 'qa-nonexistent@example.com');
+          await page.press('[data-testid="login-email"]', 'Enter');
         } },
     ];
 
     for (const { label, path, toPassword, act } of forms) {
-      await page.goto(path, { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('input.login-email-input', { state: 'visible', timeout: 40_000 });
+      await gotoGuarded(page, path, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('[data-testid="login-email"]', { state: 'visible', timeout: 40_000 });
       if (toPassword) {
         await page.evaluate(() => {
           const b = [...document.querySelectorAll('button')]
@@ -329,7 +329,7 @@ test.describe('accessibility (signed in)', () => {
 
       // (1) present, announced and EMPTY before the error exists. Stamp it.
       const before = await page.evaluate(() => {
-        const el = document.querySelector('.login-error');
+        const el = document.querySelector('[data-testid="login-error"]');
         if (!el) return { present: false, announced: false, empty: false, inTree: false };
         el.setAttribute('data-qa-preexisting', '1');
         return {
@@ -348,13 +348,13 @@ test.describe('accessibility (signed in)', () => {
 
       await act();
       await page.waitForFunction(
-        () => [...document.querySelectorAll('.login-error')].some(e => ((e as HTMLElement).innerText || '').trim()),
+        () => [...document.querySelectorAll('[data-testid="login-error"]')].some(e => ((e as HTMLElement).innerText || '').trim()),
         undefined, { timeout: 25_000 },
       ).catch(() => missing.push(`${label}: no error message ever appeared - cannot verify it is announced`));
 
       // (2) the text is in the node that was already announced.
       const after = await page.evaluate(() => {
-        const withText = [...document.querySelectorAll('.login-error')]
+        const withText = [...document.querySelectorAll('[data-testid="login-error"]')]
           .find(e => ((e as HTMLElement).innerText || '').trim());
         return withText
           ? { stamped: withText.getAttribute('data-qa-preexisting') === '1',
@@ -392,14 +392,14 @@ test.describe('accessibility (signed in)', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('button.gchat-fab', { state: 'visible', timeout: 40_000 });
-      await page.evaluate(() => (document.querySelector('button.gchat-fab') as HTMLElement).click());
-      await page.waitForSelector('.gchat-msgs', { state: 'visible', timeout: 20_000 });
+      await gotoGuarded(page, '/dashboard', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('[data-testid="grok-launcher"]', { state: 'visible', timeout: 40_000 });
+      await page.evaluate(() => (document.querySelector('[data-testid="grok-launcher"]') as HTMLElement).click());
+      await page.waitForSelector('[data-testid="grok-messages"]', { state: 'visible', timeout: 20_000 });
 
       const live = await page.evaluate(() => {
-        const msgs = document.querySelector('.gchat-msgs')!;
-        const panel = document.querySelector('.gchat-panel');
+        const msgs = document.querySelector('[data-testid="grok-messages"]')!;
+        const panel = document.querySelector('[data-testid="grok-panel"]');
         return {
           onMsgs: msgs.getAttribute('aria-live') || msgs.getAttribute('role'),
           insidePanel: panel

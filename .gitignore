@@ -45,3 +45,6 @@ next-env.d.ts
 # Playwright E2E
 qa/e2e-report/
 test-results/
+# Written during a run by qa/server-intercept.mjs in count mode. A measurement
+# artefact, and it is rewritten every second while a run is in progress.
+qa/.intercept-tally.*.json

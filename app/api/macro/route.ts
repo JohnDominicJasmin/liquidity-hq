@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { reportHealth, healthError } from '@/lib/apiHealth';
+import { fetchFredRows } from '@/lib/fred';
+import { computeRealYield, REAL_YIELD_SERIES } from '@/lib/realYield';
 
 // Yahoo Finance v8 works fine server-to-server (no CORS restriction from a server).
 // It only blocks browser requests via proxies (proxy IPs get 401).
@@ -70,6 +72,26 @@ async function yf(sym: string, label: string) {
   }
 }
 
+/* The 10Y real yield comes from FRED, not Yahoo (#311).
+ *
+ * Yahoo has the nominal 10Y (^TNX) but not the inflation-indexed one, and the
+ * nominal series cannot separate real rates from inflation expectations - see
+ * the note in lib/realYield.ts for why that distinction decides the sign of
+ * the signal for crypto.
+ *
+ * A one-hour module cache rather than the 12h default: DFII10 publishes each
+ * business day after the US close, so a 12h cache would leave the new
+ * observation unread until the middle of the following day.
+ */
+async function realYield() {
+  const rows = await fetchFredRows(REAL_YIELD_SERIES, 3600_000);
+  // An empty result is a failed measurement, not a quiet market - report it as
+  // unhealthy so a silent FRED outage does not just render as a dash forever.
+  reportHealth('fred:real-yield', 'macro', rows.length >= 2,
+    rows.length >= 2 ? `${rows[rows.length - 1][1]}` : 'no usable observations');
+  return computeRealYield(rows);
+}
+
 export async function GET(req: NextRequest) {
   // Previously fully uncapped (no auth, no rate limit) and cache:'no-store'
   // on every upstream Yahoo Finance call - a scripted caller hitting this in
@@ -79,16 +101,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
-  const [oil, dxy, spx, gold, jpy] = await Promise.all([
+  const [oil, dxy, spx, gold, jpy, real10y] = await Promise.all([
     yf('CL%3DF',   'oil'),   // WTI Crude Oil
     yf('DX-Y.NYB', 'dxy'),   // DXY (US Dollar Index)
     yf('%5EGSPC',  'spx'),   // S&P 500
     yf('GC%3DF',   'gold'),  // Gold futures
     yf('JPY%3DX',  'jpy'),   // USD/JPY - yen carry-trade direction (day change %)
+    realYield(),             // 10Y real yield - the rates backdrop for a zero-yield asset
   ]);
 
   return NextResponse.json(
-    { oil, dxy, spx, gold, jpy },
+    { oil, dxy, spx, gold, jpy, real10y },
     { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } },
   );
 }

@@ -7,6 +7,7 @@ import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
+import { barsAfter } from '@/lib/candles';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
@@ -412,6 +413,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [countdown,    setCountdown]   = useState('-');
   const [priceLabelY,  setPriceLabelY] = useState<number | null>(null);
   const lastCloseRef   = useRef<number>(0);
+  /* Newest bar timestamp the live stream has delivered. The backfill on
+     reconnect (#313) fetches everything after it - without this there is no way
+     to know how much of the series the outage cost. */
+  const lastBarTsRef   = useRef<number>(0);
+  /* Which feed produced the chart's history. The gap backfill reads it so a
+     recovery never mixes feeds - see the note at the getBars fallback (#359). */
+  const histSourceRef  = useRef<'binance' | 'binance-futures'>('binance');
   const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
@@ -1091,9 +1099,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               // used to live in MarketProvider.fetchKlines). The chart just never
               // got the same treatment.
               //
-              // Futures is also the better default on its own merits - this is a
-              // perp-trading app, and fapi's candles are the ones the funding,
-              // OI and liquidation data all refer to.
+              // That reasoning was about the BROWSER calling Binance directly.
+              // These now go through /api/market/klines, so the fetch happens
+              // server-side and a client-side geo-block or filter list never
+              // touches it - which is why spot can lead again (#359).
+              //
+              // Futures candles are still what the funding, OI and liquidation
+              // data refer to. That argues for showing futures ALONGSIDE, not
+              // for silently joining futures history to a spot stream, which is
+              // what this used to do.
               const tryFetch = async (url: string): Promise<(string | number)[][] | null> => {
                 try {
                   const res = await fetch(url);
@@ -1102,10 +1116,28 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   return Array.isArray(j) && j.length ? j as (string | number)[][] : null;
                 } catch { return null; }
               };
-              const raw =
-                await tryFetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${iv}&limit=1500`)
-                ?? await tryFetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=1500`)
-                ?? [];
+              /* SPOT FIRST (#359). The live stream is spot - wss://stream.binance.com
+                 - so futures history joined to it produced a chart whose bars
+                 changed feed partway along, invisibly. Measured at 4.4bp on BTC
+                 (~$28) and ~9bp on ETH: small, permanent, and in the one place a
+                 user reads price. Owner's decision: spot throughout.
+                 Futures stays as the FALLBACK rather than being deleted - it is
+                 a different host, and it is the reason a Binance-spot outage or
+                 block does not blank the chart. Ordering changed; resilience
+                 kept. */
+              let raw = await tryFetch(`/api/market/klines?source=binance&symbol=${bnSym}&interval=${iv}&limit=1500`);
+              if (raw) {
+                histSourceRef.current = 'binance';
+              } else {
+                raw = await tryFetch(`/api/market/klines?source=binance-futures&symbol=${bnSym}&interval=${iv}&limit=1500`);
+                /* Remember WHICH feed the history came from, so the gap backfill
+                   (#313) refills from the same one. Without this, a spot outage
+                   would give futures history and a spot backfill - the exact
+                   mismatch #359 is about, re-created in the recovery path and
+                   only on the day something else was already broken. */
+                if (raw) histSourceRef.current = 'binance-futures';
+              }
+              raw = raw ?? [];
               if (stale()) return; // superseded by a newer switch - drop it
               let bars = raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
@@ -1116,7 +1148,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               if (!bars.length && bybitSym) {
                 const bIv = periodToBybitInterval(period);
                 try {
-                  const rb = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bIv}&limit=1000`);
+                  const rb = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${bIv}&limit=1000`);
                   const db = await rb.json() as { result?: { list?: string[][] } };
                   if (stale()) return;
                   bars = [...(db?.result?.list ?? [])].reverse().map(k => ({
@@ -1140,7 +1172,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               callback(bars, false);
             } else if (bybitSym) {
               const iv = periodToBybitInterval(period);
-              const r  = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1000`);
+              const r  = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1000`);
               const d  = await r.json() as { result?: { list?: string[][] } };
               if (stale()) return; // superseded by a newer switch - drop it
               const list = [...(d?.result?.list ?? [])].reverse();
@@ -1181,25 +1213,135 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
           if (bnSym) {
             const iv = periodToBnInterval(period);
-            const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${bnSym.toLowerCase()}@kline_${iv}`);
-            ws.onopen    = () => setWsStatus('live');
-            ws.onerror   = () => setWsStatus('error');
-            ws.onclose   = (e) => { if (!e.wasClean) setWsStatus('connecting'); };
-            ws.onmessage = (e: MessageEvent) => {
-              const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
-              const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
-              lastCloseRef.current = bar.close;
-              upsertEmaBar(bar);
-              callback(bar);
+
+            /* RECONNECT (#306).
+             *
+             * This socket used to be opened once. On a network drop it closed,
+             * `onclose` set the status dot to 'connecting', and nothing ever
+             * connected - so the chart froze at the last bar and stayed there
+             * until the user reloaded. The dot was honest and permanent.
+             *
+             * Why only some things came back: the Bybit branch below polls on a
+             * setInterval, which survives an outage and simply succeeds again,
+             * and six other endpoints recover the same incidental way. The
+             * WebSocket had no such loop, which is why the owner saw the chart
+             * specifically stop while the rest of the page carried on.
+             *
+             * Backoff so a server-side rejection cannot become a reconnect
+             * storm, capped so a long outage still recovers promptly. `online`
+             * short-circuits the wait: the browser knows the network returned
+             * before any timer would have fired. */
+            let attempt = 0;
+            let timer: ReturnType<typeof setTimeout> | null = null;
+            let cancelled = false;
+            /* Declared before `connect`, which captures it. Ordering matters:
+               relying on the call happening later would break the moment someone
+               moved it. */
+            let live: WebSocket | null = null;
+            /* False until the first connect completes, so the initial open does
+               not trigger a backfill that getBars has already done. */
+            let reconnected = false;
+
+            /* Fetch what closed while we were away and push it through the same
+               callback the stream uses.
+               Ascending order matters: klinecharts' update path upserts by
+               timestamp, so bars must arrive oldest-first or a later bar is
+               overwritten by an earlier one. */
+            const backfillGap = async (
+              sym: string, interval: string,
+              cb: (bar: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }) => void,
+            ) => {
+              const since = lastBarTsRef.current;
+              if (!since) return;                       // nothing streamed yet - getBars owns it
+              try {
+                const r = await fetch(
+                  `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
+                  { signal: AbortSignal.timeout(12_000) },
+                );
+                if (!r.ok || cancelled) return;
+                const rows = (await r.json()) as Array<[number, string, string, string, string, string]>;
+                if (cancelled) return;
+                const missed = barsAfter(
+                  rows.map(k => ({ timestamp: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })),
+                  since,
+                );
+                for (const bar of missed) {
+                  lastBarTsRef.current = bar.timestamp;
+                  lastCloseRef.current = bar.close;
+                  upsertEmaBar(bar);
+                  cb(bar);
+                }
+              } catch { /* the stream is already live; a failed backfill leaves
+                           the gap rather than breaking the chart */ }
             };
-            wsRef.current = ws;
+
+            const connect = () => {
+              if (cancelled) return;
+              const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${bnSym.toLowerCase()}@kline_${iv}`);
+              live = ws;
+              ws.onopen    = () => {
+                attempt = 0;
+                setWsStatus('live');
+                /* BACKFILL THE GAP (#313).
+                 *
+                 * #309 restores the stream; it does not recover the candles that
+                 * closed while it was down. getBars only runs on mount and on a
+                 * symbol/period change, so before this the chart resumed live and
+                 * kept a hole where the outage was - and a hole in a candle series
+                 * is not visibly a hole, it is a chart that looks fine and is wrong.
+                 *
+                 * Only after a real gap: `reconnected` is false on the first
+                 * connect, so a normal page load does not fire a second fetch. */
+                if (reconnected) void backfillGap(bnSym, iv, callback);
+                reconnected = true;
+              };
+              ws.onerror   = () => setWsStatus('error');
+              ws.onclose   = (e) => {
+                if (cancelled || e.wasClean) return;   // a clean close is us, not the network
+                setWsStatus('connecting');
+                attempt += 1;
+                const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+                if (timer) clearTimeout(timer);
+                timer = setTimeout(connect, delay);
+              };
+              ws.onmessage = (e: MessageEvent) => {
+                const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
+                const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
+                lastCloseRef.current = bar.close;
+                lastBarTsRef.current = bar.timestamp;
+                upsertEmaBar(bar);
+                callback(bar);
+              };
+            };
+
+            /* Nothing in this app listened for `online` before this (#306) - the
+               endpoints that recovered did so by accident of having a timer. */
+            const onOnline = () => {
+              if (cancelled) return;
+              if (live && live.readyState === WebSocket.OPEN) return;
+              attempt = 0;                       // the network is back; do not serve out a long backoff
+              if (timer) clearTimeout(timer);
+              connect();
+            };
+            window.addEventListener('online', onOnline);
+
+            connect();
+
+            wsRef.current = {
+              close: () => {
+                cancelled = true;
+                window.removeEventListener('online', onOnline);
+                if (timer) clearTimeout(timer);
+                live?.close();
+              },
+            };
           } else if (bybitSym) {
             // Bybit: 5s polling
             setWsStatus('live');
             const iv = periodToBybitInterval(period);
             const timer = setInterval(async () => {
               try {
-                const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1`);
+                const r = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1`);
                 const d = await r.json() as { result?: { list?: string[][] } };
                 const k = d?.result?.list?.[0];
                 if (k) {
@@ -1342,32 +1484,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     }
   };
 
-  // ── Auto-draw Entry / SL / TP after analysis ─────────────────────────
+  /* ── Entry / SL / TP lines removed (#260) ──────────────────────────────
+     The research output is a directional read now and no longer issues trade
+     levels, so there is nothing left for this effect to draw.
+
+     The CLEANUP is kept deliberately. Any overlay this effect created before
+     the change still has to be removed when `result` changes, and a stale
+     ENTRY line left floating on the chart after a new analysis would be worse
+     than the old behaviour - it would be a price level attached to nothing.
+     Dropping the effect entirely would have left that dangling for anyone whose
+     chart was already showing them.
+
+     Support/resistance is a separate mechanism and is unaffected: those are
+     observations about the chart, not instructions about a position, and only
+     the second kind was removed. */
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
     analysisIds.current.forEach(id => chart.removeOverlay({ id }));
     analysisIds.current = [];
-    if (!result) return;
-
-    const draw = (price: number, color: string, label: string) => {
-      const id = chart.createOverlay({
-        name: 'analysisLevelLine',
-        groupId: 'analysis',
-        lock: true,
-        points: [{ value: price }],
-        extendData: { label, price, color },
-      } as OverlayCreate);
-      if (typeof id === 'string') analysisIds.current.push(id);
-    };
-
-    // Both entry bounds are labeled "ENTRY" (not "ENTRY LOW"/"ENTRY HIGH") - two
-    // same-colored, same-labeled lines read as one zone's edges; splitting the
-    // label would suggest two different things to watch instead of one range.
-    if (result.entryLow)  draw(result.entryLow,  '#34d399', 'ENTRY');
-    if (result.entryHigh) draw(result.entryHigh, '#34d399', 'ENTRY');
-    if (result.sl)        draw(result.sl,        '#f87171', 'STOP');
-    if (result.tp)        draw(result.tp,        '#5aa3ff', 'TARGET');
   }, [result]);
 
   // ── EMA signal markers - all significant crosses in the loaded data ──────────────

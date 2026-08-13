@@ -38,6 +38,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
+import { usePerpSpot } from '@/lib/usePerpSpot';
 
 /* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -108,6 +109,29 @@ interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'q
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
 const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours - older results are discarded
+
+/* LEGACY SIGNAL VOCABULARY (#260).
+ *
+ * Results and history are persisted in the browser, so a user who ran an
+ * analysis before the rename still has LONG / LEAN LONG / SHORT / LEAN SHORT
+ * sitting in sessionStorage and localStorage. Every comparison in this file now
+ * tests the new words, and each of those chains ends in a fallback - so an
+ * un-migrated row does not error, it renders as FLAT and goes grey. A bullish
+ * call the user made an hour ago silently becomes "no opinion", which is worse
+ * than a crash because nothing anywhere says it happened.
+ *
+ * Normalising on READ rather than migrating the stored blob is deliberate: the
+ * blob is rewritten on the next change anyway, and a read-side map keeps working
+ * for anyone whose tab has been open across the deploy. */
+const LEGACY_SIGNALS: Record<string, string> = {
+  'LONG': 'BULLISH',
+  'LEAN LONG': 'LEAN BULLISH',
+  'SHORT': 'BEARISH',
+  'LEAN SHORT': 'LEAN BEARISH',
+};
+function normalizeSignal<T extends string>(signal: T): T {
+  return (LEGACY_SIGNALS[signal] ?? signal) as T;
+}
 /** Dynamic TTL: tighter during NY/pre-NY session (volatile), relaxed off-hours */
 function getCacheTTL(): number {
   const utcHour = new Date().getUTCHours();
@@ -189,9 +213,16 @@ function ArenaContent() {
   const [readError, setReadError]     = useState('');
   const [readMode,  setReadMode]      = useState<'quick' | 'deep'>('deep');
   const [resultsCache, setResultsCache] = useState<Partial<Record<CoinId, CacheEntry>>>({});
-  // Per-coin dismiss for the AI Read card - a UI-only "hide for now", not a
-  // data delete. Cleared automatically the next time this coin gets a fresh
-  // read, so dismissing never blocks the user from seeing the next real result.
+  // Per-coin "the AI Read card is hidden" - a UI-only hide, not a data delete.
+  // Set either by the user dismissing the card OR by starting a read (the old
+  // card closes for the duration), and cleared when that read finishes,
+  // whatever the outcome.
+  //
+  // This comment used to say "cleared the next time this coin gets a fresh
+  // read", which described the intent correctly and the code incorrectly: the
+  // clear ran when the read STARTED, so a dismiss during the load survived into
+  // the result and suppressed it. The user spent a Grok call and saw nothing
+  // (#278). Clearing on finish is what makes the sentence true.
   const [dismissedResults, setDismissedResults] = useState<Set<CoinId>>(new Set());
   const [history, setHistory]         = useState<HistItem[]>([]);
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
@@ -206,6 +237,15 @@ function ArenaContent() {
   const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
+  /* Perps vs spot (#340) - the same reading the dashboard card shows, from the
+     shared hook so the card and the AI cannot disagree about it. */
+  const perpSpot = usePerpSpot(selectedCoin);
+  /* Mirrored into a ref because the prompt payload is built inside a callback
+     that reads refs rather than closing over state - same pattern as
+     emaSignalRef and absDataRef beside it. Closing over `perpSpot` directly
+     would freeze it at whatever it was when the callback was created. */
+  const perpSpotRef = useRef(perpSpot);
+  useEffect(() => { perpSpotRef.current = perpSpot; }, [perpSpot]);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* Whether the scanner was opened by hover rather than by a click. Only a
@@ -448,7 +488,9 @@ function ArenaContent() {
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(ARENA_HIST_KEY);
-      if (saved) setHistory(JSON.parse(saved));
+      // Rows stored before the #260 rename carry LONG/SHORT and would render as
+      // FLAT-and-grey, turning a directional call the user made into "no view".
+      if (saved) setHistory((JSON.parse(saved) as HistItem[]).map(h => ({ ...h, signal: normalizeSignal(h.signal) })));
     } catch { /* ignore */ }
   }, []);
   useEffect(() => {
@@ -464,7 +506,13 @@ function ArenaContent() {
         const now = Date.now();
         const fresh: Partial<Record<CoinId, CacheEntry>> = {};
         Object.entries(parsed).forEach(([k, v]) => {
-          if (v && now - v.result.analyzedAt < CACHE_MAX_AGE_MS) fresh[k as CoinId] = v;
+          // Same #260 migration as the history above, and it matters more here:
+          // this is the main result card, so a pre-rename cached result would
+          // show the wrong verdict word and the wrong colour on the page's most
+          // prominent element.
+          if (v && now - v.result.analyzedAt < CACHE_MAX_AGE_MS) {
+            fresh[k as CoinId] = { ...v, result: { ...v.result, signal: normalizeSignal(v.result.signal) } };
+          }
         });
         setResultsCache(fresh);
       }
@@ -946,6 +994,10 @@ function ArenaContent() {
           : jpyUsd >= 158
             ? `${jpyUsd.toFixed(2)} - WARNING: Approaching 160 danger zone, watch for BOJ signals`
             : `${jpyUsd.toFixed(2)} - Safe: below 158, carry trade stable, low JPY liquidation risk`,
+      /* The card's own sentence, verbatim. Rewording it for the prompt would
+         give the model a second vocabulary for one fact, and a user reading the
+         dashboard and the AI answer would see two claims instead of one. */
+      perpSpot: perpSpotRef.current?.explanation ?? 'Perps vs spot could not be measured for this coin.',
       emaStrategy: strategyToGrokLine(emaSignalRef.current, readTf),
       emaATR: emaSignalRef.current.atrLast != null
         ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 35% buf = $${(emaSignalRef.current.atrLast * 0.35).toFixed(2)} min clearance above/below EMA50`
@@ -973,6 +1025,31 @@ function ArenaContent() {
       return;
     }
 
+    /* UN-HIDE FIRST, BEFORE THE CACHE CHECK (#278).
+     *
+     * Dismiss means "hide this one now", not "stop showing me results", so ANY
+     * new analysis brings the card back - including one served from cache.
+     *
+     * The position is the entire fix. This clear used to live below the cache
+     * check and below the early return, which broke it twice over:
+     *
+     *   - a CACHE HIT returned before ever reaching it, so asking for a fresh
+     *     read on a dismissed coin appeared to do nothing at all;
+     *   - a dismiss landing AFTER this point was never undone, so a result the
+     *     user was waiting for arrived and rendered nothing. They spent a Grok
+     *     call and saw no output.
+     *
+     * The early return above it is correct and stays - serving a fresh cached
+     * result without a Grok call is the right behaviour. The bug was reading
+     * "serve cache silently" as "change nothing", when exactly one thing had to
+     * change. */
+    setDismissedResults(prev => {
+      if (!prev.has(selectedCoin)) return prev;
+      const next = new Set(prev);
+      next.delete(selectedCoin);
+      return next;
+    });
+
     // ── Cache check - skip API call if result is fresh and price hasn't moved >0.5% ──
     // Quick accepts any cached result (Quick or Deep).
     // Deep only accepts a cached Deep result - clicking Deep always re-fetches if last was Quick.
@@ -992,25 +1069,19 @@ function ArenaContent() {
 
     setReadMode(mode);
     setReadLoading(true); setReadError('');
-    setDismissedResults(prev => {
-      if (!prev.has(selectedCoin)) return prev;
-      const next = new Set(prev);
-      next.delete(selectedCoin);
-      return next;
-    });
 
     try {
       // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
       setReadStep('Reading chart…');
       let raw: (string|number)[][];
       if (binanceSym) {
-        const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${readTf}&limit=300`);
+        const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`);
         if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
         raw = await r.json();
       } else {
         // Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first
         const bybitInterval = readTf === '1m' ? '1' : readTf === '5m' ? '5' : readTf === '30m' ? '30' : readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '2h' ? '120' : readTf === '4h' ? '240' : 'D';
-        const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
+        const r = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
         if (!r.ok) throw new Error(t('ARENA_ERROR_BYBIT_API'));
         const data = await r.json();
         raw = [...(data?.result?.list ?? [])].reverse(); // oldest-first to match Binance
@@ -1045,13 +1116,13 @@ function ArenaContent() {
       let rsiDailyStr = '-';
       try {
         if (binanceSym) {
-          const dr = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1d&limit=20`);
+          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=20`);
           const dd = await dr.json() as (string|number)[][];
           const dc = dd.map(k => Number(k[4]));
           const dv = calcRSI(dc, 14).at(-1);
           if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
         } else if (bybitSym) {
-          const dr = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=D&limit=20`);
+          const dr = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=D&limit=20`);
           const dd = await dr.json() as { result?: { list?: string[][] } };
           const dc = [...(dd?.result?.list ?? [])].reverse().map(k => parseFloat(k[4]));
           const dv = calcRSI(dc, 14).at(-1);
@@ -1106,18 +1177,15 @@ function ArenaContent() {
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
-      const entryStr = res.entryLow && res.entryHigh
-        ? `$${fmtPrice(res.entryLow)} – $${fmtPrice(res.entryHigh)}`
-        : '-';
       setHistory(h => [{
         signal: res.signal, confidence: res.confidence,
         coin: ctx.coin, time: new Date().toLocaleTimeString(),
-        entry: entryStr, reasoning: res.reasoning, session: ctx.session,
+        reasoning: res.reasoning, session: ctx.session,
       }, ...h].slice(0, 10));
       if (user && process.env.NEXT_PUBLIC_SUPABASE_URL) {
         getSupabase()!.from(T.signals).insert({
           coin: ctx.coin, signal: res.signal, confidence: res.confidence,
-          entry_zone: entryStr, reasoning: res.reasoning, session: ctx.session,
+          reasoning: res.reasoning, session: ctx.session,
         }).then(() => {});
       }
     } catch (e: unknown) {
@@ -1128,6 +1196,25 @@ function ArenaContent() {
       if (usageFromErr) setGrokUsage(usageFromErr);
     } finally {
       setReadLoading(false); setReadStep('');
+
+      /* REVEAL, on every exit path (#278).
+       *
+       * `finally`, not the success branch, and that is deliberate. On success
+       * there is a new result to show. On FAILURE there is not - and leaving the
+       * coin dismissed would hide the previous card too, so a failed read would
+       * silently cost the user the result they already had, on top of the one
+       * that did not arrive. Restoring it puts them back where they started with
+       * an error banner explaining why, which is the honest outcome.
+       *
+       * `selectedCoin` is the closure value from when the read began, so a user
+       * who switches coins mid-read un-dismisses the coin they actually ran -
+       * not whichever one they are looking at now. */
+      setDismissedResults(prev => {
+        if (!prev.has(selectedCoin)) return prev;
+        const next = new Set(prev);
+        next.delete(selectedCoin);
+        return next;
+      });
     }
   }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache]);
 
@@ -1563,7 +1650,7 @@ function ArenaContent() {
               prompt: result
                 ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
                     coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
-                    entryZone: result.entryLow && result.entryHigh ? `$${fmtPrice(result.entryLow)} – $${fmtPrice(result.entryHigh)}` : '-',
+                    entryZone: '-',  // #260: no levels; ARENA_CHAT_PROMPT_WITH_RESULT still names one - needs a DB row edit
                     reasoning: result.reasoning,
                   })
                 : t('ARENA_CHAT_PROMPT_NO_RESULT', { coin: selectedCoin.toUpperCase() }),
@@ -1702,15 +1789,23 @@ function ArenaContent() {
 
       {readError && <div className="arena-err">{readError}</div>}
 
-      {result && !dismissedResults.has(selectedCoin) && nowMs - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
-        const sigCol = result.signal === 'LONG' ? 'var(--green-2)' : result.signal === 'LEAN LONG' ? 'var(--green-soft)' : result.signal === 'SHORT' ? 'var(--red)' : result.signal === 'LEAN SHORT' ? 'var(--red-soft)' : 'var(--txt3)';
-        const verdictWord = result.signal === 'LONG' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN LONG' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'SHORT' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN SHORT' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
-        const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
-          : result.signal.includes('SHORT') ? 'linear-gradient(160deg,#ff9d9d,#f87171)'
+      {/* `!readLoading`: the card closes the moment Quick or Deep is clicked and
+          the loading indicator above takes its place (#278). Leaving the old
+          verdict on screen while its replacement computes shows a call that is
+          about to change, under an "Updated just now" label that is already
+          wrong - and it is why a user reaches for the dismiss button mid-read in
+          the first place.
+          This is deliberately the LOADING flag and not `dismissedResults`.
+          Hiding via the dismiss set would conflate "the user hid this" with "a
+          read is running", and the two have opposite endings: one persists, the
+          other must not. */}
+      {result && !readLoading && !dismissedResults.has(selectedCoin) && nowMs - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
+        const sigCol = result.signal === 'BULLISH' ? 'var(--green-2)' : result.signal === 'LEAN BULLISH' ? 'var(--green-soft)' : result.signal === 'BEARISH' ? 'var(--red)' : result.signal === 'LEAN BEARISH' ? 'var(--red-soft)' : 'var(--txt3)';
+        const verdictWord = result.signal === 'BULLISH' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN BULLISH' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'BEARISH' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN BEARISH' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
+        const sigGrad = result.signal.includes('BULLISH') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
+          : result.signal.includes('BEARISH') ? 'linear-gradient(160deg,#ff9d9d,#f87171)'
           : 'linear-gradient(160deg,#d8dee9,#9ca3af)';
         const whyLine = (result.reasoning || '').split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
-        const entryMid = result.entryLow && result.entryHigh ? (result.entryLow + result.entryHigh) / 2 : null;
-        const rr = entryMid && result.sl && result.tp ? Math.abs((result.tp - entryMid) / (entryMid - result.sl)) : null;
         const coinD = store.coins[selectedCoin];
         const frPct = coinD?.fundingRate != null ? coinD.fundingRate * 100 : null;
         const GC = 'var(--green-2)', RC = 'var(--red)', NC = 'var(--txt3)';
@@ -1722,7 +1817,7 @@ function ArenaContent() {
         // own absolute up/down claim - "Trend down" next to a LONG verdict read like the
         // page was contradicting itself, when really it's one input the AI weighed against
         // the others and still called LONG anyway.
-        const verdictDir = result.signal.includes('LONG') ? 'long' : result.signal.includes('SHORT') ? 'short' : null;
+        const verdictDir = result.signal.includes('BULLISH') ? 'long' : result.signal.includes('BEARISH') ? 'short' : null;
         const ribbonRel = !verdictDir || !emaSignal.signalDir ? 'neutral'
           : emaSignal.signalDir === verdictDir ? 'agrees' : 'opposes';
         const factors = [
@@ -1750,15 +1845,8 @@ function ArenaContent() {
         // Checked in this priority order (stop first) so a candle that gaps past both
         // levels in one move is reported as invalidated, not as a win.
         const currentPrice = store.coins[selectedCoin]?.price ?? null;
-        const isLongDir  = result.signal === 'LONG' || result.signal === 'LEAN LONG';
-        const isShortDir = result.signal === 'SHORT' || result.signal === 'LEAN SHORT';
-        const levelStatus: 'stopped' | 'target' | null =
-          currentPrice == null || (!isLongDir && !isShortDir) ? null
-          : isLongDir  && result.sl != null && currentPrice <= result.sl ? 'stopped'
-          : isShortDir && result.sl != null && currentPrice >= result.sl ? 'stopped'
-          : isLongDir  && result.tp != null && currentPrice >= result.tp ? 'target'
-          : isShortDir && result.tp != null && currentPrice <= result.tp ? 'target'
-          : null;
+        const isLongDir  = result.signal === 'BULLISH' || result.signal === 'LEAN BULLISH';
+        const isShortDir = result.signal === 'BEARISH' || result.signal === 'LEAN BEARISH';
         return (
           <div className={`arena-signal-card sig-${result.signal.toLowerCase().replace(' ', '-')}`}>
             <button
@@ -1808,83 +1896,14 @@ function ArenaContent() {
               ))}
             </div>
 
-            {/* Entry / Stop / Targets / R:R grid (click any cell to copy) */}
-            <div className="av-levels">
-              <button className="av-lv" title={t('ARENA_COPY_ENTRY_TITLE')} onClick={() => {
-                if (!(result.entryLow && result.entryHigh)) return;
-                navigator.clipboard.writeText(`${fmtPrice(result.entryLow)}–${fmtPrice(result.entryHigh)}`).catch(() => {});
-                setCopiedKey('entry'); setTimeout(() => setCopiedKey(null), 1500);
-              }}>
-                <div className="av-lv-k">{t('ARENA_ENTRY_ZONE_LABEL')}</div>
-                <div className="av-lv-v">{copiedKey === 'entry' ? t('ARENA_COPIED_LONG') : (result.entryLow && result.entryHigh ? `${fmtPrice(result.entryLow)}–${fmtPrice(result.entryHigh)}` : '-')}</div>
-              </button>
-              <button className="av-lv" title={t('ARENA_COPY_STOP_TITLE')} onClick={() => {
-                if (!result.sl) return;
-                navigator.clipboard.writeText(fmtPrice(result.sl)).catch(() => {});
-                setCopiedKey('sl'); setTimeout(() => setCopiedKey(null), 1500);
-              }}>
-                <div className="av-lv-k">{t('ARENA_STOP_LABEL')}</div>
-                <div className="av-lv-v rd">{copiedKey === 'sl' ? t('ARENA_COPIED_SHORT') : (result.sl ? fmtPrice(result.sl) : '-')}</div>
-              </button>
-              <button className="av-lv" title={t('ARENA_COPY_TARGET_TITLE')} onClick={() => {
-                if (!result.tp) return;
-                navigator.clipboard.writeText(fmtPrice(result.tp)).catch(() => {});
-                setCopiedKey('tp'); setTimeout(() => setCopiedKey(null), 1500);
-              }}>
-                <div className="av-lv-k">{t('ARENA_TARGETS_LABEL')}</div>
-                <div className="av-lv-v gr">{copiedKey === 'tp' ? t('ARENA_COPIED_SHORT') : (result.tp ? fmtPrice(result.tp) : '-')}</div>
-              </button>
-              <div className="av-lv" style={{ cursor: 'default' }}>
-                <div className="av-lv-k">{t('ARENA_RR_LABEL')}</div>
-                <div className="av-lv-v">{rr ? rr.toFixed(1) : '-'}</div>
-              </div>
-            </div>
 
-            {/* Live invalidation/target-hit - price has already moved past this
-                thesis's stop or target since the analysis ran. Same visual
-                treatment as the raid block below (colored border+bg card) so it
-                reads as the same family of "important state" callout. */}
-            {levelStatus === 'stopped' && (
-              <div style={{
-                marginTop: 8, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8,
-                border: '0.5px solid rgba(248,113,113,0.35)', background: 'rgba(248,113,113,0.09)',
-                padding: '9px 12px',
-              }}>
-                <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
-                <div>
-                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--red)' }}>
-                    {t('ARENA_STOP_HIT_HEADER')}
-                  </div>
-                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-                    {t('ARENA_STOP_HIT_BODY', { price: fmtPrice(result.sl!) })}
-                  </div>
-                </div>
-              </div>
-            )}
-            {levelStatus === 'target' && (
-              <div style={{
-                marginTop: 8, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8,
-                border: '0.5px solid rgba(52,211,153,0.35)', background: 'rgba(52,211,153,0.09)',
-                padding: '9px 12px',
-              }}>
-                <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>✓</span>
-                <div>
-                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--green-2)' }}>
-                    {t('ARENA_TARGET_HIT_HEADER')}
-                  </div>
-                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-                    {t('ARENA_TARGET_HIT_BODY', { price: fmtPrice(result.tp!) })}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Wait-for - single inline row matching the mockup's .waitfor style */}
             {result.waitFor && (
               <div className="av-waitfor">
                 <span>⏳</span>
                 <div>
-                  <b>{result.signal === 'LEAN SHORT' ? t('ARENA_CONFIRMS_TO_SHORT') : result.signal === 'LEAN LONG' ? t('ARENA_CONFIRMS_TO_LONG') : t('ARENA_WAIT_FOR')}</b>{' '}
+                  <b>{result.signal === 'LEAN BEARISH' ? t('ARENA_CONFIRMS_TO_SHORT') : result.signal === 'LEAN BULLISH' ? t('ARENA_CONFIRMS_TO_LONG') : t('ARENA_WAIT_FOR')}</b>{' '}
                   {result.waitFor}
                   {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                     <span style={{
@@ -1954,6 +1973,46 @@ function ArenaContent() {
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} onStructure={setChartStructure} />
+      {/* Directly under the chart, on the owner's request (#370). The read
+          refers to what the chart shows - "price below EMAs", "closing below
+          the swing low", "lower wick at Fib support" - so anything between
+          them makes the reader hold the chart in their head while scrolling.
+
+          This pushes the EMA Ribbon card down one slot. The comment there
+          says it "sits directly under the chart"; that was true and is no
+          longer, and the owner asked for this order explicitly. */}
+      {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
+      {result && (
+        <>
+          {result.chartAnalysis && (
+            <div className="arena-reasoning" style={{ margin: '10px 0' }}>
+              <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
+              <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
+            </div>
+          )}
+          {result.patterns && result.patterns.length > 0 && (
+            <div style={{ margin: '10px 0' }}>
+              <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {result.patterns.map((p, i) => {
+                  const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
+                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
+                  const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
+                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
+                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
+                  return (
+                    <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div className="arena-reasoning">
+            <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
+            <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
+          </div>
+        </>
+      )}
 
       {/* Anti-chop filter toggle */}
       <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -2108,38 +2167,6 @@ function ArenaContent() {
           the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
           look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
       <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
-      {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
-      {result && (
-        <>
-          {result.chartAnalysis && (
-            <div className="arena-reasoning" style={{ margin: '10px 0' }}>
-              <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
-              <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
-            </div>
-          )}
-          {result.patterns && result.patterns.length > 0 && (
-            <div style={{ margin: '10px 0' }}>
-              <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {result.patterns.map((p, i) => {
-                  const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
-                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
-                  const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
-                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
-                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
-                  return (
-                    <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <div className="arena-reasoning">
-            <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
-            <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
-          </div>
-        </>
-      )}
       {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (
         <div style={{ marginTop: 20 }}>
@@ -2159,8 +2186,8 @@ function ArenaContent() {
                 style={{ cursor: 'pointer' }}
               >
                 <div className="arena-hist-left">
-                  <span className={`arena-hist-badge tag ${h.signal === 'LONG' || h.signal === 'LEAN LONG' ? 'tg' : h.signal === 'SHORT' || h.signal === 'LEAN SHORT' ? 'tr' : 'tp'}`}>
-                    {h.signal === 'LONG' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN LONG' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'SHORT' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN SHORT' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
+                  <span className={`arena-hist-badge tag ${h.signal === 'BULLISH' || h.signal === 'LEAN BULLISH' ? 'tg' : h.signal === 'BEARISH' || h.signal === 'LEAN BEARISH' ? 'tr' : 'tp'}`}>
+                    {h.signal === 'BULLISH' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN BULLISH' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'BEARISH' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN BEARISH' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
                   </span>
                   <div>
                     <div className="arena-hist-pair">{h.coin}</div>
@@ -2177,7 +2204,7 @@ function ArenaContent() {
                 <div className={`arena-hist-detail sig-${h.signal.toLowerCase().replace(' ', '-')}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <span className={`arena-sig-badge badge-${h.signal.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 'var(--fs-caption)' }}>
-                      {h.signal === 'LONG' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN LONG' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'SHORT' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN SHORT' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
+                      {h.signal === 'BULLISH' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN BULLISH' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'BEARISH' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN BEARISH' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
                     </span>
                     <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent-2)' }}>{t('ARENA_HIST_CONFIDENCE_PCT', { pct: h.confidence })}</div>
                   </div>
@@ -2190,7 +2217,7 @@ function ArenaContent() {
                   <div className="arena-conf-bar" style={{ marginBottom: 10 }}>
                     <div className="arena-conf-fill" style={{
                       width: h.confidence + '%',
-                      background: h.signal === 'LONG' ? '#7de0a4' : h.signal === 'LEAN LONG' ? '#86efac' : h.signal === 'SHORT' ? '#ff9a92' : h.signal === 'LEAN SHORT' ? '#fca5a5' : '#606060',
+                      background: h.signal === 'BULLISH' ? '#7de0a4' : h.signal === 'LEAN BULLISH' ? '#86efac' : h.signal === 'BEARISH' ? '#ff9a92' : h.signal === 'LEAN BEARISH' ? '#fca5a5' : '#606060',
                     }} />
                   </div>
                   {h.reasoning && (

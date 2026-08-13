@@ -22,7 +22,7 @@ const CACHE_KEY = 'lhq_vol_regime';
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours - daily data barely changes
 
 function calcHV(symbol: string): Promise<HVData | null> {
-  return fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=152`)
+  return fetch(`/api/market/klines?source=binance&symbol=${symbol}&interval=1d&limit=152`)
     .then(r => r.ok ? r.json() : null)
     .then((data: [number, string, string, string, string][] | null) => {
       if (!data || data.length < 32) return null;
@@ -107,7 +107,12 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
       </div>
 
       {/* Percentile track */}
-      <div style={{ position: 'relative', height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'visible' }}>
+      {/* dir="ltr": a QUANTITATIVE AXIS DOES NOT MIRROR (#353).
+           Arabic text reads right-to-left; a 0-100 percentile track does not. Flipping
+           this puts every marker at a position meaning a different value -
+           rendering perfectly and lying. Explicit rather than inherited, so
+           it stays true when the document direction changes. */}
+      <div dir="ltr" style={{ position: 'relative', height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'visible' }}>
         {/* Low zone (0–20%) */}
         <div style={{ position: 'absolute', left: 0, width: '20%', height: '100%', background: 'rgba(52,211,153,0.2)', borderRadius: '3px 0 0 3px' }} />
         {/* High zone (80–100%) */}

@@ -4,6 +4,7 @@ import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendWelcomeEmail } from '@/lib/email';
 import { T } from '@/lib/tables';
+import { classifyWelcomeClaim, missingRowReport } from '@/lib/signupIntegrity';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,37 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (error) return apiError('auth/welcome-email', error);
-    if (!claimed) return NextResponse.json({ ok: true, sent: false });
+
+    if (!claimed) {
+      /* `claimed` is null for two completely different reasons, and this route
+         used to answer both with `{ ok: true, sent: false }`:
+
+           - the row exists and the email already went out  -> normal
+           - THERE IS NO ROW                                -> #127
+
+         The second means the signup trigger did not run, so the account has no
+         14-day trial - and nothing anywhere would say so, because
+         getEntitlement() reads a missing row as `free` exactly as it reads an
+         expired trial. This route is the only code every signup passes through
+         that already looks at that row, so it is where the difference can be
+         noticed at all. */
+      const { data: row } = await admin
+        .from(T.user_subscriptions)
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const outcome = classifyWelcomeClaim(false, !!row);
+      if (outcome === 'missing-subscription-row') {
+        // Reported, not thrown. The user is signed in and their session is
+        // fine; failing their first request would turn a silent defect into a
+        // broken signup. Loud where it needs to be loud - GlitchTip - and
+        // invisible where the user is concerned.
+        apiError('auth/welcome-email', new Error(missingRowReport(user.id)));
+      }
+
+      return NextResponse.json({ ok: true, sent: false, outcome });
+    }
 
     const sent = await sendWelcomeEmail({ to: user.email });
     return NextResponse.json({ ok: true, sent });

@@ -91,7 +91,12 @@ export default function CycleDayCounter() {
           }} />
         </div>
         {/* Peak window markers */}
-        <div style={{ position: 'relative', height: 12, marginTop: 2 }}>
+        {/* dir="ltr": a QUANTITATIVE AXIS DOES NOT MIRROR (#353).
+             Arabic text reads right-to-left; a cycle-window ratio does not. Flipping
+             this puts every marker at a position meaning a different value -
+             rendering perfectly and lying. Explicit rather than inherited, so
+             it stays true when the document direction changes. */}
+        <div dir="ltr" style={{ position: 'relative', height: 12, marginTop: 2 }}>
           <span style={{
             position: 'absolute', fontSize: '0.6875rem', color: 'var(--amber)',
             left: `${(PEAK_WINDOW.start / PEAK_WINDOW.end) * 100}%`,

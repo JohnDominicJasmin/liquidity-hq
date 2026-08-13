@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getCheckoutUrl } from '@/lib/checkout';
+import { getCheckoutUrl, isCheckoutConfigured } from '@/lib/checkout';
 import { useLabels } from '@/lib/labels';
 
 interface Props {
@@ -62,10 +62,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
 // signup with /upgrade as the destination.
 function useCheckoutHref() {
   const { user } = useAuth();
-  const checkoutConfigured = !!(
-    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
-    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
-  );
+  const checkoutConfigured = isCheckoutConfigured();
   return checkoutConfigured
     ? getCheckoutUrl(user)
     : user ? '/upgrade' : '/login?signup=1&next=/upgrade';
@@ -192,7 +189,10 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
           {([
             'UPGRADE_GATE_BULLET_1',
             'UPGRADE_GATE_BULLET_2',
-            'UPGRADE_GATE_BULLET_3',
+            /* BULLET_3 is "Full backtesting across every coin and timeframe" and is
+               omitted while /backtest is hidden (#273) - same reason as the
+               /upgrade Pro list. Key and default kept so restoring it is this one
+               line. Must come back in step with the redirect in proxy.ts. */
             'UPGRADE_GATE_BULLET_4',
           ] as const).map(k => (
             <li key={k} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.5 }}>

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { gotoGuarded } from './_shared';
 
 /**
  * Credentials + token minting for the authenticated specs.
@@ -53,17 +54,49 @@ export const FIXTURES = {
 } as const;
 
 
-/** Everything the authenticated specs need, or they must skip rather than pass. */
-export const AUTH_READY =
-  !!(SUPABASE_URL && SUPABASE_ANON &&
-     FIXTURES.aEmail && FIXTURES.aPassword && FIXTURES.bEmail && FIXTURES.bPassword &&
-     FIXTURES.tradeId && FIXTURES.hypothesisId && FIXTURES.priceAlertId &&
-     FIXTURES.bPriceAlertId);
+/* Everything the authenticated specs need, or they must skip rather than pass.
+ *
+ * NAMED INDIVIDUALLY so the skip message can say WHICH one is missing. The
+ * previous version was a single boolean and a message listing every variable as
+ * a glob (`E2E_USER_A_* / E2E_USER_B_* / E2E_A_*_ID / ...`), which is accurate
+ * and useless: it cannot distinguish "no fixtures at all" from "nine of ten".
+ *
+ * That cost real time on 2026-08-10. `E2E_B_PRICE_ALERT_ID` alone was absent
+ * from `.env.e2e.local` - CI supplies it as a GitHub *variable* rather than a
+ * secret, so it never made it into the local file - and its absence silently
+ * skipped ALL TWENTY authenticated tests, including the entire BOLA/IDOR
+ * security suite. Combined with the browser suite not running in CI at the time
+ * (#207), the authenticated surface was covered by nothing anywhere, and the
+ * only symptom was `20 skipped` scrolling past.
+ *
+ * A skip that does not name its cause is a silent gap with extra steps. */
+const REQUIRED_FIXTURES: ReadonlyArray<readonly [name: string, value: string]> = [
+  ['NEXT_PUBLIC_SUPABASE_URL', SUPABASE_URL],
+  ['NEXT_PUBLIC_SUPABASE_ANON_KEY', SUPABASE_ANON],
+  ['E2E_USER_A_EMAIL', FIXTURES.aEmail],
+  ['E2E_USER_A_PASSWORD', FIXTURES.aPassword],
+  ['E2E_USER_B_EMAIL', FIXTURES.bEmail],
+  ['E2E_USER_B_PASSWORD', FIXTURES.bPassword],
+  ['E2E_A_TRADE_ID', FIXTURES.tradeId],
+  ['E2E_A_HYPOTHESIS_ID', FIXTURES.hypothesisId],
+  ['E2E_A_PRICE_ALERT_ID', FIXTURES.priceAlertId],
+  ['E2E_B_PRICE_ALERT_ID', FIXTURES.bPriceAlertId],
+];
+
+const MISSING_FIXTURES = REQUIRED_FIXTURES.filter(([, v]) => !v).map(([n]) => n);
+
+export const AUTH_READY = MISSING_FIXTURES.length === 0;
 
 export const AUTH_SKIP_REASON =
-  'authenticated fixtures absent - set E2E_USER_A_* / E2E_USER_B_* / E2E_A_*_ID / E2E_B_PRICE_ALERT_ID ' +
-  '(see the issue "QA unblocked: two seeded test accounts"). Skipping rather than ' +
-  'passing: a BOLA test that runs without fixtures proves nothing.';
+  `authenticated fixtures absent - MISSING: ${MISSING_FIXTURES.join(', ')}. ` +
+  'Set them in `.env.e2e.local` (gitignored) or as env vars. Note that CI supplies ' +
+  'E2E_A_PRICE_ALERT_ID and E2E_B_PRICE_ALERT_ID as GitHub VARIABLES rather than secrets - ' +
+  'they are row ids in the dev database, not credentials - so they are easy to miss when ' +
+  'copying a local file from the secret list. See the issue "QA unblocked: two seeded test ' +
+  'accounts".\n\n' +
+  'Skipping rather than passing: a BOLA test that runs without fixtures proves nothing. ' +
+  'But a skip is NOT a pass either - if you are seeing this, the authenticated surface ' +
+  'is being verified by nothing at all in this run.';
 
 /* ENTITLEMENT FIXTURES ARE A AND B, PINNED.
  *
@@ -179,7 +212,7 @@ export async function gotoSignedIn(
   page: import('@playwright/test').Page,
   path: string,
 ): Promise<void> {
-  await page.goto(path, { waitUntil: 'domcontentloaded' });
+  await gotoGuarded(page, path);
   await page.waitForTimeout(4000);
 
   const state = await page.evaluate(() => {

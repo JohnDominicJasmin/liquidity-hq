@@ -34,6 +34,10 @@ export interface EconEvent {
   previous?: string;
   estimate?: string;
   actual?: string;
+  /* The DATE is a computed approximation, not a published release date (#245).
+     Distinct from `estimate`, which is a forecast VALUE - these two are easy to
+     confuse and mean opposite things. */
+  estimated?: boolean;
 }
 
 export interface GeoEvent {
@@ -74,13 +78,31 @@ interface NewsRow {
 export interface CalEvent {
   name: string; type: string; isoDate: string; impact: string;
   previous?: string; estimate?: string; actual?: string;
+  /* Mirrors the API type (#245). A computed date, not a published one. */
+  estimated?: boolean;
 }
+
+/* 24 HOURS (#298).
+ *
+ * Production ingests this hourly, so a day without a write means the writer has
+ * stopped rather than run late - short enough to catch a real outage, long
+ * enough that ordinary jitter never trips it. Non-prod has no ingest schedule at
+ * all by deliberate decision (#261), so those hosts sit permanently stale, which
+ * is correct and is exactly what this makes visible.
+ */
+const ECON_STALE_MS = 24 * 60 * 60 * 1000;
 
 interface NewsCtx {
   alerts: Alert[];
   dismissAlert: (id: number) => void;
   econEvents: EconEvent[];
   econRaw: CalEvent[];
+  /** True when the econ snapshot is older than ECON_STALE_MS, or its age could
+   *  not be determined. Consumers must not report "no upcoming events" from a
+   *  stale set - the events are fine, the SET is incomplete (#298). */
+  econStale: boolean;
+  /** Age of the snapshot in ms, or null if unknown. For display only. */
+  econAgeMs: number | null;
   geoEvents: GeoEvent[];
   eventsLoaded: boolean;
   alertsLoaded: boolean;  // true once the initial news read has been applied
@@ -130,6 +152,10 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [econEvents, setEconEvents] = useState<EconEvent[]>([]);
   const [econRaw, setEconRaw] = useState<CalEvent[]>([]);
+  /* Age of the econ snapshot at read time, or null when unknown (#298).
+     null and 0 mean different things: null is "we could not tell", which is the
+     same caution state as stale. */
+  const [econStaleMs, setEconStaleMs] = useState<number | null>(null);
   const [newsRows, setNewsRows] = useState<NewsRow[]>([]);
   // Replaces a `geoTick` counter that existed only to force the relative
   // timestamps below to recompute, and which had to be referenced with a
@@ -148,6 +174,9 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   // read their current values - it is created once and would otherwise close
   // over whatever they were on first render.
   const alertsLoadedRef = useRef(false);
+  /* Unknown age is treated as stale: we cannot show that the set is complete,
+     and claiming freshness we have not established is the failure this fixes. */
+  const econStale = econStaleMs === null || econStaleMs > ECON_STALE_MS;
   const eventsLoadedRef = useRef(false);
 
   const pushAlert = useCallback((
@@ -235,7 +264,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
         const h = (dt.getTime() - now.getTime()) / 3600000;
         if (h < -24) return [];
         seen.add(key);
-        return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toLocalTime(dt), previous: e.previous, estimate: e.estimate, actual: e.actual }];
+        return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toLocalTime(dt), previous: e.previous, estimate: e.estimate, actual: e.actual, estimated: e.estimated }];
       })
       .sort((a, b) => a.dt.getTime() - b.dt.getTime());
     setEconRaw(raw);
@@ -307,13 +336,32 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     };
 
     const hydrateEcon = async () => {
+      /* `updated_at` as well as `events` (#298).
+       *
+       * The table has always recorded when the snapshot was written and this
+       * read threw it away, so a calendar the cron stopped feeding was
+       * indistinguishable from a current one.
+       *
+       * The rows themselves are not the problem - expired events are already
+       * dropped at the `h < -24` filter below, and `computeMacroRisk` ignores
+       * anything more than five minutes past. The problem is the SET: when the
+       * writer stops, events scheduled or corrected since then are simply
+       * absent, and `computeMacroRisk` then reports `level: 'none'` for a
+       * genuinely imminent release because it is not in the array to be found.
+       *
+       * A false "no macro risk" is stated exactly as confidently as a true one,
+       * which is why this needs to travel with the data rather than be inferred
+       * by each consumer. */
       const { data } = await sb
         .from(T.econ_snapshot)
-        .select('events')
+        .select('events, updated_at')
         .eq('key', 'us_high_impact')
         .maybeSingle();
       if (!live) return;
-      const events = (data as { events?: CalEvent[] } | null)?.events;
+      const snap = data as { events?: CalEvent[]; updated_at?: string } | null;
+      const writtenMs = snap?.updated_at ? new Date(snap.updated_at).getTime() : NaN;
+      setEconStaleMs(Number.isNaN(writtenMs) ? null : Date.now() - writtenMs);
+      const events = snap?.events;
       if (events?.length) applyEconSnapshot(events);
       else setEventsLoaded(true);
     };
@@ -395,7 +443,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const newsActive = alerts.some(a => nowMs / 1000 - a.ts < 5 * 60);
 
   return (
-    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, econRaw, geoEvents, eventsLoaded, alertsLoaded, newsActive, latestHeadlines, whaleAlerts }}>
+    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, econRaw, econStale, econAgeMs: econStaleMs, geoEvents, eventsLoaded, alertsLoaded, newsActive, latestHeadlines, whaleAlerts }}>
       {children}
     </NewsContext.Provider>
   );

@@ -21,7 +21,13 @@ export async function GET(req: NextRequest) {
       if (!rate) throw new Error('no JPY in response');
       return rate;
     }, rate => ({ detail: String(rate) }));
-    return NextResponse.json({ jpy }, { headers: { 'Cache-Control': 'public, max-age=300' } });
+    /* `s-maxage`, not `max-age`. The old header cached per-BROWSER only, so
+       every new visitor still cost an upstream call - the shared cache is the
+       whole point of #177. Kept at 300s; added swr so a slow upstream serves
+       stale rather than blocking. */
+    return NextResponse.json({ jpy }, {
+      headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' },
+    });
   } catch (e) {
     return apiError('forex/jpy', e, 502, 'Upstream fetch failed');
   }

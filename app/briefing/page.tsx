@@ -191,12 +191,37 @@ export default function MorningBriefing() {
   const { user }                               = useAuth();
   const { usage, setUsage }                    = useGrokUsage();
   const { t }                                   = useLabels();
-  const [now, setNow]           = useState<Date>(localNow);
+  /* NULL UNTIL THE BROWSER HAS MOUNTED, and that is the whole fix for #193.
+   *
+   * This was `useState<Date>(localNow)`. `'use client'` does not mean
+   * client-only - Next still renders this component on the server to produce the
+   * initial HTML, so the lazy initialiser ran twice against two different
+   * clocks IN TWO DIFFERENT TIMEZONES. React then found different text and threw
+   * #418, 75 times in production and once per load for every user outside the
+   * server's zone.
+   *
+   * Measured, and the timezone is the part that matters - milliseconds would
+   * only have broken the minute display:
+   *
+   *   server  "Sun, Aug 9"      <div className="mb-subtitle">
+   *   client  "Mon, Aug 10"     (America/New_York)
+   *
+   * A whole day apart, so this was never a near-miss that usually agreed.
+   *
+   * `null` renders identically on the server and on the client's FIRST render,
+   * which is the only render hydration compares. The effect below then sets the
+   * real clock, and everything downstream re-renders with it. */
+  const [now, setNow]           = useState<Date | null>(null);
   // Milliseconds form of the same ticking clock. The event/freshness maths
   // below used to call Date.now() directly, which both made render impure and
   // quietly ignored this state - meaning the "next 24h" and "already released"
   // cutoffs did not actually move with the minute tick that exists right here.
-  const nowMs = now.getTime();
+  /* 0 while the clock is unknown, and that is deliberate rather than a fallback
+   * nobody thought about. Every real event is decades after the epoch, so the
+   * "within the next 24h" filters below evaluate to EMPTY at 0 - the first paint
+   * shows no urgent events rather than the wrong ones, on both server and
+   * client, and the real list appears a frame later. */
+  const nowMs = now?.getTime() ?? 0;
   const [generating, setGen]    = useState(false);
   const [briefErr, setBriefErr] = useState('');
   const [jpyUsd, setJpyUsd]     = useState<number | null>(null);
@@ -231,8 +256,17 @@ export default function MorningBriefing() {
     } catch { /* */ }
   }
 
-  /* Tick once per minute so header time stays fresh */
+  /* Set the clock on mount, then tick once per minute so the header stays fresh.
+   * The immediate call is not decoration - without it the header would stay
+   * blank for up to 60 seconds waiting for the first interval. */
   useEffect(() => {
+    /* `set-state-in-effect` is right about the general case and wrong about this
+       one. Reading a browser-only value after mount is precisely what an effect
+       is for, and it is the only place this CAN be read: the whole point of #193
+       is that the server must not produce this value. Same reasoning as the
+       `react-hooks/purity` disable in setBrief above. */
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(localNow());
     const timer = setInterval(() => setNow(localNow()), 60_000);
     return () => clearInterval(timer);
   }, []);
@@ -253,9 +287,13 @@ export default function MorningBriefing() {
 
   const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const h = now.getHours(), m = now.getMinutes();
-  const timeStr = `${pad2(h % 12 || 12)}:${pad2(m)} ${h >= 12 ? 'PM' : 'AM'} ${localZoneAbbr()}`;
-  const dateStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+  /* Empty until the clock exists. `localZoneAbbr()` is the SECOND client-only
+   * value on this line and it is not mentioned in #193 - it reads the browser's
+   * zone, so it mismatches for exactly the same reason and would have kept
+   * throwing after the date was fixed. Both are behind the same guard. */
+  const h = now?.getHours() ?? 0, m = now?.getMinutes() ?? 0;
+  const timeStr = now ? `${pad2(h % 12 || 12)}:${pad2(m)} ${h >= 12 ? 'PM' : 'AM'} ${localZoneAbbr()}` : '';
+  const dateStr = now ? `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}` : '';
 
   /* Coin rows */
   const coinRows = COINS.map(id => ({
@@ -363,7 +401,10 @@ export default function MorningBriefing() {
   const jpyPct        = jpyUsd != null ? Math.max(0, Math.min(100, ((jpyUsd - 140) / 25) * 100)) : 0;
   const warn158Pct    = ((158 - 140) / 25) * 100;  // 72%
   const danger160Pct  = ((160 - 140) / 25) * 100;  // 80%
-  const jpyMinutesAgo = jpyUpdated ? Math.round((now.getTime() - jpyUpdated.getTime()) / 60_000) : null;
+  /* `jpyUpdated` is only ever set from the fetch effect, so it cannot be
+     non-null while `now` is still null - but the compiler cannot know that and
+     `nowMs` already carries the same guard. Reusing it rather than asserting. */
+  const jpyMinutesAgo = jpyUpdated ? Math.round((nowMs - jpyUpdated.getTime()) / 60_000) : null;
 
   return (
     <div>
@@ -371,7 +412,10 @@ export default function MorningBriefing() {
       {/* ── Header ── */}
       <div className="mb-header">
         <h1 className="mb-title">{t('BRIEFING_PAGE_TITLE')}</h1>
-        <div className="mb-subtitle">{dateStr} · {timeStr}</div>
+        {/* The separator lives inside the guard too, or the first paint is a
+            lone "·" floating under the title. Non-breaking space holds the
+            line's height so the header does not jump when the clock arrives. */}
+        <div className="mb-subtitle">{now ? `${dateStr} · ${timeStr}` : ' '}</div>
       </div>
 
       <PageHint
@@ -621,7 +665,13 @@ export default function MorningBriefing() {
             </div>
 
             {/* Danger zone bar */}
-            <div style={{ position: 'relative', paddingBottom: 18, marginBottom: 6 }}>
+            {/* dir="ltr": a QUANTITATIVE AXIS DOES NOT MIRROR (#353).
+                 Arabic text reads right-to-left; a 140-165 USD/JPY scale does not.
+                 Flipping this would put the low end on the right and every
+                 marker at a position meaning a different value - rendering
+                 perfectly and lying. Explicit rather than inherited so it stays
+                 true when the document direction changes. */}
+            <div dir="ltr" style={{ position: 'relative', paddingBottom: 18, marginBottom: 6 }}>
               <div style={{
                 height: 6, borderRadius: 3, overflow: 'hidden',
                 background: `linear-gradient(to right,

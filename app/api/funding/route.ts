@@ -104,7 +104,16 @@ export async function GET(req: NextRequest) {
 
       return { data, ts: Date.now() };
     });
-    return NextResponse.json(result);
+    /* Edge cache, so upstream cost stops scaling with visitors (#177).
+       Funding settles on a fixed 8-hour schedule, so 60s is already far tighter
+       than the data moves. CACHE_TTL above is the in-process cache and only
+       collapses concurrent requests on ONE instance; this collapses them across
+       every visitor. The two are complementary, not duplicates.
+       Success only - the 429 and the 500 above must never be cached, or one
+       rate-limited request serves an error to everyone for a minute. */
+    return NextResponse.json(result, {
+      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600' },
+    });
   } catch (err) {
     return apiError('funding', err, 500, 'Request failed');
   }

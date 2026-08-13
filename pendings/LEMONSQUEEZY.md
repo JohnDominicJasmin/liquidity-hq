@@ -1,12 +1,50 @@
 # LemonSqueezy — Payment Feature
 
-**Status 2026-08-01: the code is finished. What is left is dashboard and
-environment configuration, all of which needs the owner.**
+**Status 2026-08-11: a test-mode dry run is in progress on STAGING. Production
+is untouched — every step in the list below is still outstanding for prod.**
 
-Payments are not live: `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` is unset, so
-`/upgrade` renders "Pro payments launching soon" instead of a checkout button
-(`CHECKOUT_CONFIGURED` in `app/upgrade/page.tsx`), and `UpgradeGateModal` falls
-back the same way. Nothing is broken — there is simply no way to pay yet.
+Read that distinction carefully, because this file used to state "payments are
+not live" as a flat fact and that is now true of only one environment.
+
+### Staging — `liquidity-hq-staging`, test mode
+
+| | |
+|---|---|
+| Product/variant at $25/mo | created |
+| Checkout URL | `checkout.liquidity-hq.com/checkout/buy/0e357d1e-…`, on our own subdomain |
+| `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` | **set**, and confirmed inlined into the deployed build |
+| Test-mode webhook | created, all 7 events, pointed at the staging route |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` | **not set yet** — staging returns 401 to every delivery, which is fail-closed working as designed |
+
+Verified on 2026-08-11 against the deployed service, not from the dashboard:
+`/upgrade` renders the real **"Get Pro - $25/mo →"** button and the "launching
+soon" copy is gone.
+
+**How to check this, because the obvious check is wrong.** The CTA is a
+`<button onClick={handleCheckout}>` that sets `window.location.href` at click
+time (`app/upgrade/page.tsx`), so the checkout URL is **never in the DOM**.
+Scanning for an `<a href>` containing the store domain reports a false failure
+every time. Assert on the button text and the absence of the fallback copy, or
+grep the served JS chunks for the URL — it is inlined into exactly one.
+
+### Production — nothing done
+
+`NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` is unset on prod, so `/upgrade` there
+still renders "Pro payments launching soon" (`CHECKOUT_CONFIGURED` in
+`app/upgrade/page.tsx`), and `UpgradeGateModal` falls back the same way. Nothing
+is broken — there is simply no way to pay yet.
+
+**Prod needs its own everything**: its own live-mode webhook (test and live
+webhooks are separate objects in LemonSqueezy), its own secret, and its own
+build with the URL inlined. Nothing configured on staging carries over, and a
+prod secret must never be copied to a non-prod service.
+
+> ⚠️ **Before the first real purchase, someone has to decide what Pro actually
+> includes.** `/backtest` and `/live-tracking` were hidden on 2026-08-11 (#264),
+> but the Pro sales copy still advertises "Full strategy backtesting" on the
+> `/upgrade` pricing card, in the upsell modal, and on the public `/faq`. As of
+> today a buyer would be paying for a feature that redirects to the Dashboard.
+> Owner decision — raised on #265, not resolved.
 
 ## ❓ YOUR action — the only thing standing between here and revenue
 

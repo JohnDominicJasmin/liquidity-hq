@@ -345,11 +345,11 @@ export default function GrokChat() {
         const by = BYBIT_SYMS[coin] as string | undefined;
         let raw: (string | number)[][];
         if (bn) {
-          const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bn}&interval=1h&limit=300`);
+          const r = await fetch(`/api/market/klines?source=binance&symbol=${bn}&interval=1h&limit=300`);
           if (!r.ok) throw new Error('binance');
           raw = await r.json();
         } else if (by) {
-          const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${by}&interval=60&limit=300`);
+          const r = await fetch(`/api/market/klines?source=bybit&symbol=${by}&interval=60&limit=300`);
           if (!r.ok) throw new Error('bybit');
           raw = [...((await r.json())?.result?.list ?? [])].reverse();
         } else return;
@@ -367,10 +367,27 @@ export default function GrokChat() {
   }, [coin, open]);
 
   /* ── Hide FAB while scrolling (mobile only) ── */
+  /* `open` is read through a ref rather than a dependency (#326).
+   *
+   * This effect used to depend on [open], and its cleanup clears the pending
+   * restore timer. So if `open` changed during the 400ms the FAB was hidden,
+   * the restore was cancelled and `fabVisible` stayed false - leaving the
+   * button at opacity 0 with pointer-events none until the user happened to
+   * scroll again. It reads as the Ask AI button being gone.
+   *
+   * Not hypothetical: the `grok-chat` custom event below opens the panel
+   * programmatically, so `open` can flip while the user is mid-scroll and has
+   * not touched the FAB at all.
+   *
+   * With a ref the listener is installed once and the timer is only cleared on
+   * unmount, when the state is being discarded anyway. */
+  const openRef = useRef(open);
+  useEffect(() => { openRef.current = open; }, [open]);
+
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)');
     const onScroll = () => {
-      if (!mq.matches || open) return;
+      if (!mq.matches || openRef.current) return;
       setFabVisible(false);
       if (scrollTimer.current) clearTimeout(scrollTimer.current);
       scrollTimer.current = setTimeout(() => setFabVisible(true), 400);
@@ -380,7 +397,12 @@ export default function GrokChat() {
       window.removeEventListener('scroll', onScroll);
       if (scrollTimer.current) clearTimeout(scrollTimer.current);
     };
-  }, [open]);
+  }, []);
+
+  /* Closing the panel always restores the FAB. Belt and braces alongside the
+   * ref above: whatever else happened, the button must be reachable once the
+   * thing it opens is shut. */
+  useEffect(() => { if (!open) setFabVisible(true); }, [open]);
 
 
   /* ── Auto-save current conversation whenever messages change ── */
@@ -596,6 +618,7 @@ export default function GrokChat() {
           for the mini-panel case, but the button is unclickable (and
           invisible) while open, so that path is effectively unreachable. */}
       <button
+        data-testid="grok-launcher"
         className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
         title="Ask Grok"

@@ -1,5 +1,21 @@
 import { test, expect } from '@playwright/test';
 import crypto from 'node:crypto';
+/* SIDE-EFFECT IMPORT, and it is load-bearing. `_auth.ts` reads `.env.e2e.local`
+ * and `.env.local` into process.env at module scope. Without it this file sees
+ * no LEMONSQUEEZY_WEBHOOK_SECRET locally, and ALL THREE signed tests skip -
+ * including the BOLA-of-payments one, which is the most important assertion in
+ * the file.
+ *
+ * That was the actual state until 2026-08-11: they passed in CI, where the job
+ * supplies env directly, and skipped everywhere else. With CI disabled for cost
+ * since 2026-08-10, "everywhere else" is the only place they run - so the
+ * payments security surface was verified by nothing, anywhere, and the only
+ * symptom was `3 skipped` scrolling past.
+ *
+ * Exactly the trap `_auth.ts` documents at length about E2E_B_PRICE_ALERT_ID
+ * skipping all twenty authenticated tests. Same shape, different file, found by
+ * adding a fourth test and noticing it skipped too. */
+import './_auth';
 
 /* The LemonSqueezy webhook — signature, replay guard, ownership check.
  *
@@ -34,6 +50,53 @@ const ENDPOINT = '/api/lemonsqueezy/webhook';
 function sign(body: string, secret = SECRET): string {
   return crypto.createHmac('sha256', secret).update(body).digest('hex');
 }
+
+/* DOES THE TARGET HOLD THE SAME SECRET WE ARE SIGNING WITH?
+ *
+ * Having a secret locally means nothing when `E2E_BASE_URL` points at a deployed
+ * service — that service has its own `LEMONSQUEEZY_WEBHOOK_SECRET`, and if the
+ * two differ every signed test gets a 401 and fails.
+ *
+ * That is exactly what happened on 2026-08-11, the first time these ran against
+ * `liquidity-hq-qa`: three red tests, none of them about the app. A spec that
+ * fails for a reason outside the change under test is worse than one that skips,
+ * because it teaches everyone to read red as noise — which is the one habit this
+ * suite cannot afford.
+ *
+ * So: probe once with a throwaway payload. A 401 means the secrets differ and the
+ * signed tests CANNOT be meaningful here. Anything else means the handler
+ * accepted our signature and the tests below are measuring real behaviour.
+ *
+ * Deliberately NOT treating 401 as a failure. A mismatched secret is a fact about
+ * two environments, not a defect — and the "is a forged signature rejected" test
+ * above already covers the case that actually matters. */
+async function targetSharesOurSecret(
+  request: import('@playwright/test').APIRequestContext,
+): Promise<boolean> {
+  if (!SECRET) return false;
+  const body = JSON.stringify({
+    meta: { event_name: 'qa_secret_probe', custom_data: { qa_nonce: crypto.randomUUID() } },
+    data: { id: 'qa_secret_probe', attributes: {} },
+  });
+  const r = await request.post(ENDPOINT, {
+    headers: { 'Content-Type': 'application/json', 'x-signature': sign(body) },
+    data: body,
+    failOnStatusCode: false,
+  });
+  /* `qa_secret_probe` is not an event patchForEvent handles and carries no
+     user_id, so a matching secret returns 200 and changes nothing. */
+  return r.status() !== 401;
+}
+
+const SECRET_MISMATCH_SKIP =
+  'The target service rejected a payload signed with our LEMONSQUEEZY_WEBHOOK_SECRET (401), ' +
+  'so it holds a DIFFERENT secret - or none. Every signed test below would fail on that ' +
+  'rather than on the handler. Set the same value locally as the target service holds, or ' +
+  'run against a service that shares it.\n\n' +
+  'This is a skip and not a failure on purpose: a mismatched secret is a fact about two ' +
+  'environments, not a defect. But it IS a real gap - the signed branches are verified by ' +
+  'nothing in this run, and "a forged signature is rejected" above is the only payments ' +
+  'assertion still standing.';
 
 /* EVERY PAYLOAD CARRIES A NONCE, and that is load-bearing.
  *
@@ -124,37 +187,98 @@ test.describe('LemonSqueezy webhook', () => {
     expect(r.status(), 'a malformed signature crashed the route').not.toBe(500);
   });
 
+  /* ── A signed event with no user of ours attached ──────────────────────────
+   *
+   * Needs the SECRET and nothing else: `if (!userId) return` sits at
+   * route.ts:56, BEFORE `getSupabaseAdmin()`, so this never touches the
+   * database. That is why it is here rather than in `payments-write-path.spec.ts`
+   * where I first said it would go - putting it there would have made it skip
+   * whenever the service-role key was absent, for a branch that does not use it.
+   *
+   * WHY IT MATTERS, and it is about to matter for real. `custom_data.user_id` is
+   * written by `getCheckoutUrl`, so it is present on events from orders that went
+   * through our checkout and ABSENT on an event simulated from the LemonSqueezy
+   * dashboard against an order created any other way. Simulation is how the
+   * cancelled/expired/refunded branches get exercised without waiting out a real
+   * billing period (#243), so this path is about to be hit deliberately.
+   *
+   * It used to return a bare `{received: true}`, which LemonSqueezy renders as a
+   * green delivery - so "the handler ignored this" and "the handler worked" were
+   * the same picture, on the payments path, in the run whose purpose is deciding
+   * whether payments work. Fixed in #251; this is what stops it regressing.
+   *
+   * Still 2xx on purpose: a non-2xx makes LemonSqueezy RETRY, and an event with
+   * no user of ours attached is not a failure to retry - it is correctly not
+   * ours. Asserting the STATUS as well as the reason, because a later "tidy-up"
+   * to 4xx would turn every such delivery into a retry storm. */
+  test.describe('signed, but no user attached', () => {
+    test.skip(!SECRET,
+      'LEMONSQUEEZY_WEBHOOK_SECRET is not set, so no correctly-signed payload can be built. ' +
+      'Skipping rather than passing: this asserts a REASON string, and a test that never ' +
+      'reaches the handler cannot tell a missing reason from a wrong one.');
+
+    test.beforeAll(async ({ request }) => {
+      test.skip(!(await targetSharesOurSecret(request)), SECRET_MISMATCH_SKIP);
+    });
+
+    test('is refused with a reason, not a bare 200', async ({ request }) => {
+      /* Deliberately no `custom_data.user_id`, and a nonce so the replay guard
+         does not answer first on a re-run. The guard is downstream of this
+         branch, but the nonce costs nothing and the failure it prevents is the
+         confusing kind. */
+      const body = JSON.stringify({
+        meta: { event_name: 'subscription_created', custom_data: { qa_nonce: crypto.randomUUID() } },
+        data: { id: 'sub_no_user', attributes: { status: 'active', user_email: 'nobody@example.test' } },
+      });
+
+      const r = await request.post(ENDPOINT, {
+        headers: { 'Content-Type': 'application/json', 'x-signature': sign(body) },
+        data: body,
+        failOnStatusCode: false,
+      });
+
+      expect(r.status(), 'a non-2xx makes LemonSqueezy retry an event that will never succeed').toBe(200);
+
+      const text = await r.text();
+      expect(text,
+        'the handler accepted an event with no user attached and said nothing about it. ' +
+        'That renders as a green delivery in the LemonSqueezy log, so a silent no-op is ' +
+        'indistinguishable from a successful write - the #228 empty-200 on the payments path.')
+        .toContain('no custom_data.user_id');
+    });
+  });
+
   test.describe('with a valid signature', () => {
     test.skip(!SECRET,
       'LEMONSQUEEZY_WEBHOOK_SECRET is not set, so no correctly-signed payload can be built. ' +
       'Skipping rather than passing: a signed-payload test that never signs anything proves nothing.');
 
-    /* AND the handler needs SUPABASE_SERVICE_ROLE_KEY, which CI does not have.
+    test.beforeAll(async ({ request }) => {
+      test.skip(!(await targetSharesOurSecret(request)), SECRET_MISMATCH_SKIP);
+    });
+
+    /* AND the handler needs SUPABASE_SERVICE_ROLE_KEY.
      *
-     * Both branches these tests target run through `getSupabaseAdmin()`:
-     * the replay guard inserts into `ls_webhook_events`, and the ownership check
+     * Both branches these tests target run through `getSupabaseAdmin()`: the
+     * replay guard inserts into `ls_webhook_events`, and the ownership check
      * calls `sb.auth.admin.getUserById`. Without the admin client the route
-     * errors before reaching either, so the test fails on the environment rather
-     * than on the behaviour.
+     * errors before reaching either, so the test fails on the environment
+     * rather than on the behaviour - which is exactly what happened on release
+     * PR #141, the first run where these two executed at all.
      *
-     * This is the SAME wall that keeps `/api/push/test` out of
-     * `entitlements.spec.ts`, documented there hours before this spec was
-     * written - and I walked into it anyway, because I reasoned about which
-     * branch answers first and never checked what it needed to get there.
+     * CI now supplies the key (owner decision, 2026-08-09; the reasoning is in
+     * `ci.yml` beside the variable). **Keeping this guard anyway.** It is not
+     * dead code: it is what makes a missing secret produce a legible skip
+     * instead of a confusing failure, and it is what stops these two from ever
+     * silently becoming assertions about an environment error.
      *
-     * `ci.yml`'s header argues deliberately against putting developer env in
-     * CI: building without it has caught two real defects. So this is a real
-     * trade, not an oversight to fix quietly - and the honest position is that
-     * **the ownership check and replay guard are verified by nothing in CI.**
-     *
-     * Skipping loudly rather than asserting something weaker. A test that
-     * passes by lowering its own standard is worse than one that says it did
-     * not run. */
+     * A skip here is now a FINDING, not a limitation - it means the secret is
+     * absent from a job that is supposed to have it. Treat it as a red run. */
     test.skip(!process.env.SUPABASE_SERVICE_ROLE_KEY,
-      'SUPABASE_SERVICE_ROLE_KEY is absent, so the handler cannot reach the replay guard or the ' +
-      'ownership check - it errors first. Same limitation as /api/push/test. These two assertions ' +
-      'are therefore verified by NOTHING in CI; covering them needs the admin key, which ci.yml ' +
-      'deliberately withholds. Owner decision, tracked on #78.');
+      'SUPABASE_SERVICE_ROLE_KEY is absent, so the handler errors before reaching the replay guard ' +
+      'or the ownership check. CI is supposed to supply this now - if you are reading this in a CI ' +
+      'log, the secret E2E_SUPABASE_SERVICE_ROLE_KEY is missing or empty, and these two assertions ' +
+      'are verified by nothing. That is a failure to fix, not a limitation to accept.');
 
     /* THE BOLA OF PAYMENTS, and it has never run.
      *

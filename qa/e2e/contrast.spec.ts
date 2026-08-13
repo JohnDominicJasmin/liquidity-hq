@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
-import { ROUTES, BASELINE } from './_shared';
+import { ROUTES, BASELINE, gotoGuarded } from './_shared';
+import { installMarketFixtures } from './_fixtures';
 
 /**
  * Colour contrast — WCAG 2.2 SC 1.4.3, Level AA — on BOTH themes.
@@ -30,6 +31,49 @@ async function themedPage(browser: Browser, theme: 'dark' | 'light'): Promise<{ 
   await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch { /* private mode */ } }, theme);
   const page = await ctx.newPage();
   page.on('dialog', d => d.dismiss());
+
+  /* SERVE RECORDED MARKET DATA (#114).
+   *
+   * Two reasons, and the second is the one that matters.
+   *
+   * COST: this sweep loads 58 pages, and `qa/FIXTURES.md` measures roughly 1,000
+   * third-party requests per five pageviews - so a live sweep is on the order of
+   * 11,000 requests to Binance and Bybit. That volume is why
+   * `playwright.config.ts` pins `workers: 1`: parallel specs trip their per-IP
+   * rate limits, and the resulting 429s render as contrast violations that look
+   * exactly like product defects.
+   *
+   * CORRECTNESS: a contrast baseline measured against live prices is measured
+   * against the weather. A token can vanish because it was fixed, or because the
+   * surface that showed it had no data that minute, and nothing distinguishes
+   * those. That is precisely why the "a known token disappeared" assertion had
+   * to be removed on 2026-08-08 - see the long comment below. With fixed input
+   * it can come back, and a missing token means something again.
+   *
+   * MEASURED, not assumed. Two identical sweeps on 2026-08-09:
+   *
+   *   live      dark 12 violations / 10 tokens   light 61 / 26 tokens
+   *   fixtures  dark 13 violations / 11 tokens   light 60 / 26 tokens
+   *
+   * Coverage went UP, not down. Dark reached 11 of 11 baseline tokens with
+   * fixtures and only 10 without - the eleventh needs a surface that live data
+   * did not populate that minute. That is the data-dependence this exists to
+   * remove, visible in a single pair of runs.
+   *
+   * I predicted identical numbers and wrote that here before running it. Wrong
+   * in both directions, and left on the record because "I expected no change"
+   * is exactly the reasoning that makes a coverage drop invisible.
+   *
+   * WHAT THIS DOES NOT FIX, and it is the important half. `page.route`
+   * intercepts requests the BROWSER makes. It cannot touch `fetch` inside a
+   * route handler, and this app's `/api/*` routes call Binance, Bybit, Yahoo and
+   * er-api server-side - the webServer log during the fixtures run is full of
+   * outbound calls to api.bybit.com and query1.finance.yahoo.com that these
+   * fixtures never saw. So the third-party volume behind `workers: 1` is only
+   * PARTLY removed here, and unpinning still needs its own measurement rather
+   * than an inference from this file. See #114. */
+  await installMarketFixtures(page, 'as-recorded');
+
   return { page, close: () => ctx.close() };
 }
 
@@ -123,7 +167,7 @@ async function measure(page: Page, theme: string, route: string): Promise<Violat
    *
    * Installed per page rather than once, because each measurement runs in its
    * own context. */
-  await page.goto(route, { waitUntil: 'domcontentloaded' });
+  await gotoGuarded(page, route, { waitUntil: 'domcontentloaded' });
   await settleForMeasurement(page);
 
   // Return null rather than [] when the theme did not take. An empty array here
@@ -160,8 +204,25 @@ async function measure(page: Page, theme: string, route: string): Promise<Violat
   }));
   if (rendered.elements < 30 || rendered.color === 'rgb(0, 0, 0)') return null;
 
+  const found = await detectContrastViolations(page);
+  return found.map(f => ({ ...f, route }));
+}
+
+/* EXTRACTED so the control test below can exercise THIS code, not a copy of it.
+ *
+ * A control that re-implements the detector proves the copy works. The whole
+ * value is that the sweep's real detector is the thing being checked, so if axe
+ * stops loading, the rule name changes, or the message format shifts, the
+ * control goes red for the same reason the sweep would go quietly green.
+ *
+ * The regex is the fragile part and the reason this matters. It parses a
+ * human-readable axe message, so an upstream wording change makes every match
+ * return null - `found` becomes empty, every route reports zero violations, and
+ * the sweep passes while measuring nothing. That failure is invisible: a green
+ * contrast run looks exactly like a clean one. */
+async function detectContrastViolations(page: Page): Promise<Omit<Violation, 'route'>[]> {
   await page.addScriptTag({ path: require.resolve('axe-core/axe.min.js') });
-  const found = await page.evaluate(async () => {
+  return await page.evaluate(async () => {
     // @ts-expect-error injected at runtime
     const res = await window.axe.run(document, { runOnly: { type: 'rule', values: ['color-contrast'] } });
     return res.violations.flatMap((v: { nodes: { target: string[]; any?: { message?: string }[] }[] }) =>
@@ -173,8 +234,6 @@ async function measure(page: Page, theme: string, route: string): Promise<Violat
           : null;
       }).filter(Boolean));
   }) as Omit<Violation, 'route'>[];
-
-  return found.map(f => ({ ...f, route }));
 }
 
 test.describe('colour contrast', () => {
@@ -265,6 +324,13 @@ test.describe('colour contrast', () => {
     const known = new Set(BASELINE.contrast.darkTokens);
     const unexpected = [...colours].filter(([fg]) => !known.has(fg));
     const fixed = BASELINE.contrast.darkTokens.filter(fg => !colours.has(fg));
+
+    /* Printed as well as attached. Attachments are only uploaded on failure
+     * (`ci.yml` uses `if: failure()`), so on a GREEN run these numbers exist
+     * nowhere a reader can reach them - which is how "did the sweep get weaker?"
+     * became unanswerable without re-running it locally. One line costs
+     * nothing and makes the measurement legible in the gate log itself. */
+    console.log(`[contrast] dark: ${all.length} violations across ${colours.size} tokens (baseline ${BASELINE.contrast.darkTokens.length})`);
 
     testInfo.attach('contrast-dark.txt', {
       body: `${all.length} violations across ${colours.size} tokens\n\n`
@@ -371,6 +437,8 @@ This is NOT automatically a regression. It is either:
     const unexpected = [...byColour].filter(([fg]) => !known.has(fg));
     const fixed = BASELINE.contrast.lightTokens.filter(fg => !byColour.has(fg));
 
+    console.log(`[contrast] light: ${all.length} violations across ${byColour.size} tokens (baseline ${BASELINE.contrast.lightTokens.length})`);
+
     testInfo.attach('contrast-light.txt', {
       body: `${all.length} violations across ${byColour.size} tokens\n\n`
         + [...byColour].sort((a, b) => a[1].worst - b[1].worst)
@@ -413,5 +481,90 @@ Same triage as the dark test: a state that had not rendered before (add it, with
       `The fix for this family belongs in the [data-theme="light"] block on the FOREGROUND ` +
       `tokens. Do not lighten the backgrounds - that breaks dark.`,
     ).toEqual([]);
+  });
+
+  /* THE CONTROL. Read this before trusting either test above.
+   *
+   * Both of them assert `unexpected` is EMPTY. An empty array is also what a
+   * broken detector returns, and the two are indistinguishable from the result:
+   * a sweep that finds nothing because everything passes and a sweep that finds
+   * nothing because it stopped looking both print "0 unexpected" and go green.
+   *
+   * That is not hypothetical here. `detectContrastViolations` parses a
+   * HUMAN-READABLE axe message with a regex:
+   *
+   *     /contrast of ([\d.]+).*foreground color: (#[0-9a-f]{3,8}), .../i
+   *
+   * An axe-core upgrade that rewords that sentence makes every match return
+   * null. `found` becomes empty for every route in both themes, the baselines
+   * stop being checked against anything, and nothing anywhere goes red. The
+   * suite would keep reporting a clean contrast sweep indefinitely.
+   *
+   * So: inject a KNOWN failure and require the detector to find it. This is the
+   * same shape as the self-test in layout.spec.ts and the control in
+   * cache-effective.spec.ts, and it exists for the same reason - an assertion
+   * that something is absent is worthless without evidence the instrument can
+   * detect it when present.
+   *
+   * TWO-SIDED ON PURPOSE. Finding the bad element proves it is not blind;
+   * ignoring the good one proves it is not simply flagging everything. A
+   * detector that reported every element would also "catch" the injected div
+   * while making the baselines meaningless noise.
+   *
+   * Cheap: one page load against a static route, no market data, no sweep.
+   */
+  test('control: the detector still finds a contrast failure when one exists', async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+
+    try {
+      await gotoGuarded(page, '/offline', { waitUntil: 'domcontentloaded' });
+
+      /* #767676 on #808080 is ~1.1:1 - far below the 4.5:1 of SC 1.4.3, and not
+       * a colour this app uses, so it cannot collide with a real token in the
+       * baselines. Explicit background on the element itself so the result does
+       * not depend on what the page happens to render behind it. */
+      await page.evaluate(() => {
+        const el = document.createElement('p');
+        el.id = 'qa-contrast-control';
+        el.textContent = 'contrast control probe';
+        el.setAttribute('style',
+          'color:#767676;background:#808080;font-size:14px;padding:8px;position:fixed;top:0;left:0;z-index:99999');
+        document.body.appendChild(el);
+
+        /* And a PASSING sibling, for the second half of the assertion.
+         * #000000 on #ffffff is 21:1, the maximum possible. */
+        const ok = document.createElement('p');
+        ok.id = 'qa-contrast-control-pass';
+        ok.textContent = 'contrast control passing probe';
+        ok.setAttribute('style',
+          'color:#000000;background:#ffffff;font-size:14px;padding:8px;position:fixed;top:40px;left:0;z-index:99999');
+        document.body.appendChild(ok);
+      });
+
+      const found = await detectContrastViolations(page);
+
+      const hitBad = found.some(v => v.fg === '#767676');
+      expect(hitBad,
+        'The contrast detector did not report an element at ~1.1:1 that was injected specifically ' +
+        'for it to find.\n\n' +
+        'DO NOT SUPPRESS THIS. While it fails, BOTH sweeps above are meaningless - they assert an ' +
+        'empty result, and an empty result is exactly what a blind detector returns. A green ' +
+        'contrast run and a broken one look identical from the outside.\n\n' +
+        'Most likely cause: axe-core was upgraded and reworded its violation message, so the regex ' +
+        'in detectContrastViolations no longer matches and every parse returns null. Check the raw ' +
+        'message before changing anything else.\n\n' +
+        `Detector returned ${found.length} violation(s): ` +
+        (found.length ? found.map(v => `${v.fg} on ${v.bg} at ${v.ratio}:1`).join(', ') : '(none at all)'),
+      ).toBe(true);
+
+      expect(found.some(v => v.fg === '#000000' && v.bg === '#ffffff'),
+        'The detector reported black-on-white (21:1, the maximum possible ratio) as a contrast ' +
+        'failure. It is flagging elements that pass, so the baselines above are recording noise ' +
+        'rather than real failures and their counts cannot be trusted.',
+      ).toBe(false);
+    } finally {
+      await ctx.close();
+    }
   });
 });

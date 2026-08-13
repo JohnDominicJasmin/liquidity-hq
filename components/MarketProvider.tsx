@@ -6,6 +6,7 @@ import {
 } from '@/lib/marketStore';
 import { bybitPriceFactor } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
+import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
 
@@ -97,7 +98,28 @@ const SYM_MAP: Record<string, CoinId> = Object.fromEntries(
 /* computeRSI14 moved to lib/rsi so app/api/market/rsi computes the identical
    number - see that file for why two copies would drift silently. */
 
-export default function MarketProvider({ children }: { children: React.ReactNode }) {
+/* `enabled` exists so a route can mount the provider WITHOUT the polling (#200).
+ *
+ * Not "do not mount the provider" - that was the obvious version and it crashes.
+ * `useMarket()` throws when there is no context, and two components inside the
+ * app shell consume it on EVERY route: GrokChat and NavDrawer's status dot. So
+ * removing the provider on a route kills the shell, not just the page.
+ *
+ * Measured by QA against deployed staging: /backtest and /live-tracking each make
+ * 210 exchange requests per visit and render BYTE-IDENTICALLY with all of them
+ * blocked - same element count, same text length, same graphics, no errors. The
+ * data is fetched and thrown away. /scanner was the control and loses 21% of its
+ * text when blocked, which is what makes the other two numbers mean something.
+ *
+ * Blocking the network and disabling the polling leave the store in the same
+ * shape, so that experiment is direct evidence for this switch rather than
+ * merely adjacent to it.
+ *
+ * Default is `true`: a route has to opt OUT deliberately, so adding a page never
+ * silently loses its market data. */
+export default function MarketProvider(
+  { children, enabled = true }: { children: React.ReactNode; enabled?: boolean },
+) {
   const [store, setStore] = useState<MarketStore>(defaultStore);
   /* Mirror of `store` for callbacks that must read the CURRENT value without
      depending on it. fetchSnapshot needs to know whether a coin already has a
@@ -144,7 +166,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     try {
       const syms = Object.values(BINANCE_SYMS).filter(s => s !== 'HYPEUSDT');
       const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${batch}`);
+      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`);
       const data = await res.json();
       if (!Array.isArray(data)) return;
       data.forEach((d: Record<string, string>) => {
@@ -254,7 +276,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── Bybit: all coins - single bulk fetch instead of per-symbol calls ── */
   const fetchBybit = useCallback(async () => {
     try {
-      const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
+      const res = await fetch('/api/proxy?type=bybit-tickers');
       const d = await res.json();
       // Build symbol → ticker map for O(1) lookup
       const bySymbol: Record<string, Record<string, string>> = {};
@@ -329,19 +351,25 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── Bybit + Binance LSR ── */
   const fetchLSR = useCallback(async () => {
     await Promise.allSettled([
-      // Bybit account ratio (1h) - all coins
-      ...Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
+      /* Bybit account ratio (1h) - ONE request for all coins (#200).
+         This was a loop of ~50 per-symbol fetches, 393 requests per visitor and
+         the largest single line left after batch 1. Bybit has no batch
+         parameter, so the fan-out moved server-side where one cache entry serves
+         every visitor - see lib/bybitFanout.ts. */
+      (async () => {
         try {
-          const res = await fetch(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=1h&limit=1`);
-          const d = await res.json();
-          const item = d.result?.list?.[0];
-          if (!item) return;
-          updateCoin(coin as CoinId, {
-            longRatio:  parseFloat(item.buyRatio  || '0.5'),
-            shortRatio: parseFloat(item.sellRatio || '0.5'),
-          });
+          const res = await fetch('/api/market/account-ratio?period=1h');
+          if (!res.ok) return;
+          const { data } = await res.json() as {
+            data: Record<string, { longRatio: number; shortRatio: number }>;
+          };
+          for (const [coin, sym] of Object.entries(BYBIT_SYMS)) {
+            const item = data?.[sym];
+            if (!item) continue;          // absent means not fetched, not zero
+            updateCoin(coin as CoinId, { longRatio: item.longRatio, shortRatio: item.shortRatio });
+          }
         } catch { /* */ }
-      }),
+      })(),
       // The Binance half of this - two ratio requests per coin, 91 requests
       // in total - moved to app/api/market/snapshot. Bybit stays here: it is
       // one request per coin against a different provider with its own limit,
@@ -420,7 +448,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       const sym = BYBIT_SYMS[coin];
       try {
         const res = await fetch(
-          `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=15&limit=100`
+          `/api/market/klines?source=bybit&symbol=${sym}&interval=15&limit=100`
         );
         const d = await res.json();
         // Bybit returns newest-first - reverse to oldest-first
@@ -495,7 +523,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         // Taker buy ratio from recent trades (Bybit klines don't split maker/taker)
         try {
           const tradeRes = await fetch(
-            `https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=${sym}&limit=500`
+            `/api/proxy?type=recent-trade&symbol=${sym}&limit=500`
           );
           const tradeData = await tradeRes.json();
           const trades: Array<{ side: string; size: string }> = tradeData?.result?.list ?? [];
@@ -557,14 +585,21 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     // All Binance-listed coins
     const binanceCoins = (Object.keys(BINANCE_SYMS) as CoinId[]).filter(c => c !== 'hype');
     await Promise.allSettled([
-      // ── Binance aggTrades ──
-      ...binanceCoins.map(async (coin) => {
+      /* ── Binance aggTrades - ONE request for all coins (#200 batch 3) ──
+         This was a sweep of ~45 per-symbol fetches, 360 requests per visitor.
+         The map is fetched once here; each coin then reads its own entry, so the
+         per-coin CVD and whale logic below is unchanged. */
+      (async () => {
+        let aggAll: Record<string, Array<{ m: boolean; q: string; p: string; a: number }>> = {};
+        try {
+          const r = await fetch('/api/market/agg-trades?limit=200');
+          if (r.ok) aggAll = (await r.json()).data ?? {};
+        } catch { /* every coin below then sees no trades and returns early */ }
+
+        await Promise.allSettled(binanceCoins.map(async (coin) => {
         const sym = BINANCE_SYMS[coin];
         try {
-          const res = await fetch(
-            `https://api.binance.com/api/v3/aggTrades?symbol=${sym}&limit=200`
-          );
-          const trades = await res.json();
+          const trades = aggAll[sym];
           if (!Array.isArray(trades)) return;
 
           let buyVol = 0, sellVol = 0;
@@ -626,12 +661,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           }
           cvdDivStateRef.current[coin] = _newDiv;
         } catch { /* */ }
-      }),
+        }));
+      })(),
       // ── HYPE via Bybit recent-trade (Bybit-only coin) ──
       (async () => {
         try {
           const res = await fetch(
-            'https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=HYPEUSDT&limit=200',
+            '/api/proxy?type=recent-trade&symbol=HYPEUSDT&limit=200',
             { cache: 'no-store' }
           );
           const data = await res.json();
@@ -685,7 +721,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const sym = BINANCE_SYMS[coin];
         try {
           const res = await fetch(
-            `https://api.binance.com/api/v3/depth?symbol=${sym}&limit=50`
+            `/api/proxy?type=depth&symbol=${sym}&limit=50`
           );
           const data = await res.json();
           if (!data.bids || !data.asks) return;
@@ -709,7 +745,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   const fetchDeribitOptions = useCallback(async () => {
     try {
       const res = await fetch(
-        'https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option'
+        '/api/proxy?type=deribit-book&currency=BTC&kind=option'
       );
       const data = await res.json();
       const summaries: Array<{
@@ -863,7 +899,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   const fetchStablecoinFlows = useCallback(async () => {
     try {
       const res = await fetch(
-        'https://stablecoins.llama.fi/stablecoins?includePrices=true',
+        '/api/proxy?type=llama-stables&includePrices=true',
         { cache: 'no-cache' }
       );
       const data = await res.json();
@@ -920,18 +956,24 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── OI Trend bootstrap - Bybit historical OI + klines ── */
   // Fires once on mount to populate OI trend without waiting for two 8-min Bybit polls
   const bootstrapOITrend = useCallback(async () => {
+    /* Open interest for every symbol in ONE request (#200), fetched before the
+       per-symbol work rather than inside it. This was ~50 fetches - 392 requests
+       per visitor. Klines stay per-symbol because they genuinely differ per
+       symbol, and they already go through the cached route from batch 1. */
+    let oiAll: Record<string, Array<{ openInterest: string }>> = {};
+    try {
+      const r = await fetch('/api/market/open-interest?intervalTime=1h&limit=3');
+      if (r.ok) oiAll = (await r.json()).data ?? {};
+    } catch { /* leave empty; the length guard below already handles no data */ }
+
     await Promise.allSettled(
       Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
         try {
-          const [oiRes, klRes] = await Promise.all([
-            fetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=1h&limit=3`),
-            fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=60&limit=4`),
-          ]);
-          const oiData = await oiRes.json();
+          const klRes = await fetch(`/api/market/klines?source=bybit&symbol=${sym}&interval=60&limit=4`);
           const klData = await klRes.json();
 
           // Both are newest-first - reverse to oldest-first
-          const oiList: Array<{ openInterest: string }> = [...(oiData?.result?.list ?? [])].reverse();
+          const oiList: Array<{ openInterest: string }> = [...(oiAll[sym] ?? [])].reverse();
           const klList: string[][] = [...(klData?.result?.list ?? [])].reverse();
 
           if (oiList.length < 2 || klList.length < 2) return;
@@ -984,7 +1026,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── Binance premium index → next FR estimate (Binance perps) ── */
   const fetchPremiumIndex = useCallback(async () => {
     try {
-      const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store' });
+      const res = await fetch('/api/proxy?type=premium-index', { cache: 'no-store' });
       if (!res.ok) return;
       const data: Array<{
         symbol: string; markPrice: string; indexPrice: string;
@@ -1006,7 +1048,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* */ }
   }, [updateCoin]);
 
-  /* ── Oil + DXY + SPX + Gold - fetched via /api/macro (server-side, no CORS) ── */
+  /* ── Oil + DXY + SPX + Gold + 10Y real yield - via /api/macro (no CORS) ── */
   const fetchMacro = useCallback(async () => {
     try {
       const res = await fetch('/api/macro', { cache: 'no-store' });
@@ -1017,6 +1059,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         spx:  { price: number; chg: number } | null;
         gold: { price: number; chg: number } | null;
         jpy:  { price: number; chg: number } | null;
+        real10y: RealYield | null;
       } = await res.json();
 
       setStore(s => ({
@@ -1026,6 +1069,9 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : {}),
         ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : {}),
         ...(d.jpy  ? { jpy:  d.jpy.price,  jpyChg:  d.jpy.chg  }       : {}),
+        // No truthiness guard: the route always returns an object, and its
+        // `unknown` state is information we want to keep rather than skip.
+        ...(d.real10y ? { real10y: d.real10y } : {}),
       }));
     } catch { /* fail silently */ }
   }, []);
@@ -1033,7 +1079,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── Fear & Greed ── */
   const fetchFNG = useCallback(async () => {
     try {
-      const res = await fetch('https://api.alternative.me/fng/?limit=2&format=json', { cache: 'no-cache' });
+      const res = await fetch('/api/proxy?type=fng&?limit=2&format=json', { cache: 'no-cache' });
       const d = await res.json();
       const items = d.data;
       if (!items?.[0]?.value) return;
@@ -1045,7 +1091,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       }));
     } catch {
       try {
-        const res = await fetch('https://api.alternative.me/fng/?limit=2&format=json', { cache: 'no-cache' });
+        const res = await fetch('/api/proxy?type=fng&?limit=2&format=json', { cache: 'no-cache' });
         const d = await res.json();
         const items = d.data;
         if (!items?.[0]?.value) return;
@@ -1068,20 +1114,15 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       const { btc, eth } = await res.json();
-      if (btc) {
-        const raw = btc?.data?.list?.[0]?.totalNetInflow
-          ?? btc?.data?.totalNetInflow
-          ?? btc?.list?.[0]?.totalNetInflow
-          ?? btc?.totalNetInflow;
-        if (raw != null) setStore(s => ({ ...s, etfNetFlow: parseFloat(String(raw)) }));
-      }
-      if (eth) {
-        const raw = eth?.data?.list?.[0]?.totalNetInflow
-          ?? eth?.data?.totalNetInflow
-          ?? eth?.list?.[0]?.totalNetInflow
-          ?? eth?.totalNetInflow;
-        if (raw != null) setStore(s => ({ ...s, ethEtfNetFlow: parseFloat(String(raw)) }));
-      }
+      /* Plain numbers in MILLIONS since #175. The route used to hand back
+         SoSoValue's raw payload and this read four possible nesting shapes out
+         of it; the authenticated API returns one documented field, so the route
+         now extracts and converts it and this just stores it.
+
+         `!= null` rather than a truthiness check on purpose: a zero-flow day is
+         real data and `if (btc)` would discard it. */
+      if (btc != null && Number.isFinite(btc)) setStore(s => ({ ...s, etfNetFlow: btc as number }));
+      if (eth != null && Number.isFinite(eth)) setStore(s => ({ ...s, ethEtfNetFlow: eth as number }));
     } catch { /* fail silently */ }
   }, []);
 
@@ -1153,6 +1194,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   /* ── Liquidation Cascade Detector - Binance futures all-symbols stream ── */
   useEffect(() => {
+    if (!enabled) return;          // #200 - no socket on data-free routes
     const FUTURES_MAP: Record<string, string> = {
       BTCUSDT: 'BTC', ETHUSDT: 'ETH', SOLUSDT: 'SOL',
       XRPUSDT: 'XRP', BNBUSDT: 'BNB', NEARUSDT: 'NEAR', SUIUSDT: 'SUI',
@@ -1243,10 +1285,19 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       if (reconnectTimer) clearTimeout(reconnectTimer);
       try { ws?.close(); } catch { /* */ }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Initialise on mount ── */
   useEffect(() => {
+    /* #200: mount the context, skip the traffic. `Idle` rather than leaving
+       wsStatus undefined, because NavDrawer's dot treats undefined as
+       "Connecting..." and would spin forever on a page that is never going to
+       connect - a permanent spinner reads as broken, which is worse than the
+       210 requests it replaces. */
+    if (!enabled) {
+      setStore(s => ({ ...s, wsStatus: 'Idle' }));
+      return;
+    }
     startWS();
     fetchBybit();
     fetchLSR();
@@ -1302,7 +1353,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       if (restTimerRef.current) clearInterval(restTimerRef.current);
       if (wsRetryRef.current)  clearInterval(wsRetryRef.current);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <MarketContext.Provider value={{ store, setStore, selectCoin }}>

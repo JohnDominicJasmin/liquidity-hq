@@ -15,6 +15,8 @@ import type { LabelKey } from '@/lib/labelKeys';
 import { useNews } from './NewsProvider';
 import { computeSectorRotation, isAlt } from '@/lib/sectorRotation';
 import type { PASignal } from '@/lib/priceAction';
+import { usePerpSpot } from '@/lib/usePerpSpot';
+import { perpScorePenalty } from '@/lib/perpSpot';
 
 const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
   STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: 'var(--green-2)' },
@@ -33,7 +35,10 @@ export default function ConfluenceScore(
   const d = store.coins[coin];
   // Reads the calendar NewsProvider already holds instead of fetching it again
   // on a 5-minute timer. Same data, one shared push-fed copy per tab.
-  const { econRaw: econEvents } = useNews();
+  const { econRaw: econEvents, econStale } = useNews();
+  /* Perps vs spot feeds the score from #340 - the same reading the dashboard
+     card and the AI prompts use, so all three cannot disagree. */
+  const perpSpot = usePerpSpot(coin);
 
   if (!d?.price) return null;
 
@@ -120,6 +125,24 @@ export default function ConfluenceScore(
           weight: 20,
         }]
       : []),
+    /* Futures-led moves discount the score (#340, owner picked Option B).
+     *
+     * A PENALTY, not a directional vote - the same shape as gexRegimeFactor
+     * above. "This move is leverage-led" says the evidence behind the read is
+     * weaker, not that the trade is the other way, and penalties feed
+     * `raw *= shrink` which cannot change a sign.
+     *
+     * `unknown` contributes NOTHING here on purpose. A silently-lowered score
+     * would tell the user the evidence was weighed and found wanting when it
+     * was never available - the band below says so in words instead. */
+    ...(perpSpot && perpScorePenalty(perpSpot.lean) > 0
+      ? [{
+          kind: 'penalty' as const,
+          label: t('CONFLUENCE_SCORE_FACTOR_PERP_LED'),
+          weight: perpScorePenalty(perpSpot.lean),
+          active: true,
+        }]
+      : []),
     {
       kind: 'penalty',
       label: t('CONFLUENCE_SCORE_FACTOR_CHOPPINESS'),
@@ -134,8 +157,25 @@ export default function ConfluenceScore(
 
   const result = computeConfluence(factors);
   const cfg = VERDICT_CONFIG[result.verdict];
-  const macro = computeMacroRisk(econEvents, jpyUsd);
-  const macroCol = macro.level === 'danger' ? 'var(--red)' : macro.level === 'caution' ? 'var(--amber)' : null;
+  // store.real10y is the 10Y real yield (#311). It adds a line to the macro
+  // band and nothing to `result.score` - see the note in computeMacroRisk.
+  const macro = computeMacroRisk(econEvents, jpyUsd, Date.now(), econStale, store.real10y);
+
+  /* The perps reading gets a line whenever it is doing something - either it
+     discounted the score, or it could not be measured and the user is owed that
+     fact explicitly. QA's point on #340: reduced certainty and "we could not
+     check" are different claims and both have to be visible. */
+  const perpLine =
+    perpSpot?.lean === 'perp' ? perpSpot.explanation
+    : perpSpot?.lean === 'unknown'
+      ? 'Perps vs spot could not be measured for this coin - the score does not account for whether this move is real buying or leverage.'
+      : null;
+  /* `unknown` renders in the same amber band as `caution` on purpose (#298).
+     "We could not check for upcoming releases" is a reason to size down, which
+     is what amber already means here - and giving it a colour of its own would
+     add a fourth state to a card whose whole job is to be read in a second. */
+  const macroCol = macro.level === 'danger' ? 'var(--red)'
+    : (macro.level === 'caution' || macro.unknown || perpLine) ? 'var(--amber)' : null;
 
   return (
     <div className="sms-card">
@@ -160,6 +200,7 @@ export default function ConfluenceScore(
           background: withAlpha(macroCol, '14'), border: `0.5px solid ${withAlpha(macroCol, '44')}`,
         }}>
           {macro.reasons.map((r, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {r}</div>)}
+          {perpLine && <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {perpLine}</div>}
         </div>
       )}
 

@@ -813,10 +813,10 @@ function Inner() {
 
       {/* Tabs */}
       <div className="tj-tabs">
-        <button className={`tj-tab${tab === 'log' ? ' on' : ''}`} onClick={() => setTab('log')}>{t('TRADE_JOURNAL_TAB_LOG')}</button>
-        <button className={`tj-tab${tab === 'history' ? ' on' : ''}`} onClick={() => setTab('history')}>{t('TRADE_JOURNAL_TAB_HISTORY', { count: trades.length })}</button>
-        <button className={`tj-tab${tab === 'stats' ? ' on' : ''}`} onClick={() => setTab('stats')}>{t('TRADE_JOURNAL_TAB_STATS')}</button>
-        <button className={`tj-tab${tab === 'rules' ? ' on' : ''}`} onClick={() => setTab('rules')} style={{ position: 'relative' }}>
+        <button data-testid="journal-tab" className={`tj-tab${tab === 'log' ? ' on' : ''}`} onClick={() => setTab('log')}>{t('TRADE_JOURNAL_TAB_LOG')}</button>
+        <button data-testid="journal-tab" className={`tj-tab${tab === 'history' ? ' on' : ''}`} onClick={() => setTab('history')}>{t('TRADE_JOURNAL_TAB_HISTORY', { count: trades.length })}</button>
+        <button data-testid="journal-tab" className={`tj-tab${tab === 'stats' ? ' on' : ''}`} onClick={() => setTab('stats')}>{t('TRADE_JOURNAL_TAB_STATS')}</button>
+        <button data-testid="journal-tab" className={`tj-tab${tab === 'rules' ? ' on' : ''}`} onClick={() => setTab('rules')} style={{ position: 'relative' }}>
           {t('TRADE_JOURNAL_TAB_RULES')}{rules.filter(r => r.enabled).length > 0 && (
             <span style={{
               marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700,
@@ -825,9 +825,9 @@ function Inner() {
             }}>{rules.filter(r => r.enabled).length}</span>
           )}
         </button>
-        <button className={`tj-tab${tab === 'shadow' ? ' on' : ''}`} onClick={() => setTab('shadow')}>{t('TRADE_JOURNAL_TAB_SHADOW')}</button>
-        <button className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>{t('TRADE_JOURNAL_TAB_BIAS')}</button>
-        <button className={`tj-tab${tab === 'thesis' ? ' on' : ''}`} onClick={() => setTab('thesis')} style={{ position: 'relative' }}>
+        <button data-testid="journal-tab" className={`tj-tab${tab === 'shadow' ? ' on' : ''}`} onClick={() => setTab('shadow')}>{t('TRADE_JOURNAL_TAB_SHADOW')}</button>
+        <button data-testid="journal-tab" className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>{t('TRADE_JOURNAL_TAB_BIAS')}</button>
+        <button data-testid="journal-tab" className={`tj-tab${tab === 'thesis' ? ' on' : ''}`} onClick={() => setTab('thesis')} style={{ position: 'relative' }}>
           {t('TRADE_JOURNAL_TAB_THESIS')}{theses.length > 0 && (
             <span style={{ marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700, background: 'var(--accent-solid)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
           )}
@@ -873,28 +873,28 @@ function Inner() {
           <div className="tj-card">
             <div className="tj-card-lbl">{t('TRADE_JOURNAL_LOG_PRICE_LEVELS_LABEL')}</div>
             <div className="tj-price-grid">
-              <div className="tj-field" data-testid="tj-field">
+              <div className="tj-field" data-testid="journal-field">
                 <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_ENTRY_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp" aria-label={t('TRADE_JOURNAL_LOG_ENTRY_ARIA')} type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
+                  <input className="tj-inp" data-testid="journal-input" aria-label={t('TRADE_JOURNAL_LOG_ENTRY_ARIA')} type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
                 </div>
               </div>
-              <div className="tj-field" data-testid="tj-field">
+              <div className="tj-field" data-testid="journal-field">
                 <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_STOP_LOSS_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp tj-inp-stop" aria-label={t('TRADE_JOURNAL_LOG_STOP_LOSS_ARIA')} type="number" placeholder="0.00" value={stopLoss} onChange={e => setStopLoss(e.target.value)} />
+                  <input className="tj-inp tj-inp-stop" data-testid="journal-input" aria-label={t('TRADE_JOURNAL_LOG_STOP_LOSS_ARIA')} type="number" placeholder="0.00" value={stopLoss} onChange={e => setStopLoss(e.target.value)} />
                 </div>
               </div>
-              <div className="tj-field" data-testid="tj-field">
+              <div className="tj-field" data-testid="journal-field">
                 <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_TAKE_PROFIT_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp tj-inp-tp" aria-label={t('TRADE_JOURNAL_LOG_TAKE_PROFIT_LABEL')} type="number" placeholder="0.00" value={tpPrice} onChange={e => setTpPrice(e.target.value)} />
+                  <input className="tj-inp tj-inp-tp" data-testid="journal-input" aria-label={t('TRADE_JOURNAL_LOG_TAKE_PROFIT_LABEL')} type="number" placeholder="0.00" value={tpPrice} onChange={e => setTpPrice(e.target.value)} />
                 </div>
               </div>
-              <div className="tj-field" data-testid="tj-field">
+              <div className="tj-field" data-testid="journal-field">
                 <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_POSITION_SIZE_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp" aria-label={t('TRADE_JOURNAL_LOG_POSITION_SIZE_ARIA')} type="number" placeholder={t('TRADE_JOURNAL_LOG_POSITION_SIZE_PLACEHOLDER')} value={posUSD} onChange={e => setPosUSD(e.target.value)} />
+                  <input className="tj-inp" data-testid="journal-input" aria-label={t('TRADE_JOURNAL_LOG_POSITION_SIZE_ARIA')} type="number" placeholder={t('TRADE_JOURNAL_LOG_POSITION_SIZE_PLACEHOLDER')} value={posUSD} onChange={e => setPosUSD(e.target.value)} />
                 </div>
               </div>
             </div>
@@ -1094,7 +1094,7 @@ function Inner() {
                       borderRadius: 4, padding: '2px 5px',
                     }}>{t('TRADE_JOURNAL_HISTORY_RULE_BADGE')}</span>
                   )}
-                  <button className="tj-edit-btn" title={t('TRADE_JOURNAL_HISTORY_EDIT_TITLE')} onClick={() => editingId === trade.id ? setEditingId(null) : startEdit(trade)}>✎</button>
+                  <button className="tj-edit-btn" data-testid="journal-edit" title={t('TRADE_JOURNAL_HISTORY_EDIT_TITLE')} onClick={() => editingId === trade.id ? setEditingId(null) : startEdit(trade)}>✎</button>
                   <button className="tj-del-btn" onClick={() => trade.id && deleteTrade(trade.id)}>✕</button>
                 </div>
               </div>
@@ -1145,6 +1145,7 @@ function Inner() {
                       <span className="tj-affix">$</span>
                       <input
                         className="tj-inp"
+                        data-testid="journal-input"
                         type="number"
                         placeholder={t('TRADE_JOURNAL_HISTORY_EXIT_PRICE_PLACEHOLDER')}
                         value={exitInput}
@@ -1165,7 +1166,7 @@ function Inner() {
 
               {/* Inline edit form */}
               {editingId === trade.id && (
-                <div className="tj-edit-form" data-testid="tj-edit-form">
+                <div className="tj-edit-form" data-testid="journal-edit-form">
                   {/* WCAG 2.2 SC 4.1.2 Name, Role, Value (Level A), issue #48.
                       The visible labels were already here - they just named
                       nothing: no htmlFor, wrapping no control. A screen reader
@@ -1205,7 +1206,7 @@ function Inner() {
                     <div className="tj-edit-field">
                       <label className="tj-lbl" htmlFor={`tj-edit-exit-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_EXIT_PRICE_LABEL')}</label>
                       <div className="tj-irow"><span className="tj-affix">$</span>
-                        <input id={`tj-edit-exit-${trade.id}`} className="tj-inp" type="number" placeholder="0.00"
+                        <input id={`tj-edit-exit-${trade.id}`} className="tj-inp" data-testid="journal-input" type="number" placeholder="0.00"
                           value={editDraft.exit_price}
                           onChange={e => setEditDraft(p => ({ ...p, exit_price: e.target.value }))} />
                       </div>
@@ -1213,7 +1214,7 @@ function Inner() {
                     <div className="tj-edit-field">
                       <label className="tj-lbl" htmlFor={`tj-edit-pnl-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_PNL_LABEL')}</label>
                       <div className="tj-irow"><span className="tj-affix">$</span>
-                        <input id={`tj-edit-pnl-${trade.id}`} className="tj-inp" type="number" placeholder="0.00"
+                        <input id={`tj-edit-pnl-${trade.id}`} className="tj-inp" data-testid="journal-input" type="number" placeholder="0.00"
                           value={editDraft.pnl_usd}
                           onChange={e => setEditDraft(p => ({ ...p, pnl_usd: e.target.value }))} />
                       </div>

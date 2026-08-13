@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
+import { getGuarded } from './_shared';
 
 // Unauthenticated OWASP API probes. All 33 of these passed in the 2026-08-04
 // audit, so every one is a STRICT assertion - this suite exists to make sure a
@@ -21,7 +22,7 @@ test.describe('api security', () => {
 
   for (const path of OPS) {
     test(`BFLA: ${path} rejects an unauthenticated request`, async ({ request }) => {
-      const r = await request.get(path, { failOnStatusCode: false });
+      const r = await getGuarded(request, path, { failOnStatusCode: false });
       expect([401, 403], `${path} must not serve admin data anonymously`).toContain(r.status());
     });
   }
@@ -30,7 +31,7 @@ test.describe('api security', () => {
     test(`cron: ${path} fails closed without the secret`, async ({ request }) => {
       // lib/cronAuth.ts denies when CRON_SECRET is unset - deliberately
       // fail-closed, unlike the fail-open version this replaced.
-      const r = await request.get(path, { failOnStatusCode: false });
+      const r = await getGuarded(request, path, { failOnStatusCode: false });
       expect([401, 403]).toContain(r.status());
     });
   }
@@ -49,7 +50,7 @@ test.describe('api security', () => {
     };
 
     for (const [name, token] of Object.entries(tokens)) {
-      const r = await request.get('/api/ops/users', {
+      const r = await getGuarded(request, '/api/ops/users', {
         headers: { Authorization: `Bearer ${token}` },
         failOnStatusCode: false,
       });
@@ -59,7 +60,7 @@ test.describe('api security', () => {
 
   test('/api/admin/* is a honeypot returning 404', async ({ request }) => {
     for (const path of ['/api/admin', '/api/admin/users']) {
-      const r = await request.get(path, { failOnStatusCode: false });
+      const r = await getGuarded(request, path, { failOnStatusCode: false });
       expect(r.status(), `${path} should look like it never existed`).toBe(404);
     }
   });
@@ -69,16 +70,27 @@ test.describe('api security', () => {
     // fetch/undici BEFORE the request leaves, so it never tests traversal at
     // all - that mistake produced a false "failure" during the audit.
     for (const path of ['/api/admin/%2e%2e/ops/users', '/api/ops/%2e%2e/admin', '/api/OPS/users']) {
-      const r = await request.get(path, { failOnStatusCode: false });
+      const r = await getGuarded(request, path, { failOnStatusCode: false });
       expect([401, 403, 404], `${path} leaked`).toContain(r.status());
     }
   });
 
-  test('security headers are present on the document', async () => {
+  test('security headers are present on the document', async ({ baseURL }) => {
     // A fresh context: fixture `request` shares cookie state, and we want the
     // raw document response here.
+    //
+    // ADDRESS `baseURL`, NOT localhost. This used to hardcode
+    // `http://localhost:${E2E_PORT ?? 3100}`, which meant that with
+    // E2E_BASE_URL set - the whole point of #203 - it tried to reach a local
+    // server that was never started and died with ECONNREFUSED. So the security
+    // headers on every DEPLOYED service were checked by nothing, and the failure
+    // read as a broken assertion rather than a spec addressing the wrong host.
+    //
+    // Found on 2026-08-11 in the first full remote run. The headers themselves
+    // are fine - CSP, HSTS, x-frame-options, permissions-policy and nosniff are
+    // all present on qa. This test simply was not looking at them.
     const ctx = await pwRequest.newContext();
-    const r = await ctx.get(`http://localhost:${process.env.E2E_PORT ?? 3100}/`);
+    const r = await ctx.get(baseURL ?? `http://localhost:${process.env.E2E_PORT ?? 3100}/`);
     const h = r.headers();
 
     expect(h['x-frame-options']).toBe('DENY');
@@ -98,7 +110,7 @@ test.describe('api security', () => {
   });
 
   test('API does not echo an arbitrary Origin back', async ({ request }) => {
-    const r = await request.get('/api/config', {
+    const r = await getGuarded(request, '/api/config', {
       headers: { Origin: 'https://evil.example' },
       failOnStatusCode: false,
     });
@@ -109,7 +121,7 @@ test.describe('api security', () => {
   test('injection payloads do not 500 or leak database errors', async ({ request }) => {
     const payloads = ["' OR '1'='1", "'; DROP TABLE lhq_user_subscriptions; --", "' UNION SELECT NULL--"];
     for (const p of payloads) {
-      const r = await request.get(`/api/labels?locale=${encodeURIComponent(p)}`, { failOnStatusCode: false });
+      const r = await getGuarded(request, `/api/labels?locale=${encodeURIComponent(p)}`, { failOnStatusCode: false });
       expect(r.status(), `payload ${p} caused a server error`).not.toBe(500);
       const body = await r.text();
       expect(body).not.toMatch(/syntax error|postgres|pg_|relation .* does not exist/i);

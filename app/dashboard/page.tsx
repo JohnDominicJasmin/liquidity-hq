@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useOnboarding } from '@/components/OnboardingProvider';
-import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
+import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
@@ -22,6 +22,7 @@ import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import PerpSpotCard from '@/components/PerpSpotCard';
 
 const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: string }> = {
   strong_up:   { txtKey: 'OI_TREND_STRONG_UP_TXT',   subKey: 'OI_TREND_STRONG_UP_SUB',   col: 'var(--green)' },
@@ -366,7 +367,12 @@ function EdgeSignals() {
   const fundingCard = (
     <div className="edge-card">
       <div className="edge-card-label">
-        <Tip text={t('DASH_EDGE_FUNDING_TIP')}>{t('DASH_EDGE_FUNDING_LABEL', { coin: coin.toUpperCase() })}</Tip>
+        {/* Tooltip follows the SIGN (#244). The old key described the
+            strongly-positive case unconditionally, so a negative rate was
+            explained as its own inverse - wrong-direction trading guidance
+            delivered with the same confidence as right-direction guidance.
+            frInfo is classifyFunding, already computed above. */}
+        <Tip text={t(frInfo ? FUNDING_TIP_KEY[frInfo.band] : 'DASH_EDGE_FUNDING_TIP')}>{t('DASH_EDGE_FUNDING_LABEL', { coin: coin.toUpperCase() })}</Tip>
       </div>
       <div className="edge-card-value" style={{ color: frCol }}>
         {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
@@ -544,6 +550,13 @@ export default function Dashboard() {
       <aside className="dash-right" ref={rightRef}>
         <CoinSidebar />
         <MarketPulseStrip />
+        {/* Perps vs spot (#328) - "is this a real buyer or just futures traders".
+            Above the macro card because it is per-coin and follows the coin
+            selection, where the macro backdrop is the same whatever is picked. */}
+        <div className="macro-rail-card">
+          <PerpSpotCard />
+        </div>
+
         {/* Macro backdrop - answers "what's the broad market doing", which nothing
             else on the dashboard covers. Last in the rail so it never pushes the
             per-coin essentials down on mobile. */}

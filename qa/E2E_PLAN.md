@@ -183,12 +183,35 @@ Pick one:
 
 | Option | Trade-off |
 |---|---|
-| **A — add dev-project secrets** (recommended) | Point `E2E_SUPABASE_*` at the **dev** project `wdtjhrilakoitfcezxpx`, never prod. Anon key only, never the service-role key. Highest fidelity. |
+| **A — add dev-project secrets** (recommended, and this is what shipped) | Point `E2E_SUPABASE_*` at the **dev** project `wdtjhrilakoitfcezxpx`, never prod. Highest fidelity. |
 | B — guard auth specs behind `test.skip(!process.env.E2E_SUPABASE_URL)` | No secrets in CI, but the login path goes untested — the app's front door |
 | C — run E2E locally only, via a pre-push hook | Zero CI cost, zero enforcement |
 
-**A is the recommendation**, with the anon key only. It is a public key by
-design and the dev project holds no real user data.
+**A is the recommendation**, and it is what shipped.
+
+**The "anon key only, never the service-role key" rule was reversed on
+2026-08-09** by an explicit owner decision. Recorded here rather than edited away,
+because this file is where someone will come looking for the rule.
+
+The anon key is public by design and the dev project holds no real user data, so
+that half never needed defending. The service-role key did, and the argument that
+carried is narrower than "it is fine":
+
+- Three Pro-gated surfaces authenticate through `getSupabaseAdmin()` — the
+  payments **ownership check**, the payments **replay guard**, and
+  `/api/push/test`. Without the key each route errors before reaching the branch
+  under test, so all three were verified by nothing.
+- The objection "CI builds without developer env, and that caught two real
+  defects" does not apply: both defects were about a variable **absent in CI and
+  present in production**. This key is present in production, so supplying it
+  moves CI toward the production configuration.
+- The objection "it bypasses RLS, which `bola.spec.ts` exists to verify" applies
+  to a **test** that authenticates with it. None does — `bola.spec.ts` signs in
+  as A and B with passwords. Only the server gains an admin client.
+
+**The boundary that still holds absolutely: this is the DEV project's key.**
+Prod's must never reach CI — it holds real customers, and the free plan has no
+backups. Full reasoning sits beside the variable in `.github/workflows/ci.yml`.
 
 ### 4.2 Turnstile will not solve in CI
 

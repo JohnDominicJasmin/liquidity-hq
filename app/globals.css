@@ -835,6 +835,10 @@ body[data-rpm-level="high"]::before {
 .dot-connecting { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: pulse 1s infinite; }
 .dot-rest       { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
 .dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red);   animation: pulse 0.8s infinite; }
+/* Deliberately flat: no glow, no pulse. `Idle` is not a degraded feed, it is a
+   page that does not use one (#200), so it must not read as a warning. --txt3 is
+   the same dim grey used for inactive controls elsewhere. */
+.dot-idle       { background: var(--txt3); }
 
 /* ── DESKTOP NAV ── */
 .desktop-nav { display: none; align-items: center; gap: 2px; }
@@ -2138,7 +2142,18 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .edge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-bottom: 8px; }
 .edge-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 7px 10px; }
 .edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.edge-card-value { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* min-height, so a card whose value uses a smaller font is still the same
+   height as its neighbours (#244).
+   QA measured three .edge-card in the Arena rail: VWAP and Funding 77px, Open
+   Interest 74px, with its third row 3px out of step. Cause is an inline
+   font-size on the OI value only - 13px against the 15px the other two inherit.
+   The owner reported the FUNDING card; the funding card is correct. A fix aimed
+   at the complaint would have changed the one that already matched.
+   Equalising the BOX rather than the font, because the smaller font is doing a
+   job: the OI value can read "Short covering" where the others hold a number,
+   and at 15px that ellipsises. This keeps the rail aligned in every state
+   without forcing a word to compete with a number for width. */
+.edge-card-value { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: calc(var(--fs-data) * 1.1); display: flex; align-items: center; }
 .edge-card-sub   { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; line-height: 1.4; }
 .edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 2px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -3972,6 +3987,74 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 body.consent-open .gchat-fab {
   bottom: calc(var(--consent-top, 0px) + 12px) !important;
 }
+/* AND THE PAGE ITSELF RESERVES THE BAND (#174).
+
+   --consent-top has existed since the FAB fix above, but the FAB was its only
+   consumer: the bar is `position: fixed` and out of flow, so page CONTENT sat
+   underneath it with nothing reserving the space. On a phone the bar stacks to
+   ~190px starting at bottom:56, which is a third of the screen.
+
+   Measured on mobile, first visit: 15 controls covered, including /calc's three
+   position-size inputs and - the one that matters - the PRIVACY POLICY link on
+   /login. A consent prompt that covers the document explaining what is being
+   consented to is a compliance problem, not a layout one. `a.login-skip`
+   ("Continue without signing in") was covered too, at the exact moment someone
+   decides whether to bother.
+
+   Same variable, same fallback: harmless before the measurement lands, and it
+   collapses to 0 the moment consent is answered and .consent-open is removed.
+   Desktop was clear at both viewports before this and stays clear - the rule is
+   keyed on the measurement, not on a breakpoint. */
+body.consent-open .app-content,
+body.consent-open .login-wrap {
+  padding-bottom: calc(var(--consent-top, 0px) + 16px);
+}
+
+/* WHAT IS LEFT OF #174 IS NOT FIXABLE BY RESERVING SPACE, AND THE MEASUREMENT
+   SAYS SO. Recorded here because the obvious next patch is to shrink the box
+   that `.login-wrap` centres in, and that provably does nothing.
+
+   Measured at 390x664 - Playwright's iPhone 13 viewport, and the only one where
+   this reproduces; at 390x844 /login is clear either way:
+
+     .login-wrap   height 877px    <- content-driven
+                   min-height 478px (72vh)   <- never the binding constraint
+     viewport      664px
+
+   The login content is already TALLER than the screen, so `justify-content:
+   center` is not centring anything and reducing min-height moves nothing. Tried
+   it, measured it, count did not change.
+
+   The rule above is still the fix that mattered. With it, /login scrolls 213px
+   against a 189px bar and all three legal links can be brought into the clear.
+   Without it, /login scrolls 24px and those three are UNREACHABLE AT EVERY
+   SCROLL POSITION - measured both ways.
+
+   What remains is that they START under the bar on first visit. Three ways to
+   fix that were tried and measured against a stable baseline of 22 controls
+   covered across 10 routes. All three are recorded because each one is the
+   obvious next idea:
+
+     1. Shrink the box `.login-wrap` centres in.  NO CHANGE.
+        min-height is not the binding constraint - see above.
+
+     2. Move the bar over the tab bar (`bottom: 0`, saving its 56px).
+        22 -> 57, and the four `.mobile-tab-item` links become UNREACHABLE AT
+        EVERY SCROLL POSITION. A fixed element cannot be scrolled out from under
+        another fixed element, so this trades a first-visit annoyance for losing
+        the whole nav until consent is answered. Strictly worse.
+
+     3. Shorten the consent copy. ~18px at best - the text is 54px over 3 lines
+        at 178 characters, and 12px padding + 44px buttons are a touch-target
+        floor, not a style choice. Moves the bar top 475 -> 493 while the
+        contested band is 477..524, so the count does not move.
+
+   So the bar occupies the bottom 189px of a 664px viewport and content in that
+   band starts covered. That is what a bottom sheet does. It is one tap to
+   dismiss, permanently, and the banner carries its own Privacy Policy link
+   (`components/CookieConsent.tsx`) - so the covered legal links are duplicates
+   of one that is not covered. */
+
 /* These two stay hidden. Unlike the FAB they are nags rather than controls the
    user might be reaching for, and stacking three floating things above a
    consent prompt is worse than deferring them until it is answered. */
@@ -5045,6 +5128,27 @@ html[lang="ar"] .lp-h1-accent {
 body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 @media (max-width: 640px) {
   .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997; height: 56px; background: #0a0a0e; border-top: 0.5px solid var(--bdr); }
+
+  /* RESERVE THE BAND THE TAB BAR SITS OVER (#173).
+
+     The bar is `position: fixed`, so it is out of flow and takes up no space in
+     the document. `.app-content` ends with `padding-bottom: 2rem` = 32px, and
+     the bar owns the last 56px - so the final 24px of EVERY page on a phone was
+     underneath it, unreachable.
+
+     Mostly that landed on footer links, which is why it read as cosmetic for so
+     long. On /calc it landed on `input.ps-inp`, a position-size field: tapping
+     it hits the tab bar instead. Found by qa/e2e/layout.spec.ts, which measures
+     what is at each control's own centre point rather than whether it exists.
+
+     Components have been clearing this by hand one at a time - `.gchat-fab`
+     at 76px, `.consent-bar` at 56px - which works for fixed overlays and does
+     nothing for page content. This is the reservation that was missing.
+
+     env(safe-area-inset-bottom) on top, because on a phone with a home
+     indicator the bar's own 56px starts above the inset. Falls back to 0px
+     everywhere else, so it costs nothing on Android or in a desktop viewport. */
+  .app-content { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 1rem); }
   [data-theme="light"] .mobile-tab-bar { background: #ffffff; border-top-color: rgba(0,0,0,0.10); }
   /* On phones the bottom bar owns navigation; the top hamburger would just be
      a redundant second opener for the same drawer, so hide it here. Tablet

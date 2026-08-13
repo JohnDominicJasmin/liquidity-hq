@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { classifyEcon } from '@/lib/classify';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { fetchFredRows, FRED_TTL_DEFAULT } from '@/lib/fred';
 
 const FINNHUB_KEY = process.env.FINNHUB_KEY ?? '';
 
@@ -42,6 +43,15 @@ const DISPLAY_NAMES: Record<string, string> = {
 export type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
   previous?: string; estimate?: string; actual?: string;
+  /* True when the DATE was computed by computeMacroSchedule rather than read
+     from a real source (#245).
+     Nothing in this payload used to distinguish a computed entry from a real
+     one - same shape, same `impact: 'high'`, no flag - so the UI could not tell
+     them apart and neither could the user. A computed entry also carries a real
+     FRED `actual`, which makes it look MORE authoritative than a genuine entry
+     with no number yet, while being the one that is wrong.
+     Absent on entries from Finnhub, ForexFactory and the Fed. */
+  estimated?: boolean;
 };
 
 const MONTHS = ['January','February','March','April','May','June','July','August',
@@ -217,9 +227,8 @@ async function tryFedFOMC(now: Date): Promise<CalEvent[]> {
 }
 
 // ── FRED: Free actual values for recently-released events ────────────────────
-// FRED graph CSV: no API key needed; daily update lag ~1 day for daily series
-const _fredCache: Record<string, { rows: [number, number][]; ts: number }> = {};
-const FRED_TTL = 12 * 3600_000;
+// The fetch/parse/cache lives in lib/fred.ts - /api/macro needs the same thing
+// for the 10Y real yield (#311), and two copies of a CSV parser is one too many.
 
 const FRED_CFG: Record<string, { id: string; fmt: 'rate' | 'mom_change' | 'mom_pct' | 'qoq_ann' }> = {
   FOMC:   { id: 'DFEDTARU', fmt: 'rate' },       // Fed Funds target upper bound (daily)
@@ -230,22 +239,6 @@ const FRED_CFG: Record<string, { id: string; fmt: 'rate' | 'mom_change' | 'mom_p
   GDP:    { id: 'GDP',      fmt: 'qoq_ann' },     // GDP (quarterly)
   RETAIL: { id: 'RSAFS',   fmt: 'mom_pct' },      // Retail sales (monthly)
 };
-
-async function fetchFREDRows(seriesId: string): Promise<[number, number][]> {
-  const c = _fredCache[seriesId];
-  if (c && Date.now() - c.ts < FRED_TTL) return c.rows;
-  try {
-    const r = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`,
-      { next: { revalidate: 43200 } });
-    if (!r.ok) return [];
-    const rows: [number, number][] = (await r.text()).split('\n').slice(1)
-      .filter(l => l.includes(','))
-      .map(l => { const [d, v] = l.trim().split(','); return [new Date(d + 'T00:00:00Z').getTime(), parseFloat(v)] as [number, number]; })
-      .filter(([d, v]) => !isNaN(d) && !isNaN(v));
-    _fredCache[seriesId] = { rows, ts: Date.now() };
-    return rows;
-  } catch { return []; }
-}
 
 function fredActual(rows: [number, number][], eventTs: number, fmt: string): string | undefined {
   if (rows.length < 2) return undefined;
@@ -269,7 +262,7 @@ async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
   if (past.length === 0) return;
 
   const needed = [...new Set(past.map(e => FRED_CFG[e.type]?.id).filter(Boolean))] as string[];
-  const data = Object.fromEntries(await Promise.all(needed.map(async id => [id, await fetchFREDRows(id)])));
+  const data = Object.fromEntries(await Promise.all(needed.map(async id => [id, await fetchFredRows(id, FRED_TTL_DEFAULT)])));
 
   for (const e of past) {
     const cfg = FRED_CFG[e.type];
@@ -282,13 +275,45 @@ async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
 // ── Source 4: Computed schedule for key US macro releases ─────────────────────
 // Approximate release patterns - accurate within a few days. Used when no live
 // feed is available. Covers the 8 most market-moving releases.
+/* Move a computed date off a weekend (#245).
+ *
+ * The hardcoded day-of-month entries below - CPI on the 12th, PPI on the 11th,
+ * Retail on the 15th, GDP on the 25th - have no idea what a weekend is. Over the
+ * next twelve months that emitted, among others:
+ *
+ *     RETAIL 2026-08-15 = Saturday        CPI 2026-09-12 = Saturday
+ *     PPI    2026-10-11 = Sunday          GDP 2026-10-25 = Sunday
+ *
+ * Two of those were live on staging when QA reproduced this. No US statistical
+ * agency has ever released data on a Saturday, so those are not "approximate
+ * within a few days" - they are dates that cannot exist.
+ *
+ * Nearest weekday, not "next business day": these are approximations either way,
+ * and BLS moves a release earlier as often as later. Saturday goes back to
+ * Friday, Sunday forward to Monday - the smallest change that removes an
+ * impossible date. It does NOT make the date correct, which is why every entry
+ * from this function is also flagged `estimated`. */
+function offWeekend(dt: Date): Date {
+  const day = dt.getUTCDay();
+  if (day === 6) dt.setUTCDate(dt.getUTCDate() - 1);   // Sat -> Fri
+  else if (day === 0) dt.setUTCDate(dt.getUTCDate() + 1); // Sun -> Mon
+  return dt;
+}
+
 function computeMacroSchedule(now: Date): CalEvent[] {
   const events: CalEvent[] = [];
   const maxH = 90 * 24;
 
+  /* EVERY entry from this function is `estimated: true`. The dates are patterns,
+     not a schedule - the function's own header says "accurate within a few
+     days". Shipping that as indistinguishable from a real release date is the
+     defect in #245; the approximation itself is fine and clearly labelled. */
   const push = (name: string, type: string, dt: Date) => {
-    const h = (dt.getTime() - now.getTime()) / 3600000;
-    if (h >= 0 && h <= maxH) events.push({ name, type, isoDate: dt.toISOString(), impact: 'high' });
+    const when = offWeekend(dt);
+    const h = (when.getTime() - now.getTime()) / 3600000;
+    if (h >= 0 && h <= maxH) {
+      events.push({ name, type, isoDate: when.toISOString(), impact: 'high', estimated: true });
+    }
   };
 
   for (const y of [now.getUTCFullYear(), now.getUTCFullYear() + 1]) {
@@ -371,7 +396,32 @@ export async function GET(req: NextRequest) {
 
     for (const e of ffEvents)    add(e, `${e.type}|${e.isoDate.slice(0, 10)}`);
     for (const e of fomcEvents)  add(e, `FOMC|${e.isoDate.slice(0, 10)}`);
-    for (const e of macroEvents) add(e, `${e.type}|${e.isoDate.slice(0, 10)}`);
+
+    /* A COMPUTED ENTRY IS DROPPED WHEN A REAL ONE EXISTS FOR THAT MONTH (#245).
+     *
+     * The dedup key above is `type|YYYY-MM-DD`, so a real PPI on the 13th and a
+     * computed PPI on the 11th are different keys and BOTH survived. That is
+     * what the owner actually saw: PPI listed on Tuesday the 11th when the real
+     * release was Thursday the 13th. Both were in the payload, and the wrong one
+     * carried the FRED `actual` - so the fabricated row looked like the more
+     * complete of the two.
+     *
+     * Marking computed entries `estimated` was not enough on its own. A user
+     * seeing the same release twice, on two dates, cannot tell which to plan
+     * around, and the label does not resolve that - it only says one of them is
+     * a guess.
+     *
+     * MONTH, not day: these are monthly releases (GDP quarterly), so one real
+     * CPI in August means every computed CPI for August is redundant regardless
+     * of which day it landed on. Comparing by day would keep exactly the
+     * duplicate this is here to remove. */
+    const realByMonth = new Set(
+      [...ffEvents, ...fomcEvents].map(e => `${e.type}|${e.isoDate.slice(0, 7)}`),
+    );
+    for (const e of macroEvents) {
+      if (realByMonth.has(`${e.type}|${e.isoDate.slice(0, 7)}`)) continue;
+      add(e, `${e.type}|${e.isoDate.slice(0, 10)}`);
+    }
 
     await enrichWithFRED(merged, now);
 

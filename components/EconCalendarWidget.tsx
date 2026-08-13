@@ -9,6 +9,8 @@ import { econImpactKey, type EconImpact } from '@/lib/classify';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
+  /* Computed date, not a published one (#245). */
+  estimated?: boolean;
   previous?: string; estimate?: string; actual?: string;
 };
 
@@ -120,8 +122,16 @@ export default function EconCalendarWidget() {
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '6px 0', borderTop: i === 0 || showDateHeader ? 'none' : '0.5px solid var(--bdr)',
             }}>
-              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0, width: 42 }}>
-                {fmtTime(e.isoDate)}
+              {/* A leading ~ on an estimated row (#245). The date came from a
+                  pattern, not a published schedule, and until now nothing on
+                  screen said so - a computed entry looked identical to a real
+                  one, and carried a real FRED `actual` besides. The tooltip
+                  says it in words for anyone who does not read the tilde. */}
+              <span
+                title={e.estimated ? 'Estimated date - approximate, not a published release schedule' : undefined}
+                style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0, width: 42 }}
+              >
+                {e.estimated ? '~' : ''}{fmtTime(e.isoDate)}
               </span>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: col, flexShrink: 0 }} />
               <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ROUTES, BASELINE, settle } from './_shared';
+import { ROUTES, BASELINE, settle, getGuarded } from './_shared';
 
 // SEO / head metadata. Public marketing surface, so these matter commercially.
 // Mixed strict + baseline, same rule as a11y.
@@ -10,15 +10,59 @@ test.describe('seo', () => {
   });
 
   test('robots.txt and sitemap.xml are served', async ({ request }) => {
-    const robots = await request.get('/robots.txt');
+    const robots = await getGuarded(request, '/robots.txt');
     expect(robots.status()).toBe(200);
     const body = await robots.text();
     expect(body, 'API routes should not be crawled').toContain('Disallow: /api/');
     expect(body).toContain('Sitemap:');
 
-    const sitemap = await request.get('/sitemap.xml');
+    const sitemap = await getGuarded(request, '/sitemap.xml');
     expect(sitemap.status()).toBe(200);
     expect(await sitemap.text()).toContain('<urlset');
+  });
+
+  /* A URL THAT DOES NOT EXIST MUST NOT ANSWER 200.
+   *
+   * Moved here from i18n.spec.ts, which is where it was discovered but not where
+   * it belongs - it was never about locales.
+   *
+   * #157: every unknown URL answered 200 on production. The site was not missing
+   * a 404 page; `app/[locale]/page.tsx` is a single-segment dynamic route, so
+   * /nope, /pricing and /admin-typo all MATCHED it, reached `notFound()`, and by
+   * then the response had started streaming - and per Next's docs the status can
+   * no longer be changed. Multi-segment paths like /nope/deeper were genuinely
+   * unmatched and returned 404 all along, which is why it read as "no 404
+   * anywhere" from outside while app/not-found.tsx worked correctly.
+   *
+   * Fixed in #163 with `dynamicParams = false`, which moves the decision to
+   * routing, before anything renders.
+   *
+   * WHY THIS SITS IN THE SEO SPEC. A crawler reads 200 as "index this", so every
+   * typo and dead share link becomes an indexable duplicate of the 404 page.
+   * This file already covers robots, sitemap, titles and canonicals and did not
+   * catch it, because nothing here had ever asserted a STATUS CODE for a URL
+   * that should not exist.
+   *
+   * Both shapes are checked. The single-segment case is the one that regressed;
+   * the multi-segment case is the control that proves the probe itself works. */
+  test('a URL that does not exist returns 404, not a soft 404', async ({ request }) => {
+    const cases = [
+      ['/definitely-not-a-route', 'single segment - the shape #157 was about'],
+      ['/admin-typo', 'single segment, plausible typo'],
+      ['/nope/deeper', 'multi segment - the control; this returned 404 even while #157 was open'],
+    ] as const;
+
+    const wrong: string[] = [];
+    for (const [path, why] of cases) {
+      const status = (await getGuarded(request, path)).status();
+      if (status !== 404) wrong.push(`${path} -> ${status} (${why})`);
+    }
+
+    expect(wrong,
+      'A nonexistent URL answered something other than 404. If `dynamicParams = false` was ' +
+      'removed from app/[locale]/page.tsx, every unknown single-segment URL is a soft 404 ' +
+      'again and crawlers will index them - see #157 and #163.\n' + wrong.join('\n'),
+    ).toEqual([]);
   });
 
   test('every page has a non-empty title', async ({ page }) => {
@@ -97,7 +141,7 @@ test.describe('seo', () => {
     const robotsMeta = hasRobotsMeta
       ? await page.getAttribute('meta[name="robots"]', 'content')
       : null;
-    const robotsTxt = await (await request.get('/robots.txt')).text();
+    const robotsTxt = await (await getGuarded(request, '/robots.txt')).text();
     const blocked = /noindex/i.test(robotsMeta ?? '') || /Disallow:\s*\/ops/i.test(robotsTxt);
     // Known gap as of the audit - internal admin login is currently crawlable.
     test.info().annotations.push({

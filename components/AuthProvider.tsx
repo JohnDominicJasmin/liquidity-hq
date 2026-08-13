@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { forceSignOut } from '@/lib/authSession';
 import type { User } from '@supabase/supabase-js';
 import posthog from 'posthog-js';
 import { T } from '@/lib/tables';
@@ -65,7 +66,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     sb.auth.getSession().then(async ({ data }) => {
       const sessionUser = data.session?.user ?? null;
       if (sessionUser && isSessionExpired()) {
-        await sb.auth.signOut();
+        // forceSignOut, not sb.auth.signOut: this path exists to END a session
+        // that has outlived its window, so it failing quietly would keep the
+        // user signed in past the expiry it is enforcing (#304).
+        await forceSignOut(sb);
         localStorage.removeItem(LAST_ACTIVE_KEY);
         setUser(null);
       } else {
@@ -126,7 +130,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             // without it, this signOut() just silently drops the user with
             // no explanation for why their own open tab went dark.
             sessionStorage.setItem(BAN_NOTICE_KEY, '1');
-            sb.auth.signOut();
+            // Ban enforcement is a security control, so it must not depend on
+            // the logout request succeeding. Before #304's follow-up, a banned
+            // user whose request happened to fail simply stayed signed in and
+            // nothing said so.
+            void forceSignOut(sb);
           }
         },
       )
@@ -153,7 +161,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const signOut = async () => {
     const sb = getSupabase();
     localStorage.removeItem(LAST_ACTIVE_KEY);
-    await sb?.auth.signOut();
+    /* The stored session is dropped locally when the server call fails - see
+     * forceSignOut in lib/authSession.ts for why, and for the two other paths
+     * that need the same guarantee.
+     *
+     * Callers hard-navigate afterwards rather than router.push, because /login
+     * bounces a signed-in user straight back (app/login/page.tsx:57) and a soft
+     * navigation keeps every provider alive to be bounced by. */
+    if (await forceSignOut(sb)) setUser(null);
   };
 
   // Trial expiry is compared against a clock held in state rather than a

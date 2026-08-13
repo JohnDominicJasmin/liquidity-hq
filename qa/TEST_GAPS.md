@@ -1,228 +1,243 @@
 # What a green suite does not mean
 
-**Owner: QA. Last measured 2026-08-08.** Status and blockers live in [`STATUS.md`](STATUS.md); this file is only about coverage.
+**Owner: QA. Last measured 2026-08-10.** Status and blockers live in [`STATUS.md`](STATUS.md); this file is only about coverage.
 
-This file exists because "187 tests passed" reads like "the product works", and it
+This file exists because "250 tests passed" reads like "the product works", and it
 does not. It is the standing list of what is **not** covered, why it matters, and
 what closing it would take.
 
 Read it before quoting a green CI run as evidence of anything.
 
-Two rules for keeping it honest:
+**⚠ Read §11 first.** The browser suite has not been running in CI at all, so
+"250 tests passed" is currently a claim about the last time somebody ran them by
+hand — not about the last commit.
+
+Three rules for keeping it honest:
 
 - **A gap leaves this list only when a test covers it**, not when someone is
   confident it is fine. Confidence is what this file exists to replace.
 - **When a gap is closed, say what closed it** — the spec name, so the claim is
   checkable.
+- **A gap that is half closed is still open.** §1 and §5 below are the live
+  examples. "Fixtures exist" and "the clock is controllable" are different
+  claims, and collapsing them is how a list stops being true without anyone
+  editing it.
 
 ---
 
 ## What the suite actually covers today
 
+250 passed / 110 skipped, 41 minutes, measured on release gate #162.
+
 | | |
 |---|---|
 | ✅ Signed-out surface | 32 routes, desktop + iPhone 13 |
 | ✅ Signed-in surface | Settings, TradeJournal, Grok chat — accessibility only, desktop only |
-| ✅ Cross-account access (BOLA/IDOR) | 9 tests, both seeded accounts, HTTP level |
+| ✅ Cross-account access (BOLA/IDOR) | 10 tests, both seeded accounts, HTTP level |
+| ✅ **Pro entitlement boundary** | 15 routes × both directions, pinned `pro` and `free` fixtures |
+| ✅ **Payments webhook** | signature, replay guard, cross-account ownership — **synthetic payloads only** |
 | ✅ Accessibility | axe WCAG 2.0/2.1/2.2 A+AA, tap targets, names, landmarks |
 | ✅ Performance | LCP + CLS budgets per route |
 | ✅ SEO / meta | canonical, titles, h1 |
-| ✅ Colour contrast | **dark theme only**, 8 routes measured |
+| ✅ Colour contrast | **both themes**, all 32 routes, served from fixtures |
+| ✅ **Offline / service worker** | 5 tests — precache, offline page, API passthrough, revalidation, cache purge |
+| ✅ **Locale offering + page language** | `lang`/`dir` per route, picker contents, `/ar` removal |
 
 Everything below is outside that.
 
 ---
 
-## 🔴 1. Market data and the clock cannot be controlled
+## 🟡 1. Data and clock are controllable; SERVER time is not
 
-**The biggest gap by a wide margin, and the least visible.**
+**Downgraded twice on 2026-08-09.** Two of the three original blockers are gone.
 
-Every test runs against whatever the live market is doing at that moment. There
-is no way to pin an input, so the product's own domain logic — the reason anyone
-uses it — has never been tested.
+**Market data** — `qa/e2e/_fixtures.ts` serves 20 recorded endpoints to the
+browser; `contrast.spec.ts` measures against them.
 
-Untestable today:
+**The clock** — `qa/e2e/clock.spec.ts` pins it with `page.clock`, no app change.
+Three fixed instants produce three different renders on `/hours`. It found a
+dated defect: `HOLIDAYS_2026` is hardcoded and `getHoliday()` falls back to `[]`,
+so from 2027-01-01 every market holiday silently becomes a trading day. The guard
+fires in **November**, not on New Year's Day.
 
-- funding rate flipping **negative**, and the UI that is supposed to react to it
-- RSI crossing overbought / oversold thresholds
-- squeeze and flush scores at their alert boundaries
-- **24h and 48h alert outcome resolution** — a test would have to wait 24 hours
-- "Best Hours" and the economic calendar **across timezones**, including DST
-- what the app does when Binance/CMC returns an error, an empty array, a `null`
-  price, or a number where a string was expected
-- liquidation map behaviour at extremes
+**Server-side calls** — `qa/server-intercept.mjs` wraps the Node process's own
+`fetch`. Off unless `QA_INTERCEPT_UPSTREAM` is set; `count` tallies without
+altering anything, `1` stubs. That measurement retired #114: Binance **0**,
+Bybit **<25**, Supabase 100+ per contrast sweep — the constraint the `workers`
+pin was built around barely exists.
 
-Right now a passing run means "nothing crashed given today's prices". It does not
-mean the calculations are right, because nothing ever asserts a calculation
-against a **known** input.
+**Still open:**
 
-**To close:** intercept the market-data calls at the network layer
-(`page.route`) and serve recorded fixtures — one per scenario. Plus a fake clock
-for the time-dependent paths. This is the real work: recording representative
-payloads is most of it.
-
-**Cost:** days, not hours. **Value:** highest of anything on this list.
+- **SERVER time.** `page.clock` fakes the browser only, so the 24h/48h alert
+  outcome resolution — a cron — remains untestable.
+- **The user's timezone.** `page.clock` moves the instant, not the zone. A real
+  DST matrix needs `timezoneId` contexts.
+- RSI thresholds and squeeze/flush boundaries have fixtures but no spec asserts
+  against them.
 
 ---
 
-## 🟠 2. Nothing has ever looked at the pages
+## 🟡 2. Geometry is checked now; APPEARANCE still is not
 
-Contrast ratios are computed from CSS values and the DOM is read
-programmatically. **No test has ever compared what the page looks like.**
+**Downgraded from 🟠 on 2026-08-09.** `qa/e2e/layout.spec.ts` closed the half of
+this that could be closed deterministically.
 
-So all of these would pass every check currently in the suite:
+**What is covered now**, on both viewports, no baseline files:
+
+- a control rendered underneath something else → **obscured** check, via
+  `elementFromPoint` on each control's own centre
+- a chart drawing at zero height → **zero-size** check on every visible
+  `canvas`/`svg`
+- the **first-visit** state, where the consent banner sits over the page
+
+It found real defects immediately: two `/calc` inputs under the fixed mobile tab
+bar (#173), and 4 desktop / 26 mobile controls covered by the consent banner on a
+first visit (#174).
+
+**What is still NOT covered, and it is the original wording of this section:**
 
 - text rendered in a colour that happens to match its background
-- two elements overlapping
-- a chart drawing at zero height
+- two elements overlapping **without** either one's centre landing on the other
 - a modal opening off-screen
-- a layout collapsing at one specific width
+- anything that is simply *ugly* — spacing, alignment, wrapping
 
-This is not theoretical. **Nine routes received colour-token substitutions with
-no measured proof** (recorded in every release note since 2026-08-05 as "not
-verified"), and the suite cannot tell whether they render correctly.
+Geometry catches "unusable". It does not catch "wrong".
 
-**To close:** screenshot baselines per route per viewport per theme, with a
-pixel-diff threshold. Playwright has `toHaveScreenshot()` built in — no new
-dependency.
+**Why not `toHaveScreenshot()`, which is the obvious answer to the rest.**
+Playwright suffixes snapshots per platform, so baselines generated on a developer
+machine are never compared against a Linux CI run — CI silently generates its own
+and compares a build against itself. **Pixel baselines have to be produced on the
+platform that judges them**, which makes this a CI-side job: generate on a runner,
+commit, then diff.
 
-**The catch:** live market data means the pixels change every run. This gap is
-**blocked on gap 1** for the data-heavy routes; the static/marketing routes could
-be baselined today.
+**Two cautions for whoever does it.** The counts in `layout.spec.ts` proved
+unstable until a DOM-settle wait was added — pixels will be worse, because a
+one-pixel scrollbar or font-rendering difference fails a diff that a geometry
+check ignores. And the mobile obscured count moves with content height, so
+screenshots of data-heavy routes will need the fixtures that already exist.
 
-**Cost:** ~1 day for the static routes. **Value:** high, and it is the cheapest
-big win once fixtures exist.
-
----
-
-## 🟠 3. Light theme has never been measured
-
-Contrast was measured on the **dark** theme only. The app ships a light theme
-(`Settings → Appearance → Light`), and no automated check has ever run against
-it.
-
-Every contrast number QA has ever reported — including the fixes in
-`__tests__/contrastTokens.test.mts` — describes dark mode.
-
-**To close:** parameterise the contrast sweep over `data-theme`, run both. The
-harness already exists; it just runs once.
-
-**Cost:** hours. **Value:** high for the cost — this is the cheapest item here.
+**Cost:** ~1 day, most of it CI plumbing rather than test code.
+**Value:** high, but no longer the highest — the unusable cases are caught.
 
 ---
 
-## 🔴 4. Four locales ship; one is tested, and Arabic is not implemented
+## ✅ 3. Light theme — CLOSED 2026-08-09
 
-**CORRECTED 2026-08-08.** This section said "five languages … English, 한국어,
-中文, العربية, Русский". `SUPPORTED_LOCALES` in `lib/i18n/dictionaries.ts` is
-`['ko', 'zh', 'ar']` plus English — **four**. Русский is not shipped. I repeated
-"five" from this file several times in one day without checking it, which is the
-same failure this file exists to prevent: a confident claim nobody re-measured.
+Closed by `qa/e2e/contrast.spec.ts`, which sweeps **both** themes across all 32
+routes. Light carries a 26-token baseline; dark carries 11. Both print their
+counts into the gate log.
 
-Every test asserts against **English** strings and English layout.
-
-**Raised from 🟠 to 🔴, because Arabic turned out not to be a testing gap.**
-Measured on production 2026-08-08:
-
-```
-GET /ar          -> <html lang="en">   no dir attribute
-GET /dashboard   -> <html lang="en">   no dir attribute
-```
-
-`dirForLocale()` exists and is correct, and is applied to **one div** inside
-`LandingContent`. The authenticated app never sets `dir` at all, while
-`LabelsProvider` serves Arabic strings app-wide — so an Arabic user gets Arabic
-text in a permanently left-to-right layout.
-
-Two defects, tracked on **#138**:
-
-1. **`lang="en"` on Arabic content** — WCAG 2.2 SC 3.1.1, **Level A**. A screen
-   reader applies English pronunciation to Arabic, which is unintelligible rather
-   than accented. Wrong for Korean and Chinese too.
-2. **`dir` never reaches the document.** Anything portalled to `<body>` — modals,
-   toasts, the consent banner — is outside `.lp-root` and stays LTR even on the
-   landing page.
-
-**Writing an RTL spec would have proven nothing**, because the feature is not
-there to fail. `dirForLocale` existing made it look implemented from the inside,
-which is why reading the layout beat testing it.
-
-Related and already burned: `LabelsProvider` overwrote 2,570 seeded English
-labels when `/api/labels` returned `200 {}` (found 2026-08-05, fixed). Found by
-accident in a degraded CI environment. Nothing routinely checks the label layer
-is intact in **any** locale.
-
-**To close:** the owner decides whether Arabic is supported at launch (#138). If
-yes, `lang` and `dir` become dynamic and the app needs a logical-properties pass;
-then the spec asserts both on `<html>` per locale. If no, Arabic comes out of the
-picker — a selector that produces a broken layout is worse than not offering it.
-
-**`lang` should be fixed either way.** One attribute, Level A, currently wrong on
-every page in production.
+Kept as a heading rather than deleted, because "contrast is dark-only" was
+repeated from this file for weeks after it stopped being true.
 
 ---
 
-## 🟡 5. The payment and upgrade flow has never been exercised
+## ✅ 4. Page language — CLOSED 2026-08-09
 
-`/upgrade`, LemonSqueezy checkout, subscription state, Pro-gating. Reached only
-as an unauthenticated page render.
+Arabic was withdrawn rather than implemented (#147, owner's Option B), `/ar`
+returns a real 404 (#163), and `lang`/`dir` now come from `LabelsProvider` — the
+component that owns the locale — so they follow the locale a user actually
+selected on every route, not just the three with a locale in the URL (#165).
 
-Never tested: that a purchase grants Pro, that Pro-gated features unlock, that a
-lapsed subscription re-locks them, that a failed payment is handled. The
-timeframe chips in Settings carry `title="Fast timeframes are a Pro feature."` —
-whether that gate actually holds is unverified.
+Guarded by `qa/e2e/i18n.spec.ts`, including the assertion that was missing: `lang`
+on a route with **no locale in its URL**, driven by stored selection, for `ko`,
+`zh` and `ru`. Plus the withdrawn-locale case, where `lang`, `dir` and rendered
+text must all agree.
 
-**Why it is 🟡 and not 🔴:** it involves a third party's sandbox and real money
-paths, so it is genuinely awkward to automate — not because it matters less. It
-arguably matters most in money terms.
+**Kept as a heading for the lesson, not the fix.** This section was closed once
+before, on 2026-08-08, and was wrong:
 
-**To close:** LemonSqueezy test mode + a seeded Pro account alongside the two
-existing fixtures.
+- Arabic was still selectable in **two other pickers** — a second locale system
+  nobody had looked at
+- QA's production sign-off ran nine checks and passed nine, having only visited
+  routes the fix had touched. Thirty of thirty-two routes were serving Korean
+  copy under `lang="en"` at that moment
+- the first attempted fix was a **no-op**: the component was mounted outside the
+  provider it read from, so its hook returned the context default forever
+
+Three verifications in a row that could not observe what they claimed to check.
+That is why the spec now asserts against the *selected* locale rather than the
+route, and why it runs in a browser rather than over source.
+
+---
+
+## 🟡 5. A REAL purchase has never granted Pro
+
+**Narrowed on 2026-08-09, and the remaining gap is one sentence long.**
+
+Three files now cover the payments path:
+
+| file | asserts |
+|---|---|
+| `__tests__/checkoutUrl.test.mts` | what the checkout URL contains |
+| `qa/e2e/checkout.spec.ts` | that the button actually sends it |
+| `qa/e2e/payments-webhook.spec.ts` | that the server does not trust it |
+
+Together: the URL carries the signed-in user's own id, the button really hands it
+off, a signed-out visitor reaches no checkout, and a forged, replayed or
+cross-account payload is refused.
+
+**None of that needed a LemonSqueezy account.** I had reported this section as
+blocked on owner-supplied keys; that was wrong.
+
+**What is still untested:** a real purchase granting Pro, a lapsed subscription
+re-locking, and whether we are pointed at the right store. That needs approval,
+keys and a sandbox — and it is a once-before-launch check, not a per-commit one.
+
+**Production risk worth naming:** `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` is
+inlined at build time. If it is unset on prod, `getCheckoutUrl` returns
+`/login?signup=1` and the upgrade button silently sends buyers to a signup page.
+`checkout.spec.ts` fails loudly when it is absent rather than testing the
+fallback while claiming to test checkout.
 
 ---
 
 ## 🟡 6. Accessibility is asserted, never heard
 
-The suite checks that `aria-live`, `role`, and accessible names **exist**. It has
-never checked what a screen reader actually **announces**.
+**Unchanged.** The suite checks that `aria-live`, `role` and accessible names
+**exist**. It has never checked what a screen reader **announces**.
 
 An element can have every correct attribute and still be unusable — wrong reading
 order, a name that says "button" and nothing else, a live region that fires on
 every keystroke. Attribute presence is a floor, not a pass.
 
-**To close:** honestly, partly unclosable in CI. A real pass needs NVDA or
-VoiceOver and a person. Worth booking as a manual session rather than pretending
-automation covers it.
+Sharpened by §4: `lang` was *present* on every page for the whole life of the
+project. It was present and wrong, and no attribute-presence check can find that.
+
+**To close:** partly unclosable in CI. A real pass needs NVDA or VoiceOver and a
+person. Book it as a manual session rather than pretending automation covers it.
 
 ---
 
-## 🟡 7. `qa` and `dev` share one database
+## 🟡 7. `staging` and `dev` share one database
 
-Documented in `CLAUDE.md` and accepted deliberately — Supabase's free plan caps
-the account at two projects, and dev + prod take both.
+**Unchanged, and the wording corrected** — it is `staging`, not `qa`, that shares
+the dev Supabase project (`wdtjhrilakoitfcezxpx`). Accepted deliberately:
+Supabase's free plan caps the account at two projects and dev + prod take both.
 
-Consequence, stated so nobody forgets: **QA test data and dev's data live in the
-same database.** A clean QA run is not proof the data path is clean; it may be
-proof that dev happened to leave good data lying around. Row counts, empty
-states, and "no results" assertions are all suspect.
+Consequence: **QA test data and dev's data live in the same database.** A clean
+run on staging is not proof the data path is clean; it may be proof that dev left
+good data lying around. Row counts, empty states and "no results" assertions are
+all suspect.
+
+New as of 2026-08-09: CI now holds that project's **service-role key**
+(`E2E_SUPABASE_SERVICE_ROLE_KEY`). Scoped to the E2E job, dev project only. Prod's
+key must never reach CI — prod holds real customers and the free plan has no
+backups.
 
 **To close:** a third Supabase project. Costs money. Owner's call.
 
 ---
 
-## 🟡 8. Offline / PWA behaviour
+## ✅ 8. Offline / PWA — CLOSED 2026-08-08
 
-There is a service worker and an `/offline` route. Nothing tests the app going
-offline: whether cached routes serve, whether the offline page appears, whether
-queued actions replay on reconnect, or whether a stale service worker serves an
-old build after a deploy.
+Closed by `qa/e2e/offline.spec.ts`: the worker registers, activates and
+precaches; a failed navigation serves the offline page; **API requests are not
+answered with it**; navigations revalidate rather than serving a stale copy; and
+activation purges older caches.
 
-That last one bites in production and is invisible on the qa and staging test environments.
-
-**To close:** `context.setOffline(true)` plus service-worker lifecycle
-assertions. Playwright supports both.
-
-**Cost:** ~half a day.
+That last one is the "stale service worker serves an old build after a deploy"
+case, which bites in production and is invisible on the test environments.
 
 ---
 
@@ -230,85 +245,215 @@ assertions. Playwright supports both.
 
 Recorded here rather than hidden, because the suite is code and has defects too.
 
+- **`perf.spec`'s LCP budget was calibrated on a laptop and fails in CI.**
+  `< 2500ms` was set against a local 84–720ms measurement — 3× headroom over a
+  dev machine and none over a GitHub runner. Measured 2026-08-10 on the same
+  commit: **8/8 pass locally, 5 fail in CI** (`/arena`, `/dashboard`,
+  `/markets`, `/briefing`, `/scanner`, at 2740–4456ms). It currently gates
+  nothing and would not be believed if it did. **Do not raise the number to make
+  it green** — decide first whether it asserts a user-facing target or catches
+  regressions, because those want different fixes.
 - **`perf.spec` does not warm a route before measuring it.** Two LCP failures on
-  2026-08-06 were cold-start artefacts, not regressions — 3460ms cold vs 676ms
-  warm on the same build. Until this is fixed, an LCP failure needs a warm re-run
-  before it is believed.
+  2026-08-06 were cold-start artefacts — 3460ms cold vs 676ms warm on the same
+  build. Still true, and it compounds the budget problem above.
 - **`playwright.config.ts` sets `reuseExistingServer: !process.env.CI`.** Locally
-  the suite will silently reuse whatever is already on port 3000, which may be a
-  different branch's build. Always check what is being served before trusting a
-  local run.
-- **`a11y-auth.spec.ts` is desktop-only** — deliberate (same DOM, double the
-  cost), but it does mean no signed-in mobile coverage exists at all.
-- **The trade journal has no API route**, so it has no API-level BOLA surface to
-  probe. Its data isolation is unverified at HTTP level; only the UI path is
-  covered.
+  the suite silently reuses whatever is on port 3100, which may be another
+  branch's build. Check what is being served before trusting a local run.
+- **Two local suites at once corrupt each other.** The port is fixed, so a second
+  invocation attaches to the first one's server and tears it down on exit; the
+  still-running suite starts getting `net::ERR_CONNECTION_REFUSED`. Hit
+  2026-08-10 and it read as a broken refactor for several minutes. `contrast.spec`
+  caught it only because it asserts every route was *measured* — without that
+  guard a half-measured sweep reports green. Use `E2E_PORT=3101` for the second
+  run.
+- **`qa/server-intercept.mjs` writes one tally file per PROCESS.** `NODE_OPTIONS`
+  loads it into every node process in the tree and each keeps its own counters.
+  They used to share one path and destroy each other — the first CI measurement
+  reported `TOTAL outbound: 0` while a worker in the same run had logged 8. Read
+  the aggregate, and treat a process count of 1 as a bug rather than a result.
+- **`a11y-auth.spec.ts` is desktop-only** — deliberate, but it means no
+  signed-in mobile coverage exists at all.
+- **The trade journal has no API route**, so no API-level BOLA surface. Its data
+  isolation is unverified at HTTP level; only the UI path is covered.
+- **Several assertions cannot fail.** `bola.spec.ts`'s `REFUSED` set contains
+  `200`, so the status check is decorative and the data assertion beside it is
+  what has teeth. Deliberate, documented in the file, and listed here so it is
+  not rediscovered as a bug.
+- **110 tests skip every run.** 95+ are the mobile project on HTTP-level specs,
+  which is by design. Every skip names its reason. Read them — some are accepted
+  limits and some would be findings if they appeared.
 
 ---
 
-## 🔴 10. Error monitoring is installed and capturing nothing
+## 🟡 10. Monitoring is wired in production; DELIVERY is unconfirmed
 
-**CORRECTED 2026-08-06.** This section previously said "There is no Sentry, no
-error aggregation, no alert." That was **wrong**, and written without reading
-`pendings/OPS_ROADMAP.md:46`, which documents the opposite.
+**Was ✅ with a caveat. The caveat is the whole of what is left, so it is amber
+again** — a section marked closed with an untested claim inside it is how this
+file went wrong before.
 
-Error monitoring exists: `@sentry/nextjs` 10.67.0, wired through
-`instrumentation.ts` (server + edge) and `instrumentation-client.ts` (client),
-pointed at **GlitchTip**, environment-tagged from `NEXT_PUBLIC_APP_ENV`, with
-`tracesSampleRate: 0` set deliberately after traces ate 99% of the free quota.
+**Confirmed 2026-08-09, measured against the production bundle:** the GlitchTip
+DSN is compiled in and points at project `25983`. Monitoring is genuinely present
+in prod, not just in the repo.
 
-The real finding is worse than the gap that was imagined:
+**Confirmed earlier:** `lib/monitoring.ts` suppresses non-prod events before they
+spend quota, session envelopes went 14 → 0, and
+`__tests__/monitoringPipeline.test.mts` proves the scrubber runs inside the real
+SDK — email, IP and username stripped, an OAuth `access_token` in a breadcrumb
+fragment removed while the path survives.
 
-```
-POST https://app.glitchtip.com/api/25983/envelope/   ->  429 Too Many Requests
-```
+**Still unconfirmed:** that an error raised on production actually ARRIVES. Every
+proof above is a harness or a bundle inspection. The original finding on this
+section was a 429 quota rejection, which is invisible from outside.
 
-Measured on the qa test environment across four page loads — **every request, no exceptions**.
-The event quota is exhausted, so every error the app reports is rejected and
-dropped.
+**To close:** raise one deliberate error in production and confirm it appears in
+GlitchTip. It needs the owner's say-so, because it means breaking something on
+purpose on the live site.
 
-That is worse than having none, because none is at least honest. This appears in
-the dependency list, in the ops doc, and in the network tab, and captures
-nothing. Anyone asking "do we have error monitoring?" gets *yes*.
+---
 
-Likely cause: `NEXT_PUBLIC_SENTRY_DSN` is one variable and `environment` is a
-tag, not a separate quota — so if `dev`, `qa` and `prod` share a DSN, dev noise
-and QA traffic spend production's 1,000 events a month. Structurally the same
-trap as §7, and with the same consequence: the noisy environments starve the one
-that matters.
+## 🔴 11. The browser suite has not been running in CI — everything above is dated
 
-**To close:** a separate DSN for prod, or `beforeSend` dropping non-prod events
-before they spend quota. Filed as issue #51.
+**Found 2026-08-10, issue #207. Read this before quoting any number in this file.**
 
-**The lesson, recorded because it is the more useful part:** this file's job is
-to say what is *not* covered, and its first version asserted a gap that did not
-exist. A claim about the absence of something needs the same evidence as a claim
-about its presence — check the repo before writing "there is no X".
+Across **60 consecutive CI runs**, the only completed `E2E (Playwright)` jobs were
+two dispatches QA triggered by hand. Every other one is `skipped` or `cancelled`.
+
+Two correct decisions that combine into a hole:
+
+1. **E2E runs only on a release PR.** Deliberate — the suite is ~38 minutes and
+   running it per push would burn the Actions budget that §`workers` / #114 exists
+   to protect.
+2. **`RELEASE_PR_PAUSED` is set**, on the owner's "park it, do not ship to prod"
+   call, so `release-signals.yml` opens no release PR at all.
+
+Each is right on its own. Together: **no release PR → no gate → nothing merged
+since the pause has had a browser near it in CI.**
+
+**What is still genuinely covered**, because QA has been running these against the
+deployed `qa` and `staging` services directly:
+
+| Spec | Covered where |
+|---|---|
+| `smoke` | deployed `qa` + `staging`, all 32 routes |
+| `cache-policy`, `cache-effective` | deployed `qa` + `staging`, 11 routes pinned |
+
+### UPDATED 2026-08-12 — the premise changed, and the gap narrowed by hand
+
+**CI is not coming back for this.** All three workflows are now
+`disabled_manually` and `RELEASE_PR_PAUSED = 1`, and both are the owner's
+deliberate cost control on a private repo where every Actions minute is billed to
+them personally. PR #210's mechanism exists and is switched off. Treat "no CI ran"
+as the normal state, not as a defect — it was filed as one (#285) on a wrong guess
+about billing quota and closed as not-a-defect.
+
+**What replaced it:** QA runs the suite locally against the **deployed** `qa` and
+`staging` services with `E2E_BASE_URL`, which costs nothing and is stronger
+evidence than CI's own ephemeral build. Measured against `0ab7034` on both hosts
+on 2026-08-12:
+
+| Spec | Result | Host |
+|---|---|---|
+| `smoke` | 12/12 | staging |
+| `econ-calendar` | 7/7 | qa + staging |
+| `hidden-routes` | 4/4 | qa + staging |
+| `no-selling-hidden-features` | 3/3 | qa + staging |
+| `ops-admit` | 20/20 | staging |
+| `version-configured` | 2 passed, 2 skipped (host predates #283) | staging + **production** |
+| `arena-read-card` | 5/5 | staging |
+| `arena-legacy-signals` | 5 skipped (host predates #277) | staging |
+| `a11y` tap targets | 3 consecutive passes | staging, **mobile project only** |
+| `a11y-auth` U5 | 3 passes across both hosts | qa + staging |
+| `cache-policy`, `cache-effective` | as before | qa + staging |
+
+**The rest were then run rather than listed as a gap** — same session, same host,
+`--project=desktop`:
+
+| Spec | Result |
+|---|---|
+| `bola` + `payments-webhook` + `i18n` + `clock` | 32 passed, 3 skipped |
+| `checkout` | 2/2 — **after a fix, see below** |
+| `layout` + `perf` | 11 passed |
+| `a11y` + `a11y-auth` | 10 passed, 2 skipped |
+| `contrast` | 3 passed, both themes |
+
+**`checkout` had never once run against a deployed host, and nobody knew.** It
+intercepted `example.lemonsqueezy.com` — the deliberately fake value `ci.yml`
+inlines at build time. Against a real store URL the interception never fired, and
+the failure read *"nothing navigated … either the button is not wired to
+getCheckoutUrl, or the env var was absent at BUILD time"*. That message sends the
+reader hunting a product defect or a build problem. Now matched on LemonSqueezy's
+`/checkout/buy/` path shape, which the CI fake and every real store share.
+
+Same family as the hardcoded `localhost` in `security.spec` and `perf.spec`
+(#266): **anything holding a URL constant is a spec that silently only ever tests
+one environment.** Two found this way now; worth grepping for a third.
+
+**What genuinely remains uncovered:**
+
+- ~~the `mobile` project~~ — **CLOSED for `staging` on 2026-08-12.** Every spec
+  that has a mobile project was run against deployed `staging` at `0ab7034`:
+
+  ```
+  layout          3 passed    2 known entries "not seen" - both already recorded
+                              in the baseline comment as flipping between runs
+  responsive     31 passed
+  a11y            5 passed    incl. tap targets and WCAG 2.2 SC 2.5.8 target-size
+  contrast        3 skipped   desktop-only by design
+  a11y-auth      13 skipped   desktop-only by design
+  seo                         desktop-only by design
+  ```
+
+  **Read the skips before reading this as partial.** `contrast`, `a11y-auth` and
+  `seo` skip the mobile project deliberately — they assert colour values, HTTP
+  responses and head tags, none of which change with viewport, and running them
+  twice would double the time for an identical answer. The ones that genuinely
+  differ by viewport all ran.
+
+  Still desktop-only on **`qa`**: the mobile runs there covered `layout` and
+  `responsive` only, during the coverer-identity work (#300).
+- **a REAL purchase granting Pro** (§5). Unchanged, and no amount of local running
+  closes it.
+- **`perf`'s LCP budget**, which passed here but is laptop-calibrated and has
+  never been meaningful on a slower machine — see §9.
+
+**The "250 passed / 41 minutes" figure at the top of this file remains a
+historical measurement.** The table above is a set of targeted runs, not a sweep,
+and it does not add up to one.
+
+**A targeted run is preferred over a sweep even though both are free.** A
+40-minute suite wakes the free-plan Render services and, more importantly,
+produces the failure volume that caused the #284 misfile — ten failures where
+eight shared one cause. `qa/triage-reporter.mjs` now prints the distinct cause
+count on every run for exactly that reason.
+
+**Closing this gap now means** running the uncovered specs against a deployed host
+and recording the result here — not waiting for a pipeline that is off on purpose.
 
 ---
 
 ## Suggested order
 
-Ranked by value per unit of effort, not by severity:
+Rewritten 2026-08-09, revised 2026-08-10. **Three of eleven closed, five
+half-closed.** §11 jumps the queue — it is not a coverage gap so much as the
+reason the rest of the list cannot currently be trusted.
 
-| | Item | Effort | Why this order |
+| | Item | Needs | Why this order |
 |---|---|---|---|
-| 1 | §10 GlitchTip 429 | hours | Monitoring exists but drops every event — it is the only thing here that catches bugs nobody predicted, and right now it catches none |
-| 2 | §3 light theme | hours | Harness exists, runs once, just needs a second pass |
-| 3 | §8 offline/PWA | ½ day | Self-contained, no fixtures needed |
-| 4 | §2 visual, static routes only | 1 day | Immediate value, not blocked on §1 |
-| 5 | §4 i18n + RTL | 1 day | Arabic is a different layout, not different words |
-| 6 | §1 data + clock fixtures | days | The big one — unblocks the rest of §2 |
-| 7 | §5 payments | days | Awkward, third party, matters most in money |
-| 8 | §6 screen reader | manual | Book a session; do not pretend CI covers it |
+| 1 | **§5 real purchase** | owner: LemonSqueezy approval + keys | The only untested thing that touches money. Approval has a lead time nobody controls, so it is the item where waiting costs calendar rather than effort |
+| 2 | **§10 prod capture** | owner: permission to break something live | One deliberate error, once. Everything else about monitoring is proven; this is the only unmeasured link |
+| 3 | **§6 screen reader** | a person + NVDA/VoiceOver | `lang` was PRESENT and wrong on every page for the project's life. Attribute checks cannot find that class of defect |
+| 4 | §1 server time / fake cron | QA | The 24h/48h alert resolution is still unreachable |
+| 5 | §2 pixel baselines | QA + CI | Mostly plumbing: baselines must be generated on the platform that judges them |
+| 6 | §1 DST / timezone matrix | QA | `timezoneId` contexts; the clock moves the instant, not the zone |
 
----
+**Removed since this list was last written:** §4 (closed by #165), §2's geometry
+half (`layout.spec.ts`), §1's data and clock halves, and #114 - whose premise was
+measured wrong and which is now closed rather than carried.
 
 ## Also see
 
 - `pendings/QA_AUDIT_2026-08-04.md` — the original audit
-- `pendings/QA_A11Y_FINDINGS_2026-08-05.md` — accessibility findings, §4 now
-  verified
+- `pendings/QA_A11Y_FINDINGS_2026-08-05.md` — accessibility findings
 - `pendings/QA_E2E_FINDINGS_2026-08-05.md` — defects found running the suite
 - `qa/E2E_PLAN.md` — how the suite was built. Its §5 is superseded by this file;
   the BOLA gap it describes was closed on 2026-08-06 by `qa/e2e/bola.spec.ts`.

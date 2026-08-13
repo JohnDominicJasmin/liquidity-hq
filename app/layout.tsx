@@ -3,7 +3,6 @@ import localFont from 'next/font/local';
 import Script from 'next/script';
 import './globals.css';
 import AppShell from '@/components/AppShell';
-import HtmlLangSync from '@/components/HtmlLangSync';
 
 // Self-hosted, previously next/font/google.
 //
@@ -95,16 +94,50 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           and displaced it - which is how it got reported as "the FAB
           disappears". See body.consent-pending in globals.css. */}
       <body className="consent-pending">
-        {/* Corrects lang/dir on <html> once the route is known. The attribute
-            above is the server default and is wrong on /ko and /zh - see the
-            component for why this cannot be done server-side without making
-            every route dynamic. */}
-        <HtmlLangSync />
         {/* beforeInteractive - injected into the initial server HTML and
             runs before hydration, so data-theme is correct before first
             paint (no flash of the wrong theme). Mirrors lib/theme.ts's
             getStoredTheme(): explicit localStorage choice wins, otherwise
             follow the device's prefers-color-scheme. */}
+        {/* CONSENT DECIDED BEFORE HYDRATION (#337), with the #326 net behind it.
+
+            body.consent-pending hides the Ask AI FAB outright. It is set in
+            this server markup and was removed only by a useEffect in
+            CookieConsent - so the button waited on React, and QA measured a
+            first-time mobile visitor going ~2s with no button while a cold
+            instance hydrated.
+
+            A useEffect cannot run before hydration, so the button could not be
+            made to appear sooner from inside React. This reads the stored
+            consent answer HERE instead, before hydration: a returning visitor -
+            anyone who has already accepted or declined - gets the class cleared
+            in the same tick as first paint, and never waits at all.
+
+            A genuine first-time visitor still waits, and SHOULD: the banner is
+            about to appear and the FAB would be shoved by it, which is how this
+            got reported as "the FAB disappears" in the first place.
+
+            The 3s timeout stays as the net from #326. It now covers only the
+            case it was written for - the class never being cleared at all
+            because React did not run - rather than being the primary mechanism
+            on mobile, which is what QA measured it silently becoming.
+
+            SAFETY NET for consent-pending (#326).
+            body.consent-pending hides the Ask AI FAB outright
+            (visibility:hidden), it is set in this server markup, and the ONLY
+            thing that removes it is a useEffect in components/CookieConsent.tsx.
+            So anything that stops that component mounting - blocked script,
+            failed or delayed hydration, an aggressive shields setting - leaves
+            the FAB permanently invisible, with no error and nothing to see in
+            the console. The button is fine; it is waiting for a signal that
+            never arrives.
+            This clears it after 3s regardless. Deliberately NOT React: the
+            failure being guarded against is React not running. The normal path
+            still wins - CookieConsent removes it within a frame or two - and
+            this only ever fires when that did not happen. */}
+        <Script id="consent-pending-failsafe" strategy="beforeInteractive">
+          {`(function(){var b=document.body;function go(){try{var v=localStorage.getItem('lhq_analytics_consent_v1');if(v==='granted'||v==='denied'){b.classList.remove('consent-pending');}}catch(e){}try{setTimeout(function(){try{b.classList.remove('consent-pending');}catch(e){}},3000);}catch(e){}}try{go();}catch(e){}})();`}
+        </Script>
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}
         </Script>

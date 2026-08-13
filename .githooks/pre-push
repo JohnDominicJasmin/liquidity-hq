@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# Runs the gates before every push. ALL CI IS DISABLED (owner instruction,
+# 2026-08-10, for cost), so on most days this is the only thing standing between
+# a mistake and the `dev` branch.
+#
+# Enable once per clone - it is NOT automatic, because .git/ is not versioned:
+#
+#     git config core.hooksPath .githooks
+#
+# Both working folders need it separately. dev's clone and QA's clone are
+# different checkouts and a hook enabled in one protects nothing in the other.
+#
+# WHAT IS DELIBERATELY NOT HERE: `npm run build`. It is by far the slowest gate
+# (~90s against ~25s for all three below) and a gate people disable protects
+# nothing. Build stays manual before opening a PR - CONTRIBUTING.md - and it is
+# the one that catches the keyless-env class of defect.
+#
+# `eslint .` currently reports 0 errors and 140 warnings, and exits 0 on
+# warnings. Do NOT add --max-warnings 0 without clearing those 140 first, or
+# this becomes unusable on day one and gets bypassed by reflex.
+#
+# Bypass with `git push --no-verify` when you genuinely need to - and say so in
+# the PR, because nothing else will.
+set -e
+
+printf '[pre-push] lint\n'
+npm run lint
+
+printf '[pre-push] typecheck\n'
+npx tsc --noEmit
+
+printf '[pre-push] unit tests\n'
+npm test
+
+printf '[pre-push] all gates passed\n'

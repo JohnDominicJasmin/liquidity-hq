@@ -34,6 +34,7 @@ import { useAppConfig } from '@/lib/useAppConfig';
 // identical to any other 404.
 const isChromeless = (pathname: string) => pathname === '/ops' || pathname.startsWith('/ops/');
 
+
 /* Auth screens get the same treatment, for a different reason. /login used to
    render inside the full consumer shell, so a signed-OUT stranger arriving at
    the sign-in page was handed the nav drawer, the scrolling news ticker, the

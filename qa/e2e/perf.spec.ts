@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { settle, CLS_BUDGET, CLS_GOOD, CLS_UNSTABLE } from './_shared';
+import { settle, CLS_BUDGET, CLS_GOOD, CLS_UNSTABLE, gotoGuarded } from './_shared';
 
 // Core Web Vitals + third-party request volume.
 //
@@ -87,10 +87,78 @@ test.describe('performance', () => {
         ).toBeLessThan(budget);
       }
 
-      // Measured 84-720ms locally. 2500ms is Google's "good" bar - generous
-      // headroom so this only fires on a genuine regression.
+      /* LCP: ASSERTED LOCALLY, RECORDED ONLY IN CI. Changed 2026-08-10.
+       *
+       * `< 2500` was set from a LOCAL measurement of 84-720ms, with 2500 chosen
+       * as generous headroom. That is 3x headroom over a developer machine and
+       * none at all over a GitHub runner. Measured on the same commit:
+       *
+       *     local   8/8 pass
+       *     CI      5 fail - /arena 2740 & 3536, /dashboard 4456 & 3204,
+       *                      /markets 3080 & 3172, /briefing 3176, /scanner
+       *
+       * So in CI it failed every run, which means it gated nothing: a test that
+       * is always red is indistinguishable from a test nobody reads. It was also
+       * invisible for weeks because the browser suite was not running at all
+       * (#207), and it is not a product regression - #198 and #201 were cleared
+       * by the same-commit local pass.
+       *
+       * WHY NOT JUST RAISE THE NUMBER. A budget moved to fit the measurement
+       * stops being a budget, and `CLS_BUDGET` a few lines up already carries a
+       * "Do NOT raise the budget" note for exactly this reason. Raising 2500 to
+       * 5000 would make CI green and mean nothing.
+       *
+       * WHY NOT A CI-SPECIFIC BUDGET YET. That is the right end state, but there
+       * are only two CI samples per route - both from dispatches run today - and
+       * a threshold set from two points flakes. The /dashboard spread alone is
+       * 3204-4456ms. `CLS_BUDGET` earned its numbers over 24 runs; this deserves
+       * the same standard rather than a number that looks rigorous.
+       *
+       * So this follows the CLS_UNSTABLE precedent directly, including its
+       * warning: a measured-but-ungated value is WORSE than a bad fixed number,
+       * not a pass. The annotation is what stops it reading as one.
+       *
+       * RETIREMENT CONDITION: once ~10 CI runs exist - which #210 now produces,
+       * one per push to `staging` - set a per-route CI budget from the observed
+       * distribution the way CLS_BUDGET was set, and delete this branch. */
+      /* `E2E_BASE_URL` counts too, and I found that out the hard way AFTER
+       * writing the CI split. Run against deployed `staging`, the same routes
+       * report:
+       *
+       *     /login 22184ms   /arena 23404ms   /dashboard 23244ms
+       *     /markets 23288ms /briefing 22744ms /scanner 23612ms
+       *
+       * Twenty-two SECONDS, because both non-prod services are free plan and
+       * sleep when idle, so the first measurement after a wake-up is a cold
+       * container rather than the app. That is even further from a meaningful
+       * budget than a CI runner, and gating on it would have made every remote
+       * sign-off run red for a reason that has nothing to do with the code. */
+      const UNCALIBRATED_ENV = process.env.CI || process.env.E2E_BASE_URL;
+
       if (vitals.lcp > 0) {
-        expect(vitals.lcp, `${route} LCP ${vitals.lcp}ms`).toBeLessThan(2500);
+        if (UNCALIBRATED_ENV) {
+          testInfo.annotations.push({
+            type: 'known-issue',
+            description:
+              `${route} LCP ${vitals.lcp}ms - RECORDED, NOT GATED ` +
+              `(${process.env.E2E_BASE_URL ? 'deployed service' : 'CI runner'}). This is not a pass. ` +
+              'The 2500ms budget was calibrated on a developer machine, where these routes measure ' +
+              '84-720ms. A CI runner lands them at 2740-4456ms and a woken free-plan Render service ' +
+              'at 22000-23600ms, so gating on that number reports a failure about the environment ' +
+              'rather than the app. Collecting samples to set real per-environment budgets - see ' +
+              'the comment above for the retirement condition.',
+          });
+        } else {
+          /* Locally the 2500ms bar is meaningful: measured 84-720ms, so a route
+           * approaching it really has regressed. This is the half of the
+           * assertion that still has teeth, and it is why the check is split
+           * rather than deleted. */
+          expect(vitals.lcp,
+            `${route} LCP ${vitals.lcp}ms exceeded 2500ms on a LOCAL run, where this route ` +
+            'normally measures 84-720ms. Local timings have no network latency and no cold ' +
+            'start, so this is a real regression rather than an environment difference.',
+          ).toBeLessThan(2500);
+        }
       }
     });
   }
@@ -103,14 +171,35 @@ test.describe('performance', () => {
   //
   // Baseline is deliberately set just above today's measurement so it cannot
   // get worse, and should be driven towards ~0 for static routes.
-  test('a static legal page does not fan out to market-data APIs', async ({ page }, testInfo) => {
+  test('a static legal page does not fan out to market-data APIs', async ({ page, baseURL }, testInfo) => {
+    /* THIRD PARTY MEANS "NOT OUR ORIGIN", and that origin is not always
+     * localhost.
+     *
+     * This used to test `!url.startsWith('http://localhost')`, which is correct
+     * for a local run and silently wrong for every remote one: with
+     * E2E_BASE_URL set, EVERY same-origin request counts as third-party and the
+     * number is nonsense.
+     *
+     * The dangerous part is that it does not fail - it inflates. A baseline
+     * comparison against an inflated count either fails for the wrong reason or,
+     * worse, passes because the baseline was itself recorded remotely.
+     *
+     * Found 2026-08-11 alongside the same bug in security.spec.ts, which at
+     * least had the decency to ECONNREFUSED. */
+    /* `baseURL`, not `page.url()` - the listener is registered BEFORE the
+       navigation, so page.url() is still `about:blank` here and every request
+       would look foreign. Caught while writing this fix, which is a fair
+       indication of how easy the original mistake was to make. */
+    const ownOrigin = new URL(baseURL ?? `http://localhost:${process.env.E2E_PORT ?? 3100}`).origin;
     const thirdParty: string[] = [];
     page.on('request', r => {
       const url = r.url();
-      if (!url.startsWith('http://localhost') && !url.startsWith('data:')) thirdParty.push(url);
+      if (url.startsWith('data:') || url.startsWith('blob:')) return;
+      if (url.startsWith(ownOrigin)) return;
+      thirdParty.push(url);
     });
 
-    await page.goto('/refund', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/refund', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(8000);
 
     const byHost = thirdParty.reduce<Record<string, number>>((acc, u) => {

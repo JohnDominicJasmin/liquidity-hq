@@ -68,7 +68,15 @@ export default function MarketRead() {
           of where 78 sits on the range or what counts as good. Plain "≥70" is
           numerals + a symbol, not prose, so it skips the label/i18n system. */}
       <div className="mr-track-wrap">
-        <div className="mr-track">
+        {/* dir="ltr": a QUANTITATIVE AXIS DOES NOT MIRROR (#353).
+             A 0-100 score track with a fixed "Good >= 70" tick. Mirrored, the
+             tick marks 30 and the fill grows from the wrong end - both render
+             perfectly and mean the opposite.
+             Found by sweeping ALL percentage positions, static and computed.
+             The original survey filtered for computed offsets and missed this
+             and MultiTFAlignment; a hardcoded percentage on an axis mirrors
+             exactly as wrongly as a calculated one. */}
+        <div dir="ltr" className="mr-track">
           <div suppressHydrationWarning className="mr-fill" style={{ width: read.score + '%' }} />
           <div className="mr-track-good-tick" style={{ left: '70%' }} title="Good ≥ 70" />
         </div>

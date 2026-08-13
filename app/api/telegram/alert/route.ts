@@ -4,6 +4,7 @@ import { classifyNews } from '@/lib/classify';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
+import { formatAlertTally } from '@/lib/alertTally';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
@@ -2061,11 +2062,14 @@ async function runAlerts(token: string): Promise<NextResponse> {
   //
   // Read it as: eligible=0 with fired>0 is correct filtering, nothing is wrong.
   // eligible>0 with sent=0 is a real bug. Before this, both looked identical.
-  console.log(
-    `[alert] fired=${fired.length}${fired.length ? ` (${fired.join(',')})` : ''} ` +
-    `queued=${signalQueue.length} eligible=${eligible} ` +
-    `sent=${sendTally.ok} failed=${sendTally.failed} recipients=${recipients.length}`
-  );
+  console.log(formatAlertTally({
+    fired,
+    queued:     signalQueue.length,
+    eligible,
+    sent:       sendTally.ok,
+    failed:     sendTally.failed,
+    recipients: recipients.length,
+  }));
 
   return NextResponse.json({
     ok: true, fired,

@@ -29,8 +29,57 @@ export const SUPPORTED_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ar', 'vi', 'pt-BR
 //
 // Add a locale back here the moment its rows land; nothing else needs to
 // change. See the i18n section of pendings/PENDING.md.
-export const AVAILABLE_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ar', 'ru'];
+//
+// `ar` is NOT here, and it is the one exception to "add it back when the rows
+// land" - its rows landed long ago. Arabic is fully translated (2,416 label
+// rows) and deliberately not offered, because RTL is unimplemented: ~597
+// physical positioning sites against zero logical properties, so choosing it
+// produced Arabic text in a left-to-right layout. Owner decision, #138.
+//
+// It stayed here after #147 removed it from the LANDING picker, because these
+// are two separate systems and that PR only knew about one. So Arabic remained
+// selectable from the nav and from /settings for the whole app - the exact
+// state #138 was filed about. Removing it here is the other 80% of that fix.
+//
+// It REMAINS in SUPPORTED_LOCALES above on purpose. That list is validation,
+// not an offer: a preference already stored as 'ar' by someone who picked it
+// before this shipped must still RESOLVE rather than fail.
+//
+// Measured, because I first wrote "and fall back to English" here and that is
+// wrong: a stored 'ar' still renders Arabic labels, because the 2,416 rows are
+// still in the table and this list still validates the code. What changed is
+// that the document now also carries dir="rtl", so the text at least flows the
+// right way on an unmirrored layout. Nobody NEW can reach that state - it is
+// out of every picker - but the people already in it keep the language they
+// chose.
+export const AVAILABLE_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ru'];
 
 export function isSupportedLocale(v: string): v is Locale {
   return (SUPPORTED_LOCALES as string[]).includes(v);
+}
+
+/**
+ * The locale to actually USE for a stored or synced preference.
+ *
+ * `isSupportedLocale` answers "is this a code we recognise". That is the wrong
+ * question for a saved preference, and #165 is why: Arabic is recognised, fully
+ * translated, and no longer offered. A user who chose it before it was withdrawn
+ * kept getting Arabic, with no way back to English except clearing storage,
+ * because every picker had stopped listing it.
+ *
+ * QA measured the end state and it is the same defect as #164 with the operands
+ * swapped - a declared language that does not match the rendered one. Clamping
+ * `lang` alone would only move the mismatch: the labels would still resolve to
+ * Arabic while the document claimed English.
+ *
+ * So the clamp belongs to the LOCALE, once, here. A preference that is no longer
+ * offered resolves to English - labels, `lang`, `dir` and the nav chip all agree,
+ * and the user can pick again from a picker that lists what they get.
+ *
+ * Unrecognised values ('tr', junk, a future code) resolve to English too, which
+ * is what SUPPORTED_LOCALES was already for.
+ */
+export function resolveOfferedLocale(v: string | null | undefined): Locale {
+  if (!v) return 'en';
+  return (AVAILABLE_LOCALES as string[]).includes(v) ? (v as Locale) : 'en';
 }

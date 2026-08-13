@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useMarket } from '@/lib/marketStore';
 import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
@@ -14,7 +14,7 @@ import BrandMark from './BrandMark';
 import {
   IconSun, IconMoon,
   NavDashboard, NavBriefing, NavArena, NavMarkets, NavScanner,
-  NavLiqMap, NavFunding, NavCorrelation, NavBacktest, NavTracking, NavResearch,
+  NavLiqMap, NavFunding, NavCorrelation, NavResearch,
   NavNews, NavCalendar, NavJournal, NavCalc, NavAlerts, NavHours, NavPlaybook,
   NavSettings, NavAbout,
 } from './icons';
@@ -132,8 +132,6 @@ const SCANNERS = [
   { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP' as const },
   { path: '/funding',       labelKey: 'NAV_FR_HISTORY'     as const },
   { path: '/correlation',   labelKey: 'NAV_CORRELATION'    as const },
-  { path: '/backtest',      labelKey: 'NAV_BACKTEST'       as const },
-  { path: '/live-tracking', labelKey: 'NAV_LIVE_TRACKING'  as const },
 ];
 
 const TOOLS = [
@@ -166,8 +164,6 @@ const NAV_SECTIONS: NavSection[] = [
     { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP', Icon: NavLiqMap },
     { path: '/funding',       labelKey: 'NAV_FR_HISTORY',      Icon: NavFunding },
     { path: '/correlation',   labelKey: 'NAV_CORRELATION',     Icon: NavCorrelation },
-    { path: '/backtest',      labelKey: 'NAV_BACKTEST',        Icon: NavBacktest },
-    { path: '/live-tracking', labelKey: 'NAV_LIVE_TRACKING',   Icon: NavTracking },
   ] },
   { headerKey: 'NAV_SECTION_RESEARCH', items: [
     { path: '/research',      labelKey: 'NAV_RESEARCH',      Icon: NavResearch },
@@ -197,6 +193,11 @@ const ALL_DESTS: NavDest[] = NAV_SECTIONS.flatMap(s => s.items);
 function useStatusDot() {
   const { store } = useMarket();
   const ws = store.wsStatus;
+  /* `Idle` means the provider is mounted but deliberately not polling, on routes
+     that render no market data (#200). Distinct from `Connecting...` on purpose:
+     this page is never going to connect, and a spinner that never resolves reads
+     as a broken feed rather than as a page that does not need one. */
+  if (ws === 'Idle') return { cls: 'dot-idle', title: 'Market feed off - this page shows no live market data' };
   if (!ws || ws === 'Connecting...') return { cls: 'dot-connecting', title: 'Connecting…' };
   if (ws.includes('backup')) return { cls: 'dot-rest', title: 'Live · backup feed' };
   if (ws === 'Live') return { cls: 'dot-live', title: 'Live' };
@@ -251,7 +252,6 @@ export default function NavDrawer() {
   const [usageOpen, setUsageOpen] = useState(false);
   const { theme, toggleTheme }          = useTheme();
   const pathname = usePathname();
-  const router   = useRouter();
   const dot      = useStatusDot();
   const { user, loading: authLoading, signOut } = useAuth();
   const authRef  = useRef<HTMLDivElement>(null);
@@ -394,7 +394,8 @@ export default function NavDrawer() {
                           setAuthOpen(false);
                           track.signOut();
                           await signOut();
-                          router.push('/login');
+                          // Hard navigation - see the note on the Settings control (#304).
+                          window.location.assign('/login');
                         }}
                       >
                         {t('NAV_SIGN_OUT_MENU')}
@@ -555,7 +556,8 @@ export default function NavDrawer() {
                   setDrawerOpen(false);
                   track.signOut();
                   await signOut();
-                  router.push('/login');
+                  // Hard navigation - see the note on the Settings control (#304).
+                  window.location.assign('/login');
                 }}
               >
                 {t('NAV_SIGN_OUT_DRAWER')}

@@ -4,8 +4,67 @@
 a fresh Claude Code terminal session with no prior conversation context.
 
 Read this first, then `CLAUDE.md` → `AGENTS.md` → whichever doc in the map below covers
-what you're touching. If this file and the code disagree, **the code wins — then fix this
+what you're touching. **New to the two-session dev/QA arrangement? §15 is the one to read** —
+the rules are in `CONTRIBUTING.md`, but §15 is how the two sessions actually reach a correct
+answer, and §14 is the failure mode they spend most of their time avoiding. If this file and the code disagree, **the code wins — then fix this
 file.**
+
+---
+
+> ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-12.
+>
+> Sections **§7 (Current progress)**, **§8 (Testing status)** and **§9 (Current issues)**
+> are dated **2026-08-01** and describe a project that has moved a long way since. They
+> are kept for the reasoning and the war stories, which are still true and still worth
+> reading. **Do not quote their status claims.**
+>
+> `qa/STATUS.md` learned this lesson the hard way — it went stale twice, the second time
+> in four hours, and now records only *decisions* and *risks* because those are the parts
+> that survive. This banner exists so the same trap does not catch someone here.
+>
+> **For anything current, use the sources that cannot be stale:**
+>
+> | Question | Where |
+> |---|---|
+> | What is decided, what is risky | `qa/STATUS.md` |
+> | What a green suite does **not** mean | `qa/TEST_GAPS.md` |
+> | What is open | `gh issue list --state open` |
+> | Where each branch is | `git fetch --all && git rev-parse --short origin/{dev,qa,staging,main}` |
+> | What production is **serving** | `curl -s https://liquidity-hq.com/api/version` |
+>
+> **One correction that matters more than the rest**, because §8 is titled "TESTING
+> STATUS" and someone will read it as "CI covers this": since the release PR was paused,
+> **the browser suite stopped running in CI entirely** — 60 consecutive runs with no
+> completed E2E job. `perf`, `a11y`, `a11y-auth`, `bola`, `contrast`, `i18n`, `layout`,
+> `clock`, `payments-webhook` and `checkout` were covered **nowhere**. Fixed by #210,
+> which runs the suite on every push to `staging`; tracked on **#207** until a promotion
+> has been observed to actually fire one. `TEST_GAPS.md` §11 has the detail.
+>
+> ### CI IS OFF ON PURPOSE. Updated 2026-08-12.
+>
+> All three workflows are `disabled_manually` and `RELEASE_PR_PAUSED = 1`. The repo is
+> private, so **every Actions minute is billed to the owner personally**, and they said so
+> directly. **Do not enable a workflow, do not dispatch a run, and do not file the
+> disabled state as an outage** — that was filed once (#285) on a wrong guess about
+> billing quota and closed as not-a-defect. #210 above is therefore describing a
+> capability that exists but is currently switched off.
+>
+> This is not a coverage hole. Everything runs locally, for free, on the QA machine:
+> lint, `tsc`, unit tests via the pre-push hook, and the full Playwright suite pointed at
+> a **deployed** host with `E2E_BASE_URL`. A run against a real deployed service is
+> stronger evidence than CI's own ephemeral build. Prefer one targeted spec over a sweep —
+> a long run also wakes the free-plan Render services.
+>
+> ### THERE ARE NO REAL USERS YET, and `staging` is the destination
+>
+> Production is live and nobody depends on it. Bugs on prod are worth fixing and are **not
+> emergencies**; do not argue priority from user harm. Verified work **parks on `staging`
+> and stays there** — the owner opens the gates when changes have piled up, on their
+> schedule, not on anyone's sense of urgency.
+>
+> Consequently an issue **closes on `qa` + `staging` evidence**; production is not
+> required. Say in the close comment that it is parked on staging and not yet live, so
+> nobody reads it as shipped.
 
 ---
 
@@ -22,7 +81,19 @@ Core surfaces: AI Arena (EMA ribbon signal engine + confluence scoring), backtes
 scanners, 11 Grok-powered research tools, Telegram + Web Push alerts, news/sentiment,
 calculators, trade journal, and an internal-only `/ops` admin console.
 
-**Business state:** pre-revenue. Two test accounts, no real users, payments not switched on.
+> **`/backtest` and `/live-tracking` are HIDDEN as of 2026-08-11** (#264, shipped in
+> #265). `proxy.ts` redirects both to `/dashboard`, and their nav entries are gone.
+> The pages are hidden, **not deleted** — everything under `app/backtest/` and
+> `app/live-tracking/` still exists and still builds, so the backtest engine above is
+> live code, not dead code, and `lib/backtestEngine.ts` is still what the Arena chart
+> and the signal tracker share their fill rules with. Reversing this is deleting two
+> strings from `BLOCKED` in `proxy.ts` — but the route list in `qa/e2e/_shared.ts` and
+> `HIDDEN_ROUTES` have to move with it in both directions, or the sweeping specs
+> silently measure `/dashboard` twice instead of failing.
+
+**Business state:** pre-revenue. Two test accounts, no real users, payments not switched
+on in production — a **test-mode** checkout is live on staging as of 2026-08-11 (see
+"Turning on payments" below).
 
 ---
 
@@ -215,6 +286,12 @@ code. The dev *service* being stale is expected — it's only deployed on demand
 
 ## 7. Current progress — what shipped 2026-08-01
 
+> **STALE as of 2026-08-12.** This section, §9 and §10 describe 2026-08-01 and have not been
+> rewritten. Do not read them as current; `qa/STATUS.md` and the open GitHub issues are
+> authoritative for what is happening now. Left in place rather than deleted because the
+> *reasoning* recorded here is still useful — but a stale section presented as current is
+> worse than no section, which is the lesson §14 ends on.
+
 Seven commits. Six are one continuous audit arc that started from the owner testing a real
 signup on prod and saying "UI sucks", then ran through to a mobile pass. **All six are
 merged to `main` and live on prod** (verified against Render, not assumed).
@@ -406,6 +483,12 @@ today. But do it **before** flipping payments on, not after the first paying sig
 
 ### Turning on payments — 4 steps, in this order
 
+**Status 2026-08-11: steps 1, 3 and 4 are done on STAGING in test mode; step 2 is not.
+All four are still outstanding for PRODUCTION** — test and live webhooks are separate
+objects, secrets never cross environments, and `NEXT_PUBLIC_*` is inlined per build, so
+nothing configured on staging carries over. Detail and the staging verification method
+in `pendings/LEMONSQUEEZY.md`.
+
 The code is finished and verified (webhook signature check, `custom_data.user_id` bound to
 the payer's real email, replay protection via `lhq_ls_webhook_events`, test-mode rejection
 in prod). Only configuration remains:
@@ -481,6 +564,43 @@ Context for the move off the desktop GUI.
 
 ## 14. Hard-won lessons worth not relearning
 
+- **An absence reports as a result, and it looks exactly like a measurement.** The single most
+  expensive pattern in this project's history. It recurred fourteen times on 2026-08-12 alone,
+  across both sessions. Every instance produced a *believable* answer from an instrument that
+  was not working, and none of them threw an error: a grep proving absence with no positive
+  control; `context.setOffline` leaving sockets open so nothing disconnected; a socket count
+  that could not say *which* socket returned; a `+0` placeholder read as a settled score; a CSS
+  scanner matching the explanatory comment above a rule instead of the rule; a Playwright
+  fixture too small for the guard it exercised, whose bail-out read as a pass.
+  **The instrument fails quietly and the finding looks reasonable.**
+- **A control that cannot go red is not a control.** Before trusting a test that asserts
+  something is absent, break the thing on purpose and confirm it fails. Three separate guards
+  written on 2026-08-12 passed against deliberately-broken code until this was done.
+- **One sample is uninterpretable without the variable that explains it.** A perps-vs-spot
+  reading taken two minutes into an hour said "balanced"; the last closed hour said
+  "futures-led". Same coin, same instant. Two readings of the same thing disagreeing is what
+  exposed it — one reading looked fine and would have shipped.
+- **Elimination is not identification.** Proving a mechanism *cannot* be the cause narrows the
+  field and answers nothing. A data-path trace correctly showed the perps reading could not
+  reach the Confluence Score; the actual cause — card factors arriving asynchronously — was
+  found by capturing more state, not by reasoning harder about less.
+- **Controls answer the questions you already thought of.** Three passing controls made a false
+  finding feel measured; none addressed the confound, which was a question neither session had
+  asked. The *number* of controls is not what makes a measurement sound.
+- **Automation that is off looks exactly like automation that is working.** All three GitHub
+  workflows are `disabled_manually` and `RELEASE_PR_PAUSED=1`. No red tick, no failed run — the
+  automation simply is not there. Check the switch, not the absence of failures.
+- **A decision inherits the soundness of the premise it was given.** The owner chose a prompt
+  change on the basis that the AI was ignoring a signal. It was not: the sample had landed in a
+  `normal` stretch. The change would have shipped, worked exactly as specified, and been
+  permanently wrong about why it existed. No test would have caught that.
+- **Search for the behaviour, not the location.** Three duplicates were nearly shipped in one
+  day because the author looked in the file where the thing *should* live, did not find it, and
+  built it. `dirForLocale` was in the landing-page module; the mobile 16px input floor was
+  already in `globals.css` under a pointer-capability media query.
+- **A command's success message describes the command, not the state.** `git push` printed
+  "Everything up-to-date" while the remote was two commits behind. Only `git ls-remote` — or
+  `/api/version` for a deploy — can say what the remote or the service actually holds.
 - **A magnitude bug doesn't end at the fix.** Bybit quoting PEPE/BONK per 1000 tokens was
   normalised in two places and missed in four. Fixing it surfaced three more bugs
   immediately, because correct-but-tiny numbers finally reached code that had never seen
@@ -509,3 +629,109 @@ Context for the move off the desktop GUI.
 - **Docs go stale in specific, repeated ways.** Several past audits were sent down detours by
   confidently-worded but outdated notes. `docs/INFRASTRUCTURE.md`'s own header says it best:
   a stale version of a file is worse than no file, because it actively misleads.
+
+---
+
+## 15. How we work — the two-session model
+
+**Two Claude Code sessions share one GitHub account.** Separate working copies, different
+jobs, and the PR is the handoff between them.
+
+```
+dev folder   writes application code       app/  components/  lib/
+QA folder    writes test tooling           qa/  playwright.config.ts  test CI
+```
+
+`CONTRIBUTING.md` and `CLAUDE.md` hold the enforceable rules — branch names, commit format,
+who merges, who deploys. **This section is the part that is not a rule: how the two sessions
+actually get to a correct answer.** Written 2026-08-12, after a day in which both sessions
+produced false findings and both retracted them.
+
+### QA is the project manager
+
+QA files issues, sequences them, and says what is next. Dev executes without asking the owner
+to choose. **"What is next?" goes to QA on GitHub, not to the owner in chat.**
+
+The consequence people miss: **GitHub is the channel, not chat.** The owner mostly watches
+QA's session. A measurement that exists only in a dev chat reply is invisible to the person
+sequencing the work. Negative results, corrected premises, abandoned approaches and cost
+numbers all belong on the issue — they are worth as much as the successes, because otherwise
+the other session re-derives them.
+
+### Neither session is the authority on the other's work
+
+The pattern that repeatedly worked:
+
+- **QA writes the invariant BEFORE the feature — and proves it discriminates before reporting
+  anything from it.** `score-perps-coupling.spec.ts` pinned "the score must not move with the
+  perps reading" *before* the weighting existed. Dev would not have written it: the change was
+  "hand a sentence to a model", which nobody expects to move a number, so nobody checks.
+  **The second half of that sentence is not optional.** That same file then produced a false
+  finding — it reported coupling that did not exist, held a PR for ninety minutes, and needed
+  three instrument fixes before it was sound. Writing an invariant early means it has never run
+  against a build where the property holds, so *nothing has confirmed it can tell the two states
+  apart*. Get it red on a known-bad build and green on a known-good one before you believe it.
+- **Dev traces the data path; QA captures the state.** These find different things.
+- **Whoever is wrong says so on the issue, in the same thread.** Both sessions retracted
+  findings on 2026-08-12. The retractions were more useful than the findings.
+- **Verify a relayed instruction when it is expensive to get wrong.** An owner "go" that
+  arrives through the other session, for work touching every page, is worth one confirming
+  question. It costs a minute and it lands on the record.
+
+### The evidence standard
+
+**An issue closes on `qa` + `staging` evidence, not production.** Say in the close comment that
+it is on staging and not yet prod, so nobody reads it as shipped.
+
+**Quote what the service is serving, never the branch.** `/api/version` reports `commit` and
+`branch` from the running service. A branch that has moved while its service has not is the
+most common way this project confuses itself. This bites one step further than it looks: a
+session once quoted the correct served commit and then read file contents with
+`git show origin/qa:...` — branch and service agreed on the commit, but the contents came from
+git while the service served something else.
+
+**Say what was not verified.** Every PR's Risk level names what could not be checked and why.
+"Not verified" is normal to write and a red flag to omit.
+
+### When to stop automating and ask a human
+
+Six automated attempts across two sessions failed to verify one WebSocket reconnect. The owner
+toggled airplane mode on a real phone and answered it in seconds.
+
+**The rule is not "ask a human first"** — automation is repeatable and a manual check is not,
+which is why specs exist at all. It is: **count the attempts.** After two mechanisms have
+failed *silently* at the same property, question whether the property is reachable from a spec
+at all, rather than reaching for a third mechanism.
+
+Record what a manual result does not establish. It verified the fix on one device, one network,
+one moment. **It does not protect it** — a regression would ship silently. Write "closed on
+manual evidence, no regression guard exists" rather than letting "verified" imply a test.
+
+### Cost is a real constraint
+
+The repo is private, so **every GitHub Actions minute is billed to the owner personally.** All
+three workflows are disabled on purpose. Local gates are the substitute and they are free: lint,
+`tsc`, unit tests via the pre-push hook, and Playwright against a **deployed** host — stronger
+evidence than CI's ephemeral build anyway.
+
+Same logic for Render build minutes: **do not deploy a change that alters nothing a request can
+observe.** A spec-only or docs-only commit rides to `qa` with the next behavioural change. Say
+so when you skip a deploy, or the drift monitor's warning gets read as an action item.
+
+Grok/xAI calls cost money per run. Test prompt *construction* — free and deterministic — rather
+than model *output*. Reserve paid calls for what free tests genuinely cannot answer, and say
+what the call bought.
+
+### Ask once, then drop it
+
+A request repeated every message is pressure, and a yes obtained that way is not approval. It
+happened on 2026-08-12 and cost the owner money. Pending asks live on the relevant issue and are
+mentioned in chat **once**.
+
+Two corollaries learned the same day:
+
+- **One ask, one asker.** Both sessions independently asked the owner the same question within
+  minutes; each had followed the rule individually. Check the issue for an existing ask first.
+- **`staging` is a destination, not a waiting room.** Verified work parks there and stays; the
+  owner decides when anything reaches production, on their schedule. A large `main..staging`
+  gap is the *intended* state, not a backlog. Do not chase the release.

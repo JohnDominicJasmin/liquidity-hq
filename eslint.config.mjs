@@ -21,6 +21,27 @@ const eslintConfig = defineConfig([
   },
 
   {
+    /* SCOPED TO THE FILES THE PLUGIN IS REGISTERED FOR (#184).
+
+       Without this `files` key the object applies to EVERY file ESLint visits.
+       `react-hooks` is only registered by eslint-config-next for js/jsx/ts/tsx,
+       so on anything else these rules reference a plugin that is not in scope -
+       and ESLint treats that as a configuration ERROR, not a skipped rule:
+
+         A configuration object specifies rule "react-hooks/set-state-in-effect",
+         but could not find plugin "react-hooks".
+
+       It exits 2, so `npm run lint` fails and takes the build job with it.
+
+       Nothing had ever triggered it because every file in the repo happened to
+       be .ts or .tsx. The first .cjs anyone adds turns the lint gate red on a
+       branch that changed no code - which is how QA found it, on a PR that was
+       `dev` plus one new file.
+
+       The block below this one already does exactly this, with both `plugins`
+       and `files`. This one was the outlier. */
+    files: ['**/*.{js,jsx,ts,tsx,mjs}'],
+
     // ── Pre-existing backlog, deliberately non-blocking ────────────────────
     // eslint-plugin-react-hooks v6 ships the React Compiler rule set, which
     // flags patterns this app has used since before the rules existed. The

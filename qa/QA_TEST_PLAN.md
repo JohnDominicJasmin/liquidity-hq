@@ -101,7 +101,8 @@ to move to Postgres or Redis.
 | `safeNextPath` open-redirect fix | DONE (13 cases, Node harness) | - | DONE (real browser, prod, 2026-08-02) | - |
 | Telegram webhook fail-closed on missing secret | - | - | DONE (curl, prod) | - |
 | Trial-ending email + cron job | - | - | DONE (curl auth check + DB due-count) | **the email itself has never actually sent** (0 rows were due both times checked) |
-| LemonSqueezy webhook: payer-email check + replay guard | - | - | - | **yes** - payments aren't live, no real webhook payload exists to test with |
+| LemonSqueezy webhook: signature rejection (absent / wrong secret / malformed) | - | - | DONE (`qa/e2e/payments-webhook.spec.ts`, 3 cases, no credentials needed) | - |
+| LemonSqueezy webhook: payer-email check + replay guard | - | - | DONE (same spec, HMAC-signed payloads, 2026-08-09) | **synthetic payloads only** - no real LemonSqueezy event has ever reached this handler, and the store is not live |
 | `grok-chat` model pin + `max_tokens` clamp | DONE (9 cases, Node harness) | - | build+tsc only | **not curled against a live deployment** |
 | `ban-reason` rate limit (5/min/IP) | - | - | DONE (real burst, dev, 2026-08-02) - see `getClientIp` finding below, this is what surfaced it | - |
 | `/api/admin` honeypot rate limit (5/min/IP) | - | - | DONE (DB row-count before/after a 10-request burst, dev, 2026-08-02): 5 new rows for 10 requests, not 10 | - |

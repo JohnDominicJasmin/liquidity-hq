@@ -1,13 +1,32 @@
-import type { Page } from '@playwright/test';
+import type { Page, APIRequestContext, APIResponse } from '@playwright/test';
 
 /** Every route the suite sweeps. Public + app routes, signed out. */
+/* Every route the sweeping specs measure — contrast, layout, a11y, seo, perf.
+ *
+ * `/backtest` and `/live-tracking` were REMOVED on 2026-08-11 (#264, shipped in
+ * #265): both now redirect to `/dashboard`, so leaving them here would not fail
+ * loudly — it would silently measure `/dashboard` twice and report a clean sweep
+ * over a surface two routes smaller than the list claims.
+ *
+ * That is the quieter half of the problem. `settle()` throws on `HTTP >= 400`, so
+ * a 404 would have been obvious; a redirect is the case that passes while
+ * measuring the wrong thing.
+ *
+ * PUT THEM BACK if the redirect is lifted. The pages still exist in `app/` — they
+ * are hidden, not deleted — so this list and the redirect have to move together
+ * in both directions. */
 export const ROUTES = [
   '/', '/about', '/login', '/forgot-password', '/faq', '/learn', '/disclaimer',
   '/privacy', '/terms', '/refund', '/upgrade', '/markets', '/news', '/calc',
   '/hours', '/econ-calendar', '/playbook', '/arena', '/dashboard', '/scanner',
-  '/backtest', '/correlation', '/funding', '/liq', '/research', '/briefing',
-  '/journal', '/alerts', '/settings', '/live-tracking', '/offline', '/ops/login',
+  '/correlation', '/funding', '/liq', '/research', '/briefing',
+  '/journal', '/alerts', '/settings', '/offline', '/ops/login',
 ] as const;
+
+/* Hidden behind a redirect, and asserted as such by `hidden-routes.spec.ts`.
+ * Kept as a named list so "which routes are hidden" has one answer rather than
+ * living in a redirect config, a nav component and a test file separately. */
+export const HIDDEN_ROUTES = ['/backtest', '/live-tracking'] as const;
 
 /**
  * BASELINES — known-failing counts as of the 2026-08-04 audit.
@@ -87,8 +106,58 @@ export const BASELINE = {
    *
    * So this stays as the loose "small touch targets on a PWA" signal it actually
    * is, and axeTargetSizeViolations below is what guards conformance.
+   *
+   * ── 122 -> 84, 2026-08-11 (#263). The first REPRODUCIBLE number this has had ──
+   *
+   * 122 was recorded against uncontrolled inputs, so it drifted: the same commit
+   * measured 148 locally and 149 on the release build, and the PRE-release build
+   * measured 148 too - proving the gap was never a regression, just drift nobody
+   * caught while CI was off.
+   *
+   * Three inputs are now pinned (#268, #270): market data via
+   * `installMarketFixtures`, browser consent state, and routes that render
+   * almost nothing are named rather than counted as zero violations.
+   *
+   * The new number is not an improvement in the app. It is the same surface,
+   * measured without the noise - and the composition above says exactly what it
+   * is:
+   *
+   *     122 = 84 a.pf-footer-bottom-link + 31 a.consent-link + 7 bare <a>
+   *      84 = a.pf-footer-bottom-link
+   *
+   * **84 is the shared footer component and nothing else.** The 31 consent links
+   * disappear because consent is now pinned to `denied`; the 7 bare anchors were
+   * data-dependent. So this metric now measures ONE component, which is both its
+   * honest scope and the reason it will barely move again.
+   *
+   * MEASURED TWICE, identically, against deployed `staging` at `714af38`, with
+   * zero unmeasured routes both times. One measurement is not a baseline.
+   *
+   * The environment belongs beside the number: **mobile project, consent denied,
+   * market fixtures installed.** A first-visit run is NOT comparable.
+   *
+   * ── 84 -> 85, and the +1 is an ENVIRONMENT DIFFERENCE, not slack ────────────
+   *
+   * Deployed measures 84. A local run measures 85, twice, identically. So the
+   * three pinned inputs removed the drift but did not make the two environments
+   * agree - there is one element present locally and not on the deployed build,
+   * and neither of us has identified it.
+   *
+   * 85 is set so `toBeLessThanOrEqual` is green in BOTH. Dev's argument, and it
+   * is this file's own rule turned around: `perf`'s LCP note says "a test that is
+   * always red is indistinguishable from a test nobody reads". A baseline that is
+   * honest on the deployed service and red on every developer's machine is that
+   * test, and it would be ignored within a week.
+   *
+   * The cost is ONE element of slack on deployed runs. A real regression still
+   * fails at 86. That is a better trade than a gate nobody trusts.
+   *
+   * **The +1 is not explained and should not be treated as understood.** If
+   * someone identifies it, the right move is to pin it like the other three and
+   * drop back to a single number for both environments - not to widen this
+   * further.
    */
-  tapTargetsUnder24: 122,
+  tapTargetsUnder24: 85,
   /**
    * SC 2.5.8 failures per axe-core's own `target-size` rule, which models BOTH
    * exceptions (spacing and inline) rather than re-deriving them by hand.
@@ -375,6 +444,105 @@ export const CLS_GOOD = 0.1;
 export const CLS_UNSTABLE = new Set<string>([]);
 
 /**
+ * Prefix for a failure the code under test did not cause.
+ *
+ * A spec that walks every route reports one slow response once per assertion, so
+ * a single cold container multiplies into as many failures as that spec makes
+ * checks. On 2026-08-11 that turned ONE navigation timeout into SEVEN failures
+ * spread across two spec files, which read as four separate problem areas until
+ * the error class was compared rather than the test names.
+ *
+ * Marking it at the throw site is what makes the triage mechanical: group a red
+ * run by this prefix first, and what remains is the actual finding count. Without
+ * it the reader is left inferring intent from a stack trace, and a plausible
+ * explanation for a red run is also how a real regression gets waved through.
+ */
+export const ENV_FAILURE = 'ENVIRONMENT';
+
+/**
+ * `page.goto` that tells a dead service apart from a real finding.
+ *
+ * USE THIS INSTEAD OF `page.goto` IN EVERY SPEC. The classifier first lived
+ * inside settle(), which left the seven spec files that navigate directly still
+ * reporting a cold container as a defect - and dev pointed out that the two worst
+ * placed were `hidden-routes` and `no-selling-hidden-features`. Those gate the
+ * release, so a timeout there reads as *"/backtest did not redirect"* or
+ * *"/upgrade advertises a hidden route"*: the two conclusions most likely to stop
+ * a release, and both wrong.
+ *
+ * DELIBERATELY NOT USED IN `offline.spec.ts`. That spec navigates while the
+ * context is offline on purpose - a failed navigation there IS the assertion, and
+ * labelling it environmental would hide the one place the failure is the point.
+ */
+/**
+ * Rethrow a "the service did not answer" failure with the ENVIRONMENT prefix, or
+ * rethrow the original untouched if it is anything else.
+ *
+ * Shared by the navigation guard and the API guard so the two cannot drift.
+ * `what` names the thing that did not answer - a route, an endpoint - and goes
+ * into the message so the reader does not have to work it out from a stack.
+ */
+function rethrowIfEnvironmental(e: unknown, what: string): never {
+  const msg = e instanceof Error ? e.message : String(e);
+  /* Playwright raises TimeoutError by name; the socket-level failures below
+     carry no distinct type, so they are matched on the message. All of them
+     mean "the service did not answer", never "the assertion is wrong". */
+  const environmental =
+    (e instanceof Error && e.name === 'TimeoutError') ||
+    /ERR_CONNECTION_(REFUSED|RESET)|ERR_NETWORK_CHANGED|ECONNREFUSED|ERR_EMPTY_RESPONSE|socket hang up/i.test(msg);
+
+  if (!environmental) throw e;
+
+  throw new Error(
+    `${ENV_FAILURE}: ${what} never answered - ${msg.split('\n')[0]}\n` +
+    `This is NOT a finding about ${what}. The service did not respond; the ` +
+    `assertions below it never ran. Free-plan Render sleeps when idle and the first ` +
+    `request after that is slow, and a long sweep keeps containers under load.\n` +
+    `Before reporting: count how many failures in this run carry the ${ENV_FAILURE} ` +
+    `prefix. They are one cause, not one each.`,
+  );
+}
+
+export async function gotoGuarded(
+  page: Page,
+  path: string,
+  opts: Parameters<Page['goto']>[1] = { waitUntil: 'domcontentloaded' },
+): Promise<Awaited<ReturnType<Page['goto']>>> {
+  try {
+    return await page.goto(path, opts);
+  } catch (e) {
+    rethrowIfEnvironmental(e, `navigation to ${path}`);
+  }
+}
+
+/**
+ * `request.get` with the same classification as `gotoGuarded`.
+ *
+ * The navigation guard alone left a gap I found while testing it: several specs
+ * hit an API before they ever touch a page - `seo`, `econ-calendar`,
+ * `cache-policy`, `klines-route` - and against an unreachable host those failed
+ * with a bare `apiRequestContext.get: connect ECONNREFUSED` and no prefix. A run
+ * where the service is down then produces a MIX of labelled and unlabelled
+ * failures, which is worse than either alone: the reader concludes the labelled
+ * ones are environmental and the rest are real.
+ *
+ * Note this only catches a THROWN failure. A 500 or a 502 resolves normally and
+ * is a finding about the route, correctly - `settle()` and the specs assert on
+ * status themselves.
+ */
+export async function getGuarded(
+  request: APIRequestContext,
+  url: string,
+  opts?: Parameters<APIRequestContext['get']>[1],
+): Promise<APIResponse> {
+  try {
+    return await request.get(url, opts);
+  } catch (e) {
+    rethrowIfEnvironmental(e, url);
+  }
+}
+
+/**
  * Settle a page: wait for hydration, then assert the stylesheet actually
  * applied.
  *
@@ -385,7 +553,8 @@ export const CLS_UNSTABLE = new Set<string>([]);
  * an unstyled render are worse than no numbers, because they look real.
  */
 export async function settle(page: Page, path: string): Promise<void> {
-  const res = await page.goto(path, { waitUntil: 'domcontentloaded' });
+  const res = await gotoGuarded(page, path);
+
   if (res && res.status() >= 400) {
     throw new Error(`${path} returned HTTP ${res.status()}`);
   }

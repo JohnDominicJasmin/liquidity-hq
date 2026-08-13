@@ -61,12 +61,16 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
 
   push:
-    # `qa` and `staging` are deliberately ABSENT. CONTRIBUTING section 6 makes
-    # every promotion fast-forward only, so the commit landing on either is
-    # bit-identical to one already tested on dev. Worse, the release PR stays
-    # open for the whole cycle, so each ff-push to its base ALSO fired
-    # `synchronize` on it - one promotion used to bill three full runs.
-    branches: [dev, main]
+    # `qa` is deliberately ABSENT. CONTRIBUTING section 6 makes every promotion
+    # fast-forward only, so the commit landing on it is bit-identical to one
+    # already tested on dev.
+    #
+    # `staging` WAS absent for the same reason, and was added 2026-08-10 because
+    # the reason turned out not to cover the browser suite. See the e2e job's
+    # `if:` below - the argument was about the 2-minute job, and the 38-minute
+    # one was reaching `staging` through a release PR that has since stopped
+    # being opened. Issue #207.
+    branches: [dev, staging, main]
     # Docs-only pushes do not need a build. Every path here is either not
     # compiled or not shipped, so a run over them proves nothing that the
     # PR-side run had not already proved.
@@ -125,6 +129,22 @@ on:
         description: Run the full browser suite
         type: boolean
         default: true
+      # DISPATCH-ONLY, and off by default. This changes what the run measures,
+      # so it must never be the thing that happens on an ordinary push.
+      #
+      # #114 wants `workers` above 2. The blocker is not the theory - a local
+      # run at 2 produced zero 429s - it is that rate limits are PER IP and the
+      # only measurement anyone has is from one developer machine. A clean local
+      # number proves the volume is low; it does not prove GitHub's shared
+      # egress is under the threshold, and that is the IP that would get banned.
+      #
+      # count mode passes every call through untouched and only tallies it, so a
+      # run with this on is exactly as valid as one without. It answers the one
+      # question #114 has been stuck on since it was filed.
+      count_egress:
+        description: 'Tally outbound third-party calls (does not change behaviour; artifact: egress-tally)'
+        type: boolean
+        default: false
 
 # Without this, every push to a PR stacked another run and the superseded one
 # carried on to completion. Nothing was ever cancelled. Costs no coverage.
@@ -205,8 +225,39 @@ jobs:
     # PRs into `dev`, `qa` and `staging` deliberately get the 2-minute job only.
     # The release PR is `staging -> main`, so `base_ref == 'main'` still selects
     # exactly one gate after the four-branch change. See CONTRIBUTING 4b.
+    #
+    # ── PUSH TO `staging` ADDED 2026-08-10. Issue #207. ────────────────────────
+    #
+    # The release PR was the ONLY automatic trigger, and it stopped being opened:
+    # `RELEASE_PR_PAUSED` was set on the owner's "park it, do not ship" call, and
+    # `release-signals.yml` opens nothing while it is on. Both decisions were
+    # correct. Together they meant **the browser suite did not run at all** -
+    # measured across 60 consecutive CI runs, where the only completed E2E jobs
+    # were two manual dispatches.
+    #
+    # `smoke`, `cache-policy` and `cache-effective` were still covered, because QA
+    # runs those against the deployed services. `perf`, `a11y`, `a11y-auth`,
+    # `bola`, `contrast`, `i18n`, `layout`, `clock`, `payments-webhook` and
+    # `checkout` were covered NOWHERE.
+    #
+    # WHY `staging` AND NOT `qa`, which is where I first proposed it. `qa` moves
+    # several times a day, so at ~38 min a run that is roughly 760 min/month
+    # against a 2,000 min allowance - it would have re-created the overspend #114
+    # exists to fix. `staging` moves only when QA promotes a verified batch, a
+    # few times a week, so it costs ~190 min/month. Close to the ~136 the release
+    # PR used to cost, and it lands on the release candidate itself, which is
+    # exactly what the gate was for.
+    #
+    # THE DOUBLE-BILLING CASE, named rather than discovered: if a `staging ->
+    # main` PR is open, an ff-push to `staging` fires this push trigger AND
+    # `synchronize` on that PR - two full runs for one promotion. CONTRIBUTING 6
+    # already forbids promoting into `staging` while a release PR is open, so in
+    # the intended flow it cannot happen. It is accepted rather than guarded
+    # because the guard would have to ask GitHub whether a PR exists, and a
+    # gate that can be disabled by an API hiccup is worse than a rare duplicate.
     if: >-
       github.base_ref == 'main' ||
+      (github.event_name == 'push' && github.ref_name == 'staging') ||
       (github.event_name == 'workflow_dispatch' && inputs.e2e)
     # Without a cap, a genuinely hung run burns to GitHub's 6-hour default, and
     # a stuck run looks identical to a slow one - which happened while this
@@ -311,6 +362,21 @@ jobs:
         run: npm run test:e2e
         env:
           CI: true
+
+          # ── EGRESS COUNTING, dispatch-only and off unless asked for ────────
+          #
+          # Empty on every ordinary run, so the preload is not loaded at all and
+          # this step behaves exactly as it did before.
+          #
+          # NODE_OPTIONS applies to EVERY node process in the tree, including the
+          # `npm` wrapper and the `npm run build` that playwright.config.ts's
+          # webServer runs as a child. That is intended - build-time fetches are
+          # real egress from this IP and belong in the tally - but it is also why
+          # qa/server-intercept.mjs writes exclusively to stderr: npm parses its
+          # own stdout while resolving npm-prefix.js, and one console.log there
+          # stopped the server from starting at all.
+          NODE_OPTIONS: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && '--import ./qa/server-intercept.mjs' || '' }}
+          QA_INTERCEPT_UPSTREAM: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && 'count' || '' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.E2E_TURNSTILE_SITE_KEY }}
@@ -344,9 +410,11 @@ jobs:
           # expires in about an hour, so a pasted token passes once and then
           # fails CI the next day. The spec mints a fresh token per run.
           #
-          # These are ordinary user-level accounts. The service-role key is NOT
-          # here and must never be - it bypasses RLS entirely, which is exactly
-          # what this spec exists to verify.
+          # These are ordinary user-level accounts, and bola.spec.ts must keep
+          # using them. It exists to prove RLS refuses B's request for A's rows;
+          # signing in as the service role would bypass RLS and make it pass
+          # while proving nothing. See the SUPABASE_SERVICE_ROLE_KEY block below
+          # for why the key being present on the job does not change that.
           #
           # Absent, bola.spec.ts SKIPS with a stated reason rather than passing.
           # A BOLA test that runs without fixtures proves nothing, and a vacuous
@@ -406,6 +474,66 @@ jobs:
           # this repository forge a webhook that grants Pro.
           LEMONSQUEEZY_WEBHOOK_SECRET: ci-fake-not-a-real-lemonsqueezy-secret
 
+          # Same reasoning as the secret above, and the same deliberate fakeness.
+          # `qa/e2e/checkout.spec.ts` needs a checkout URL to exist so it can
+          # assert the button hands off the signed-in user's OWN id - the value
+          # the webhook then refuses to trust. It INTERCEPTS and ABORTS the
+          # navigation, so this host is never contacted.
+          #
+          # NEXT_PUBLIC_*, so it is inlined at BUILD time - it has to be on this
+          # step because playwright.config.ts's webServer runs `npm run build`
+          # as a child of it. Absent, getCheckoutUrl returns the signup fallback
+          # and the spec fails loudly rather than asserting the unconfigured path
+          # while claiming to test checkout.
+          #
+          # The real store URL belongs in Render's env for liquidity-hq-prod and
+          # nowhere else.
+          NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL: https://example.lemonsqueezy.com/checkout/buy/ci-fake-not-a-real-store
+
+          # ── THIS FILE USED TO SAY THE SERVICE-ROLE KEY "must never be" HERE ──
+          #
+          # Reversed 2026-08-09 by an explicit owner decision, and written out
+          # rather than quietly deleted: an absolute rule that softens with no
+          # record is how the next person re-derives the wrong conclusion.
+          #
+          # WHAT THE OLD RULE COST. Three Pro-gated surfaces were verified by
+          # nothing at all, because every one of them authenticates through
+          # `getSupabaseAdmin()` and so errored before reaching the branch under
+          # test:
+          #
+          #   1. the payments OWNERSHIP check - the payer supplies `user_id` in
+          #      `custom_data`, which `lib/checkout.ts` writes into a
+          #      client-side URL. Whether a payer can grant Pro to an account
+          #      they do not own is the BOLA of payments, and it had never run.
+          #   2. the payments REPLAY guard (`ls_webhook_events`).
+          #   3. `/api/push/test`'s Pro gate - excluded from entitlements.spec.ts
+          #      for this exact reason.
+          #
+          # WHY IT IS ACCEPTABLE. The two arguments the old rule rested on both
+          # survive:
+          #
+          #   * "CI builds without developer env, which caught two real defects"
+          #     - those were the labels bug and the NEXT_PUBLIC_APP_ENV prefix
+          #     gap, and both are about a variable being ABSENT in CI while
+          #     PRESENT in production. This key is present in production. Adding
+          #     it moves CI toward the production configuration, not away from
+          #     it. The env-absence guard is unaffected.
+          #   * "it bypasses RLS, which bola.spec.ts exists to verify" - true of
+          #     a TEST that authenticates with it. No spec does; bola.spec.ts
+          #     signs in as A and B with passwords. What changes here is only
+          #     that the SERVER can build its admin client, exactly as the
+          #     server does in production.
+          #
+          # BLAST RADIUS, stated rather than assumed: this is the DEV project's
+          # key. That project holds nine test accounts and no real user data,
+          # and `staging` shares it. It is NOT prod's key and must never be -
+          # prod's holds real customers and the free plan has no backups.
+          #
+          # IF THE SECRET IS ABSENT the three tests SKIP with a stated reason
+          # rather than pass. That is deliberate and it is the part to preserve:
+          # a skip is legible, a vacuous pass is not.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+
       # failure() only. This used to upload on every green run too - ~15s and
       # storage for a report nobody opens. failure() still excludes
       # cancellations, so a concurrency-cancelled run uploads nothing.
@@ -415,6 +543,94 @@ jobs:
           name: playwright-report-${{ github.run_attempt }}
           path: qa/e2e-report/
           retention-days: 14
+
+      # always(), NOT success(). The number is most interesting precisely when
+      # the run went badly - a suite that tripped a rate limit is the case #114
+      # needs to see, and that run fails.
+      #
+      # The file is written DURING the run, once a second, so it survives the
+      # webServer being killed. `process.on('exit')` does not fire on a kill,
+      # which is how the first attempt at this measurement produced a tally of
+      # zero calls to Binance while /api/funding alone was making three.
+      - name: Upload egress tally
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.count_egress }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: egress-tally-${{ github.run_attempt }}
+          # A GLOB. Every node process in the tree loads the preload and writes
+          # its own pid-suffixed file - the npm wrapper, the build, the Next
+          # server, each Playwright worker. A single shared path made them
+          # overwrite each other and the last writer won, which in the first real
+          # run was a short-lived process reporting nothing.
+          path: qa/.intercept-tally.*.json
+          retention-days: 30
+          if-no-files-found: warn
+          # REQUIRED, because the filename starts with a dot.
+          #
+          # actions/upload-artifact@v4 defaults `include-hidden-files: false`,
+          # and on Linux a leading dot makes the file hidden - so it matched the
+          # glob, was excluded, and the step reported success with no artifact.
+          # Two full 38-minute runs produced no tally this way and the only
+          # symptom was an artifact that quietly was not there.
+          #
+          # `if-no-files-found: warn` is what let it stay quiet. Left as `warn`
+          # rather than `error` on purpose: the tally genuinely can be absent
+          # when a run makes no outbound call at all, and failing the job over a
+          # missing measurement would be worse than the measurement being
+          # missing. The fix is to stop excluding it, not to shout about it.
+          include-hidden-files: true
+
+      # Printed as well as uploaded: #114 is answered by one number, and making
+      # someone download an artifact to read it is how a measurement stops being
+      # consulted.
+      - name: Summarise egress
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.count_egress }}
+        run: |
+          shopt -s nullglob
+          FILES=(qa/.intercept-tally.*.json)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No tally written. The preload did not load, or no outbound call was made." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # grep, not require() - playwright.config.ts is TypeScript and node
+          # cannot load it here. The number is what the tally must be read
+          # against: N calls at 2 workers says nothing about 4 on its own.
+          WORKERS=$(grep -oE '^\s*workers:\s*[0-9]+' playwright.config.ts | grep -oE '[0-9]+' | head -1)
+
+          # Sum across processes. The process COUNT is reported too, because it
+          # is the signal that aggregation is working at all - a single file
+          # would mean we are back to one process clobbering the rest.
+          node -e '
+            const fs = require("fs");
+            const files = process.argv.slice(1);
+            const byHost = {};
+            let total = 0;
+            for (const f of files) {
+              try {
+                const t = JSON.parse(fs.readFileSync(f, "utf8"));
+                for (const [h, n] of Object.entries(t.byHost || {})) {
+                  byHost[h] = (byHost[h] || 0) + n;
+                  total += n;
+                }
+              } catch { /* a half-written file is not worth failing the summary over */ }
+            }
+            const rows = Object.entries(byHost).sort((a, b) => b[1] - a[1]);
+            console.log(JSON.stringify({ processes: files.length, total, byHost: Object.fromEntries(rows) }, null, 2));
+          ' "${FILES[@]}" > /tmp/egress-summary.json
+
+          {
+            echo "## Outbound third-party calls"
+            echo ""
+            echo "Measured at \`workers: ${WORKERS:-unknown}\`, aggregated across ${#FILES[@]} node process(es)."
+            echo ""
+            echo '```json'
+            cat /tmp/egress-summary.json
+            echo '```'
+            echo ""
+            echo "Per-IP rate limits apply to this runner's egress, not to a developer machine."
+            echo "This is the measurement #114 needs before \`workers\` goes above 2."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ───────────────────────────────────────────────────────────────────────────
   # THE ONLY REQUIRED STATUS CHECK. Do not require `build` or `e2e` directly.

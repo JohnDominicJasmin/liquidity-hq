@@ -7,6 +7,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useLabels } from '@/lib/labels';
 import { adminFetch } from './_client';
 import styles from './ops.module.css';
+import { forceSignOut } from '@/lib/authSession';
 
 // Gate for /ops. The real security boundary is server-side in every /api/ops/*
 // route (withAdmin/withOwner -> requireAdmin). This decides what to render:
@@ -57,8 +58,13 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
   }, [userId, loading, isLoginRoute, router]);
 
   async function signOutAndSwitch() {
-    await getSupabase()?.auth.signOut();
-    router.replace('/ops/login');
+    // forceSignOut, not sb.auth.signOut directly: a failed logout request used
+    // to leave the session in localStorage, so this "sign out and switch
+    // account" landed back on a console still authenticated as the old user
+    // (#304). Hard navigation for the same reason - router.replace keeps the
+    // React tree, and the gate above would re-admit a session that survived.
+    await forceSignOut(getSupabase());
+    window.location.assign('/ops/login');
   }
 
   // Public login route: render the form with no gate and no console chrome.
