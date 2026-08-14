@@ -73,7 +73,20 @@
      rename is a separate change from a recolour. */
   --accent-solid: #d9a626;
   --accent-2:   #d9a626;
-  --accent-dim: rgba(217,166,38,0.12);
+  /* 0.09, not the blue's 0.12 (#419 knock-on).
+     Gold at the same alpha lifts a dark ground MORE than blue did, and --txt2
+     sits on these tints in panels across the app. Measured on --bg1 #06070a:
+
+         alpha   --txt2 on the tint
+         0.12      4.32   <- was 4.57 with blue: passing, then not
+         0.10      4.46
+         0.09      4.53   <- ships
+         0.07      4.66
+
+     The token that changed is the BACKGROUND, so the fix belongs here rather
+     than in --txt2, which 215 rules depend on. Gold text on the tint stays at
+     8.16:1, so nothing is lost at the other end. */
+  --accent-dim: rgba(217,166,38,0.09);
   --accent-bg:  rgba(217,166,38,0.07);
   --accent-bdr: rgba(217,166,38,0.22);
   /* What goes ON an accent fill. Flips with the theme because the accent does:
@@ -3229,7 +3242,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .frh-coin        { font-weight: 700; color: var(--txt) !important; font-size: var(--fs-caption); width: 46px; }
 .frh-row         { cursor: pointer; transition: background 0.1s, box-shadow 0.1s; }
 .frh-row:hover   { background: rgba(255,255,255,0.04); }
-.frh-row.on      { background: rgba(var(--accent-rgb), 0.11) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
+.frh-row.on      { background: rgba(var(--accent-rgb), 0.11) !important; box-shadow: inset 3px 0 0 var(--accent) !important; }
 .frh-row.on .frh-coin { color: var(--purple) !important; }
 .frh-spark-th    { min-width: 120px; }
 .frh-spark-cell  { min-width: 120px; width: 160px; padding: 3px 8px !important; }
@@ -3262,7 +3275,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .frh-signal-desc   { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.6; }
 
 [data-theme="light"] .frh-row:hover { background: rgba(0,0,0,0.03) !important; }
-[data-theme="light"] .frh-row.on    { background: var(--purple-bg) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
+[data-theme="light"] .frh-row.on    { background: var(--purple-bg) !important; box-shadow: inset 3px 0 0 var(--accent) !important; }
 
 .frh-split        { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items: start; margin-bottom: 10px; }
 .frh-list-scroll  { max-height: 500px; overflow-y: auto; overflow-x: auto; }
@@ -3300,26 +3313,27 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 .auth-gate-title { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); }
 .auth-gate-desc  { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.6; max-width: 280px; }
-/* Issue #56. White on --purple (which aliases --accent, #1a7aff) measured
-   3.98:1 against the 4.5:1 floor - the primary call to action on the signed-out
-   auth gate was the least readable thing on the page.
+/* Issue #56, REWRITTEN for the gold primary (#419). The original reasoning was
+   entirely about blue and every value in it is now wrong; leaving it would send
+   the next reader looking for a #1668e3 that no longer exists.
 
-   --accent-solid exists for exactly this: --accent is for text, borders and
-   glows; --accent-solid is for a filled surface UNDER white text. Same rule as
-   .lp-btn-primary, .consent-accept and .desktop-nav-item.on already follow.
-   White on #1668e3 = 5.09:1.
+   WHAT STILL HOLDS. A filled accent surface needs a deliberate foreground - it
+   was the primary CTA on the signed-out auth gate that first proved it, at
+   3.98:1. And the HOVER state is the half the original issue missed: axe
+   measures the resting state only, so a hover that fails is invisible to the
+   sweep that finds the base. Whatever this button does on hover has to be
+   measured separately, in both themes.
 
-   The hover was the half the issue did not catch, and fixing only the base
-   colour would have left it failing: brightness(1.15) on #1668e3 lands on
-   #1978ff = 4.06:1, still under the floor. axe measures the resting state only,
-   so a hover that fails is invisible to the sweep that found this.
-   Darkening instead of brightening keeps it passing (#135cc8 = 6.19:1) and is
-   the more conventional direction for a filled button anyway.
+   WHAT CHANGED. The fix is no longer a second, darker VALUE - it is a paired
+   foreground. --on-accent is near-black on the dark gold (8.95:1) and white on
+   the light gold (6.07:1); the inverse pairings are 2.23 and 3.63. So
+   --accent-solid and --accent are the same colour now and the contrast comes
+   from the text, not from darkening the fill.
 
-   Light theme does not redefine --accent-solid, so it inherits #1668e3 there -
-   5.09:1, which passes. Deliberately not adding a light-theme override in this
-   change: several other elements already render --accent-solid in light mode
-   and altering it would move all of them for a one-button fix. */
+   AND THE LINE THAT WAS ACTIVELY MISLEADING: this used to say "light theme does
+   not redefine --accent-solid". It does, at #685112. That was true when written
+   and stopped being true without anyone editing it - which is the whole reason
+   this block got rewritten rather than patched. */
 .auth-gate-btn {
   margin-top: 6px; padding: 9px 26px; border-radius: 10px;
   background: var(--accent-solid); color: var(--on-accent);
@@ -4457,8 +4471,13 @@ body.landing {
   --bdr2: rgba(255,255,255,0.14);
 
   --accent:     #d9a626;
-  --accent-solid: #1668e3; /* AA fix, mirrors :root - see note there */
-  --accent-2:   #5aa3ff;
+  /* Was #1668e3, the darkened BLUE that existed so white text could sit on it.
+     It survived the recolour because my sweeps replaced rgba() patterns and
+     this is a bare hex - so the landing CTA kept a blue fill while --on-accent
+     put NEAR-BLACK on it: 3.91:1, seven instances, found by QA's sweep.
+     White on that blue was 5.09; near-black on this gold is 8.95. */
+  --accent-solid: #d9a626;
+  --accent-2:   #d9a626;
   --accent-dim: rgba(var(--accent-rgb), 0.12);
   --accent-bg:  rgba(var(--accent-rgb), 0.07);
   --accent-bdr: rgba(var(--accent-rgb), 0.22);
@@ -4496,7 +4515,7 @@ body.landing {
   height: 36px;
   border-radius: 50%;
   border: 3px solid rgba(255,255,255,0.1);
-  border-top-color: #1a7aff;
+  border-top-color: var(--accent);
   animation: lp-loading-spin 0.8s linear infinite;
 }
 @keyframes lp-loading-spin {
@@ -5480,6 +5499,76 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   [data-design="terminal"] .dterm-toc-item.on { border-left-color: transparent; border-bottom-color: var(--accent); }
   [data-design="terminal"] .dterm-title { font-size: 26px; }
   [data-design="terminal"] .dterm { padding-bottom: 84px; }
+}
+
+/* ── Monochrome Terminal: the STATIC marketing shell (#413, #430) ─────────
+   The design has two shells; the app had one. These seven routes -
+   /disclaimer /about /faq /learn /terms /privacy /refunds - are read by
+   signed-out visitors and carry a marketing bar, not the five app
+   destinations.
+
+   Values measured from Static.dc.html, disclaimer frame at 1440x900:
+     bar        1438 x 56        wordmark 13px mono 700, .16em
+     links      11px mono, .12em, --txt2, gap 24
+     SIGN IN    11px mono, .12em
+     START FREE 11px mono 700, amber fill with --on-accent */
+
+[data-design="terminal"] .sshell {
+  display: flex; align-items: center; gap: 24px;
+  height: 56px; padding: 0 16px;
+  background: var(--bg0); border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .sshell-brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px; font-weight: 700; letter-spacing: .16em;
+  color: var(--txt); text-decoration: none;
+}
+[data-design="terminal"] .sshell-spacer { flex: 1; }
+[data-design="terminal"] .sshell-signin {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--txt2); text-decoration: none;
+}
+[data-design="terminal"] .sshell-signin:hover { color: var(--txt); }
+[data-design="terminal"] .sshell-cta {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  background: var(--accent); color: var(--on-accent);
+  padding: 7px 14px; text-decoration: none;
+  /* Radius 0 - "not a token, an absence". The app's own CTA is 20px rounded. */
+}
+@media (max-width: 899px) {
+  /* 52, not 56. Every shell in this design steps down at mobile - the app bar
+     goes 44 -> 38 and this one goes 56 -> 52. Measured by QA across the Static
+     file: 7 frames at 56px (desktop), 9 at 52px (mobile), and ZERO at 60px,
+     which is why these screens correctly have no bottom tab bar. */
+  [data-design="terminal"] .sshell { height: 52px; gap: 12px; padding: 0 12px; }
+  [data-design="terminal"] .sshell-brand { font-size: 12px; letter-spacing: .12em; }
+}
+/* Mobile 38px header (README:82) - logo, screen name, status. */
+[data-design="terminal"] .tnav-mhead { display: none; }
+@media (max-width: 899px) {
+  [data-design="terminal"] .tnav-mhead {
+    display: flex; align-items: center; gap: 10px;
+    height: 38px; padding: 0 12px;
+    background: var(--bg0); border-bottom: 1px solid var(--bdr);
+  }
+  [data-design="terminal"] .tnav-mbrand {
+    font-family: var(--font-mono), monospace;
+    font-size: 11px; font-weight: 700; letter-spacing: .14em; color: var(--txt);
+  }
+  [data-design="terminal"] .tnav-mscreen {
+    font-family: var(--font-mono), monospace;
+    font-size: 10px; letter-spacing: .12em; color: var(--txt3); flex: 1;
+  }
+  [data-design="terminal"] .tnav-mstatus {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--font-mono), monospace;
+    font-size: 10px; letter-spacing: .1em; color: var(--txt2);
+  }
+  /* 5px SQUARE, per the nav spec - the design has no round elements at all. */
+  [data-design="terminal"] .tnav-mdot { width: 5px; height: 5px; background: var(--green); }
 }
 
 /* ══ Arena, Monochrome Terminal — frame 1a (#413) ═════════════════════════

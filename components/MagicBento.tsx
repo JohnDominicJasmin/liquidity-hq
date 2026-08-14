@@ -4,7 +4,7 @@ import { useRef, useEffect, useCallback, useState, ReactNode, CSSProperties, Ref
 import { gsap } from 'gsap';
 import './MagicBento.css';
 
-export const GLOW_COLOR = '26, 122, 255'; // matches app --accent #1a7aff
+export const GLOW_COLOR = '217, 166, 38'; // matches app --accent #d9a626 (#419)
 const DEFAULT_PARTICLE_COUNT = 8;
 const DEFAULT_SPOTLIGHT_RADIUS = 280;
 const MOBILE_BREAKPOINT = 768;
