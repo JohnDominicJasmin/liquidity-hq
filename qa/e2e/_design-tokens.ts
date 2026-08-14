@@ -106,5 +106,26 @@ export const UNCONVERTED_CHROME: string[] = [
 
 export const CONVERTED_ROUTES: string[] = [
   '/disclaimer',      // #420, merged 2026-08-14
-  '/arena',           // #438
+  /* Landing, #448. Added at REVIEW time rather than in dev's PR, because this
+   * file is QA-owned and dev cannot edit it — so "the route joins in the PR
+   * that converts it" becomes "the review PR that follows it", one PR late.
+   *
+   * One late is the safe direction. See the `/arena` note below. */
+  '/',                // #448, Landing 7a
+
+  /* `/arena` IS DELIBERATELY ABSENT, and this comment exists so it is not
+   * re-added a third time.
+   *
+   * It arrived here once before #438 merged and turned four structure specs red
+   * against a screen that was never converted on `dev`. It came back in this
+   * rebase, and I removed it again after measuring rather than assuming:
+   *
+   *   gh pr view 438            state=OPEN  merged=null
+   *   ArenaTerminal on dev      0 files
+   *   dev's arena/page.tsx      0 references to design=terminal
+   *
+   * A route in this list is a claim that the screen is converted. Arena is not.
+   * **Add it in the PR that merges #438, not before** — a red suite that says
+   * nothing is worse than a gap that says nothing, because someone has to
+   * triage the red and nobody has to triage the gap. */
 ];
