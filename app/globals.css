@@ -5481,3 +5481,242 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   [data-design="terminal"] .dterm-title { font-size: 26px; }
   [data-design="terminal"] .dterm { padding-bottom: 84px; }
 }
+
+/* ══ Arena, Monochrome Terminal — frame 1a (#413) ═════════════════════════
+   Every value here was MEASURED off the rendered prototype at 1440x900, not
+   read from the README. The two disagree on this screen in three places and
+   the frame wins by standing rule:
+
+     verdict type   24px desktop / 22px mobile   README:103 says 34px
+     right rail     304px                        README:103 says 352px
+     verdict band   main column, 1142 wide       README:103 says full-width
+
+   Radius is 0 throughout - README:65, no rounded corners in this direction.
+   Colour appears ONLY on a firing signal; the neutral value colour comes from
+   the row's `fire` field in lib/arenaEvidence.ts, never from the value's sign. */
+
+[data-design="terminal"] .atv-desk { display: none; }
+[data-design="terminal"] .atv-mob  { display: none; }
+
+@media (min-width: 900px) {
+  [data-design="terminal"] .atv-desk {
+    display: grid;
+    /* 304 measured, not the README's 352. The rail is a SIBLING of the main
+       column for the whole height - the verdict band does not span it. */
+    grid-template-columns: minmax(0, 1fr) 304px;
+    align-items: start;
+  }
+
+  /* ── verdict band, 99 tall ── */
+  [data-design="terminal"] .atv-band {
+    display: grid;
+    grid-template-columns: 330px minmax(0, 1fr) 150px;
+    height: 99px;
+    background: var(--bg1);
+    border-bottom: 1px solid var(--bdr);
+  }
+  [data-design="terminal"] .atv-bverdict {
+    padding: 16px 0 0 21px;
+    border-right: 1px solid var(--bdr3);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  [data-design="terminal"] .atv-verdict {
+    font-family: var(--font-mono); font-size: 24px; font-weight: 700;
+    letter-spacing: -0.01em; line-height: 1;
+  }
+  [data-design="terminal"] .atv-confrow { display: flex; align-items: center; gap: 8px; }
+  [data-design="terminal"] .atv-confbar {
+    flex: 1; height: 3px; background: var(--mark-idle); display: block; max-width: 232px;
+  }
+  [data-design="terminal"] .atv-conffill { display: block; height: 3px; }
+  [data-design="terminal"] .atv-confnum {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--txt);
+  }
+
+  [data-design="terminal"] .atv-bcells {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+  }
+  [data-design="terminal"] .atv-bcell {
+    padding: 16px 0 0 21px;
+    border-right: 1px solid var(--bdr3);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  [data-design="terminal"] .atv-bval {
+    font-family: var(--font-mono); font-size: 20px; font-weight: 600; color: var(--txt);
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  [data-design="terminal"] .atv-bsub {
+    font-family: var(--font-mono); font-size: 11px; color: var(--txt2);
+    font-variant-numeric: tabular-nums; min-height: 15px;
+  }
+
+  /* 150px column: RE-RUN READ over SET ALERT, measured 48 and 50 tall. */
+  [data-design="terminal"] .atv-bactions { display: flex; flex-direction: column; }
+  [data-design="terminal"] .atv-rerun {
+    height: 48px; border: 0; cursor: pointer;
+    background: var(--accent); color: var(--on-accent);
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  }
+  [data-design="terminal"] .atv-rerun:disabled { opacity: .6; cursor: default; }
+  [data-design="terminal"] .atv-setalert {
+    height: 50px; border: 0; cursor: pointer; background: transparent; color: var(--txt2);
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em;
+  }
+  [data-design="terminal"] .atv-setalert:hover { color: var(--txt); }
+
+  [data-design="terminal"] .atv-rail {
+    border-left: 1px solid var(--bdr);
+    align-self: stretch;
+    padding-bottom: 24px;
+  }
+  [data-design="terminal"] .atv-chart { min-height: 420px; }
+}
+
+/* ── shared, both viewports ── */
+[data-design="terminal"] .atv-micro {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--txt3);
+}
+[data-design="terminal"] .atv-micro9 {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--txt3);
+}
+
+[data-design="terminal"] .atv-toolbar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .atv-tf {
+  background: transparent; border: 0; cursor: pointer; padding: 3px 8px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--txt2);
+}
+[data-design="terminal"] .atv-tf.on {
+  background: var(--accent); color: var(--on-accent); font-weight: 700;
+}
+
+/* ── evidence grid, 4 x 2 ── */
+[data-design="terminal"] .atv-ehead {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid var(--bdr2);
+}
+[data-design="terminal"] .atv-ehl {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt2);
+}
+[data-design="terminal"] .atv-egrid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+}
+[data-design="terminal"] .atv-eq {
+  display: grid; grid-template-columns: 78px minmax(0, 1fr);
+  grid-template-areas: "label value" "label note";
+  align-items: center; gap: 0 12px;
+  padding: 9px 14px;
+  border-right: 1px solid var(--bdr3); border-bottom: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .atv-elabel {
+  grid-area: label;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--txt3);
+}
+[data-design="terminal"] .atv-eval {
+  grid-area: value;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .atv-enote {
+  grid-area: note; text-align: right;
+  font-family: var(--font-sans); font-size: 11px; color: var(--txt3);
+}
+
+/* ── right rail ── */
+[data-design="terminal"] .atv-rhead {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt2);
+  padding: 14px 14px 10px;
+}
+[data-design="terminal"] .atv-cluster {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr) 44px;
+  align-items: center; gap: 8px; padding: 7px 14px;
+}
+[data-design="terminal"] .atv-cpx, [data-design="terminal"] .atv-cusd {
+  font-family: var(--font-mono); font-size: 11px; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .atv-cusd { text-align: right; }
+[data-design="terminal"] .atv-cbar { display: block; height: 8px; background: var(--mark-idle); }
+[data-design="terminal"] .atv-cbarfill { display: block; height: 8px; background: var(--txt4); }
+[data-design="terminal"] .atv-reasoning {
+  font-family: var(--font-sans); font-size: 12.5px; line-height: 1.6;
+  color: var(--txt2); padding: 0 14px 6px; margin: 0; text-wrap: pretty;
+}
+[data-design="terminal"] .atv-hrow {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) 24px 34px;
+  align-items: center; gap: 8px; padding: 8px 14px;
+  border-top: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .atv-htime, [data-design="terminal"] .atv-hconf {
+  font-family: var(--font-mono); font-size: 11px; color: var(--txt2);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .atv-hverdict {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--txt);
+}
+[data-design="terminal"] .atv-houtcome {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--txt3);
+  text-align: right;
+}
+[data-design="terminal"] .atv-empty {
+  font-family: var(--font-sans); font-size: 12px; color: var(--txt4); padding: 4px 14px 12px;
+}
+
+/* ── mobile, 390 wide — a SECOND layout (README:191), not a narrower one ── */
+@media (max-width: 899px) {
+  [data-design="terminal"] .atv-mob { display: block; padding-bottom: 84px; }
+
+  [data-design="terminal"] .atv-minstrument {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 12px 15px; border-bottom: 1px solid var(--bdr);
+  }
+  [data-design="terminal"] .atv-msym {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--txt);
+  }
+  [data-design="terminal"] .atv-mpx {
+    margin-left: auto;
+    font-family: var(--font-mono); font-size: 12px; color: var(--txt);
+    font-variant-numeric: tabular-nums;
+  }
+  [data-design="terminal"] .atv-mchg { font-family: var(--font-mono); font-size: 11px; }
+
+  [data-design="terminal"] .atv-mreadlabel { padding: 14px 15px 0; }
+  [data-design="terminal"] .atv-mverdict {
+    font-family: var(--font-mono); font-size: 22px; font-weight: 700;
+    padding: 6px 15px 0; line-height: 1;
+  }
+  [data-design="terminal"] .atv-mob .atv-confrow { padding: 12px 15px 0; }
+
+  /* three cells, not four - `Last` is gone because the price sits in the
+     instrument row above. That is the frame, not a responsive collapse. */
+  [data-design="terminal"] .atv-mcells {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    margin: 18px 15px 0; border-top: 1px solid var(--bdr3);
+  }
+  [data-design="terminal"] .atv-mcell {
+    display: flex; flex-direction: column; gap: 3px; padding: 12px 10px;
+    border-right: 1px solid var(--bdr3);
+  }
+  [data-design="terminal"] .atv-mcell:last-child { border-right: 0; }
+  [data-design="terminal"] .atv-mval {
+    font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--txt);
+    font-variant-numeric: tabular-nums;
+  }
+
+  [data-design="terminal"] .atv-mchart { min-height: 300px; margin-top: 12px; }
+  [data-design="terminal"] .atv-mevidence { display: block; }
+  [data-design="terminal"] .atv-mevidence .atv-eq { border-right: 0; }
+
+  [data-design="terminal"] .atv-mrerun {
+    display: block; width: calc(100% - 6px); margin: 14px 3px 0; height: 44px;
+    border: 0; cursor: pointer; background: var(--accent); color: var(--on-accent);
+    font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: .1em;
+  }
+}

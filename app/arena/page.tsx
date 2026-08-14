@@ -16,6 +16,8 @@ import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
 import { Warn } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import ArenaTerminal from '@/components/ArenaTerminal';
 import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
 import ConfluenceScore from '@/components/ConfluenceScore';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
@@ -172,6 +174,7 @@ function ArenaContent() {
   const { user, loading: authLoading, entitled } = useAuth();
   const { settings, update } = useSettings();
   const searchParams = useSearchParams();
+  const designMode = useDesignMode();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
     const c = searchParams.get('coin')?.toLowerCase() ?? '';
     return (COINS as string[]).includes(c) ? c as CoinId : 'btc';
@@ -1247,6 +1250,56 @@ function ArenaContent() {
   const visibleScannerRows = scannerSearch
     ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
     : scannerRows;
+
+  /* One screen, two designs, while the redesign lands frame by frame (#413).
+     Same branch DisclaimerTerminal uses: the terminal Arena is its own
+     component rather than conditionals threaded through 1,000 lines of JSX.
+     The two layouts share their DATA and almost nothing else - the frame puts
+     the verdict in a band, drops the coin sidebar, and moves clusters,
+     reasoning and history into a 304px rail. Deleting this branch is the last
+     step of the migration.
+
+     Everything below is read from the state this page already computes. The
+     shape comes from frame 1a; the values are ours, per the owner's rule:
+     "we cannot display all data in design but we can fill it with other data
+     or numbers". Where we genuinely have nothing - no read run yet, no
+     liquidation clusters in range - the component renders an em dash rather
+     than a placeholder figure. */
+  if (designMode === 'terminal') {
+    const verdictDir = result?.signal?.includes('BULLISH') ? 'bull' as const
+                     : result?.signal?.includes('BEARISH') ? 'bear' as const
+                     : 'neutral' as const;
+    return (
+      <ArenaTerminal
+        coin={selectedCoin}
+        tf={readTf}
+        onTfChange={setReadTf}
+        verdict={result ? { label: result.signal, dir: verdictDir, confidence: result.confidence } : null}
+        /* Entry zone is the EMA9-EMA20 value zone the strategy already defines,
+           and sl/tp are its own stop and target - not numbers invented to fill
+           the band. Null until the strategy has loaded, which the band shows
+           as an em dash. */
+        entry={{
+          zoneLow:  emaSignal.ema20_4h ?? null,
+          zoneHigh: emaSignal.ema9_4h  ?? null,
+          stop:     emaSignal.sl       ?? null,
+          target:   emaSignal.tp       ?? null,
+          target2:  null,
+        }}
+        reasoning={result?.reasoning ?? null}
+        history={history.map(h => ({
+          time: h.time, verdict: h.signal, conf: h.confidence, outcome: null,
+        }))}
+        /* No cluster feed on this screen yet - the liquidation map owns that
+           data (frame 3b). Empty renders "No clusters in range", which is
+           honest, rather than the prototype's eight mock levels. */
+        clusters={[]}
+        onRerun={() => { void readMarket('deep', true); }}
+        onSetAlert={openAlertForm}
+        rerunning={readLoading}
+      />
+    );
+  }
 
   return (
     <div>
