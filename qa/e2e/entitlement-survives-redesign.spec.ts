@@ -30,7 +30,23 @@ import { CONVERTED_ROUTES } from './_design-tokens';
  * guard, and ~20 screens are still to move.
  */
 
-const PROD = 'https://liquidity-hq.com';
+/* THE BASELINE IS THE LEGACY DESIGN IN THIS SAME BUILD, NOT PRODUCTION.
+ *
+ * My first version compared against `https://liquidity-hq.com`, and it could
+ * never have passed. Production serves `main`, and `data-testid="locked-feature"`
+ * landed on `dev` (#442) - so the marker is absent from prod by definition until
+ * a release ships it. The control would have failed forever, for a reason that
+ * has nothing to do with the paywall.
+ *
+ * That is the same error as every other entry in HANDOVER §14, arriving in my
+ * own gate: an instrument pointed at something that cannot answer the question.
+ *
+ * The right baseline was available the whole time. **Both designs coexist in one
+ * build** behind `?design=terminal`, so loading the route WITHOUT the flag gives
+ * the legacy screen from the SAME code, with the same marker compiled in. That
+ * comparison isolates exactly one variable - the redesign - which is the thing
+ * being tested. Comparing against production would also have folded in every
+ * unrelated change between `main` and `dev`. */
 
 /** The locked-card marker. Dev is adding `data-testid="locked-feature"` to
  *  `LockedFeatureCard` — see #441.
@@ -57,7 +73,7 @@ test.describe('the paywall survives the redesign', () => {
 
   /* THE CONTROL, AND IT IS NOT OPTIONAL.
    *
-   * Every assertion below compares a count against production. If the marker is
+   * Every assertion below compares a count against the legacy design. If the marker is
    * missing from both sides — because dev has not landed it yet, or because it
    * got renamed — then `0 === 0` and every route passes while measuring nothing.
    *
@@ -66,27 +82,47 @@ test.describe('the paywall survives the redesign', () => {
    * instrument works BEFORE the comparisons are allowed to mean anything, and it
    * FAILS rather than skips: a skip reads as caution and means "measured
    * nothing", which is indistinguishable from the bug. */
-  test('CONTROL: production shows locked cards to a signed-out visitor', async ({ page }) => {
+  test('CONTROL: the legacy design shows locked cards to a signed-out visitor', async ({ page }) => {
     test.setTimeout(90_000);
-    const n = await lockedCount(page, `${PROD}/arena`);
+    const n = await lockedCount(page, '/arena');   // no flag = legacy design
     expect(n,
-      'no [data-testid="locked-feature"] on production /arena signed out. Either the ' +
-      'marker is not deployed yet (#441) or it was renamed — every comparison below ' +
-      'would be 0 vs 0 and would pass without measuring anything.',
+      'no [data-testid="locked-feature"] on the LEGACY /arena signed out. Either the ' +
+      'marker was renamed, or entitlement resolved as entitled — every comparison ' +
+      'below would be 0 vs 0 and would pass without measuring anything.',
     ).toBeGreaterThan(0);
   });
 
+  /* WHAT THIS SPEC HAS NOT YET PROVEN, STATED BEFORE ANYONE TRUSTS IT.
+   *
+   * The control passes: the legacy design does show locked cards signed out, so
+   * the marker resolves and the instrument is pointed at something real.
+   *
+   * **But it has never caught a leak, because it has not yet had one to catch.**
+   * On `dev` today no converted screen renders a DIFFERENT tree under
+   * `?design=terminal` - the terminal Arena is parked in #438 - so both sides of
+   * the comparison are the same markup and `local >= legacy` is satisfied by
+   * construction. A green run here currently means "nothing differs", not "the
+   * paywall survived".
+   *
+   * I tried to prove it against the real defect: dev's `949b97f` shipped the
+   * confluence rail with one guard where `9c545e6` has two. Swapping that page
+   * into the current tree does not compile - it expects a tree that has moved -
+   * and rebuilding the historical tree would also mean patching in a
+   * `data-testid` that commit never had, which is a control against a build that
+   * never existed.
+   *
+   * So: **the negative control is owed, not skipped.** The moment a converted
+   * screen renders its own terminal tree, remove one `entitled ?` guard from it
+   * locally and confirm this goes red. Until then this file is wiring, and
+   * saying so is cheaper than someone reading three green ticks as coverage.
+   *
+   * Recorded because "a test that has never failed has never been tested" is the
+   * rule this suite keeps relearning, and it applies to my own gate. */
   for (const route of CONVERTED_ROUTES) {
-    test(`${route} locks at least as much as production does`, async ({ page }) => {
+    test(`${route} locks at least as much as the legacy design does`, async ({ page }) => {
       test.setTimeout(120_000);
 
-      let prod: number;
-      try {
-        prod = await lockedCount(page, `${PROD}${route}`);
-      } catch {
-        test.skip(true, `production unreachable for ${route} — a failed measurement is not evidence`);
-        return;
-      }
+      const legacy = await lockedCount(page, route);          // baseline: no flag
 
       const local = await lockedCount(page, `${route}?design=terminal`);
       /* AWAITED. `expect(promiseReturningFn(page)).toBeTruthy()` asserts that a
@@ -97,16 +133,16 @@ test.describe('the paywall survives the redesign', () => {
 
       /* GREATER-THAN-OR-EQUAL, not equality.
        *
-       * Locking MORE than production is not a leak — it is a screen that has not
+       * Locking MORE than the legacy design is not a leak — it is a screen that has not
        * finished converting, or a panel dev deliberately gated tighter. Only a
        * DROP means a guard was left behind during the move. Asserting equality
        * would make this spec fail on changes that are not defects, and a spec
        * that cries wolf gets its failures explained away — which is how the
        * 24px/44px a11y bar sat mislabelled for weeks. */
       expect(local,
-        `${route} shows ${local} locked cards signed out, production shows ${prod}. ` +
+        `${route} shows ${local} locked cards signed out, the legacy design shows ${legacy}. ` +
         'A panel moved into the terminal design without its entitlement guard.',
-      ).toBeGreaterThanOrEqual(prod);
+      ).toBeGreaterThanOrEqual(legacy);
     });
   }
 });
