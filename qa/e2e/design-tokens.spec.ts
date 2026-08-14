@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { gotoGuarded } from './_shared';
 import { ALLOWED, CONVERTED_ROUTES, TOKEN_VALUES } from './_design-tokens';
+import { DESIGN_STORAGE_KEY } from '@/lib/designMode';
 
 /* Does the rendered page use ONLY the Monochrome Terminal palette?
  *
@@ -143,8 +144,49 @@ test.describe('design token conformance', () => {
    * ledger's comment for why this is opt-in rather than a global sweep. */
   for (const route of CONVERTED_ROUTES) {
     test(`${route} uses only Monochrome Terminal colours`, async ({ page }) => {
-      await gotoGuarded(page, route);
+      /* THE REDESIGN IS BEHIND A RUNTIME FLAG, so it has to be turned ON before
+       * anything here means what it says (#417).
+       *
+       * Without this, `gotoGuarded` renders the CURRENT design and this test
+       * asserts it against the TERMINAL palette. The output would be ~27
+       * off-token colours on a route the ledger calls converted — a report that
+       * names dev's CSS while measuring a page they did not build. I would have
+       * posted it with a straight face.
+       *
+       * Storage rather than `?design=terminal`: seeding runs before first paint
+       * and does not have to survive gotoGuarded's redirect handling. Same
+       * mechanism contrast.spec.ts uses for theme, and the key is imported from
+       * `lib/designMode.ts` rather than typed again — one list, one source. */
+      await page.addInitScript((k) => {
+        try { localStorage.setItem(k, 'terminal'); } catch { /* private mode */ }
+      }, DESIGN_STORAGE_KEY);
+
+      /* BOTH MECHANISMS, because only one of them currently works.
+       *
+       * Measured on #417: the stored value is overwritten to `current` during
+       * hydration, so a seed alone reverts. The query param survives because it
+       * travels in the URL and is read from `window.location.search`.
+       *
+       * Belt and braces on purpose — when the stickiness bug is fixed the seed
+       * becomes the primary path again, and this keeps working either way
+       * without a follow-up edit that someone has to remember. */
+      await gotoGuarded(page, `${route}?design=terminal`);
       await page.waitForTimeout(3000);
+
+      /* AND IT MUST HAVE TAKEN. A storage write that silently fails leaves
+       * the old design rendering, and if it happened to use no off-token colour
+       * this test would report a CLEAN PASS on a screen nobody converted —
+       * certifying the redesign by measuring its absence.
+       *
+       * `designAttribute('current')` returns null on purpose, so "attribute
+       * missing" is exactly what the un-flagged state looks like. That makes
+       * this assertion the difference between the two, not a formality. */
+      const mode = await page.evaluate(() => document.documentElement.dataset.design ?? null);
+      expect(mode,
+        `${route} did not render in terminal mode, so this run measured the CURRENT ` +
+        `design against the new palette. Every colour below would be a false finding. ` +
+        `Check DESIGN_STORAGE_KEY against lib/designMode.ts.`)
+        .toBe('terminal');
 
       const rendered = await page.evaluate(() => document.querySelectorAll('*').length);
       expect(rendered,
