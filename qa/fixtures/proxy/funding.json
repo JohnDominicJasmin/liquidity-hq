@@ -1,0 +1,310 @@
+{
+  "_url": "http://localhost:3100/api/funding",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "data": [
+      {
+        "coin": "btc",
+        "binance": 0.00000699,
+        "bybit": -0.00001345,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "eth",
+        "binance": -0.00000949,
+        "bybit": 0.00001691,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "sol",
+        "binance": -0.00005856,
+        "bybit": -0.00002719,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "xrp",
+        "binance": 0.00004312,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "bnb",
+        "binance": 0,
+        "bybit": -0.0000331,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "hype",
+        "binance": null,
+        "bybit": -0.00003731,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "near",
+        "binance": 0.00003015,
+        "bybit": 0.0000975,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "sui",
+        "binance": -0.00007911,
+        "bybit": -0.00004927,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "doge",
+        "binance": 0.00003745,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "avax",
+        "binance": 0.00001891,
+        "bybit": 0.00001318,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "link",
+        "binance": 0.0001,
+        "bybit": 0.00003353,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "ada",
+        "binance": 0.0000863,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "dot",
+        "binance": -0.00002427,
+        "bybit": -0.00003372,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "atom",
+        "binance": 0.00001077,
+        "bybit": -0.00014833,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "wif",
+        "binance": -0.00000253,
+        "bybit": 0.0000107,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "pepe",
+        "binance": null,
+        "bybit": -0.00027914,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "bonk",
+        "binance": null,
+        "bybit": -0.00001432,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "ltc",
+        "binance": -0.00000257,
+        "bybit": -0.00006844,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "bch",
+        "binance": -0.00051408,
+        "bybit": -0.00027422,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "trx",
+        "binance": -0.00000312,
+        "bybit": -0.00010307,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "xlm",
+        "binance": 0.00003819,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "etc",
+        "binance": -0.00014577,
+        "bybit": -0.00011967,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "fil",
+        "binance": -0.00000209,
+        "bybit": 0.00002279,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "arb",
+        "binance": -0.00008159,
+        "bybit": -0.000026,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "op",
+        "binance": 0.0001,
+        "bybit": -0.00014561,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "apt",
+        "binance": -0.00045008,
+        "bybit": -0.00018788,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "sei",
+        "binance": -0.0001424,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "inj",
+        "binance": -0.00009694,
+        "bybit": -0.0000689,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "tia",
+        "binance": 0.00004876,
+        "bybit": 0.00005,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "aave",
+        "binance": -0.00014374,
+        "bybit": -0.00013851,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "uni",
+        "binance": 0.0001,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "ldo",
+        "binance": 0.00009087,
+        "bybit": -0.00002579,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "rune",
+        "binance": -0.00027094,
+        "bybit": -0.00056965,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "gmx",
+        "binance": 0.0001,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "crv",
+        "binance": 0.00008673,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "stx",
+        "binance": 0.0000336,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "jup",
+        "binance": 0.00005,
+        "bybit": 0.00005,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "wld",
+        "binance": -0.00001675,
+        "bybit": 0.00008186,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "render",
+        "binance": 0.00002145,
+        "bybit": 0.00005,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "tao",
+        "binance": 0.00002535,
+        "bybit": 0.00005,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "fet",
+        "binance": 0.0001,
+        "bybit": null,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "ondo",
+        "binance": -0.00005443,
+        "bybit": 0.0000116,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "pyth",
+        "binance": 0.00005,
+        "bybit": 0.00005,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "ena",
+        "binance": -0.00009697,
+        "bybit": -0.00004534,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "dydx",
+        "binance": 0.0001,
+        "bybit": 0.00005669,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "sand",
+        "binance": 0.0000037,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "mana",
+        "binance": -0.00017111,
+        "bybit": -0.00000165,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "gmt",
+        "binance": 0.00005,
+        "bybit": 0.0001,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "xau",
+        "binance": null,
+        "bybit": -0.00000999,
+        "nextFundingMs": 1786723200000
+      },
+      {
+        "coin": "spx",
+        "binance": null,
+        "bybit": 0.00005,
+        "nextFundingMs": 1786723200000
+      }
+    ],
+    "ts": 1786719492616
+  }
+}

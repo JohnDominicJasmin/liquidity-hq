@@ -1,0 +1,13 @@
+{
+  "_url": "http://localhost:3100/api/config",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "maintenanceMode": false,
+    "announcementBanner": null,
+    "featureFlags": {
+      "grok": true,
+      "telegram": true
+    }
+  }
+}

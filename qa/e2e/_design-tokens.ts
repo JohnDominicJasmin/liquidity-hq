@@ -106,4 +106,5 @@ export const UNCONVERTED_CHROME: string[] = [
 
 export const CONVERTED_ROUTES: string[] = [
   '/disclaimer',      // #420, merged 2026-08-14
+  '/arena',           // #438
 ];
