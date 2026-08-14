@@ -36,7 +36,7 @@ interface Evidence {
 }
 
 const STATUS_META: Record<string, { labelKey: LabelKey; col: string; bg: string }> = {
-  active:        { labelKey: 'HYPOTHESIS_TRACKER_STATUS_ACTIVE',       col: '#1a7aff', bg: 'rgba(26,122,255,0.12)' },
+  active:        { labelKey: 'HYPOTHESIS_TRACKER_STATUS_ACTIVE',       col: '#1a7aff', bg: 'rgba(var(--accent-rgb), 0.12)' },
   confirmed:     { labelKey: 'HYPOTHESIS_TRACKER_STATUS_CONFIRMED',    col: 'var(--green-2)', bg: 'rgba(52,211,153,0.12)' },
   disconfirmed:  { labelKey: 'HYPOTHESIS_TRACKER_STATUS_DISCONFIRMED', col: 'var(--red)', bg: 'rgba(248,113,113,0.12)' },
   expired:       { labelKey: 'HYPOTHESIS_TRACKER_STATUS_EXPIRED',      col: 'var(--txt-dim)', bg: 'rgba(148,163,184,0.10)' },
@@ -245,8 +245,8 @@ export default function HypothesisTracker() {
         <button
           onClick={() => setShowCreate(v => !v)}
           style={{
-            background: showCreate ? 'var(--bg2)' : 'rgba(26,122,255,0.2)',
-            border: '0.5px solid rgba(26,122,255,0.4)',
+            background: showCreate ? 'var(--bg2)' : 'rgba(var(--accent-rgb), 0.2)',
+            border: '0.5px solid rgba(var(--accent-rgb), 0.4)',
             borderRadius: 7,
             padding: '6px 12px',
             fontSize: 'var(--fs-caption)',
@@ -263,7 +263,7 @@ export default function HypothesisTracker() {
       {showCreate && (
         <div style={{
           background: 'var(--bg2)',
-          border: '0.5px solid rgba(26,122,255,0.3)',
+          border: '0.5px solid rgba(var(--accent-rgb), 0.3)',
           borderRadius: 10,
           padding: '14px',
           marginBottom: 14,
@@ -476,7 +476,7 @@ export default function HypothesisTracker() {
                       style={{
                         ...ghostBtnStyle,
                         color: isAnalyzing ? 'var(--txt3)' : 'var(--accent)',
-                        borderColor: 'rgba(26,122,255,0.3)',
+                        borderColor: 'rgba(var(--accent-rgb), 0.3)',
                         marginBottom: 14,
                         width: '100%',
                       }}
@@ -640,8 +640,8 @@ const ghostBtnStyle: React.CSSProperties = {
 };
 
 const primaryBtnStyle = (disabled: boolean): React.CSSProperties => ({
-  background: disabled ? 'rgba(26,122,255,0.1)' : 'rgba(26,122,255,0.2)',
-  border: '0.5px solid rgba(26,122,255,0.4)',
+  background: disabled ? 'rgba(var(--accent-rgb), 0.1)' : 'rgba(var(--accent-rgb), 0.2)',
+  border: '0.5px solid rgba(var(--accent-rgb), 0.4)',
   borderRadius: 6,
   padding: '6px 14px',
   fontSize: 'var(--fs-caption)',

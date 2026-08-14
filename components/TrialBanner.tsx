@@ -28,8 +28,8 @@ export default function TrialBanner() {
   const urgent = daysLeft <= 3;
 
   const accent = urgent ? 'var(--amber)' : 'var(--accent)';
-  const bg     = urgent ? 'var(--amber-bg, rgba(251,191,36,0.08))' : 'var(--accent-bg, rgba(26,122,255,0.07))';
-  const bdr    = urgent ? 'var(--amber-bdr, rgba(251,191,36,0.22))' : 'var(--accent-bdr, rgba(26,122,255,0.22))';
+  const bg     = urgent ? 'var(--amber-bg, rgba(251,191,36,0.08))' : 'var(--accent-bg, rgba(var(--accent-rgb), 0.07))';
+  const bdr    = urgent ? 'var(--amber-bdr, rgba(251,191,36,0.22))' : 'var(--accent-bdr, rgba(var(--accent-rgb), 0.22))';
 
   return (
     <div

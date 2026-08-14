@@ -128,7 +128,7 @@ export default function AccumulationTracker() {
                 border: `0.5px solid ${store.selectedCoin === r.id ? 'var(--accent-bdr)' : 'transparent'}`,
                 textAlign: 'left', transition: 'background .15s',
               }}
-              onMouseEnter={e => { if (store.selectedCoin !== r.id) e.currentTarget.style.background = 'rgba(26,122,255,0.05)'; }}
+              onMouseEnter={e => { if (store.selectedCoin !== r.id) e.currentTarget.style.background = 'rgba(var(--accent-rgb), 0.05)'; }}
               onMouseLeave={e => { if (store.selectedCoin !== r.id) e.currentTarget.style.background = 'transparent'; }}
             >
               <span style={{

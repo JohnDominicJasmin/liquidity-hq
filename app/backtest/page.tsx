@@ -535,9 +535,9 @@ export default function BacktestPage() {
           onClick={runStrategyResearch}
           disabled={srRunning || !srPrompt.trim()}
           style={{
-            background: srRunning || !srPrompt.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
+            background: srRunning || !srPrompt.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(var(--accent-rgb), 0.12)',
             color: srRunning || !srPrompt.trim() ? 'var(--txt3)' : 'var(--accent)',
-            border: `1px solid ${srRunning || !srPrompt.trim() ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
+            border: `1px solid ${srRunning || !srPrompt.trim() ? 'var(--bdr)' : 'rgba(var(--accent-rgb), 0.35)'}`,
             borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: srRunning || !srPrompt.trim() ? 'default' : 'pointer',
           }}
@@ -616,9 +616,9 @@ export default function BacktestPage() {
                       });
                     }}
                     style={{
-                      background: psCopied ? 'rgba(52,211,153,0.12)' : 'rgba(26,122,255,0.10)',
+                      background: psCopied ? 'rgba(52,211,153,0.12)' : 'rgba(var(--accent-rgb), 0.10)',
                       color: psCopied ? 'var(--green-2)' : 'var(--accent)',
-                      border: `1px solid ${psCopied ? 'rgba(52,211,153,0.3)' : 'rgba(26,122,255,0.3)'}`,
+                      border: `1px solid ${psCopied ? 'rgba(52,211,153,0.3)' : 'rgba(var(--accent-rgb), 0.3)'}`,
                       borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer',
                     }}
                   >
@@ -687,9 +687,9 @@ export default function BacktestPage() {
           onClick={runSMCSnapshot}
           disabled={smcRunning || !smcAsset.trim()}
           style={{
-            background: smcRunning || !smcAsset.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
+            background: smcRunning || !smcAsset.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(var(--accent-rgb), 0.12)',
             color: smcRunning || !smcAsset.trim() ? 'var(--txt3)' : 'var(--accent)',
-            border: `1px solid ${smcRunning || !smcAsset.trim() ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
+            border: `1px solid ${smcRunning || !smcAsset.trim() ? 'var(--bdr)' : 'rgba(var(--accent-rgb), 0.35)'}`,
             borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: smcRunning || !smcAsset.trim() ? 'default' : 'pointer',
           }}
@@ -763,9 +763,9 @@ export default function BacktestPage() {
           onClick={runTokenUnlock}
           disabled={ulRunning || !ulSymbol.trim()}
           style={{
-            background: ulRunning || !ulSymbol.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
+            background: ulRunning || !ulSymbol.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(var(--accent-rgb), 0.12)',
             color: ulRunning || !ulSymbol.trim() ? 'var(--txt3)' : 'var(--accent)',
-            border: `1px solid ${ulRunning || !ulSymbol.trim() ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
+            border: `1px solid ${ulRunning || !ulSymbol.trim() ? 'var(--bdr)' : 'rgba(var(--accent-rgb), 0.35)'}`,
             borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: ulRunning || !ulSymbol.trim() ? 'default' : 'pointer',
           }}
