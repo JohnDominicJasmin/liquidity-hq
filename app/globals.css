@@ -5526,7 +5526,11 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   /* Radius 0 - "not a token, an absence". The app's own CTA is 20px rounded. */
 }
 @media (max-width: 899px) {
-  [data-design="terminal"] .sshell { gap: 12px; padding: 0 12px; }
+  /* 52, not 56. Every shell in this design steps down at mobile - the app bar
+     goes 44 -> 38 and this one goes 56 -> 52. Measured by QA across the Static
+     file: 7 frames at 56px (desktop), 9 at 52px (mobile), and ZERO at 60px,
+     which is why these screens correctly have no bottom tab bar. */
+  [data-design="terminal"] .sshell { height: 52px; gap: 12px; padding: 0 12px; }
   [data-design="terminal"] .sshell-brand { font-size: 12px; letter-spacing: .12em; }
 }
 /* Mobile 38px header (README:82) - logo, screen name, status. */
