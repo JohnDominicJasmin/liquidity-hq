@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NavDashboard, NavArena, NavScanner, NavTracking, NavJournal } from './icons';
+import { getSessionName } from '@/lib/session';
 
 /* The Monochrome Terminal navigation (#413).
  *
@@ -81,6 +82,24 @@ export default function TerminalNav() {
           ))}
         </div>
       </nav>
+
+      {/* ── Mobile: 38px header ──
+          README:82 - "38px header (logo, screen name, status)". Missed in the
+          first pass, which built only the tab bar: on a phone the app had no
+          header at all, on every screen. QA found it, and it is shell-level -
+          21 screens, not one.
+
+          The screen name comes from the active destination rather than the
+          path, so /funding reads FLOW - matching what the nav highlights
+          instead of naming a route the design no longer surfaces. */}
+      <header className="tnav-mhead">
+        <span className="tnav-mbrand">LIQUIDITYHQ</span>
+        <span className="tnav-mscreen">{DESTINATIONS.find(d => d.key === active)?.label ?? ''}</span>
+        <span className="tnav-mstatus">
+          <span className="tnav-mdot" />
+          {getSessionName(new Date())}
+        </span>
+      </header>
 
       {/* ── Mobile: 60px bottom tab bar ──
           Its own element rather than a media-query restyle of the desktop bar:

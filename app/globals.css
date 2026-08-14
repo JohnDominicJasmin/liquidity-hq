@@ -5487,3 +5487,68 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   [data-design="terminal"] .dterm-title { font-size: 26px; }
   [data-design="terminal"] .dterm { padding-bottom: 84px; }
 }
+
+/* ── Monochrome Terminal: the STATIC marketing shell (#413, #430) ─────────
+   The design has two shells; the app had one. These seven routes -
+   /disclaimer /about /faq /learn /terms /privacy /refunds - are read by
+   signed-out visitors and carry a marketing bar, not the five app
+   destinations.
+
+   Values measured from Static.dc.html, disclaimer frame at 1440x900:
+     bar        1438 x 56        wordmark 13px mono 700, .16em
+     links      11px mono, .12em, --txt2, gap 24
+     SIGN IN    11px mono, .12em
+     START FREE 11px mono 700, amber fill with --on-accent */
+
+[data-design="terminal"] .sshell {
+  display: flex; align-items: center; gap: 24px;
+  height: 56px; padding: 0 16px;
+  background: var(--bg0); border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .sshell-brand {
+  font-family: var(--font-mono), monospace;
+  font-size: 13px; font-weight: 700; letter-spacing: .16em;
+  color: var(--txt); text-decoration: none;
+}
+[data-design="terminal"] .sshell-spacer { flex: 1; }
+[data-design="terminal"] .sshell-signin {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--txt2); text-decoration: none;
+}
+[data-design="terminal"] .sshell-signin:hover { color: var(--txt); }
+[data-design="terminal"] .sshell-cta {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  background: var(--accent); color: var(--on-accent);
+  padding: 7px 14px; text-decoration: none;
+  /* Radius 0 - "not a token, an absence". The app's own CTA is 20px rounded. */
+}
+@media (max-width: 899px) {
+  [data-design="terminal"] .sshell { gap: 12px; padding: 0 12px; }
+  [data-design="terminal"] .sshell-brand { font-size: 12px; letter-spacing: .12em; }
+}
+/* Mobile 38px header (README:82) - logo, screen name, status. */
+[data-design="terminal"] .tnav-mhead { display: none; }
+@media (max-width: 899px) {
+  [data-design="terminal"] .tnav-mhead {
+    display: flex; align-items: center; gap: 10px;
+    height: 38px; padding: 0 12px;
+    background: var(--bg0); border-bottom: 1px solid var(--bdr);
+  }
+  [data-design="terminal"] .tnav-mbrand {
+    font-family: var(--font-mono), monospace;
+    font-size: 11px; font-weight: 700; letter-spacing: .14em; color: var(--txt);
+  }
+  [data-design="terminal"] .tnav-mscreen {
+    font-family: var(--font-mono), monospace;
+    font-size: 10px; letter-spacing: .12em; color: var(--txt3); flex: 1;
+  }
+  [data-design="terminal"] .tnav-mstatus {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--font-mono), monospace;
+    font-size: 10px; letter-spacing: .1em; color: var(--txt2);
+  }
+  /* 5px SQUARE, per the nav spec - the design has no round elements at all. */
+  [data-design="terminal"] .tnav-mdot { width: 5px; height: 5px; background: var(--green); }
+}
