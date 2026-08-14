@@ -70,6 +70,14 @@ export const FIRING = {
   basisAbs:     0.002,
   /** Net liquidation imbalance as a share of the window's total. */
   liqSkew:      0.65,
+  /* ── thresholds for the rows we add beyond the frame's eight ── */
+  /** RSI. The conventional 30/70; below that is noise on a 4H chart. */
+  rsiHigh:      70,
+  rsiLow:       30,
+  /** Volume against its own 20-period average. 1.8x is a real spike. */
+  volSpike:     1.8,
+  /** Long share of Bybit accounts. Two-thirds one way is a crowded book. */
+  lsSkew:       0.66,
 } as const;
 
 const pct  = (n: number, dp = 2) => `${n >= 0 ? '+' : '−'}${Math.abs(n * 100).toFixed(dp)}%`;
@@ -210,7 +218,78 @@ export function buildEvidence(input: EvidenceInputs): EvidenceRow[] {
          : longShare <= 1 - FIRING.liqSkew ? 'green' : null,
   };
 
-  return [funding, cvd, oi, vwap, cbPrem, taker, basis, liq];
+  /* ── EXTENDING THE GRID, WHICH IS THE POINT ──────────────────────────────
+   *
+   * The frame draws 8 cells in a 4x2. That is the design's PATTERN, not a cap
+   * on how many signals may exist - the owner's rule for the whole redesign:
+   *
+   *   "i know the hand off design its not 100% scoped to our platform ... just
+   *    extend it to what data we have like if it shows 2 rows only but we have
+   *    more data to show then use that design and show it into 3 rows"
+   *
+   * So the rows below are ours, rendered in the frame's own cell design, and
+   * the grid becomes 4x3. They come AFTER the frame's eight so the designed
+   * reading order survives, and they obey the same firing rule - a signal in
+   * its normal range stays neutral no matter how its number is signed.
+   *
+   * This is also where the panels the frame does not draw come home. RSI and
+   * multi-timeframe alignment were their own boxes on the old Arena; they are
+   * signals, so they belong in the signal grid rather than in a second design
+   * language stacked underneath it. */
+
+  /* 9. RSI 14. Only the extremes are a signal; 40-60 is noise. Overbought is
+        red because it is a warning, not an endorsement - the same polarity
+        trap as funding. */
+  const rsi = c?.rsi14 ?? null;
+  const rsi14: EvidenceRow = {
+    label: 'RSI 14',
+    value: rsi === null ? null : rsi.toFixed(0),
+    note:  rsi === null ? null : rsi >= FIRING.rsiHigh ? 'overbought'
+         : rsi <= FIRING.rsiLow ? 'oversold' : 'mid range',
+    fire:  rsi === null ? null
+         : rsi >= FIRING.rsiHigh ? 'red'
+         : rsi <= FIRING.rsiLow  ? 'green' : null,
+  };
+
+  /* 10. Multi-timeframe alignment. Counts how many of 1h/4h/1d agree, which is
+         what the old MultiTFAlignment panel showed as three separate gauges. */
+  const tfs = [c?.rsi1h ?? null, c?.rsi4h ?? null, c?.rsiDaily ?? null].filter((n): n is number => n !== null);
+  const bull = tfs.filter(n => n > 50).length;
+  const bear = tfs.filter(n => n < 50).length;
+  const aligned = tfs.length > 0 && (bull === tfs.length || bear === tfs.length);
+  const mtf: EvidenceRow = {
+    label: 'MTF align',
+    value: tfs.length === 0 ? null : `${Math.max(bull, bear)}/${tfs.length}`,
+    note:  tfs.length === 0 ? null : aligned ? (bull === tfs.length ? 'all bullish' : 'all bearish') : 'mixed',
+    fire:  !aligned ? null : bull === tfs.length ? 'green' : 'red',
+  };
+
+  /* 11. Volume against its own average. volRatio is already relative, so 1.0
+         is an ordinary session and the threshold is a multiple, not a delta. */
+  const vr = c?.volRatio ?? null;
+  const volume: EvidenceRow = {
+    label: 'Volume',
+    value: vr === null ? null : `${vr.toFixed(2)}x`,
+    note:  vr === null ? null : vr >= FIRING.volSpike ? 'spike' : vr < 0.7 ? 'thin' : 'normal',
+    fire:  vr !== null && vr >= FIRING.volSpike ? 'green' : null,
+  };
+
+  /* 12. Account positioning. Bybit long/short accounts - one-sided books are
+         the setup the squeeze score is built on, so heavy long is red. */
+  const lr = c?.longRatio ?? null;
+  const sr = c?.shortRatio ?? null;
+  const lsTotal = lr !== null && sr !== null ? lr + sr : null;
+  const longPct = lsTotal && lsTotal > 0 ? lr! / lsTotal : null;
+  const positioning: EvidenceRow = {
+    label: 'L/S ratio',
+    value: longPct === null ? null : `${Math.round(longPct * 100)}%`,
+    note:  longPct === null ? null : longPct >= 0.5 ? 'longs crowded' : 'shorts crowded',
+    fire:  longPct === null ? null
+         : longPct >= FIRING.lsSkew     ? 'red'
+         : longPct <= 1 - FIRING.lsSkew ? 'green' : null,
+  };
+
+  return [funding, cvd, oi, vwap, cbPrem, taker, basis, liq, rsi14, mtf, volume, positioning];
 }
 
 /** "2 FIRING · 6 NEUTRAL" — the frame's own header, computed rather than typed. */

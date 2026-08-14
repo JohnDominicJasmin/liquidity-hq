@@ -40,15 +40,33 @@ function quietCoin(over: Partial<CoinData> = {}): CoinData {
 
 /* ── 1. the grid is always eight rows, in the frame's order ──────────────── */
 
-test('always exactly 8 rows, even with no data at all', () => {
-  // A hole in a fixed 4x2 grid should read as "we do not have this", not
-  // reflow the layout into a shape the design never specifies.
+test('the frame eight come first, in the frame order, then ours', () => {
+  // The design draws 8 cells in a 4x2. That is the PATTERN, not a cap - the
+  // owner's rule is to extend it to the data we actually have, in the same
+  // cell design. So the grid is 4x3 and the frame's eight keep their order,
+  // because the designed reading order is the part that is binding.
   const rows = buildEvidence({ coin: null });
-  assert.equal(rows.length, 8);
-  assert.deepEqual(rows.map(r => r.label), [
+  assert.deepEqual(rows.slice(0, 8).map(r => r.label), [
     'Funding 8h', 'CVD 4h', 'OI 1h', 'VWAP', 'CB prem', 'Taker buy', 'Basis', 'Liq 15m',
   ]);
+  assert.deepEqual(rows.slice(8).map(r => r.label), [
+    'RSI 14', 'MTF align', 'Volume', 'L/S ratio',
+  ]);
+  assert.equal(rows.length % 4, 0, 'the grid is 4 wide - a partial row leaves a hole');
   assert.ok(rows.every(r => r.value === null), 'no data must not invent values');
+});
+
+test('our added rows obey the same firing rule as the frame ones', () => {
+  // Extending the design must not mean extending it with a looser rule.
+  const quiet = buildEvidence({ coin: quietCoin({ rsi14: 52, rsi1h: 52, rsi4h: 48, rsiDaily: 51, volRatio: 1.0, longRatio: 50, shortRatio: 50 }) });
+  for (const label of ['RSI 14', 'MTF align', 'Volume', 'L/S ratio']) {
+    assert.equal(quiet.find(r => r.label === label)!.fire, null, `${label} fired in a quiet market`);
+  }
+  const hot = buildEvidence({ coin: quietCoin({ rsi14: 78, rsi1h: 61, rsi4h: 58, rsiDaily: 55, volRatio: 2.4, longRatio: 80, shortRatio: 20 }) });
+  assert.equal(hot.find(r => r.label === 'RSI 14')!.fire,    'red',   'overbought is a warning, not an endorsement');
+  assert.equal(hot.find(r => r.label === 'MTF align')!.fire, 'green');
+  assert.equal(hot.find(r => r.label === 'Volume')!.fire,    'green');
+  assert.equal(hot.find(r => r.label === 'L/S ratio')!.fire, 'red',   'a crowded long book is the setup, not the confirmation');
 });
 
 /* ── 2. THE RULE: signed values do not imply colour ──────────────────────── */
@@ -57,7 +75,7 @@ test('a quiet market fires NOTHING - the six-neutral case', () => {
   const rows = buildEvidence({ coin: quietCoin(), spotPrice: 100 });
   const { firing, neutral } = firingCount(rows);
   assert.equal(firing, 0, `expected nothing firing, got: ${rows.filter(r=>r.fire).map(r=>r.label)}`);
-  assert.equal(neutral, 8);
+  assert.equal(neutral, rows.length);
 });
 
 test('positive values still render neutral when the signal is not firing', () => {
@@ -153,8 +171,8 @@ test('mobile shows only the firing rows - frame 1a mobile, header reads "2 FIRIN
 
 test('mobile falls back to the full set when nothing fires', () => {
   // "0 FIRING" above an empty box is a worse answer than showing the data.
-  const m = mobileEvidence(buildEvidence({ coin: quietCoin() }));
-  assert.equal(m.length, 8);
+  const all = buildEvidence({ coin: quietCoin() });
+  assert.equal(mobileEvidence(all).length, all.length);
 });
 
 /* ── 6. control ──────────────────────────────────────────────────────────── */

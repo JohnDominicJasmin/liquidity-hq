@@ -2307,10 +2307,20 @@ function ArenaContent() {
         history={history.map(h => ({
           time: h.time, verdict: h.signal, conf: h.confidence, outcome: null,
         }))}
-        /* No cluster feed on this screen yet - the liquidation map owns that
-           data (frame 3b). Empty renders "No clusters in range", which is
-           honest, rather than the prototype's eight mock levels. */
-        clusters={[]}
+        /* The rail's clusters, from the data the page already loads for the
+           heatmap. The prototype shows eight mock levels; we show the ones we
+           actually have, largest first, in the frame's row design - extending
+           the pattern to our data rather than padding it to eight.
+           BTC-only today, which is where btcLiqLevels exists; other coins get
+           "No clusters in range" rather than a fabricated ladder. */
+        clusters={
+          selectedCoin === 'btc'
+            ? [...store.btcLiqLevels]
+                .sort((a, b) => b.amount - a.amount)
+                .slice(0, 8)
+                .map(l => ({ price: l.price, usd: l.amount }))
+            : []
+        }
         onRerun={() => { void readMarket('deep', true); }}
         onSetAlert={openAlertForm}
         rerunning={readLoading}
