@@ -639,14 +639,24 @@ Context for the move off the desktop GUI.
   | rule matcher on `style.color` | "no rules match this element" | `style.color` is `''` for any `var()` value |
   | `elementFromPoint` probe | geometry that contradicted itself | measured off-screen and clipped rects |
   | a 7s wait on a free-plan host | "the rail is not in the DOM" | it renders later than that |
-  | Playwright `reuseExistingServer` | 3 consecutive PASSes | served a build from before the checkout |
+  | Playwright `reuseExistingServer` | 3 consecutive PASSes | served a build from before the checkout — **a `git checkout` does NOT restart it** |
+  | a route stubbed on a promise the test resolves later | a 10-minute timeout | the page deadlocked, so nothing was measured at all |
 
   **The defence is a positive control: break the thing on purpose and confirm the instrument
   goes red.** A detector that has never failed has never been tested. Assert the precondition
   before trusting a zero - "found nothing" and "looked in the wrong place" are the same output.
-- **`/api/version` does not protect you locally** — it reports `commit: "unknown"` on a dev
-  server. The local equivalent of quoting it is to **grep the SERVED asset for a string the
-  commit introduced**. A branch name proves nothing about what a browser received.
+
+  **And `/api/version` does not save you locally** - it reports `commit: "unknown"` on a dev
+  server, so the habit that catches a stale DEPLOY fails silently on a stale LOCAL one. What
+  exposed the `reuseExistingServer` case was not the result, which looked ordinary three times
+  running, but grepping the served asset for a rule the commit introduced:
+
+  ```
+  git show fd17cbc:app/globals.css     .gchat-mode-opt::after { ... height: 48px }
+  served CSS on :3100                  no ::after rule at all
+  ```
+
+  **Compare the bytes against the source, not the branch against your intent.**
 - **Fixing the reported instance and leaving the class is the default failure, even when you
   know the rule.** #404 took three passes - grid card, then the hero sixty lines above it,
   then two more renderers sharing the same grid. The tell is closing a ticket rather than
