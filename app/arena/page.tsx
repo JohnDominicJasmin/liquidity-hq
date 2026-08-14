@@ -2101,7 +2101,10 @@ function ArenaContent() {
       {/* EMA Ribbon Strategy card - sits directly under the chart so it reads as
           the explanation of the chart's own Buy/Sell markers, not a stray card
           four sections down. */}
-      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
+      {/* MOVED, not removed: this is a rail section in the terminal design
+          (EMA ribbon · 4H). Rendering both is the duplication the owner
+          objected to, so the card only draws where the rail does not exist. */}
+      {designMode !== 'terminal' && <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />}
       {/* Data collectors - run hooks for Grok context, render nothing.
           AbsorptionDetector is Pro-only: for free users it is not mounted at
           all, so its data never reaches the AI context either. */}
@@ -2126,7 +2129,11 @@ function ArenaContent() {
           chargeback, not a pixel.
           Same guard as MultiTFAlignment:120, written for #310 and not carried
           here at the time. */}
-      {authLoading || entitled ? (
+      {/* MOVED to the rail as the Confluence section, with the SAME
+          entitlement guard carried across. The locked-card upsell stays on
+          this path for anyone with the flag off - a LockedFeatureCard is
+          reasonable in a main column and wrong wedged into a 304px rail. */}
+      {designMode === 'terminal' ? null : authLoading || entitled ? (
         <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
       ) : (
         <LockedFeatureCard
@@ -2141,7 +2148,9 @@ function ArenaContent() {
       {/* ── Evidence + advanced (full width, below the workspace) ── */}
       <div className="arena-below-chart">
       {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
-      {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
+      {/* MOVED: btcLiqLevels now feeds the rail's Liquidation clusters rows.
+          The heatmap itself is frame 3b's screen, not Arena's. */}
+      {designMode !== 'terminal' && selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
         <LiqHeatmap
           levels={store.btcLiqLevels}
           currentPrice={store.coins['btc']?.price ?? 0}
@@ -2183,7 +2192,9 @@ function ArenaContent() {
           up front rather than an extra click to drill in). Granular technical
           cards (multi-timeframe alignment, higher-timeframe context, stop
           zone) plus the AI's long-form reasoning/patterns. ── */}
-      <MultiTFAlignment coin={selectedCoin} />
+      {/* MOVED into the evidence grid as the "MTF align" cell - the grid is
+          the design's pattern for a signal with a value and a note. */}
+      {designMode !== 'terminal' && <MultiTFAlignment coin={selectedCoin} />}
       {/* StopLossZone ("Order Flow Setup" card) stays removed - its stop + R:R
           duplicated the AI read card's own STOP and R:R cells. Component kept in
           the codebase, just not mounted here. */}
