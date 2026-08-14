@@ -27,8 +27,15 @@ const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
 };
 
 export default function ConfluenceScore(
-  { coin, emaSignal, jpyUsd, structure }:
-  { coin: CoinId; emaSignal: StrategySignal; jpyUsd: number | null; structure: PASignal | null },
+  { coin, emaSignal, jpyUsd, structure, variant = 'card' }:
+  { coin: CoinId; emaSignal: StrategySignal; jpyUsd: number | null; structure: PASignal | null;
+    /* 'rail' renders the same computation in the Monochrome Terminal rail
+       (#413) - a 10px/700 heading over rows, no card, no radius.
+       A VARIANT rather than a second component on purpose: the factor
+       assembly above is the product decision, and a terminal copy of it would
+       be two scores that can disagree on screen. The owner's rule for the
+       redesign is to move UI, not to duplicate it. */
+    variant?: 'card' | 'rail' },
 ) {
   const { t } = useLabels();
   const { store } = useMarket();
@@ -157,6 +164,49 @@ export default function ConfluenceScore(
 
   const result = computeConfluence(factors);
   const cfg = VERDICT_CONFIG[result.verdict];
+
+  /* ── rail variant ──────────────────────────────────────────────────────
+     Returns before the card's macro band and perps line are computed: those
+     are extra rows the 304px rail has no room for, and the rail is a summary
+     that links to the full read rather than a second copy of it. */
+  if (variant === 'rail') {
+    const dirColour = result.score >= 25 ? 'var(--green)'
+                    : result.score <= -25 ? 'var(--red)' : 'var(--txt)';
+    return (
+      <>
+        <span className="atv-rscore" style={{ color: dirColour }}>
+          {result.score > 0 ? `+${result.score}` : result.score}
+        </span>
+        <div className="atv-rrow">
+          <span className="atv-rlabel">Verdict</span>
+          <span className="atv-rval" style={{ color: dirColour }}>
+            {result.verdict.replace(/_/g, ' ').toLowerCase().replace(/^./, ch => ch.toUpperCase())}
+          </span>
+        </div>
+        {result.factors.map(f => (
+          <div key={f.label} className="atv-rrow">
+            <span className="atv-rlabel">{f.label}</span>
+            <span
+              className="atv-rval"
+              style={{
+                /* Same firing rule as the evidence grid: colour only where the
+                   factor is actually saying something. A neutral directional
+                   factor and an inactive penalty both render in --txt. */
+                color: f.kind === 'penalty'
+                  ? (f.active ? 'var(--red)' : 'var(--txt)')
+                  : f.dir === 'bull' ? 'var(--green)'
+                  : f.dir === 'bear' ? 'var(--red)' : 'var(--txt)',
+              }}
+            >
+              {f.kind === 'penalty'
+                ? (f.active ? 'Active' : 'Clear')
+                : f.dir === 'bull' ? 'Bull' : f.dir === 'bear' ? 'Bear' : 'Neutral'}
+            </span>
+          </div>
+        ))}
+      </>
+    );
+  }
   // store.real10y is the 10Y real yield (#311). It adds a line to the macro
   // band and nothing to `result.score` - see the note in computeMacroRisk.
   const macro = computeMacroRisk(econEvents, jpyUsd, Date.now(), econStale, store.real10y);

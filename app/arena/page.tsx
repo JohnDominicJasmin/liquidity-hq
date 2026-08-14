@@ -2335,6 +2335,17 @@ function ArenaContent() {
            heading over content, so these extend the pattern the design gives
            rather than adding a second card style next to it. */
         railPanels={[
+          /* QA's ruling on #438: the confluence factors are NOT the same
+             signals as the evidence grid (theirs are EMA/order-flow/RSI/GEX,
+             the grid's are funding/CVD/OI/VWAP/...), so it is a rail section
+             rather than more grid rows. Rendered by ConfluenceScore itself in
+             a rail variant - a terminal copy of its factor assembly would be
+             two scores that can disagree on screen. */
+          {
+            key: 'confluence',
+            head: 'Confluence',
+            body: <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} variant="rail" />,
+          },
           {
             key: 'squeeze',
             head: 'Squeeze score',
