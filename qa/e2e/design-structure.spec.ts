@@ -107,10 +107,25 @@ const TICKER_ROUTES = ['/arena', '/dashboard', '/markets', '/', '/login'];
 
 /** Measured values from the handoff README, per route. */
 const STRUCTURE: Record<string, { title?: number; rail?: number; note: string }> = {
+  /* EVERY VALUE HERE IS MEASURED IN A FRAME, with its file and offset. A number
+   * without a provenance comment is a number nobody can re-check — and both
+   * entries in the first version of this table came from README prose, one of
+   * which was wrong.
+   *
+   * THE README IS NOT A SECOND SOURCE. Its own words: "Every value below was
+   * measured in the prototypes." So where it disagrees with a frame it is a bad
+   * copy, and two of its numbers have already been caught:
+   *
+   *     LEAN BULLISH   README 34px   frame  24px
+   *     DISCLAIMER     README 34px   frame  32px
+   *
+   * Both were 34. One value looks to have been copied across two screen entries.
+   * Assume a README number is wrong until measured, not right until contradicted.
+   */
   '/disclaimer': {
-    title: 34,
-    rail: 264,
-    note: 'README:172 numbered sections with a contents rail; grid 264px + content, 34px title',
+    title: 32,   // Static.dc.html @4606: font-size 32px, weight 700
+    rail: 264,   // Static.dc.html: width:264px, 6 occurrences
+    note: 'frame 3A, Monochrome Terminal - Static.dc.html. README:172 says 34px and is wrong.',
   },
 };
 
