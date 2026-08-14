@@ -5,6 +5,7 @@ import MarketProvider from './MarketProvider';
 import NewsProvider from './NewsProvider';
 import NavDrawer from './NavDrawer';
 import TerminalNav from './TerminalNav';
+import StaticShell from './StaticShell';
 import DesignModeProvider, { useDesignMode } from './DesignModeProvider';
 import GrokChat from './GrokChat';
 import NewsTicker from './NewsTicker';
@@ -161,6 +162,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
    and the terminal bar is only reachable with ?design=terminal (#413).
    A component rather than a ternary inline so it can call useDesignMode(),
    which needs to be inside the provider. */
+/* The seven routes the handoff groups under its STATIC shell (README:167).
+   They are read signed-out, so they carry a marketing bar rather than the five
+   app destinations - which is what they inherited until now. */
+const STATIC_SHELL_ROUTES = new Set([
+  '/disclaimer', '/about', '/faq', '/learn', '/terms', '/privacy', '/refunds',
+]);
+
 function AppChrome() {
-  return useDesignMode() === 'terminal' ? <TerminalNav /> : <NavDrawer />;
+  const pathname = usePathname();
+  if (useDesignMode() !== 'terminal') return <NavDrawer />;
+  /* Exact match, like isChromeless above: a future /about/team should be a
+     deliberate decision rather than silently inheriting the marketing bar. */
+  return STATIC_SHELL_ROUTES.has(pathname) ? <StaticShell /> : <TerminalNav />;
 }
