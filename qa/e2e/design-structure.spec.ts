@@ -80,6 +80,37 @@ const STRUCTURE: Record<string, { title?: number; rail?: number; note: string }>
   },
 };
 
+/* ── COLOUR IS DATA, AND THIS IS THE ASSERTION MY COLOUR SPEC CANNOT MAKE ─────
+ *
+ * Every coloured cell in this design carries its colour as a FIELD, not as a
+ * styling decision. Extracted from all four prototype files:
+ *
+ *     Arena evidence grid   8 rows, `fire: 'red' | 'green' | null`, exactly 2 set
+ *     Desk pulse cells      4 cells, `col`, 3 are TXT and 1 conditional
+ *     Liq stat cells        4 cells, 2 TXT, 1 hard RED, 1 conditional
+ *     Disclaimer stat band  4 cells, 3 red, 1 --txt2
+ *     Trading hours stats   4 cells, all coloured - expectancy IS directional
+ *
+ * **An implementation that colours every row produces something that looks
+ * richer and is wrong — and `design-tokens.spec.ts` passes it cleanly**, because
+ * `--green` and `--red` are legal tokens wherever they appear. That is the exact
+ * shape of the `/disclaimer` failure: correct colours, wrong page.
+ *
+ * So the count of coloured cells is asserted here, from the frame's own data.
+ * The VALUES are not asserted — the owner's rule is that shape is binding and
+ * numbers may come from our feeds.
+ */
+const COLOUR_COUNTS: Record<string, { total: number; coloured: number; note: string }> = {
+  '/arena': {
+    total: 8, coloured: 2,
+    note: "evidence grid: fire 'red' on Funding 8h, 'green' on CVD 4h, null on the other six. "
+        + "The frame states it in its own header: '2 FIRING · 6 NEUTRAL'.",
+  },
+};
+
+/** Cells whose computed colour is --green or --red, inside a container. */
+const FIRING = ['rgb(63, 185, 80)', 'rgb(240, 82, 77)'];
+
 async function seedTerminal(page: Page) {
   await page.addInitScript((k) => {
     try { localStorage.setItem(k, 'terminal'); } catch { /* private mode */ }
@@ -183,6 +214,52 @@ test.describe('design structure', () => {
         `Rounded corners on a converted screen mean it was restyled rather than rebuilt.`)
         .toEqual([]);
     });
+
+    const colours = COLOUR_COUNTS[route];
+    if (colours) {
+      test(`${route} colours exactly the cells the frame colours`, async ({ page }) => {
+        await seedTerminal(page);
+        await gotoGuarded(page, `${route}?design=terminal`);
+        await page.waitForTimeout(3500);
+
+        const got = await page.evaluate((firing) => {
+          /* The evidence grid is the only 4x2 block of label+value cells on the
+           * screen. Matched on the header the frame states rather than a class
+           * name, so a refactor of the markup does not silently skip this. */
+          const header = [...document.querySelectorAll('*')]
+            .find(e => /\d+\s*FIRING/i.test(e.textContent ?? '') && e.children.length < 4);
+          const grid = header?.closest('section, div')?.parentElement ?? document.querySelector('main');
+          if (!grid) return null;
+          const cells = [...grid.querySelectorAll('*')].filter(e => {
+            const t = (e.textContent ?? '').trim();
+            return t.length > 0 && t.length < 40 && e.children.length === 0;
+          });
+          const coloured = cells.filter(e => firing.includes(getComputedStyle(e).color));
+          return { headerText: (header?.textContent ?? '').trim().slice(0, 40), coloured: coloured.length };
+        }, FIRING);
+
+        expect(got, `${route}: could not find the evidence grid. It is matched on the ` +
+          `"N FIRING" header the frame states, so either that header is missing or the ` +
+          `grid moved. Nothing below is measurable.`).not.toBeNull();
+
+        /* THE HEADER MUST AGREE WITH THE CELLS. The frame prints the count in
+         * its own header, so the app can be internally inconsistent - a header
+         * saying 2 above a grid colouring 8 is worse than either alone, and it
+         * is the failure a human reviewer would skim past. */
+        expect(got!.headerText,
+          `${route}: the grid header reads "${got!.headerText}" and the frame states ` +
+          `"${colours.coloured} FIRING". ${colours.note}`)
+          .toContain(String(colours.coloured));
+
+        expect(got!.coloured,
+          `${route}: ${got!.coloured} cells render in --green or --red; the frame colours ` +
+          `exactly ${colours.coloured} of ${colours.total}. ${colours.note}
+` +
+          `Colouring every row looks richer and is wrong - and design-tokens.spec.ts ` +
+          `passes it, because both colours are legal tokens wherever they appear.`)
+          .toBe(colours.coloured);
+      });
+    }
 
     const spec = STRUCTURE[route];
     if (!spec) continue;
