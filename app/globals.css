@@ -4464,7 +4464,7 @@ body.landing {
      put NEAR-BLACK on it: 3.91:1, seven instances, found by QA's sweep.
      White on that blue was 5.09; near-black on this gold is 8.95. */
   --accent-solid: #d9a626;
-  --accent-2:   #5aa3ff;
+  --accent-2:   #d9a626;
   --accent-dim: rgba(var(--accent-rgb), 0.12);
   --accent-bg:  rgba(var(--accent-rgb), 0.07);
   --accent-bdr: rgba(var(--accent-rgb), 0.22);
@@ -4502,7 +4502,7 @@ body.landing {
   height: 36px;
   border-radius: 50%;
   border: 3px solid rgba(255,255,255,0.1);
-  border-top-color: #1a7aff;
+  border-top-color: var(--accent);
   animation: lp-loading-spin 0.8s linear infinite;
 }
 @keyframes lp-loading-spin {
