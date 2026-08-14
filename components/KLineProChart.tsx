@@ -1742,7 +1742,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       label: 'Setup Forming',
       detail: `Near ${nearSR.type} (${nearSR.touches} touches) · Squeeze ${sq.score}/100`,
       explanation: `Squeeze + ${nearSR.type} confluence (separate from the chart's own Buy/Sell signal) - the squeeze and the ${nearSR.type} level aren't lined up yet. Watch for direction confirmation - don't jump in early.`,
-      color: 'var(--accent)', bg: 'rgba(26,122,255,0.10)', bdr: 'rgba(26,122,255,0.28)',
+      color: 'var(--accent)', bg: 'rgba(var(--accent-rgb), 0.10)', bdr: 'rgba(var(--accent-rgb), 0.28)',
     };
   })();
 

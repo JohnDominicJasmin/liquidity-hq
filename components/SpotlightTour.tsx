@@ -18,7 +18,7 @@ const DARK = {
   ACCENT: '#1a7aff', GREEN: 'var(--green)', RED: 'var(--red)', ORANGE: '#f97316',
   BG0: '#07090f', BG1: '#0c0f1c', BG2: '#101324',
   TXT1: '#eef0fa', TXT2: '#9296b5', TXT3: '#4e5374',
-  BDR: 'rgba(26,122,255,0.1)', TRACK_BG: 'rgba(26,122,255,0.06)', GRID: 'rgba(26,122,255,0.05)',
+  BDR: 'rgba(var(--accent-rgb), 0.1)', TRACK_BG: 'rgba(var(--accent-rgb), 0.06)', GRID: 'rgba(var(--accent-rgb), 0.05)',
   TG_BG: 'rgba(34,158,217,0.06)', TG_BDR: 'rgba(34,158,217,0.28)', TG_TXT: '#4db8e8',
   MODAL_SHADOW: '0 32px 80px rgba(0,0,0,0.7)',
 };
@@ -26,7 +26,7 @@ const LIGHT = {
   ACCENT: '#0052CC', GREEN: '#047857', RED: '#B91C1C', ORANGE: '#C2410C',
   BG0: '#F2F3F5', BG1: '#FFFFFF', BG2: '#F2F3F5',
   TXT1: '#111318', TXT2: '#44475A', TXT3: '#63656F',
-  BDR: 'rgba(0,82,204,0.14)', TRACK_BG: 'rgba(0,82,204,0.08)', GRID: 'rgba(0,82,204,0.08)',
+  BDR: 'rgba(var(--accent-rgb), 0.14)', TRACK_BG: 'rgba(var(--accent-rgb), 0.08)', GRID: 'rgba(var(--accent-rgb), 0.08)',
   TG_BG: 'rgba(34,158,217,0.08)', TG_BDR: 'rgba(34,158,217,0.35)', TG_TXT: '#0e7fae',
   MODAL_SHADOW: '0 20px 48px rgba(20,25,40,0.18)',
 };

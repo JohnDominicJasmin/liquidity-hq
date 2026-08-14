@@ -1255,7 +1255,7 @@ function ArenaContent() {
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>{t('ARENA_PAGE_TITLE')}</div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#12233f', color: 'var(--accent-2)', border: '0.5px solid #2a4a7a', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: 'var(--accent-bg)', color: 'var(--accent)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
@@ -1341,11 +1341,11 @@ function ArenaContent() {
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent-2)',
-            background: 'rgba(90,163,255,0.1)', padding: '2px 9px 2px 5px',
-            borderRadius: 20, border: '0.5px solid rgba(90,163,255,0.2)',
+            background: 'rgba(var(--accent-rgb), 0.1)', padding: '2px 9px 2px 5px',
+            borderRadius: 20, border: '0.5px solid rgba(var(--accent-rgb), 0.2)',
             flexShrink: 0,
           }}>
-            <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="rgba(90,163,255,0.15)" />
+            <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="rgba(var(--accent-rgb), 0.15)" />
             {selectedCoin.toUpperCase()}
           </span>
           {/* Spacer */}
@@ -1490,7 +1490,7 @@ function ArenaContent() {
                     width: '100%', display: 'grid',
                     gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
                     alignItems: 'center', padding: '7px 12px',
-                    background: isSelected ? 'rgba(90,163,255,0.08)' : 'transparent',
+                    background: isSelected ? 'rgba(var(--accent-rgb), 0.08)' : 'transparent',
                     border: 'none',
                     borderBottom: '0.5px solid var(--bdr)',
                     cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',
@@ -1633,7 +1633,7 @@ function ArenaContent() {
         {user && (
           <button
             className="arena-ask-grok-btn"
-            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(26,122,255,0.15)' : undefined }}
+            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(var(--accent-rgb), 0.15)' : undefined }}
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
             title={t('ARENA_SET_ALERT_TITLE')}
           >
@@ -1750,7 +1750,7 @@ function ArenaContent() {
                 onClick={saveArenaAlert}
                 disabled={alertSaving || !alertPrice}
                 style={{
-                  width: '100%', fontSize: 'var(--fs-body)', fontWeight: 700, color: '#fff',
+                  width: '100%', fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--on-accent)',
                   background: 'var(--accent-solid)', border: 'none', borderRadius: 10, padding: '12px 18px',
                   cursor: alertSaving || !alertPrice ? 'default' : 'pointer',
                   opacity: alertSaving || !alertPrice ? 0.5 : 1, transition: 'opacity .15s',
@@ -1998,8 +1998,8 @@ function ArenaContent() {
                   const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
                   const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
                   const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
-                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
-                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
+                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(var(--accent-rgb), 0.08)';
+                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(var(--accent-rgb), 0.25)';
                   return (
                     <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
                   );

@@ -165,8 +165,8 @@ export default function OnChainScore() {
           onClick={analyze}
           disabled={loading || !user}
           style={{
-            background: loading ? 'rgba(26,122,255,0.15)' : 'rgba(26,122,255,0.2)',
-            border: '0.5px solid rgba(26,122,255,0.4)',
+            background: loading ? 'rgba(var(--accent-rgb), 0.15)' : 'rgba(var(--accent-rgb), 0.2)',
+            border: '0.5px solid rgba(var(--accent-rgb), 0.4)',
             borderRadius: 6,
             padding: '5px 11px',
             fontSize: 'var(--fs-caption)',
