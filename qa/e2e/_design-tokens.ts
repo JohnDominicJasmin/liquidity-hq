@@ -60,6 +60,38 @@ export const ALLOWED = new Set<string>(TERMINAL_ALLOWED.map(c => c.toLowerCase()
  * current design by the owner's instruction, so they are outside this system
  * entirely rather than pending. See qa/STATUS.md.
  */
+/* ── GLOBAL CHROME NOT YET CONVERTED ─────────────────────────────────────────
+ *
+ * A converted PAGE still sits inside UNCONVERTED CHROME. `AppShell` mounts the
+ * cookie banner, the chat launcher and the platform footer on every route, so
+ * the first conformance run against `/disclaimer` reported 11 findings of which
+ * **zero came from the screen dev had built**.
+ *
+ * Without this list the spec cannot pass on any single screen until the LAST
+ * global component converts — red for the whole migration, green only at the
+ * end. That is the "permanently red suite people stop reading" failure the
+ * route ledger exists to avoid, arriving through a different door.
+ *
+ * EXPLICIT SELECTORS, NEVER PATTERNS. The same run reported
+ * `html.figtree_…` — which looked like more chrome and was a real defect: the
+ * canvas hardcodes `#06070a` instead of `var(--bg0)`, so a converted screen
+ * renders on the OLD ground, two hex digits away and invisible to any eye.
+ * **I nearly exempted it while triaging eleven findings in a minute.**
+ * A rule like "anything on html" would have buried it permanently.
+ *
+ * REMOVE AN ENTRY IN THE PR THAT CONVERTS ITS COMPONENT. An exemption that
+ * outlives its component is indistinguishable from coverage.
+ */
+export const UNCONVERTED_CHROME: string[] = [
+  '.consent-btn',            // CookieConsent
+  '.consent-link',           // CookieConsent
+  '.gchat-fab',              // GrokChat launcher - undesigned entirely, see #413
+  '.gchat-panel',            // GrokChat panel and everything inside it
+  '.gchat-coins',            // GrokChat coin chips
+  '.pf-footer-divider-label',// PlatformFooter
+  '.pf-footer-link',         // PlatformFooter
+];
+
 export const CONVERTED_ROUTES: string[] = [
-  // '/dashboard',   <- add as each redesign lands
+  // '/disclaimer',   <- add in the PR that converts the route, not after
 ];
