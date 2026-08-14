@@ -20,6 +20,17 @@ import fs from 'node:fs';
 
 const CSS = fs.readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
 
+/** Flatten `fg` at `alpha` over `bg` - what a tinted background actually is by
+ *  the time text sits on it. Without this the test compares against a colour
+ *  no pixel ever has. */
+function composite(fg: string, alpha: number, bg: string): string {
+  const h = (c: string) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+  const [fr, fg_, fb] = h(fg), [br, bg_, bb] = h(bg);
+  const mix = (f: number, b: number) => Math.round(f * alpha + b * (1 - alpha));
+  return '#' + [mix(fr, br), mix(fg_, bg_), mix(fb, bb)]
+    .map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
 function token(name: string, scope?: string): string {
   /* 3000, not 1200: the light-theme token block is ~34 lines long and --accent
      sits past the old window, so a scoped lookup silently found nothing and
@@ -122,14 +133,30 @@ test('design token contrast', async (t) => {
     const accent = token('accent', '[data-theme="light"] {');
     const onAccent = token('on-accent', '[data-theme="light"] {');
 
-    /* THREE surfaces, not two. The first version of this test checked white
-       and --bg2 only, passed, and shipped a gold that measured 4.18:1 on
-       #e1e1de - a real surface carrying real text ("Pro Plan", "Sign up").
-       A token test is only as good as its list of grounds. */
-    for (const bg of ['#ffffff', '#f2f3f5', '#e1e1de']) {
-      const r = ratio(accent, bg);
-      assert.ok(r >= AA,
-        `light --accent ${accent} as TEXT on ${bg} = ${r.toFixed(2)}:1, needs ${AA}:1`);
+    /* GROUNDS x TINTS, not a list of flat colours.
+     *
+     * This test has now been wrong twice in the same way, and each time the
+     * fix was "add another ground" - which is why the third version stops
+     * enumerating and starts composing.
+     *
+     *   v1  white + --bg2                shipped 4.18:1 on #e1e1de
+     *   v2  + #e1e1de                    shipped 3.98:1 on #e1e1de + a 12% tint
+     *   v3  every ground x every tint    <- here
+     *
+     * The tint matters because the app's selected state puts accent TEXT on an
+     * accent-tinted BACKGROUND (.nav-tile.on, .gchat-coin.on). Blue had the
+     * headroom for that; gold does not, and a flat-ground test cannot see it.
+     * QA's rendered sweep found both misses - this is the unit-test half
+     * catching up to what the sweep already knows. */
+    const GROUNDS = ['#ffffff', '#f2f3f5', '#e1e1de', '#e8eaed'];
+    const TINTS: Array<[string, number]> = [['plain', 0], ['accent-bg', 0.07], ['accent-dim', 0.12]];
+    for (const bg of GROUNDS) {
+      for (const [name, alpha] of TINTS) {
+        const ground = alpha === 0 ? bg : composite(accent, alpha, bg);
+        const r = ratio(accent, ground);
+        assert.ok(r >= AA,
+          `light --accent ${accent} on ${bg} + ${name} = ${r.toFixed(2)}:1, needs ${AA}:1`);
+      }
     }
 
     const onFill = ratio(onAccent, accent);

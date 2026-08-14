@@ -2362,21 +2362,31 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 
   /* A darker gold for light theme (#419). #d9a626 on white is 2.23:1, so it had
      to come down to clear AA.
-     #795f15 is the lightest value on this hue that clears 4.5:1 on ALL THREE
-     light surfaces:
-         #ffffff  6.07      #f2f3f5  5.47      #e1e1de  4.63
-     The first draft was #826517, chosen against the first two only - and the
-     third surface measured 4.18 on live pages ("Pro Plan", "Sign up"). Found by
-     walking the rendered DOM rather than by re-reading the token table, which
-     is the only reason it was found at all. */
-  --accent:     #795f15;
+     THIRD value, and the reason is the .on idiom: gold TEXT sits on a gold
+     TINT (--accent-bg / --accent-dim) for every selected state in the app -
+     .nav-tile.on, .gchat-coin.on, .gchat-mode-opt.on. Blue survived that
+     because blue-on-blue-tint had headroom; a dark mustard on a ground already
+     pulled toward its own hue does not.
+
+     So the value is chosen against every GROUND x TINT combination, not
+     against flat surfaces:
+
+         ground        plain   +7% tint   +12% dim
+         #ffffff        7.57      7.87       8.18
+         #f2f3f5        6.82      7.09       7.37
+         #e1e1de        5.78      6.02       4.89   <- the binding case
+         #e8eaed        6.30      6.55       6.81
+
+     #795f15 bottomed out at 3.98 there and #715814 at 4.40. Both passed a
+     test that only knew about flat grounds. */
+  --accent:     #685112;
   /* was #0066E8 - 3.03:1 on the canvas #e8eaed, which is where the footer
      divider label and the markets sort buttons sit. */
-  --accent-2:   #795f15;
-  --accent-solid: #795f15;
-  --accent-dim: rgba(121,95,21,0.10);
-  --accent-bg:  rgba(121,95,21,0.07);
-  --accent-bdr: rgba(121,95,21,0.22);
+  --accent-2:   #685112;
+  --accent-solid: #685112;
+  --accent-dim: rgba(104,81,18,0.10);
+  --accent-bg:  rgba(104,81,18,0.07);
+  --accent-bdr: rgba(104,81,18,0.22);
   /* White on the light-theme gold, not near-black: #08090a on #826517 is
      3.63:1 and fails. The pairing inverts with the theme. */
   --on-accent:  #ffffff;
