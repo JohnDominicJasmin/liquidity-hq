@@ -92,6 +92,32 @@ test.describe('the paywall survives the redesign', () => {
     ).toBeGreaterThan(0);
   });
 
+  /* WHAT THIS SPEC HAS NOT YET PROVEN, STATED BEFORE ANYONE TRUSTS IT.
+   *
+   * The control passes: the legacy design does show locked cards signed out, so
+   * the marker resolves and the instrument is pointed at something real.
+   *
+   * **But it has never caught a leak, because it has not yet had one to catch.**
+   * On `dev` today no converted screen renders a DIFFERENT tree under
+   * `?design=terminal` - the terminal Arena is parked in #438 - so both sides of
+   * the comparison are the same markup and `local >= legacy` is satisfied by
+   * construction. A green run here currently means "nothing differs", not "the
+   * paywall survived".
+   *
+   * I tried to prove it against the real defect: dev's `949b97f` shipped the
+   * confluence rail with one guard where `9c545e6` has two. Swapping that page
+   * into the current tree does not compile - it expects a tree that has moved -
+   * and rebuilding the historical tree would also mean patching in a
+   * `data-testid` that commit never had, which is a control against a build that
+   * never existed.
+   *
+   * So: **the negative control is owed, not skipped.** The moment a converted
+   * screen renders its own terminal tree, remove one `entitled ?` guard from it
+   * locally and confirm this goes red. Until then this file is wiring, and
+   * saying so is cheaper than someone reading three green ticks as coverage.
+   *
+   * Recorded because "a test that has never failed has never been tested" is the
+   * rule this suite keeps relearning, and it applies to my own gate. */
   for (const route of CONVERTED_ROUTES) {
     test(`${route} locks at least as much as the legacy design does`, async ({ page }) => {
       test.setTimeout(120_000);
