@@ -36,6 +36,41 @@ import { DESIGN_STORAGE_KEY } from '@/lib/designMode';
  * needing a per-screen expectation for it.
  */
 
+/* ── SHELLS FIRST, THEN SCREENS ──────────────────────────────────────────────
+ *
+ * THE DESIGN HAS TWO CHROMES AND MY FIRST VERSION COULD NOT EXPRESS THAT.
+ *
+ * README:167, one sentence, stating four values:
+ *
+ *     "Shared static shell: 56px marketing nav, 264px page index rail (active
+ *      item has a 2px amber left border), content column, right rail."
+ *
+ * **Neither dev nor I read it.** Dev built `/disclaimer` from the per-screen
+ * prose; I transcribed the per-screen values into a per-route table. The shell
+ * is described in a different paragraph — under the Static FILE's section — and
+ * we both indexed on the screen name.
+ *
+ * The consequence was a real miss: `/disclaimer` renders the app's 44px nav
+ * because it sits inside `AppShell`, and it should carry the 56px marketing bar
+ * along with six other static screens. **A per-route table cannot say "these
+ * seven share a chrome", so it could not have caught it.**
+ *
+ * "The README does not say" was wrong twice on 2026-08-14 — once about this nav,
+ * once by me about mobile values. The handoff is organised shell-first for about
+ * a third of its content and we were both reading it screen-first.
+ */
+
+/** Routes that render inside the static/marketing shell (README:167). */
+const STATIC_SHELL_ROUTES = [
+  '/disclaimer', '/about', '/faq', '/learn', '/terms', '/privacy', '/refund',
+];
+
+/** Values that apply to a whole shell, not to one screen. */
+const SHELL = {
+  static: { nav: 56, indexRail: 264, activeBorder: 2, note: 'README:167' },
+  app:    { nav: 44, ticker: 34,     note: 'README:78, README:81' },
+};
+
 /** Measured values from the handoff README, per route. */
 const STRUCTURE: Record<string, { title?: number; rail?: number; note: string }> = {
   '/disclaimer': {
@@ -102,7 +137,37 @@ test.describe('design structure', () => {
       .toBe(before.length + 1);
   });
 
+  /* SHELL BEFORE SCREEN. A converted screen inside the wrong chrome is wrong
+   * no matter how well its own content matches the frame — and it is the error
+   * a per-route table structurally cannot report. */
   for (const route of CONVERTED_ROUTES) {
+    const isStatic = STATIC_SHELL_ROUTES.includes(route);
+    const shell = isStatic ? SHELL.static : SHELL.app;
+
+    test(`${route} renders inside the ${isStatic ? 'static' : 'app'} shell`, async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== 'desktop',
+        'shell heights are the 1440x900 values; mobile frames have their own');
+
+      await seedTerminal(page);
+      await gotoGuarded(page, `${route}?design=terminal`);
+      await page.waitForTimeout(3000);
+
+      const got = await page.evaluate(() => {
+        const nav = document.querySelector('.tnav, header nav, nav');
+        return { nav: nav ? Math.round(nav.getBoundingClientRect().height) : null };
+      });
+
+      expect(got.nav,
+        `${route} has a ${got.nav}px nav; the ${isStatic ? 'static' : 'app'} shell is ` +
+        `${shell.nav}px (${shell.note}). ` +
+        (isStatic
+          ? 'The seven static routes should carry the MARKETING bar, not the app bar they ' +
+            'inherit from AppShell. A screen whose own content matches the frame is still ' +
+            'wrong inside the wrong chrome.'
+          : 'App screens carry the 44px bar.'))
+        .toBe(shell.nav);
+    });
+
     test(`${route} has no border radius`, async ({ page }) => {
       await seedTerminal(page);
       await gotoGuarded(page, `${route}?design=terminal`);
