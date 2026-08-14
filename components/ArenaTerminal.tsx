@@ -65,6 +65,12 @@ interface Props {
    * The frame moves the chart; it does not replace it. So the page passes the
    * chart it already had and this component only decides where it sits. */
   chart?: React.ReactNode;
+  /** Coins for the ticker strip, in display order, plus the selector. */
+  tickerCoins?: CoinId[];
+  onSelectCoin?: (c: CoinId) => void;
+  /** Rail panels re-expressed in the terminal language rather than carried
+   *  below in their old styling. Each is a node the page builds. */
+  railPanels?: { key: string; head: string; body: React.ReactNode }[];
   /* THE EXISTING ARENA, RENDERED WHOLE BELOW THE NEW LAYOUT.
    *
    * The redesign moves and rewords UI; it does not delete it. This screen
@@ -114,6 +120,7 @@ function EvidenceCell({ row }: { row: EvidenceRow }) {
 export default function ArenaTerminal({
   coin, tf, onTfChange, verdict, entry, reasoning, history, clusters,
   onRerun, onSetAlert, rerunning, children, chart,
+  tickerCoins, onSelectCoin, railPanels,
 }: Props) {
   /* One tree, not two hidden behind display:none - a hidden subtree still
      mounts, which is how Arena ended up with two live charts. */
@@ -152,6 +159,40 @@ export default function ArenaTerminal({
           Verdict band is the MAIN COLUMN only (measured 1142 of 1440), so it
           and the right rail are siblings inside one grid rather than the band
           spanning the full width above them. */}
+      {/* Ticker strip - README:80: "Screens that carry a ticker strip (Arena,
+          Desk, Markets, landing, auth): a 34px row below the nav, one cell per
+          coin, 0 16px padding, separated by --bdr3. Cell = symbol (--txt2 600)
+          + price (--txt, tabular) + change (green/red at 80% alpha)."
+
+          This is where coin SELECTION lives in the new design. The old Arena
+          had a coin sidebar and a category filter above it; the frame replaces
+          both with this row, so the control moves here rather than being kept
+          in a second design language further down. Cells are buttons because
+          they pick the instrument - the frame's strip is not decorative. */}
+      {tickerCoins && tickerCoins.length > 0 && (
+        <div className="atv-ticker" role="tablist" aria-label="Instrument">
+          {tickerCoins.map(tc => {
+            const d = store.coins[tc];
+            const up = (d?.change ?? 0) >= 0;
+            return (
+              <button
+                key={tc}
+                role="tab"
+                aria-selected={tc === coin}
+                className={`atv-tcell${tc === coin ? ' on' : ''}`}
+                onClick={() => onSelectCoin?.(tc)}
+              >
+                <span className="atv-tsym">{tc.toUpperCase()}</span>
+                <span className="atv-tpx">{d?.price == null ? DASH : fmt(d.price, d.price < 1 ? 4 : 2)}</span>
+                <span className="atv-tchg" style={{ color: up ? 'var(--green)' : 'var(--red)' }}>
+                  {d?.change == null ? '' : `${up ? '+' : '−'}${Math.abs(d.change).toFixed(2)}%`}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {!isMobile && <div className="atv-desk">
 
         <div className="atv-main">
@@ -266,6 +307,17 @@ export default function ArenaTerminal({
 
           <div className="atv-rhead">Reasoning</div>
           <p className="atv-reasoning">{reasoning ?? 'No read has been generated for this instrument yet.'}</p>
+
+          {/* Panels moved out of the old layout and re-expressed as rail
+              sections. The rail already has this shape - a 10px/700 heading
+              over content - so extending it is the pattern the design gives
+              us, not a new one. */}
+          {railPanels?.map(rp => (
+            <div key={rp.key}>
+              <div className="atv-rhead">{rp.head}</div>
+              <div className="atv-rbody">{rp.body}</div>
+            </div>
+          ))}
 
           <div className="atv-rhead">Session history</div>
           <div className="atv-history">

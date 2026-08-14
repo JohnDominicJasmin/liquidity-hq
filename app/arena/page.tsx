@@ -2325,6 +2325,65 @@ function ArenaContent() {
         onSetAlert={openAlertForm}
         rerunning={readLoading}
         chart={arenaChart}
+        /* README:80 gives Arena a 34px ticker strip. That is the designed home
+           for picking the instrument, so the old coin sidebar and its category
+           filter move here instead of being carried below in their old
+           styling. Majors first, then whatever else the store has loaded. */
+        tickerCoins={COINS.slice(0, 12)}
+        onSelectCoin={setSelectedCoin}
+        /* Panels re-expressed as rail sections. The rail is already a 10px/700
+           heading over content, so these extend the pattern the design gives
+           rather than adding a second card style next to it. */
+        railPanels={[
+          {
+            key: 'squeeze',
+            head: 'Squeeze score',
+            body: (() => {
+              const sq = computeSqueezeScore(store.coins[selectedCoin]);
+              return (
+                <>
+                  <span className="atv-rscore">{sq.score}</span>
+                  <div className="atv-rrow">
+                    <span className="atv-rlabel">Reading</span>
+                    <span className="atv-rval">{sq.label}</span>
+                  </div>
+                </>
+              );
+            })(),
+          },
+          {
+            key: 'ema',
+            head: 'EMA ribbon · 4H',
+            body: (
+              <>
+                <div className="atv-rrow">
+                  <span className="atv-rlabel">Verdict</span>
+                  {/* The raw verdict is an enum - TRENDING_SHORT, NO_TRADE.
+                      The owner's instruction for the redesign includes
+                      "simplifying the words", and a screaming snake-case token
+                      is the design's opposite: this direction writes in mono,
+                      not in constants. */}
+                  <span className="atv-rval">
+                    {emaSignal.loading
+                      ? '…'
+                      : String(emaSignal.verdict).replace(/_/g, ' ').toLowerCase()
+                          .replace(/^./, ch => ch.toUpperCase())}
+                  </span>
+                </div>
+                <div className="atv-rrow">
+                  <span className="atv-rlabel">Phase</span>
+                  <span className="atv-rval" style={{ fontSize: 11, fontWeight: 400, textAlign: 'right' }}>
+                    {emaSignal.phase || '—'}
+                  </span>
+                </div>
+                <div className="atv-rrow">
+                  <span className="atv-rlabel">In value zone</span>
+                  <span className="atv-rval">{emaSignal.priceInValueZone ? 'Yes' : 'No'}</span>
+                </div>
+              </>
+            ),
+          },
+        ]}
       >
         {legacyArena}
       </ArenaTerminal>

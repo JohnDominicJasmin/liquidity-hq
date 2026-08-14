@@ -5737,3 +5737,55 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
   padding: 14px 0 18px;
 }
+
+/* Ticker strip - README:80. 34px, one cell per coin, cells separated by
+   --bdr3, symbol --txt2 600 / price --txt tabular / change at 80% alpha.
+   Buttons rather than divs: in this design the strip IS the instrument
+   picker, replacing the old coin sidebar and its category filter. */
+[data-design="terminal"] .atv-ticker {
+  display: flex; height: 34px; overflow-x: auto; overflow-y: hidden;
+  border-bottom: 1px solid var(--bdr); background: var(--bg1);
+  scrollbar-width: none;
+}
+[data-design="terminal"] .atv-ticker::-webkit-scrollbar { display: none; }
+[data-design="terminal"] .atv-tcell {
+  display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  padding: 0 16px; height: 34px; cursor: pointer;
+  background: transparent; border: 0; border-right: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .atv-tcell.on { background: var(--bg2); }
+[data-design="terminal"] .atv-tcell:hover { background: var(--bg2); }
+[data-design="terminal"] .atv-tsym {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--txt2);
+}
+[data-design="terminal"] .atv-tcell.on .atv-tsym { color: var(--txt); }
+[data-design="terminal"] .atv-tpx {
+  font-family: var(--font-mono); font-size: 11px; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .atv-tchg {
+  font-family: var(--font-mono); font-size: 11px; opacity: .8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rail sections carrying panels moved out of the old layout. The rail already
+   is a 10px/700 heading over content, so these extend that rather than
+   introducing a second card style. */
+[data-design="terminal"] .atv-rbody { padding: 0 14px 14px; }
+[data-design="terminal"] .atv-rrow {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 6px 0; border-bottom: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .atv-rrow:last-child { border-bottom: 0; }
+[data-design="terminal"] .atv-rlabel {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--txt3);
+}
+[data-design="terminal"] .atv-rval {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .atv-rscore {
+  font-family: var(--font-mono); font-size: 24px; font-weight: 700; color: var(--txt);
+  font-variant-numeric: tabular-nums; line-height: 1; display: block; padding: 2px 0 8px;
+}
