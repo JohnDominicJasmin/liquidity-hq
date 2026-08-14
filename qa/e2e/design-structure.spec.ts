@@ -106,6 +106,38 @@ const COLOUR_COUNTS: Record<string, { total: number; coloured: number; note: str
     note: "evidence grid: fire 'red' on Funding 8h, 'green' on CVD 4h, null on the other six. "
         + "The frame states it in its own header: '2 FIRING · 6 NEUTRAL'.",
   },
+
+  /* The four below are extracted and ready, but have NO header stating the
+   * count the way Arena's grid does. The assertion matches on that header, so
+   * these need a container selector before they can run — they are recorded
+   * here so the numbers are not re-derived, and each entry says what is still
+   * missing rather than pretending it is wired.
+   *
+   * Deliberately not guessing a selector: a wrong one silently measures the
+   * whole page and passes. */
+  '/dashboard': {
+    total: 4, coloured: 1,
+    note: 'pulse cells: BTC dominance / Altseason / Volatility are col TXT; only '
+        + "Fear & greed is conditional (mono ? RED : TXT, and mono ships true). "
+        + 'NEEDS A CONTAINER SELECTOR - no count header on this screen.',
+  },
+  '/liq': {
+    total: 4, coloured: 2,
+    note: "stat cells: Liquidated 24h and Largest single are TXT; Nearest cluster is "
+        + "hard RED; Cascade risk is conditional. NEEDS A CONTAINER SELECTOR.",
+  },
+  '/disclaimer': {
+    total: 4, coloured: 3,
+    note: "stat band: Liquidations 24h / Longs liquidated / Largest single are #f0524d; "
+        + "Typical cascade is #8b8f94. I described this as 'four red cells' from a "
+        + "screenshot and the data says three. NEEDS A CONTAINER SELECTOR.",
+  },
+  '/hours': {
+    total: 4, coloured: 4,
+    note: 'all four coloured, and that is consistent rather than an exception: '
+        + 'expectancy is DIRECTIONAL, which is the same reason the heat grid earns '
+        + 'green/red while Fear & greed does not. NEEDS A CONTAINER SELECTOR.',
+  },
 };
 
 /** Cells whose computed colour is --green or --red, inside a container. */
@@ -215,7 +247,10 @@ test.describe('design structure', () => {
         .toEqual([]);
     });
 
-    const colours = COLOUR_COUNTS[route];
+    /* Only Arena has a header stating its own count, which is what the grid is
+     * matched on. The other entries are recorded data waiting for a container
+     * selector - running them now would measure the whole page and pass. */
+    const colours = route === '/arena' ? COLOUR_COUNTS[route] : undefined;
     if (colours) {
       test(`${route} colours exactly the cells the frame colours`, async ({ page }) => {
         await seedTerminal(page);
