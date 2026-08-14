@@ -3229,7 +3229,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .frh-coin        { font-weight: 700; color: var(--txt) !important; font-size: var(--fs-caption); width: 46px; }
 .frh-row         { cursor: pointer; transition: background 0.1s, box-shadow 0.1s; }
 .frh-row:hover   { background: rgba(255,255,255,0.04); }
-.frh-row.on      { background: rgba(var(--accent-rgb), 0.11) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
+.frh-row.on      { background: rgba(var(--accent-rgb), 0.11) !important; box-shadow: inset 3px 0 0 var(--accent) !important; }
 .frh-row.on .frh-coin { color: var(--purple) !important; }
 .frh-spark-th    { min-width: 120px; }
 .frh-spark-cell  { min-width: 120px; width: 160px; padding: 3px 8px !important; }
@@ -3262,7 +3262,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .frh-signal-desc   { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.6; }
 
 [data-theme="light"] .frh-row:hover { background: rgba(0,0,0,0.03) !important; }
-[data-theme="light"] .frh-row.on    { background: var(--purple-bg) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
+[data-theme="light"] .frh-row.on    { background: var(--purple-bg) !important; box-shadow: inset 3px 0 0 var(--accent) !important; }
 
 .frh-split        { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items: start; margin-bottom: 10px; }
 .frh-list-scroll  { max-height: 500px; overflow-y: auto; overflow-x: auto; }
@@ -3300,26 +3300,27 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 .auth-gate-title { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); }
 .auth-gate-desc  { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.6; max-width: 280px; }
-/* Issue #56. White on --purple (which aliases --accent, #1a7aff) measured
-   3.98:1 against the 4.5:1 floor - the primary call to action on the signed-out
-   auth gate was the least readable thing on the page.
+/* Issue #56, REWRITTEN for the gold primary (#419). The original reasoning was
+   entirely about blue and every value in it is now wrong; leaving it would send
+   the next reader looking for a #1668e3 that no longer exists.
 
-   --accent-solid exists for exactly this: --accent is for text, borders and
-   glows; --accent-solid is for a filled surface UNDER white text. Same rule as
-   .lp-btn-primary, .consent-accept and .desktop-nav-item.on already follow.
-   White on #1668e3 = 5.09:1.
+   WHAT STILL HOLDS. A filled accent surface needs a deliberate foreground - it
+   was the primary CTA on the signed-out auth gate that first proved it, at
+   3.98:1. And the HOVER state is the half the original issue missed: axe
+   measures the resting state only, so a hover that fails is invisible to the
+   sweep that finds the base. Whatever this button does on hover has to be
+   measured separately, in both themes.
 
-   The hover was the half the issue did not catch, and fixing only the base
-   colour would have left it failing: brightness(1.15) on #1668e3 lands on
-   #1978ff = 4.06:1, still under the floor. axe measures the resting state only,
-   so a hover that fails is invisible to the sweep that found this.
-   Darkening instead of brightening keeps it passing (#135cc8 = 6.19:1) and is
-   the more conventional direction for a filled button anyway.
+   WHAT CHANGED. The fix is no longer a second, darker VALUE - it is a paired
+   foreground. --on-accent is near-black on the dark gold (8.95:1) and white on
+   the light gold (6.07:1); the inverse pairings are 2.23 and 3.63. So
+   --accent-solid and --accent are the same colour now and the contrast comes
+   from the text, not from darkening the fill.
 
-   Light theme does not redefine --accent-solid, so it inherits #1668e3 there -
-   5.09:1, which passes. Deliberately not adding a light-theme override in this
-   change: several other elements already render --accent-solid in light mode
-   and altering it would move all of them for a one-button fix. */
+   AND THE LINE THAT WAS ACTIVELY MISLEADING: this used to say "light theme does
+   not redefine --accent-solid". It does, at #685112. That was true when written
+   and stopped being true without anyone editing it - which is the whole reason
+   this block got rewritten rather than patched. */
 .auth-gate-btn {
   margin-top: 6px; padding: 9px 26px; border-radius: 10px;
   background: var(--accent-solid); color: var(--on-accent);
@@ -4457,7 +4458,12 @@ body.landing {
   --bdr2: rgba(255,255,255,0.14);
 
   --accent:     #d9a626;
-  --accent-solid: #1668e3; /* AA fix, mirrors :root - see note there */
+  /* Was #1668e3, the darkened BLUE that existed so white text could sit on it.
+     It survived the recolour because my sweeps replaced rgba() patterns and
+     this is a bare hex - so the landing CTA kept a blue fill while --on-accent
+     put NEAR-BLACK on it: 3.91:1, seven instances, found by QA's sweep.
+     White on that blue was 5.09; near-black on this gold is 8.95. */
+  --accent-solid: #d9a626;
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(var(--accent-rgb), 0.12);
   --accent-bg:  rgba(var(--accent-rgb), 0.07);
