@@ -4559,7 +4559,18 @@ body.landing {
      #7c7c82 is 4.92:1 on #050505 and 4.73:1 on the #0a0c10 plan cards. */
   --txt3:   #7c7c82;
   --bdr:    rgba(255,255,255,0.07);
-  --accent: #1a7aff;
+  /* The landing page re-declares the accent to force the dark palette
+     regardless of saved theme - and that meant the :root swap to gold (#419)
+     did not reach it. Blue landing page, gold everywhere else, on the FIRST
+     page anyone sees.
+     Found by grepping for the old literal after the swap, not by looking:
+     the declaration uses single-space padding where :root uses aligned
+     columns, so a whitespace-sensitive replace walked straight past it.
+     Measured on this scope's own grounds: 9.15 on --bg0 #050505, 8.65 on
+     --bg1 #0e0e12, 8.79 on the #0a0c10 plan cards. */
+  --accent: #d9a626;
+  --accent-rgb: 217,166,38;
+  --on-accent: #08090a;
   display: flex; flex-direction: column; min-height: 100vh; color: var(--txt); background: var(--bg0); font-family: inherit;
   animation: lp-content-in 0.5s var(--ease-settle);
 }
