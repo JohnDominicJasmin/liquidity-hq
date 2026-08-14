@@ -20,9 +20,24 @@ import fs from 'node:fs';
 
 const CSS = fs.readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
 
+/** Flatten `fg` at `alpha` over `bg` - what a tinted background actually is by
+ *  the time text sits on it. Without this the test compares against a colour
+ *  no pixel ever has. */
+function composite(fg: string, alpha: number, bg: string): string {
+  const h = (c: string) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+  const [fr, fg_, fb] = h(fg), [br, bg_, bb] = h(bg);
+  const mix = (f: number, b: number) => Math.round(f * alpha + b * (1 - alpha));
+  return '#' + [mix(fr, br), mix(fg_, bg_), mix(fb, bb)]
+    .map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
 function token(name: string, scope?: string): string {
+  /* 3000, not 1200: the light-theme token block is ~34 lines long and --accent
+     sits past the old window, so a scoped lookup silently found nothing and
+     reported "token not found" rather than the wrong value. Widened when the
+     gold primary landed (#419). */
   const haystack = scope
-    ? CSS.slice(CSS.indexOf(scope), CSS.indexOf(scope) + 1200)
+    ? CSS.slice(CSS.indexOf(scope), CSS.indexOf(scope) + 3000)
     : CSS;
   const m = haystack.match(new RegExp('--' + name + ':\\s*(#[0-9a-fA-F]{6})'));
   assert.ok(m, `token --${name} not found${scope ? ' in ' + scope : ''}`);
@@ -74,22 +89,24 @@ test('design token contrast', async (t) => {
   await t.test('sanity: the ratio maths matches known WCAG values', () => {
     assert.equal(Math.round(ratio('#ffffff', '#000000')), 21);
     assert.equal(Math.round(ratio('#000000', '#000000')), 1);
-    // The pair that forced --accent-solid to exist.
+    // The pair that forced --accent-solid to exist when the primary was blue.
+    // Kept as a maths check even though the blue is gone (#419) - it is a known
+    // published value, which is what makes it a useful sanity assertion.
     assert.ok(Math.abs(ratio('#ffffff', '#1a7aff') - 3.98) < 0.02,
-      'white on the undarkened brand blue should measure ~3.98:1');
+      'white on the old brand blue should still measure ~3.98:1');
   });
 
-  await t.test('the two accent tokens each cover their own direction', () => {
-    /* The whole reason there are two. A single blue cannot do both jobs on a
-       dark theme: darkening enough for white text to pass ON it drops it below
-       AA when used AS text on the near-black backgrounds. Assert both ends so
-       nobody "simplifies" this back into one token. */
+  await t.test('the accent works AS TEXT, and its fill carries --on-accent', () => {
+    /* REWRITTEN FOR THE GOLD PRIMARY (#419). The old version asserted that
+       WHITE on --accent-solid clears AA - true of the blue, false of the gold
+       at 2.23:1. That assertion failing is what caught the swap, which is
+       exactly what it was for.
+       The invariant changed shape rather than disappearing. Blue needed two
+       VALUES (a darker fill for white text, a brighter one for text). Gold
+       needs two FOREGROUNDS (near-black on the dark fill, white on the light
+       one) and one value. So the pairing is what gets asserted now. */
     const accent = token('accent');
-    const solid = token('accent-solid');
-
-    const onSolid = ratio('#ffffff', solid);
-    assert.ok(onSolid >= AA,
-      `white on --accent-solid ${solid} = ${onSolid.toFixed(2)}:1, needs ${AA}:1`);
+    const onAccent = token('on-accent');
 
     for (const [surface, bg] of Object.entries(SURFACES)) {
       const r = ratio(accent, bg);
@@ -97,11 +114,54 @@ test('design token contrast', async (t) => {
         `--accent ${accent} as TEXT on ${surface} ${bg} = ${r.toFixed(2)}:1`);
     }
 
-    /* And the trap itself: --accent-solid must NOT be used as text on --bg0.
-       If this ever stops holding, the two tokens have converged and one of the
-       two directions is silently failing again. */
-    assert.ok(ratio(solid, SURFACES['--bg0']) < AA,
-      'if --accent-solid passes as text too, re-check whether both tokens are still needed');
+    const onFill = ratio(onAccent, accent);
+    assert.ok(onFill >= AA,
+      `--on-accent ${onAccent} on --accent ${accent} = ${onFill.toFixed(2)}:1, needs ${AA}:1`);
+
+    /* The trap, restated: white must NOT be assumed safe on the accent. If
+       this ever passes, the accent has drifted pale enough that every
+       `color: #fff` still sitting on a gold fill would silently start working
+       - and the ones that are wrong would stop being detectable. */
+    assert.ok(ratio('#ffffff', accent) < AA,
+      'white now passes on --accent - re-check every fill that sets its own #fff');
+  });
+
+  await t.test('LIGHT theme: the gold inverts its foreground and still clears AA', () => {
+    /* The half that nearly shipped broken. #d9a626 on white is 2.23:1, so the
+       light theme needs a darker gold - and then near-black on THAT is 3.63:1,
+       so its foreground has to flip to white. Both directions, measured. */
+    const accent = token('accent', '[data-theme="light"] {');
+    const onAccent = token('on-accent', '[data-theme="light"] {');
+
+    /* GROUNDS x TINTS, not a list of flat colours.
+     *
+     * This test has now been wrong twice in the same way, and each time the
+     * fix was "add another ground" - which is why the third version stops
+     * enumerating and starts composing.
+     *
+     *   v1  white + --bg2                shipped 4.18:1 on #e1e1de
+     *   v2  + #e1e1de                    shipped 3.98:1 on #e1e1de + a 12% tint
+     *   v3  every ground x every tint    <- here
+     *
+     * The tint matters because the app's selected state puts accent TEXT on an
+     * accent-tinted BACKGROUND (.nav-tile.on, .gchat-coin.on). Blue had the
+     * headroom for that; gold does not, and a flat-ground test cannot see it.
+     * QA's rendered sweep found both misses - this is the unit-test half
+     * catching up to what the sweep already knows. */
+    const GROUNDS = ['#ffffff', '#f2f3f5', '#e1e1de', '#e8eaed'];
+    const TINTS: Array<[string, number]> = [['plain', 0], ['accent-bg', 0.07], ['accent-dim', 0.12]];
+    for (const bg of GROUNDS) {
+      for (const [name, alpha] of TINTS) {
+        const ground = alpha === 0 ? bg : composite(accent, alpha, bg);
+        const r = ratio(accent, ground);
+        assert.ok(r >= AA,
+          `light --accent ${accent} on ${bg} + ${name} = ${r.toFixed(2)}:1, needs ${AA}:1`);
+      }
+    }
+
+    const onFill = ratio(onAccent, accent);
+    assert.ok(onFill >= AA,
+      `light --on-accent ${onAccent} on ${accent} = ${onFill.toFixed(2)}:1, needs ${AA}:1`);
   });
 
   for (const name of ['txt', 'txt2', 'txt3', 'txt-dim']) {

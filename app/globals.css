@@ -52,24 +52,36 @@
   --bdr:  rgba(255,255,255,0.08);
   --bdr2: rgba(255,255,255,0.14);
 
-  /* Electric blue - CTAs and interactive elements only */
-  --accent:     #1a7aff;
-  /* The SAME brand blue, darkened, for one job: a filled surface carrying white
-     text. White on #1a7aff is 3.98:1 and fails AA - it was the last 20 contrast
-     failures in the app (primary CTA, active nav pill, consent Accept, plan
-     badges). #1668e3 takes that pair to 5.09:1.
-     A second token rather than a darker --accent, because darkening the token
-     itself trades one failure for another: --accent is also used AS TEXT on the
-     near-black backgrounds (links, funding badges, .reasoning-link), where
-     #1a7aff is 5.06:1 and #1668e3 would be 3.95:1. One value cannot satisfy
-     both directions on a dark theme.
-     Rule: --accent for text, borders, glows and rgba tints; --accent-solid
-     wherever the blue is the background under white text. */
-  --accent-solid: #1668e3;
-  --accent-2:   #5aa3ff;
-  --accent-dim: rgba(26,122,255,0.12);
-  --accent-bg:  rgba(26,122,255,0.07);
-  --accent-bdr: rgba(26,122,255,0.22);
+  /* TERMINAL GOLD - the primary, live in both designs (#419, owner's
+     instruction). Was the electric blue #1a7aff.
+     Measured before the swap, because the two colours behave oppositely:
+         amber AS TEXT on --bg1      8.73:1   (blue was 4.88 - this improves)
+         white ON amber              2.23:1   FAILS
+         near-black ON amber         8.95:1
+     So amber is a FILL that carries dark text, where blue was a colour that
+     carried white text. Anything using it as a background pairs it with
+     --on-accent below, never with #fff. */
+  --accent:     #d9a626;
+  /* -solid and -2 are the SAME gold, not a darker and a lighter variant.
+     They existed to solve a blue-specific problem: white on #1a7aff was
+     3.98:1, so filled surfaces needed a darkened #1668e3 while text kept the
+     brighter value - "one value cannot satisfy both directions on a dark
+     theme". That reasoning is spent. Amber inverts the pairing instead of
+     darkening the fill, and the design has exactly ONE accent - inventing a
+     second by shading it is the drift the single-accent premise prevents.
+     Kept as aliases rather than deleted: ~50 call sites reference them, and a
+     rename is a separate change from a recolour. */
+  --accent-solid: #d9a626;
+  --accent-2:   #d9a626;
+  --accent-dim: rgba(217,166,38,0.12);
+  --accent-bg:  rgba(217,166,38,0.07);
+  --accent-bdr: rgba(217,166,38,0.22);
+  /* What goes ON an accent fill. Flips with the theme because the accent does:
+         dark   gold #d9a626 + #08090a   8.95:1
+         light  gold #826517 + #ffffff   5.49:1
+     The inverse pairings are 2.23 and 3.63, so this is not cosmetic - it is
+     the difference between passing and failing AA on every filled CTA. */
+  --on-accent:  #08090a;
 
   --purple:     var(--accent);
   --purple-dim: var(--accent-dim);
@@ -207,11 +219,20 @@
    at the root instead, which is also the standard fix for this bug class.
    This app has no legitimate horizontal-scroll surface, so blocking it
    globally is safe. */
-html { background: #06070a; overflow-x: hidden; }
+/* var(--bg1), NOT a literal (#419/#420). The canvas was hardcoded #06070a, so
+   it stayed dark-blue-black under every theme and design - the one surface the
+   token layer could not reach. QA found it via the conformance sweep: the
+   converted disclaimer sat on an unconverted canvas.
+
+   --bg1 rather than --bg0, which is what the fix was first proposed as. In this
+   theme --bg1 IS #06070a and --bg0 is #030405, so --bg0 would have darkened the
+   whole app today as a side effect of a change meant to alter nothing. Byte-
+   identical now, and it converts with the design. */
+html { background: var(--bg1); overflow-x: hidden; }
 
 body {
   font-family: var(--font-sans), 'Segoe UI', system-ui, sans-serif;
-  background: #06070a;
+  background: var(--bg1);
   background-attachment: fixed;
   color: var(--txt);
   min-height: 100vh;
@@ -863,7 +884,7 @@ body[data-rpm-level="high"]::before {
   border: 0.5px solid transparent; white-space: nowrap;
 }
 .desktop-nav-item:hover { color: var(--txt); background: rgba(90,150,255,0.07); }
-.desktop-nav-item.on { color: #ffffff; background: var(--accent-solid); font-weight: 600; }
+.desktop-nav-item.on { color: var(--on-accent); background: var(--accent-solid); font-weight: 600; }
 
 @media (min-width: 768px) {
   .hamburger   { display: none !important; }
@@ -1590,7 +1611,7 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
   min-height: 30px; letter-spacing: 0; white-space: nowrap;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.ncard-ask-btn:hover { background: var(--accent-solid); border-color: var(--accent); color: #fff; box-shadow: none; }
+.ncard-ask-btn:hover { background: var(--accent-solid); border-color: var(--accent); color: var(--on-accent); box-shadow: none; }
 .ncard-ask-spark { font-size: 0.8em; line-height: 1; }
 /* Secondary action - neutral, not accent-colored, so it doesn't compete with
    Ask LiquidityAI for attention as the primary CTA. */
@@ -2339,14 +2360,36 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --nm-inset:    inset 0 1px 3px rgba(0,0,0,0.07), 0 0 0 0.5px rgba(0,0,0,0.05);
   --nm-btn:      0 1px 3px rgba(0,0,0,0.09), 0 0 0 0.5px rgba(0,0,0,0.07);
 
-  /* Accent - darker blue for legibility on white */
-  --accent:     #0052CC;
+  /* A darker gold for light theme (#419). #d9a626 on white is 2.23:1, so it had
+     to come down to clear AA.
+     THIRD value, and the reason is the .on idiom: gold TEXT sits on a gold
+     TINT (--accent-bg / --accent-dim) for every selected state in the app -
+     .nav-tile.on, .gchat-coin.on, .gchat-mode-opt.on. Blue survived that
+     because blue-on-blue-tint had headroom; a dark mustard on a ground already
+     pulled toward its own hue does not.
+
+     So the value is chosen against every GROUND x TINT combination, not
+     against flat surfaces:
+
+         ground        plain   +7% tint   +12% dim
+         #ffffff        7.57      7.87       8.18
+         #f2f3f5        6.82      7.09       7.37
+         #e1e1de        5.78      6.02       4.89   <- the binding case
+         #e8eaed        6.30      6.55       6.81
+
+     #795f15 bottomed out at 3.98 there and #715814 at 4.40. Both passed a
+     test that only knew about flat grounds. */
+  --accent:     #685112;
   /* was #0066E8 - 3.03:1 on the canvas #e8eaed, which is where the footer
      divider label and the markets sort buttons sit. */
-  --accent-2:   #0052CC;
-  --accent-dim: rgba(0,82,204,0.10);
-  --accent-bg:  rgba(0,82,204,0.07);
-  --accent-bdr: rgba(0,82,204,0.22);
+  --accent-2:   #685112;
+  --accent-solid: #685112;
+  --accent-dim: rgba(104,81,18,0.10);
+  --accent-bg:  rgba(104,81,18,0.07);
+  --accent-bdr: rgba(104,81,18,0.22);
+  /* White on the light-theme gold, not near-black: #08090a on #826517 is
+     3.63:1 and fails. The pairing inverts with the theme. */
+  --on-accent:  #ffffff;
 
   /* Purple aliased to accent - no separate violet in light mode */
   --purple:     var(--accent);
@@ -3272,7 +3315,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    and altering it would move all of them for a one-button fix. */
 .auth-gate-btn {
   margin-top: 6px; padding: 9px 26px; border-radius: 10px;
-  background: var(--accent-solid); color: #fff;
+  background: var(--accent-solid); color: var(--on-accent);
   font-size: var(--fs-label); font-weight: 600; text-decoration: none; letter-spacing: -0.1px;
   transition: filter 0.15s; display: inline-block;
 }
@@ -3474,7 +3517,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    fixing the one element issue #56 named: white text on --purple (= --accent,
    #1a7aff) is 3.98:1. Only on hover, so axe's resting-state sweep never saw it.
    --accent-solid is the filled-surface token: 5.09:1. */
-.st-save-btn:hover { background: var(--accent-solid); color: #fff; }
+.st-save-btn:hover { background: var(--accent-solid); color: var(--on-accent); }
 .st-save-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Sign out */
@@ -3760,7 +3803,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   background: var(--accent-solid);
   border-color: transparent;
   box-shadow: 0 4px 20px rgba(0,82,204,0.22), 0 1px 4px rgba(0,0,0,0.10);
-  color: #fff;
+  color: var(--on-accent);
 }
 [data-theme="light"] .gchat-fab:hover {
   box-shadow: 0 6px 28px rgba(0,82,204,0.30), 0 2px 6px rgba(0,0,0,0.12);
@@ -3847,7 +3890,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .login-email-btn {
   width: 100%; padding: 11px 16px; border-radius: 12px;
   background: var(--accent-solid); border: 0.5px solid var(--accent);
-  color: #fff; font-size: var(--fs-label); font-weight: 600; cursor: pointer;
+  color: var(--on-accent); font-size: var(--fs-label); font-weight: 600; cursor: pointer;
   transition: all 0.15s; font-family: inherit; letter-spacing: -0.1px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
@@ -4032,7 +4075,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   display: inline-flex; align-items: center; justify-content: center;
   transition: filter 0.15s, background 0.15s;
 }
-.consent-accept  { background: var(--accent-solid); border: 0.5px solid var(--accent); color: #fff; }
+.consent-accept  { background: var(--accent-solid); border: 0.5px solid var(--accent); color: var(--on-accent); }
 .consent-decline { background: var(--bg4); border: 0.5px solid var(--txt3); color: var(--txt); }
 .consent-accept:hover  { filter: brightness(1.08); }
 .consent-decline:hover { filter: brightness(1.25); }
@@ -4406,7 +4449,7 @@ body.landing {
   --bdr:  rgba(255,255,255,0.08);
   --bdr2: rgba(255,255,255,0.14);
 
-  --accent:     #1a7aff;
+  --accent:     #d9a626;
   --accent-solid: #1668e3; /* AA fix, mirrors :root - see note there */
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(26,122,255,0.12);
@@ -4533,7 +4576,7 @@ body.landing {
 .lp-nav-actions { display: flex; align-items: center; gap: 10px; }
 .lp-btn-ghost  { font-size: var(--fs-label); font-weight: 500; color: var(--txt2); padding: 6px 14px; border-radius: var(--radius-chip); text-decoration: none; transition: color .15s, background .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-ghost:hover { color: var(--txt); background: rgba(255,255,255,.05); }
-.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: #fff; background: var(--accent-solid); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
+.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: var(--on-accent); background: var(--accent-solid); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-primary:hover { opacity: .85; }
 .lp-lang-short { display: none; }
 
@@ -4572,7 +4615,7 @@ body.landing {
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
 .lp-hero-ctas   { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: #fff; background: var(--accent-solid); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
+.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: var(--on-accent); background: var(--accent-solid); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
 .lp-cta-primary:hover { opacity: .88; }
 .lp-cta-ghost   { font-size: var(--fs-card-title); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.06); border: 1px solid var(--bdr); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: background .15s, color .15s; }
 .lp-cta-ghost:hover { background: rgba(255,255,255,.1); color: var(--txt); }
@@ -4613,7 +4656,7 @@ body.landing {
 .lp-step          { flex: 1; padding: 0 28px; text-align: center; }
 .lp-step:first-child { padding-left: 0; }
 .lp-step:last-child  { padding-right: 0; }
-.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-solid); color: #fff; font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-solid); color: var(--on-accent); font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
 .lp-step h3       { font-size: var(--fs-card-title); font-weight: 700; margin: 0 0 8px; }
 .lp-step p        { font-size: var(--fs-label); color: var(--txt2); line-height: 1.6; margin: 0; }
 .lp-step-arrow    { font-size: 1.25rem; color: var(--txt3); margin-top: 10px; flex-shrink: 0; align-self: center; }
@@ -4622,7 +4665,7 @@ body.landing {
 .lp-pricing         { display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
 .lp-plan            { flex: 1; min-width: 280px; max-width: 380px; border-radius: var(--radius-card); padding: 28px; border: 1px solid var(--bdr); background: var(--bg2); position: relative; }
 .lp-plan-pro        { border-color: rgba(26,122,255,.3); background: var(--bg2); }
-.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent-solid); color: #fff; padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
+.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent-solid); color: var(--on-accent); padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
 .lp-plan-header     { margin-bottom: 24px; }
 .lp-plan-name       { font-size: var(--fs-label); font-weight: 700; color: var(--txt2); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
 .lp-plan-price      { font-size: 3rem; font-weight: 900; letter-spacing: -.04em; line-height: 1; margin-bottom: 6px; }
@@ -4636,7 +4679,7 @@ body.landing {
 .lp-plan-cta        { display: block; text-align: center; padding: 12px; border-radius: var(--radius-card); font-size: var(--fs-label); font-weight: 700; text-decoration: none; transition: opacity .15s; }
 .lp-plan-cta-free   { background: rgba(255,255,255,.07); border: 0.5px solid var(--bdr); color: var(--txt); }
 .lp-plan-cta-free:hover { background: rgba(255,255,255,.12); }
-.lp-plan-cta-pro    { background: var(--accent-solid); color: #fff; }
+.lp-plan-cta-pro    { background: var(--accent-solid); color: var(--on-accent); }
 .lp-plan-cta-pro:hover { opacity: .85; }
 
 /* ── LP FINAL CTA ────────────────────────────────────────────────────── */
@@ -5021,7 +5064,7 @@ html[lang="ar"] .lp-h1-accent {
 }
 .obw-btn-back { flex-shrink: 0; background: transparent; border: 1px solid var(--bdr); color: var(--txt2); }
 .obw-btn-back:hover { border-color: var(--bdr2); color: var(--txt); }
-.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent-solid); color: #fff; }
+.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent-solid); color: var(--on-accent); }
 .obw-btn-next:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
 .obw-btn-next:disabled { background: var(--bg2); border-color: var(--bdr); color: var(--txt3); cursor: not-allowed; }
 .obw-skip {

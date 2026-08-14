@@ -451,11 +451,34 @@ This is NOT automatically a regression. It is either:
       `Both are scored the same way on purpose - a route that could not be measured must never be counted as a route with no violations.`,
     ).toEqual([]);
 
-    const byColour = new Map<string, { n: number; worst: number }>();
+    /* ROUTE AND TARGET, not just the token. The dark test has carried them since
+     * it was written; this one never did, and the asymmetry cost real time.
+     *
+     * On 2026-08-14 this reported `#795f15 worst 2.58:1 x2` and dev could not
+     * act on it: they solved for the background from the ratio, swept every
+     * route reachable signed out, found nothing, and asked me for the route
+     * names. I wrote a throwaway probe to answer a question this message should
+     * have answered itself.
+     *
+     * **A failure that names a token but not where it renders makes the reader
+     * do the work twice.** `Violation` carried `route` and `target` all along;
+     * only this aggregation threw them away.
+     *
+     * Keeps the WORST instance's location, not the first - the worst is the one
+     * someone has to fix, and a first-seen route can be a much milder case that
+     * sends the reader to the wrong screen. */
+    const byColour = new Map<string, { n: number; worst: number; where: string; what: string }>();
     for (const v of all) {
       const key = bucket(v.fg);
-      const e = byColour.get(key) ?? { n: 0, worst: Infinity };
-      byColour.set(key, { n: e.n + 1, worst: Math.min(e.worst, v.ratio) });
+      const e = byColour.get(key);
+      if (!e) { byColour.set(key, { n: 1, worst: v.ratio, where: v.route, what: v.target }); continue; }
+      const keep = v.ratio < e.worst;
+      byColour.set(key, {
+        n: e.n + 1,
+        worst: Math.min(e.worst, v.ratio),
+        where: keep ? v.route : e.where,
+        what: keep ? v.target : e.what,
+      });
     }
 
     const known = new Set(BASELINE.contrast.lightTokens);
@@ -467,7 +490,7 @@ This is NOT automatically a regression. It is either:
     testInfo.attach('contrast-light.txt', {
       body: `${all.length} violations across ${byColour.size} tokens\n\n`
         + [...byColour].sort((a, b) => a[1].worst - b[1].worst)
-            .map(([fg, e]) => `${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}`).join('\n')
+            .map(([fg, e]) => `${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}  worst at ${e.where}  ${e.what}`).join('\n')
         + (fixed.length ? `\n\nno longer failing (remove from BASELINE.contrast.lightTokens):\n${fixed.join('\n')}` : ''),
       contentType: 'text/plain',
     });
@@ -497,7 +520,7 @@ This is NOT automatically a regression. It is either:
       `BASELINE.contrast.lightTokens.
 
 ` +
-      unexpected.map(([fg, e]) => `  ${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}`).join('\n') +
+      unexpected.map(([fg, e]) => `  ${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}  worst at ${e.where}  ${e.what}`).join('\n') +
       `
 
 Same triage as the dark test: a state that had not rendered before (add it, with a ` +
