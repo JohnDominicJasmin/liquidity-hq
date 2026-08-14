@@ -73,7 +73,20 @@
      rename is a separate change from a recolour. */
   --accent-solid: #d9a626;
   --accent-2:   #d9a626;
-  --accent-dim: rgba(217,166,38,0.12);
+  /* 0.09, not the blue's 0.12 (#419 knock-on).
+     Gold at the same alpha lifts a dark ground MORE than blue did, and --txt2
+     sits on these tints in panels across the app. Measured on --bg1 #06070a:
+
+         alpha   --txt2 on the tint
+         0.12      4.32   <- was 4.57 with blue: passing, then not
+         0.10      4.46
+         0.09      4.53   <- ships
+         0.07      4.66
+
+     The token that changed is the BACKGROUND, so the fix belongs here rather
+     than in --txt2, which 215 rules depend on. Gold text on the tint stays at
+     8.16:1, so nothing is lost at the other end. */
+  --accent-dim: rgba(217,166,38,0.09);
   --accent-bg:  rgba(217,166,38,0.07);
   --accent-bdr: rgba(217,166,38,0.22);
   /* What goes ON an accent fill. Flips with the theme because the accent does:
