@@ -63,15 +63,27 @@ export default function DesignModeProvider({ children }: { children: React.React
   const mode = resolveDesignMode(search, stored);
 
   useEffect(() => {
-    // Effects here only touch things OUTSIDE React - storage and the <html>
-    // attribute - which is what an effect is for.
-    try { localStorage.setItem(DESIGN_STORAGE_KEY, mode); } catch {}
+    /* PERSIST ONLY WHAT THE QUERY PARAM ASKED FOR.
+     *
+     * Writing `mode` unconditionally looked equivalent and was not: on a reload
+     * WITHOUT the param, the first commit renders from getServerSnapshot, where
+     * stored is null and the mode is therefore 'current'. This effect then ran
+     * with that value and overwrote a stored 'terminal' before the client
+     * snapshot was ever read - so the flag un-stuck itself on the next reload.
+     *
+     * QA measured it on #417: set the param, reload without it, stored had
+     * flipped to 'current'. The param is now the only thing that writes; a
+     * stored value is only ever read. */
+    const asked = new URLSearchParams(search).get('design');
+    if (asked === 'terminal' || asked === 'current') {
+      try { localStorage.setItem(DESIGN_STORAGE_KEY, asked); } catch {}
+    }
 
     const attr = designAttribute(mode);
     if (attr) document.documentElement.setAttribute('data-design', attr);
     else      document.documentElement.removeAttribute('data-design');
     // pathname re-asserts the attribute across client-side navigation.
-  }, [mode, pathname]);
+  }, [mode, pathname, search]);
 
   return (
     <DesignModeContext.Provider value={mode}>{children}</DesignModeContext.Provider>
