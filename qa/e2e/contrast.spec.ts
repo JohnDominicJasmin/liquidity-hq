@@ -29,6 +29,33 @@ async function themedPage(browser: Browser, theme: 'dark' | 'light'): Promise<{ 
   // hydration and stamps data-theme, so seeding the key is enough — no click on
   // a theme toggle, and no race with hydration.
   await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch { /* private mode */ } }, theme);
+
+  /* PIN CONSENT — the last visual sweep that was not doing this, and it has been
+   * measuring against an uncontrolled input since it was written.
+   *
+   * `a11y.spec.ts` records that a run starting with consent stored scores ~32
+   * LOWER than one that does not, with zero code change: `a.consent-link` is
+   * 73x14 and the banner renders on EVERY route until dismissed. Its buttons
+   * carry their own colours, and its presence changes which elements render at
+   * all.
+   *
+   * The symptom that exposed it, 2026-08-14: two runs on the same commit both
+   * reported `11 violations across 9 tokens` — the same COUNT — while the token
+   * SET differed by two. `#7a7e94` and `#8a8a8a` appeared as "not in baseline"
+   * and two others silently dropped out. **A stable count hid an unstable
+   * measurement**, and the ratchet asserts on the set.
+   *
+   * `denied` matches layout.spec.ts, a11y.spec.ts and design-tokens.spec.ts, so
+   * all four sweeps now measure the same page. The banner is not left untested —
+   * layout.spec.ts has a dedicated first-visit sweep for it.
+   *
+   * NOTE FOR WHOEVER RE-BASELINES: the existing token lists were captured
+   * WITHOUT this pin, so some entries may be banner-dependent and some real
+   * failures may be missing. The baseline should be re-derived once, deliberately,
+   * rather than trusted. */
+  await ctx.addInitScript(() => {
+    try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
+  });
   const page = await ctx.newPage();
   page.on('dialog', d => d.dismiss());
 
