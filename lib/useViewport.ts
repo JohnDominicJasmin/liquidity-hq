@@ -37,25 +37,55 @@ const APP_MOBILE_QUERY = '(max-width: 899px)';
    quietly serves both and drifts. */
 export const LANDING_MOBILE_QUERY = '(max-width: 767px)';
 
-function subscribeTo(query: string) {
-  return (onChange: () => void): (() => void) => {
-    if (typeof window === 'undefined' || !window.matchMedia) return () => {};
-    const mq = window.matchMedia(query);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  };
+/* ONE STABLE PAIR PER QUERY, CACHED AT MODULE LEVEL.
+ *
+ * useSyncExternalStore compares `subscribe` BY IDENTITY. Building the closure
+ * inside the hook returns a new function every render, so React tears the
+ * listener down and re-adds it on each one - and does the same for
+ * getSnapshot. Not user-visible, and not free either: it is an
+ * addEventListener/removeEventListener pair per render on a hook the landing
+ * page calls on every section.
+ *
+ * Caching by the query string keeps the identity stable for the life of the
+ * module while still allowing more than one breakpoint, which is the whole
+ * reason the query is a parameter. The map is bounded by the number of
+ * distinct queries in the codebase - two.
+ *
+ * Caught by QA on #443. The tests below could not have found it: identity
+ * stability is invisible to a value assertion, which is why the fix ships with
+ * a test that compares references rather than results. */
+const CACHE = new Map<string, { subscribe: (cb: () => void) => () => void; getSnapshot: () => boolean }>();
+
+function storeFor(query: string) {
+  let entry = CACHE.get(query);
+  if (!entry) {
+    entry = {
+      subscribe: (onChange: () => void) => {
+        if (typeof window === 'undefined' || !window.matchMedia) return () => {};
+        const mq = window.matchMedia(query);
+        mq.addEventListener('change', onChange);
+        return () => mq.removeEventListener('change', onChange);
+      },
+      getSnapshot: () => {
+        if (typeof window === 'undefined' || !window.matchMedia) return false;
+        return window.matchMedia(query).matches;
+      },
+    };
+    CACHE.set(query, entry);
+  }
+  return entry;
 }
 
-function snapshotOf(query: string) {
-  return (): boolean => {
-    if (typeof window === 'undefined' || !window.matchMedia) return false;
-    return window.matchMedia(query).matches;
-  };
-}
+/** The cached store for a query. Exported so its identity can be tested. */
+export function mediaStoreFor(query: string) { return storeFor(query); }
+
+/** Server snapshot. Hoisted for the same identity reason as the pair above. */
+const SERVER_SNAPSHOT = () => false;
 
 /** True when the mobile layout should render, for the given media query. */
 export function useMobileLayout(query: string = APP_MOBILE_QUERY): boolean {
-  return useSyncExternalStore(subscribeTo(query), snapshotOf(query), () => false);
+  const { subscribe, getSnapshot } = storeFor(query);
+  return useSyncExternalStore(subscribe, getSnapshot, SERVER_SNAPSHOT);
 }
 
 /** App screens: mobile below 900. Breakpoint matches globals.css. */
