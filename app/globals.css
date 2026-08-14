@@ -5283,4 +5283,11 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      hours expectancy grid (|expectancy| < 0.12), with its own legend swatch.
      Close to --mark-idle and deliberately not equal to it. */
   --flat-cell: #1c1f22;
+
+  /* Typography (#413). Mono already ships app-wide as --font-mono and is
+     unchanged; the redesign's SANS is IBM Plex Sans, declared in
+     app/layout.tsx as --font-sans-terminal and pointed at here rather than
+     replacing --font-sans globally. Same reason as the colours: a screen opts
+     in, the rest of the app does not move. */
+  --font-sans: var(--font-sans-terminal), 'Segoe UI', system-ui, sans-serif;
 }
