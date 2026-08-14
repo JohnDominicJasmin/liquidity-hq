@@ -94,6 +94,26 @@ gh issue list --state open
 
 ## Standing risks
 
+- **A QA spec branched from an UNMERGED dev branch merges that branch's app code
+  with it.** Measured 2026-08-14: `test/contrast-names-the-site` was cut from
+  `feature/gold-primary` so the spec could test the recolour. Merging the spec PR
+  landed the entire recolour on `dev` — token swap, `--on-accent`, component
+  changes — **while its own PR was still open and blocked on a contrast defect.**
+  `dev` then sat red on the exact failure the block existed to prevent.
+
+  **Nobody did anything wrong.** Branching from an unmerged branch is the only
+  way for a spec to see the change it is written for. The rule is about saying so:
+
+  > Branch from `dev` and accept the spec cannot see the change yet, **or** state
+  > in the PR body that merging it lands the other branch too.
+
+  **The diff view will not tell you.** A PR whose branch carries someone else's
+  commits shows their files in its file list, and both sessions misread that
+  three separate times on 2026-08-14 before it had a consequence. `git
+  merge-base --is-ancestor <their commit> origin/dev` answers it; the GitHub UI
+  does not.
+
+
 - **`reuseExistingServer` will serve you a build from before your `git checkout`,
   silently.** Measured 2026-08-14 while validating `text-under-control.spec.ts`
   against `fd17cbc`. Playwright's local config is `reuseExistingServer: !CI`, so

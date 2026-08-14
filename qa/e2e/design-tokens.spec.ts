@@ -66,6 +66,10 @@ async function offTokenColours(page: Page): Promise<string[]> {
       return '#' + [r, g, b].map(n => n.toString(16).padStart(2, '0')).join('');
     };
 
+    /** True if the element holds a non-whitespace text node of its own. */
+    const hasOwnText = (el: Element) =>
+      [...el.childNodes].some(n => n.nodeType === 3 && (n.textContent ?? '').trim().length > 0);
+
     const found = new Map<string, string>();
     for (const el of document.querySelectorAll('*')) {
       if (!(el as HTMLElement).checkVisibility?.()) continue;
@@ -78,6 +82,66 @@ async function offTokenColours(page: Page): Promise<string[]> {
         if (!raw || typeof raw !== 'string') continue;
         /* A gradient is ONE property carrying MANY colours, so every hex inside
          * it is extracted rather than the property being skipped. */
+        /* `color` ONLY COUNTS WHERE TEXT IS ACTUALLY RENDERED.
+         *
+         * `html` reported `#000000 color` on every run — and nothing in the app
+         * sets it. That is the browser's initial value, and `body` overrides it
+         * with `var(--txt)` for everything that renders. A colour on an element
+         * with no text of its own is inert: it names a value that paints no
+         * pixels.
+         *
+         * Checked rather than assumed — `app/globals.css` has no `color` rule on
+         * `html` at all, and `body { color: var(--txt) }` at :237.
+         *
+         * Only `color` gets this treatment. A background or border on a wrapper
+         * paints regardless of whether the wrapper holds text. */
+        /* ── A COLOUR THAT PAINTS NO PIXELS IS NOT A FINDING ────────────────
+         *
+         * ONE root cause, and it took FOUR symptoms to see it: reading a
+         * property on an element it does not apply to returns that property's
+         * INITIAL value, not nothing. `getComputedStyle` always answers.
+         *
+         * `html` reported, in order, as each fix landed:
+         *
+         *     #000000  color            no text of its own; body sets --txt
+         *     #000000  borderTopColor   border-width 0
+         *     #000000  outlineColor     outline-style none
+         *     #000000  fill             not an SVG element at all
+         *
+         * **The same element, four times, under four properties, and I fixed
+         * three of them one at a time before naming the rule.** Special-casing
+         * `html` would have left the fourth to appear on some other wrapper
+         * weeks later.
+         *
+         * Checked, not assumed: `app/globals.css` sets no `color` on `html`, and
+         * `body { color: var(--txt) }` at :237. */
+        if (p === 'color' && !hasOwnText(el)) continue;
+
+        /* fill/stroke are SVG properties. On an HTML element they are the
+         * initial `rgb(0,0,0)` and paint nothing. */
+        if ((p === 'fill' || p === 'stroke') && el.namespaceURI !== 'http://www.w3.org/2000/svg') continue;
+
+        /* AND A BORDER COLOUR WITH NO BORDER WIDTH PAINTS NOTHING EITHER.
+         *
+         * Same family, found the same way: killing the `color` case surfaced
+         * `#000000 borderTopColor` on `html` — the UA initial, on an element
+         * whose border-width is 0. **Two symptoms, one rule: a colour that
+         * paints no pixels is not a finding.**
+         *
+         * Worth stating because I fixed the first symptom and the second
+         * appeared immediately. Had I only special-cased `html`, the third
+         * would have arrived on some other wrapper weeks from now. */
+        if (p.startsWith('border') && p.endsWith('Color')) {
+          const side = p.slice(6, -5);            // borderTopColor -> Top
+          const w = cs[`border${side}Width` as keyof CSSStyleDeclaration] as string | undefined;
+          if (!w || parseFloat(w) === 0) continue;
+        }
+        /* `outline-width` computes to the keyword `medium` when the style is
+         * `none`, so parseFloat gives NaN and a width check never fires. The
+         * STYLE is the reliable signal. Found by fixing the width version and
+         * watching the same element reappear under a third property. */
+        if (p === 'outlineColor' && (cs.outlineStyle === 'none' || parseFloat(cs.outlineWidth || '0') === 0)) continue;
+
         for (const part of raw.match(/rgba?\([^)]*\)/gi) ?? [raw]) {
           const h = hex(part);
           if (!h || allowed.includes(h)) continue;
