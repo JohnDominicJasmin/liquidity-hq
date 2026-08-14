@@ -69,6 +69,16 @@ const STATIC_SHELL_ROUTES = [
 const SHELL = {
   static: {
     desktop: { nav: 56 },
+    /* 52px MEASURED, not transcribed. The Static prototype's 390px frames open
+     * with a 52px bar (9 occurrences against 7 of 56px) — but that was markup,
+     * and "the first height in a frame" and "the nav" are the same thing right
+     * up until they are not.
+     *
+     * Confirmed on `feature/static-marketing-shell` at 390x844: `main` starts
+     * at 52 and no tab bar renders. It goes in now because it has been watched,
+     * not because it was read.
+     *
+     * SUPERSEDED NOTE, kept because the reasoning is the point: */
     /* mobile nav height NOT asserted yet. The Static prototype's 390px frames
      * open with a 52px bar (9 occurrences of height:52px against 7 of 56px),
      * but I have only read that out of the markup — I have not seen 52 render
@@ -77,6 +87,7 @@ const SHELL = {
      *
      * It goes in once dev's fix lands and I have measured it. Nothing enters
      * this table transcribed. */
+    mobile: { nav: 52 },   // measured on this branch, see commit message
     tabBar: 0,   // ZERO height:60px in the Static file - static screens have no tab bar
     indexRail: 264, activeBorder: 2,
     note: 'README:167; mobile step read from the Static prototype frames',
@@ -199,6 +210,13 @@ test.describe('design structure', () => {
           `${route}: content starts at ${got.mainTop}px; the ${isStatic ? 'static' : 'app'} ` +
           `shell's desktop chrome is ${expected}px. ${isStatic ? SHELL.static.note : SHELL.app.note}`)
           .toBe(expected);
+      } else if (isStatic) {
+        expect(got.mainTop,
+          `${route}: content starts at ${got.mainTop}px at mobile; the static shell steps ` +
+          `down to ${SHELL.static.mobile.nav}px (measured on the prototype's 390px frames ` +
+          `and confirmed rendered). Every shell in this design shrinks at mobile - the app ` +
+          `shell goes 44 -> 38.`)
+          .toBe(SHELL.static.mobile.nav);
       } else if (!isStatic) {
         expect(got.mainTop,
           `${route}: content starts at ${got.mainTop}px; the app shell's mobile header is ` +
