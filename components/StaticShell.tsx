@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useLabels } from '@/lib/labels';
+import BrandMark from './BrandMark';
 
 /* LEARN_CONTENT_* rather than new keys: /learn already renders this exact bar
    (components/LearnContent.tsx uses .lp-nav-inner) and its labels are the ones
@@ -42,7 +43,18 @@ export default function StaticShell() {
 
   return (
     <nav className="sshell" aria-label="Site">
-      <Link href="/" className="sshell-brand">LIQUIDITYHQ</Link>
+      {/* README:197 - "logo.png ... used at 18-26px in every nav bar and mobile
+          header, with no border radius change". The first version of this shell
+          shipped the wordmark alone; the reading pass found the line.
+          BrandMark, not the handoff's logo.png: the repo already has the mark
+          as a component, and adding the binary would import a BLUE asset into a
+          gold palette - the open question QA raised for the owner. Swapping the
+          source later is one line; the slot and its size are what the design
+          specifies. */}
+      <Link href="/" className="sshell-brand">
+        <BrandMark size={22} tone="dark" />
+        LIQUIDITYHQ
+      </Link>
 
       {/* marketingNav renders here once its labels exist - see the note above */}
 

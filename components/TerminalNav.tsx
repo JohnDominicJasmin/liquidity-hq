@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NavDashboard, NavArena, NavScanner, NavTracking, NavJournal } from './icons';
 import { getSessionName } from '@/lib/session';
+import BrandMark from './BrandMark';
 
 /* The Monochrome Terminal navigation (#413).
  *
@@ -65,6 +66,8 @@ export default function TerminalNav() {
       {/* ── Desktop: one 44px bar ── */}
       <nav className="tnav" aria-label="Main navigation">
         <Link href="/dashboard" className="tnav-brand">
+          {/* 18-26px in every nav bar and mobile header - README:197. */}
+          <BrandMark size={22} tone="dark" />
           <span className="tnav-wordmark">LIQUIDITYHQ</span>
         </Link>
 
@@ -93,6 +96,7 @@ export default function TerminalNav() {
           path, so /funding reads FLOW - matching what the nav highlights
           instead of naming a route the design no longer surfaces. */}
       <header className="tnav-mhead">
+        <BrandMark size={18} tone="dark" />
         <span className="tnav-mbrand">LIQUIDITYHQ</span>
         <span className="tnav-mscreen">{DESTINATIONS.find(d => d.key === active)?.label ?? ''}</span>
         <span className="tnav-mstatus">
