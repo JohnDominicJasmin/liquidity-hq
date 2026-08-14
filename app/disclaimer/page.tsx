@@ -1,6 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import DisclaimerTerminal from '@/components/DisclaimerTerminal';
 
 const SECTIONS = [
   { titleKey: 'DISCLAIMER_SECTION_EDUCATIONAL_TITLE', bodyKey: 'DISCLAIMER_SECTION_EDUCATIONAL_BODY' },
@@ -17,6 +19,13 @@ const SECTIONS = [
 
 export default function Disclaimer() {
   const { t } = useLabels();
+
+  /* One screen, two designs, while the redesign lands page by page (#413).
+     The terminal version is a separate component rather than a pile of
+     conditionals: the two layouts share their COPY and nothing else, and
+     interleaving them would make both harder to read than either. Deleting
+     this branch is the last step of the migration. */
+  if (useDesignMode() === 'terminal') return <DisclaimerTerminal />;
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px 80px' }}>
