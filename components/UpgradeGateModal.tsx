@@ -23,7 +23,21 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
 }) {
   const { t } = useLabels();
   return (
-    <div style={{
+    /* data-testid so the paywall can be COUNTED per screen (#441).
+     *
+     * The entitlement check lives at each CALL SITE, not in this component, so
+     * moving a panel into the redesign moves its markup and leaves its guard
+     * behind. That happened on /arena: ConfluenceScore shipped unguarded for
+     * one commit and tsc, eslint, build and 442 tests all passed, because
+     * nothing in the codebase asserts "this screen locks as much as production
+     * does".
+     *
+     * The alternatives were both worse. Matching the card's TEXT binds a spec
+     * to whatever the labels table says today, in one locale. Matching the
+     * gradient binds it to styling the redesign is actively changing - so the
+     * check would break on the very commit it exists to catch. An explicit
+     * hook survives both. */
+    <div data-testid="locked-feature" style={{
       background: 'linear-gradient(180deg, var(--bg2), var(--bg1))',
       border: '0.5px solid var(--bdr)',
       borderRadius: 'var(--radius-card, 12px)',
