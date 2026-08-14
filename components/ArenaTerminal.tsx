@@ -4,7 +4,8 @@ import { useMarket, type CoinId } from '@/lib/marketStore';
 import { useOI1h } from '@/lib/useOI1h';
 import { getSessionName } from '@/lib/session';
 import { buildEvidence, firingCount, mobileEvidence, type EvidenceRow } from '@/lib/arenaEvidence';
-import KLineProChart, { type ChartTf } from '@/components/KLineProChart';
+import type { ChartTf } from '@/components/KLineProChart';
+import { useIsMobileLayout } from '@/lib/useViewport';
 
 /* Arena in the Monochrome Terminal direction — frame `1a` (#413).
  *
@@ -52,6 +53,18 @@ interface Props {
   onRerun:    () => void;
   onSetAlert: () => void;
   rerunning?: boolean;
+  /* THE CHART, PASSED IN RATHER THAN CONSTRUCTED HERE.
+   *
+   * Arena's chart carries the read result, the EMA overlay, draggable price
+   * alerts, BTC gamma levels and the structure callback. A fresh
+   * <KLineProChart coin tf /> next to it renders the same candles with none of
+   * that - so building one here did not "reuse the chart", it shipped a poorer
+   * copy of it and left the real one further down the page. Two charts, one
+   * of them worse.
+   *
+   * The frame moves the chart; it does not replace it. So the page passes the
+   * chart it already had and this component only decides where it sits. */
+  chart?: React.ReactNode;
   /* THE EXISTING ARENA, RENDERED WHOLE BELOW THE NEW LAYOUT.
    *
    * The redesign moves and rewords UI; it does not delete it. This screen
@@ -100,8 +113,12 @@ function EvidenceCell({ row }: { row: EvidenceRow }) {
 
 export default function ArenaTerminal({
   coin, tf, onTfChange, verdict, entry, reasoning, history, clusters,
-  onRerun, onSetAlert, rerunning, children,
+  onRerun, onSetAlert, rerunning, children, chart,
 }: Props) {
+  /* One tree, not two hidden behind display:none - a hidden subtree still
+     mounts, which is how Arena ended up with two live charts. */
+  const isMobile = useIsMobileLayout();
+
   const { store } = useMarket();
   const c   = store.coins[coin];
   const oi  = useOI1h(coin);
@@ -135,7 +152,7 @@ export default function ArenaTerminal({
           Verdict band is the MAIN COLUMN only (measured 1142 of 1440), so it
           and the right rail are siblings inside one grid rather than the band
           spanning the full width above them. */}
-      <div className="atv-desk">
+      {!isMobile && <div className="atv-desk">
 
         <div className="atv-main">
 
@@ -212,7 +229,7 @@ export default function ArenaTerminal({
           </div>
 
           <div className="atv-chart">
-            <KLineProChart coin={coin} tf={tf} onTfChange={onTfChange} />
+            {chart}
           </div>
 
           {/* Evidence — 4 x 2, header counts rather than hardcodes. */}
@@ -264,13 +281,13 @@ export default function ArenaTerminal({
                 ))}
           </div>
         </aside>
-      </div>
+      </div>}
 
       {/* ── MOBILE ────────────────────────────────────────────────────────
           Separate tree, per README:191. Price moves up into the instrument row,
           so the band drops `Last` and shows three cells; evidence shows only
           what is firing; there is no SET ALERT and no rail. */}
-      <div className="atv-mob">
+      {isMobile && <div className="atv-mob">
         <div className="atv-minstrument">
           <span className="atv-msym">{coin}</span>
           <span className="atv-micro">PERP · {tf.toUpperCase()}</span>
@@ -302,7 +319,7 @@ export default function ArenaTerminal({
         </div>
 
         <div className="atv-mchart">
-          <KLineProChart coin={coin} tf={tf} onTfChange={onTfChange} />
+          {chart}
         </div>
 
         <div className="atv-ehead">
@@ -316,7 +333,7 @@ export default function ArenaTerminal({
         <button className="atv-mrerun" onClick={onRerun} disabled={rerunning}>
           {rerunning ? 'RUNNING…' : 'RE-RUN READ'}
         </button>
-      </div>
+      </div>}
 
       {/* Everything the frame's READ tab does not show, kept and visible.
           README:89 puts these behind Arena's other four in-page tabs; until

@@ -1251,6 +1251,14 @@ function ArenaContent() {
     ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
     : scannerRows;
 
+  /* The chart, built ONCE. The terminal layout puts it between the timeframe
+     toolbar and the evidence grid; the legacy layout leaves it where it was.
+     Same element either way - carrying the read result, the EMA overlay, the
+     draggable alerts, the gamma levels and the structure callback. Rendering a
+     second, plainer chart inside the new layout is what put two charts on the
+     page. */
+  const arenaChart = <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} onStructure={setChartStructure} />;
+
   /* The EXISTING Arena, kept whole. Nothing here is deleted by the redesign -
      the owner's instruction is that UI moves or gets reworded, never removed.
      It becomes a value so the terminal branch below can render it underneath
@@ -1981,7 +1989,7 @@ function ArenaContent() {
       <div className="arena-ws">
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} onStructure={setChartStructure} />
+      {designMode === 'terminal' ? null : arenaChart}
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -2306,6 +2314,7 @@ function ArenaContent() {
         onRerun={() => { void readMarket('deep', true); }}
         onSetAlert={openAlertForm}
         rerunning={readLoading}
+        chart={arenaChart}
       >
         {legacyArena}
       </ArenaTerminal>
