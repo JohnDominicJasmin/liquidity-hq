@@ -52,6 +52,24 @@ interface Props {
   onRerun:    () => void;
   onSetAlert: () => void;
   rerunning?: boolean;
+  /* THE EXISTING ARENA, RENDERED WHOLE BELOW THE NEW LAYOUT.
+   *
+   * The redesign moves and rewords UI; it does not delete it. This screen
+   * currently carries the confluence score, the EMA signal, market structure,
+   * multi-timeframe alignment, spot absorption, the liquidation heatmap, the
+   * coin filters, the alert form, deep research and the usage meter - about a
+   * hundred label keys' worth. Frame 1a shows none of them, because it shows
+   * the READ tab: README:89 gives Arena five in-page tabs (Read, Order flow,
+   * Liquidity, Correlation, History) and the frame is the first one.
+   *
+   * So the honest interim is to render the frame's Read layout and keep
+   * everything else underneath it, visibly, rather than ship a redesign that
+   * quietly drops half the product. Each panel moves up into its designed tab
+   * as that tab is built, and this prop goes away when the last one has.
+   *
+   * Shipping without this would have looked finished and lost features - the
+   * same failure as /disclaimer, in the other direction. */
+  children?: React.ReactNode;
 }
 
 /* Frame toolbar order. The prototype shows 5m 15m 1H 1D 1W with 4H active,
@@ -82,7 +100,7 @@ function EvidenceCell({ row }: { row: EvidenceRow }) {
 
 export default function ArenaTerminal({
   coin, tf, onTfChange, verdict, entry, reasoning, history, clusters,
-  onRerun, onSetAlert, rerunning,
+  onRerun, onSetAlert, rerunning, children,
 }: Props) {
   const { store } = useMarket();
   const c   = store.coins[coin];
@@ -299,6 +317,20 @@ export default function ArenaTerminal({
           {rerunning ? 'RUNNING…' : 'RE-RUN READ'}
         </button>
       </div>
+
+      {/* Everything the frame's READ tab does not show, kept and visible.
+          README:89 puts these behind Arena's other four in-page tabs; until
+          those are built they live here rather than being dropped. The rule
+          from the owner is explicit: move UI or reword it, never remove it. */}
+      {children ? (
+        <section className="atv-carry" aria-label="Additional Arena panels">
+          <div className="atv-carry-head">
+            <span className="atv-ehl">Also on this screen</span>
+            <span className="atv-micro">pending relocation into Order flow · Liquidity · Correlation · History</span>
+          </div>
+          {children}
+        </section>
+      ) : null}
 
       {/* Session name is in the shell's header on mobile and the nav's session
           pill on desktop; rendered here only so the value has one owner. */}

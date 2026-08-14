@@ -5720,3 +5720,20 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
     font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: .1em;
   }
 }
+
+/* The panels frame 1a does not show, kept visible below it (#413).
+   README:89 gives Arena five in-page tabs and the frame is the READ one, so
+   confluence, EMA signal, structure, absorption, the heatmap, filters, alerts
+   and research all still belong on this screen - they just do not belong in
+   the band. Until each tab is built they render here, under a divider that
+   says so, rather than being dropped. The owner's rule: move UI or reword it,
+   never remove it. */
+[data-design="terminal"] .atv-carry {
+  border-top: 1px solid var(--bdr);
+  margin-top: 28px;
+  padding: 0 14px 40px;
+}
+[data-design="terminal"] .atv-carry-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 14px 0 18px;
+}

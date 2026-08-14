@@ -1251,57 +1251,13 @@ function ArenaContent() {
     ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
     : scannerRows;
 
-  /* One screen, two designs, while the redesign lands frame by frame (#413).
-     Same branch DisclaimerTerminal uses: the terminal Arena is its own
-     component rather than conditionals threaded through 1,000 lines of JSX.
-     The two layouts share their DATA and almost nothing else - the frame puts
-     the verdict in a band, drops the coin sidebar, and moves clusters,
-     reasoning and history into a 304px rail. Deleting this branch is the last
-     step of the migration.
-
-     Everything below is read from the state this page already computes. The
-     shape comes from frame 1a; the values are ours, per the owner's rule:
-     "we cannot display all data in design but we can fill it with other data
-     or numbers". Where we genuinely have nothing - no read run yet, no
-     liquidation clusters in range - the component renders an em dash rather
-     than a placeholder figure. */
-  if (designMode === 'terminal') {
-    const verdictDir = result?.signal?.includes('BULLISH') ? 'bull' as const
-                     : result?.signal?.includes('BEARISH') ? 'bear' as const
-                     : 'neutral' as const;
-    return (
-      <ArenaTerminal
-        coin={selectedCoin}
-        tf={readTf}
-        onTfChange={setReadTf}
-        verdict={result ? { label: result.signal, dir: verdictDir, confidence: result.confidence } : null}
-        /* Entry zone is the EMA9-EMA20 value zone the strategy already defines,
-           and sl/tp are its own stop and target - not numbers invented to fill
-           the band. Null until the strategy has loaded, which the band shows
-           as an em dash. */
-        entry={{
-          zoneLow:  emaSignal.ema20_4h ?? null,
-          zoneHigh: emaSignal.ema9_4h  ?? null,
-          stop:     emaSignal.sl       ?? null,
-          target:   emaSignal.tp       ?? null,
-          target2:  null,
-        }}
-        reasoning={result?.reasoning ?? null}
-        history={history.map(h => ({
-          time: h.time, verdict: h.signal, conf: h.confidence, outcome: null,
-        }))}
-        /* No cluster feed on this screen yet - the liquidation map owns that
-           data (frame 3b). Empty renders "No clusters in range", which is
-           honest, rather than the prototype's eight mock levels. */
-        clusters={[]}
-        onRerun={() => { void readMarket('deep', true); }}
-        onSetAlert={openAlertForm}
-        rerunning={readLoading}
-      />
-    );
-  }
-
-  return (
+  /* The EXISTING Arena, kept whole. Nothing here is deleted by the redesign -
+     the owner's instruction is that UI moves or gets reworded, never removed.
+     It becomes a value so the terminal branch below can render it underneath
+     the new layout while each panel is relocated into its designed slot
+     (README:89 gives Arena in-page tabs: Read, Order flow, Liquidity,
+     Correlation, History). */
+  const legacyArena = (
     <div>
 
       {/* ── PAGE HEADER ── */}
@@ -2303,6 +2259,61 @@ function ArenaContent() {
       />
     </div>
   );
+
+  /* One screen, two designs, while the redesign lands frame by frame (#413).
+     Same branch DisclaimerTerminal uses: the terminal Arena is its own
+     component rather than conditionals threaded through 1,000 lines of JSX.
+     The two layouts share their DATA and almost nothing else - the frame puts
+     the verdict in a band, drops the coin sidebar, and moves clusters,
+     reasoning and history into a 304px rail. Deleting this branch is the last
+     step of the migration.
+
+     Everything below is read from the state this page already computes. The
+     shape comes from frame 1a; the values are ours, per the owner's rule:
+     "we cannot display all data in design but we can fill it with other data
+     or numbers". Where we genuinely have nothing - no read run yet, no
+     liquidation clusters in range - the component renders an em dash rather
+     than a placeholder figure. */
+  if (designMode === 'terminal') {
+    const verdictDir = result?.signal?.includes('BULLISH') ? 'bull' as const
+                     : result?.signal?.includes('BEARISH') ? 'bear' as const
+                     : 'neutral' as const;
+    return (
+      <ArenaTerminal
+        coin={selectedCoin}
+        tf={readTf}
+        onTfChange={setReadTf}
+        verdict={result ? { label: result.signal, dir: verdictDir, confidence: result.confidence } : null}
+        /* Entry zone is the EMA9-EMA20 value zone the strategy already defines,
+           and sl/tp are its own stop and target - not numbers invented to fill
+           the band. Null until the strategy has loaded, which the band shows
+           as an em dash. */
+        entry={{
+          zoneLow:  emaSignal.ema20_4h ?? null,
+          zoneHigh: emaSignal.ema9_4h  ?? null,
+          stop:     emaSignal.sl       ?? null,
+          target:   emaSignal.tp       ?? null,
+          target2:  null,
+        }}
+        reasoning={result?.reasoning ?? null}
+        history={history.map(h => ({
+          time: h.time, verdict: h.signal, conf: h.confidence, outcome: null,
+        }))}
+        /* No cluster feed on this screen yet - the liquidation map owns that
+           data (frame 3b). Empty renders "No clusters in range", which is
+           honest, rather than the prototype's eight mock levels. */
+        clusters={[]}
+        onRerun={() => { void readMarket('deep', true); }}
+        onSetAlert={openAlertForm}
+        rerunning={readLoading}
+      >
+        {legacyArena}
+      </ArenaTerminal>
+    );
+  }
+
+
+  return legacyArena;
 }
 
 export default function Arena() {
