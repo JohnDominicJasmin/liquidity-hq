@@ -88,10 +88,22 @@ export const UNCONVERTED_CHROME: string[] = [
   '.gchat-fab',              // GrokChat launcher - undesigned entirely, see #413
   '.gchat-panel',            // GrokChat panel and everything inside it
   '.gchat-coins',            // GrokChat coin chips
-  '.pf-footer-divider-label',// PlatformFooter
-  '.pf-footer-link',         // PlatformFooter
+  /* THE WHOLE FOOTER, not two of its children. My first version named
+   * `.pf-footer-divider-label` and `.pf-footer-link`, which covered the text
+   * and missed `.pf-footer-brand` — an INLINE SVG of the blue logo, four
+   * hardcoded fills.
+   *
+   * I had already written on #413 that a raster logo is invisible to a
+   * CSS-property check but *"if it is ever inlined as SVG with hardcoded fills,
+   * this WILL flag it, correctly"*. It is, and it did, and I still had to trace
+   * the parent chain to find out — because I had exempted the parts of the
+   * footer I happened to have seen fail rather than the component.
+   *
+   * **Exempt COMPONENTS, not the symptoms you have observed.** A list built
+   * from one run's findings is a list of what rendered that day. */
+  '.pf-footer',              // PlatformFooter, entire component
 ];
 
 export const CONVERTED_ROUTES: string[] = [
-  // '/disclaimer',   <- add in the PR that converts the route, not after
+  '/disclaimer',      // #420, merged 2026-08-14
 ];
