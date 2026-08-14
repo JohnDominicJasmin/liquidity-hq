@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { gotoGuarded } from './_shared';
-import { ALLOWED, CONVERTED_ROUTES, TOKEN_VALUES } from './_design-tokens';
+import { ALLOWED, CONVERTED_ROUTES, TOKEN_VALUES, UNCONVERTED_CHROME } from './_design-tokens';
 import { DESIGN_STORAGE_KEY } from '@/lib/designMode';
 
 /* Does the rendered page use ONLY the Monochrome Terminal palette?
@@ -56,7 +56,7 @@ function toHex(v: string): string | null {
 }
 
 async function offTokenColours(page: Page): Promise<string[]> {
-  return page.evaluate(({ allowed, props }) => {
+  return page.evaluate(({ allowed, props, chrome }) => {
     const hex = (v: string): string | null => {
       const m = v.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.%]+))?/i);
       if (!m) return null;
@@ -69,6 +69,9 @@ async function offTokenColours(page: Page): Promise<string[]> {
     const found = new Map<string, string>();
     for (const el of document.querySelectorAll('*')) {
       if (!(el as HTMLElement).checkVisibility?.()) continue;
+      /* Skip global components that have not been converted yet. `closest` so a
+       * child of the chat panel is covered without listing every descendant. */
+      if (chrome.some(sel => el.closest(sel))) continue;
       const cs = getComputedStyle(el);
       for (const p of props) {
         const raw = cs[p as keyof CSSStyleDeclaration] as string | undefined;
@@ -85,7 +88,7 @@ async function offTokenColours(page: Page): Promise<string[]> {
       }
     }
     return [...found.values()].sort();
-  }, { allowed: [...ALLOWED], props: [...COLOUR_PROPS] });
+  }, { allowed: [...ALLOWED], props: [...COLOUR_PROPS], chrome: [...UNCONVERTED_CHROME] });
 }
 
 test.describe('design token conformance', () => {
@@ -160,6 +163,21 @@ test.describe('design token conformance', () => {
       await page.addInitScript((k) => {
         try { localStorage.setItem(k, 'terminal'); } catch { /* private mode */ }
       }, DESIGN_STORAGE_KEY);
+
+      /* PIN CONSENT, because the banner is a THIRD uncontrolled input and it
+       * made two runs of this spec disagree.
+       *
+       * A first-visit page renders the cookie banner; a later one does not. The
+       * banner's buttons carry current-design colours, so the finding set
+       * changed between runs with no code change — and a conformance gate whose
+       * output moves on its own gets re-run rather than read.
+       *
+       * `denied` matches layout.spec.ts and a11y.spec.ts, so all three sweeps
+       * measure the same page. The banner has its own coverage in
+       * layout.spec.ts's first-visit test; it does not need measuring here too. */
+      await page.addInitScript(() => {
+        try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
+      });
 
       /* BOTH MECHANISMS, because only one of them currently works.
        *
