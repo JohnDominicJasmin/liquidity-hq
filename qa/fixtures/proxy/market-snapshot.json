@@ -1,0 +1,1094 @@
+{
+  "_url": "http://localhost:3100/api/market/snapshot",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "ticker": {
+      "btc": {
+        "price": 62619.78,
+        "change": -1.973,
+        "high": 63940.08,
+        "low": 62535.24,
+        "vol24": 826407740.734066
+      },
+      "eth": {
+        "price": 1866.29,
+        "change": -1.428,
+        "high": 1896.04,
+        "low": 1863.67,
+        "vol24": 235670452.829656
+      },
+      "bnb": {
+        "price": 603.66,
+        "change": -1.06,
+        "high": 612.9,
+        "low": 602.98,
+        "vol24": 41839739.39795
+      },
+      "ltc": {
+        "price": 44,
+        "change": -1.939,
+        "high": 44.94,
+        "low": 43.98,
+        "vol24": 7378219.47438
+      },
+      "ada": {
+        "price": 0.1784,
+        "change": -3.515,
+        "high": 0.1851,
+        "low": 0.1781,
+        "vol24": 11225810.39235
+      },
+      "xrp": {
+        "price": 1.0015,
+        "change": -0.871,
+        "high": 1.0142,
+        "low": 0.9982,
+        "vol24": 46229484.24882
+      },
+      "xlm": {
+        "price": 0.1596,
+        "change": -0.87,
+        "high": 0.1613,
+        "low": 0.1582,
+        "vol24": 4812306.3809
+      },
+      "trx": {
+        "price": 0.3327,
+        "change": -0.598,
+        "high": 0.3348,
+        "low": 0.3324,
+        "vol24": 20773751.54884
+      },
+      "etc": {
+        "price": 6.12,
+        "change": -2.703,
+        "high": 6.3,
+        "low": 6.11,
+        "vol24": 1005945.9665
+      },
+      "link": {
+        "price": 8.771,
+        "change": -0.792,
+        "high": 8.904,
+        "low": 8.68,
+        "vol24": 13709413.8598
+      },
+      "fet": {
+        "price": 0.1341,
+        "change": -1.47,
+        "high": 0.1383,
+        "low": 0.1337,
+        "vol24": 4733489.2613
+      },
+      "atom": {
+        "price": 1.522,
+        "change": -0.262,
+        "high": 1.573,
+        "low": 1.493,
+        "vol24": 3526268.01188
+      },
+      "doge": {
+        "price": 0.06947,
+        "change": -0.941,
+        "high": 0.07038,
+        "low": 0.06921,
+        "vol24": 17310446.29111
+      },
+      "stx": {
+        "price": 0.1215,
+        "change": -2.253,
+        "high": 0.1249,
+        "low": 0.1202,
+        "vol24": 310944.94068
+      },
+      "bch": {
+        "price": 199.9,
+        "change": -6.37,
+        "high": 213.6,
+        "low": 199.7,
+        "vol24": 5696058.7971
+      },
+      "sol": {
+        "price": 75.26,
+        "change": -1.608,
+        "high": 76.55,
+        "low": 75.06,
+        "vol24": 79454329.34706
+      },
+      "mana": {
+        "price": 0.063,
+        "change": -1.408,
+        "high": 0.0647,
+        "low": 0.0629,
+        "vol24": 117330.8724
+      },
+      "crv": {
+        "price": 0.2445,
+        "change": -3.474,
+        "high": 0.2571,
+        "low": 0.2426,
+        "vol24": 3043058.34614
+      },
+      "sand": {
+        "price": 0.03905,
+        "change": -1.014,
+        "high": 0.03945,
+        "low": 0.03823,
+        "vol24": 374488.2739
+      },
+      "dot": {
+        "price": 0.761,
+        "change": -1.806,
+        "high": 0.777,
+        "low": 0.752,
+        "vol24": 2650586.08363
+      },
+      "rune": {
+        "price": 0.413,
+        "change": -2.824,
+        "high": 0.428,
+        "low": 0.413,
+        "vol24": 894505.5852
+      },
+      "uni": {
+        "price": 3.24,
+        "change": -7.216,
+        "high": 3.53,
+        "low": 3.172,
+        "vol24": 21103174.93466
+      },
+      "avax": {
+        "price": 6.384,
+        "change": -1.679,
+        "high": 6.499,
+        "low": 6.348,
+        "vol24": 5958080.50471
+      },
+      "aave": {
+        "price": 85.18,
+        "change": -4.033,
+        "high": 88.92,
+        "low": 85.12,
+        "vol24": 6399678.36792
+      },
+      "near": {
+        "price": 1.584,
+        "change": -4.29,
+        "high": 1.659,
+        "low": 1.582,
+        "vol24": 11131449.1224
+      },
+      "fil": {
+        "price": 0.6662,
+        "change": -1.928,
+        "high": 0.6801,
+        "low": 0.662,
+        "vol24": 2484634.700965
+      },
+      "inj": {
+        "price": 4.253,
+        "change": -8.162,
+        "high": 4.649,
+        "low": 4.218,
+        "vol24": 2313222.92717
+      },
+      "dydx": {
+        "price": 0.10917,
+        "change": -1.087,
+        "high": 0.11081,
+        "low": 0.10837,
+        "vol24": 347270.5876264
+      },
+      "gmt": {
+        "price": 0.00616,
+        "change": -5.666,
+        "high": 0.00653,
+        "low": 0.00611,
+        "vol24": 286164.695605
+      },
+      "ldo": {
+        "price": 0.2926,
+        "change": -1.746,
+        "high": 0.305,
+        "low": 0.2906,
+        "vol24": 2146855.62076
+      },
+      "op": {
+        "price": 0.085,
+        "change": -3.189,
+        "high": 0.0897,
+        "low": 0.0849,
+        "vol24": 1667709.311215
+      },
+      "gmx": {
+        "price": 6.65,
+        "change": 0.605,
+        "high": 6.87,
+        "low": 6.55,
+        "vol24": 179354.15445
+      },
+      "apt": {
+        "price": 0.536,
+        "change": -5.3,
+        "high": 0.567,
+        "low": 0.534,
+        "vol24": 2912145.44776
+      },
+      "arb": {
+        "price": 0.0743,
+        "change": -1.72,
+        "high": 0.076,
+        "low": 0.0742,
+        "vol24": 2575778.41594
+      },
+      "sui": {
+        "price": 0.673,
+        "change": -2.984,
+        "high": 0.6949,
+        "low": 0.673,
+        "vol24": 10171730.59023
+      },
+      "wld": {
+        "price": 0.3388,
+        "change": -2.895,
+        "high": 0.352,
+        "low": 0.3333,
+        "vol24": 9347649.17853
+      },
+      "sei": {
+        "price": 0.0399,
+        "change": -3.553,
+        "high": 0.04138,
+        "low": 0.03986,
+        "vol24": 1150070.251144
+      },
+      "tia": {
+        "price": 0.3019,
+        "change": -3.454,
+        "high": 0.3142,
+        "low": 0.3017,
+        "vol24": 1339849.199598
+      },
+      "jup": {
+        "price": 0.1662,
+        "change": -2.579,
+        "high": 0.1707,
+        "low": 0.1647,
+        "vol24": 1643985.60742
+      },
+      "pyth": {
+        "price": 0.03954,
+        "change": -2.755,
+        "high": 0.04193,
+        "low": 0.03887,
+        "vol24": 1465705.633666
+      },
+      "wif": {
+        "price": 0.1355,
+        "change": -2.937,
+        "high": 0.1399,
+        "low": 0.1343,
+        "vol24": 737262.218772
+      },
+      "ena": {
+        "price": 0.0829,
+        "change": -3.94,
+        "high": 0.0866,
+        "low": 0.0827,
+        "vol24": 5469282.510313
+      },
+      "tao": {
+        "price": 193.9,
+        "change": -4.152,
+        "high": 205.3,
+        "low": 193.7,
+        "vol24": 10450442.47972
+      },
+      "render": {
+        "price": 1.245,
+        "change": -2.123,
+        "high": 1.276,
+        "low": 1.24,
+        "vol24": 1742124.43668
+      },
+      "ondo": {
+        "price": 0.3246,
+        "change": -4.05,
+        "high": 0.3392,
+        "low": 0.3239,
+        "vol24": 5221770.23251
+      }
+    },
+    "klines": {
+      "eth": {
+        "volRatio": 1.3741769413479197,
+        "ma20": 1872.7720000000004,
+        "rsi14": 32,
+        "poc": 1874.5620833333332,
+        "vah": 1885.8558333333333,
+        "val": 1866.1641666666665,
+        "vwap": 1878.5692922756173,
+        "takerBuyRatio": 0.46940774554174886,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending)"
+      },
+      "sol": {
+        "volRatio": 1.4267892538434153,
+        "ma20": 75.3825,
+        "rsi14": 33,
+        "poc": 75.51375,
+        "vah": 76.12083333333334,
+        "val": 75.26833333333335,
+        "vwap": 75.76011697292806,
+        "takerBuyRatio": 0.4192466936787163,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending)"
+      },
+      "btc": {
+        "volRatio": 1.3247982191470145,
+        "ma20": 62753.425,
+        "rsi14": 34,
+        "poc": 63419.45,
+        "vah": 63556.619999999995,
+        "val": 62758.54,
+        "vwap": 63120.736013447044,
+        "takerBuyRatio": 0.44194969462389655,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending); Double top (bearish reversal setup)"
+      },
+      "xrp": {
+        "volRatio": 1.2451176041546603,
+        "ma20": 1.0019650000000002,
+        "rsi14": 49,
+        "poc": 1.0023566666666666,
+        "vah": 1.0090533333333334,
+        "val": 1.00058,
+        "vwap": 1.0054896050249167,
+        "takerBuyRatio": 0.42538429839059055,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending); Double top (bearish reversal setup)"
+      },
+      "near": {
+        "volRatio": 1.0007435443694475,
+        "ma20": 1.59625,
+        "rsi14": 21,
+        "poc": 1.6385,
+        "vah": 1.6423333333333334,
+        "val": 1.5978666666666665,
+        "vwap": 1.6199361418752634,
+        "takerBuyRatio": 0.4647849619642148,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending); Double top (bearish reversal setup); Double bottom (bullish reversal setup)"
+      },
+      "link": {
+        "volRatio": 1.344103677809793,
+        "ma20": 8.817400000000001,
+        "rsi14": 34,
+        "poc": 8.8223,
+        "vah": 8.8774,
+        "val": 8.7786,
+        "vwap": 8.808312749331431,
+        "takerBuyRatio": 0.510804431864932,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double top (bearish reversal setup)"
+      },
+      "ada": {
+        "volRatio": 0.917887489025489,
+        "ma20": 0.17961999999999995,
+        "rsi14": 23,
+        "poc": 0.18166166666666667,
+        "vah": 0.18320333333333333,
+        "val": 0.17975,
+        "vwap": 0.18132237858353037,
+        "takerBuyRatio": 0.454209603321429,
+        "chartPattern": "Tight consolidation (compression - breakout pending)"
+      },
+      "dot": {
+        "volRatio": 0.8014292874428003,
+        "ma20": 0.7583949999999998,
+        "rsi14": 63,
+        "poc": 0.7734,
+        "vah": 0.7756733333333333,
+        "val": 0.7595533333333333,
+        "vwap": 0.7651714575475154,
+        "takerBuyRatio": 0.4047798735061168,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending)"
+      },
+      "bnb": {
+        "volRatio": 0.9724051481174395,
+        "ma20": 605.2555,
+        "rsi14": 41,
+        "poc": 611.1433333333333,
+        "vah": 612.0746666666666,
+        "val": 606.4866666666667,
+        "vwap": 608.3690006320204,
+        "takerBuyRatio": 0.49887973293212795,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "sui": {
+        "volRatio": 0.5267778932417432,
+        "ma20": 0.675925,
+        "rsi14": 36,
+        "poc": 0.6847508333333333,
+        "vah": 0.69014,
+        "val": 0.677875,
+        "vwap": 0.6827994406479184,
+        "takerBuyRatio": 0.42211363824113785,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "doge": {
+        "volRatio": 0.8290091688993185,
+        "ma20": 0.06940299999999999,
+        "rsi14": 51,
+        "poc": 0.07020124999999999,
+        "vah": 0.07027066666666666,
+        "val": 0.06959633333333333,
+        "vwap": 0.06980697545540679,
+        "takerBuyRatio": 0.46122926975388306,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending)"
+      },
+      "avax": {
+        "volRatio": 1.129600895369078,
+        "ma20": 6.3701,
+        "rsi14": 59,
+        "poc": 6.39295,
+        "vah": 6.4419,
+        "val": 6.3558666666666666,
+        "vwap": 6.415553713221247,
+        "takerBuyRatio": 0.4025931374225993,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending)"
+      },
+      "atom": {
+        "volRatio": 0.4018097688996764,
+        "ma20": 1.54165,
+        "rsi14": 33,
+        "poc": 1.510575,
+        "vah": 1.5463500000000001,
+        "val": 1.5018,
+        "vwap": 1.5304545381120576,
+        "takerBuyRatio": 0.44637682900681047,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "wif": {
+        "volRatio": 1.143434950036533,
+        "ma20": 0.13503500000000004,
+        "rsi14": 62,
+        "poc": 0.13704833333333333,
+        "vah": 0.13748333333333332,
+        "val": 0.13526,
+        "vwap": 0.13641852652726305,
+        "takerBuyRatio": 0.48454355878340954,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double top (bearish reversal setup)"
+      },
+      "ltc": {
+        "volRatio": 2.6777628014774555,
+        "ma20": 44.388000000000005,
+        "rsi14": 21,
+        "poc": 44.740249999999996,
+        "vah": 44.8805,
+        "val": 44.467999999999996,
+        "vwap": 44.56962636506198,
+        "takerBuyRatio": 0.4552075435953209,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending)"
+      },
+      "bch": {
+        "volRatio": 1.5482781326960533,
+        "ma20": 203.4605,
+        "rsi14": 5,
+        "poc": 205.56958333333336,
+        "vah": 210.27166666666668,
+        "val": 204.17166666666668,
+        "vwap": 205.57340309302506,
+        "takerBuyRatio": 0.47184569534233395,
+        "chartPattern": null
+      },
+      "trx": {
+        "volRatio": 1.9790059703388831,
+        "ma20": 0.33296000000000003,
+        "rsi14": 41,
+        "poc": 0.33426075,
+        "vah": 0.33449083333333335,
+        "val": 0.333194,
+        "vwap": 0.33369267155091165,
+        "takerBuyRatio": 0.3694927064886009,
+        "chartPattern": "Tight consolidation (compression - breakout pending)"
+      },
+      "xlm": {
+        "volRatio": 1.511824832433528,
+        "ma20": 0.159213,
+        "rsi14": 53,
+        "poc": 0.1594405,
+        "vah": 0.159925,
+        "val": 0.158701,
+        "vwap": 0.1593845385203729,
+        "takerBuyRatio": 0.48123219306897275,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "etc": {
+        "volRatio": 0.24762709034692995,
+        "ma20": 6.1278999999999995,
+        "rsi14": 49,
+        "poc": 6.130625,
+        "vah": 6.22325,
+        "val": 6.1095,
+        "vwap": 6.182053259993998,
+        "takerBuyRatio": 0.4139178033924839,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "fil": {
+        "volRatio": 0.667464749424237,
+        "ma20": 0.665945,
+        "rsi14": 49,
+        "poc": 0.6666958333333333,
+        "vah": 0.6739416666666667,
+        "val": 0.6637666666666666,
+        "vwap": 0.670103147690059,
+        "takerBuyRatio": 0.4579665507332127,
+        "chartPattern": "Tight consolidation (compression - breakout pending)"
+      },
+      "arb": {
+        "volRatio": 0.6522401724079467,
+        "ma20": 0.07443949999999999,
+        "rsi14": 48,
+        "poc": 0.07521058333333333,
+        "vah": 0.0756915,
+        "val": 0.074597,
+        "vwap": 0.07499511603037988,
+        "takerBuyRatio": 0.4744500480974524,
+        "chartPattern": "Tight consolidation (compression - breakout pending)"
+      },
+      "op": {
+        "volRatio": 0.27154329018496665,
+        "ma20": 0.08530499999999998,
+        "rsi14": 35,
+        "poc": 0.08759916666666666,
+        "vah": 0.08927333333333333,
+        "val": 0.08600666666666666,
+        "vwap": 0.08690293231256985,
+        "takerBuyRatio": 0.4704495799526756,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "apt": {
+        "volRatio": 0.8456925304041528,
+        "ma20": 0.5385699999999999,
+        "rsi14": 34,
+        "poc": 0.5602475,
+        "vah": 0.5634466666666668,
+        "val": 0.54018,
+        "vwap": 0.5485775302056597,
+        "takerBuyRatio": 0.4683155439803957,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "sei": {
+        "volRatio": 0.9419023972822986,
+        "ma20": 0.040045,
+        "rsi14": 30,
+        "poc": 0.04095125,
+        "vah": 0.04163,
+        "val": 0.0402725,
+        "vwap": 0.040662893014981494,
+        "takerBuyRatio": 0.517740391684811,
+        "chartPattern": "Tight consolidation (compression - breakout pending)"
+      },
+      "inj": {
+        "volRatio": 0.4509657534629998,
+        "ma20": 4.41975,
+        "rsi14": 15,
+        "poc": 4.6218,
+        "vah": 4.647,
+        "val": 4.4166,
+        "vwap": 4.480593188015881,
+        "takerBuyRatio": 0.3844078873510769,
+        "chartPattern": "Bearish engulfing"
+      },
+      "tia": {
+        "volRatio": 0.39212010364019406,
+        "ma20": 0.30342500000000006,
+        "rsi14": 36,
+        "poc": 0.31036250000000004,
+        "vah": 0.31317500000000004,
+        "val": 0.3063,
+        "vwap": 0.3084118682253515,
+        "takerBuyRatio": 0.5110890974626491,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "aave": {
+        "volRatio": 0.530572482075302,
+        "ma20": 85.98949999999999,
+        "rsi14": 25,
+        "poc": 87.60091666666668,
+        "vah": 88.60583333333334,
+        "val": 86.72566666666667,
+        "vwap": 87.24292196235777,
+        "takerBuyRatio": 0.45411002944657636,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "ldo": {
+        "volRatio": 1.6500496976699248,
+        "ma20": 0.2977,
+        "rsi14": 19,
+        "poc": 0.30029833333333333,
+        "vah": 0.30285333333333336,
+        "val": 0.2950666666666667,
+        "vwap": 0.2978221457009463,
+        "takerBuyRatio": 0.515304978369703,
+        "chartPattern": "Tight consolidation (compression - breakout pending)"
+      },
+      "uni": {
+        "volRatio": 0.6339476362811757,
+        "ma20": 3.2768,
+        "rsi14": 42,
+        "poc": 3.4771333333333336,
+        "vah": 3.5152666666666668,
+        "val": 3.263,
+        "vwap": 3.3597421152368394,
+        "takerBuyRatio": 0.4978626249781367,
+        "chartPattern": "Tight consolidation (compression - breakout pending)"
+      },
+      "rune": {
+        "volRatio": 0.4569518671561497,
+        "ma20": 0.4155450000000001,
+        "rsi14": 24,
+        "poc": 0.424625,
+        "vah": 0.427,
+        "val": 0.41625,
+        "vwap": 0.4197647851927971,
+        "takerBuyRatio": 0.6338876201687921,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double top (bearish reversal setup)"
+      },
+      "gmx": {
+        "volRatio": 0.690808706567529,
+        "ma20": 6.68265,
+        "rsi14": 39,
+        "poc": 6.671633333333333,
+        "vah": 6.787133333333333,
+        "val": 6.622866666666667,
+        "vwap": 6.692837792053411,
+        "takerBuyRatio": 0.4669332409768794,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double bottom (bullish reversal setup)"
+      },
+      "crv": {
+        "volRatio": 0.7680731414646296,
+        "ma20": 0.24629000000000004,
+        "rsi14": 41,
+        "poc": 0.25332,
+        "vah": 0.2556,
+        "val": 0.24767999999999998,
+        "vwap": 0.25029619865891206,
+        "takerBuyRatio": 0.5151920486440793,
+        "chartPattern": "Double top (bearish reversal setup)"
+      },
+      "stx": {
+        "volRatio": 0.7644127997304996,
+        "ma20": 0.12104,
+        "rsi14": 59,
+        "poc": 0.12167166666666666,
+        "vah": 0.12355000000000001,
+        "val": 0.12109666666666667,
+        "vwap": 0.12240052770508171,
+        "takerBuyRatio": 0.562380009343169,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending); Double top (bearish reversal setup)"
+      },
+      "jup": {
+        "volRatio": 1.7623341601752989,
+        "ma20": 0.16551500000000002,
+        "rsi14": 61,
+        "poc": 0.16554583333333334,
+        "vah": 0.16895833333333335,
+        "val": 0.16484166666666666,
+        "vwap": 0.16755170272896283,
+        "takerBuyRatio": 0.5560659105851413,
+        "chartPattern": "Doji (indecision); Tight consolidation (compression - breakout pending)"
+      },
+      "wld": {
+        "volRatio": 1.3472381502923936,
+        "ma20": 0.337225,
+        "rsi14": 66,
+        "poc": 0.34065,
+        "vah": 0.3440066666666667,
+        "val": 0.3351733333333333,
+        "vwap": 0.3415056863040538,
+        "takerBuyRatio": 0.49657235867134797,
+        "chartPattern": null
+      },
+      "render": {
+        "volRatio": 0.6315591565302283,
+        "ma20": 1.2459000000000002,
+        "rsi14": 53,
+        "poc": 1.2579,
+        "vah": 1.2611999999999999,
+        "val": 1.2444000000000002,
+        "vwap": 1.2547748473337432,
+        "takerBuyRatio": 0.39235192248263084,
+        "chartPattern": "Bearish engulfing; Tight consolidation (compression - breakout pending)"
+      },
+      "tao": {
+        "volRatio": 0.8576869654715902,
+        "ma20": 198.23499999999996,
+        "rsi14": 20,
+        "poc": 201.94650000000001,
+        "vah": 203.69466666666668,
+        "val": 198.75866666666667,
+        "vwap": 200.42663887060152,
+        "takerBuyRatio": 0.3408379315481038,
+        "chartPattern": "Bearish engulfing"
+      },
+      "fet": {
+        "volRatio": 0.7371927352470092,
+        "ma20": 0.13602999999999998,
+        "rsi14": 30,
+        "poc": 0.13622416666666667,
+        "vah": 0.137125,
+        "val": 0.13501,
+        "vwap": 0.13584759273976407,
+        "takerBuyRatio": 0.388102545368495,
+        "chartPattern": null
+      },
+      "pyth": {
+        "volRatio": 0.5661823705222497,
+        "ma20": 0.039152000000000006,
+        "rsi14": 58,
+        "poc": 0.03911016666666667,
+        "vah": 0.04044466666666667,
+        "val": 0.038822333333333334,
+        "vwap": 0.039954606706862704,
+        "takerBuyRatio": 0.5808482425926625,
+        "chartPattern": "Inverted hammer; Tight consolidation (compression - breakout pending)"
+      },
+      "ondo": {
+        "volRatio": 0.8257575738207661,
+        "ma20": 0.3272500000000001,
+        "rsi14": 37,
+        "poc": 0.3334625,
+        "vah": 0.335475,
+        "val": 0.3271566666666667,
+        "vwap": 0.33155598824752003,
+        "takerBuyRatio": 0.40264225677201115,
+        "chartPattern": "Double bottom (bullish reversal setup)"
+      },
+      "ena": {
+        "volRatio": 0.9998276767634369,
+        "ma20": 0.08372949999999998,
+        "rsi14": 26,
+        "poc": 0.085317,
+        "vah": 0.086024,
+        "val": 0.08407133333333333,
+        "vwap": 0.08486573543685683,
+        "takerBuyRatio": 0.4149166505877013,
+        "chartPattern": "Doji (indecision)"
+      },
+      "dydx": {
+        "volRatio": 0.7205691222805329,
+        "ma20": 0.10958999999999999,
+        "rsi14": 35,
+        "poc": 0.10972083333333334,
+        "vah": 0.1102,
+        "val": 0.109075,
+        "vwap": 0.1095342543174237,
+        "takerBuyRatio": 0.4524254829360793,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double top (bearish reversal setup)"
+      },
+      "sand": {
+        "volRatio": 0.705748342589975,
+        "ma20": 0.038872,
+        "rsi14": 59,
+        "poc": 0.03847066666666667,
+        "vah": 0.038801333333333334,
+        "val": 0.038289333333333335,
+        "vwap": 0.03866078266827633,
+        "takerBuyRatio": 0.442504716382891,
+        "chartPattern": "Tight consolidation (compression - breakout pending)"
+      },
+      "mana": {
+        "volRatio": 0.7854573976021646,
+        "ma20": 0.06304000000000001,
+        "rsi14": 46,
+        "poc": 0.06341875,
+        "vah": 0.0639165,
+        "val": 0.06295116666666667,
+        "vwap": 0.06357372842312256,
+        "takerBuyRatio": 0.5805770337744051,
+        "chartPattern": "Tight consolidation (compression - breakout pending); Double top (bearish reversal setup); Double bottom (bullish reversal setup)"
+      },
+      "gmt": {
+        "volRatio": 0.6439518242318819,
+        "ma20": 0.00621865,
+        "rsi14": 32,
+        "poc": 0.006218250000000001,
+        "vah": 0.0064395,
+        "val": 0.0061545,
+        "vwap": 0.00633002414513796,
+        "takerBuyRatio": 0.35590252091316105,
+        "chartPattern": null
+      }
+    },
+    "lsr": {
+      "btc": {
+        "bnLongRatio": 0.6849,
+        "bnShortRatio": 0.3151,
+        "bnWhaleLongRatio": 0.5981,
+        "bnWhaleShortRatio": 0.4019
+      },
+      "near": {
+        "bnLongRatio": 0.5528,
+        "bnShortRatio": 0.4472,
+        "bnWhaleLongRatio": 0.6623,
+        "bnWhaleShortRatio": 0.3377
+      },
+      "sol": {
+        "bnLongRatio": 0.7084,
+        "bnShortRatio": 0.2916,
+        "bnWhaleLongRatio": 0.6143,
+        "bnWhaleShortRatio": 0.3857
+      },
+      "eth": {
+        "bnLongRatio": 0.7292,
+        "bnShortRatio": 0.2708,
+        "bnWhaleLongRatio": 0.5733,
+        "bnWhaleShortRatio": 0.4267
+      },
+      "bnb": {
+        "bnLongRatio": 0.6823,
+        "bnShortRatio": 0.3177,
+        "bnWhaleLongRatio": 0.5992,
+        "bnWhaleShortRatio": 0.4008
+      },
+      "sui": {
+        "bnLongRatio": 0.6967,
+        "bnShortRatio": 0.3033,
+        "bnWhaleLongRatio": 0.6946,
+        "bnWhaleShortRatio": 0.3054
+      },
+      "doge": {
+        "bnLongRatio": 0.7421,
+        "bnShortRatio": 0.2579,
+        "bnWhaleLongRatio": 0.7467,
+        "bnWhaleShortRatio": 0.2533
+      },
+      "xrp": {
+        "bnLongRatio": 0.7514,
+        "bnShortRatio": 0.2486,
+        "bnWhaleLongRatio": 0.6479,
+        "bnWhaleShortRatio": 0.3521
+      },
+      "avax": {
+        "bnLongRatio": 0.6219,
+        "bnShortRatio": 0.3781,
+        "bnWhaleLongRatio": 0.6236,
+        "bnWhaleShortRatio": 0.3764
+      },
+      "dot": {
+        "bnLongRatio": 0.6278,
+        "bnShortRatio": 0.3722,
+        "bnWhaleLongRatio": 0.6738,
+        "bnWhaleShortRatio": 0.3262
+      },
+      "link": {
+        "bnLongRatio": 0.6165,
+        "bnShortRatio": 0.3835,
+        "bnWhaleLongRatio": 0.606,
+        "bnWhaleShortRatio": 0.394
+      },
+      "ada": {
+        "bnLongRatio": 0.6445,
+        "bnShortRatio": 0.3555,
+        "bnWhaleLongRatio": 0.5369,
+        "bnWhaleShortRatio": 0.4631
+      },
+      "atom": {
+        "bnLongRatio": 0.5692,
+        "bnShortRatio": 0.4308,
+        "bnWhaleLongRatio": 0.5756,
+        "bnWhaleShortRatio": 0.4244
+      },
+      "ltc": {
+        "bnLongRatio": 0.6767,
+        "bnShortRatio": 0.3233,
+        "bnWhaleLongRatio": 0.7011,
+        "bnWhaleShortRatio": 0.2989
+      },
+      "bch": {
+        "bnLongRatio": 0.6066,
+        "bnShortRatio": 0.3934,
+        "bnWhaleLongRatio": 0.4228,
+        "bnWhaleShortRatio": 0.5772
+      },
+      "wif": {
+        "bnLongRatio": 0.573,
+        "bnShortRatio": 0.427,
+        "bnWhaleLongRatio": 0.6788,
+        "bnWhaleShortRatio": 0.3212
+      },
+      "xlm": {
+        "bnLongRatio": 0.4937,
+        "bnShortRatio": 0.5063,
+        "bnWhaleLongRatio": 0.5546,
+        "bnWhaleShortRatio": 0.4454
+      },
+      "fil": {
+        "bnLongRatio": 0.5551,
+        "bnShortRatio": 0.4449,
+        "bnWhaleLongRatio": 0.6808,
+        "bnWhaleShortRatio": 0.3192
+      },
+      "arb": {
+        "bnLongRatio": 0.5475,
+        "bnShortRatio": 0.4525,
+        "bnWhaleLongRatio": 0.6257,
+        "bnWhaleShortRatio": 0.3743
+      },
+      "etc": {
+        "bnLongRatio": 0.5288,
+        "bnShortRatio": 0.4712,
+        "bnWhaleLongRatio": 0.7263,
+        "bnWhaleShortRatio": 0.2737
+      },
+      "apt": {
+        "bnLongRatio": 0.5419,
+        "bnShortRatio": 0.4581,
+        "bnWhaleLongRatio": 0.7766,
+        "bnWhaleShortRatio": 0.2234
+      },
+      "sei": {
+        "bnLongRatio": 0.6402,
+        "bnShortRatio": 0.3598,
+        "bnWhaleLongRatio": 0.6769,
+        "bnWhaleShortRatio": 0.3231
+      },
+      "op": {
+        "bnLongRatio": 0.5476,
+        "bnShortRatio": 0.4524,
+        "bnWhaleLongRatio": 0.6951,
+        "bnWhaleShortRatio": 0.3049
+      },
+      "trx": {
+        "bnLongRatio": 0.6258,
+        "bnShortRatio": 0.3742,
+        "bnWhaleLongRatio": 0.4739,
+        "bnWhaleShortRatio": 0.5261
+      },
+      "inj": {
+        "bnLongRatio": 0.4403,
+        "bnShortRatio": 0.5597,
+        "bnWhaleLongRatio": 0.6532,
+        "bnWhaleShortRatio": 0.3468
+      },
+      "tia": {
+        "bnLongRatio": 0.5602,
+        "bnShortRatio": 0.4398,
+        "bnWhaleLongRatio": 0.708,
+        "bnWhaleShortRatio": 0.292
+      },
+      "aave": {
+        "bnLongRatio": 0.5084,
+        "bnShortRatio": 0.4916,
+        "bnWhaleLongRatio": 0.5802,
+        "bnWhaleShortRatio": 0.4198
+      },
+      "ldo": {
+        "bnLongRatio": 0.4349,
+        "bnShortRatio": 0.5651,
+        "bnWhaleLongRatio": 0.7456,
+        "bnWhaleShortRatio": 0.2544
+      },
+      "uni": {
+        "bnLongRatio": 0.5059,
+        "bnShortRatio": 0.4941,
+        "bnWhaleLongRatio": 0.7151,
+        "bnWhaleShortRatio": 0.2849
+      },
+      "crv": {
+        "bnLongRatio": 0.5747,
+        "bnShortRatio": 0.4253,
+        "bnWhaleLongRatio": 0.5324,
+        "bnWhaleShortRatio": 0.4676
+      },
+      "stx": {
+        "bnLongRatio": 0.4907,
+        "bnShortRatio": 0.5093,
+        "bnWhaleLongRatio": 0.5968,
+        "bnWhaleShortRatio": 0.4032
+      },
+      "jup": {
+        "bnLongRatio": 0.4747,
+        "bnShortRatio": 0.5253,
+        "bnWhaleLongRatio": 0.6736,
+        "bnWhaleShortRatio": 0.3264
+      },
+      "wld": {
+        "bnLongRatio": 0.5946,
+        "bnShortRatio": 0.4054,
+        "bnWhaleLongRatio": 0.6059,
+        "bnWhaleShortRatio": 0.3941
+      },
+      "rune": {
+        "bnLongRatio": 0.5018,
+        "bnShortRatio": 0.4982,
+        "bnWhaleLongRatio": 0.5974,
+        "bnWhaleShortRatio": 0.4026
+      },
+      "render": {
+        "bnLongRatio": 0.542,
+        "bnShortRatio": 0.458,
+        "bnWhaleLongRatio": 0.6336,
+        "bnWhaleShortRatio": 0.3664
+      },
+      "gmx": {
+        "bnLongRatio": 0.6173,
+        "bnShortRatio": 0.3827,
+        "bnWhaleLongRatio": 0.6228,
+        "bnWhaleShortRatio": 0.3772
+      },
+      "tao": {
+        "bnLongRatio": 0.6729,
+        "bnShortRatio": 0.3271,
+        "bnWhaleLongRatio": 0.7365,
+        "bnWhaleShortRatio": 0.2635
+      },
+      "pyth": {
+        "bnLongRatio": 0.533,
+        "bnShortRatio": 0.467,
+        "bnWhaleLongRatio": 0.6699,
+        "bnWhaleShortRatio": 0.3301
+      },
+      "ondo": {
+        "bnLongRatio": 0.5279,
+        "bnShortRatio": 0.4721,
+        "bnWhaleLongRatio": 0.6797,
+        "bnWhaleShortRatio": 0.3203
+      },
+      "ena": {
+        "bnLongRatio": 0.5521,
+        "bnShortRatio": 0.4479,
+        "bnWhaleLongRatio": 0.6072,
+        "bnWhaleShortRatio": 0.3928
+      },
+      "fet": {
+        "bnLongRatio": 0.5679,
+        "bnShortRatio": 0.4321,
+        "bnWhaleLongRatio": 0.6301,
+        "bnWhaleShortRatio": 0.3699
+      },
+      "dydx": {
+        "bnLongRatio": 0.6087,
+        "bnShortRatio": 0.3913,
+        "bnWhaleLongRatio": 0.7156,
+        "bnWhaleShortRatio": 0.2844
+      },
+      "sand": {
+        "bnLongRatio": 0.5775,
+        "bnShortRatio": 0.4225,
+        "bnWhaleLongRatio": 0.5739,
+        "bnWhaleShortRatio": 0.4261
+      },
+      "mana": {
+        "bnLongRatio": 0.5223,
+        "bnShortRatio": 0.4777,
+        "bnWhaleLongRatio": 0.552,
+        "bnWhaleShortRatio": 0.448
+      },
+      "gmt": {
+        "bnLongRatio": 0.6672,
+        "bnShortRatio": 0.3328,
+        "bnWhaleLongRatio": 0.7006,
+        "bnWhaleShortRatio": 0.2994
+      }
+    },
+    "ts": 1786719479596
+  }
+}

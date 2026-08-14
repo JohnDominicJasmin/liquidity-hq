@@ -1,0 +1,9 @@
+{
+  "_url": "http://localhost:3100/api/proxy?type=etf",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "btc": null,
+    "eth": null
+  }
+}
