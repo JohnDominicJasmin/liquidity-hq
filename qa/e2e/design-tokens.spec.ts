@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { gotoGuarded } from './_shared';
-import { ALLOWED, CONVERTED_ROUTES, DESIGN_TOKENS } from './_design-tokens';
+import { ALLOWED, CONVERTED_ROUTES, TOKEN_VALUES } from './_design-tokens';
 
 /* Does the rendered page use ONLY the Monochrome Terminal palette?
  *
@@ -128,7 +128,7 @@ test.describe('design token conformance', () => {
    * of arithmetic here, and if it is wrong every result is wrong in the same
    * direction — which looks like a clean sweep, not like a bug. */
   test('CONTROL: every design token is recognised through the rgb round trip', () => {
-    for (const [name, hex] of Object.entries(DESIGN_TOKENS)) {
+    for (const [name, hex] of Object.entries(TOKEN_VALUES)) {
       const r = parseInt(hex.slice(1, 3), 16);
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);

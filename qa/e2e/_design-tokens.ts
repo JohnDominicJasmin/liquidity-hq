@@ -1,3 +1,5 @@
+import { TERMINAL_ALLOWED, TERMINAL_COLORS, TERMINAL_FLAT_CELL } from '@/lib/terminalTokens';
+
 /* The Monochrome Terminal palette, and the ledger of which routes are held to it.
  *
  * SOURCE OF TRUTH IS THE README TABLE, NOT THE PROTOTYPES — and that distinction
@@ -9,47 +11,30 @@
  * false alarms.
  */
 
-/** The 15 documented tokens, plus one the README omits. Lowercase, no alpha. */
-export const DESIGN_TOKENS: Record<string, string> = {
-  '--bg0':          '#08090a',
-  '--bg1':          '#0c0d0f',
-  '--bg2':          '#111416',
-  '--bdr':          '#1f2225',
-  '--bdr2':         '#131618',
-  '--bdr3':         '#16191b',
-  '--txt':          '#e8e9ea',
-  '--txt2':         '#8b8f94',
-  '--txt3':         '#5a5f66',
-  '--txt4':         '#3a3f45',
-  '--accent':       '#d9a626',
-  '--green':        '#3fb950',
-  '--red':          '#f0524d',
-  '--mark-idle':    '#22262a',
-  '--border-input': '#2a2e32',
+/* THE PALETTE IS NOT DEFINED HERE. It is imported from `lib/terminalTokens.ts`,
+ * which `app/globals.css` is unit-tested against — so one list feeds the
+ * stylesheet, the app and this spec.
+ *
+ * Dev asked for this and they were right. My first version transcribed the 15
+ * hex values a second time, and **two copies drift invisibly**: each file reads
+ * correctly on its own, and the only symptom is a conformance spec passing
+ * against a stylesheet it no longer describes. That is the same shape as every
+ * entry in HANDOVER §14 — a clean result from an instrument pointed at the wrong
+ * thing — and it would have been the most expensive instance, because a green
+ * conformance run is exactly what everyone would trust.
+ *
+ * `TERMINAL_ALLOWED` is 15 tokens + `--flat-cell` + 7 magma stops = 23 values.
+ */
 
-  /* UNDOCUMENTED, and deliberately included. `#1c1f22` is the FLAT cell in the
-   * hours expectancy grid — `Math.abs(v) < 0.12 ? '#1c1f22' : …` — and it has its
-   * own legend swatch, so it is a real design decision that the README's table
-   * simply does not list.
-   *
-   * It sits close to `--mark-idle #22262a` and both mean "not firing", so the
-   * two may want collapsing into one token. That is the designer's call; the
-   * VALUE is unambiguous in the prototype and the implementation needs one
-   * either way. Named provisionally. */
-  '--flat-cell':    '#1c1f22',
+/** Named token values, for the round-trip control. Includes the undocumented
+ * FLAT cell so the parser is exercised against it too. */
+export const TOKEN_VALUES: Record<string, string> = {
+  ...TERMINAL_COLORS,
+  '--flat-cell': TERMINAL_FLAT_CELL,
 };
 
-/* The liquidation map's magma ramp. EXEMPT from conformance rather than part of
- * the palette: it is a data encoding, the README gives four selectable ramps,
- * and a heatmap cell's colour is a value rather than a style choice. */
-export const HEATMAP_RAMP = [
-  '#0a0614', '#2a114e', '#681e7a', '#b5306a', '#e85b3a', '#f9a94a', '#fdf3c8',
-];
-
 /** Every allowed colour, lowercased, for membership tests. */
-export const ALLOWED = new Set<string>(
-  [...Object.values(DESIGN_TOKENS), ...HEATMAP_RAMP].map(c => c.toLowerCase()),
-);
+export const ALLOWED = new Set<string>(TERMINAL_ALLOWED.map(c => c.toLowerCase()));
 
 /* ── THE CONVERSION LEDGER ───────────────────────────────────────────────────
  *
