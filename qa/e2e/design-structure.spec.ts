@@ -67,9 +67,43 @@ const STATIC_SHELL_ROUTES = [
 
 /** Values that apply to a whole shell, not to one screen. */
 const SHELL = {
-  static: { nav: 56, indexRail: 264, activeBorder: 2, note: 'README:167' },
-  app:    { nav: 44, ticker: 34,     note: 'README:78, README:81' },
+  static: {
+    desktop: { nav: 56 },
+    /* 52px MEASURED, not transcribed. The Static prototype's 390px frames open
+     * with a 52px bar (9 occurrences against 7 of 56px) — but that was markup,
+     * and "the first height in a frame" and "the nav" are the same thing right
+     * up until they are not.
+     *
+     * Confirmed on `feature/static-marketing-shell` at 390x844: `main` starts
+     * at 52 and no tab bar renders. It goes in now because it has been watched,
+     * not because it was read.
+     *
+     * SUPERSEDED NOTE, kept because the reasoning is the point: */
+    /* mobile nav height NOT asserted yet. The Static prototype's 390px frames
+     * open with a 52px bar (9 occurrences of height:52px against 7 of 56px),
+     * but I have only read that out of the markup — I have not seen 52 render
+     * in our app, and "the first height in a frame" and "the nav" are the same
+     * thing right up until they are not.
+     *
+     * It goes in once dev's fix lands and I have measured it. Nothing enters
+     * this table transcribed. */
+    mobile: { nav: 52 },   // measured on this branch, see commit message
+    tabBar: 0,   // ZERO height:60px in the Static file - static screens have no tab bar
+    indexRail: 264, activeBorder: 2,
+    note: 'README:167; mobile step read from the Static prototype frames',
+  },
+  app: {
+    desktop: { nav: 44 },
+    mobile:  { header: 38, tabBar: 60 },
+    ticker: 34,
+    note: 'README:78 desktop bar, README:82 mobile header + tab bar, README:81 ticker',
+  },
 };
+
+/* Screens that carry the ticker strip. README:81 names them explicitly, and the
+ * list is short enough that "not in it" is an assertion rather than an omission:
+ * a static route rendering a ticker is a defect. */
+const TICKER_ROUTES = ['/arena', '/dashboard', '/markets', '/', '/login'];
 
 /** Measured values from the handoff README, per route. */
 const STRUCTURE: Record<string, { title?: number; rail?: number; note: string }> = {
@@ -145,27 +179,79 @@ test.describe('design structure', () => {
     const shell = isStatic ? SHELL.static : SHELL.app;
 
     test(`${route} renders inside the ${isStatic ? 'static' : 'app'} shell`, async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== 'desktop',
-        'shell heights are the 1440x900 values; mobile frames have their own');
+      const mobile = testInfo.project.name === 'mobile';
 
       await seedTerminal(page);
       await gotoGuarded(page, `${route}?design=terminal`);
       await page.waitForTimeout(3000);
 
       const got = await page.evaluate(() => {
-        const nav = document.querySelector('.tnav, header nav, nav');
-        return { nav: nav ? Math.round(nav.getBoundingClientRect().height) : null };
+        const h = (sel: string) => {
+          const e = document.querySelector(sel);
+          if (!e) return null;
+          const b = e.getBoundingClientRect();
+          return b.height < 1 ? 0 : Math.round(b.height);
+        };
+        const main = document.querySelector('main');
+        return {
+          tabBar: h('.tnav-tabs'),
+          ticker: h('.ticker-wrap'),
+          mainTop: main ? Math.round(main.getBoundingClientRect().top) : null,
+        };
       });
 
-      expect(got.nav,
-        `${route} has a ${got.nav}px nav; the ${isStatic ? 'static' : 'app'} shell is ` +
-        `${shell.nav}px (${shell.note}). ` +
-        (isStatic
-          ? 'The seven static routes should carry the MARKETING bar, not the app bar they ' +
-            'inherit from AppShell. A screen whose own content matches the frame is still ' +
-            'wrong inside the wrong chrome.'
-          : 'App screens carry the 44px bar.'))
-        .toBe(shell.nav);
+      /* `main`'s top edge is the chrome's height, whatever element supplies it.
+       * Asserting on a class name would break the moment the shell is
+       * refactored — and the static and app shells are DIFFERENT components, so
+       * there is no single selector to point at. The geometry is the contract. */
+      if (!mobile) {
+        const expected = isStatic ? SHELL.static.desktop.nav : SHELL.app.desktop.nav;
+        expect(got.mainTop,
+          `${route}: content starts at ${got.mainTop}px; the ${isStatic ? 'static' : 'app'} ` +
+          `shell's desktop chrome is ${expected}px. ${isStatic ? SHELL.static.note : SHELL.app.note}`)
+          .toBe(expected);
+      } else if (isStatic) {
+        expect(got.mainTop,
+          `${route}: content starts at ${got.mainTop}px at mobile; the static shell steps ` +
+          `down to ${SHELL.static.mobile.nav}px (measured on the prototype's 390px frames ` +
+          `and confirmed rendered). Every shell in this design shrinks at mobile - the app ` +
+          `shell goes 44 -> 38.`)
+          .toBe(SHELL.static.mobile.nav);
+      } else if (!isStatic) {
+        expect(got.mainTop,
+          `${route}: content starts at ${got.mainTop}px; the app shell's mobile header is ` +
+          `${SHELL.app.mobile.header}px (README:82).`)
+          .toBe(SHELL.app.mobile.header);
+        expect(got.tabBar,
+          `${route}: bottom tab bar is ${got.tabBar}px; README:82 says ${SHELL.app.mobile.tabBar}px.`)
+          .toBe(SHELL.app.mobile.tabBar);
+      }
+
+      /* STATIC ROUTES MUST NOT HAVE A TAB BAR — asserted as an absence.
+       * Zero `height:60px` anywhere in the Static prototype. An absence is only
+       * a real assertion when the thing exists elsewhere to be found, and it
+       * does: the app shell renders one. */
+      if (isStatic) {
+        expect(got.tabBar,
+          `${route} is a static route and must not render the app's bottom tab bar. ` +
+          `The Static prototype contains no 60px bar at all.`)
+          .toBeFalsy();
+      }
+
+      /* TICKER, both directions. README:81 names the five screens that carry it,
+       * so a route outside that list rendering one is a defect rather than an
+       * unlisted extra. */
+      const wantsTicker = TICKER_ROUTES.includes(route);
+      if (wantsTicker) {
+        expect(got.ticker,
+          `${route} should carry the 34px ticker strip (README:81).`)
+          .toBe(SHELL.app.ticker);
+      } else {
+        expect(got.ticker,
+          `${route} renders a ticker strip and README:81 does not list it. ` +
+          `The five that carry one are ${TICKER_ROUTES.join(', ')}.`)
+          .toBeFalsy();
+      }
     });
 
     test(`${route} has no border radius`, async ({ page }) => {
