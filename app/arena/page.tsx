@@ -2341,11 +2341,16 @@ function ArenaContent() {
              rather than more grid rows. Rendered by ConfluenceScore itself in
              a rail variant - a terminal copy of its factor assembly would be
              two scores that can disagree on screen. */
-          {
+          /* SAME ENTITLEMENT GUARD as the card at :2130 - `authLoading ||
+             entitled`. Moving a panel into the new design must not move it out
+             from behind its paywall, and the rail had it unguarded for one
+             commit. Free users get no Confluence section at all rather than a
+             locked card wedged into a 304px rail. */
+          ...(authLoading || entitled ? [{
             key: 'confluence',
             head: 'Confluence',
             body: <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} variant="rail" />,
-          },
+          }] : []),
           {
             key: 'squeeze',
             head: 'Squeeze score',
