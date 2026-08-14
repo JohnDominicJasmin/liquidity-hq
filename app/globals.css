@@ -5934,3 +5934,16 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   [data-design="terminal"] .lt-footer-cols { grid-template-columns: repeat(2, 1fr); gap: 22px; }
   [data-design="terminal"] .lt-risk { grid-template-columns: 1fr; gap: 16px; }
 }
+
+/* Landing owns its chrome: no reserved nav offset, no content max-width.
+   .app-content reserves 84px of top padding for the app nav and caps width at
+   1340px. Landing renders its own 56px nav and full-bleed sections, so both
+   would be wrong - the padding pushed the hero from y=90 to y=174, and the cap
+   would have boxed a page the frame draws edge to edge. */
+main.app-content[data-chrome="none"] {
+  padding-top: var(--banner-h, 0px);
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+  max-width: none;
+}
