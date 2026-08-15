@@ -103,39 +103,31 @@ export const UNCONVERTED_CHROME: string[] = [
    * from one run's findings is a list of what rendered that day. */
   '.pf-footer',              // PlatformFooter, entire component
 
-  /* ── THE BRAND MARK, AND IT IS NOT "UNCONVERTED" ────────────────────────────
+  /* ── THE BRAND MARK ──────────────────────────────────────────────────────
    *
-   * `.sshell-brand` sits in the CONVERTED static shell, so it does not belong
-   * in this list on the usual grounds. It is here because **brand colours are
-   * not theme colours**, and I filed a defect (#449) before working that out.
+   * ONE SELECTOR, on the component, since dev added `data-brand-mark` in #451.
+   * It replaced three call-site selectors — `.sshell-brand`, `.lt-brand`,
+   * `.lt-footer-brand` — which were three chances to forget the fourth. There
+   * are ten `<BrandMark>` call sites across seven files; whoever adds the
+   * eleventh gets the exemption for free.
    *
-   * The design ships the blue logo ITSELF. Dev decoded the handoff's own asset:
+   * WHY IT IS EXEMPT AT ALL. The mark is blue — #2E7BFF, #6FD3FF, #1C3E76 —
+   * and that is the DESIGN, not drift. The handoff's own `logo.png` decodes to
+   * exactly those values and frame `7a` references it three times at 26/30/22px.
+   * README:199: *"the app icon the user supplied; used at 18-26px in every nav
+   * bar and mobile header"*. So the design's own asset is off the design's own
+   * 15-value palette, and that is a brand decision inside a theme.
    *
-   *   design_files/assets/logo.png   1024x1024 RGBA
-   *     #080c15  #f4f7fb  #6fd3ff  #2e7bff  #1c3e76
+   * I FILED IT AS A DEFECT FIRST (#449). Dev decoded the asset and disproved
+   * it. The part I should have caught unaided: the design embeds the mark as
+   * `<img>` and we inline it as SVG — a raster logo is invisible to a
+   * computed-`fill` check and the same mark inlined is not. That sentence was
+   * already in this file about `.pf-footer-brand`, written by me.
    *
-   * Five of the six values I reported are in the designer's file at those exact
-   * values, and frame `7a` references it three times at 26/30/22px. README:199:
-   * *"logo.png - the app icon the user supplied; used at 18-26px in every nav
-   * bar and mobile header"*.
-   *
-   * So the design's own asset is off the design's own 15-value palette, and both
-   * are true at once: the palette has zero blue, and the supplied mark is blue.
-   * That is a brand decision sitting inside a theme, not a conversion miss.
-   *
-   * WHY MY CHECK SAW IT AT ALL, when the frames do not: the design embeds the
-   * mark as a `<img src="logo.png">` and we inline it as SVG. A raster logo is
-   * invisible to a computed-`fill` check; the same mark inlined is not. **I
-   * wrote that exact sentence in this file weeks ago about `.pf-footer-brand`,
-   * and still filed the defect.**
-   *
-   * One value is genuinely ours: `#000000`, which dev traces to `BrandMark`'s
-   * own markup rather than the asset. Exempted with the rest because the whole
-   * mark is one decision - but it is worth asking the designer whether the mark
-   * should carry a pure-black ground when the asset's own is `#080c15`. */
-  '.sshell-brand',           // brand mark in the converted static shell
-  '.lt-brand',               // same mark, terminal landing nav (#448)
-  '.lt-footer-brand',        // same mark, terminal landing footer (#448)
+   * IF THE MARK IS EVER RESTATED IN PALETTE COLOURS, delete the attribute and
+   * this entry together. An exemption that outlives its reason is
+   * indistinguishable from coverage. */
+  '[data-brand-mark]',
 ];
 
 /* THREE SELECTORS FOR ONE DECISION, and that is a smell worth naming.
