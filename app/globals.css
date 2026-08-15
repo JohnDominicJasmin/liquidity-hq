@@ -6117,3 +6117,41 @@ main.app-content[data-chrome="none"] {
   [data-design="terminal"] .at-ev { padding: 10px 14px; }
   [data-design="terminal"] .at-root { padding-bottom: 60px; }
 }
+
+/* Rail panels — clusters, Why, session history. Rows use --bdr3 (list
+   hairline), never --bdr, which is structural. */
+[data-design="terminal"] .at-cl {
+  display: grid; grid-template-columns: 48px minmax(0, 1fr) 46px;
+  align-items: center; gap: 8px; padding: 7px 16px;
+  border-bottom: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-cl-px,
+[data-design="terminal"] .at-cl-usd {
+  font-family: var(--font-mono); font-size: 11px; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-cl-usd { text-align: right; }
+[data-design="terminal"] .at-cl-bar { display: block; height: 8px; background: var(--mark-idle); }
+[data-design="terminal"] .at-cl-fill { display: block; height: 8px; }
+[data-design="terminal"] .at-why {
+  font-family: var(--font-sans); font-size: 12.5px; line-height: 1.6;
+  color: var(--txt2); margin: 0; padding: 12px 16px; text-wrap: pretty;
+}
+[data-design="terminal"] .at-hrow {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) 28px;
+  align-items: center; gap: 8px; padding: 8px 16px;
+  border-bottom: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-h-time,
+[data-design="terminal"] .at-h-conf {
+  font-family: var(--font-mono); font-size: 11px; color: var(--txt2);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-h-conf { text-align: right; }
+[data-design="terminal"] .at-h-verdict {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--txt);
+}
+[data-design="terminal"] .at-empty {
+  font-family: var(--font-sans); font-size: 12px; color: var(--txt4); padding: 10px 16px;
+}
+[data-design="terminal"] .at-rail-spacer { flex: 1; }

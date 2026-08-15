@@ -3,7 +3,7 @@ import { useMemo, type ReactNode } from 'react';
 import { useMarket, type CoinId } from '@/lib/marketStore';
 import { useMobileLayout, LANDING_MOBILE_QUERY } from '@/lib/useViewport';
 import { buildEvidence, firingCount, type EvidenceRow } from '@/lib/arenaEvidence';
-import { evidencePaint, verdictPaint, LEVEL_COLOUR, type VerdictDir } from '@/lib/arenaColour';
+import { evidencePaint, verdictPaint, clusterPaint, LEVEL_COLOUR, type VerdictDir } from '@/lib/arenaColour';
 import { TF_ROW, tfState, tfClickIntent, gatedHint } from '@/lib/arenaTimeframes';
 
 /* Arena in the Monochrome Terminal direction.
@@ -55,6 +55,13 @@ interface Props {
   absorption?:  ReactNode;
   heatmap?:     ReactNode;
   usageMeter?:  ReactNode;
+  /** Rail, in spec order: UsageMeter -> clusters -> Why -> evidence -> history.
+   *  All three are ABSENT on mobile, not hidden - the cluster ladder is what
+   *  makes the heatmap's colour-only magnitude readable, so §Accessibility
+   *  drops the heatmap at mobile rather than leave it unsupported. */
+  clusters?:    { price: number; usd: number }[];
+  why?:         string | null;
+  history?:     { time: string; verdict: string; conf: number | null }[];
   hintBand?:    ReactNode;
   snapshot?:    ReactNode;
   tfBadge?:     ReactNode;
@@ -138,7 +145,7 @@ function TimeframeRow({
 export default function ArenaTerminal({
   coin, tf, onTfChange, onUpgrade, entitled, authLoading, verdict, levels,
   chart, confluence, multiTf, structure, emaSignal, absorption, heatmap,
-  usageMeter, hintBand, snapshot, tfBadge,
+  usageMeter, hintBand, snapshot, tfBadge, clusters, why, history,
 }: Props) {
   const mobile = useMobileLayout(LANDING_MOBILE_QUERY);
   const { store } = useMarket();
@@ -150,6 +157,7 @@ export default function ArenaTerminal({
     cbPremium: null,      // no source wired - em dash, always. Never a zero.
   }), [c]);
 
+  const spot = c?.price ?? null;
   const { firing, neutral } = firingCount(rows);
   const vColour = verdictPaint(verdict?.dir ?? null);
 
@@ -232,7 +240,53 @@ export default function ArenaTerminal({
 
         <aside className="at-rail">
           {usageMeter}
+
+          {/* Cluster bars take SIDE, not size - below spot is long
+              liquidations, above is short. Scaling colour by size would make a
+              big cluster read as a strong signal. */}
+          <section className="at-panel">
+            <PanelHead title="Liquidation clusters" count={clusters?.length ? `${clusters.length}` : undefined} rail />
+            {clusters?.length
+              ? clusters.map(cl => {
+                  const max = Math.max(...clusters.map(x => x.usd), 1);
+                  return (
+                    <div key={cl.price} className="at-cl">
+                      <span className="at-cl-px">{(cl.price / 1000).toFixed(1)}k</span>
+                      <span className="at-cl-bar">
+                        <span
+                          className="at-cl-fill"
+                          style={{ width: `${(cl.usd / max) * 100}%`, background: clusterPaint(cl.price, spot ?? 0) }}
+                        />
+                      </span>
+                      <span className="at-cl-usd">${Math.round(cl.usd / 1e6)}M</span>
+                    </div>
+                  );
+                })
+              : <div className="at-empty">No clusters in range</div>}
+          </section>
+
+          <section className="at-panel">
+            <PanelHead title="Why" rail />
+            <p className="at-why">{why ?? 'No read has been generated for this instrument yet.'}</p>
+          </section>
+
           {evidencePanel}
+
+          <section className="at-panel">
+            <PanelHead title="Session history" count={history?.length ? `${history.length}` : undefined} rail />
+            {history?.length
+              ? history.map((h, i) => (
+                  <div key={`${h.time}-${i}`} className="at-hrow">
+                    <span className="at-h-time">{h.time}</span>
+                    <span className="at-h-verdict">{h.verdict}</span>
+                    <span className="at-h-conf">{h.conf ?? DASH}</span>
+                  </div>
+                ))
+              : <div className="at-empty">Nothing this session</div>}
+          </section>
+
+          {/* Flex spacer, per the spec's rail order. */}
+          <div className="at-rail-spacer" />
         </aside>
       </div>
 

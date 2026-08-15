@@ -1305,6 +1305,15 @@ function ArenaContent() {
             ? <LiqHeatmap levels={store.btcLiqLevels} currentPrice={store.coins['btc']?.price ?? 0} />
             : null}
           usageMeter={<UsageMeter />}
+          /* Clusters from the data the page already loads for the heatmap.
+             BTC only, since that is where btcLiqLevels exists - other coins
+             render "No clusters in range" rather than a fabricated ladder. */
+          clusters={selectedCoin === 'btc'
+            ? [...store.btcLiqLevels].sort((a, b) => b.amount - a.amount).slice(0, 8)
+                .map(l => ({ price: l.price, usd: l.amount }))
+            : []}
+          why={result?.reasoning ?? null}
+          history={history.map(h => ({ time: h.time, verdict: h.signal, conf: h.confidence }))}
         />
         <UpgradeGateModal
           open={upgradeGate !== null}
