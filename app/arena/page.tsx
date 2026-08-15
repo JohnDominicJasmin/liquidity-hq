@@ -1291,6 +1291,13 @@ function ArenaContent() {
           }}
           chart={arenaChart}
           hintBand={<PageHint pageKey="arena" title={t('ARENA_HINT_TITLE')} body={t('ARENA_HINT_BODY')} />}
+          /* Snapshot band, region 4: the coin mark, five stat cells, and the
+             higher-timeframe badge. The five cells are ABSENT at mobile, not
+             hidden - the component owns that, so it is passed either way and
+             the layout decides. */
+          coinIcon={<CoinIcon coin={selectedCoin} size={32} />}
+          snapshot={<CoinMarketSnapshot coin={selectedCoin} />}
+          tfBadge={<HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />}
           confluence={authLoading || entitled
             ? <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
             : <LockedFeatureCard

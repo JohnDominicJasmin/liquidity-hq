@@ -64,6 +64,7 @@ interface Props {
   history?:     { time: string; verdict: string; conf: number | null }[];
   hintBand?:    ReactNode;
   snapshot?:    ReactNode;
+  coinIcon?:    ReactNode;
   tfBadge?:     ReactNode;
 }
 
@@ -145,7 +146,7 @@ function TimeframeRow({
 export default function ArenaTerminal({
   coin, tf, onTfChange, onUpgrade, entitled, authLoading, verdict, levels,
   chart, confluence, multiTf, structure, emaSignal, absorption, heatmap,
-  usageMeter, hintBand, snapshot, tfBadge, clusters, why, history,
+  usageMeter, hintBand, snapshot, tfBadge, coinIcon, clusters, why, history,
 }: Props) {
   const mobile = useMobileLayout(LANDING_MOBILE_QUERY);
   const { store } = useMarket();
@@ -221,7 +222,14 @@ export default function ArenaTerminal({
   return (
     <div className="at-root" data-layout="desktop">
       {hintBand}
-      <div className="at-snapband">{snapshot}{tfBadge}</div>
+      {/* Region 4, 88 tall: 330 coin cell (32x32 mark) | five stat cells |
+          230 badge cell. The stat cells are absent at mobile, where the badge
+          becomes its own block instead. */}
+      <div className="at-snapband">
+        <div className="at-coincell">{coinIcon}<span className="at-coinsym">{coin.toUpperCase()}</span></div>
+        <div className="at-snapcells">{snapshot}</div>
+        <div className="at-badgecell">{tfBadge}</div>
+      </div>
       {verdictBlock}
       <TimeframeRow tf={tf} onTfChange={onTfChange} onUpgrade={onUpgrade} entitled={entitled} mobile={false} />
 
