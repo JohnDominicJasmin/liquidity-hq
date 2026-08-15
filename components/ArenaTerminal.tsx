@@ -85,6 +85,25 @@ function PanelHead({ title, count, pro, rail }: { title: string; count?: string;
   );
 }
 
+/* Spec §Panel header: "every panel in the body uses it". The passed-in panels
+   are production components that draw their own headers, so the pattern is
+   applied HERE by wrapping them, and each component's own header is suppressed
+   in CSS under [data-design="terminal"].
+   Wrapping rather than restyling six internal structures: only three of the six
+   even have a targetable header class, and reimplementing the other three would
+   mean forking components that work. */
+function BodyPanel({ title, pro, count, children }: {
+  title: string; pro?: boolean; count?: string; children?: ReactNode;
+}) {
+  if (!children) return null;
+  return (
+    <section className="at-panel at-bodypanel">
+      <PanelHead title={title} pro={pro} count={count} />
+      <div className="at-panelbody">{children}</div>
+    </section>
+  );
+}
+
 function EvidenceList({ rows, mobile }: { rows: EvidenceRow[]; mobile: boolean }) {
   return (
     <>
@@ -208,11 +227,11 @@ export default function ArenaTerminal({
         {verdictBlock}
         <TimeframeRow tf={tf} onTfChange={onTfChange} onUpgrade={onUpgrade} entitled={entitled} mobile />
         <div className="at-mchart">{chart}</div>
-        {confluence}
-        {multiTf}
-        {structure}
-        {emaSignal}
-        {absorption}
+        <BodyPanel title="Confluence" pro>{confluence}</BodyPanel>
+        <BodyPanel title="Multi-timeframe">{multiTf}</BodyPanel>
+        <BodyPanel title="Market structure">{structure}</BodyPanel>
+        <BodyPanel title="EMA conditions">{emaSignal}</BodyPanel>
+        <BodyPanel title="Absorption" pro>{absorption}</BodyPanel>
         {evidencePanel}
       </div>
     );
@@ -236,14 +255,22 @@ export default function ArenaTerminal({
       <div className="at-body">
         <div className="at-main">
           <div className="at-chart">{chart}</div>
-          {confluence}
-          <div className="at-pair">{multiTf}{structure}</div>
+          <BodyPanel title="Confluence" pro>{confluence}</BodyPanel>
+          <div className="at-pair">
+            <BodyPanel title="Multi-timeframe">{multiTf}</BodyPanel>
+            <BodyPanel title="Market structure">{structure}</BodyPanel>
+          </div>
           {/* AbsorptionDetector is ABSENT for free users, so EMASignal takes
               the full width. Deliberately asymmetric with Confluence, which
               shows a locked card instead - spec §Pro surfaces. That asymmetry
               is production's behaviour and must survive. */}
-          <div className="at-pair">{emaSignal}{absorption}</div>
-          {heatmap}
+          <div className="at-pair">
+            <BodyPanel title="EMA conditions">{emaSignal}</BodyPanel>
+            {/* Absent for free users, so EMA takes the row - the null child
+                makes BodyPanel render nothing rather than an empty header. */}
+            <BodyPanel title="Absorption" pro>{absorption}</BodyPanel>
+          </div>
+          <BodyPanel title="Liquidation heatmap">{heatmap}</BodyPanel>
         </div>
 
         <aside className="at-rail">

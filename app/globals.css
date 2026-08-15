@@ -6208,3 +6208,21 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .at-snapcells .edge-card-signal {
   font-family: var(--font-mono); font-size: 10px; color: var(--txt4);
 }
+
+/* Body panels wear the spec's header (§Panel header: "every panel in the body
+   uses it"). The passed-in components draw their own, so theirs is suppressed
+   here and ArenaTerminal's BodyPanel supplies the pattern - height 30, 0 16px,
+   10px mono/700 .16em, optional PRO chip.
+   Suppressed rather than deleted: these components render on other screens
+   where their headers are correct. */
+[data-design="terminal"] .at-bodypanel .sms-header,
+[data-design="terminal"] .at-bodypanel .ms-header,
+[data-design="terminal"] .at-bodypanel .abs-header { display: none; }
+[data-design="terminal"] .at-panelbody { padding: 0; }
+/* The cards these components ship lose their frames inside a panel that
+   already has one - otherwise every row reads as its own region. */
+[data-design="terminal"] .at-panelbody .card,
+[data-design="terminal"] .at-panelbody .edge-card {
+  background: transparent; border: 0; padding: 10px 16px;
+}
+[data-design="terminal"] .at-panelbody .edge-grid { gap: 0; margin: 0; }
