@@ -5951,3 +5951,169 @@ main.app-content[data-chrome="none"] {
   padding-bottom: 0;
   max-width: none;
 }
+
+/* ══ Arena, Monochrome Terminal — Arena 1a.dc.html · 1a (#413) ═════════════
+   Spec: design-handoff-dir/design_handoff_arena/specs/arena.md
+
+   RAIL IS 352, not 304. The 304 in the superseded frame is a
+   direct-manipulation artifact - three sibling frames say 352, and it carried
+   a hardcoded height on a flex column, which nobody authors. Recorded here
+   because a previous build shipped 304 from a correct measurement of a wrong
+   frame.
+
+   HAIRLINES: --bdr is STRUCTURAL only (regions, panel borders). Rows inside
+   panels and rail lists use --bdr3 (#16191b). Getting these the wrong way
+   round makes every list look like a set of regions.
+
+   RADIUS 0 EVERYWHERE, no exceptions. */
+
+[data-design="terminal"] .at-root,
+[data-design="terminal"] .at-root * { border-radius: 0 !important; }
+
+[data-design="terminal"] .at-root {
+  background: var(--bg0);
+  color: var(--txt);
+  font-family: var(--font-sans);
+}
+
+/* ── shared type ── */
+[data-design="terminal"] .at-micro {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--txt3);
+}
+
+/* ── panel headers: body 30, rail 28 ── */
+[data-design="terminal"] .at-phead,
+[data-design="terminal"] .at-rhead {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 16px; border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .at-phead { height: 30px; }
+[data-design="terminal"] .at-rhead { height: 28px; }
+[data-design="terminal"] .at-ptitle {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--txt2);
+}
+[data-design="terminal"] .at-pro {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: .12em;
+  background: var(--accent); color: var(--bg0); padding: 2px 5px;
+}
+[data-design="terminal"] .at-pspacer { flex: 1; }
+[data-design="terminal"] .at-pcount {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--txt3);
+}
+[data-design="terminal"] .at-panel { border-bottom: 1px solid var(--bdr); }
+
+/* ── region 3-4: hint band 36, snapshot band 88 ── */
+[data-design="terminal"] .at-snapband {
+  display: flex; align-items: stretch; min-height: 88px;
+  border-bottom: 1px solid var(--bdr);
+}
+
+/* ── region 5: verdict ── */
+[data-design="terminal"] .at-verdict {
+  display: flex; align-items: stretch;
+  border-bottom: 1px solid var(--bdr); background: var(--bg1);
+}
+[data-design="terminal"] .at-vmain {
+  flex: 0 0 330px; padding: 16px; display: flex; flex-direction: column; gap: 6px;
+  border-right: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-vlabel {
+  font-family: var(--font-mono); font-size: 34px; font-weight: 700; line-height: 1;
+}
+[data-design="terminal"] .at-vconf { display: flex; align-items: center; gap: 8px; }
+[data-design="terminal"] .at-vtrack {
+  flex: 1; max-width: 200px; height: 3px; background: var(--mark-idle); display: block;
+}
+[data-design="terminal"] .at-vfill { display: block; height: 3px; }
+[data-design="terminal"] .at-vnum {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--txt);
+}
+[data-design="terminal"] .at-vlevels { display: flex; flex: 1; }
+[data-design="terminal"] .at-vlevel {
+  flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 5px;
+  border-right: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-vlevelval {
+  font-family: var(--font-mono); font-size: 20px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── region 6: timeframe row, 42 ── */
+[data-design="terminal"] .at-tfrow {
+  display: flex; align-items: center; gap: 2px; height: 42px; padding: 0 16px;
+  border-bottom: 1px solid var(--bdr); overflow: hidden;
+}
+[data-design="terminal"] .at-tf {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  cursor: pointer; background: transparent;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em;
+}
+[data-design="terminal"] .at-tf-active {
+  background: var(--accent); color: var(--bg0); font-weight: 700; border: 1px solid var(--accent);
+}
+[data-design="terminal"] .at-tf-available { color: var(--txt2); border: 1px solid var(--bdr); }
+/* Gated is legible without colour - the padlock carries it. The border drops
+   to --bdr3 as a secondary cue, never the only one. */
+[data-design="terminal"] .at-tf-gated { color: var(--txt3); border: 1px solid var(--bdr3); }
+[data-design="terminal"] .at-tfhint {
+  margin-left: 10px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--txt3);
+}
+
+/* ── region 7: body, main + 352 rail ── */
+[data-design="terminal"] .at-body { display: flex; align-items: stretch; }
+[data-design="terminal"] .at-main {
+  flex: 1; min-width: 0; border-right: 1px solid var(--bdr);
+}
+[data-design="terminal"] .at-rail { flex: 0 0 352px; display: flex; flex-direction: column; }
+[data-design="terminal"] .at-chart { height: 430px; padding: 16px 62px 24px 16px; }
+/* The two paired rows: each half flex:1, divided by one structural hairline. */
+[data-design="terminal"] .at-pair { display: flex; align-items: stretch; border-bottom: 1px solid var(--bdr); }
+[data-design="terminal"] .at-pair > * { flex: 1; min-width: 0; }
+[data-design="terminal"] .at-pair > * + * { border-left: 1px solid var(--bdr); }
+
+/* ── evidence rows ── */
+[data-design="terminal"] .at-ev {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 16px; border-bottom: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-ev-mark { width: 2px; height: 18px; flex-shrink: 0; }
+[data-design="terminal"] .at-ev-label {
+  width: 78px; flex-shrink: 0;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--txt3);
+}
+[data-design="terminal"] .at-ev-val {
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* No fixed width and no ellipsis anywhere on this route - labels are DB-driven
+   and change length at runtime (spec §Honest labels). */
+[data-design="terminal"] .at-ev-note {
+  margin-left: auto; text-align: right; font-size: 11px; color: var(--txt3);
+}
+
+/* ── mobile, below 768. A separate TREE - these rules style it, they do not
+      hide a desktop one. ── */
+@media (max-width: 767px) {
+  [data-design="terminal"] .at-msym {
+    display: flex; align-items: center; height: 44px; padding: 0 14px;
+    border-bottom: 1px solid var(--bdr);
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--txt);
+  }
+  [data-design="terminal"] .at-verdict { flex-direction: column; }
+  [data-design="terminal"] .at-vmain { flex: 1 1 auto; border-right: 0; padding: 14px; }
+  [data-design="terminal"] .at-vlabel { font-size: 26px; }
+  [data-design="terminal"] .at-vlevels {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; border-top: 1px solid var(--bdr3);
+  }
+  [data-design="terminal"] .at-vlevel { padding: 12px 14px; }
+  [data-design="terminal"] .at-vlevelval { font-size: 15px; }
+  [data-design="terminal"] .at-tfrow { height: 40px; padding: 0 14px; }
+  [data-design="terminal"] .at-tf { padding: 6px 10px; }
+  [data-design="terminal"] .at-mchart { height: 210px; }
+  [data-design="terminal"] .at-ev { padding: 10px 14px; }
+  [data-design="terminal"] .at-root { padding-bottom: 60px; }
+}

@@ -83,7 +83,13 @@ function EvidenceList({ rows, mobile }: { rows: EvidenceRow[]; mobile: boolean }
       {rows.map(r => {
         const paint = evidencePaint(r.fire, r.value !== null);
         return (
-          <div key={r.label} className="at-ev">
+          /* data-fire so QA can assert the RENDERED colour matches what
+             arenaColour returns for the same input, rather than reading rows
+             by eye. Their check narrows from "judge the colour" to "compare
+             two values", which fails loudly instead of quietly.
+             `null` is written as the string "null" deliberately - an absent
+             attribute would be indistinguishable from a row that forgot it. */
+          <div key={r.label} className="at-ev" data-fire={String(r.fire)}>
             <span className="at-ev-mark" style={{ background: paint.marker }} />
             <span className="at-ev-label">{r.label}</span>
             <span className="at-ev-val" style={{ color: paint.value }}>{r.value ?? DASH}</span>
