@@ -58,7 +58,20 @@ async function socketPeaks(page: import('@playwright/test').Page, url: string) {
     class Counted extends Native {
       constructor(u: string | URL, protocols?: string | string[]) {
         super(u, protocols);
-        const key = String(u).split('?')[0];
+        /* THE FULL URL IS THE KEY, and dropping the query string is the bug
+         * this check shipped with for one revision.
+         *
+         * `wss://fstream.binance.com/stream?streams=…@forceOrder` and
+         * `…?streams=…@aggTrade` are DIFFERENT subscriptions on the same host
+         * and path. The query string is what names a Binance stream, so
+         * `split('?')[0]` collapsed every distinct subscription on a host into
+         * one key — and reported `/liq` as holding a duplicate when it was
+         * simply the first screen to want two streams.
+         *
+         * I had already refused to file on construction count, because a
+         * reconnect also constructs. That was the right instinct on the wrong
+         * axis: concurrency was never the flaw, IDENTITY was. */
+        const key = String(u);
         w.__ev.push(['open', key]);
         this.addEventListener('close', () => w.__ev.push(['close', key]));
       }
@@ -107,10 +120,16 @@ test.describe('one socket per screen', () => {
 
       /* Grouped by stream, not totalled.
        *
-       * Two DIFFERENT streams on one screen is normal — Arena legitimately
-       * wants prices and liquidations. The defect is the SAME stream opened
-       * twice, which is what a duplicated tree produces. A total-count
-       * assertion would fail on the legitimate case and miss nothing extra. */
+       * Two DIFFERENT streams on one screen is normal — `/liq` legitimately
+       * wants forceOrder AND aggTrade on the same host. The defect is the SAME
+       * stream held twice, which is what a duplicated tree produces.
+       *
+       * UNPROVEN, and labelled so deliberately. This check has never failed
+       * against a real defect. It failed once against `/liq` and that was my
+       * own key bug, not a leak — see the note on the key above. Until it goes
+       * red on something real it is wiring, exactly like the entitlement gate,
+       * and a green run here means "no stream is held twice", not "the screen
+       * is correct". */
       const doubled = Object.entries(peaks).filter(([, n]) => n > 1);
       expect(doubled,
         `${route} holds the same stream open more than once: ` +
