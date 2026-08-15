@@ -6169,3 +6169,42 @@ main.app-content[data-chrome="none"] {
   flex: 0 0 230px; display: flex; align-items: center; padding: 0 18px;
   border-left: 1px solid var(--bdr3);
 }
+
+/* CoinMarketSnapshot, re-expressed for the terminal band (#413).
+ *
+ * The component ships .edge-grid / .edge-card: an auto-fit grid of rounded
+ * cards with their own borders and gaps. Dropped into the 88px band it WRAPPED
+ * to 253px - QA measured it. Placing a production component in a new layout is
+ * not the same as moving it into the new design, and this is what the
+ * difference looks like.
+ *
+ * Restyled in place rather than reimplemented: the component keeps its data,
+ * its labels and its legacy appearance everywhere else, and only the terminal
+ * band gets the spec's geometry - five equal cells, one row, hairline-separated.
+ *
+ * The ellipsis override is not cosmetic. Labels here are DB-driven and change
+ * length at runtime, and spec §Honest labels forbids truncation on this route -
+ * a clipped label reads as a different signal. */
+[data-design="terminal"] .at-snapband { height: 88px; }
+[data-design="terminal"] .at-snapcells .edge-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 0; margin: 0; width: 100%; height: 100%;
+}
+[data-design="terminal"] .at-snapcells .edge-card {
+  background: transparent; border: 0; border-right: 1px solid var(--bdr3);
+  padding: 0 18px; display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  min-height: 0;
+}
+[data-design="terminal"] .at-snapcells .edge-card:last-child { border-right: 0; }
+[data-design="terminal"] .at-snapcells .edge-card-label {
+  font-size: 9.5px; letter-spacing: .16em; color: var(--txt3); margin: 0;
+  /* No truncation on this route - labels are DB-driven. */
+  overflow: visible; text-overflow: clip; white-space: normal;
+}
+[data-design="terminal"] .at-snapcells .edge-card-value {
+  font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-snapcells .edge-card-signal {
+  font-family: var(--font-mono); font-size: 10px; color: var(--txt4);
+}
