@@ -1,0 +1,238 @@
+'use client';
+import { useMemo, type ReactNode } from 'react';
+import { useMarket, type CoinId } from '@/lib/marketStore';
+import { useMobileLayout, LANDING_MOBILE_QUERY } from '@/lib/useViewport';
+import { buildEvidence, firingCount, type EvidenceRow } from '@/lib/arenaEvidence';
+import { evidencePaint, verdictPaint, LEVEL_COLOUR, type VerdictDir } from '@/lib/arenaColour';
+import { TF_ROW, tfState, tfClickIntent, gatedHint } from '@/lib/arenaTimeframes';
+
+/* Arena in the Monochrome Terminal direction.
+ *
+ * SPEC:  design-handoff-dir/design_handoff_arena/specs/arena.md
+ * FRAME: Arena 1a.dc.html · 1a   (desktop 1440, mobile 390x844)
+ *
+ * NOTHING HERE COMES FROM feature/terminal-arena. That branch was closed
+ * unmerged: it built the rail at 304px, which is a direct-manipulation artifact
+ * in a superseded frame - three sibling frames say 352 - and it predates the
+ * extend rule, the no-duplication rule and the entitlement finding. This is a
+ * fresh build against the spec.
+ *
+ * COLOUR AND GATING ARE NOT DECIDED HERE. lib/arenaColour.ts and
+ * lib/arenaTimeframes.ts own them, with 25 tests between them, because QA's
+ * coverage map found no automated check for either - criteria 12-18 and 20-23
+ * both land in the group where a defect reaches dev unopposed. A component is
+ * the wrong place for a rule that nothing can assert.
+ *
+ * ONE TREE. The spec is explicit that this is the screen where two trees cost
+ * real resources: rendering both and hiding one means two KLineProChart
+ * instances and two candle subscriptions. That already shipped once. Criterion
+ * 24 tests by node count, criterion 25 counts chart instances.
+ *
+ * THE EVIDENCE LIST SHOWS 12, NOT THE FRAME'S 8. QA's ruling: the frame draws
+ * the mock's data, and the owner's extend rule was written for exactly this
+ * grid. Arena showing fewer signals than the marketing page would be backwards.
+ * If 12 rows overflow the rail, THE PANEL GROWS TALLER - owner's call, given in
+ * advance, so no build workaround is needed and none should be invented.
+ */
+
+interface Props {
+  coin:       CoinId;
+  tf:         string;
+  onTfChange: (tf: string) => void;
+  /** Opens UpgradeGateModal. A gated chip calls this and changes nothing else. */
+  onUpgrade:  () => void;
+  /** From the call site, never from inside a component - see §Pro surfaces. */
+  entitled:   boolean;
+  authLoading: boolean;
+  verdict:    { label: string; dir: VerdictDir; confidence: number | null } | null;
+  levels:     { entry: number | null; stop: number | null; target: number | null };
+  /** The panels this screen keeps, passed in so their guards stay at the call site. */
+  chart?:       ReactNode;
+  confluence?:  ReactNode;
+  multiTf?:     ReactNode;
+  structure?:   ReactNode;
+  emaSignal?:   ReactNode;
+  absorption?:  ReactNode;
+  heatmap?:     ReactNode;
+  usageMeter?:  ReactNode;
+  hintBand?:    ReactNode;
+  snapshot?:    ReactNode;
+  tfBadge?:     ReactNode;
+}
+
+const DASH = '—';
+
+const fmt = (n: number | null, dp = 0) =>
+  n === null ? DASH : n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+
+/* Panel header — every body panel uses it. Height 30, rail headers 28. */
+function PanelHead({ title, count, pro, rail }: { title: string; count?: string; pro?: boolean; rail?: boolean }) {
+  return (
+    <div className={rail ? 'at-rhead' : 'at-phead'}>
+      <span className="at-ptitle">{title}</span>
+      {pro && <span className="at-pro">PRO</span>}
+      <span className="at-pspacer" />
+      {count && <span className="at-pcount">{count}</span>}
+    </div>
+  );
+}
+
+function EvidenceList({ rows, mobile }: { rows: EvidenceRow[]; mobile: boolean }) {
+  return (
+    <>
+      {rows.map(r => {
+        const paint = evidencePaint(r.fire, r.value !== null);
+        return (
+          <div key={r.label} className="at-ev">
+            <span className="at-ev-mark" style={{ background: paint.marker }} />
+            <span className="at-ev-label">{r.label}</span>
+            <span className="at-ev-val" style={{ color: paint.value }}>{r.value ?? DASH}</span>
+            {/* Note is ABSENT on mobile, not hidden - spec §Absent vs hidden. */}
+            {!mobile && <span className="at-ev-note">{r.note ?? ''}</span>}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function TimeframeRow({
+  tf, onTfChange, onUpgrade, entitled, mobile,
+}: { tf: string; onTfChange: (t: string) => void; onUpgrade: () => void; entitled: boolean; mobile: boolean }) {
+  const hint = gatedHint(entitled);
+  return (
+    <div className="at-tfrow">
+      {TF_ROW.map(t => {
+        const state = tfState(t, tf, entitled);
+        return (
+          <button
+            key={t}
+            className={`at-tf at-tf-${state}`}
+            aria-pressed={state === 'active'}
+            onClick={() => (tfClickIntent(t, entitled) === 'upgrade' ? onUpgrade() : onTfChange(t))}
+          >
+            {/* The padlock carries the state. --txt2 and --txt3 are too close
+                for colour alone to be a distinction - spec §Timeframe row. */}
+            {state === 'gated' && (
+              <svg width={mobile ? 8 : 9} height={mobile ? 10 : 11} viewBox="0 0 9 11" fill="none"
+                   stroke="var(--txt3)" strokeWidth={1.2} aria-hidden="true">
+                <rect x="1" y="4.5" width="7" height="6" />
+                <path d="M2.75 4.5V3a1.75 1.75 0 0 1 3.5 0v1.5" />
+              </svg>
+            )}
+            {t.toUpperCase()}
+          </button>
+        );
+      })}
+      {hint && <span className="at-tfhint">{hint}</span>}
+    </div>
+  );
+}
+
+export default function ArenaTerminal({
+  coin, tf, onTfChange, onUpgrade, entitled, authLoading, verdict, levels,
+  chart, confluence, multiTf, structure, emaSignal, absorption, heatmap,
+  usageMeter, hintBand, snapshot, tfBadge,
+}: Props) {
+  const mobile = useMobileLayout(LANDING_MOBILE_QUERY);
+  const { store } = useMarket();
+  const c = store.coins[coin];
+
+  const rows = useMemo(() => buildEvidence({
+    coin: c,
+    spotPrice: c?.price ?? null,
+    cbPremium: null,      // no source wired - em dash, always. Never a zero.
+  }), [c]);
+
+  const { firing, neutral } = firingCount(rows);
+  const vColour = verdictPaint(verdict?.dir ?? null);
+
+  const verdictBlock = (
+    <div className="at-verdict">
+      <div className="at-vmain">
+        <span className="at-micro">Read · {coin.toUpperCase()} perp · {tf.toUpperCase()}</span>
+        <span className="at-vlabel" style={{ color: vColour }}>{verdict?.label ?? 'NO READ'}</span>
+        {/* No read -> confidence row ABSENT, panel keeps its height. */}
+        {verdict?.confidence != null && (
+          <span className="at-vconf">
+            <span className="at-vtrack">
+              <span className="at-vfill" style={{ width: `${verdict.confidence}%`, background: vColour }} />
+            </span>
+            <span className="at-vnum">{verdict.confidence}</span>
+            <span className="at-micro">CONF</span>
+          </span>
+        )}
+      </div>
+      {/* Prices, not signals - always --txt, em dash when absent. */}
+      <div className="at-vlevels">
+        {([['Entry', levels.entry], ['Stop', levels.stop], ['Target', levels.target]] as const).map(([l, v]) => (
+          <div key={l} className="at-vlevel">
+            <span className="at-micro">{l}</span>
+            <span className="at-vlevelval" style={{ color: LEVEL_COLOUR }}>{fmt(v)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const evidencePanel = (
+    <section className="at-panel">
+      <PanelHead title="Evidence" count={`${firing} FIRING · ${neutral} NEUTRAL`} rail={!mobile} />
+      <EvidenceList rows={rows} mobile={mobile} />
+    </section>
+  );
+
+  /* ── MOBILE ────────────────────────────────────────────────────────────
+     Separate tree. The rail, the heatmap, the snapshot band's five cells and
+     the ticker do not EXIST here - criterion 24 counts nodes. */
+  if (mobile) {
+    return (
+      <div className="at-root" data-layout="mobile">
+        <div className="at-msym">{coin.toUpperCase()}</div>
+        {tfBadge}
+        {verdictBlock}
+        <TimeframeRow tf={tf} onTfChange={onTfChange} onUpgrade={onUpgrade} entitled={entitled} mobile />
+        <div className="at-mchart">{chart}</div>
+        {confluence}
+        {multiTf}
+        {structure}
+        {emaSignal}
+        {absorption}
+        {evidencePanel}
+      </div>
+    );
+  }
+
+  /* ── DESKTOP ───────────────────────────────────────────────────────────── */
+  return (
+    <div className="at-root" data-layout="desktop">
+      {hintBand}
+      <div className="at-snapband">{snapshot}{tfBadge}</div>
+      {verdictBlock}
+      <TimeframeRow tf={tf} onTfChange={onTfChange} onUpgrade={onUpgrade} entitled={entitled} mobile={false} />
+
+      <div className="at-body">
+        <div className="at-main">
+          <div className="at-chart">{chart}</div>
+          {confluence}
+          <div className="at-pair">{multiTf}{structure}</div>
+          {/* AbsorptionDetector is ABSENT for free users, so EMASignal takes
+              the full width. Deliberately asymmetric with Confluence, which
+              shows a locked card instead - spec §Pro surfaces. That asymmetry
+              is production's behaviour and must survive. */}
+          <div className="at-pair">{emaSignal}{absorption}</div>
+          {heatmap}
+        </div>
+
+        <aside className="at-rail">
+          {usageMeter}
+          {evidencePanel}
+        </aside>
+      </div>
+
+      {/* authLoading is read so the call site's guard shape stays visible here;
+          the panels themselves arrive already-guarded as props. */}
+      <span hidden data-entitled={entitled ? '1' : '0'} data-auth-loading={authLoading ? '1' : '0'} />
+    </div>
+  );
+}
