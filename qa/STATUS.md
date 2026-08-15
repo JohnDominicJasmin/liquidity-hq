@@ -94,6 +94,54 @@ gh issue list --state open
 
 ## Standing risks
 
+- **A design frame may not be authored — parts of it can be mouse drags.**
+  Measured 2026-08-15. "The frame wins over the README" assumed frames are
+  authored; `Monochrome Terminal.dc.html` has been edited in place, so parts of
+  it are not.
+
+  The discriminator is **a space after the colon in an inline style**:
+
+  ```
+  no space after colon :  7050   (authored)
+  space after colon    :    36   (editor)      0.51%
+  ```
+
+  Inside frame `1a` all 36 land on five lines, and they are exactly the values
+  that contradict their own siblings — a rail at `304px` where three sibling
+  frames say `352`, a verdict band `1142px` wide inside a `1440px` shell, a
+  hardcoded `height: 705px` on a flex column.
+
+  > **The frame wins, EXCEPT where a value carries the editor signature.** Then
+  > it is evidence of a drag and needs a decision, not a copy.
+
+  **I got this backwards first**, told dev their `304` rail was correct and the
+  README wrong, and had to retract it. The designer caught it.
+
+  **`design_handoff_liquidityhq_terminal/` is kept BECAUSE it is contaminated.**
+  It is the only positive control for the artifact detector. Do not tidy it away
+  as superseded — a scan of a clean file alone returns `0`, which is
+  indistinguishable from a detector that is not working.
+
+- **Settle times are adequate, measured — not a risk, recorded so nobody
+  re-derives it.** 2026-08-15, 250ms sampling on localhost:
+
+  ```
+  /           settles  500ms      shortest spec settle in the suite: 1500ms
+  /arena      settles  750ms      (a11y-auth)
+  /dashboard  settles 1000ms
+  ```
+
+  Everything has 50%+ headroom, most has 2-4x. **No spec measures a shell.**
+
+  What made it look risky: `/arena` at `domcontentloaded` is **719 characters**,
+  less than its own raw HTML, against 3,138 once settled. That is real, and it is
+  a measurement point nothing asserts at — every sweep waits after the goto.
+
+  **The caveat that stands: this is localhost.** The headroom is a ratio, not a
+  guarantee. If a settle-related flake ever appears, `a11y-auth` at 1500ms has
+  the least room and is where to look first.
+
+
 - **A QA spec branched from an UNMERGED dev branch merges that branch's app code
   with it.** Measured 2026-08-14: `test/contrast-names-the-site` was cut from
   `feature/gold-primary` so the spec could test the recolour. Merging the spec PR
