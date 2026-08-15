@@ -5783,7 +5783,11 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 }
 [data-design="terminal"] .lt-fcard:hover { background: var(--bg1); }
 [data-design="terminal"] .lt-fcard-title {
-  display: block; margin-top: 14px;
+  /* margin:0 because these became <h3> for the heading outline (#448) and the
+     UA stylesheet gives h3 a block margin a <span> never had. Without this the
+     card grows and the 66px description min-height no longer lines the six
+     cards up. */
+  display: block; margin: 14px 0 0;
   font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--txt);
 }
 /* min-height so all six description blocks align - criterion 14 */
@@ -5805,7 +5809,7 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   display: block; font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--accent);
 }
 [data-design="terminal"] .lt-step-title {
-  display: block; margin-top: 12px;
+  display: block; margin: 12px 0 0;
   font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--txt);
 }
 [data-design="terminal"] .lt-step-desc {

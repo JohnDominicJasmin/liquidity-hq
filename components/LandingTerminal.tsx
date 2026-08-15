@@ -252,7 +252,14 @@ function Features({ dict }: { dict: LandingDict }) {
                    stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                 {meta.icon}
               </svg>
-              <span className="lt-fcard-title">{card.title}</span>
+              {/* h3, not span. The text rendered either way, but a screen
+                  reader navigates this page by headings - as a span the six
+                  card titles vanished from the outline and it stopped at the
+                  section h2. Production uses h3 here (LandingContent.tsx:152)
+                  and these sit under an h2, so h3 is the correct level and
+                  nothing else in the outline moves. Caught by QA on #448:
+                  "the text is present, the structure is not". */}
+              <h3 className="lt-fcard-title">{card.title}</h3>
               <span className="lt-fcard-desc">{card.desc}</span>
               <span className="lt-fcard-open">{dict.features.openLabel}</span>
             </Link>
@@ -275,7 +282,7 @@ function HowItWorks({ dict }: { dict: LandingDict }) {
         {dict.howItWorks.steps.map((s, i) => (
           <div key={s.title} className="lt-step">
             <span className="lt-step-n">{String(i + 1).padStart(2, '0')}</span>
-            <span className="lt-step-title">{s.title}</span>
+            <h3 className="lt-step-title">{s.title}</h3>
             <span className="lt-step-desc">{s.desc}</span>
           </div>
         ))}
