@@ -6226,3 +6226,21 @@ main.app-content[data-chrome="none"] {
   background: transparent; border: 0; padding: 10px 16px;
 }
 [data-design="terminal"] .at-panelbody .edge-grid { gap: 0; margin: 0; }
+
+/* KLineProChart's own timeframe buttons are suppressed on the terminal Arena
+   (#461). The spec gives this screen ONE timeframe selector - region 6, the
+   42px row with three states and padlocks - and the chart shipped a second one
+   inside its toolbar, so /arena had two controls for the same state sitting
+   inches apart, with different styling and different gating.
+
+   Only the TF BUTTONS go. The rest of the toolbar - draw tools, S/R, structure,
+   fullscreen - is chart functionality with no equivalent in the terminal row,
+   and removing it would delete features to fix a duplication.
+
+   Suppressed, not deleted: the same chart renders on other screens where its
+   own selector is the only one. */
+[data-design="terminal"] .at-chart .klc-tf-btn,
+[data-design="terminal"] .at-mchart .klc-tf-btn { display: none; }
+/* The scale badge sits with them and reads as orphaned once they are gone. */
+[data-design="terminal"] .at-chart .klc-scale-badge,
+[data-design="terminal"] .at-mchart .klc-scale-badge { display: none; }
