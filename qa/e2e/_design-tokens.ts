@@ -102,7 +102,54 @@ export const UNCONVERTED_CHROME: string[] = [
    * **Exempt COMPONENTS, not the symptoms you have observed.** A list built
    * from one run's findings is a list of what rendered that day. */
   '.pf-footer',              // PlatformFooter, entire component
+
+  /* ── THE BRAND MARK, AND IT IS NOT "UNCONVERTED" ────────────────────────────
+   *
+   * `.sshell-brand` sits in the CONVERTED static shell, so it does not belong
+   * in this list on the usual grounds. It is here because **brand colours are
+   * not theme colours**, and I filed a defect (#449) before working that out.
+   *
+   * The design ships the blue logo ITSELF. Dev decoded the handoff's own asset:
+   *
+   *   design_files/assets/logo.png   1024x1024 RGBA
+   *     #080c15  #f4f7fb  #6fd3ff  #2e7bff  #1c3e76
+   *
+   * Five of the six values I reported are in the designer's file at those exact
+   * values, and frame `7a` references it three times at 26/30/22px. README:199:
+   * *"logo.png - the app icon the user supplied; used at 18-26px in every nav
+   * bar and mobile header"*.
+   *
+   * So the design's own asset is off the design's own 15-value palette, and both
+   * are true at once: the palette has zero blue, and the supplied mark is blue.
+   * That is a brand decision sitting inside a theme, not a conversion miss.
+   *
+   * WHY MY CHECK SAW IT AT ALL, when the frames do not: the design embeds the
+   * mark as a `<img src="logo.png">` and we inline it as SVG. A raster logo is
+   * invisible to a computed-`fill` check; the same mark inlined is not. **I
+   * wrote that exact sentence in this file weeks ago about `.pf-footer-brand`,
+   * and still filed the defect.**
+   *
+   * One value is genuinely ours: `#000000`, which dev traces to `BrandMark`'s
+   * own markup rather than the asset. Exempted with the rest because the whole
+   * mark is one decision - but it is worth asking the designer whether the mark
+   * should carry a pure-black ground when the asset's own is `#080c15`. */
+  '.sshell-brand',           // brand mark in the converted static shell
+  '.lt-brand',               // same mark, terminal landing nav (#448)
+  '.lt-footer-brand',        // same mark, terminal landing footer (#448)
 ];
+
+/* THREE SELECTORS FOR ONE DECISION, and that is a smell worth naming.
+ *
+ * `.sshell-brand`, `.lt-brand` and `.lt-footer-brand` all render the SAME
+ * `BrandMark` component. Each screen wraps it in its own class, so an exemption
+ * has to be re-added per screen — and the fourth one will be missed, silently,
+ * on whichever screen converts next. That is the `.pf-footer-brand` failure
+ * repeating: I exempted the children I had SEEN fail rather than the component.
+ *
+ * The durable fix is a marker on the component itself — `data-brand-mark` on
+ * `BrandMark`, one exemption, every screen covered forever. That is app code,
+ * so it is dev's to add; raised on #449. Until then this list grows by one per
+ * converted screen and each entry is a chance to forget. */
 
 export const CONVERTED_ROUTES: string[] = [
   '/disclaimer',      // #420, merged 2026-08-14
