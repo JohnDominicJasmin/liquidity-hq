@@ -296,7 +296,7 @@ body::after {
 .app-bar {
   position: fixed; top: var(--banner-h); left: 0; right: 0; z-index: 1000;
   background: #090b16;
-  border-bottom: 0.5px solid rgba(90,150,255,0.1);
+  border-bottom: 0.5px solid rgba(var(--accent-rgb), 0.1);
   padding: 0 1rem;
 }
 .app-bar-inner {
@@ -902,7 +902,7 @@ body[data-rpm-level="high"]::before {
   border-radius: var(--radius-chip); text-decoration: none; transition: all 0.15s;
   border: 0.5px solid transparent; white-space: nowrap;
 }
-.desktop-nav-item:hover { color: var(--txt); background: rgba(90,150,255,0.07); }
+.desktop-nav-item:hover { color: var(--txt); background: var(--accent-bg); }
 .desktop-nav-item.on { color: var(--on-accent); background: var(--accent-solid); font-weight: 600; }
 
 @media (min-width: 768px) {
@@ -3757,7 +3757,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   cursor: pointer; font-family: inherit; transition: background 0.1s;
 }
 .lang-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--txt); }
-.lang-nav-item.on { color: var(--accent-2); font-weight: 700; background: rgba(90,150,255,0.08); }
+.lang-nav-item.on { color: var(--accent-2); font-weight: 700; background: var(--accent-bg); }
 
 /* Light theme overrides */
 [data-theme="light"] .auth-signin-btn:hover { background: rgba(0,0,0,0.05); color: var(--txt); }
