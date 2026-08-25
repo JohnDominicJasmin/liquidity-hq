@@ -42,7 +42,7 @@ function load(name: string): { _url: string; _status: number; body: unknown } {
 }
 
 /** A scenario transforms a recorded payload into the market state under test. */
-export type Scenario = 'as-recorded' | 'funding-positive' | 'funding-negative' | 'upstream-500';
+export type Scenario = 'as-recorded' | 'funding-positive' | 'funding-negative' | 'upstream-500' | 'price-sentinel';
 
 type FundingBody = { data: Array<{ coin: string; binance: number; bybit: number; nextFundingMs: number }>; ts: number };
 
