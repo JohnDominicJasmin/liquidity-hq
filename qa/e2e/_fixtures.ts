@@ -22,6 +22,21 @@ import type { Page, Route } from '@playwright/test';
 
 const DIR = join(process.cwd(), 'qa', 'fixtures');
 
+/**
+ * Canonical filename stem for a proxy API URL, matching the names in
+ * qa/fixtures/proxy/. Strips the /api/ prefix, joins path segments with '-',
+ * and appends the `type` query param when present.
+ *
+ * /api/proxy?type=binance-24hr  →  "proxy-binance-24hr"
+ * /api/cmc?type=global          →  "cmc-global"
+ * /api/market-klines            →  "market-klines"
+ */
+export function fixtureKey(u: URL): string {
+  const seg = u.pathname.replace(/^\/api\//, '').replace(/\//g, '-');
+  const type = u.searchParams.get('type');
+  return type ? `${seg}-${type}` : seg;
+}
+
 function load(name: string): { _url: string; _status: number; body: unknown } {
   return JSON.parse(readFileSync(join(DIR, `${name}.json`), 'utf8'));
 }
