@@ -151,6 +151,7 @@ const eslintConfig = defineConfig([
        than fixed, and ignored rather than deleted, because the prototypes need
        it to render at all. */
     'Codebase access granted/**',
+    'design-handoff-dir/**',
     // Playwright's generated HTML report and per-test artefacts. Both are
     // gitignored, so CI's fresh checkout never sees them - but locally, one
     // `npm run test:e2e` leaves a bundled copy of Playwright's own report UI on
