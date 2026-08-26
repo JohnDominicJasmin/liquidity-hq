@@ -151,6 +151,7 @@ export const CONVERTED_ROUTES: string[] = [
    *
    * One late is the safe direction. See the `/arena` note below. */
   '/',                // #448, Landing 7a
+  '/arena',          // #460, Arena 1a
 
   /* `/arena` IS DELIBERATELY ABSENT, and this comment exists so it is not
    * re-added a third time.
