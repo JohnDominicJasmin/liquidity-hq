@@ -321,7 +321,7 @@ export const BASELINE = {
       'near-white',
       '#1a7aff', '#414551', '#434754', '#4c4e5d',
       '#4c515f', '#4e5361', '#585d6d', '#63656a',
-      '#a54e4f', '#c0595a', 
+      '#a54e4f', '#c0595a',
     ] as readonly string[],
 
     /**
