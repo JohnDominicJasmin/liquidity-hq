@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, type ReactNode } from 'react';
-import { useMarket, type CoinId } from '@/lib/marketStore';
+import { useMarket, fmtPrice, type CoinId } from '@/lib/marketStore';
+import { COINS, COIN_DEC } from '@/lib/coins';
 import { useMobileLayout, LANDING_MOBILE_QUERY } from '@/lib/useViewport';
 import { buildEvidence, firingCount, type EvidenceRow } from '@/lib/arenaEvidence';
 import { evidencePaint, verdictPaint, clusterPaint, LEVEL_COLOUR, type VerdictDir } from '@/lib/arenaColour';
@@ -237,9 +238,30 @@ export default function ArenaTerminal({
     );
   }
 
+  const TICKER_COINS = COINS.slice(0, 8);
+
   /* ── DESKTOP ───────────────────────────────────────────────────────────── */
   return (
     <div className="at-root" data-layout="desktop">
+      {/* Region 2, 34px: price strip for 8 major coins. Desktop only — absent
+          at mobile per spec criterion 24. QA asserts .ticker-wrap height 34. */}
+      <div className="ticker-wrap">
+        {TICKER_COINS.map(id => {
+          const cd = store.coins[id];
+          const px = cd?.price ?? null;
+          const chg = cd?.change ?? null;
+          const col = chg == null ? 'var(--txt2)' : chg > 0 ? 'var(--green-2)' : chg < 0 ? 'var(--red)' : 'var(--txt2)';
+          return (
+            <div key={id} className="at-tk-cell">
+              <span className="at-tk-sym">{id.toUpperCase()}</span>
+              <span className="at-tk-px">{px != null ? fmtPrice(px, COIN_DEC[id]) : '—'}</span>
+              <span className="at-tk-chg" style={{ color: col }}>
+                {chg != null ? `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%` : '—'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
       {hintBand}
       {/* Region 4, 88 tall: 330 coin cell (32x32 mark) | five stat cells |
           230 badge cell. The stat cells are absent at mobile, where the badge
