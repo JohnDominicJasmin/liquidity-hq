@@ -150,17 +150,7 @@ const eslintConfig = defineConfig([
        would make it diverge from the tool that generated it. Ignored rather
        than fixed, and ignored rather than deleted, because the prototypes need
        it to render at all. */
-    /* PATH UPDATED, RULE UNCHANGED. The handoff moved from
-       "Codebase access granted/" to "design-handoff-dir/" when the landing
-       `7a` handoff was added beside the original one, and the ignore did not
-       move with it. Two `support.js` copies then linted as four errors, and
-       the pre-push hook blocked a docs-only branch that changed no code.
-
-       Worth noting how it surfaced: the failure was not "lint found a problem
-       in the new file" but "a push was rejected", which reads like a
-       permissions or network fault. An ignore that silently stops covering
-       its target looks exactly like an ignore that is working. */
-    'design-handoff-dir/**',
+    'Codebase access granted/**',
     // Playwright's generated HTML report and per-test artefacts. Both are
     // gitignored, so CI's fresh checkout never sees them - but locally, one
     // `npm run test:e2e` leaves a bundled copy of Playwright's own report UI on
