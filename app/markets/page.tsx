@@ -129,11 +129,9 @@ export default function MarketsPage() {
       case 'coin': {
         const col = coinBadgeColor(id);
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <CoinIcon coin={id} size={16} color={col} bg={withAlpha(col, '20')} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)', letterSpacing: '.02em' }}>
-              {id.toUpperCase()}
-            </span>
+          <div className="mkt3-coin-cell">
+            <span className="mkt3-coin-mark" style={{ background: col }} />
+            <span className="mkt3-coin-sym">{id.toUpperCase()}</span>
           </div>
         );
       }
@@ -208,37 +206,39 @@ export default function MarketsPage() {
   const picklist = pickableColumns();
 
   return (
-    <>
+    <div data-design="terminal">
       <style>{`
         .mkt3-mono { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
         .mkt3-header {
           position: sticky;
           top: calc(74px + var(--banner-h, 0px));
           z-index: 10;
-          background: var(--bg);
-          border-bottom: 0.5px solid var(--bdr);
-          padding: 10px 17px 0;
+          background: var(--bg0);
+          border-bottom: 1px solid var(--bdr);
+          padding: 0 16px;
         }
         .mkt3-titlerow {
-          display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-          padding-bottom: 10px;
+          display: flex; align-items: center; gap: 12px;
+          height: 38px;
         }
         .mkt3-titlegroup { display: flex; align-items: baseline; gap: 10px; }
-        .mkt3-title { font-size: 13px; font-weight: 700; color: var(--txt); letter-spacing: .04em; text-transform: uppercase; }
-        .mkt3-perpcount { font-size: 10px; font-weight: 400; color: var(--txt3); letter-spacing: .02em; font-family: var(--font-mono), monospace; }
-        .mkt3-chips { display: flex; gap: 6px; padding-bottom: 10px; }
+        .mkt3-title { font-size: 13px; font-weight: 700; color: var(--txt); letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-mono), monospace; }
+        .mkt3-perpcount { font-size: 10px; font-weight: 400; color: var(--txt3); letter-spacing: .14em; text-transform: uppercase; font-family: var(--font-mono), monospace; }
+        /* Desktop: chips inline with title row */
+        .mkt3-chips-desktop { display: flex; gap: 2px; }
+        .mkt3-chips { display: none; gap: 2px; padding: 6px 0; }
         .mkt3-chip {
-          padding: 4px 10px; font-size: 10px; font-weight: 400; letter-spacing: .04em;
-          text-transform: uppercase; border: 0.5px solid var(--bdr); border-radius: 4px;
+          padding: 4px 10px; font-size: 10px; font-weight: 400; letter-spacing: .1em;
+          text-transform: uppercase; border: 1px solid var(--bdr); border-radius: 0;
           background: transparent; color: var(--txt3); cursor: pointer;
           font-family: var(--font-mono), monospace; transition: color .12s, border-color .12s, background .12s;
         }
         .mkt3-chip.active, .mkt3-chip:hover { border-color: var(--accent-bdr); color: var(--accent); background: var(--accent-bg); }
         .mkt3-search {
-          flex: 1; min-width: 107px; max-width: 200px; height: 24px;
-          background: var(--bg1); border: 0.5px solid var(--bdr2); border-radius: 4px;
+          min-width: 107px; max-width: 200px; height: 24px;
+          background: var(--bg1); border: 1px solid var(--border-input); border-radius: 0;
           padding: 0 10px; font-size: 10px; color: var(--txt); outline: none;
-          font-family: var(--font-mono), monospace; letter-spacing: .04em;
+          font-family: var(--font-mono), monospace; letter-spacing: .1em;
         }
         .mkt3-search::placeholder { color: var(--txt4); }
         /* Desktop-only / mobile-only visibility helpers */
@@ -248,41 +248,47 @@ export default function MarketsPage() {
         .mkt3-row-line1, .mkt3-row-line2 { display: none; }
         .mkt3-colhdr {
           position: sticky;
-          top: calc(74px + var(--banner-h, 0px) + 72px);
+          top: calc(74px + var(--banner-h, 0px) + 38px);
           z-index: 9;
-          background: var(--bg);
+          background: var(--bg1);
           display: grid;
-          padding: 6px 17px;
-          border-bottom: 0.5px solid var(--bdr);
+          padding: 8px 16px;
+          border-bottom: 1px solid var(--bdr);
         }
         .mkt3-colhdr-cell {
           font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 600;
-          letter-spacing: .1em; text-transform: uppercase; color: var(--txt3);
+          letter-spacing: .16em; text-transform: uppercase; color: var(--txt3);
+        }
+        .mkt3-coin-cell { display: flex; align-items: center; gap: 8px; }
+        .mkt3-coin-mark { width: 2px; height: 14px; flex-shrink: 0; display: block; }
+        .mkt3-coin-sym {
+          font-family: var(--font-mono), monospace; font-size: 12px; font-weight: 600;
+          color: var(--txt); letter-spacing: .06em;
         }
         .mkt3-row {
           display: grid; align-items: center;
-          padding: 0 17px; min-height: ${ROW_HEIGHT}px;
-          border-bottom: 0.5px solid rgba(255,255,255,0.03);
+          padding: 0 16px; min-height: ${ROW_HEIGHT}px;
+          border-bottom: 1px solid var(--bdr2);
           cursor: pointer; transition: background .1s;
         }
-        .mkt3-row:hover { background: rgba(255,255,255,0.025); }
+        .mkt3-row:hover { background: var(--mark-idle); }
         .mkt3-arena-btn {
-          padding: 4px 10px; font-size: 9px; font-weight: 600; letter-spacing: .08em;
-          text-transform: uppercase; border: 0.5px solid var(--bdr); border-radius: 4px;
-          background: transparent; color: var(--txt3); cursor: pointer;
+          font-size: 10px; font-weight: 400; letter-spacing: .1em;
+          text-transform: uppercase; border: none; border-radius: 0;
+          background: transparent; color: var(--txt4); cursor: pointer;
           font-family: var(--font-mono), monospace; white-space: nowrap;
-          transition: border-color .12s, color .12s, background .12s;
+          transition: color .12s; padding: 0;
         }
-        .mkt3-row:hover .mkt3-arena-btn { border-color: var(--accent-bdr); color: var(--accent); background: var(--accent-bg); }
+        .mkt3-row:hover .mkt3-arena-btn { color: var(--accent); }
         .mkt3-footer {
           display: flex; align-items: center; justify-content: space-between; gap: 10px;
-          padding: 12px 17px; font-family: var(--font-mono), monospace; font-size: 9px;
-          color: var(--txt3); letter-spacing: .08em; text-transform: uppercase;
-          border-top: 0.5px solid var(--bdr);
+          padding: 0 16px; height: 34px; font-family: var(--font-mono), monospace; font-size: 10px;
+          color: var(--txt3); letter-spacing: .12em; text-transform: uppercase;
+          border-top: 1px solid var(--bdr);
         }
         .mkt3-loadmore {
           padding: 5px 14px; font-size: 9px; font-weight: 600; letter-spacing: .1em;
-          text-transform: uppercase; border: 0.5px solid var(--bdr); border-radius: 4px;
+          text-transform: uppercase; border: 1px solid var(--bdr); border-radius: 0;
           background: transparent; color: var(--txt3); cursor: pointer;
           font-family: var(--font-mono), monospace;
           transition: border-color .12s, color .12s;
@@ -290,51 +296,52 @@ export default function MarketsPage() {
         .mkt3-loadmore:hover { border-color: var(--accent-bdr); color: var(--accent); }
         .mkt3-picker-wrap { position: relative; flex-shrink: 0; }
         .mkt3-picker-btn {
-          padding: 4px 10px; font-size: 9px; font-weight: 600; letter-spacing: .08em;
-          text-transform: uppercase; border: 0.5px solid var(--bdr); border-radius: 4px;
+          padding: 4px 10px; font-size: 9px; font-weight: 600; letter-spacing: .1em;
+          text-transform: uppercase; border: 1px solid var(--bdr); border-radius: 0;
           background: transparent; color: var(--txt3); cursor: pointer;
           font-family: var(--font-mono), monospace;
           transition: border-color .12s, color .12s;
         }
-        .mkt3-picker-btn:hover, .mkt3-picker-btn.open { border-color: var(--bdr2); color: var(--txt2); }
+        .mkt3-picker-btn:hover, .mkt3-picker-btn.open { border-color: var(--border-input); color: var(--txt2); }
         .mkt3-picker-panel {
           position: absolute; top: calc(100% + 4px); right: 0; z-index: 20;
-          background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 6px;
+          background: var(--bg1); border: 1px solid var(--bdr); border-radius: 0;
           padding: 6px 0; min-width: 160px;
-          box-shadow: 0 4px 16px rgba(0,0,0,.4);
+          box-shadow: 0 4px 16px rgba(0,0,0,.6);
         }
         .mkt3-picker-row {
           display: flex; align-items: center; gap: 8px; padding: 6px 12px;
           font-size: 11px; color: var(--txt2); cursor: pointer;
           transition: background .1s;
         }
-        .mkt3-picker-row:hover { background: rgba(255,255,255,0.04); }
+        .mkt3-picker-row:hover { background: var(--mark-idle); }
         .mkt3-picker-check {
-          width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
-          border: 0.5px solid var(--bdr); background: transparent; display: flex;
+          width: 14px; height: 14px; border-radius: 0; flex-shrink: 0;
+          border: 1px solid var(--bdr); background: transparent; display: flex;
           align-items: center; justify-content: center; font-size: 10px;
         }
         .mkt3-picker-check.on { border-color: var(--accent-bdr); background: var(--accent-bg); color: var(--accent); }
         /* Mobile: two-line rows */
         @media (max-width: 640px) {
-          .mkt3-header { padding: 8px 12px 0; }
-          .mkt3-titlerow { padding-bottom: 8px; }
+          .mkt3-header { padding: 0 14px; }
+          .mkt3-titlerow { height: 38px; gap: 8px; }
           .mkt3-titlegroup { flex-direction: row; justify-content: space-between; width: 100%; }
           .mkt3-titlegroup-right { margin-left: auto; }
-          .mkt3-chips { gap: 5px; flex-wrap: wrap; padding-bottom: 8px; }
-          .mkt3-chip { padding: 3px 8px; font-size: 9px; }
+          .mkt3-chips-desktop { display: none !important; }
+          .mkt3-chips { display: flex; flex-wrap: wrap; }
+          .mkt3-chip { padding: 3px 9px; font-size: 9px; }
           .mkt3-search, .mkt3-colhdr, .mkt3-picker-wrap { display: none; }
           .mkt3-desktop-col { display: none !important; }
           .mkt3-perp-desktop { display: none !important; }
           .mkt3-perp-mobile { display: inline !important; }
-          .mkt3-row { display: flex !important; flex-direction: column; padding: 8px 12px; min-height: unset; gap: 0; }
+          .mkt3-row { display: flex !important; flex-direction: column; padding: 11px 14px; min-height: unset; gap: 0; }
           .mkt3-row-line1, .mkt3-row-line2 {
             display: flex; align-items: center; gap: 6px; width: 100%;
             min-height: 18px;
           }
-          .mkt3-row-line2 { margin-top: 2px; }
+          .mkt3-row-line2 { margin-top: 3px; }
           .mkt3-arena-btn { display: none; }
-          .mkt3-footer { padding: 10px 12px; }
+          .mkt3-footer { padding: 0 14px; }
         }
       `}</style>
 
@@ -350,15 +357,27 @@ export default function MarketsPage() {
               {t('MARKETS_PERP_COUNT_MOBILE', { count: rows.length })}
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 6, flex: 1, justifyContent: 'flex-end', flexWrap: 'wrap' as const }}>
-            <input
-              className="mkt3-search"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder={t('MARKETS_SEARCH_COIN')}
-            />
+          <div style={{ flex: 1 }} />
+          {/* Desktop: filters inline */}
+          <div className="mkt3-chips-desktop">
+            {FILTERS.map(f => (
+              <button
+                key={f}
+                className={`mkt3-chip${filter === f ? ' active' : ''}`}
+                onClick={() => setFilter(f)}
+              >
+                {t(FILTER_LABELS[f])}
+              </button>
+            ))}
           </div>
+          <input
+            className="mkt3-search"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={t('MARKETS_SEARCH_COIN')}
+          />
         </div>
+        {/* Mobile: filter row below title */}
         <div className="mkt3-chips">
           {FILTERS.map(f => (
             <button
@@ -473,7 +492,7 @@ export default function MarketsPage() {
               {/* Action */}
               <div style={{ textAlign: 'right' }} className="mkt3-desktop-col">
                 <button className="mkt3-arena-btn" onClick={e => { e.stopPropagation(); goToArena(id); }}>
-                  {t('MARKETS_OPEN_ARENA')}
+                  {t('MARKETS_OPEN_ARENA')} →
                 </button>
               </div>
 
@@ -516,6 +535,6 @@ export default function MarketsPage() {
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }
