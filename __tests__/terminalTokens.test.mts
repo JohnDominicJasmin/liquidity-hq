@@ -54,13 +54,9 @@ test('the FLAT cell is declared too, and is NOT equal to --mark-idle', () => {
 
 test('the CSS block declares EXACTLY the documented tokens and nothing else', () => {
   const declared = [...terminalBlock().matchAll(/(--[a-z0-9-]+)\s*:/g)].map(m => m[1]);
-  // 15 documented colours + --flat-cell + --font-sans, which the block REMAPS
-  // rather than defines: IBM Plex Sans is declared in app/layout.tsx and
-  // pointed at here so opting a screen in changes its typeface without moving
-  // the rest of the app (#413).
-  const expected = [...Object.keys(TERMINAL_COLORS), '--flat-cell', '--font-sans'].sort();
+  const expected = [...Object.keys(TERMINAL_COLORS), '--flat-cell'].sort();
   assert.deepEqual([...declared].sort(), expected,
-    'the terminal block gained or lost a token - 15 colours + --flat-cell + --font-sans is the whole set');
+    'the terminal block gained or lost a token - 15 documented + 1 undocumented is the whole set');
 });
 
 /* ── 3. the values themselves ────────────────────────────────────────────── */
