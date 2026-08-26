@@ -492,7 +492,7 @@ export default function MarketsPage() {
               {/* Action */}
               <div style={{ textAlign: 'right' }} className="mkt3-desktop-col">
                 <button className="mkt3-arena-btn" onClick={e => { e.stopPropagation(); goToArena(id); }}>
-                  {t('MARKETS_OPEN_ARENA')} →
+                  {t('MARKETS_OPEN_ARENA')}
                 </button>
               </div>
 
