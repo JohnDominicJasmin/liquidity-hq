@@ -58,7 +58,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
       <button
         onClick={onUnlock}
         style={{
-          background: 'var(--accent-solid)', color: 'var(--on-accent)', border: 'none', cursor: 'pointer',
+          background: 'var(--accent-solid)', color: '#fff', border: 'none', cursor: 'pointer',
           fontSize: 'var(--fs-label)', fontWeight: 700, padding: '9px 16px', borderRadius: 8,
           flexShrink: 0,
         }}
@@ -115,7 +115,7 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
           href={ctaHref}
           style={{
             display: 'block', textAlign: 'center',
-            background: 'var(--accent-solid)', color: 'var(--on-accent)',
+            background: 'var(--accent-solid)', color: '#fff',
             fontSize: 'var(--fs-body)', fontWeight: 700,
             padding: '12px 16px', borderRadius: 8,
             textDecoration: 'none',
@@ -221,7 +221,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
           href={ctaHref}
           style={{
             display: 'block', textAlign: 'center',
-            background: 'var(--accent-solid)', color: 'var(--on-accent)',
+            background: 'var(--accent-solid)', color: '#fff',
             fontSize: 'var(--fs-body)', fontWeight: 700,
             padding: '12px 16px', borderRadius: 8,
             textDecoration: 'none',
