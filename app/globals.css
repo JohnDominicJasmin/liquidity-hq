@@ -46,7 +46,7 @@
      blue-grey, because these sites also carry the "neutral / no signal"
      semantic that sits beside --green and --red (squeeze direction, funding
      bias, EMA pass state) and should not read as tinted. */
-  --txt-dim: #8a8a8a;
+  --txt-dim: #909090;
 
   /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
@@ -1484,7 +1484,7 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 .tp { background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-bdr); }
 .pbox { background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); border-radius: var(--radius-card); padding: 10px 14px; margin-bottom: 10px; }
 .pt   { font-size: var(--fs-caption); font-weight: 700; color: var(--purple); margin-bottom: 3px; }
-.pb   { font-size: var(--fs-label); color: var(--txt2); line-height: 1.5; }
+.pb   { font-size: var(--fs-label); color: var(--txt); line-height: 1.5; }
 .rb   { font-size: var(--fs-label); color: var(--red-soft); line-height: 1.5; }
 .div  { border-top: 0.5px solid var(--bdr); margin: 8px 0; }
 .row  { display: flex; gap: 12px; align-items: flex-start; }
@@ -2319,6 +2319,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gex-bar-fill    { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
 .gex-value       { font-size: var(--fs-data); font-weight: 700; text-align: right; }
 .gex-insight     { padding: 10px 14px; font-size: var(--fs-caption); color: rgba(255,255,255,0.65); line-height: 1.65; border-bottom: 1px solid rgba(255,255,255,0.06); }
+[data-theme="light"] .gex-insight { color: var(--txt2); border-bottom-color: rgba(0,0,0,0.06); }
 .gex-flip-row    { padding: 6px 14px 8px; font-size: var(--fs-caption); color: var(--txt3); display: flex; gap: 12px; flex-wrap: wrap; }
 .gex-flip-row span { color: var(--txt3); font-weight: 600; }
 
