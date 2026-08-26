@@ -88,46 +88,8 @@ export const UNCONVERTED_CHROME: string[] = [
   '.gchat-fab',              // GrokChat launcher - undesigned entirely, see #413
   '.gchat-panel',            // GrokChat panel and everything inside it
   '.gchat-coins',            // GrokChat coin chips
-  /* THE WHOLE FOOTER, not two of its children. My first version named
-   * `.pf-footer-divider-label` and `.pf-footer-link`, which covered the text
-   * and missed `.pf-footer-brand` — an INLINE SVG of the blue logo, four
-   * hardcoded fills.
-   *
-   * I had already written on #413 that a raster logo is invisible to a
-   * CSS-property check but *"if it is ever inlined as SVG with hardcoded fills,
-   * this WILL flag it, correctly"*. It is, and it did, and I still had to trace
-   * the parent chain to find out — because I had exempted the parts of the
-   * footer I happened to have seen fail rather than the component.
-   *
-   * **Exempt COMPONENTS, not the symptoms you have observed.** A list built
-   * from one run's findings is a list of what rendered that day. */
-  '.pf-footer',              // PlatformFooter, entire component
-
-  /* ── THE BRAND MARK ──────────────────────────────────────────────────────
-   *
-   * ONE SELECTOR, on the component, since dev added `data-brand-mark` in #451.
-   * It replaced three call-site selectors — `.sshell-brand`, `.lt-brand`,
-   * `.lt-footer-brand` — which were three chances to forget the fourth. There
-   * are ten `<BrandMark>` call sites across seven files; whoever adds the
-   * eleventh gets the exemption for free.
-   *
-   * WHY IT IS EXEMPT AT ALL. The mark is blue — #2E7BFF, #6FD3FF, #1C3E76 —
-   * and that is the DESIGN, not drift. The handoff's own `logo.png` decodes to
-   * exactly those values and frame `7a` references it three times at 26/30/22px.
-   * README:199: *"the app icon the user supplied; used at 18-26px in every nav
-   * bar and mobile header"*. So the design's own asset is off the design's own
-   * 15-value palette, and that is a brand decision inside a theme.
-   *
-   * I FILED IT AS A DEFECT FIRST (#449). Dev decoded the asset and disproved
-   * it. The part I should have caught unaided: the design embeds the mark as
-   * `<img>` and we inline it as SVG — a raster logo is invisible to a
-   * computed-`fill` check and the same mark inlined is not. That sentence was
-   * already in this file about `.pf-footer-brand`, written by me.
-   *
-   * IF THE MARK IS EVER RESTATED IN PALETTE COLOURS, delete the attribute and
-   * this entry together. An exemption that outlives its reason is
-   * indistinguishable from coverage. */
-  '[data-brand-mark]',
+  '.pf-footer-divider-label',// PlatformFooter
+  '.pf-footer-link',         // PlatformFooter
 ];
 
 /* THREE SELECTORS FOR ONE DECISION, and that is a smell worth naming.
@@ -144,27 +106,5 @@ export const UNCONVERTED_CHROME: string[] = [
  * converted screen and each entry is a chance to forget. */
 
 export const CONVERTED_ROUTES: string[] = [
-  '/disclaimer',      // #420, merged 2026-08-14
-  /* Landing, #448. Added at REVIEW time rather than in dev's PR, because this
-   * file is QA-owned and dev cannot edit it — so "the route joins in the PR
-   * that converts it" becomes "the review PR that follows it", one PR late.
-   *
-   * One late is the safe direction. See the `/arena` note below. */
-  '/',                // #448, Landing 7a
-
-  /* `/arena` IS DELIBERATELY ABSENT, and this comment exists so it is not
-   * re-added a third time.
-   *
-   * It arrived here once before #438 merged and turned four structure specs red
-   * against a screen that was never converted on `dev`. It came back in this
-   * rebase, and I removed it again after measuring rather than assuming:
-   *
-   *   gh pr view 438            state=OPEN  merged=null
-   *   ArenaTerminal on dev      0 files
-   *   dev's arena/page.tsx      0 references to design=terminal
-   *
-   * A route in this list is a claim that the screen is converted. Arena is not.
-   * **Add it in the PR that merges #438, not before** — a red suite that says
-   * nothing is worse than a gap that says nothing, because someone has to
-   * triage the red and nobody has to triage the gap. */
+  // '/disclaimer',   <- add in the PR that converts the route, not after
 ];
