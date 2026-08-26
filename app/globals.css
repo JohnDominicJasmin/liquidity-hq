@@ -6005,6 +6005,29 @@ main.app-content[data-chrome="none"] {
 }
 [data-design="terminal"] .at-panel { border-bottom: 1px solid var(--bdr); }
 
+/* ── region 2: ticker strip 34 ── */
+[data-design="terminal"] .ticker-wrap {
+  height: 34px; flex-shrink: 0; overflow-x: auto; overflow-y: hidden;
+  display: flex; align-items: stretch;
+  border-bottom: 1px solid var(--bdr);
+  font-family: var(--font-mono); font-size: 11px;
+  background: var(--bg0); margin-bottom: 0; scrollbar-width: none;
+}
+[data-design="terminal"] .ticker-wrap::-webkit-scrollbar { display: none; }
+[data-design="terminal"] .at-tk-cell {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 16px; border-right: 1px solid var(--bdr3); flex-shrink: 0;
+}
+[data-design="terminal"] .at-tk-sym {
+  color: var(--txt2); font-weight: 600; letter-spacing: .06em;
+}
+[data-design="terminal"] .at-tk-px {
+  color: var(--txt); font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-tk-chg {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── region 3-4: hint band 36, snapshot band 88 ── */
 [data-design="terminal"] .at-snapband {
   display: flex; align-items: stretch; min-height: 88px;
