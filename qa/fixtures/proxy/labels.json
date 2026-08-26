@@ -2572,6 +2572,11 @@
     "ARENA_HIST_BADGE_LEAN_SHORT": "↘ LEAN BEARISH",
     "ARENA_HINT_BODY": "Pick a coin and timeframe, then run the analysis. You get a plain directional read - bullish, bearish, or wait - with a confidence score and the signals that drove it.",
     "ARENA_CHAT_PROMPT_WITH_RESULT": "I just ran a full market read on {coin}: {signal} signal at {confidence}% confidence. {reasoning} What should I watch out for, and are there any scenarios that would invalidate this signal?",
-    "UPGRADE_GATE_BODY": "Pro unlocks the fast timeframes, the full signal stack, and the deeper AI research tools. One subscription, everything included."
+    "UPGRADE_GATE_BODY": "Pro unlocks the fast timeframes, the full signal stack, and the deeper AI research tools. One subscription, everything included.",
+    "UPGRADE_PRICE_SUFFIX_ANNUAL": "/yr",
+    "UPGRADE_ANNUAL_SAVE_BADGE": "2 months free",
+    "UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA": "Get Pro — Annual",
+    "UPGRADE_MONTHLY_CHECKOUT_BUTTON_CTA": "Get Pro — Monthly",
+    "UPGRADE_TRUST_BILLED_ANNUALLY": "Billed annually"
   }
 }
