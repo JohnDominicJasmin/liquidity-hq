@@ -140,17 +140,6 @@ const eslintConfig = defineConfig([
     'node_modules/**',
     'public/**',
     'supabase/**',
-    /* The design handoff, vendored so BOTH sessions read the same frames
-       rather than one of them working from the README's summary of them.
-
-       It carries the design tool's own runtime (support.js, ~1,200 lines),
-       which lints as two errors - a ReactDOM.render call and an assignment to
-       `module`. Both are correct complaints about someone else's bundle and
-       neither is actionable here: editing a vendored file to satisfy our lint
-       would make it diverge from the tool that generated it. Ignored rather
-       than fixed, and ignored rather than deleted, because the prototypes need
-       it to render at all. */
-    'Codebase access granted/**',
     // Playwright's generated HTML report and per-test artefacts. Both are
     // gitignored, so CI's fresh checkout never sees them - but locally, one
     // `npm run test:e2e` leaves a bundled copy of Playwright's own report UI on
