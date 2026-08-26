@@ -1,6 +1,6 @@
 ﻿import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import LandingSwitch from '@/components/LandingSwitch';
+import LandingContent from '@/components/LandingContent';
 import { getDictionary, dirForLocale, isSupportedLocale, SUPPORTED_LOCALES } from '@/lib/i18n/dictionaries';
 
 interface Params { locale: string }
@@ -50,8 +50,5 @@ export default async function LocalizedLandingPage({ params }: { params: Promise
   const { locale } = await params;
   if (!isSupportedLocale(locale)) notFound();
   const dict = getDictionary(locale);
-  /* LandingSwitch, not LandingContent: the design flag is per-browser and
-     this page is a server component, so the choice needs a client boundary.
-     Everything above it still prerenders. */
-  return <LandingSwitch dict={dict} locale={locale} dir={dirForLocale(locale)} />;
+  return <LandingContent dict={dict} locale={locale} dir={dirForLocale(locale)} />;
 }
