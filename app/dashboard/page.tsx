@@ -29,6 +29,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import PerpSpotCard from '@/components/PerpSpotCard';
+import DeskTerminal from '@/components/DeskTerminal';
 
 const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: string }> = {
   strong_up:   { txtKey: 'OI_TREND_STRONG_UP_TXT',   subKey: 'OI_TREND_STRONG_UP_SUB',   col: 'var(--green)' },
@@ -496,17 +497,10 @@ function SelectedCoinCard() {
 }
 
 export default function Dashboard() {
-  const { t } = useLabels();
   const [showTour, setShowTour] = useState(false);
-  const rightRef = useRef<HTMLElement>(null);
-  const mainRef  = useRef<HTMLDivElement>(null);
-  const isMobile = useMobile();
 
   const { tourPending, clearTourPending } = useOnboarding();
 
-  // OnboardingGate flips tourPending right after a user finishes onboarding
-  // (from whatever page they were on) and routes here, since the spotlight
-  // tour targets dashboard-only DOM (data-spotlight-section, .mb-glow-card).
   useEffect(() => {
     if (tourPending) {
       setShowTour(true);
@@ -515,61 +509,11 @@ export default function Dashboard() {
   }, [tourPending, clearTourPending]);
 
   return (
-    <div className="dashboard-grid" data-spotlight-section>
+    <div data-design="terminal" data-spotlight-section>
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
-      {/* Floating cascade toast - fixed-positioned, render once */}
       <CascadeAlertBanner />
-
-      <GlobalSpotlight gridRef={rightRef} cardSelector=".mb-glow-card" radius={260} disableAnimations={isMobile} />
-      <GlobalSpotlight gridRef={mainRef} cardSelector=".mb-glow-card" radius={320} disableAnimations={isMobile} />
-
-      {/* ── LEFT · the answers (answer-first order) ── */}
-      <div className="dash-main" ref={mainRef}>
-        {/* 1. Market Read - the verdict */}
-        <MarketRead />
-
-        {/* 2. Best Setup Today */}
-        <div id="tour-best-setup" className="mb-glow-card" style={{ borderRadius: 10 }}>
-          <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>{t('DASH_BEST_SETUP_TODAY_HEADER')}</div>
-          <SOTD />
-        </div>
-
-        {/* 3. Your coin - glance */}
-        <SelectedCoinCard />
-
-        {/* 4. Coin signals - selected coin detail */}
-        <div id="tour-coin-signals" className="mb-glow-card" style={{ borderRadius: 10 }}>
-          <CoinSignalsHeader />
-          <EdgeSignals />
-        </div>
-
-        {/* 5. Economic calendar preview + Market conditions gauge - full width
-            here instead of the narrow rail, side by side on desktop. */}
-        <div className="dash-conditions-row">
-          <EconCalendarWidget />
-          <MarketConditionsWidget />
-        </div>
-      </div>
-
-      {/* ── RIGHT · context (sticky rail on desktop, stacks below on mobile) ── */}
-      <aside className="dash-right" ref={rightRef}>
-        <CoinSidebar />
-        <MarketPulseStrip />
-        {/* Perps vs spot (#328) - "is this a real buyer or just futures traders".
-            Above the macro card because it is per-coin and follows the coin
-            selection, where the macro backdrop is the same whatever is picked. */}
-        <div className="macro-rail-card">
-          <PerpSpotCard />
-        </div>
-
-        {/* Macro backdrop - answers "what's the broad market doing", which nothing
-            else on the dashboard covers. Last in the rail so it never pushes the
-            per-coin essentials down on mobile. */}
-        <div className="macro-rail-card">
-          <GlobalMacroContext />
-        </div>
-      </aside>
+      <DeskTerminal />
     </div>
   );
 }
