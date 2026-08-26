@@ -130,7 +130,7 @@ export default function MarketsPage() {
         const col = coinBadgeColor(id);
         return (
           <div className="mkt3-coin-cell">
-            <span className="mkt3-coin-mark" style={{ background: col }} />
+            <span className="mkt3-coin-mark" data-coin-mark style={{ background: col }} />
             <span className="mkt3-coin-sym">{id.toUpperCase()}</span>
           </div>
         );
