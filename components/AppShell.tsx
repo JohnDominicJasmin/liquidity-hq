@@ -4,8 +4,6 @@ import { usePathname } from 'next/navigation';
 import MarketProvider from './MarketProvider';
 import NewsProvider from './NewsProvider';
 import NavDrawer from './NavDrawer';
-import TerminalNav from './TerminalNav';
-import DesignModeProvider, { useDesignMode } from './DesignModeProvider';
 import GrokChat from './GrokChat';
 import NewsTicker from './NewsTicker';
 import AuthProvider from './AuthProvider';
@@ -122,7 +120,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <DesignModeProvider>
     <PostHogProvider>
       <LabelsProvider>
         <AuthProvider>
@@ -134,7 +131,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <LanguageSync />
                     <TimezoneSync />
                     <AnnouncementBanner banner={config?.announcementBanner ?? null} />
-                    <AppChrome />
+                    <NavDrawer />
                     <NewsTicker />
                     <main className="app-content">
                       <TrialBanner />
@@ -153,14 +150,5 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </AuthProvider>
       </LabelsProvider>
     </PostHogProvider>
-    </DesignModeProvider>
   );
-}
-
-/* Which navigation renders. Exactly one of them, ever - the two cannot stack,
-   and the terminal bar is only reachable with ?design=terminal (#413).
-   A component rather than a ternary inline so it can call useDesignMode(),
-   which needs to be inside the provider. */
-function AppChrome() {
-  return useDesignMode() === 'terminal' ? <TerminalNav /> : <NavDrawer />;
 }
