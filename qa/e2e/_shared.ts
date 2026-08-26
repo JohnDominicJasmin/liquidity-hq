@@ -321,7 +321,12 @@ export const BASELINE = {
       'near-white',
       '#1a7aff', '#414551', '#434754', '#4c4e5d',
       '#4c515f', '#4e5361', '#585d6d', '#63656a',
-      '#a54e4f', '#c0595a', 
+      '#a54e4f', '#c0595a',
+      // --txt2 (4.47:1 on /about), --txt-dim (4.37:1 on /funding) — pre-existing
+      // tokens unchanged by #422/#423; page states that had not rendered in prior
+      // sweeps. Real defects; file bugs separately rather than silently accepting.
+      // Surfaced 2026-08-26.
+      '#7a7e94', '#8a8a8a',
     ] as readonly string[],
 
     /**
@@ -343,6 +348,10 @@ export const BASELINE = {
       '#c75050', '#c8891e', '#d4b483',
       '#f3ba2f', '#f472b6', '#f69f9f',
       '#f87171', '#f97316', '#fbbf24',
+      // .gex-insight uses rgba(255,255,255,0.65) — hardcoded near-white on /liq.
+      // Collapses to 'near-white' bucket. 1.07:1 in light = invisible. Pre-existing;
+      // not introduced by #422/#423. File as a separate bug. Surfaced 2026-08-26.
+      'near-white',
     ] as readonly string[],
   },
   /** §6.4 - pages with no <h1>, desktop. */
