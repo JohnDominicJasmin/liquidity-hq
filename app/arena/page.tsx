@@ -31,8 +31,6 @@ import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, D
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
-import ArenaTerminal from '@/components/ArenaTerminal';
-import { useDesignMode } from '@/components/DesignModeProvider';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -172,7 +170,6 @@ function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, entitled } = useAuth();
-  const designMode = useDesignMode();
   const { settings, update } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -1250,86 +1247,6 @@ function ArenaContent() {
   const visibleScannerRows = scannerSearch
     ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
     : scannerRows;
-
-  /* One chart element, used by whichever layout renders. Constructing a
-     second, plainer one inside the terminal component is what put two charts
-     on this page before - it carried none of the read result, the EMA overlay,
-     the draggable alerts or the structure callback. */
-  const arenaChart = <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} onStructure={setChartStructure} />;
-
-  /* The terminal Arena (#413), behind ?design=terminal. Built to
-     design_handoff_arena/specs/arena.md.
-
-     EVERY PANEL IS PASSED IN ALREADY GUARDED. The entitlement check lives here,
-     at the call site, not inside ArenaTerminal - moving a panel moves its
-     markup and leaves its guard behind, which shipped once and showed free
-     users the paid confluence score.
-
-     The two Pro panels are deliberately asymmetric, per spec §Pro surfaces:
-     Confluence degrades to a LockedFeatureCard because it is the panel worth
-     paying for and the main column is wide enough for the card to read as an
-     offer; Absorption renders NOTHING, because a second locked card beside the
-     first is noise. That asymmetry is production's behaviour and must survive. */
-  if (designMode === 'terminal') {
-    const verdictDir = result?.signal?.includes('BULLISH') ? 'bull' as const
-                     : result?.signal?.includes('BEARISH') ? 'bear' as const
-                     : result ? 'neutral' as const : null;
-    return (
-      <>
-        <ArenaTerminal
-          coin={selectedCoin}
-          tf={readTf}
-          onTfChange={t => setReadTf(t as ChartTf)}
-          onUpgrade={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
-          entitled={entitled}
-          authLoading={authLoading}
-          verdict={result ? { label: result.signal, dir: verdictDir, confidence: result.confidence } : null}
-          levels={{
-            entry:  emaSignal.ema20_4h ?? null,
-            stop:   emaSignal.sl ?? null,
-            target: emaSignal.tp ?? null,
-          }}
-          chart={arenaChart}
-          hintBand={<PageHint pageKey="arena" title={t('ARENA_HINT_TITLE')} body={t('ARENA_HINT_BODY')} />}
-          /* Snapshot band, region 4: the coin mark, five stat cells, and the
-             higher-timeframe badge. The five cells are ABSENT at mobile, not
-             hidden - the component owns that, so it is passed either way and
-             the layout decides. */
-          coinIcon={<CoinIcon coin={selectedCoin} size={32} />}
-          snapshot={<CoinMarketSnapshot coin={selectedCoin} />}
-          tfBadge={<HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />}
-          confluence={authLoading || entitled
-            ? <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
-            : <LockedFeatureCard
-                title={t('ARENA_CONFLUENCE_GATE_TITLE')}
-                description={t('ARENA_CONFLUENCE_GATE_DESC')}
-                onUnlock={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
-              />}
-          multiTf={<MultiTFAlignment coin={selectedCoin} />}
-          absorption={entitled ? <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} /> : null}
-          emaSignal={<EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />}
-          heatmap={selectedCoin === 'btc' && store.btcLiqLevels.length > 0
-            ? <LiqHeatmap levels={store.btcLiqLevels} currentPrice={store.coins['btc']?.price ?? 0} />
-            : null}
-          usageMeter={<UsageMeter />}
-          /* Clusters from the data the page already loads for the heatmap.
-             BTC only, since that is where btcLiqLevels exists - other coins
-             render "No clusters in range" rather than a fabricated ladder. */
-          clusters={selectedCoin === 'btc'
-            ? [...store.btcLiqLevels].sort((a, b) => b.amount - a.amount).slice(0, 8)
-                .map(l => ({ price: l.price, usd: l.amount }))
-            : []}
-          why={result?.reasoning ?? null}
-          history={history.map(h => ({ time: h.time, verdict: h.signal, conf: h.confidence }))}
-        />
-        <UpgradeGateModal
-          open={upgradeGate !== null}
-          onClose={() => setUpgradeGate(null)}
-          feature={upgradeGate ?? undefined}
-        />
-      </>
-    );
-  }
 
   return (
     <div>
