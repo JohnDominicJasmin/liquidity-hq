@@ -40,3 +40,25 @@ export function getCheckoutUrl(user: { id: string; email?: string } | null): str
     return base;
   }
 }
+
+export function checkoutBaseAnnual(env: Record<string, string | undefined> = process.env): string | null {
+  const base = env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL_ANNUAL;
+  return base && base !== '#' ? base : null;
+}
+
+export function isCheckoutConfiguredAnnual(env: Record<string, string | undefined> = process.env): boolean {
+  return checkoutBaseAnnual(env) !== null;
+}
+
+export function getCheckoutUrlAnnual(user: { id: string; email?: string } | null): string {
+  const base = checkoutBaseAnnual();
+  if (!base) return '/login?signup=1';
+  try {
+    const url = new URL(base);
+    if (user?.email) url.searchParams.set('checkout[email]', user.email);
+    if (user?.id)    url.searchParams.set('checkout[custom][user_id]', user.id);
+    return url.toString();
+  } catch {
+    return base;
+  }
+}
