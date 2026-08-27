@@ -346,7 +346,7 @@ export function computeAbsorption(
    * of 68% vs 34% (the owner's example, 34pp) clears it comfortably. */
   const observation =
     delta >= 20
-      ? `Spot buying absorbing futures selling — ${sp}% taker-buy on spot against ${pp}% on perps.`
+      ? `Spot buying absorbing futures selling — ${sp}% taker-buy on spot against ${pp}% on perps. Someone is taking the other side of the forced sales.`
       : delta <= -20
       ? `Futures buyers leading spot — ${pp}% taker-buy on perps against ${sp}% on spot.`
       : `Spot and perps moving together — ${sp}% taker-buy on spot, ${pp}% on perps.`;
