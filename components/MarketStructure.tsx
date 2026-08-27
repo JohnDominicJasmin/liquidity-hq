@@ -111,7 +111,7 @@ function evCol(ev: StructureEvent): string {
 }
 function evBg(ev: StructureEvent): string {
   return ev.type === 'CHoCH'
-    ? (ev.dir === 'bullish' ? 'rgba(var(--accent-rgb), 0.10)' : 'rgba(248,113,113,0.10)')
+    ? (ev.dir === 'bullish' ? 'rgba(26,122,255,0.10)' : 'rgba(248,113,113,0.10)')
     : (ev.dir === 'bullish' ? 'rgba(52,211,153,0.10)'  : 'rgba(248,113,113,0.10)');
 }
 

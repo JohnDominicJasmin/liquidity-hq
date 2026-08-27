@@ -78,7 +78,7 @@ export default function PWAInstallPrompt() {
     }}>
       <span style={{
         flexShrink: 0, width: 34, height: 34, borderRadius: 10,
-        background: 'rgba(var(--accent-rgb), 0.14)', border: '0.5px solid rgba(var(--accent-rgb), 0.3)',
+        background: 'rgba(26,122,255,0.14)', border: '0.5px solid rgba(26,122,255,0.3)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)',
       }}>
         <Download size={17} style={{ verticalAlign: 'baseline' }} />
@@ -97,7 +97,7 @@ export default function PWAInstallPrompt() {
             padding: '5px 11px',
             fontSize: 'var(--fs-caption)',
             fontWeight: 700,
-            color: 'var(--on-accent)',
+            color: '#fff',
             cursor: 'pointer',
             whiteSpace: 'nowrap',
           }}

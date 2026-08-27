@@ -27,28 +27,6 @@ const figtree = localFont({
   display: 'swap',
 });
 
-/* IBM Plex Sans, for the Monochrome Terminal redesign (#413).
- *
- * NOT wired to --font-sans. It exposes --font-sans-terminal, and
- * [data-design="terminal"] in globals.css points --font-sans at it. Nothing
- * sets that attribute yet, so every screen still renders in Figtree and this
- * file costs one preloaded woff2 until the first screen opts in.
- *
- * Swapping --font-sans directly would restyle all 31 screens in one commit,
- * which is the same objection that put the colour tokens behind an attribute.
- *
- * ONE VARIABLE FILE, not four statics like the mono above. Google Fonts serves
- * IBM Plex Sans v23 as a variable face - all four requested weights resolve to
- * the same URL - so 400-700 comes from 45KB instead of four files. Pulled from
- * the gstatic URL its CSS resolves to, latin subset, matching the process
- * recorded above for the mono files. OFL, so redistribution here is permitted.
- * Owner approved the download on #413. */
-const plexSans = localFont({
-  src: [{ path: './fonts/plex-sans-latin-var.woff2', weight: '400 700', style: 'normal' }],
-  variable: '--font-sans-terminal',
-  display: 'swap',
-});
-
 const plexMono = localFont({
   src: [
     { path: './fonts/plex-mono-latin-400.woff2', weight: '400', style: 'normal' },
@@ -103,7 +81,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" className={`${figtree.variable} ${plexMono.variable} ${plexSans.variable}`} suppressHydrationWarning>
+    <html lang="en" data-theme="dark" className={`${figtree.variable} ${plexMono.variable}`} suppressHydrationWarning>
       {/* No manual apple-touch-icon <link> here - app/apple-icon.png's file
           convention already generates the correct tag automatically. The old
           hardcoded one pointed at /icons/icon-192.jpg, which the icon

@@ -820,7 +820,7 @@ function Inner() {
           {t('TRADE_JOURNAL_TAB_RULES')}{rules.filter(r => r.enabled).length > 0 && (
             <span style={{
               marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700,
-              background: 'var(--accent-solid)', color: 'var(--on-accent)',
+              background: 'var(--accent-solid)', color: '#fff',
               borderRadius: 10, padding: '1px 5px',
             }}>{rules.filter(r => r.enabled).length}</span>
           )}
@@ -829,7 +829,7 @@ function Inner() {
         <button data-testid="journal-tab" className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>{t('TRADE_JOURNAL_TAB_BIAS')}</button>
         <button data-testid="journal-tab" className={`tj-tab${tab === 'thesis' ? ' on' : ''}`} onClick={() => setTab('thesis')} style={{ position: 'relative' }}>
           {t('TRADE_JOURNAL_TAB_THESIS')}{theses.length > 0 && (
-            <span style={{ marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700, background: 'var(--accent-solid)', color: 'var(--on-accent)', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
+            <span style={{ marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700, background: 'var(--accent-solid)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
           )}
         </button>
       </div>
@@ -1559,9 +1559,9 @@ function Inner() {
                 onClick={runShadowAccount}
                 disabled={shadowLoading}
                 style={{
-                  background: shadowLoading ? 'rgba(255,255,255,0.06)' : 'rgba(var(--accent-rgb), 0.12)',
+                  background: shadowLoading ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
                   color: shadowLoading ? 'var(--txt3)' : 'var(--accent)',
-                  border: `1px solid ${shadowLoading ? 'var(--bdr)' : 'rgba(var(--accent-rgb), 0.35)'}`,
+                  border: `1px solid ${shadowLoading ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
                   borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
                   cursor: shadowLoading ? 'default' : 'pointer',
                 }}
@@ -1613,9 +1613,9 @@ function Inner() {
                 onClick={runBiasAnalysis}
                 disabled={biasLoading}
                 style={{
-                  background: biasLoading ? 'rgba(255,255,255,0.06)' : 'rgba(var(--accent-rgb), 0.12)',
+                  background: biasLoading ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
                   color: biasLoading ? 'var(--txt3)' : 'var(--accent)',
-                  border: `1px solid ${biasLoading ? 'var(--bdr)' : 'rgba(var(--accent-rgb), 0.35)'}`,
+                  border: `1px solid ${biasLoading ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
                   borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
                   cursor: biasLoading ? 'default' : 'pointer',
                 }}
@@ -1662,9 +1662,9 @@ function Inner() {
             <button
               onClick={() => setShowThesisForm(v => !v)}
               style={{
-                background: showThesisForm ? 'rgba(255,255,255,0.06)' : 'rgba(var(--accent-rgb), 0.12)',
+                background: showThesisForm ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
                 color: showThesisForm ? 'var(--txt3)' : 'var(--accent)',
-                border: `1px solid ${showThesisForm ? 'var(--bdr)' : 'rgba(var(--accent-rgb), 0.35)'}`,
+                border: `1px solid ${showThesisForm ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
                 borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer', flexShrink: 0,
               }}
             >
@@ -1726,7 +1726,7 @@ function Inner() {
                 {thesisFormAssumptions.length < 5 && (
                   <button
                     onClick={() => setThesisFormAssumptions(a => [...a, ''])}
-                    style={{ fontSize: 'var(--fs-caption)', color: 'var(--accent)', background: 'transparent', border: '0.5px solid rgba(var(--accent-rgb), 0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                    style={{ fontSize: 'var(--fs-caption)', color: 'var(--accent)', background: 'transparent', border: '0.5px solid rgba(26,122,255,0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
                   >
                     {t('TRADE_JOURNAL_THESIS_ADD_ASSUMPTION_BUTTON')}
                   </button>
@@ -1745,8 +1745,8 @@ function Inner() {
                 disabled={!thesisFormSymbol.trim() || !thesisFormText.trim() || !thesisFormAssumptions.some(a => a.trim())}
                 style={{
                   display: 'block', marginTop: 14, width: '100%',
-                  background: 'rgba(var(--accent-rgb), 0.12)', color: 'var(--accent)',
-                  border: '1px solid rgba(var(--accent-rgb), 0.35)', borderRadius: 8,
+                  background: 'rgba(26,122,255,0.12)', color: 'var(--accent)',
+                  border: '1px solid rgba(26,122,255,0.35)', borderRadius: 8,
                   padding: '10px', fontSize: 'var(--fs-label)', fontWeight: 700, cursor: 'pointer',
                 }}
               >
@@ -1825,9 +1825,9 @@ function Inner() {
                       onClick={() => checkThesisHealth(thesis)}
                       disabled={isChecking}
                       style={{
-                        background: isChecking ? 'rgba(255,255,255,0.06)' : 'rgba(var(--accent-rgb), 0.10)',
+                        background: isChecking ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.10)',
                         color: isChecking ? 'var(--txt3)' : 'var(--accent)',
-                        border: `0.5px solid ${isChecking ? 'var(--bdr)' : 'rgba(var(--accent-rgb), 0.3)'}`,
+                        border: `0.5px solid ${isChecking ? 'var(--bdr)' : 'rgba(26,122,255,0.3)'}`,
                         borderRadius: 6, padding: '5px 12px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: isChecking ? 'default' : 'pointer',
                       }}
                     >

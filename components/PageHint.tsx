@@ -51,13 +51,13 @@ export default function PageHint({ pageKey, title, body }: Props) {
       display: 'flex',
       alignItems: 'flex-start',
       gap: 10,
-      background: 'rgba(var(--accent-rgb), 0.07)',
-      border: '0.5px solid rgba(var(--accent-rgb), 0.22)',
+      background: 'rgba(26,122,255,0.07)',
+      border: '0.5px solid rgba(26,122,255,0.22)',
       borderRadius: 10,
       padding: '10px 12px',
       marginBottom: 14,
     }}>
-      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: 'var(--accent)', background: 'rgba(var(--accent-rgb), 0.18)', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, letterSpacing: 0 }}>i</span>
+      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: 'var(--accent)', background: 'rgba(26,122,255,0.18)', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, letterSpacing: 0 }}>i</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent)', marginBottom: 3 }}>{title}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.55 }}>{body}</div>

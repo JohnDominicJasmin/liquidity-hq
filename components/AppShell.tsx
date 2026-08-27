@@ -4,9 +4,6 @@ import { usePathname } from 'next/navigation';
 import MarketProvider from './MarketProvider';
 import NewsProvider from './NewsProvider';
 import NavDrawer from './NavDrawer';
-import TerminalNav from './TerminalNav';
-import StaticShell from './StaticShell';
-import DesignModeProvider, { useDesignMode } from './DesignModeProvider';
 import GrokChat from './GrokChat';
 import NewsTicker from './NewsTicker';
 import AuthProvider from './AuthProvider';
@@ -123,7 +120,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <DesignModeProvider>
     <PostHogProvider>
       <LabelsProvider>
         <AuthProvider>
@@ -135,23 +131,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <LanguageSync />
                     <TimezoneSync />
                     <AnnouncementBanner banner={config?.announcementBanner ?? null} />
-                    <AppChrome />
+                    <NavDrawer />
                     <NewsTicker />
-                    {/* data-chrome="none" on the landing routes. .app-content
-                        reserves 84px of top padding for the app nav, and with
-                        AppChrome rendering null that padding is dead space
-                        pushing the landing hero from y=90 to y=174. The routes
-                        that own their chrome must also own their offset. */}
-                    <main className="app-content" data-chrome={LANDING_ROUTES.has(pathname) ? 'none' : undefined}>
+                    <main className="app-content">
                       <TrialBanner />
                       <OnboardingGate>{children}</OnboardingGate>
-                      {/* Landing renders its OWN footer - brand column, four
-                          link columns, six risk items, legal block. Rendering
-                          PlatformFooter under it duplicated the risk disclosure
-                          and the legal links on the one route that already has
-                          them, which is the duplication the owner objected to
-                          on Arena arriving on a different screen. */}
-                      {!LANDING_ROUTES.has(pathname) && <PlatformFooter />}
+                      <PlatformFooter />
                     </main>
                     <GrokChat />
                     <SetupChecklist />
@@ -165,42 +150,5 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </AuthProvider>
       </LabelsProvider>
     </PostHogProvider>
-    </DesignModeProvider>
   );
-}
-
-/* Which navigation renders. Exactly one of them, ever - the two cannot stack,
-   and the terminal bar is only reachable with ?design=terminal (#413).
-   A component rather than a ternary inline so it can call useDesignMode(),
-   which needs to be inside the provider. */
-/* The seven routes the handoff groups under its STATIC shell (README:167).
-   They are read signed-out, so they carry a marketing bar rather than the five
-   app destinations - which is what they inherited until now. */
-const STATIC_SHELL_ROUTES = new Set([
-  '/disclaimer', '/about', '/faq', '/learn', '/terms', '/privacy', '/refunds',
-]);
-
-/* The landing routes render their OWN nav and footer.
- *
- * `/` is English; `/ko` and `/zh` are the two entries in SUPPORTED_LOCALES.
- * There is no `/en` - English is served from app/page.tsx.
- *
- * Without this, `?design=terminal` stacked TWO navs on the landing page: the
- * app's 44px TerminalNav at y=0 and landing's own 56px bar below it, pushing
- * the hero to y=218 where the spec says 90. The legacy design never showed it
- * because NavDrawer is a drawer, not a bar - so the defect only existed under
- * the flag, on the highest-traffic public route.
- *
- * The landing spec gives this screen a nav of its own with its own geometry
- * (56/52, and a LanguageSwitcher the app bar does not carry), which is why it
- * owns its chrome rather than sharing StaticShell - see spec §Nav. */
-const LANDING_ROUTES = new Set(['/', '/ko', '/zh']);
-
-function AppChrome() {
-  const pathname = usePathname();
-  if (useDesignMode() !== 'terminal') return <NavDrawer />;
-  if (LANDING_ROUTES.has(pathname)) return null;
-  /* Exact match, like isChromeless above: a future /about/team should be a
-     deliberate decision rather than silently inheriting the marketing bar. */
-  return STATIC_SHELL_ROUTES.has(pathname) ? <StaticShell /> : <TerminalNav />;
 }

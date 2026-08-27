@@ -31,8 +31,6 @@ import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, D
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
-import ArenaTerminal from '@/components/ArenaTerminal';
-import { useDesignMode } from '@/components/DesignModeProvider';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -172,7 +170,6 @@ function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, entitled } = useAuth();
-  const designMode = useDesignMode();
   const { settings, update } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -1251,86 +1248,6 @@ function ArenaContent() {
     ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
     : scannerRows;
 
-  /* One chart element, used by whichever layout renders. Constructing a
-     second, plainer one inside the terminal component is what put two charts
-     on this page before - it carried none of the read result, the EMA overlay,
-     the draggable alerts or the structure callback. */
-  const arenaChart = <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} onStructure={setChartStructure} />;
-
-  /* The terminal Arena (#413), behind ?design=terminal. Built to
-     design_handoff_arena/specs/arena.md.
-
-     EVERY PANEL IS PASSED IN ALREADY GUARDED. The entitlement check lives here,
-     at the call site, not inside ArenaTerminal - moving a panel moves its
-     markup and leaves its guard behind, which shipped once and showed free
-     users the paid confluence score.
-
-     The two Pro panels are deliberately asymmetric, per spec §Pro surfaces:
-     Confluence degrades to a LockedFeatureCard because it is the panel worth
-     paying for and the main column is wide enough for the card to read as an
-     offer; Absorption renders NOTHING, because a second locked card beside the
-     first is noise. That asymmetry is production's behaviour and must survive. */
-  if (designMode === 'terminal') {
-    const verdictDir = result?.signal?.includes('BULLISH') ? 'bull' as const
-                     : result?.signal?.includes('BEARISH') ? 'bear' as const
-                     : result ? 'neutral' as const : null;
-    return (
-      <>
-        <ArenaTerminal
-          coin={selectedCoin}
-          tf={readTf}
-          onTfChange={t => setReadTf(t as ChartTf)}
-          onUpgrade={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
-          entitled={entitled}
-          authLoading={authLoading}
-          verdict={result ? { label: result.signal, dir: verdictDir, confidence: result.confidence } : null}
-          levels={{
-            entry:  emaSignal.ema20_4h ?? null,
-            stop:   emaSignal.sl ?? null,
-            target: emaSignal.tp ?? null,
-          }}
-          chart={arenaChart}
-          hintBand={<PageHint pageKey="arena" title={t('ARENA_HINT_TITLE')} body={t('ARENA_HINT_BODY')} />}
-          /* Snapshot band, region 4: the coin mark, five stat cells, and the
-             higher-timeframe badge. The five cells are ABSENT at mobile, not
-             hidden - the component owns that, so it is passed either way and
-             the layout decides. */
-          coinIcon={<CoinIcon coin={selectedCoin} size={32} />}
-          snapshot={<CoinMarketSnapshot coin={selectedCoin} />}
-          tfBadge={<HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />}
-          confluence={authLoading || entitled
-            ? <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
-            : <LockedFeatureCard
-                title={t('ARENA_CONFLUENCE_GATE_TITLE')}
-                description={t('ARENA_CONFLUENCE_GATE_DESC')}
-                onUnlock={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
-              />}
-          multiTf={<MultiTFAlignment coin={selectedCoin} />}
-          absorption={entitled ? <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} /> : null}
-          emaSignal={<EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />}
-          heatmap={selectedCoin === 'btc' && store.btcLiqLevels.length > 0
-            ? <LiqHeatmap levels={store.btcLiqLevels} currentPrice={store.coins['btc']?.price ?? 0} />
-            : null}
-          usageMeter={<UsageMeter />}
-          /* Clusters from the data the page already loads for the heatmap.
-             BTC only, since that is where btcLiqLevels exists - other coins
-             render "No clusters in range" rather than a fabricated ladder. */
-          clusters={selectedCoin === 'btc'
-            ? [...store.btcLiqLevels].sort((a, b) => b.amount - a.amount).slice(0, 8)
-                .map(l => ({ price: l.price, usd: l.amount }))
-            : []}
-          why={result?.reasoning ?? null}
-          history={history.map(h => ({ time: h.time, verdict: h.signal, conf: h.confidence }))}
-        />
-        <UpgradeGateModal
-          open={upgradeGate !== null}
-          onClose={() => setUpgradeGate(null)}
-          feature={upgradeGate ?? undefined}
-        />
-      </>
-    );
-  }
-
   return (
     <div>
 
@@ -1338,7 +1255,7 @@ function ArenaContent() {
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>{t('ARENA_PAGE_TITLE')}</div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: 'var(--accent-bg)', color: 'var(--accent)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#12233f', color: 'var(--accent-2)', border: '0.5px solid #2a4a7a', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
@@ -1424,11 +1341,11 @@ function ArenaContent() {
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent-2)',
-            background: 'rgba(var(--accent-rgb), 0.1)', padding: '2px 9px 2px 5px',
-            borderRadius: 20, border: '0.5px solid rgba(var(--accent-rgb), 0.2)',
+            background: 'rgba(90,163,255,0.1)', padding: '2px 9px 2px 5px',
+            borderRadius: 20, border: '0.5px solid rgba(90,163,255,0.2)',
             flexShrink: 0,
           }}>
-            <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="rgba(var(--accent-rgb), 0.15)" />
+            <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="rgba(90,163,255,0.15)" />
             {selectedCoin.toUpperCase()}
           </span>
           {/* Spacer */}
@@ -1573,7 +1490,7 @@ function ArenaContent() {
                     width: '100%', display: 'grid',
                     gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
                     alignItems: 'center', padding: '7px 12px',
-                    background: isSelected ? 'rgba(var(--accent-rgb), 0.08)' : 'transparent',
+                    background: isSelected ? 'rgba(90,163,255,0.08)' : 'transparent',
                     border: 'none',
                     borderBottom: '0.5px solid var(--bdr)',
                     cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',
@@ -1716,7 +1633,7 @@ function ArenaContent() {
         {user && (
           <button
             className="arena-ask-grok-btn"
-            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(var(--accent-rgb), 0.15)' : undefined }}
+            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(26,122,255,0.15)' : undefined }}
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
             title={t('ARENA_SET_ALERT_TITLE')}
           >
@@ -1833,7 +1750,7 @@ function ArenaContent() {
                 onClick={saveArenaAlert}
                 disabled={alertSaving || !alertPrice}
                 style={{
-                  width: '100%', fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--on-accent)',
+                  width: '100%', fontSize: 'var(--fs-body)', fontWeight: 700, color: '#fff',
                   background: 'var(--accent-solid)', border: 'none', borderRadius: 10, padding: '12px 18px',
                   cursor: alertSaving || !alertPrice ? 'default' : 'pointer',
                   opacity: alertSaving || !alertPrice ? 0.5 : 1, transition: 'opacity .15s',
@@ -2081,8 +1998,8 @@ function ArenaContent() {
                   const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
                   const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
                   const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
-                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(var(--accent-rgb), 0.08)';
-                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(var(--accent-rgb), 0.25)';
+                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
+                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
                   return (
                     <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
                   );

@@ -83,7 +83,7 @@ function pearson(a: number[], b: number[]): number | null {
    identical green. Rescale 0.35→1.0 onto the full range with a power curve so
    0.6 reads faint and 0.95+ pops. */
 function cellBg(r: number | null, diag: boolean): string {
-  if (diag)    return 'rgba(var(--accent-rgb), 0.22)';
+  if (diag)    return 'rgba(26,122,255,0.22)';
   if (r == null) return 'rgba(255,255,255,0.03)';
   if (r > 0) {
     const t = Math.max(0, (r - 0.35) / 0.65);

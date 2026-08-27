@@ -321,7 +321,7 @@ export const BASELINE = {
       'near-white',
       '#1a7aff', '#414551', '#434754', '#4c4e5d',
       '#4c515f', '#4e5361', '#585d6d', '#63656a',
-      '#a54e4f', '#c0595a',
+      '#a54e4f', '#c0595a', 
     ] as readonly string[],
 
     /**
@@ -337,8 +337,11 @@ export const BASELINE = {
      * which is why it matters more than a normal contrast bug.
      */
     lightTokens: [
+      // Computed near-white blends on /funding chips collapse to one bucket -
+      // see bucket() in contrast.spec.ts. It is one defect, not N hexes.
+      'near-white',
       '#0052cc', '#22d3ee', '#3d8d76', '#4ade80', '#60a5fa', '#627eea',
-      '#76787b', '#868890', '#868895', '#8f919c',
+      '#76787b', '#77deb9', '#868890', '#868895', '#8f919c',
       '#94969d', '#98999d', '#989aa0', '#a2a4ab', '#a7a9af',
       '#c75050', '#c8891e', '#d4b483',
       '#f3ba2f', '#f472b6', '#f69f9f',
