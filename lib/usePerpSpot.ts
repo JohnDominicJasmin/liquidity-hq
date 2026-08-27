@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { BINANCE_SYMS } from './coins';
-import { computePerpSpot, type PerpSpotReading } from './perpSpot';
+import { computePerpSpot, computeAbsorption, type PerpSpotReading, type AbsorptionReading } from './perpSpot';
 
 /* One source for the perps-vs-spot reading (#340).
  *
@@ -21,9 +21,9 @@ const BARS = 168;   // 7 days of hourly bars - enough for a stable median
 
 type Kline = [number, string, string, string, string, string, number, string, ...unknown[]];
 
-interface Entry { reading: PerpSpotReading; fetchedAt: number }
+interface Entry { reading: PerpSpotReading; absorption: AbsorptionReading; fetchedAt: number }
 const cache = new Map<string, Entry>();
-const inflight = new Map<string, Promise<PerpSpotReading>>();
+const inflight = new Map<string, Promise<Entry>>();
 
 async function fetchBars(source: 'binance' | 'binance-futures', symbol: string) {
   const r = await fetch(
@@ -32,69 +32,95 @@ async function fetchBars(source: 'binance' | 'binance-futures', symbol: string) 
   );
   if (!r.ok) throw new Error(`${source} ${r.status}`);
   const rows = (await r.json()) as Kline[];
-  // Index 7 is quote-asset volume (USDT) - comparable across the two venues in
-  // a way base volume is not. Index 0 is the bar's open time.
-  return rows.map(k => ({ time: k[0], quoteVolume: parseFloat(k[7]) }));
+  // Index 7: quote-asset volume (USDT). Index 10: taker-buy quote volume (#361).
+  return rows.map(k => ({
+    time: k[0],
+    quoteVolume: parseFloat(k[7] as string),
+    takerBuyQuoteVolume: parseFloat(k[10] as string),
+  }));
 }
 
 /**
- * Read perps-vs-spot for a coin. Never throws; an unmeasurable state is a
- * value, not an exception.
- *
- * Single-flight per coin: five surfaces mounting at once must not become five
- * pairs of upstream calls. Same reasoning as #201 on the klines route.
+ * Fetch both readings for a coin in one network round-trip.
+ * Never throws — an unmeasurable state is a value, not an exception.
+ * Single-flight per coin so five surfaces do not become five pairs of calls.
  */
-export async function readPerpSpot(coin: string): Promise<PerpSpotReading> {
+async function fetchEntry(coin: string): Promise<Entry> {
+  const now = Date.now();
   const hit = cache.get(coin);
-  // Valid until the hour turns, matching the bar interval the reading is built
-  // from - a fresh fetch inside the same hour returns the same closed bar.
-  if (hit && Math.floor(hit.fetchedAt / HOUR) === Math.floor(Date.now() / HOUR)) {
-    return hit.reading;
-  }
+  if (hit && Math.floor(hit.fetchedAt / HOUR) === Math.floor(now / HOUR)) return hit;
   const running = inflight.get(coin);
   if (running) return running;
 
   const sym = BINANCE_SYMS[coin];
-  const job = (async (): Promise<PerpSpotReading> => {
-    // No Binance spot pair means the question cannot be answered for this coin.
-    // computePerpSpot([], []) is the explicit "cannot tell" reading - never a
-    // number derived from the perp side alone.
-    if (!sym) return computePerpSpot([], []);
+  const job = (async (): Promise<Entry> => {
+    if (!sym) {
+      const empty = computePerpSpot([], []);
+      return { reading: empty, absorption: computeAbsorption([], []), fetchedAt: Date.now() };
+    }
     try {
       const [spot, perp] = await Promise.all([
         fetchBars('binance', sym), fetchBars('binance-futures', sym),
       ]);
-      return computePerpSpot(spot, perp, HOUR, Date.now());
+      const t = Date.now();
+      return {
+        reading:   computePerpSpot(spot, perp, HOUR, t),
+        absorption: computeAbsorption(spot, perp, HOUR, t),
+        fetchedAt: t,
+      };
     } catch {
-      return computePerpSpot([], []);   // a failed fetch is not a quiet market
+      const empty = computePerpSpot([], []);
+      return { reading: empty, absorption: computeAbsorption([], []), fetchedAt: Date.now() };
     }
   })();
 
   inflight.set(coin, job);
   try {
-    const reading = await job;
-    cache.set(coin, { reading, fetchedAt: Date.now() });
-    return reading;
+    const entry = await job;
+    cache.set(coin, entry);
+    return entry;
   } finally {
     inflight.delete(coin);
   }
 }
 
-/** React binding. Re-reads when the hour turns, since the bar has changed. */
+export async function readPerpSpot(coin: string): Promise<PerpSpotReading> {
+  return (await fetchEntry(coin)).reading;
+}
+
+export async function readAbsorption(coin: string): Promise<AbsorptionReading> {
+  return (await fetchEntry(coin)).absorption;
+}
+
+function useHourTick(): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setTimeout(() => setTick(t => t + 1), HOUR - (Date.now() % HOUR) + 3_000);
+    return () => clearTimeout(id);
+  }, [tick]);
+  return tick;
+}
+
+/** React binding for perps-vs-spot. Re-reads when the hour turns. */
 export function usePerpSpot(coin: string): PerpSpotReading | null {
   const [reading, setReading] = useState<PerpSpotReading | null>(null);
-  const [tick, setTick] = useState(0);
-
+  const tick = useHourTick();
   useEffect(() => {
     let cancelled = false;
     readPerpSpot(coin).then(r => { if (!cancelled) setReading(r); });
     return () => { cancelled = true; };
   }, [coin, tick]);
+  return reading;
+}
 
+/** React binding for spot/perp absorption. Shares the same fetch as usePerpSpot. */
+export function useAbsorption(coin: string): AbsorptionReading | null {
+  const [reading, setReading] = useState<AbsorptionReading | null>(null);
+  const tick = useHourTick();
   useEffect(() => {
-    const id = setTimeout(() => setTick(t => t + 1), HOUR - (Date.now() % HOUR) + 3_000);
-    return () => clearTimeout(id);
-  }, [tick]);
-
+    let cancelled = false;
+    readAbsorption(coin).then(r => { if (!cancelled) setReading(r); });
+    return () => { cancelled = true; };
+  }, [coin, tick]);
   return reading;
 }

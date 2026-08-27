@@ -29,7 +29,7 @@ export default function Disclaimer() {
         }}>
           {t('DISCLAIMER_EYEBROW')}
         </div>
-        <h1 style={{ fontSize: '2.625rem', fontWeight: 800, color: 'var(--txt)', margin: 0, lineHeight: 1.1 }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--txt)', margin: 0, lineHeight: 1.1 }}>
           {t('DISCLAIMER_PAGE_TITLE')}
         </h1>
       </div>
