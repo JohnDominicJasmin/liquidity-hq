@@ -11,7 +11,7 @@ file.**
 
 ---
 
-> ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-12.
+> ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-27.
 >
 > Sections **§7 (Current progress)**, **§8 (Testing status)** and **§9 (Current issues)**
 > are dated **2026-08-01** and describe a project that has moved a long way since. They
@@ -269,18 +269,23 @@ android/      Capacitor Android shell
   body explaining the real cause and why the fix is shaped that way. Look at recent commits
   before writing one. Trailer: `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
 
-### Branch & deploy state as of 2026-08-01
+### Branch & deploy state as of 2026-08-27
 
-| Where | Commit | Note |
+| Branch | Commit | Note |
 |---|---|---|
-| local `dev` | `064ec5a` | clean, synced with `origin/dev` |
-| `origin/dev` | `064ec5a` | 1 ahead of `main` (docs-only) |
-| `main` / `origin/main` | `ab9dd58` | merge of `0bf7305` |
-| **Render prod** | `ab9dd58` | deploy `dep-d9mecn3m8hqs73c6aaig` — **live** |
-| **Render dev** | `f6f1eb15` (Jul 30) | **stale** — several days behind `dev` |
+| `origin/dev` | `b368469` | PR #484 merged (contrast.spec.ts light-theme fix + eslint globalIgnore restore for design-handoff-dir) |
+| `origin/qa` | `b368469` | same as dev — promoted after #484 |
+| `origin/staging` | `e690816` | Monochrome Terminal revert (#481) + eslint globalIgnore restore — **service deploy status unknown, check /api/version** |
+| `origin/main` | `590dbfb` | merge of PR #374 (staging → main, pre-revert release) |
 
-The one commit `main` lacks (`064ec5a`) is documentation only, so prod is not missing any
-code. The dev *service* being stale is expected — it's only deployed on demand.
+**What changed since 2026-08-01:**
+- #481: Monochrome Terminal redesign reverted from qa/staging. Preserved on `feature/monochrome-terminal`. `CONVERTED_ROUTES = []` — palette specs paused.
+- #484: `qa/e2e/contrast.spec.ts` light-theme `byColour` map restored to carry `where`/`what` context (PR #424 was caught in the #481 revert by mistake). Also restored `design-handoff-dir/**` to eslint `globalIgnores` — it had been removed from `dev` by the revert.
+- #368: Closed as known limitation. Non-prod Render services (dev/qa/staging) are on the free plan and share egress IPs — Binance returns 418 from those IPs. Prod is on `starter` plan, unaffected. No real users on qa/staging.
+- `lib/paidPeriod.ts` + `lib/entitlements.ts`: Time-based backstop for lapsed paid subscriptions (#373) implemented — `paidPeriodLapsed()` demotes role on every entitlement check if `current_period_end` + 48h grace has passed. 48h threshold is a placeholder; owner confirmation outstanding (#373).
+- `/disclaimer` page title: `fontSize: '2.625rem'` (42px at 16px base) — hardcoded inline style, not a design token (#445).
+
+**Services vs branches (autoDeploy: "no" on all).** A merged branch says nothing about what the service serves. Verify with `/api/version` on each host before assuming a fix is live. Dev deploys non-prod services; check before triggering — 500 build-hr/mo cap on the dev service.
 
 ---
 
