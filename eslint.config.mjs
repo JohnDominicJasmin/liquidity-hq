@@ -148,6 +148,11 @@ const eslintConfig = defineConfig([
     // error in vendored, minified third-party code that no one can act on.
     'qa/e2e-report/**',
     'test-results/**',
+    // design-handoff-dir contains vendored design-tool runtime bundles (support.js,
+    // ~1,200 lines). Lint correctly flags ReactDOM.render and module assignment but
+    // neither can be fixed — they are third-party files. Ignore was first added in
+    // b38a9b1 and removed by mistake during the #481 terminal revert.
+    'design-handoff-dir/**',
   ]),
 ]);
 
