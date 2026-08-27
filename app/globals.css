@@ -5280,6 +5280,15 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --mark-idle:    #22262a;  /* signal marker when not firing */
   --border-input: #2a2e32;  /* input and secondary-button border */
 
+  /* Radius: 0 everywhere in terminal mode. The comment above already states
+     this intent; these override the root tokens so CSS classes that reference
+     var(--radius-card) etc. produce 0 without needing per-class rules. */
+  --radius-data: 0;
+  --radius-card: 0;
+  --radius-chip: 0;
+  --radius-pill: 0;
+  --radius-sharp: 0;
+
   /* Undocumented in the README, real in the prototypes: the FLAT cell of the
      hours expectancy grid (|expectancy| < 0.12), with its own legend swatch.
      Close to --mark-idle and deliberately not equal to it. */
@@ -6188,3 +6197,16 @@ main.app-content[data-chrome="none"] {
 /* The scale badge sits with them and reads as orphaned once they are gone. */
 [data-design="terminal"] .at-chart .klc-scale-badge,
 [data-design="terminal"] .at-mchart .klc-scale-badge { display: none; }
+
+/* ── Dashboard (Desk 2a) terminal overrides (#413) ─────────────────────────
+   Hardcoded pixel radii that the token override (--radius-card: 0) cannot
+   reach because they are literal px values in the shared class definitions.
+   Each rule is one class, one property: no cascade, no specificity surprise. */
+[data-design="terminal"] .edge-card     { border-radius: 0; }
+[data-design="terminal"] .scc-card      { border-radius: 0; }
+[data-design="terminal"] .macro-rail-card { border-radius: 0; border: 1px solid var(--bdr); }
+[data-design="terminal"] .mr            { border-radius: 0; }
+[data-design="terminal"] .cascade-dismiss { border-radius: 0; }
+[data-design="terminal"] .csb2-sig      { border-radius: 0; }
+[data-design="terminal"] .csb2-bar-track,
+[data-design="terminal"] .csb2-bar-fill { border-radius: 0; }
