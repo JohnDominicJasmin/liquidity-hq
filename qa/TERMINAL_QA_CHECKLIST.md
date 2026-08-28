@@ -150,8 +150,27 @@ Verified: 2026-08-29 · #500 @ `aafd6a5` (static — browser extension offline)
 
 ---
 
-### ⏳ `/faq` · `/terms` · `/refund` · `/upgrade`
-Pending: #501 — inline `borderRadius` values need nuclear wrapper. Assigned to dev.
+### ✅ `/faq`
+Verified: 2026-08-29 · #503 @ `701d368` (static — browser extension offline)
+Nuclear wrapper `.faq-term-wrap *` covers accordion item cards.
+
+---
+
+### ✅ `/terms`
+Verified: 2026-08-29 · #503 @ `701d368` (static — browser extension offline)
+Nuclear wrapper `.terms-term-wrap *` covers callout box.
+
+---
+
+### ✅ `/refund`
+Verified: 2026-08-29 · #503 @ `701d368` (static — browser extension offline)
+Nuclear wrapper `.refund-term-wrap *` covers callout box.
+
+---
+
+### ✅ `/upgrade`
+Verified: 2026-08-29 · #503 @ `701d368` (static — browser extension offline)
+Nuclear wrapper `.upgrade-term-wrap *` covers badge pill, plan cards, "Best value" label, CTA button.
 
 ---
 

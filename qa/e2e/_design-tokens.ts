@@ -32,6 +32,10 @@
  *   /about          — no treatment needed (0 hardcoded radii), verified 2026-08-29 (static)
  *   /learn          — no treatment needed (0 hardcoded radii), verified 2026-08-29 (static)
  *   /privacy        — no treatment needed (0 hardcoded radii), verified 2026-08-29 (static)
+ *   /faq            — #503 @ 701d368, verified 2026-08-29 (static)
+ *   /terms          — #503 @ 701d368, verified 2026-08-29 (static)
+ *   /refund         — #503 @ 701d368, verified 2026-08-29 (static)
+ *   /upgrade        — #503 @ 701d368, verified 2026-08-29 (static)
  */
 export const CONVERTED_ROUTES: string[] = [
   '/',
@@ -59,6 +63,10 @@ export const CONVERTED_ROUTES: string[] = [
   '/about',
   '/learn',
   '/privacy',
+  '/faq',
+  '/terms',
+  '/refund',
+  '/upgrade',
 ];
 
 /**
