@@ -6238,3 +6238,6 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .corr-cell          { border-radius: 0; }
 [data-design="terminal"] .corr-pair-bar-wrap { border-radius: 0; }
 [data-design="terminal"] .corr-pair-bar      { border-radius: 0; }
+/* scanner */
+[data-design="terminal"] .scanner-term-wrap,
+[data-design="terminal"] .scanner-term-wrap * { border-radius: 0 !important; }
