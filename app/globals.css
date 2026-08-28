@@ -6248,3 +6248,16 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .alerts-term-wrap * { border-radius: 0 !important; }
 [data-design="terminal"] .news-term-wrap,
 [data-design="terminal"] .news-term-wrap * { border-radius: 0 !important; }
+/* calc / playbook / hours / research / econ-calendar / settings terminal (#413) */
+[data-design="terminal"] .calc-term-wrap,
+[data-design="terminal"] .calc-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .playbook-term-wrap,
+[data-design="terminal"] .playbook-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .hours-term-wrap,
+[data-design="terminal"] .hours-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .research-term-wrap,
+[data-design="terminal"] .research-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .econ-term-wrap,
+[data-design="terminal"] .econ-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .settings-term-wrap,
+[data-design="terminal"] .settings-term-wrap * { border-radius: 0 !important; }
