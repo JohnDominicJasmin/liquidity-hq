@@ -6271,3 +6271,12 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .upgrade-gate-term-wrap * { border-radius: 0 !important; }
 [data-design="terminal"] .upgrade-modal-term-wrap,
 [data-design="terminal"] .upgrade-modal-term-wrap * { border-radius: 0 !important; }
+/* faq / terms / refund / upgrade terminal (#501) */
+[data-design="terminal"] .faq-term-wrap,
+[data-design="terminal"] .faq-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .terms-term-wrap,
+[data-design="terminal"] .terms-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .refund-term-wrap,
+[data-design="terminal"] .refund-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .upgrade-term-wrap,
+[data-design="terminal"] .upgrade-term-wrap * { border-radius: 0 !important; }
