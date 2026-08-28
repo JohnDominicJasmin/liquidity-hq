@@ -6261,3 +6261,6 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .econ-term-wrap * { border-radius: 0 !important; }
 [data-design="terminal"] .settings-term-wrap,
 [data-design="terminal"] .settings-term-wrap * { border-radius: 0 !important; }
+/* login / forgot-password / reset-password terminal (#413) */
+[data-design="terminal"] .login-term-wrap,
+[data-design="terminal"] .login-term-wrap * { border-radius: 0 !important; }

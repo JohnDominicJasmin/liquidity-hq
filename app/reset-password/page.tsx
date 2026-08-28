@@ -8,6 +8,7 @@ import LoadingState from '@/components/LoadingState';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 // Landed on directly from the password-reset email link
 // (resetPasswordForEmail's redirectTo), not routed through /auth/callback -
@@ -17,6 +18,7 @@ import { useLabels } from '@/lib/labels';
 // same as everywhere else in this app) and fires a PASSWORD_RECOVERY auth
 // event once it's parsed - that's the signal this form is safe to show.
 export default function ResetPasswordPage() {
+  const mode = useDesignMode();
   const router = useRouter();
   const { t } = useLabels();
   const [ready, setReady]     = useState(false);
@@ -79,7 +81,7 @@ export default function ResetPasswordPage() {
 
   if (invalid) {
     return (
-      <div className="login-wrap">
+      <div className={`login-wrap${mode === 'terminal' ? ' login-term-wrap' : ''}`}>
         <div className="login-card">
           <div className="login-logo">Liquidity<span>HQ</span></div>
           <div className="login-error" data-testid="login-error" style={{ marginTop: 16 }}>{t('RESET_PASSWORD_INVALID_LINK')}</div>
@@ -94,7 +96,7 @@ export default function ResetPasswordPage() {
   if (!ready) return <LoadingState message={t('LOGIN_LOADING')} fullPage />;
 
   return (
-    <div className="login-wrap">
+    <div className={`login-wrap${mode === 'terminal' ? ' login-term-wrap' : ''}`}>
       <div className="login-card">
         <div className="login-logo">Liquidity<span>HQ</span></div>
         <p className="login-sub">{t('RESET_PASSWORD_SUBTITLE')}</p>
