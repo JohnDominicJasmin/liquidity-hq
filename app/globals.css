@@ -6215,3 +6215,26 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .mb-event-tag  { border-radius: 0; }
 [data-design="terminal"] .mb-brief-btn  { border-radius: 0; }
 [data-design="terminal"] .mb-cvd-chip   { border-radius: 0; }
+/* liq */
+[data-design="terminal"] .liq-range-btn    { border-radius: 0; }
+[data-design="terminal"] .liq-stats-row    { border-radius: 0; }
+[data-design="terminal"] .liq-bias-card    { border-radius: 0; }
+[data-design="terminal"] .liq-bias-badge   { border-radius: 0; }
+[data-design="terminal"] .liq-magnet-box   { border-radius: 0; }
+[data-design="terminal"] .liq-card         { border-radius: 0; }
+[data-design="terminal"] .liq-insight-card { border-radius: 0; }
+[data-design="terminal"] .liq-current-tag  { border-radius: 0; }
+[data-design="terminal"] .liq-row-bar-wrap { border-radius: 0; }
+[data-design="terminal"] .liq-row-bar      { border-radius: 0; }
+[data-design="terminal"] .liq-howto        { border-radius: 0; }
+[data-design="terminal"] .liq-cluster-bars { border-radius: 0; }
+[data-design="terminal"] .liq-cluster-bar  { border-radius: 0; }
+/* funding */
+[data-design="terminal"] .frh-range-btn    { border-radius: 0; }
+[data-design="terminal"] .frh-summary-bar  { border-radius: 0; }
+[data-design="terminal"] .frh-sig-chip     { border-radius: 0; }
+[data-design="terminal"] .frh-signal       { border-radius: 0; }
+/* correlation */
+[data-design="terminal"] .corr-cell          { border-radius: 0; }
+[data-design="terminal"] .corr-pair-bar-wrap { border-radius: 0; }
+[data-design="terminal"] .corr-pair-bar      { border-radius: 0; }

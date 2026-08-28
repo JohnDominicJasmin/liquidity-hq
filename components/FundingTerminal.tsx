@@ -9,8 +9,6 @@ import Tip from '@/components/Tip';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-import { useDesignMode } from '@/components/DesignModeProvider';
-import FundingTerminal from '@/components/FundingTerminal';
 
 /* ── types ── */
 interface FRPoint { rate: number; ts: number; }
@@ -32,11 +30,6 @@ const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
 };
 
 /* ── data fetching ── */
-/* One request for every symbol (#200 batch 3), instead of one per symbol.
- *
- * This was 45 calls with identical params, and only on this page - QA measured
- * it as the same sweep shape as account-ratio. The map is fetched once by the
- * caller below and each coin reads its own entry; the parsing is unchanged. */
 async function fetchAllBinanceFR(): Promise<Record<string, FRPoint[]>> {
   try {
     const res = await fetch('/api/market/funding-rate?limit=42');
@@ -171,7 +164,6 @@ function drawSparkline(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   const xs = (i: number) => (i / (rates.length - 1)) * W;
   const ys = (r: number) => yMid - r * yScale;
 
-  /* positive fill (above zero) */
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, W, yMid); ctx.clip();
   ctx.beginPath();
@@ -184,7 +176,6 @@ function drawSparkline(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   ctx.fill();
   ctx.restore();
 
-  /* negative fill (below zero) */
   ctx.save();
   ctx.beginPath(); ctx.rect(0, yMid, W, H); ctx.clip();
   ctx.beginPath();
@@ -197,14 +188,12 @@ function drawSparkline(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   ctx.fill();
   ctx.restore();
 
-  /* zero line */
   ctx.beginPath();
   ctx.moveTo(0, yMid); ctx.lineTo(W, yMid);
   ctx.strokeStyle = 'rgba(255,255,255,0.09)';
   ctx.lineWidth = 0.5;
   ctx.stroke();
 
-  /* line */
   ctx.beginPath();
   rates.forEach((r, i) => i === 0 ? ctx.moveTo(xs(i), ys(r)) : ctx.lineTo(xs(i), ys(r)));
   ctx.strokeStyle = 'rgba(255,255,255,0.6)';
@@ -212,7 +201,6 @@ function drawSparkline(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   ctx.lineJoin    = 'round';
   ctx.stroke();
 
-  /* last dot */
   const last = rates[rates.length - 1];
   ctx.beginPath();
   ctx.arc(xs(rates.length - 1), ys(last), 2.5, 0, Math.PI * 2);
@@ -241,7 +229,6 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   const xs = (i: number) => PL + (i / Math.max(rates.length - 1, 1)) * CW;
   const ys = (r: number) => yMid - r * yScale;
 
-  /* grid lines + Y labels */
   ctx.font = '10px Inter, system-ui, sans-serif';
   ctx.textBaseline = 'middle';
   ctx.textAlign    = 'right';
@@ -258,7 +245,6 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
     ctx.fillText((g * 100).toFixed(3) + '%', PL - 5, y);
   });
 
-  /* positive fill */
   ctx.save();
   ctx.beginPath(); ctx.rect(PL, PT, CW, yMid - PT); ctx.clip();
   ctx.beginPath();
@@ -271,7 +257,6 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   ctx.fill();
   ctx.restore();
 
-  /* negative fill */
   ctx.save();
   ctx.beginPath(); ctx.rect(PL, yMid, CW, PT + CH - yMid); ctx.clip();
   ctx.beginPath();
@@ -284,7 +269,6 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   ctx.fill();
   ctx.restore();
 
-  /* line */
   ctx.beginPath();
   rates.forEach((r, i) => i === 0 ? ctx.moveTo(xs(i), ys(r)) : ctx.lineTo(xs(i), ys(r)));
   ctx.strokeStyle = 'rgba(255,255,255,0.75)';
@@ -292,7 +276,6 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   ctx.lineJoin    = 'round';
   ctx.stroke();
 
-  /* dots at each point */
   rates.forEach((r, i) => {
     ctx.beginPath();
     ctx.arc(xs(i), ys(r), i === rates.length - 1 ? 4 : 2, 0, Math.PI * 2);
@@ -305,7 +288,6 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
     }
   });
 
-  /* X-axis time labels */
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'top';
   ctx.fillStyle    = 'rgba(255,255,255,0.25)';
@@ -314,15 +296,29 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
     if (i % skip !== 0 && i !== pts.length - 1) return;
     const d   = new Date(p.ts);
     const mo  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
-    // For 24h range show time, otherwise show date
     const label = pts.length <= 4 ? `${String(d.getHours()).padStart(2,'0')}:00` : `${mo} ${d.getDate()}`;
     ctx.fillText(label, xs(i), PT + CH + 7);
   });
 }
 
+/* ── TPanel ── */
+function TPanel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      background: 'var(--bg1)',
+      border: '1px solid var(--bdr)',
+      borderRadius: 0,
+      marginBottom: 10,
+      padding: 16,
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
 /* ── component ── */
-export default function FundingHistory() {
-  const mode = useDesignMode();
+export default function FundingTerminal() {
   const { t }                 = useLabels();
   const { store }             = useMarket();
   const [history, setHistory] = useState<FRHistory>({});
@@ -336,20 +332,15 @@ export default function FundingHistory() {
 
   const rangeCount = RANGES.find(r => r.key === rangeKey)!.count;
 
-  /* fetch history for all coins on mount */
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const result: FRHistory = {};
-      /* One request covering every Binance symbol, before the per-coin loop. */
       const binanceAll = await fetchAllBinanceFR();
       await Promise.all(COINS.map(async id => {
         const binSym = (BINANCE_SYMS as Record<string, string>)[id];
         const bbSym  = (BYBIT_SYMS  as Record<string, string>)[id];
         let pts: FRPoint[] = [];
-        /* Binance comes from the one batched map; Bybit stays per-symbol because
-           it is only the fallback for coins Binance does not list - a handful,
-           not a sweep. */
         if (binSym) pts = binanceAll[binSym] ?? [];
         if (!pts.length && bbSym) pts = await fetchBybitFR(bbSym);
         if (pts.length) result[id] = pts;
@@ -359,7 +350,6 @@ export default function FundingHistory() {
     return () => { cancelled = true; };
   }, []);
 
-  /* redraw all sparklines when data or range changes */
   useEffect(() => {
     if (!Object.keys(history).length) return;
     requestAnimationFrame(() => {
@@ -371,7 +361,6 @@ export default function FundingHistory() {
     });
   }, [history, rangeCount]);
 
-  /* redraw full chart when selection, range, or data changes */
   useEffect(() => {
     const canvas = fullChartRef.current;
     if (!canvas) return;
@@ -394,8 +383,6 @@ export default function FundingHistory() {
 
   const currentCoin = store.coins[selected];
 
-  if (mode === 'terminal') return <FundingTerminal />;
-
   return (
     <div>
 
@@ -405,7 +392,7 @@ export default function FundingHistory() {
         <div className="mb-subtitle">{t('FUNDING_PAGE_SUBTITLE')}</div>
       </div>
 
-      {/* FR Regime Overview - live data from market store, no history needed */}
+      {/* FR Regime Overview */}
       {(() => {
         const liveCoins = COINS.map(id => {
           const fr = store.coins[id]?.fundingRate;
@@ -425,24 +412,24 @@ export default function FundingHistory() {
         if (!liveCoins.length) return null;
 
         return (
-          <div className="card" style={{ padding: '12px 14px', marginBottom: 12 }}>
+          <TPanel style={{ padding: '12px 14px', marginBottom: 12 }}>
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
               <Tip width={250} text={t('FUNDING_REGIME_OVERVIEW_TIP')}>{t('FUNDING_REGIME_OVERVIEW_LABEL')}</Tip>
             </div>
 
             {/* Summary chips */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(248,113,113,0.10)', color: 'var(--red)', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
+              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'rgba(248,113,113,0.10)', color: 'var(--red)', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
                 <Tip iconColor="var(--red)" text={t('FUNDING_CONTRARIAN_SHORT_TIP')}>
                   {t('FUNDING_CONTRARIAN_SHORT_COUNT', { count: shortSignals.length, plural: shortSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
-              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(52,211,153,0.10)', color: 'var(--green-2)', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
+              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'rgba(52,211,153,0.10)', color: 'var(--green-2)', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
                 <Tip iconColor="var(--green-2)" text={t('FUNDING_CONTRARIAN_LONG_TIP')}>
                   {t('FUNDING_CONTRARIAN_LONG_COUNT', { count: longSignals.length, plural: longSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
-              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', border: '0.5px solid rgba(26,122,255,0.25)', fontWeight: 700 }}>
+              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', border: '0.5px solid rgba(26,122,255,0.25)', fontWeight: 700 }}>
                 <Tip iconColor="#1a7aff" text={t('FUNDING_CARRY_ARB_TIP')}>
                   {t('FUNDING_CARRY_ARB_COUNT', { count: arbs.length })}
                 </Tip>
@@ -459,22 +446,22 @@ export default function FundingHistory() {
                   <span style={{ fontSize: 'var(--fs-caption)', color: frColor(fr), fontFamily: 'var(--font-mono), monospace', minWidth: 64, flexShrink: 0 }}>
                     {frFmt(fr)}
                   </span>
-                  <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 8, background: sig.bg, color: sig.color, border: `0.5px solid ${withAlpha(sig.color, '33')}`, fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 0, background: sig.bg, color: sig.color, border: `0.5px solid ${withAlpha(sig.color, '33')}`, fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
                     {t(sig.crowdKey)}
                   </span>
                   <span style={{ flex: 1 }} />
                   {contraShort && (
-                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(248,113,113,0.12)', color: 'var(--red)', fontWeight: 700, flexShrink: 0 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 0, background: 'rgba(248,113,113,0.12)', color: 'var(--red)', fontWeight: 700, flexShrink: 0 }}>
                       {t('FUNDING_BADGE_SHORT_LABEL')}
                     </span>
                   )}
                   {contraLong && (
-                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(52,211,153,0.12)', color: 'var(--green-2)', fontWeight: 700, flexShrink: 0 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 0, background: 'rgba(52,211,153,0.12)', color: 'var(--green-2)', fontWeight: 700, flexShrink: 0 }}>
                       {t('FUNDING_BADGE_LONG_LABEL')}
                     </span>
                   )}
                   {carryArb && (
-                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 0, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
                       {t('FUNDING_BADGE_ARB_LABEL')}
                     </span>
                   )}
@@ -487,7 +474,7 @@ export default function FundingHistory() {
                 {t('FUNDING_CARRY_ARB_FOOTNOTE')}
               </div>
             )}
-          </div>
+          </TPanel>
         );
       })()}
 
@@ -507,7 +494,6 @@ export default function FundingHistory() {
         </span>
       </div>
 
-      {/* Loading state */}
       {loading && <LoadingState message={t('FUNDING_LOADING_MESSAGE')} />}
 
       {!loading && (() => {
@@ -542,7 +528,7 @@ export default function FundingHistory() {
           <div className="frh-split">
 
             {/* ── LIST PANEL ── */}
-            <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 0 }}>
+            <TPanel style={{ padding: 0, overflow: 'hidden', marginBottom: 0 }}>
               {/* Search bar */}
               <div style={{ borderBottom: '0.5px solid var(--bdr)', padding: '0 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
@@ -624,11 +610,12 @@ export default function FundingHistory() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </TPanel>
 
             {/* ── DETAIL PANEL ── */}
             <div className="frh-detail-sticky">
-              <div className="card frh-chart-card" style={{ marginBottom: 0 }}>
+              <TPanel style={{ marginBottom: 0, padding: 0 }}>
+                <div className="frh-chart-card">
                 <div className="frh-chart-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--accent)', fontFamily: "'JetBrains Mono', monospace" }}>{COIN_LABELS[selected]}</span>
@@ -655,7 +642,7 @@ export default function FundingHistory() {
                 {currentCoin?.fundingRate != null && (() => {
                   const sig = frSignal(currentCoin.fundingRate);
                   return (
-                    <div className="frh-signal" style={{ background: sig.bg, borderColor: withAlpha(sig.color, '55') }}>
+                    <div className="frh-signal" style={{ background: sig.bg, borderColor: withAlpha(sig.color, '55'), borderRadius: 0 }}>
                       <div style={{ flex: 1 }}>
                         <div className="frh-signal-top">
                           <span className="frh-signal-label" style={{ color: sig.color }}>{t(sig.labelKey)}</span>
@@ -677,7 +664,8 @@ export default function FundingHistory() {
                   <span style={{ color: 'var(--red)' }}>{t('FUNDING_LEGEND_POSITIVE_LABEL')}</span> = {t('FUNDING_LEGEND_POSITIVE_DESC')} &nbsp;·&nbsp;
                   <span style={{ color: 'var(--green-2)' }}>{t('FUNDING_LEGEND_NEGATIVE_LABEL')}</span> = {t('FUNDING_LEGEND_NEGATIVE_DESC')}
                 </div>
-              </div>
+                </div>
+              </TPanel>
             </div>
 
           </div>
