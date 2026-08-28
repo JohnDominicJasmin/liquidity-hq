@@ -12,6 +12,7 @@ import LoadingState from '@/components/LoadingState';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 // Only rendered once NEXT_PUBLIC_TURNSTILE_SITE_KEY is set - until then the
 // magic-link form works exactly as before (no widget, no token required).
@@ -21,6 +22,7 @@ import { useLabels } from '@/lib/labels';
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
 function LoginInner() {
+  const mode = useDesignMode();
   const searchParams = useSearchParams();
   const router       = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -208,7 +210,7 @@ function LoginInner() {
   if (authLoading || user) return <LoginFallback />;
 
   return (
-    <div className="login-wrap">
+    <div className={`login-wrap${mode === 'terminal' ? ' login-term-wrap' : ''}`}>
       <div className="login-card">
 
         {/* Logo */}

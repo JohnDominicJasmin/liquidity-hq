@@ -5,10 +5,12 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
 export default function ForgotPasswordPage() {
+  const mode = useDesignMode();
   const { t } = useLabels();
   const [email, setEmail]         = useState('');
   const [loading, setLoading]     = useState(false);
@@ -43,7 +45,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="login-wrap">
+    <div className={`login-wrap${mode === 'terminal' ? ' login-term-wrap' : ''}`}>
       <div className="login-card">
         <div className="login-logo">Liquidity<span>HQ</span></div>
         <p className="login-sub">{t('FORGOT_PASSWORD_SUBTITLE')}</p>
