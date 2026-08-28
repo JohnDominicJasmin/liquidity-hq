@@ -1,4 +1,5 @@
 ﻿'use client';
+import { useDesignMode } from '@/components/DesignModeProvider';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AuthGate from '@/components/AuthGate';
 import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
@@ -63,6 +64,7 @@ const LINK_POLL_MAX     = 40;
 const LINK_CODE_TTL_SEC = 600;
 
 export default function AlertsPage() {
+  const mode = useDesignMode();
   const { t } = useLabels();
   const { user, entitled, loading: authLoading } = useAuth();
   const { settings, loading: settingsLoading, refresh: refreshSettings } = useSettings();
@@ -522,7 +524,7 @@ export default function AlertsPage() {
   };
 
   return (
-    <div>
+    <div className={mode === 'terminal' ? 'alerts-term-wrap' : undefined}>
       {/* Header */}
       <div className="mb-header">
         <h1 className="mb-title">{t('ALERTS_PAGE_TITLE')}</h1>

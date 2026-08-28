@@ -1,4 +1,5 @@
 'use client';
+import { useDesignMode } from '@/components/DesignModeProvider';
 import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
 import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
@@ -343,6 +344,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
    PAGE
 ──────────────────────────────────────────────── */
 export default function NewsPage() {
+  const mode = useDesignMode();
   const { t } = useLabels();
   const { alerts, geoEvents, econEvents, whaleAlerts, alertsLoaded } = useNews();
   const [tab, setTab] = useState<Tab>('foryou');
@@ -417,7 +419,7 @@ export default function NewsPage() {
   }
 
   return (
-    <div>
+    <div className={mode === 'terminal' ? 'news-term-wrap' : undefined}>
       {/* ── Header ── */}
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2, letterSpacing: '-0.3px' }}>
