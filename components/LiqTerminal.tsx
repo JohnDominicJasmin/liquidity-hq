@@ -8,12 +8,8 @@ import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
-import { useDesignMode } from '@/components/DesignModeProvider';
-import LiqTerminal from '@/components/LiqTerminal';
 import type { LabelKey } from '@/lib/labelKeys';
 
-
-/* ─── All leverage tiers - every real level Binance/Bybit offers ──────────── */
 const TIERS = [
   { lev: 125, dist: 0.0080, w: 0.02 },
   { lev: 100, dist: 0.0100, w: 0.04 },
@@ -36,7 +32,6 @@ const TIERS = [
 
 type TimeRange = '12h' | '24h' | '48h' | '3d' | '1w';
 
-// Coins covered by the liquidation delta feed (Binance futures forceOrder stream mapping)
 const LIQ_DELTA_COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'near', 'sui'];
 
 const RANGE_TO_PERIOD: Record<TimeRange, string> = {
@@ -47,8 +42,6 @@ const RANGE_TO_PERIOD: Record<TimeRange, string> = {
   '1w':  '1d',
 };
 
-// Bybit's account-ratio endpoint only accepts 5min/15min/30min/1h/4h/12h/1d -
-// no 6h or 2h option (unlike Binance), so it needs its own mapping.
 const RANGE_TO_BYBIT_PERIOD: Record<TimeRange, string> = {
   '12h': '1h',
   '24h': '4h',
@@ -65,13 +58,11 @@ const RANGES: { key: TimeRange; labelKey: LabelKey; maxDist: number; hintKey: La
   { key: '1w',  labelKey: 'LIQ_RANGE_LABEL_1W',  maxDist: 0.50,  hintKey: 'LIQ_RANGE_HINT_1W' },
 ];
 
-/* ─── Estimated band types ─────────────────────────────────────────────────── */
 interface Band {
   price: number; distPct: number; usdM: number;
   lev: string; side: 'long' | 'short'; barPct: number; isMagnet: boolean;
 }
 
-/* ─── Estimated bands computation ─────────────────────────────────────────── */
 function computeBands(price: number, oi: number, longR: number, shortR: number, maxDist: number) {
   const oiM = oi / 1e6;
   const active = TIERS.filter(t => t.dist <= maxDist);
@@ -104,7 +95,6 @@ function computeBands(price: number, oi: number, longR: number, shortR: number, 
   };
 }
 
-/* ─── Formatters ───────────────────────────────────────────────────────────── */
 function fmtP(price: number): string {
   if (price >= 10_000) return '$' + Math.round(price).toLocaleString('en-US');
   if (price >= 100)    return '$' + price.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -123,7 +113,21 @@ function fmtUsd(v: number): string {
   return '$' + v.toFixed(0);
 }
 
-/* ─── Estimated band row ───────────────────────────────────────────────────── */
+function TPanel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      background: 'var(--bg1)',
+      border: '1px solid var(--bdr)',
+      borderRadius: 0,
+      marginBottom: 10,
+      padding: 16,
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
 function BandRow({ b }: { b: Band }) {
   const isLong = b.side === 'long';
   const accent = isLong ? 'var(--red)' : 'var(--green-2)';
@@ -148,13 +152,12 @@ function BandRow({ b }: { b: Band }) {
   );
 }
 
-/* ─── Real cluster card ─────────────────────────────────────────────────────── */
 function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentPrice: number }) {
   const { t } = useLabels();
   if (clusters.length === 0) {
     return (
       <div style={{
-        padding: '12px 14px', borderRadius: 10, marginBottom: 12,
+        padding: '12px 14px', borderRadius: 0, marginBottom: 12,
         background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)',
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
@@ -172,17 +175,15 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
   const maxTotal = Math.max(...clusters.map(c => c.total));
   const above = clusters.filter(c => c.price > currentPrice).sort((a, b) => a.price - b.price);
   const below = clusters.filter(c => c.price <= currentPrice).sort((a, b) => b.price - a.price);
-  // Any buckets that straddle current price get shown separately
   const sorted = [...above, ...below];
 
   return (
     <div style={{
-      borderRadius: 10, overflow: 'hidden',
+      borderRadius: 0, overflow: 'hidden',
       border: '0.5px solid rgba(52,211,153,0.2)',
       background: 'rgba(52,211,153,0.03)',
       marginBottom: 12,
     }}>
-      {/* Header */}
       <div style={{
         padding: '10px 14px 8px',
         borderBottom: '0.5px solid rgba(255,255,255,0.06)',
@@ -198,7 +199,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
           </span>
           <span style={{
             fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.06em',
-            padding: '2px 7px', borderRadius: 10,
+            padding: '2px 7px', borderRadius: 0,
             background: 'rgba(52,211,153,0.12)', color: 'var(--green-2)',
             border: '0.5px solid rgba(52,211,153,0.25)',
           }}>{t('LIQ_CLUSTERS_LIVE_BADGE')}</span>
@@ -206,18 +207,16 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_CLUSTERS_WINDOW_LABEL')}</span>
       </div>
 
-      {/* Column headers */}
       <div style={{
         display: 'grid', gridTemplateColumns: '80px 1fr 60px 24px',
         padding: '6px 14px 4px',
         gap: 8,
       }}>
-        {[[t('LIQ_CLUSTERS_COL_PRICE'), 'left'], [t('LIQ_CLUSTERS_COL_VOLUME'), 'left'], [t('LIQ_CLUSTERS_COL_TOTAL'), 'right'], ['', 'right']].map(([h, a]) => (
+        {([[t('LIQ_CLUSTERS_COL_PRICE'), 'left'], [t('LIQ_CLUSTERS_COL_VOLUME'), 'left'], [t('LIQ_CLUSTERS_COL_TOTAL'), 'right'], ['', 'right']] as [string, string][]).map(([h, a]) => (
           <span key={h} style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', textAlign: a as 'left' | 'right' }}>{h}</span>
         ))}
       </div>
 
-      {/* Rows */}
       <div style={{ padding: '0 14px 10px' }}>
         {sorted.map(c => {
           const longPct  = maxTotal > 0 ? (c.longUsd  / maxTotal) * 100 : 0;
@@ -240,8 +239,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
                   {fmtP(distUsd)} {isAbove ? t('LIQ_CLUSTERS_ABOVE') : t('LIQ_CLUSTERS_BELOW')}
                 </div>
               </div>
-              {/* Stacked bars */}
-              <div style={{ height: 10, borderRadius: 3, background: 'rgba(255,255,255,0.04)', overflow: 'hidden', display: 'flex' }}>
+              <div style={{ height: 10, borderRadius: 0, background: 'rgba(255,255,255,0.04)', overflow: 'hidden', display: 'flex' }}>
                 <div style={{ width: `${longPct}%`,  height: '100%', background: 'rgba(248,113,113,0.65)', transition: 'width 0.4s' }} />
                 <div style={{ width: `${shortPct}%`, height: '100%', background: 'rgba(52,211,153,0.65)',  transition: 'width 0.4s' }} />
               </div>
@@ -263,9 +261,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
   );
 }
 
-/* ─── Page ─────────────────────────────────────────────────────────────────── */
-export default function LiqPage() {
-  const mode = useDesignMode();
+export default function LiqTerminal() {
   const { t } = useLabels();
   const { store }  = useMarket();
   const [coin, setCoin]   = useState<CoinId>('btc');
@@ -276,10 +272,9 @@ export default function LiqPage() {
   const [retailPos, setRetailPos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
   const [bybitPos, setBybitPos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
 
-  /* Refetch whale positioning whenever coin or timeframe changes */
   useEffect(() => {
     const sym = BINANCE_SYMS[coin];
-    if (!sym) { setWhalePos(null); return; }   // Bybit-only coin (HYPE etc.)
+    if (!sym) { setWhalePos(null); return; }
     const period = RANGE_TO_PERIOD[range];
     let cancelled = false;
     fetch(`/api/proxy?type=lsr-top&symbol=${sym}&period=${period}&limit=1`)
@@ -292,12 +287,9 @@ export default function LiqPage() {
     return () => { cancelled = true; };
   }, [coin, range]);
 
-  /* Refetch retail (all-account) long/short ratio whenever coin or timeframe changes -
-     the "Long/Short accounts" stat row previously always showed the global store's
-     fixed-period snapshot (Bybit 1h / Binance 5m) regardless of the Time Range selector. */
   useEffect(() => {
     const sym = BINANCE_SYMS[coin];
-    if (!sym) { setRetailPos(null); return; }   // Bybit-only coin (HYPE etc.)
+    if (!sym) { setRetailPos(null); return; }
     const period = RANGE_TO_PERIOD[range];
     let cancelled = false;
     fetch(`/api/proxy?type=lsr-global&symbol=${sym}&period=${period}&limit=1`)
@@ -310,8 +302,6 @@ export default function LiqPage() {
     return () => { cancelled = true; };
   }, [coin, range]);
 
-  /* Refetch Bybit account ratio whenever coin or timeframe changes - same fix as the
-     Binance retail ratio above, using Bybit's own supported period values (no 6h/2h). */
   useEffect(() => {
     const sym = BYBIT_SYMS[coin];
     if (!sym) { setBybitPos(null); return; }
@@ -332,13 +322,11 @@ export default function LiqPage() {
   const cd         = store.coins[coin];
   const rangeConf  = RANGES.find(r => r.key === range)!;
 
-  /* Estimated bands */
   const bands = useMemo(() => {
     if (!cd?.price || !cd?.oi) return null;
     return computeBands(cd.price, cd.oi, cd.longRatio ?? 0.5, cd.shortRatio ?? 0.5, rangeConf.maxDist);
   }, [cd?.price, cd?.oi, cd?.longRatio, cd?.shortRatio, rangeConf.maxDist]);
 
-  /* Bias */
   const bias = bands
     ? bands.totalLongM > bands.totalShortM * 1.15
       ? { txt: t('LIQ_BIAS_LONG_HEAVY'), sub: t('LIQ_BIAS_LONG_HEAVY_SUB'), col: 'var(--red)' }
@@ -347,11 +335,8 @@ export default function LiqPage() {
       : { txt: t('LIQ_BIAS_BALANCED'), sub: t('LIQ_BIAS_BALANCED_SUB'), col: 'var(--txt-dim)' }
     : null;
 
-  if (mode === 'terminal') return <LiqTerminal />;
-
   return (
     <div>
-      {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
           {t('LIQ_TITLE')}
@@ -361,7 +346,6 @@ export default function LiqPage() {
         </div>
       </div>
 
-      {/* Coin selector dropdown */}
       <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', display: 'inline-block' }}>
           <select
@@ -374,7 +358,7 @@ export default function LiqPage() {
               fontSize: 'var(--fs-label)',
               fontWeight: 700,
               padding: '7px 30px 7px 12px',
-              borderRadius: 8,
+              borderRadius: 0,
               cursor: 'pointer',
               appearance: 'none',
               WebkitAppearance: 'none',
@@ -399,7 +383,6 @@ export default function LiqPage() {
         </span>
       </div>
 
-      {/* Time range */}
       <div className="liq-range-row">
         {RANGES.map(r => (
           <button key={r.key} className={`liq-range-btn${range === r.key ? ' on' : ''}`} onClick={() => setRange(r.key)}>
@@ -417,20 +400,19 @@ export default function LiqPage() {
       </div>
 
       {!cd?.price && (
-        <div className="card" style={{ textAlign: 'center', padding: '2rem' }} role="status" aria-live="polite">
+        <TPanel style={{ textAlign: 'center', padding: '2rem' }}>
           <span className="sr-only">{t('LIQ_LOADING_SR', { coin: coin.toUpperCase() })}</span>
           <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />
-        </div>
+        </TPanel>
       )}
       {cd?.price && !cd?.oi && (
-        <div className="card" style={{ textAlign: 'center', color: 'var(--txt-dim)', padding: '2rem' }}>
+        <TPanel style={{ textAlign: 'center', color: 'var(--txt-dim)', padding: '2rem' }}>
           {t('LIQ_NO_OI_DATA', { coin: coin.toUpperCase() })}
-        </div>
+        </TPanel>
       )}
 
       {bands && cd?.price && cd?.oi && (
         <>
-          {/* Bias - most actionable signal, show first */}
           {bias && (
             <div className="liq-bias-card" style={{ borderColor: withAlpha(bias.col, '33') }}>
               <span className="liq-bias-badge" style={{ color: bias.col, background: withAlpha(bias.col, '16') }}>{bias.txt}</span>
@@ -438,13 +420,9 @@ export default function LiqPage() {
             </div>
           )}
 
-
-          {/* Real liquidation clusters from live feeds - filtered to selected coin */}
           <RealClusters clusters={realClusters.filter(c => c.coin.toLowerCase() === coin).slice(0, 8)} currentPrice={cd.price} />
 
-          {/* Stats row */}
           <div className="liq-stats-row">
-            {/* Long side - both exchanges */}
             <div className="liq-stat-item">
               <div className="liq-stat-label">{t('LIQ_STAT_LONG_ACCOUNTS')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
@@ -467,7 +445,6 @@ export default function LiqPage() {
 
             <div className="liq-stat-sep" />
 
-            {/* Open Interest - center */}
             <div className="liq-stat-item" style={{ textAlign: 'center' }}>
               <div className="liq-stat-label" style={{ textAlign: 'center' }}>{t('LIQ_STAT_OPEN_INTEREST')}</div>
               <div className="liq-stat-val" style={{ color: 'var(--accent)', textAlign: 'center' }}>
@@ -478,7 +455,6 @@ export default function LiqPage() {
 
             <div className="liq-stat-sep" />
 
-            {/* Short side - both exchanges */}
             <div className="liq-stat-item" style={{ textAlign: 'right' }}>
               <div className="liq-stat-label">{t('LIQ_STAT_SHORT_ACCOUNTS')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginTop: 2 }}>
@@ -500,7 +476,6 @@ export default function LiqPage() {
             </div>
           </div>
 
-          {/* ══ LIQUIDATION DELTA - net long vs short liquidation $ (15min window) ══ */}
           {cd.liqDelta != null && cd.liqLongUsd != null && cd.liqShortUsd != null ? (() => {
             const netCol = cd.liqDelta! > 0 ? 'var(--red)' : cd.liqDelta! < 0 ? 'var(--green-2)' : 'var(--txt3)';
             const netTxt = cd.liqDelta! > 0
@@ -526,13 +501,11 @@ export default function LiqPage() {
             </div>
           )}
 
-          {/* ══ WHALE POSITIONING ════════════════════════════════ */}
           {(whalePos != null || (cd.bnWhaleLongRatio != null && cd.bnWhaleShortRatio != null)) && (() => {
             const whaleLong  = whalePos?.longRatio  ?? cd.bnWhaleLongRatio!;
             const whaleShort = whalePos?.shortRatio ?? cd.bnWhaleShortRatio!;
             const retailLong = cd.bnLongRatio ?? 0.5;
 
-            // Divergence: retail leaning one way, whales leaning opposite
             const longSqueezeRisk  = retailLong  > 0.55 && whaleShort > 0.52;
             const shortSqueezeRisk = retailLong  < 0.45 && whaleLong  > 0.52;
             const hasDivergence    = longSqueezeRisk || shortSqueezeRisk;
@@ -542,11 +515,10 @@ export default function LiqPage() {
 
             return (
               <div style={{
-                borderRadius: 12, overflow: 'hidden', marginBottom: 10,
+                borderRadius: 0, overflow: 'hidden', marginBottom: 10,
                 background: hasDivergence ? 'rgba(245,158,11,0.04)' : 'var(--bg1)',
                 border: `0.5px solid ${hasDivergence ? 'rgba(245,158,11,0.25)' : 'var(--bdr)'}`,
               }}>
-                {/* Header */}
                 <div style={{
                   padding: '10px 16px 8px',
                   borderBottom: '0.5px solid var(--bdr)',
@@ -558,7 +530,7 @@ export default function LiqPage() {
                     </span>
                     <span style={{
                       fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em',
-                      padding: '2px 7px', borderRadius: 10,
+                      padding: '2px 7px', borderRadius: 0,
                       background: withAlpha(accentW, '14'), color: accentW,
                       border: `0.5px solid ${withAlpha(accentW, '30')}`,
                       textTransform: 'uppercase',
@@ -571,9 +543,8 @@ export default function LiqPage() {
                   </span>
                 </div>
 
-                {/* Bar + numbers */}
                 <div style={{ padding: '12px 16px' }}>
-                  <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', height: 8, borderRadius: 0, overflow: 'hidden', marginBottom: 10 }}>
                     <div style={{ flex: whaleLong,  background: '#f87171', opacity: 0.7 }} />
                     <div style={{ flex: whaleShort, background: '#34d399', opacity: 0.7 }} />
                   </div>
@@ -593,11 +564,10 @@ export default function LiqPage() {
                   </div>
                 </div>
 
-                {/* Divergence alert */}
                 {hasDivergence && (
                   <div style={{
                     margin: '0 16px 12px',
-                    padding: '10px 12px', borderRadius: 8,
+                    padding: '10px 12px', borderRadius: 0,
                     background: 'rgba(245,158,11,0.07)',
                     border: '0.5px solid rgba(245,158,11,0.3)',
                     display: 'flex', gap: 8, alignItems: 'flex-start',
@@ -622,7 +592,6 @@ export default function LiqPage() {
             );
           })()}
 
-          {/* ══ ESTIMATED HEATMAP ══════════════════════════════════ */}
           <div className="liq-card">
             <div className="liq-section-hdr liq-section-hdr-short" role="heading" aria-level={3}>
               <span>{t('LIQ_HEATMAP_SHORT_HEADER')}</span>
@@ -658,7 +627,6 @@ export default function LiqPage() {
             </div>
           </div>
 
-          {/* Legend */}
           <div className="liq-howto">
             <div className="liq-howto-title">{t('LIQ_LEGEND_TITLE')}</div>
             <div className="liq-howto-row">
@@ -681,15 +649,9 @@ export default function LiqPage() {
         </>
       )}
 
-      {/* Live Liquidation Feed */}
       <LiqFeed onClusters={handleClusters} coinFilter={coin.toUpperCase()} />
-
-      {/* Whale Trade Feed */}
       <WhaleTradesFeed />
-
-      {/* Options GEX levels */}
       <GexTable />
-
     </div>
   );
 }
