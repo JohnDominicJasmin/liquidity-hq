@@ -1,5 +1,6 @@
 'use client';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 const SECTIONS = [
   { titleKey: 'TERMS_SECTION_ACCEPTANCE_TITLE', bodyKey: 'TERMS_SECTION_ACCEPTANCE_BODY' },
@@ -23,10 +24,11 @@ const SECTIONS = [
 ] as const;
 
 export default function TermsOfUse() {
+  const mode = useDesignMode();
   const { t } = useLabels();
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px 80px' }}>
+    <div className={mode === 'terminal' ? 'terms-term-wrap' : undefined} style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px 80px' }}>
 
       <div style={{ marginBottom: 48 }}>
         <div style={{
