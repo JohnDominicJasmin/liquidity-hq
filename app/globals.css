@@ -6215,3 +6215,11 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .mb-event-tag  { border-radius: 0; }
 [data-design="terminal"] .mb-brief-btn  { border-radius: 0; }
 [data-design="terminal"] .mb-cvd-chip   { border-radius: 0; }
+
+/* journal / alerts / news terminal — nuke hardcoded pixel radii (#413) */
+[data-design="terminal"] .journal-term-wrap,
+[data-design="terminal"] .journal-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .alerts-term-wrap,
+[data-design="terminal"] .alerts-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .news-term-wrap,
+[data-design="terminal"] .news-term-wrap * { border-radius: 0 !important; }
