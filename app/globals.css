@@ -6215,3 +6215,11 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .mb-event-tag  { border-radius: 0; }
 [data-design="terminal"] .mb-brief-btn  { border-radius: 0; }
 [data-design="terminal"] .mb-cvd-chip   { border-radius: 0; }
+/* /markets — hardcoded pixel radii not covered by CSS variable override */
+[data-design="terminal"] .liq-range-btn { border-radius: 0; }
+[data-design="terminal"] .liq-stats-row { border-radius: 0; }
+/* /scanner — sub-components with hardcoded inline border-radius values */
+[data-design="terminal"] .scanner-term-wrap * { border-radius: 0 !important; }
+/* scanner — nuke all hardcoded pixel radii inside sub-components */
+[data-design="terminal"] .scanner-term-wrap,
+[data-design="terminal"] .scanner-term-wrap * { border-radius: 0 !important; }

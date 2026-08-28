@@ -1,9 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useDesignMode } from '@/components/DesignModeProvider';
-import MarketsTerminal from '@/components/MarketsTerminal';
-import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, computeSqueezeScore } from '@/lib/marketStore';
+import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
@@ -41,16 +39,10 @@ const GRADE_ORDER: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, F: 4, '-':
 const PAGE_SIZE = 20;
 const ROW_COLS = '48px 1fr 40px 96px 58px 92px 1fr';
 
-export default function MarketsPage() {
-  const mode = useDesignMode();
+export default function MarketsTerminal() {
   const { t } = useLabels();
   const { store, selectCoin } = useMarket();
   const router = useRouter();
-  // MarketProvider starts every coin at its zeroed defaultStore shape and fills
-  // in over the WS connection - store.wsStatus flips 'Connecting...' -> 'Live'
-  // once real data has arrived. This page never checked it, so it rendered the
-  // full table instantly with blank/zero placeholder values and no loading
-  // indicator at all.
   const wsReady = store.wsStatus !== 'Connecting...';
   const [query, setQuery]   = useState('');
   const [sort, setSort]     = useState<SortKey>('volume');
@@ -80,10 +72,7 @@ export default function MarketsPage() {
     });
   }, [store.coins, query, sort, sortAsc]);
 
-  // Reset to page 1 whenever the result set changes shape
   useEffect(() => { setPage(0); }, [query, sort, sortAsc]);
-
-  if (mode === 'terminal') return <MarketsTerminal />;
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageSafe  = Math.min(page, pageCount - 1);
@@ -101,11 +90,6 @@ export default function MarketsPage() {
 
   function goToArena(id: CoinId) {
     selectCoin(id);
-    // Arena reads its initial coin from the ?coin= URL param at mount, not from
-    // the shared store (see app/arena/page.tsx's selectedCoin useState) - the
-    // selectCoin() call above alone was a no-op for this navigation, so every
-    // row click landed on Arena's default (BTC) regardless of which coin was
-    // clicked. Pass it in the URL, same pattern the rest of the app uses.
     router.push(`/arena?coin=${id}`);
   }
 
@@ -141,7 +125,7 @@ export default function MarketsPage() {
             onClick={() => router.back()}
             style={{
               fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 10px',
-              border: '0.5px solid var(--bdr)', borderRadius: 6,
+              border: '0.5px solid var(--bdr)', borderRadius: 0,
               background: 'none', cursor: 'pointer', flexShrink: 0,
             }}
           >
@@ -171,7 +155,7 @@ export default function MarketsPage() {
             style={{
               flex: 1, minWidth: 120,
               background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
-              borderRadius: 8, padding: '7px 12px',
+              borderRadius: 0, padding: '7px 12px',
               fontSize: 'var(--fs-caption)', color: 'var(--txt)', outline: 'none',
             }}
           />
@@ -183,7 +167,7 @@ export default function MarketsPage() {
               style={{
                 padding: '6px 12px', fontSize: 'var(--fs-caption)',
                 border: `0.5px solid ${sort === key ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
-                borderRadius: 8,
+                borderRadius: 0,
                 background: sort === key ? 'var(--accent-bg)' : 'transparent',
                 color: sort === key ? 'var(--accent-2)' : 'var(--txt3)',
                 cursor: 'pointer', textTransform: 'capitalize',
@@ -223,7 +207,7 @@ export default function MarketsPage() {
           <div role="status" aria-live="polite" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px' }}>
             <span className="sr-only">{t('MARKETS_LOADING_SR')}</span>
             {Array.from({ length: 10 }).map((_, i) => (
-              <SkeletonBar key={i} height={40} radius={8} style={{ opacity: 1 - i * 0.06 }} />
+              <SkeletonBar key={i} height={40} radius={0} style={{ opacity: 1 - i * 0.06 }} />
             ))}
           </div>
         ) : pageRows.map(id => {
@@ -255,7 +239,7 @@ export default function MarketsPage() {
             >
               {/* Grade */}
               <div style={{
-                width: 22, height: 22, borderRadius: 5,
+                width: 22, height: 22, borderRadius: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 'var(--fs-caption)', fontWeight: 800,
                 background: gradeStyle.bg, color: gradeStyle.col,
@@ -292,8 +276,8 @@ export default function MarketsPage() {
 
               {/* Pressure bar */}
               <div className="mkt-col-pressure" style={{ paddingLeft: 16, paddingRight: 8 }}>
-                <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2 }}>
-                  <div style={{ height: '100%', width: tbp + '%', background: barCol, borderRadius: 2, transition: 'width 0.5s' }} />
+                <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 0 }}>
+                  <div style={{ height: '100%', width: tbp + '%', background: barCol, borderRadius: 0, transition: 'width 0.5s' }} />
                 </div>
                 <div className="mkt-mono" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
                   {t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
@@ -341,7 +325,7 @@ export default function MarketsPage() {
                 onClick={() => setPage(p => Math.max(0, p - 1))}
                 disabled={pageSafe === 0}
                 style={{
-                  padding: '5px 10px', fontSize: 'var(--fs-caption)', borderRadius: 6,
+                  padding: '5px 10px', fontSize: 'var(--fs-caption)', borderRadius: 0,
                   border: '0.5px solid var(--bdr)', background: 'transparent',
                   color: pageSafe === 0 ? 'var(--txt3)' : 'var(--txt2)',
                   cursor: pageSafe === 0 ? 'default' : 'pointer', opacity: pageSafe === 0 ? 0.4 : 1,
@@ -355,7 +339,7 @@ export default function MarketsPage() {
                   className="mkt-page-btn"
                   onClick={() => setPage(i)}
                   style={{
-                    width: 26, height: 26, fontSize: 'var(--fs-caption)', fontWeight: 700, borderRadius: 6,
+                    width: 26, height: 26, fontSize: 'var(--fs-caption)', fontWeight: 700, borderRadius: 0,
                     border: `0.5px solid ${i === pageSafe ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
                     background: i === pageSafe ? 'var(--accent)' : 'transparent',
                     color: i === pageSafe ? '#fff' : 'var(--txt3)',
@@ -370,7 +354,7 @@ export default function MarketsPage() {
                 onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
                 disabled={pageSafe >= pageCount - 1}
                 style={{
-                  padding: '5px 10px', fontSize: 'var(--fs-caption)', borderRadius: 6,
+                  padding: '5px 10px', fontSize: 'var(--fs-caption)', borderRadius: 0,
                   border: '0.5px solid var(--bdr)', background: 'transparent',
                   color: pageSafe >= pageCount - 1 ? 'var(--txt3)' : 'var(--txt2)',
                   cursor: pageSafe >= pageCount - 1 ? 'default' : 'pointer', opacity: pageSafe >= pageCount - 1 ? 0.4 : 1,
