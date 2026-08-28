@@ -76,97 +76,82 @@ Verified: 2026-08-29 · #496 @ `8496ea7` (static — browser extension offline)
 
 ---
 
-### `/calc`
-**Test URL:** `/calc?design=terminal`
-Extra checks:
-- Calculator panels flat
-- Input fields use `--border-input`
-- Result display uses `--txt` on `--bg1`
-
----
-
-### `/playbook`
-**Test URL:** `/playbook?design=terminal`
-Extra checks:
-- Playbook cards flat
-- Tag chips flat
-- Pagination controls flat
-
----
-
-### `/hours`
-**Test URL:** `/hours?design=terminal`
-Extra checks:
-- Session blocks flat rectangles
-- Active session uses `--accent` (#d9a626) indicator
-- Table rows flat
-
----
-
-### `/research`
-**Test URL:** `/research?design=terminal`
-Extra checks:
-- Article/note cards flat
-- Tag chips flat
-
----
-
 ### ✅ `/news`
 Verified: 2026-08-29 · #496 @ `8496ea7` (static — browser extension offline)
 
 ---
 
-### `/econ-calendar`
-**Test URL:** `/econ-calendar?design=terminal`
-Extra checks:
-- Event rows flat
-- Impact badges flat (no pill)
-- Day header uses `--bdr` separator
+### ✅ `/calc`
+Verified: 2026-08-29 · #498 @ `35986d3` (static — browser extension offline)
 
 ---
 
-### `/settings`
-**Test URL:** `/settings?design=terminal`
-Extra checks:
-- Settings sections flat panels
-- Toggle inputs styled flat
-- Form inputs use `--border-input`
-- Destructive actions use `--red`
+### ✅ `/playbook`
+Verified: 2026-08-29 · #498 @ `35986d3` (static — browser extension offline)
 
 ---
 
-### `/login`
-**Test URL:** `/login?design=terminal`
-Extra checks:
-- Auth card flat (no rounded card shadow)
-- Input fields use `--border-input`
-- Submit button uses `--accent`
+### ✅ `/hours`
+Verified: 2026-08-29 · #498 @ `35986d3` (static — browser extension offline)
 
 ---
 
-### `/forgot-password` / `/reset-password`
-**Test URL:** `?design=terminal`
-Extra checks:
-- Same as login: flat card, `--border-input` inputs, `--accent` CTA
+### ✅ `/research`
+Verified: 2026-08-29 · #498 @ `35986d3` (static — browser extension offline)
 
 ---
 
-### Onboarding / SetupChecklist
-**How to trigger:** new account or clear onboarding state, visit `/dashboard?design=terminal`
-Extra checks:
-- Onboarding modal/wizard flat (0px radius)
-- Step indicators use `--accent`
-- Checklist items flat rows
+### ✅ `/econ-calendar`
+Verified: 2026-08-29 · #498 @ `35986d3` (static — browser extension offline)
 
 ---
 
-### Popup dialogs / modals
-**Where they appear:** confirm dialogs, alert modals, settings modals across all screens
-Extra checks:
-- Modal overlay uses `--bg0` / `--bg1` tokens
-- Modal panel flat (0px radius)
-- Close button / actions styled with terminal palette
-- No rounded card shadow
+### ✅ `/settings`
+Verified: 2026-08-29 · #498 @ `35986d3` (static — browser extension offline)
+
+---
+
+### ✅ `/login`
+Verified: 2026-08-29 · #499 @ `6ffe068` (static — browser extension offline)
+
+---
+
+### ✅ `/forgot-password` / `/reset-password`
+Verified: 2026-08-29 · #499 @ `6ffe068` (static — browser extension offline)
+Both share `.login-term-wrap` nuclear rule.
+
+---
+
+### ✅ `/about`
+Verified: 2026-08-29 (static — no treatment needed, 0 hardcoded radii)
+
+---
+
+### ✅ `/learn`
+Verified: 2026-08-29 (static — no treatment needed, 0 hardcoded radii)
+
+---
+
+### ✅ `/privacy`
+Verified: 2026-08-29 (static — no treatment needed, 0 hardcoded radii)
+
+---
+
+### ✅ Onboarding / SetupChecklist
+No treatment needed — `SetupChecklist.tsx` has 0 hardcoded `borderRadius` values (confirmed by dev audit).
+
+---
+
+### ✅ Popup dialogs / modals
+Verified: 2026-08-29 · #500 @ `aafd6a5` (static — browser extension offline)
+- `SetupChecklist` — no treatment needed (0 hardcoded radii)
+- `UsageModal` — no treatment needed (0 hardcoded radii)
+- `UpgradeGateModal` (`LockedFeatureCard`, `FullPageUpgradeGate`, `UpgradeGateModal`) — `.locked-card-term-wrap *`, `.upgrade-gate-term-wrap *`, `.upgrade-modal-term-wrap *` nuclear rules all confirmed
+
+---
+
+### ⏳ `/faq` · `/terms` · `/refund` · `/upgrade`
+Pending: #501 — inline `borderRadius` values need nuclear wrapper. Assigned to dev.
 
 ---
 

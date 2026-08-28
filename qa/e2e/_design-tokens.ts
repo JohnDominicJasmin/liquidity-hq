@@ -7,19 +7,31 @@
  * terminal palette — zero impact on users until they opt in.
  *
  * Verified (with commit + date):
- *   /            — #448, verified 2026-08-26
- *   /disclaimer  — #420, verified 2026-08-26
- *   /arena       — #460, verified 2026-08-26
- *   /dashboard   — #491 @ d3d7e15, verified 2026-08-28
- *   /briefing    — #492 @ 27e495a, verified 2026-08-28
- *   /liq         — #494 @ 8496ea7, verified 2026-08-29 (static)
- *   /funding     — #494 @ 8496ea7, verified 2026-08-29 (static)
- *   /correlation — #494 @ 8496ea7, verified 2026-08-29 (static)
- *   /markets     — #495 @ 8496ea7, verified 2026-08-29 (static)
- *   /scanner     — #495 @ 8496ea7, verified 2026-08-29 (static)
- *   /journal     — #496 @ 8496ea7, verified 2026-08-29 (static)
- *   /alerts      — #496 @ 8496ea7, verified 2026-08-29 (static)
- *   /news        — #496 @ 8496ea7, verified 2026-08-29 (static)
+ *   /               — #448, verified 2026-08-26
+ *   /disclaimer     — #420, verified 2026-08-26
+ *   /arena          — #460, verified 2026-08-26
+ *   /dashboard      — #491 @ d3d7e15, verified 2026-08-28
+ *   /briefing       — #492 @ 27e495a, verified 2026-08-28
+ *   /liq            — #494 @ 8496ea7, verified 2026-08-29 (static)
+ *   /funding        — #494 @ 8496ea7, verified 2026-08-29 (static)
+ *   /correlation    — #494 @ 8496ea7, verified 2026-08-29 (static)
+ *   /markets        — #495 @ 8496ea7, verified 2026-08-29 (static)
+ *   /scanner        — #495 @ 8496ea7, verified 2026-08-29 (static)
+ *   /journal        — #496 @ 8496ea7, verified 2026-08-29 (static)
+ *   /alerts         — #496 @ 8496ea7, verified 2026-08-29 (static)
+ *   /news           — #496 @ 8496ea7, verified 2026-08-29 (static)
+ *   /calc           — #498 @ 35986d3, verified 2026-08-29 (static)
+ *   /playbook       — #498 @ 35986d3, verified 2026-08-29 (static)
+ *   /hours          — #498 @ 35986d3, verified 2026-08-29 (static)
+ *   /research       — #498 @ 35986d3, verified 2026-08-29 (static)
+ *   /econ-calendar  — #498 @ 35986d3, verified 2026-08-29 (static)
+ *   /settings       — #498 @ 35986d3, verified 2026-08-29 (static)
+ *   /login          — #499 @ 6ffe068, verified 2026-08-29 (static)
+ *   /forgot-password — #499 @ 6ffe068, verified 2026-08-29 (static)
+ *   /reset-password  — #499 @ 6ffe068, verified 2026-08-29 (static)
+ *   /about          — no treatment needed (0 hardcoded radii), verified 2026-08-29 (static)
+ *   /learn          — no treatment needed (0 hardcoded radii), verified 2026-08-29 (static)
+ *   /privacy        — no treatment needed (0 hardcoded radii), verified 2026-08-29 (static)
  */
 export const CONVERTED_ROUTES: string[] = [
   '/',
@@ -35,6 +47,18 @@ export const CONVERTED_ROUTES: string[] = [
   '/journal',
   '/alerts',
   '/news',
+  '/calc',
+  '/playbook',
+  '/hours',
+  '/research',
+  '/econ-calendar',
+  '/settings',
+  '/login',
+  '/forgot-password',
+  '/reset-password',
+  '/about',
+  '/learn',
+  '/privacy',
 ];
 
 /**
