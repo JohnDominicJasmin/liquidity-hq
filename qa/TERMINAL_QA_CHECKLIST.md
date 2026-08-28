@@ -35,76 +35,44 @@ Extra checks: TCoinSidebar, TEdgeSignals, TSelectedCoinCard, TCascadeAlertBanner
 
 ---
 
-### `/briefing` (Desk 2b)
-**Test URL:** `/briefing?design=terminal`
-Extra checks:
-- Briefing cards/sections render flat (0px radius)
-- MarketRead section if present matches terminal palette
-- SOTD (Signal of the Day) card flat and amber-accented
+### ✅ `/briefing` (Desk 2b)
+Verified: 2026-08-28 · #492 @ `27e495a`
+Extra: `.mb-macro-item`, `.mb-event-tag`, `.mb-brief-btn` all `0px`. Generate Briefing button flat. Shell nav rounding deferred to shell conversion.
 
 ---
 
-### `/markets`
-**Test URL:** `/markets?design=terminal`
-Extra checks:
-- Market table rows flat background (`--bg1`)
-- Column headers use `--txt2` / `--txt3` muted palette
-- Row hover uses `--mark-idle` not a rounded pill
-- Coin filter chips flat
+### ✅ `/markets`
+Verified: 2026-08-29 · #495 @ `8496ea7` (static — browser extension offline)
 
 ---
 
-### `/scanner`
-**Test URL:** `/scanner?design=terminal`
-Extra checks:
-- Scanner result cards flat
-- Signal badges use terminal green (`#3fb950`) / red (`#f0524d`)
-- Filter sidebar flat panels
+### ✅ `/scanner`
+Verified: 2026-08-29 · #495 @ `8496ea7` (static — browser extension offline)
 
 ---
 
-### `/liq` (liquidation map)
-**Test URL:** `/liq?design=terminal`
-Extra checks:
-- Sidebar / control panel flat
-- Chart container border uses `--bdr`
-- Any overlay cards flat
+### ✅ `/liq` (liquidation map)
+Verified: 2026-08-29 · #494 @ `8496ea7` (static — browser extension offline)
 
 ---
 
-### `/funding`
-**Test URL:** `/funding?design=terminal`
-Extra checks:
-- Funding rate cards flat
-- Positive/negative values use `--green` / `--red` tokens
-- Table rows flat
+### ✅ `/funding`
+Verified: 2026-08-29 · #494 @ `8496ea7` (static — browser extension offline)
 
 ---
 
-### `/correlation`
-**Test URL:** `/correlation?design=terminal`
-Extra checks:
-- Correlation matrix cells flat
-- Legend flat
-- Controls panel flat
+### ✅ `/correlation`
+Verified: 2026-08-29 · #494 @ `8496ea7` (static — browser extension offline)
 
 ---
 
-### `/journal`
-**Test URL:** `/journal?design=terminal`
-Extra checks:
-- Trade entry cards flat
-- Tag chips flat (no pill rounding)
-- Form inputs use `--border-input` token
+### ✅ `/journal`
+Verified: 2026-08-29 · #496 @ `8496ea7` (static — browser extension offline)
 
 ---
 
-### `/alerts`
-**Test URL:** `/alerts?design=terminal`
-Extra checks:
-- Alert cards flat
-- Active/triggered badge uses `--green` or `--red`
-- New alert form inputs flat
+### ✅ `/alerts`
+Verified: 2026-08-29 · #496 @ `8496ea7` (static — browser extension offline)
 
 ---
 
@@ -143,12 +111,8 @@ Extra checks:
 
 ---
 
-### `/news`
-**Test URL:** `/news?design=terminal`
-Extra checks:
-- News cards flat
-- Source badge flat
-- Sentiment indicator uses `--green` / `--red`
+### ✅ `/news`
+Verified: 2026-08-29 · #496 @ `8496ea7` (static — browser extension offline)
 
 ---
 
