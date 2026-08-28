@@ -6264,3 +6264,10 @@ main.app-content[data-chrome="none"] {
 /* login / forgot-password / reset-password terminal (#413) */
 [data-design="terminal"] .login-term-wrap,
 [data-design="terminal"] .login-term-wrap * { border-radius: 0 !important; }
+/* upgrade-gate / locked-feature-card / full-page-upgrade-gate terminal (#413) */
+[data-design="terminal"] .locked-card-term-wrap,
+[data-design="terminal"] .locked-card-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .upgrade-gate-term-wrap,
+[data-design="terminal"] .upgrade-gate-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .upgrade-modal-term-wrap,
+[data-design="terminal"] .upgrade-modal-term-wrap * { border-radius: 0 !important; }
