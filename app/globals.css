@@ -6210,3 +6210,8 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .csb2-sig      { border-radius: 0; }
 [data-design="terminal"] .csb2-bar-track,
 [data-design="terminal"] .csb2-bar-fill { border-radius: 0; }
+/* briefing */
+[data-design="terminal"] .mb-macro-item { border-radius: 0; }
+[data-design="terminal"] .mb-event-tag  { border-radius: 0; }
+[data-design="terminal"] .mb-brief-btn  { border-radius: 0; }
+[data-design="terminal"] .mb-cvd-chip   { border-radius: 0; }
