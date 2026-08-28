@@ -11,12 +11,30 @@
  *   /disclaimer  — #420, verified 2026-08-26
  *   /arena       — #460, verified 2026-08-26
  *   /dashboard   — #491 @ d3d7e15, verified 2026-08-28
+ *   /briefing    — #492 @ 27e495a, verified 2026-08-28
+ *   /liq         — #494 @ 8496ea7, verified 2026-08-29 (static)
+ *   /funding     — #494 @ 8496ea7, verified 2026-08-29 (static)
+ *   /correlation — #494 @ 8496ea7, verified 2026-08-29 (static)
+ *   /markets     — #495 @ 8496ea7, verified 2026-08-29 (static)
+ *   /scanner     — #495 @ 8496ea7, verified 2026-08-29 (static)
+ *   /journal     — #496 @ 8496ea7, verified 2026-08-29 (static)
+ *   /alerts      — #496 @ 8496ea7, verified 2026-08-29 (static)
+ *   /news        — #496 @ 8496ea7, verified 2026-08-29 (static)
  */
 export const CONVERTED_ROUTES: string[] = [
   '/',
   '/disclaimer',
   '/arena',
   '/dashboard',
+  '/briefing',
+  '/liq',
+  '/funding',
+  '/correlation',
+  '/markets',
+  '/scanner',
+  '/journal',
+  '/alerts',
+  '/news',
 ];
 
 /**
