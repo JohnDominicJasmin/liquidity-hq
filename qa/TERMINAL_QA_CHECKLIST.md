@@ -21,53 +21,71 @@ All of these must pass before any screen-specific checks.
 ## Screen-by-screen
 
 ### ✅ `/` (homepage)
-Verified: 2026-08-26 · #448
+Redirects to `/arena` — see `/arena` status.
 
 ### ✅ `/disclaimer`
 Verified: 2026-08-26 · #420
+Live re-check 2026-08-29 @ `b859ef4` — U1–U3 PASS.
 
-### ✅ `/arena`
-Verified: 2026-08-26 · #460
-
-### ✅ `/dashboard` (Desk 2a)
-Verified: 2026-08-28 · #491 @ `d3d7e15`
-Extra checks: TCoinSidebar, TEdgeSignals, TSelectedCoinCard, TCascadeAlertBanner, TMarketPulseStrip all render flat.
+### ⚠️ `/arena`
+Previously verified: 2026-08-26 · #460
+Live re-check 2026-08-29 @ `b859ef4` — **U3 FAIL** · #505
+Failing: `.gsc-tf-btn` 6px, `.arena-fire-btn` 8px, `.arena-ask-grok-btn` 10px, `.klc-tool-btn` 5px, `.ms-ev-badge` 5px, `.ms-hist-badge` 4px
+Root cause: page uses individual CSS overrides, not nuclear term-wrap. Fix pending dev.
 
 ---
 
-### ✅ `/briefing` (Desk 2b)
-Verified: 2026-08-28 · #492 @ `27e495a`
-Extra: `.mb-macro-item`, `.mb-event-tag`, `.mb-brief-btn` all `0px`. Generate Briefing button flat. Shell nav rounding deferred to shell conversion.
+### ⚠️ `/dashboard` (Desk 2a)
+Previously verified: 2026-08-28 · #491 @ `d3d7e15`
+Live re-check 2026-08-29 @ `b859ef4` — **U3 FAIL** · #505
+Failing: `.sotd-static-badge` 20px, `.mb-glow-card` 10px
+Root cause: individual overrides, not nuclear term-wrap. Fix pending dev.
+
+---
+
+### ⚠️ `/briefing` (Desk 2b)
+Previously verified: 2026-08-28 · #492 @ `27e495a`
+Live re-check 2026-08-29 @ `b859ef4` — **U3 FAIL** · #505
+Failing: `.sc-badge` 20px
+Root cause: individual overrides, not nuclear term-wrap. Fix pending dev.
 
 ---
 
 ### ✅ `/markets`
-Verified: 2026-08-29 · #495 @ `8496ea7` (static — browser extension offline)
+Verified: 2026-08-29 · #495 @ `8496ea7` (static)
+Live re-check 2026-08-29 @ `b859ef4` — U1–U3 PASS.
 
 ---
 
 ### ✅ `/scanner`
-Verified: 2026-08-29 · #495 @ `8496ea7` (static — browser extension offline)
+Verified: 2026-08-29 · #495 @ `8496ea7` (static)
+Live re-check 2026-08-29 @ `b859ef4` — U1–U3 PASS (nuclear term-wrap confirmed clean).
 
 ---
 
-### ✅ `/liq` (liquidation map)
-Verified: 2026-08-29 · #494 @ `8496ea7` (static — browser extension offline)
+### ⚠️ `/liq` (liquidation map)
+Previously verified: 2026-08-29 · #494 @ `8496ea7` (static)
+Live re-check 2026-08-29 @ `b859ef4` — **U3 FAIL** · #505
+Failing: `.gex-net-chip` 6px
+Root cause: individual overrides, not nuclear term-wrap. Fix pending dev.
 
 ---
 
 ### ✅ `/funding`
-Verified: 2026-08-29 · #494 @ `8496ea7` (static — browser extension offline)
+Verified: 2026-08-29 · #494 @ `8496ea7` (static)
+Live re-check 2026-08-29 @ `b859ef4` — U1–U3 PASS.
 
 ---
 
 ### ✅ `/correlation`
-Verified: 2026-08-29 · #494 @ `8496ea7` (static — browser extension offline)
+Verified: 2026-08-29 · #494 @ `8496ea7` (static)
+Live re-check 2026-08-29 @ `b859ef4` — U1–U3 PASS.
 
 ---
 
 ### ✅ `/journal`
-Verified: 2026-08-29 · #496 @ `8496ea7` (static — browser extension offline)
+Verified: 2026-08-29 · #496 @ `8496ea7` (static)
+Live re-check 2026-08-29 @ `b859ef4` — U1–U3 PASS (nuclear term-wrap confirmed clean).
 
 ---
 
