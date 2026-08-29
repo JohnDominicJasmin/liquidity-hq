@@ -18,6 +18,45 @@ All of these must pass before any screen-specific checks.
 
 ---
 
+## U5/U6 live sweep — 2026-08-29 @ `6acb3e9`
+
+All 29 CONVERTED_ROUTES checked live via browser extension against `https://liquidity-hq-qa.onrender.com?design=terminal`.
+
+| Route | U5 (interactive elements) | U6 (console errors) |
+|---|---|---|
+| `/disclaimer` | ✅ 72 buttons, 39 links | ✅ 0 errors |
+| `/arena` | ✅ 99 buttons | ✅ 0 errors |
+| `/dashboard` | ✅ 79 buttons, 44 links | ✅ 0 errors |
+| `/briefing` | ✅ 77 buttons, 56 links | ✅ 0 errors |
+| `/liq` | ✅ 83 buttons | ✅ 0 errors |
+| `/markets` | ✅ 82 buttons, 38 links | ✅ 0 errors |
+| `/scanner` | ✅ 84 buttons, 38 links | ✅ 0 errors |
+| `/funding` | ✅ 76 buttons, 38 links | ✅ 0 errors |
+| `/correlation` | ✅ 75 buttons, 38 links | ✅ 0 errors |
+| `/journal` | ✅ 149 buttons, 38 links | ✅ 0 errors |
+| `/alerts` | ✅ 73 buttons, 38 links | ✅ 0 errors |
+| `/news` | ✅ 78 buttons, 38 links | ✅ 0 errors |
+| `/calc` | ✅ 72 buttons, 38 links | ✅ 0 errors |
+| `/playbook` | ✅ 133 buttons, 38 links | ✅ 0 errors |
+| `/hours` | ✅ 72 buttons, 38 links | ✅ 0 errors |
+| `/research` | ✅ 73 buttons, 38 links | ✅ 0 errors |
+| `/econ-calendar` | ✅ 72 buttons, 38 links | ✅ 0 errors |
+| `/settings` | ✅ 72 buttons, 38 links | ✅ 0 errors |
+| `/login` | ✅ auth redirect correct | ✅ 0 errors |
+| `/forgot-password` | ✅ 1 submit, 1 link | ✅ 0 errors |
+| `/reset-password` | ✅ 1 submit, 1 link | ✅ 0 errors |
+| `/about` | ✅ 72 buttons, 38 links | ✅ 0 errors |
+| `/learn` | ✅ 72 buttons, 42 links | ✅ 0 errors |
+| `/privacy` | ✅ 72 buttons, 38 links | ✅ 0 errors |
+| `/faq` | ✅ 88 buttons, 38 links | ✅ 0 errors |
+| `/terms` | ✅ 72 buttons, 38 links | ✅ 0 errors |
+| `/refund` | ✅ 72 buttons, 38 links | ✅ 0 errors |
+| `/upgrade` | ✅ 72 buttons, 38 links | ✅ 0 errors |
+
+`/` redirects to `/arena` — covered above. **All routes PASS U5 and U6.**
+
+---
+
 ## Screen-by-screen
 
 ### ✅ `/` (homepage)
