@@ -412,7 +412,7 @@ export default function MorningBriefing() {
   if (mode === 'terminal') return <BriefingTerminal />;
 
   return (
-    <div>
+    <div className="briefing-term-wrap">
 
       {/* ── Header ── */}
       <div className="mb-header">

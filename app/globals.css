@@ -6280,3 +6280,13 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .refund-term-wrap * { border-radius: 0 !important; }
 [data-design="terminal"] .upgrade-term-wrap,
 [data-design="terminal"] .upgrade-term-wrap * { border-radius: 0 !important; }
+
+/* arena / dashboard / briefing / liq nuclear term-wrap (#505) */
+[data-design="terminal"] .arena-term-wrap,
+[data-design="terminal"] .arena-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .dashboard-term-wrap,
+[data-design="terminal"] .dashboard-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .briefing-term-wrap,
+[data-design="terminal"] .briefing-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .liq-term-wrap,
+[data-design="terminal"] .liq-term-wrap * { border-radius: 0 !important; }
