@@ -2102,7 +2102,14 @@ function ArenaContent() {
       {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
           Pro-only: free users get an in-place locked card so the layout holds. */}
-      {entitled ? (
+      {/* Locked ONLY once we know the user is not entitled (#376).
+          entitled starts false while auth resolves, so gating on it alone
+          renders the paywall to a paying account for as long as that takes -
+          which reads as a broken subscription and costs a support message or a
+          chargeback, not a pixel.
+          Same guard as MultiTFAlignment:120, written for #310 and not carried
+          here at the time. */}
+      {authLoading || entitled ? (
         <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
       ) : (
         <LockedFeatureCard

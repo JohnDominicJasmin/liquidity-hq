@@ -46,7 +46,7 @@
      blue-grey, because these sites also carry the "neutral / no signal"
      semantic that sits beside --green and --red (squeeze direction, funding
      bias, EMA pass state) and should not read as tinted. */
-  --txt-dim: #8a8a8a;
+  --txt-dim: #909090;
 
   /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
@@ -411,7 +411,18 @@ body::after {
 .csb2-top .csb2-price { margin-left: auto; }
 .csb2-name      { font-family: var(--font-mono), monospace; font-size: var(--fs-caption); font-weight: 700; color: var(--txt); letter-spacing: 0.02em; }
 .csb2-price     { font-size: var(--fs-data); font-weight: 700; color: var(--txt); font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
-.csb2-bottom    { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+/* GRID, not space-between (#401). `space-between` distributes leftover space
+   BETWEEN children, so with a fixed-width change badge on the left and a
+   variable-width signal on the right, the middle child absorbed every
+   difference - the sparkline drifted 9.5px and landed on a different x for
+   every distinct signal string. A middle item under space-between has no
+   column of its own by construction.
+   The middle column reads --csb2-spark-w, set inline from SPARK_W in
+   app/dashboard/page.tsx, so the column and the chart cannot drift apart.
+   The last column is 1fr and .csb2-sig keeps its own ellipsis, so a long
+   signal truncates instead of pushing anything. It also fixes the rows where
+   `sig` is absent entirely, which used to shove the sparkline to the right. */
+.csb2-bottom    { display: grid; grid-template-columns: auto var(--csb2-spark-w, 36px) 1fr; align-items: center; gap: 8px; margin-bottom: 8px; }
 .csb2-chg       { font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; }
 /* 0.04 -> 0.02. This chip is the one surface in the app where the muted text
    tokens land short: 4% white over --bg3 computes to #191b1e, and on that
@@ -737,7 +748,11 @@ body::after {
 
 /* Macro Context rail wrapper - GlobalMacroContext has its own inner padding,
    this just gives it the flat-card frame the other rail items carry. */
-.macro-rail-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; }
+/* The rail card owns its inset (#392). It drew a border and a background but
+   no padding, so every child had to remember to add its own - and the one
+   that did not sat flush against the border. A container that paints an edge
+   owns the gap to that edge; the alternative is this bug once per new card. */
+.macro-rail-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 12px 14px; }
 
 /* ── COLLAPSE TOGGLE - shared style for breakdown/show-more buttons ── */
 
@@ -1429,7 +1444,7 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 .tp { background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-bdr); }
 .pbox { background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); border-radius: var(--radius-card); padding: 10px 14px; margin-bottom: 10px; }
 .pt   { font-size: var(--fs-caption); font-weight: 700; color: var(--purple); margin-bottom: 3px; }
-.pb   { font-size: var(--fs-label); color: var(--txt2); line-height: 1.5; }
+.pb   { font-size: var(--fs-label); color: var(--txt); line-height: 1.5; }
 .rb   { font-size: var(--fs-label); color: var(--red-soft); line-height: 1.5; }
 .div  { border-top: 0.5px solid var(--bdr); margin: 8px 0; }
 .row  { display: flex; gap: 12px; align-items: flex-start; }
@@ -1528,8 +1543,10 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 .ncard-grid-img  { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .ncard-grid-body     { flex: 1; padding: 12px 14px 12px; display: flex; flex-direction: column; }
-/* Text-first (no image) cards - the headline leads, no empty image block */
-.ncard-grid--text .ncard-grid-body { padding-top: 14px; }
+/* .ncard-grid--text is GONE (#398). Every card in .nfeed now renders an
+   image block - article, hero, whale alert and geo event - so the grid rows
+   line up and there is no text-first variant left to style. The class had
+   four consumers, not one; all four were converted before these rules went. */
 .ncard-grid-top      { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
 .ncard-tags          { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; min-width: 0; }
 .ncard-grid-headline {
@@ -1537,9 +1554,7 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
   letter-spacing: -0.1px; margin: 0 0 10px; flex: 1;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
-.ncard-grid--text .ncard-grid-headline { font-size: var(--fs-body); -webkit-line-clamp: 4; }
 .ncard-grid-hero .ncard-grid-headline  { font-size: var(--fs-card-title); font-weight: 700; -webkit-line-clamp: 2; }
-.ncard-grid--text.ncard-grid-hero .ncard-grid-headline { -webkit-line-clamp: 3; }
 
 /* Stretched link - the whole card is a real anchor to the article (keyboard
    focusable, cmd-clickable, screen-reader friendly) while the Ask-AI button
@@ -1947,19 +1962,65 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); flex-shrink: 0; }
 .gchat-icon-btn { font-size: 0.8125rem; color: var(--txt3); cursor: pointer; background: none; border: none; padding: 0; width: 36px; height: 36px; border-radius: 6px; transition: color 0.15s; display: inline-flex; align-items: center; justify-content: center; }
 .gchat-icon-btn:hover { color: var(--txt2); }
-/* Live search toggle pill */
-.gchat-search-toggle {
-  font-size: var(--fs-caption); font-weight: 700; padding: 5px 10px; border-radius: 20px; cursor: pointer;
-  border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt3);
-  transition: all 0.15s; white-space: nowrap; letter-spacing: .02em;
-  min-height: 32px; display: inline-flex; align-items: center;
+/* Fast / Live mode segment (#383).
+   Deliberately borrows the .gchat-coin affordance below rather than inventing
+   one: same radius, same fill weight, same 44px target. The old pill was
+   min-height 32px sitting 8px above 44px chips, which is why it read as a
+   status badge and not a control. */
+.gchat-mode {
+  display: inline-flex; align-items: stretch; padding: 2px;
+  border: 0.5px solid var(--bdr); background: var(--bg2); border-radius: 16px;
 }
-.gchat-search-toggle:hover { color: var(--txt2); border-color: var(--bdr2); }
-.gchat-search-toggle.on {
-  background: rgba(52,211,153,0.12); color: var(--green);
-  border-color: rgba(52,211,153,0.3);
-  box-shadow: 0 0 8px rgba(52,211,153,0.15);
+/* Sized down at the owner's request after seeing it in place - it sat as tall as
+   the coin chips and dominated a header it only shares with icon buttons.
+   Colours are TOKENS, not literals: --purple-bg / --green-bg are redefined under
+   [data-theme="light"], so this follows the theme the way .gchat-coin does. The
+   control it replaced hardcoded rgba(52,211,153,...) and could not. */
+.gchat-mode-opt {
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: .02em;
+  padding: 3px 10px; min-width: 42px; min-height: 28px; border-radius: 14px;
+  border: none; background: none; color: var(--txt3); cursor: pointer;
+  white-space: nowrap; transition: background 0.15s, color 0.15s;
+  display: inline-flex; align-items: center; justify-content: center;
+  position: relative;
 }
+/* The hit area is ~47px; the PAINTED control stays 28px (#388).
+   The owner asked for a smaller control and 44px is the AAA target - those only
+   conflict if the visual box and the touch box are the same box.
+
+   ASYMMETRIC on purpose, and the numbers are measured, not chosen:
+
+     above the pill   15.3px to the panel edge, then it is OUTSIDE the panel
+                      and would eat clicks on the page behind it
+     below the pill   the quota counter, 4px away at the old gap: 1
+
+   A symmetric overlay cannot reach 44 between those two walls. The first
+   version was symmetric and covered the top ~7px of the counter, so tapping
+   the words "10 searches left" silently switched Fast to Live and changed
+   which quota the next message billed - QA caught it by reading the DOM
+   (#389). A mis-routed tap costs a search; a small target costs a second tap.
+
+   So: 14 up (inside the panel), 9 down (into the widened column gap, which
+   also un-cramps a 1px gap that should never have been 1px). Declared
+   28+14+9 = 51 renders 46.9 under .gchat-panel.gchat-open's scale(0.92). */
+.gchat-mode-opt::after {
+  content: ''; position: absolute; left: 0; right: 0;
+  top: -14px; bottom: -9px;
+}
+.gchat-mode-opt:hover:not(.off) { color: var(--txt2); }
+.gchat-mode-opt.on      { background: var(--purple-bg); color: var(--purple); }
+.gchat-mode-opt.live.on { background: var(--green-bg);  color: var(--green); }
+/* Kept visible, not hidden - a control that vanishes reads as a bug, one that
+   stays and explains itself reads as an upsell. */
+.gchat-mode-opt.off { opacity: 0.4; cursor: not-allowed; }
+.gchat-mode-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.gchat-mode-count {
+  font-size: var(--fs-caption); color: var(--txt3);
+  font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 3px;
+}
+.gchat-mode-count.zero { color: var(--red-soft); }
+.gchat-mode-note { font-size: var(--fs-micro); color: var(--txt3); }
 .gchat-coins { display: flex; gap: 4px; padding: 8px 14px 6px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
 .gchat-coins::-webkit-scrollbar { display: none; }
 .gchat-coin { font-size: var(--fs-caption); font-weight: 700; padding: 5px 10px; border-radius: 20px; border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt3); cursor: pointer; white-space: nowrap; transition: all 0.12s; flex-shrink: 0; min-height: 44px; display: inline-flex; align-items: center; }
@@ -2218,6 +2279,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gex-bar-fill    { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
 .gex-value       { font-size: var(--fs-data); font-weight: 700; text-align: right; }
 .gex-insight     { padding: 10px 14px; font-size: var(--fs-caption); color: rgba(255,255,255,0.65); line-height: 1.65; border-bottom: 1px solid rgba(255,255,255,0.06); }
+[data-theme="light"] .gex-insight { color: var(--txt2); border-bottom-color: rgba(0,0,0,0.06); }
 .gex-flip-row    { padding: 6px 14px 8px; font-size: var(--fs-caption); color: var(--txt3); display: flex; gap: 12px; flex-wrap: wrap; }
 .gex-flip-row span { color: var(--txt3); font-weight: 600; }
 
@@ -3151,7 +3213,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .frh-signal-desc   { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.6; }
 
 [data-theme="light"] .frh-row:hover { background: rgba(0,0,0,0.03) !important; }
-[data-theme="light"] .frh-row.on    { background: var(--purple-bg) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
+[data-theme="light"] .frh-row.on    { background: var(--purple-bg) !important; box-shadow: inset 3px 0 0 var(--accent) !important; }
 
 .frh-split        { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items: start; margin-bottom: 10px; }
 .frh-list-scroll  { max-height: 500px; overflow-y: auto; overflow-x: auto; }
@@ -3189,26 +3251,27 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 .auth-gate-title { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); }
 .auth-gate-desc  { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.6; max-width: 280px; }
-/* Issue #56. White on --purple (which aliases --accent, #1a7aff) measured
-   3.98:1 against the 4.5:1 floor - the primary call to action on the signed-out
-   auth gate was the least readable thing on the page.
+/* Issue #56, REWRITTEN for the gold primary (#419). The original reasoning was
+   entirely about blue and every value in it is now wrong; leaving it would send
+   the next reader looking for a #1668e3 that no longer exists.
 
-   --accent-solid exists for exactly this: --accent is for text, borders and
-   glows; --accent-solid is for a filled surface UNDER white text. Same rule as
-   .lp-btn-primary, .consent-accept and .desktop-nav-item.on already follow.
-   White on #1668e3 = 5.09:1.
+   WHAT STILL HOLDS. A filled accent surface needs a deliberate foreground - it
+   was the primary CTA on the signed-out auth gate that first proved it, at
+   3.98:1. And the HOVER state is the half the original issue missed: axe
+   measures the resting state only, so a hover that fails is invisible to the
+   sweep that finds the base. Whatever this button does on hover has to be
+   measured separately, in both themes.
 
-   The hover was the half the issue did not catch, and fixing only the base
-   colour would have left it failing: brightness(1.15) on #1668e3 lands on
-   #1978ff = 4.06:1, still under the floor. axe measures the resting state only,
-   so a hover that fails is invisible to the sweep that found this.
-   Darkening instead of brightening keeps it passing (#135cc8 = 6.19:1) and is
-   the more conventional direction for a filled button anyway.
+   WHAT CHANGED. The fix is no longer a second, darker VALUE - it is a paired
+   foreground. --on-accent is near-black on the dark gold (8.95:1) and white on
+   the light gold (6.07:1); the inverse pairings are 2.23 and 3.63. So
+   --accent-solid and --accent are the same colour now and the contrast comes
+   from the text, not from darkening the fill.
 
-   Light theme does not redefine --accent-solid, so it inherits #1668e3 there -
-   5.09:1, which passes. Deliberately not adding a light-theme override in this
-   change: several other elements already render --accent-solid in light mode
-   and altering it would move all of them for a one-button fix. */
+   AND THE LINE THAT WAS ACTIVELY MISLEADING: this used to say "light theme does
+   not redefine --accent-solid". It does, at #685112. That was true when written
+   and stopped being true without anyone editing it - which is the whole reason
+   this block got rewritten rather than patched. */
 .auth-gate-btn {
   margin-top: 6px; padding: 9px 26px; border-radius: 10px;
   background: var(--accent-solid); color: #fff;
@@ -4385,7 +4448,7 @@ body.landing {
   height: 36px;
   border-radius: 50%;
   border: 3px solid rgba(255,255,255,0.1);
-  border-top-color: #1a7aff;
+  border-top-color: var(--accent);
   animation: lp-loading-spin 0.8s linear infinite;
 }
 @keyframes lp-loading-spin {

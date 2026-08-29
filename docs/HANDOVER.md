@@ -11,7 +11,7 @@ file.**
 
 ---
 
-> ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-12.
+> ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-27.
 >
 > Sections **§7 (Current progress)**, **§8 (Testing status)** and **§9 (Current issues)**
 > are dated **2026-08-01** and describe a project that has moved a long way since. They
@@ -269,18 +269,23 @@ android/      Capacitor Android shell
   body explaining the real cause and why the fix is shaped that way. Look at recent commits
   before writing one. Trailer: `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
 
-### Branch & deploy state as of 2026-08-01
+### Branch & deploy state as of 2026-08-27
 
-| Where | Commit | Note |
+| Branch | Commit | Note |
 |---|---|---|
-| local `dev` | `064ec5a` | clean, synced with `origin/dev` |
-| `origin/dev` | `064ec5a` | 1 ahead of `main` (docs-only) |
-| `main` / `origin/main` | `ab9dd58` | merge of `0bf7305` |
-| **Render prod** | `ab9dd58` | deploy `dep-d9mecn3m8hqs73c6aaig` — **live** |
-| **Render dev** | `f6f1eb15` (Jul 30) | **stale** — several days behind `dev` |
+| `origin/dev` | `b368469` | PR #484 merged (contrast.spec.ts light-theme fix + eslint globalIgnore restore for design-handoff-dir) |
+| `origin/qa` | `b368469` | same as dev — promoted after #484 |
+| `origin/staging` | `e690816` | Monochrome Terminal revert (#481) + eslint globalIgnore restore — **service deploy status unknown, check /api/version** |
+| `origin/main` | `590dbfb` | merge of PR #374 (staging → main, pre-revert release) |
 
-The one commit `main` lacks (`064ec5a`) is documentation only, so prod is not missing any
-code. The dev *service* being stale is expected — it's only deployed on demand.
+**What changed since 2026-08-01:**
+- #481: Monochrome Terminal redesign reverted from qa/staging. Preserved on `feature/monochrome-terminal`. `CONVERTED_ROUTES = []` — palette specs paused.
+- #484: `qa/e2e/contrast.spec.ts` light-theme `byColour` map restored to carry `where`/`what` context (PR #424 was caught in the #481 revert by mistake). Also restored `design-handoff-dir/**` to eslint `globalIgnores` — it had been removed from `dev` by the revert.
+- #368: Closed as known limitation. Non-prod Render services (dev/qa/staging) are on the free plan and share egress IPs — Binance returns 418 from those IPs. Prod is on `starter` plan, unaffected. No real users on qa/staging.
+- `lib/paidPeriod.ts` + `lib/entitlements.ts`: Time-based backstop for lapsed paid subscriptions (#373) implemented — `paidPeriodLapsed()` demotes role on every entitlement check if `current_period_end` + 48h grace has passed. 48h threshold is a placeholder; owner confirmation outstanding (#373).
+- `/disclaimer` page title: `fontSize: '2.625rem'` (42px at 16px base) — hardcoded inline style, not a design token (#445).
+
+**Services vs branches (autoDeploy: "no" on all).** A merged branch says nothing about what the service serves. Verify with `/api/version` on each host before assuming a fix is live. Dev deploys non-prod services; check before triggering — 500 build-hr/mo cap on the dev service.
 
 ---
 
@@ -629,6 +634,50 @@ Context for the move off the desktop GUI.
 - **Docs go stale in specific, repeated ways.** Several past audits were sent down detours by
   confidently-worded but outdated notes. `docs/INFRASTRUCTURE.md`'s own header says it best:
   a stale version of a file is worse than no file, because it actively misleads.
+- **A BROKEN INSTRUMENT RETURNS A CLEAN RESULT, NOT AN ERROR. This is the most expensive
+  pattern in the project and it recurred five times on 2026-08-13 alone.** Every instance
+  produced a confident answer from a tool that was not looking at the right thing:
+
+  | instrument | reported | actually |
+  |---|---|---|
+  | `grep /_next/static/css/` | "feature absent from the deploy" | wrong path - CSS is under `/chunks/` |
+  | rule matcher on `style.color` | "no rules match this element" | `style.color` is `''` for any `var()` value |
+  | `elementFromPoint` probe | geometry that contradicted itself | measured off-screen and clipped rects |
+  | a 7s wait on a free-plan host | "the rail is not in the DOM" | it renders later than that |
+  | Playwright `reuseExistingServer` | 3 consecutive PASSes | served a build from before the checkout — **a `git checkout` does NOT restart it** |
+  | a route stubbed on a promise the test resolves later | a 10-minute timeout | the page deadlocked, so nothing was measured at all |
+
+  **The defence is a positive control: break the thing on purpose and confirm the instrument
+  goes red.** A detector that has never failed has never been tested. Assert the precondition
+  before trusting a zero - "found nothing" and "looked in the wrong place" are the same output.
+
+  **And `/api/version` does not save you locally** - it reports `commit: "unknown"` on a dev
+  server, so the habit that catches a stale DEPLOY fails silently on a stale LOCAL one. What
+  exposed the `reuseExistingServer` case was not the result, which looked ordinary three times
+  running, but grepping the served asset for a rule the commit introduced:
+
+  ```
+  git show fd17cbc:app/globals.css     .gchat-mode-opt::after { ... height: 48px }
+  served CSS on :3100                  no ::after rule at all
+  ```
+
+  **Compare the bytes against the source, not the branch against your intent.**
+- **Fixing the reported instance and leaving the class is the default failure, even when you
+  know the rule.** #404 took three passes - grid card, then the hero sixty lines above it,
+  then two more renderers sharing the same grid. The tell is closing a ticket rather than
+  looking for a class: search for the BEHAVIOUR (`grep` the destructive call), not the
+  component you were sent to.
+- **Logic that decides something important must live where it can be unit-tested.** Three
+  times in one week the deciding branch sat somewhere untestable: `needsLiveSearch` inside a
+  `.tsx`, `perpNoticeTone` inline in a component, `paidPeriodLapsed` behind the `@/lib` alias
+  the test runner cannot resolve. Each moved to `lib/` and each move immediately found a bug
+  the code review had not. **If it cannot be tested where it is, that is the finding.**
+- **NEWS CANNOT BE TESTED OUTSIDE PRODUCTION.** `lhq_dev_news` is fed by a cron that only
+  ever targeted prod, so it is permanently stale (67 rows, newest 2026-08-03 as of
+  2026-08-13). **localhost, `liquidity-hq-dev`, `qa` and `staging` all render zero news
+  cards** - qa and staging share the dev database. Missing local API keys are *not* the
+  cause and deploying to dev does not help. Any change to `/news` reaches production
+  unverified; say so in the PR rather than letting the reader assume it was checked.
 
 ---
 

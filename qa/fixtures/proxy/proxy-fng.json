@@ -1,0 +1,19 @@
+{
+  "_url": "http://localhost:3100/api/proxy?type=fng&?limit=2&format=json",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "name": "Fear and Greed Index",
+    "data": [
+      {
+        "value": "29",
+        "value_classification": "Fear",
+        "timestamp": "1786665600",
+        "time_until_update": "32520"
+      }
+    ],
+    "metadata": {
+      "error": null
+    }
+  }
+}

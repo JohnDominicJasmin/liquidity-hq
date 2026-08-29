@@ -148,6 +148,11 @@ const eslintConfig = defineConfig([
     // error in vendored, minified third-party code that no one can act on.
     'qa/e2e-report/**',
     'test-results/**',
+    // Design-handoff vendor files (Gamma / Figma export runtime). Untracked
+    // locally, never present in CI — but locally `eslint .` walks them and hits
+    // ReactDOM.render + module-assignment errors that cannot be fixed (third-party
+    // bundle). Same pattern as qa/e2e-report above.
+    'design-handoff-dir/**',
   ]),
 ]);
 

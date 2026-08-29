@@ -17,6 +17,12 @@ import Tip from '@/components/Tip';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
+
+/* The sparkline's width, shared with .csb2-bottom's middle grid column via the
+   --csb2-spark-w custom property below. The CSS used to hardcode nothing at all
+   and the prop said 36 - the column and the chart had no way to disagree
+   loudly, so they disagreed quietly (#401). One number, two consumers. */
+const SPARK_W = 36;
 import CoinIcon from '@/components/CoinIcon';
 import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -190,11 +196,11 @@ function CoinSidebar() {
               </span>
             </div>
 
-            <div className="csb2-bottom">
+            <div className="csb2-bottom" style={{ '--csb2-spark-w': `${SPARK_W}px` } as React.CSSProperties}>
               <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
                 {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
               </span>
-              <Sparkline24h coin={id} width={36} height={14} />
+              <Sparkline24h coin={id} width={SPARK_W} height={14} />
               {sig && (
                 <span className="csb2-sig" style={{ color: sig.col }}>
                   {sig.text}

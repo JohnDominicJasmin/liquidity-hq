@@ -93,7 +93,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Without it the FAB painted immediately, then the consent bar mounted
           and displaced it - which is how it got reported as "the FAB
           disappears". See body.consent-pending in globals.css. */}
-      <body className="consent-pending">
+      {/* suppressHydrationWarning, for the same reason <html> above has it, and
+          it is the class on THIS line that makes it necessary.
+
+          consent-pending is in the server markup, and the beforeInteractive
+          script below removes it before React hydrates - deliberately, that is
+          the whole point of #337. So a returning visitor hydrates against a
+          <body> whose class React did not write, and React reports it:
+
+            + Client   className="consent-pending"
+            - Server   className=""
+
+          "Server" there is the DOM as React FOUND it, not what the server sent.
+          The server did send consent-pending; the script had already taken it
+          off by the time React looked. Nothing is broken - React leaves the DOM
+          alone for an attribute mismatch, so the FAB correctly stays visible.
+
+          Suppressing it is not hiding the problem, it is the problem going
+          away: the warning fired on EVERY page load for every visitor who has
+          answered the consent bar, which is everyone after their first visit.
+          A console error that is wrong every time is worse than no error - it
+          trains you to scroll past the one that is real.
+
+          Scope is exactly right by accident of the API: suppressHydrationWarning
+          is one level deep, so this silences <body>'s own attributes and nothing
+          inside it. A genuine mismatch in the tree still reports. */}
+      <body className="consent-pending" suppressHydrationWarning>
         {/* beforeInteractive - injected into the initial server HTML and
             runs before hydration, so data-theme is correct before first
             paint (no flash of the wrong theme). Mirrors lib/theme.ts's

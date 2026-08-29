@@ -1,0 +1,845 @@
+{
+  "_url": "http://localhost:3100/api/market/open-interest?intervalTime=1h&limit=3",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "data": {
+      "BTCUSDT": [
+        {
+          "openInterest": "68625.76900000",
+          "singleOpenInterest": "34312.885",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "68218.87000000",
+          "singleOpenInterest": "34109.435",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "67658.42800000",
+          "singleOpenInterest": "33829.214",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "ETHUSDT": [
+        {
+          "openInterest": "769240.87000000",
+          "singleOpenInterest": "384620.44",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "756414.19000000",
+          "singleOpenInterest": "378207.1",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "752949.90000000",
+          "singleOpenInterest": "376474.95",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "SOLUSDT": [
+        {
+          "openInterest": "6216233.40000000",
+          "singleOpenInterest": "3108116.7",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "6229437.80000000",
+          "singleOpenInterest": "3114718.9",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "6233851.80000000",
+          "singleOpenInterest": "3116925.9",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "XRPUSDT": [
+        {
+          "openInterest": "238248320.69999999",
+          "singleOpenInterest": "119124160.4",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "237214894.30000001",
+          "singleOpenInterest": "118607447.2",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "237439339.50000000",
+          "singleOpenInterest": "118719669.8",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "BNBUSDT": [
+        {
+          "openInterest": "155380.92000000",
+          "singleOpenInterest": "77690.46",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "155307.62000000",
+          "singleOpenInterest": "77653.81",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "155423.16000000",
+          "singleOpenInterest": "77711.58",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "HYPEUSDT": [
+        {
+          "openInterest": "3831600.21000000",
+          "singleOpenInterest": "1915800.11",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "3819667.35000000",
+          "singleOpenInterest": "1909833.68",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "3832975.12000000",
+          "singleOpenInterest": "1916487.56",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "NEARUSDT": [
+        {
+          "openInterest": "44786053.79999999",
+          "singleOpenInterest": "22393026.9",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "44894628.00000000",
+          "singleOpenInterest": "22447314",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "44812210.79999999",
+          "singleOpenInterest": "22406105.4",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "SUIUSDT": [
+        {
+          "openInterest": "70609680.00000000",
+          "singleOpenInterest": "35304840",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "70325240.00000000",
+          "singleOpenInterest": "35162620",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "70292120.00000000",
+          "singleOpenInterest": "35146060",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "DOGEUSDT": [
+        {
+          "openInterest": "1434761779.00000000",
+          "singleOpenInterest": "717380890",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "1436670849.00000000",
+          "singleOpenInterest": "718335425",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "1440611796.00000000",
+          "singleOpenInterest": "720305898",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "AVAXUSDT": [
+        {
+          "openInterest": "4733377.80000000",
+          "singleOpenInterest": "2366688.9",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "4721288.40000000",
+          "singleOpenInterest": "2360644.2",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "4725751.80000000",
+          "singleOpenInterest": "2362875.9",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "LINKUSDT": [
+        {
+          "openInterest": "7283436.30000000",
+          "singleOpenInterest": "3641718.2",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "7288353.90000000",
+          "singleOpenInterest": "3644177",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "7197084.30000000",
+          "singleOpenInterest": "3598542.2",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "ADAUSDT": [
+        {
+          "openInterest": "314631711.00000000",
+          "singleOpenInterest": "157315856",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "314963465.00000000",
+          "singleOpenInterest": "157481733",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "313905847.00000000",
+          "singleOpenInterest": "156952924",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "DOTUSDT": [
+        {
+          "openInterest": "23202300.50000000",
+          "singleOpenInterest": "11601150.3",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "23276630.60000000",
+          "singleOpenInterest": "11638315.3",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "23301137.90000000",
+          "singleOpenInterest": "11650569",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "ATOMUSDT": [
+        {
+          "openInterest": "10531350.80000000",
+          "singleOpenInterest": "5265675.4",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "10382363.40000000",
+          "singleOpenInterest": "5191181.7",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "10408866.80000000",
+          "singleOpenInterest": "5204433.4",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "WIFUSDT": [
+        {
+          "openInterest": "73908685.00000000",
+          "singleOpenInterest": "36954343",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "73717042.00000000",
+          "singleOpenInterest": "36858521",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "73839032.00000000",
+          "singleOpenInterest": "36919516",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "1000PEPEUSDT": [
+        {
+          "openInterest": "13746749200.00000000",
+          "singleOpenInterest": "6873374600",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "13683457000.00000000",
+          "singleOpenInterest": "6841728500",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "13702644900.00000000",
+          "singleOpenInterest": "6851322500",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "1000BONKUSDT": [
+        {
+          "openInterest": "3365213300.00000000",
+          "singleOpenInterest": "1682606700",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "3396123500.00000000",
+          "singleOpenInterest": "1698061800",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "3385508300.00000000",
+          "singleOpenInterest": "1692754200",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "LTCUSDT": [
+        {
+          "openInterest": "1257053.30000000",
+          "singleOpenInterest": "628526.7",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "1255914.89999999",
+          "singleOpenInterest": "627957.5",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "1219992.10000000",
+          "singleOpenInterest": "609996.1",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "BCHUSDT": [
+        {
+          "openInterest": "139356.51999999",
+          "singleOpenInterest": "69678.26",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "138500.88000000",
+          "singleOpenInterest": "69250.44",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "138708.79999999",
+          "singleOpenInterest": "69354.4",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "TRXUSDT": [
+        {
+          "openInterest": "140227889.00000000",
+          "singleOpenInterest": "70113945",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "139385029.00000000",
+          "singleOpenInterest": "69692515",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "139616875.00000000",
+          "singleOpenInterest": "69808438",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "XLMUSDT": [
+        {
+          "openInterest": "197733266.00000000",
+          "singleOpenInterest": "98866633",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "198341082.00000000",
+          "singleOpenInterest": "99170541",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "199436596.00000000",
+          "singleOpenInterest": "99718298",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "ETCUSDT": [
+        {
+          "openInterest": "1475182.00000000",
+          "singleOpenInterest": "737591",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "1477133.10000000",
+          "singleOpenInterest": "738566.6",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "1478870.20000000",
+          "singleOpenInterest": "739435.1",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "FILUSDT": [
+        {
+          "openInterest": "12271385.50000000",
+          "singleOpenInterest": "6135692.8",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "12273520.70000000",
+          "singleOpenInterest": "6136760.4",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "12201979.90000000",
+          "singleOpenInterest": "6100990",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "ARBUSDT": [
+        {
+          "openInterest": "222000811.59999999",
+          "singleOpenInterest": "111000405.8",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "222659431.00000000",
+          "singleOpenInterest": "111329715.5",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "221275237.40000001",
+          "singleOpenInterest": "110637618.7",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "OPUSDT": [
+        {
+          "openInterest": "102685832.50000000",
+          "singleOpenInterest": "51342916.3",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "102386568.70000000",
+          "singleOpenInterest": "51193284.4",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "101366752.70000000",
+          "singleOpenInterest": "50683376.4",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "APTUSDT": [
+        {
+          "openInterest": "31499022.36000000",
+          "singleOpenInterest": "15749511.18",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "31287672.00000000",
+          "singleOpenInterest": "15643836",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "32158676.18000000",
+          "singleOpenInterest": "16079338.09",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "SEIUSDT": [
+        {
+          "openInterest": "206720548.00000000",
+          "singleOpenInterest": "103360274",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "206969648.00000000",
+          "singleOpenInterest": "103484824",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "206798712.00000000",
+          "singleOpenInterest": "103399356",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "INJUSDT": [
+        {
+          "openInterest": "2490087.60000000",
+          "singleOpenInterest": "1245043.8",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "2485536.20000000",
+          "singleOpenInterest": "1242768.1",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "2466338.60000000",
+          "singleOpenInterest": "1233169.3",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "TIAUSDT": [
+        {
+          "openInterest": "21021806.39999999",
+          "singleOpenInterest": "10510903.2",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "21034334.00000000",
+          "singleOpenInterest": "10517167",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "21045369.39999999",
+          "singleOpenInterest": "10522684.7",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "AAVEUSDT": [
+        {
+          "openInterest": "470711.89000000",
+          "singleOpenInterest": "235355.95",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "465935.64000000",
+          "singleOpenInterest": "232967.82",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "457021.09000000",
+          "singleOpenInterest": "228510.55",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "UNIUSDT": [
+        {
+          "openInterest": "10991433.90000000",
+          "singleOpenInterest": "5495717",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "11018444.50000000",
+          "singleOpenInterest": "5509222.3",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "11126908.19999999",
+          "singleOpenInterest": "5563454.1",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "LDOUSDT": [
+        {
+          "openInterest": "39538385.90000000",
+          "singleOpenInterest": "19769193",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "39500858.20000000",
+          "singleOpenInterest": "19750429.1",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "38238872.40000000",
+          "singleOpenInterest": "19119436.2",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "RUNEUSDT": [
+        {
+          "openInterest": "4971702.20000000",
+          "singleOpenInterest": "2485851.1",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "4986233.40000000",
+          "singleOpenInterest": "2493116.7",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "4936888.40000000",
+          "singleOpenInterest": "2468444.2",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "GMXUSDT": [
+        {
+          "openInterest": "110772.16000000",
+          "singleOpenInterest": "55386.08",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "110965.04000000",
+          "singleOpenInterest": "55482.52",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "110894.90000000",
+          "singleOpenInterest": "55447.45",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "CRVUSDT": [
+        {
+          "openInterest": "67879342.30000000",
+          "singleOpenInterest": "33939671.2",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "67885173.20000000",
+          "singleOpenInterest": "33942586.6",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "66971868.80000000",
+          "singleOpenInterest": "33485934.4",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "STXUSDT": [
+        {
+          "openInterest": "20902919.80000000",
+          "singleOpenInterest": "10451459.9",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "20998089.80000000",
+          "singleOpenInterest": "10499044.9",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "21065135.60000000",
+          "singleOpenInterest": "10532567.8",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "JUPUSDT": [
+        {
+          "openInterest": "51780578.00000000",
+          "singleOpenInterest": "25890289",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "51982862.00000000",
+          "singleOpenInterest": "25991431",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "51853858.00000000",
+          "singleOpenInterest": "25926929",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "WLDUSDT": [
+        {
+          "openInterest": "143126226.19999999",
+          "singleOpenInterest": "71563113.1",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "144464883.80000001",
+          "singleOpenInterest": "72232442",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "144262791.59999999",
+          "singleOpenInterest": "72131395.8",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "RENDERUSDT": [
+        {
+          "openInterest": "5518545.90000000",
+          "singleOpenInterest": "2759273",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "5456678.59999999",
+          "singleOpenInterest": "2728339.3",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "5505148.09999999",
+          "singleOpenInterest": "2752574.1",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "TAOUSDT": [
+        {
+          "openInterest": "162133.64600000",
+          "singleOpenInterest": "81066.823",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "161409.97800000",
+          "singleOpenInterest": "80704.989",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "162068.01400000",
+          "singleOpenInterest": "81034.007",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "ONDOUSDT": [
+        {
+          "openInterest": "101281508.00000000",
+          "singleOpenInterest": "50640754",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "99172004.00000000",
+          "singleOpenInterest": "49586002",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "98260816.00000000",
+          "singleOpenInterest": "49130408",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "PYTHUSDT": [
+        {
+          "openInterest": "148322836.00000000",
+          "singleOpenInterest": "74161418",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "148472688.00000000",
+          "singleOpenInterest": "74236344",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "148375410.00000000",
+          "singleOpenInterest": "74187705",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "ENAUSDT": [
+        {
+          "openInterest": "460061402.00000000",
+          "singleOpenInterest": "230030701",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "464144568.00000000",
+          "singleOpenInterest": "232072284",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "463174500.00000000",
+          "singleOpenInterest": "231587250",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "DYDXUSDT": [
+        {
+          "openInterest": "38278211.20000000",
+          "singleOpenInterest": "19139105.6",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "38268687.60000000",
+          "singleOpenInterest": "19134343.8",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "38297723.60000000",
+          "singleOpenInterest": "19148861.8",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "SANDUSDT": [
+        {
+          "openInterest": "66765774.00000000",
+          "singleOpenInterest": "33382887",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "65988288.00000000",
+          "singleOpenInterest": "32994144",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "66053442.00000000",
+          "singleOpenInterest": "33026721",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "MANAUSDT": [
+        {
+          "openInterest": "25296498.80000000",
+          "singleOpenInterest": "12648249.4",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "25249578.00000000",
+          "singleOpenInterest": "12624789",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "25249131.80000000",
+          "singleOpenInterest": "12624565.9",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "GMTUSDT": [
+        {
+          "openInterest": "158800200.00000000",
+          "singleOpenInterest": "79400100",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "156408768.00000000",
+          "singleOpenInterest": "78204384",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "154712740.00000000",
+          "singleOpenInterest": "77356370",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "XAUUSDT": [
+        {
+          "openInterest": "23102.68000000",
+          "singleOpenInterest": "11551.34",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "21658.48900000",
+          "singleOpenInterest": "10829.245",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "20763.35600000",
+          "singleOpenInterest": "10381.678",
+          "timestamp": "1786708800000"
+        }
+      ],
+      "SPXUSDT": [
+        {
+          "openInterest": "19166327.00000000",
+          "singleOpenInterest": "9583164",
+          "timestamp": "1786716000000"
+        },
+        {
+          "openInterest": "19038654.00000000",
+          "singleOpenInterest": "9519327",
+          "timestamp": "1786712400000"
+        },
+        {
+          "openInterest": "19111920.00000000",
+          "singleOpenInterest": "9555960",
+          "timestamp": "1786708800000"
+        }
+      ]
+    },
+    "ok": 49,
+    "total": 49,
+    "ts": 1786719479697
+  }
+}

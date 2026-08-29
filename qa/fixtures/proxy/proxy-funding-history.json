@@ -1,0 +1,226 @@
+{
+  "_url": "http://localhost:3100/api/proxy?type=funding-history&symbol=1000BONKUSDT&limit=42",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "retCode": 0,
+    "retMsg": "OK",
+    "result": {
+      "category": "linear",
+      "list": [
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786708800000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00004311",
+          "fundingRateTimestamp": "1786694400000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00004531",
+          "fundingRateTimestamp": "1786680000000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786665600000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786651200000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00001803",
+          "fundingRateTimestamp": "1786636800000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00005671",
+          "fundingRateTimestamp": "1786622400000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00003009",
+          "fundingRateTimestamp": "1786608000000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00007337",
+          "fundingRateTimestamp": "1786593600000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00003641",
+          "fundingRateTimestamp": "1786579200000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786564800000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00032305",
+          "fundingRateTimestamp": "1786550400000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00030207",
+          "fundingRateTimestamp": "1786536000000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.0002672",
+          "fundingRateTimestamp": "1786521600000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00004312",
+          "fundingRateTimestamp": "1786507200000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00015479",
+          "fundingRateTimestamp": "1786492800000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786478400000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00033785",
+          "fundingRateTimestamp": "1786464000000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00019933",
+          "fundingRateTimestamp": "1786449600000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00015498",
+          "fundingRateTimestamp": "1786435200000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786420800000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00007307",
+          "fundingRateTimestamp": "1786406400000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786392000000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786377600000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786363200000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00000215",
+          "fundingRateTimestamp": "1786348800000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.0000593",
+          "fundingRateTimestamp": "1786334400000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786320000000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786305600000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786291200000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786276800000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00002744",
+          "fundingRateTimestamp": "1786262400000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786248000000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00002344",
+          "fundingRateTimestamp": "1786233600000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786219200000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00003576",
+          "fundingRateTimestamp": "1786204800000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "0.00005",
+          "fundingRateTimestamp": "1786190400000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00017056",
+          "fundingRateTimestamp": "1786176000000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00038522",
+          "fundingRateTimestamp": "1786161600000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00024019",
+          "fundingRateTimestamp": "1786147200000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00018888",
+          "fundingRateTimestamp": "1786132800000"
+        },
+        {
+          "symbol": "1000BONKUSDT",
+          "fundingRate": "-0.00080413",
+          "fundingRateTimestamp": "1786118400000"
+        }
+      ]
+    },
+    "retExtInfo": {},
+    "time": 1786719531404
+  }
+}

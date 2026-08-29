@@ -54,6 +54,24 @@ export default function BrandMark({
       className={className}
       style={{ flex: '0 0 auto', display: 'block' }}
       aria-hidden="true"
+      /* ONE HOOK FOR THE WHOLE MARK (#449).
+       *
+       * The mark is blue - #2E7BFF, #6FD3FF, #1C3E76 - and that is the DESIGN,
+       * not drift: the handoff's own logo.png decodes to exactly those values
+       * and frame 7a references it three times at 26/30/22px. So the colour
+       * check has to exempt it rather than the component being "fixed".
+       *
+       * The attribute lives here, on the component, rather than as a list of
+       * call-site selectors in the spec. There are ten call sites across eight
+       * files today, and the failure this replaces was precisely a
+       * selector list that covered two footer children and missed the mark in
+       * the nav - a screen gets converted, its logo is not in the list, and the
+       * suite goes red on a decision nobody made.
+       *
+       * Whoever adds an eleventh call site gets the exemption for free. If the
+       * mark is ever restated in palette colours, delete the attribute and the
+       * spec entry together - the check should go back to enforcing on it. */
+      data-brand-mark=""
     >
       <rect width="100" height="100" rx={radiusPct} ry={radiusPct} fill={p.bg} />
       <rect x="14" y="22" width="11.5" height="42" fill={p.fg} />

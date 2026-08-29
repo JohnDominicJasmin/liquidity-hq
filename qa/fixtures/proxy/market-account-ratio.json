@@ -1,0 +1,208 @@
+{
+  "_url": "http://localhost:3100/api/market/account-ratio?period=1h",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "data": {
+      "BTCUSDT": {
+        "longRatio": 0.6252,
+        "shortRatio": 0.3748
+      },
+      "ETHUSDT": {
+        "longRatio": 0.683,
+        "shortRatio": 0.317
+      },
+      "SOLUSDT": {
+        "longRatio": 0.7145,
+        "shortRatio": 0.2855
+      },
+      "XRPUSDT": {
+        "longRatio": 0.7966,
+        "shortRatio": 0.2034
+      },
+      "BNBUSDT": {
+        "longRatio": 0.6821,
+        "shortRatio": 0.3179
+      },
+      "HYPEUSDT": {
+        "longRatio": 0.6412,
+        "shortRatio": 0.3588
+      },
+      "NEARUSDT": {
+        "longRatio": 0.6391,
+        "shortRatio": 0.3609
+      },
+      "SUIUSDT": {
+        "longRatio": 0.7759,
+        "shortRatio": 0.2241
+      },
+      "DOGEUSDT": {
+        "longRatio": 0.7785,
+        "shortRatio": 0.2215
+      },
+      "AVAXUSDT": {
+        "longRatio": 0.7124,
+        "shortRatio": 0.2876
+      },
+      "LINKUSDT": {
+        "longRatio": 0.6558,
+        "shortRatio": 0.3442
+      },
+      "ADAUSDT": {
+        "longRatio": 0.6845,
+        "shortRatio": 0.3155
+      },
+      "DOTUSDT": {
+        "longRatio": 0.7243,
+        "shortRatio": 0.2757
+      },
+      "ATOMUSDT": {
+        "longRatio": 0.6287,
+        "shortRatio": 0.3713
+      },
+      "WIFUSDT": {
+        "longRatio": 0.7675,
+        "shortRatio": 0.2325
+      },
+      "1000PEPEUSDT": {
+        "longRatio": 0.7698,
+        "shortRatio": 0.2302
+      },
+      "1000BONKUSDT": {
+        "longRatio": 0.7099,
+        "shortRatio": 0.2901
+      },
+      "LTCUSDT": {
+        "longRatio": 0.7427,
+        "shortRatio": 0.2573
+      },
+      "BCHUSDT": {
+        "longRatio": 0.686,
+        "shortRatio": 0.314
+      },
+      "TRXUSDT": {
+        "longRatio": 0.6812,
+        "shortRatio": 0.3188
+      },
+      "XLMUSDT": {
+        "longRatio": 0.7004,
+        "shortRatio": 0.2996
+      },
+      "ETCUSDT": {
+        "longRatio": 0.6807,
+        "shortRatio": 0.3193
+      },
+      "FILUSDT": {
+        "longRatio": 0.6817,
+        "shortRatio": 0.3183
+      },
+      "ARBUSDT": {
+        "longRatio": 0.7348,
+        "shortRatio": 0.2652
+      },
+      "OPUSDT": {
+        "longRatio": 0.753,
+        "shortRatio": 0.247
+      },
+      "APTUSDT": {
+        "longRatio": 0.7769,
+        "shortRatio": 0.2231
+      },
+      "SEIUSDT": {
+        "longRatio": 0.7399,
+        "shortRatio": 0.2601
+      },
+      "INJUSDT": {
+        "longRatio": 0.6486,
+        "shortRatio": 0.3514
+      },
+      "TIAUSDT": {
+        "longRatio": 0.6906,
+        "shortRatio": 0.3094
+      },
+      "AAVEUSDT": {
+        "longRatio": 0.6228,
+        "shortRatio": 0.3772
+      },
+      "UNIUSDT": {
+        "longRatio": 0.6719,
+        "shortRatio": 0.3281
+      },
+      "LDOUSDT": {
+        "longRatio": 0.6946,
+        "shortRatio": 0.3054
+      },
+      "RUNEUSDT": {
+        "longRatio": 0.6529,
+        "shortRatio": 0.3471
+      },
+      "GMXUSDT": {
+        "longRatio": 0.5605,
+        "shortRatio": 0.4395
+      },
+      "CRVUSDT": {
+        "longRatio": 0.5953,
+        "shortRatio": 0.4047
+      },
+      "STXUSDT": {
+        "longRatio": 0.65,
+        "shortRatio": 0.35
+      },
+      "JUPUSDT": {
+        "longRatio": 0.6863,
+        "shortRatio": 0.3137
+      },
+      "WLDUSDT": {
+        "longRatio": 0.6761,
+        "shortRatio": 0.3239
+      },
+      "RENDERUSDT": {
+        "longRatio": 0.5572,
+        "shortRatio": 0.4428
+      },
+      "TAOUSDT": {
+        "longRatio": 0.7648,
+        "shortRatio": 0.2352
+      },
+      "ONDOUSDT": {
+        "longRatio": 0.78,
+        "shortRatio": 0.22
+      },
+      "PYTHUSDT": {
+        "longRatio": 0.6864,
+        "shortRatio": 0.3136
+      },
+      "ENAUSDT": {
+        "longRatio": 0.711,
+        "shortRatio": 0.289
+      },
+      "DYDXUSDT": {
+        "longRatio": 0.6873,
+        "shortRatio": 0.3127
+      },
+      "SANDUSDT": {
+        "longRatio": 0.6805,
+        "shortRatio": 0.3195
+      },
+      "MANAUSDT": {
+        "longRatio": 0.6781,
+        "shortRatio": 0.3219
+      },
+      "GMTUSDT": {
+        "longRatio": 0.708,
+        "shortRatio": 0.292
+      },
+      "XAUUSDT": {
+        "longRatio": 0.5259,
+        "shortRatio": 0.4741
+      },
+      "SPXUSDT": {
+        "longRatio": 0.6106,
+        "shortRatio": 0.3894
+      }
+    },
+    "ok": 49,
+    "total": 49,
+    "ts": 1786719478019
+  }
+}

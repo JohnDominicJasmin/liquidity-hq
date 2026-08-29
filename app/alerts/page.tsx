@@ -64,7 +64,7 @@ const LINK_CODE_TTL_SEC = 600;
 
 export default function AlertsPage() {
   const { t } = useLabels();
-  const { user, entitled } = useAuth();
+  const { user, entitled, loading: authLoading } = useAuth();
   const { settings, loading: settingsLoading, refresh: refreshSettings } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
@@ -538,7 +538,7 @@ export default function AlertsPage() {
           upgrade pitch. Free users now get a single locked-feature card
           (same component/pattern as Arena's other Pro-gated cards) instead
           of a form they can look at but not touch. */}
-      {!entitled ? (
+      {!authLoading && !entitled ? (
         <LockedFeatureCard
           title={t('ALERTS_CONNECT_TELEGRAM_TITLE')}
           description={t('ALERTS_LOCKED_FEATURE_DESC')}
@@ -774,7 +774,7 @@ export default function AlertsPage() {
         title={t('ALERTS_AUTHGATE_TITLE')}
         desc={t('ALERTS_AUTHGATE_DESC')}
       >
-        {!entitled ? (
+        {!authLoading && !entitled ? (
           /* Price alerts are delivered over Telegram, which the alert cron
              only sends to Pro/trial users. Creation used to be open to
              everyone, so a free user's alert saved and then silently never

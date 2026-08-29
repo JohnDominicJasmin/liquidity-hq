@@ -1,6 +1,6 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
-import { usePerpSpot } from '@/lib/usePerpSpot';
+import { usePerpSpot, useAbsorption } from '@/lib/usePerpSpot';
 
 /* Perps vs spot (#328) - "is there a real buyer, or is the pump just futures?"
  *
@@ -39,6 +39,7 @@ export default function PerpSpotCard() {
   // Shared with the Arena prompts and the chart signal (#340) - one fetch, one
   // reading, so the card and the AI cannot disagree on screen.
   const reading = usePerpSpot(coin);
+  const absorption = useAbsorption(coin);
 
   if (!reading) return null;
 
@@ -95,6 +96,21 @@ export default function PerpSpotCard() {
       <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55 }}>
         {reading.explanation}
       </div>
+
+      {absorption?.available && (
+        <>
+          <div style={{ borderTop: '0.5px solid var(--bdr)', margin: '10px 0' }} />
+          <div style={{
+            fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4,
+          }}>
+            Spot Absorption
+          </div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55 }}>
+            {absorption.observation}
+          </div>
+        </>
+      )}
     </div>
   );
 }

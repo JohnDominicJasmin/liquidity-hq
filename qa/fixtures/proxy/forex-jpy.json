@@ -1,0 +1,8 @@
+{
+  "_url": "http://localhost:3100/api/forex/jpy",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "jpy": 159.393562
+  }
+}

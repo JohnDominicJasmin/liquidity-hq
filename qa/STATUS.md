@@ -63,7 +63,14 @@ morning and done by lunchtime. They live on the issue that needs them.
 | **An issue closes on `qa` + `staging` evidence — production is NOT required.** Reverses the stricter rule adopted after #264 was closed on qa-only evidence. Both environments, plus the work parked on `staging`, is sufficient; say in the close comment that it is on staging and not yet prod, so nobody reads it as shipped | 2026-08-12 | owner, in session |
 | **Non-prod's CRON-FED tables are frozen, and that is ACCEPTED - not a bug to fix.** `econ_snapshot`, `news` and `live_signals` on the dev project are 8-23 days stale; prod's refresh every few minutes. The scheduler works and only ever targeted prod. **Fixing it requires setting `CRON_SECRET` on a non-prod host, which `lib/cronAuth.ts` unlocks ALL NINE cron routes with - including `telegram/setup-webhook`, and a bot has one webhook.** Blast radius of leaving it: a human browsing qa/staging sees an old calendar. Specs use fixtures, `econ-calendar.spec` asserts the route, and market data is user-driven and current. **A stale calendar on qa says NOTHING about the market data beside it** - do not discount both | 2026-08-12 | #261, with the side-by-side measurement |
 | **Coinglass fixtures are NOT needed - nothing calls Coinglass.** `/api/proxy` supports four types: `coinglass-flow`, `coinglass-liq`, `etf`, `trends`. Both `coinglass-*` branches hit the retired `/public/v2/` API, return 500 even with a key, and **no caller in `app/`, `components/` or `lib/` references either** - measured, not assumed. `etf` is SosoValue and `trends` is Google; neither needs a key. There is no Coinglass-backed panel for a sweep to depend on, so fixturing one would invent coverage for a surface that never renders | 2026-08-12 | `app/api/proxy/route.ts` header; `pendings/PENDING.md` holds the v4 migration |
+| **A FULL UI REDESIGN IS COMING, from Claude Design. All UI, alignment, padding and copy work is DROPPED.** Owner, 2026-08-14: *"anything about UI, alignment, remove or change text or any padding related work let's drop it"* — and separately *"if its a bugfix like chat quota #382 then let's work on it"*. **The line is logic vs presentation, not severity.** #383 #388 #391 #397 #398 #399 #401 #403 #353 were all closed the same day with their measurements intact. Do not re-file a UI defect against the current design | 2026-08-14 | owner, in session |
+| **Redesign scope: 33 user-facing screens. `/admin` and the six `/ops` routes are UNCHANGED.** So **two design systems will coexist**, and a token-conformance check must be scoped to the user-facing routes — a global one reports the eight internal screens as non-compliant on every run, and a suite permanently red on known-good pages is one people stop reading | 2026-08-14 | owner, in session; full route list in the screen inventory |
+| **Design alignment = TOKENS EXACT, LAYOUT JUDGED.** Colour, type scale, spacing steps and radii must match the export and are asserted mechanically. Composition is checked by eye and only reported when a person would notice. **Off-token is a defect; off-mock is a judgement.** The owner first said "pixel by pixel"; both readings were put to them with their consequences (~10 findings/screen vs ~60) and this is the one they chose | 2026-08-14 | owner, in session |
+| **Redesign review loop: localhost on dev's branch during the build, `qa` for sign-off, one screen per PR.** 33 screens in one PR is untestable and gives the owner a wall instead of a decision. **Dev's branch must run locally** — if a screen needs data that only exists on prod, say so on the PR so QA fixtures it rather than discovering it mid-review | 2026-08-14 | owner, in session |
+| **`PAID_GRACE_MS` = 48h is OWNER-APPROVED, not a developer default.** Zero grace makes the dangerous direction reachable through normal operation: a retried or delayed renewal event flips a **paying** customer to free. Wrongly demoting someone who paid is worse than 48 extra hours for someone who has not, and 48h still bounds the unbounded access #373 was about | 2026-08-14 | #373, #408 |
+| **"Closes #N" does NOT auto-close in this repo.** PRs merge into `dev`, and GitHub only auto-closes from the default branch. #376 sat open for hours after its fix shipped. **Close issues by hand, on evidence** | 2026-08-14 | #376, #377 |
 | **Ask once, then drop it.** A request repeated every message is pressure, and a yes obtained that way is not approval — it happened on 2026-08-12 and cost the owner money. Pending asks live on the relevant issue and are mentioned in chat once | 2026-08-12 | owner, in session |
+| **`CI Gate` is NO LONGER a required status check on `main`.** Removed 2026-08-13 with the owner, in the browser, after it deadlocked the release. It required E2E to pass on a GitHub runner, and **`fapi.binance.com` bans the shared egress IPs Render's free plan uses** - so the market-dependent half of the suite could never go green there. NOT "Binance blocks cloud egress": `api.binance.com` (spot) answers 200 from the same hosts, and prod's `starter` plan gets futures fine. Measured on three hosts, 18 requests, #368. A required check that cannot report is not a protection, it is a locked door with no key, and it teaches everyone to override red gates. **Still enforced on `main`:** no deletion, no force-push, PR required | 2026-08-13 | #374, where `gh pr merge --admin` was confirmed NOT to bypass a never-reported required check; the ruleset backup is in the session scratchpad |
 
 ---
 
@@ -85,9 +92,35 @@ gh issue list --state open
 - **Owner items** are usually a dashboard click and a sentence. They are only
   slow when nobody names which dashboard.
 
----
-
 ## Standing risks
+
+- **`reuseExistingServer` will serve you a build from before your `git checkout`,
+  silently.** Measured 2026-08-14 while validating `text-under-control.spec.ts`
+  against `fd17cbc`. Playwright's local config is `reuseExistingServer: !CI`, so
+  a dev server left running from an earlier run is reused — and **a git checkout
+  does not restart it**. Three consecutive runs reported a clean PASS on a commit
+  that provably had the defect.
+
+  The tell was not the result, which looked ordinary. It was a direct read of the
+  bytes:
+
+  ```
+  git show fd17cbc:app/globals.css     .gchat-mode-opt::after { ... height: 48px }
+  served CSS on :3100                  no ::after rule at all
+  ```
+
+  **`/api/version` does NOT rescue you here** — it reports `commit: "unknown"` on
+  a local dev server, so the endpoint that solves this for deployed services
+  answers nothing locally. Grep the served asset for something the commit
+  introduced, or kill the port first:
+
+  ```
+  netstat -ano | grep :3100 | grep LISTENING   # then taskkill //F //PID <pid> //T
+  ```
+
+  **This is the same failure as verifying against the wrong deployed build**, and
+  it is worse locally because nothing in the output names a commit. Any run that
+  crosses a checkout boundary is suspect until the server has been restarted.
 
 - **No REAL PURCHASE has ever granted Pro.** Still the highest launch risk, and
   narrowed on 2026-08-11 rather than cleared — be precise about which half is
@@ -386,6 +419,36 @@ gh issue list --state open
   Practical form: when something breaks near your own activity, say **what you
   did** and **what you have not ruled out**, and let the other session measure.
   Do not hand them a conclusion wearing an apology.
+
+- **A REQUIRED CHECK FROM A DISABLED WORKFLOW IS A DEADLOCK, AND IT LOOKS LIKE A
+  POLICY.** Added 2026-08-13.
+
+  `main` required `CI Gate`. `CI Gate` comes from `ci.yml`. `ci.yml` was
+  `disabled_manually` for cost control. **So no release could ever merge**, and
+  the failure mode was silent - the merge button is simply greyed out with
+  "Required" beside a check that never ran.
+
+  ```
+  gh pr merge --admin           "Required status check CI Gate is expected"
+  GitHub UI                     merge button DISABLED, no override offered
+  ```
+
+  Neither an admin merge nor the UI offers a way past a required check that has
+  never reported. **The only exits are to run the workflow or to drop the
+  requirement.**
+
+  Two lessons, and the second is the general one:
+
+  **A cost decision can have a consequence nobody chose.** Disabling CI to stop
+  Actions charges also sealed the door to production - and separately stopped
+  the production drift check, which shared a file with the release PR workflow.
+  **Ask what else lives in the thing you are switching off.**
+
+  **When the gate cannot pass for environmental reasons, fix the gate, not the
+  release.** Overriding once teaches everyone that red gates are advisory. The
+  suite was fixed first (#375, #378, #380 - skip when the upstream refuses the
+  deployment), and the requirement was removed second, deliberately, with the
+  owner present.
 
 - **CONTROLS THAT DO NOT ADDRESS THE CONFOUND ARE WORSE THAN NO CONTROLS. They
   buy confidence without buying correctness.** Added 2026-08-13, after the most

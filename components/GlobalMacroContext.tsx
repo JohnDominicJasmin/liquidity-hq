@@ -117,7 +117,7 @@ export default function GlobalMacroContext() {
   const sm = SIGNAL_META[signalKey] ?? SIGNAL_META.NEUTRAL;
 
   return (
-    <div style={{ padding: '12px 14px' }}>
+    <div>
       <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4 }}>
         <Tip width={320} text={t('GLOBAL_MACRO_CONTEXT_TOOLTIP')}>
           {t('GLOBAL_MACRO_CONTEXT_TITLE')}

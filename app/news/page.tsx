@@ -232,14 +232,19 @@ function HeroCard({ a }: { a: AlertItem }) {
   const title = decodeEntities(a.headline);
 
   return (
-    <article className={`ncard-grid ncard-grid-hero${a.image ? '' : ' ncard-grid--text'}`}>
-      {a.image && (
-        <div className="ncard-grid-img-wrap">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+    <article className="ncard-grid ncard-grid-hero">
+      {/* Same treatment as the grid card below (#398). The hero spans
+          `grid-column: 1 / -1`, so a missing image cannot leave a side gap -
+          but the destructive onError was NOT cosmetic here: a 404 deleted a
+          300px block after first paint, shifting the whole feed under the
+          largest card on the page. */}
+      <div className="ncard-grid-img-wrap">
+        {a.image && (
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img src={a.image} alt="" className="ncard-grid-img"
-            onError={e => { (e.target as HTMLImageElement).closest('.ncard-grid-img-wrap')?.remove(); }} />
-        </div>
-      )}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        )}
+      </div>
       <div className="ncard-grid-body">
         <div className="ncard-grid-top">
           <div className="ncard-tags">
@@ -283,14 +288,28 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
   const title  = decodeEntities(a.headline);
 
   return (
-    <article className={`ncard-grid${hasImg ? '' : ' ncard-grid--text'}`}>
-      {hasImg && (
-        <div className="ncard-grid-img-wrap">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+    <article className="ncard-grid">
+      {/* EVERY card gets this block, image or not (#398).
+          The grid rows size to their tallest card and `align-items: start`
+          stops the short ones stretching, so a text-only card left a 172px
+          hole beside its neighbours. A flat tile is deliberately not a stock
+          icon - the same generic image repeated down a feed reads as broken,
+          where an empty tile reads as designed. */}
+      <div className="ncard-grid-img-wrap">
+        {hasImg && (
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img src={a.image} alt="" className="ncard-grid-img"
-            onError={e => { (e.target as HTMLImageElement).closest('.ncard-grid-img-wrap')?.remove(); }} />
-        </div>
-      )}
+            onError={e => {
+              /* Hide the broken image and fall back to the tile UNDERNEATH it,
+                 rather than removing the wrapper. Deleting it turned a card
+                 into a text card after first paint, which produced the same
+                 gap the owner reported plus a layout shift as the row
+                 reflowed - and it happened to cards whose `image` URL was
+                 present, so it looked unrelated to the missing-image case. */
+              (e.target as HTMLImageElement).style.display = 'none';
+            }} />
+        )}
+      </div>
       <div className="ncard-grid-body">
         <div className="ncard-grid-top">
           <div className="ncard-tags">
@@ -484,7 +503,12 @@ export default function NewsPage() {
             const isBuy = w.side === 'BUY';
             const col   = isBuy ? 'var(--green)' : 'var(--red)';
             return (
-              <article key={w.id} className="ncard-grid ncard-grid--text">
+              <article key={w.id} className="ncard-grid">
+                {/* Whale alerts share the .nfeed grid with article cards, so
+                    without this block they were ~172px shorter and left the
+                    same hole the owner reported (#398). They have no image by
+                    nature - the tile is the point, not a fallback. */}
+                <div className="ncard-grid-img-wrap" />
                 <div className="ncard-grid-body">
                   <div className="ncard-grid-top">
                     <span className="ncard-type-badge" style={{ color: col }}>
@@ -519,7 +543,9 @@ export default function NewsPage() {
 
           {/* Extra geo events */}
           {extraGeo.map((g, i) => (
-            <article key={i} className="ncard-grid ncard-grid--text">
+            <article key={i} className="ncard-grid">
+              {/* Same as the whale cards above - siblings in the same grid. */}
+              <div className="ncard-grid-img-wrap" />
               <div className="ncard-grid-body">
                 <div className="ncard-grid-top">
                   <div className="ncard-tags">

@@ -1,0 +1,14 @@
+{
+  "_url": "http://localhost:3100/api/proxy?type=lsr-global&symbol=BTCUSDT&period=1h&limit=1",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": [
+    {
+      "symbol": "BTCUSDT",
+      "longAccount": "0.6824",
+      "longShortRatio": "2.1486",
+      "shortAccount": "0.3176",
+      "timestamp": 1786716000000
+    }
+  ]
+}

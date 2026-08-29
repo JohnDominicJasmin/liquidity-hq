@@ -34,6 +34,9 @@ export interface OHLCVLike {
   time: number;
   /** Quote-asset volume - USDT, comparable between spot and perp. */
   quoteVolume: number;
+  /** Taker-buy quote-asset volume (USDT). Binance kline index 10.
+   *  Optional: absent on Bybit and on older cached rows. */
+  takerBuyQuoteVolume?: number;
 }
 
 export type PerpSpotLean = 'spot' | 'perp' | 'normal' | 'unknown';
@@ -249,4 +252,104 @@ export function perpConfidenceMultiplier(lean: PerpSpotLean): number {
  */
 export function perpScorePenalty(lean: PerpSpotLean): number {
   return lean === 'perp' ? PERP_LED_SCORE_PENALTY : 0;
+}
+
+/**
+ * How the Confluence card should DRESS the perps line - never whether the score
+ * moves. `perpScorePenalty` above owns that, and only `perp` moves it.
+ *
+ * `caution` is the amber band: `perp` is a reason to size down, and `unknown`
+ * means the check could not run, which is also a reason to size down.
+ *
+ * `neutral` is a plain row: `normal` and `spot` are not warnings. Until this
+ * existed both fell through to null and rendered NOTHING - so "spot is doing
+ * the buying", the most confirming thing this measure can say, appeared nowhere
+ * on the arena page (owner, in session). Showing them in amber instead would
+ * turn a confirmation into a warning, which is the opposite error.
+ */
+export function perpNoticeTone(lean: PerpSpotLean): 'caution' | 'neutral' {
+  return lean === 'perp' || lean === 'unknown' ? 'caution' : 'neutral';
+}
+
+/* ── Spot absorption of futures liquidations (#361) ──────────────────────────
+ *
+ * When futures traders are force-sold (liquidations), perp taker-buy drops —
+ * sellers dominate. If spot taker-buy is simultaneously HIGH, real buyers are
+ * absorbing those forced sales. That divergence is the signal.
+ *
+ * Uses the taker-buy QUOTE volume (Binance kline index 10) so both feeds are
+ * USDT-denominated and comparable. The observation threshold (20pp delta) is
+ * an internal calibration value, not an owner-blessed number — record here
+ * so it is visible rather than buried in a constant. */
+
+const ABSORPTION_WINDOW = 4; // last 4 closed hourly bars
+
+export interface AbsorptionReading {
+  /** Average taker-buy % on spot over the last ABSORPTION_WINDOW bars. */
+  spotTakerPct: number | null;
+  /** Average taker-buy % on perp over the last ABSORPTION_WINDOW bars. */
+  perpTakerPct: number | null;
+  /** False when taker-buy data is missing (Bybit coins, old cache rows). */
+  available: boolean;
+  /** Ready-to-display observation. No forecast — numbers and direction only. */
+  observation: string;
+}
+
+/**
+ * Cross taker-buy % between spot and perp feeds.
+ *
+ * Requires `takerBuyQuoteVolume` on both feeds — returns `available: false`
+ * for any coin without it (Bybit, or rows fetched before the field was added).
+ * Never fabricates: an absent reading is an explicit "unknown", not a quiet 50%.
+ */
+export function computeAbsorption(
+  spot: readonly OHLCVLike[],
+  perp: readonly OHLCVLike[],
+  intervalMs = 3_600_000,
+  nowMs = Date.now(),
+): AbsorptionReading {
+  const unavailable: AbsorptionReading = {
+    spotTakerPct: null, perpTakerPct: null,
+    available: false,
+    observation: 'Taker-buy data unavailable for this coin.',
+  };
+
+  if (spot.length === 0 || perp.length === 0) return unavailable;
+
+  const closedSpot = dropForming(spot, intervalMs, nowMs);
+  const closedPerp = dropForming(perp, intervalMs, nowMs);
+
+  const perpByTime = new Map(closedPerp.map(c => [c.time, c]));
+  const paired: Array<{ spotPct: number; perpPct: number }> = [];
+
+  for (const s of closedSpot) {
+    const p = perpByTime.get(s.time);
+    if (!p) continue;
+    if (s.takerBuyQuoteVolume == null || p.takerBuyQuoteVolume == null) continue;
+    if (s.quoteVolume <= 0 || p.quoteVolume <= 0) continue;
+    paired.push({
+      spotPct: (s.takerBuyQuoteVolume / s.quoteVolume) * 100,
+      perpPct:  (p.takerBuyQuoteVolume  / p.quoteVolume)  * 100,
+    });
+  }
+
+  if (paired.length < MIN_BARS) return unavailable;
+
+  const window = paired.slice(-ABSORPTION_WINDOW);
+  const spotPct = window.reduce((s, x) => s + x.spotPct, 0) / window.length;
+  const perpPct = window.reduce((s, x) => s + x.perpPct, 0) / window.length;
+  const sp = Math.round(spotPct);
+  const pp = Math.round(perpPct);
+  const delta = sp - pp;
+
+  /* 20pp threshold is internal — not an owner-blessed number. A spot-led gap
+   * of 68% vs 34% (the owner's example, 34pp) clears it comfortably. */
+  const observation =
+    delta >= 20
+      ? `Spot buying absorbing futures selling — ${sp}% taker-buy on spot against ${pp}% on perps. Someone is taking the other side of the forced sales.`
+      : delta <= -20
+      ? `Futures buyers leading spot — ${pp}% taker-buy on perps against ${sp}% on spot.`
+      : `Spot and perps moving together — ${sp}% taker-buy on spot, ${pp}% on perps.`;
+
+  return { spotTakerPct: spotPct, perpTakerPct: perpPct, available: true, observation };
 }

@@ -1,0 +1,35 @@
+{
+  "_url": "http://localhost:3100/api/macro",
+  "_status": 200,
+  "_recorded": "see git log",
+  "body": {
+    "oil": {
+      "price": 81.69,
+      "chg": 0.5415384615384587
+    },
+    "dxy": {
+      "price": 99.515,
+      "chg": -0.44517807122848463
+    },
+    "spx": {
+      "price": 7791.54,
+      "chg": 0.5554623475511384
+    },
+    "gold": {
+      "price": 4440,
+      "chg": 1.750847923732689
+    },
+    "jpy": {
+      "price": 159.015,
+      "chg": -0.19645009037960473
+    },
+    "real10y": {
+      "value": 2.42,
+      "changeBp": -1,
+      "asOf": 1786492800000,
+      "stale": false,
+      "signal": "neutral",
+      "note": "10Y real yield 2.42% (-1bp) - no meaningful move"
+    }
+  }
+}
