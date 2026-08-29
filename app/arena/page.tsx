@@ -1249,7 +1249,7 @@ function ArenaContent() {
     : scannerRows;
 
   return (
-    <div>
+    <div className="arena-term-wrap">
 
       {/* ── PAGE HEADER ── */}
       <div style={{ padding: '1rem 0 0.75rem' }}>

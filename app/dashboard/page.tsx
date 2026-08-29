@@ -519,7 +519,7 @@ export default function Dashboard() {
   if (mode === 'terminal') return <DashboardTerminal />;
 
   return (
-    <div className="dashboard-grid" data-spotlight-section>
+    <div className="dashboard-grid dashboard-term-wrap" data-spotlight-section>
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
       {/* Floating cascade toast - fixed-positioned, render once */}
