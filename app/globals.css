@@ -103,6 +103,14 @@
   --amber-bg:  rgba(251,191,36,0.08);
   --amber-bdr: rgba(251,191,36,0.22);
 
+  /* #559: /funding's "slight long" signal state (FundingTerminal.tsx
+     frSignal) was the one state of eight using a bare literal instead of a
+     token - every sibling state already used var(--red)/--orange/--amber/
+     etc, which pick up the light-theme overrides two blocks down. This one
+     didn't, so it rendered the same washed-out tan in both themes: fine on
+     a near-black canvas, ~2:1 on white. */
+  --fr-slight-long: #d4b483;
+
   --orange:     #fb923c;
   --orange-bg:  rgba(251,146,60,0.08);
   --orange-bdr: rgba(251,146,60,0.22);
@@ -2394,6 +2402,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --amber-dim: rgba(180,83,9,0.12);
   --amber-bg:  rgba(180,83,9,0.07);
   --amber-bdr: rgba(180,83,9,0.20);
+  /* #559: same darkened-hue treatment as --amber/--orange above - #d4b483
+     (the dark value) measures ~2:1 on white. */
+  --fr-slight-long: #7C5E2E;
   /* #519: was #C2410C - 3.09:1 for the grade-D badge on a selected watchlist
      row, 3.85:1 normally, both below WCAG AA's 4.5:1 for 12px text. */
   --orange:     #7C2D12;
@@ -3217,6 +3228,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .frh-sig-chip    { display: inline-flex; flex-direction: column; gap: 1px; padding: 4px 9px; border-radius: 7px; border: 0.5px solid; white-space: nowrap; }
 .frh-sig-crowd   { font-size: var(--fs-caption); font-weight: 700; line-height: 1.3; }
 .frh-sig-hint    { font-size: var(--fs-caption); font-weight: 500; color: rgba(255,255,255,0.6); line-height: 1.3; }
+[data-theme="light"] .frh-sig-hint { color: var(--txt2); }
 
 .frh-signal      { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--radius-card); border: 0.5px solid; margin-bottom: 12px; }
 .frh-signal-top   { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
@@ -4803,7 +4815,10 @@ body.landing {
 .lp-footer-brand p { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.6; margin: 12px 0 0; max-width: 260px; }
 .lp-footer-col      { display: flex; flex-direction: column; gap: 11px; }
 .lp-footer-col-title { font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); margin-bottom: 3px; }
-.lp-footer-col a    { font-size: var(--fs-caption); color: var(--txt2); text-decoration: none; transition: color .15s; }
+/* #559: was mobile-only (the media-query rule below) - desktop viewports
+   never got the same fix, so every link in every landing footer column
+   still measured under WCAG 2.5.8's 24px minimum there. */
+.lp-footer-col a    { font-size: var(--fs-caption); color: var(--txt2); text-decoration: none; transition: color .15s; padding: 4px 0; min-height: 24px; display: inline-flex; align-items: center; }
 .lp-footer-col a:hover { color: var(--accent-2); }
 .lp-footer-bottom   { max-width: 1100px; margin: 36px auto 0; padding-top: 20px; border-top: 0.5px solid var(--bdr); display: flex; flex-direction: column; gap: 10px; }
 .lp-footer-copy     { font-size: var(--fs-caption); color: var(--txt3); }
@@ -5313,6 +5328,50 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
                          4.5:1 against the new --bg1 */
   --txt4: #3a3f45;   /* disabled, axis labels */
   --accent: #d9a626; /* active nav, primary CTA - ALWAYS with #08090a text */
+  /* #559 sweep, forward-check test: --on-accent was never declared ANYWHERE
+     in the file (only named in a comment at .auth-gate-btn, which itself uses
+     a hardcoded #fff instead) - .sshell-cta was the one real consumer, and an
+     undeclared custom property computes to nothing, not to --txt or any other
+     fallback. Declared as --bg0 to match the convention every other on-accent
+     surface in this block already follows (.tnav-item.on, .lt-plan-cta-pro):
+     near-black text on the gold fill. */
+  --on-accent: var(--bg0);
+  /* #559 platform audit: likely THE dominant off-palette source. --accent
+     itself was already governed above, but --accent-bg/--accent-bdr (the
+     Tailwind-blue #1a7aff tint pair used for nearly every "selected/hover"
+     treatment app-wide: .klc-tool-btn.on, .st-preset.on, .obw-row.is-
+     selected, .desktop-nav-item.on, dozens more) and --accent-2 (#5aa3ff,
+     app-logo/links/hover text) were never declared here at all. --purple/
+     --purple-bg/--purple-bdr alias to these three, so the leak was invisible
+     at the --accent level (correctly gold) while every -bg/-bdr/-2 consumer
+     still rendered blue. This is very likely the root cause behind "#1a7aff
+     leaking into terminal scope", named three times now (Arena C21, Markets,
+     Dashboard's initial C9 read) as if each were a separate finding. */
+  --accent-2:   var(--accent);
+  --accent-bg:  rgba(217,166,38,0.07);
+  --accent-bdr: rgba(217,166,38,0.22);
+  /* #559 sweep round 2: --accent-solid (29 uses - desktop-nav-item.on,
+     onboarding wizard, .ncard-ask-btn hover, several CTAs) and --accent-dim
+     were also undeclared, same shape as --accent-bg/-bdr above: root's
+     #1668e3 blue leaking through. --blue/--blue-bg/--blue-bdr are a distinct
+     literal (not an --accent alias) used for "crypto" category tags
+     (.nc-crypto, .wp-london, .gchat-bubble links) - collapsing them into
+     --accent here too, matching the precedent already set for --purple
+     (a categorical hue folded into the single terminal accent, not a
+     bull/bear/caution state like --green/--red/--amber which stay distinct). */
+  --accent-solid: var(--accent);
+  --accent-dim:   rgba(217,166,38,0.12);
+  --blue:      var(--accent);
+  --blue-bg:   var(--accent-bg);
+  --blue-bdr:  var(--accent-bdr);
+  /* --bg3/--bg4 (53 uses combined - .csb2-card, .av-rail-panel, .badge-flat,
+     .gchat-hist-item-active, .login-pw-tab.on, dozens more) are root's own
+     near-black layering scale, undeclared here. Aliased to terminal's own
+     --bg2/--bg1 rather than given new literals, preserving the raised-surface
+     ordering (bg3 sits above card level like bg2; bg4 sits above that like
+     bg1) instead of introducing a fourth near-identical near-black. */
+  --bg3: var(--bg2);
+  --bg4: var(--bg1);
   --green:  #3fb950; /* bullish / FIRING positive */
   --red:    #f0524d; /* bearish / FIRING negative */
   /* #546 C9: --green-2 was undeclared here, so it fell through to the
@@ -5322,6 +5381,19 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      terminal shade, matching light theme's own precedent at this exact
      token (app/globals.css:2381, "--green-2: var(--green)"). */
   --green-2: var(--green);
+  /* #559 platform audit: --green-soft/--red-soft/--txt-dim were undeclared
+     here too, same governance gap as --green-2/--amber, but hit PER-CALL-SITE
+     fixes on Dashboard (#546) rather than being governed at the token level -
+     which only fixed the specific components touched, not the other ~29
+     routes using the same three tokens. The audit's near-universal off-
+     palette count (1242 instances, every route) is exactly what that partial
+     fix predicted: same shared-source shape, just not closed at the source.
+     Collapsing all three here, matching light theme's own precedent for the
+     first two (line ~2381) and Dashboard's own precedent for --txt-dim
+     (component-level swaps to --txt2 throughout #546). */
+  --green-soft: var(--green);
+  --red-soft:   var(--red);
+  --txt-dim:    var(--txt2);
   /* #546 C9: derived tints for --green/--red, same pattern as the already-
      existing --accent-bg/--accent-bdr. Undeclared here, .chg-up/.chg-dn's
      background/border (app/globals.css:786-787) fell through to the current
@@ -5855,7 +5927,10 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
   text-transform: uppercase; color: var(--txt3); margin-bottom: 4px;
 }
-[data-design="terminal"] .lt-footer-col a { font-size: 13px; color: var(--txt2); text-decoration: none; }
+/* #559: never had the #526 C35 sizing fix applied, unlike the current
+   design's .lp-footer-col a - same footer, same links, undersized in both
+   themes at every viewport. */
+[data-design="terminal"] .lt-footer-col a { font-size: 13px; color: var(--txt2); text-decoration: none; padding: 4px 0; min-height: 24px; display: inline-flex; align-items: center; }
 [data-design="terminal"] .lt-footer-col a:hover { color: var(--txt); }
 [data-design="terminal"] .lt-risk-divider {
   display: flex; align-items: center; gap: 14px; margin-top: 44px;
@@ -6354,6 +6429,55 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .briefing-term-wrap * { border-radius: 0 !important; }
 [data-design="terminal"] .liq-term-wrap,
 [data-design="terminal"] .liq-term-wrap * { border-radius: 0 !important; }
+
+/* ── #559 platform radius sweep: circular-glyph carve-out ──────────────────
+   specs/radius-ruling.md: "border-radius: 0 applies to rectangular surfaces
+   ... It does not apply to elements that are inherently circular in the
+   source - status dots, avatar/coin-marker circles, toggle-switch thumbs."
+   Every *-term-wrap block above (and its 19 live routes: scanner, journal,
+   alerts, news, calc, playbook, hours, research, econ, locked-card, upgrade-
+   gate/modal, faq, terms, refund, upgrade, arena, briefing, liq - confirmed
+   by grep, not dashboard/login/settings which never got the wrap className
+   wired to begin with) zeroes EVERY descendant via `* { border-radius: 0
+   !important }`, which is unconditional: it flattens these dot/marker
+   classes into squares wherever they render inside any of those wraps, not
+   only inside Dashboard where #548 first caught this same shape. Restoring
+   50% here, after the wildcard rules, so source order (both sides carry
+   !important) resolves in this block's favour.
+   Scope note: this list is every element that unambiguously matches one of
+   the ruling's four named categories (status dot / avatar-coin marker /
+   toggle-slider thumb / step circle). It does NOT include round icon
+   buttons that aren't glyphs (.tj-del-btn, .tj-edit-btn, .smod-close,
+   .gchat-login-close), loading spinners, or .num (26px, over the ruling's
+   24px step-circle line) - those are a judgment call for QA, not something
+   this pass assumed either way. */
+[data-design="terminal"] .status-dot,
+[data-design="terminal"] .ticker-dot,
+[data-design="terminal"] .nf-type-dot,
+[data-design="terminal"] .klc-ws-dot,
+[data-design="terminal"] .gchat-dot,
+[data-design="terminal"] .liq-current-dot,
+[data-design="terminal"] .liq-howto-dot,
+[data-design="terminal"] .scan-legend-dot,
+[data-design="terminal"] .ps-live-dot,
+[data-design="terminal"] .wf-dot,
+[data-design="terminal"] .mb-brief-dot,
+[data-design="terminal"] .st-tg-dot,
+[data-design="terminal"] .tg-cond-dot,
+[data-design="terminal"] .cascade-dot,
+[data-design="terminal"] .dash-section-hot::before,
+[data-design="terminal"] .session-pill-dot,
+[data-design="terminal"] .liqfeed-dot,
+[data-design="terminal"] .fng-marker,
+[data-design="terminal"] .cf-signal-icon,
+[data-design="terminal"] .ps-coin-trigger-dot,
+[data-design="terminal"] .ps-coin-opt-dot,
+[data-design="terminal"] .auth-avatar-btn,
+[data-design="terminal"] .coin-icon,
+[data-design="terminal"] .tj-lev-slider::-webkit-slider-thumb,
+[data-design="terminal"] .tj-lev-slider::-moz-range-thumb {
+  border-radius: 50% !important;
+}
 
 /* ── Terminal form input visibility (#512 bug 3) ───────────────────────────
    These wrap/style real <input>/<textarea> elements with background: --bg2
