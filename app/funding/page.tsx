@@ -11,6 +11,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import FundingTerminal from '@/components/FundingTerminal';
+import { useTheme } from '@/lib/theme';
 
 /* ── types ── */
 interface FRPoint { rate: number; ts: number; }
@@ -114,7 +115,7 @@ function frSignal(r: number): FRSignal {
     id: 'slight_long',
     crowdKey: 'FUNDING_SIG_SLIGHT_LONG_CROWD', hintKey: 'FUNDING_SIG_SLIGHT_LONG_HINT',
     labelKey: 'FUNDING_SIG_SLIGHT_LONG_LABEL',
-    color: '#d4b483', bg: 'rgba(212,180,131,0.06)',
+    color: 'var(--fr-slight-long)', bg: 'rgba(212,180,131,0.06)',
     actionKey: 'FUNDING_SIG_SLIGHT_LONG_ACTION',
     descKey: 'FUNDING_SIG_SLIGHT_LONG_DESC',
   };
@@ -153,7 +154,7 @@ function frSignal(r: number): FRSignal {
 }
 
 /* ── canvas: sparkline ── */
-function drawSparkline(canvas: HTMLCanvasElement, pts: FRPoint[]) {
+function drawSparkline(canvas: HTMLCanvasElement, pts: FRPoint[], isLight: boolean) {
   const W   = canvas.offsetWidth > 10 ? canvas.offsetWidth : 130;
   const H   = 36;
   const dpr = window.devicePixelRatio || 1;
@@ -200,14 +201,14 @@ function drawSparkline(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   /* zero line */
   ctx.beginPath();
   ctx.moveTo(0, yMid); ctx.lineTo(W, yMid);
-  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.09)';
   ctx.lineWidth = 0.5;
   ctx.stroke();
 
   /* line */
   ctx.beginPath();
   rates.forEach((r, i) => i === 0 ? ctx.moveTo(xs(i), ys(r)) : ctx.lineTo(xs(i), ys(r)));
-  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.6)';
   ctx.lineWidth   = 1.5;
   ctx.lineJoin    = 'round';
   ctx.stroke();
@@ -221,7 +222,7 @@ function drawSparkline(canvas: HTMLCanvasElement, pts: FRPoint[]) {
 }
 
 /* ── canvas: full chart ── */
-function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
+function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[], isLight: boolean) {
   const PL = 52, PR = 14, PT = 14, PB = 28;
   const W   = canvas.offsetWidth > 50 ? canvas.offsetWidth : 320;
   const H   = 190;
@@ -251,10 +252,14 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
     if (y < PT - 4 || y > PT + CH + 4) return;
     ctx.beginPath();
     ctx.moveTo(PL, y); ctx.lineTo(W - PR, y);
-    ctx.strokeStyle = g === 0 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.05)';
+    ctx.strokeStyle = g === 0
+      ? (isLight ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.22)')
+      : (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.05)');
     ctx.lineWidth   = g === 0 ? 1 : 0.5;
     ctx.stroke();
-    ctx.fillStyle = g === 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.22)';
+    ctx.fillStyle = g === 0
+      ? (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.5)')
+      : (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.22)');
     ctx.fillText((g * 100).toFixed(3) + '%', PL - 5, y);
   });
 
@@ -287,7 +292,7 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   /* line */
   ctx.beginPath();
   rates.forEach((r, i) => i === 0 ? ctx.moveTo(xs(i), ys(r)) : ctx.lineTo(xs(i), ys(r)));
-  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.75)';
   ctx.lineWidth   = 1.5;
   ctx.lineJoin    = 'round';
   ctx.stroke();
@@ -308,7 +313,7 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
   /* X-axis time labels */
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillStyle    = 'rgba(255,255,255,0.25)';
+  ctx.fillStyle    = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.25)';
   const skip = Math.max(1, Math.ceil(pts.length / 7));
   pts.forEach((p, i) => {
     if (i % skip !== 0 && i !== pts.length - 1) return;
@@ -325,6 +330,8 @@ export default function FundingHistory() {
   const mode = useDesignMode();
   const { t }                 = useLabels();
   const { store }             = useMarket();
+  const { theme }             = useTheme();
+  const isLight = theme === 'light';
   const [history, setHistory] = useState<FRHistory>({});
   const [selected, setSelected] = useState<CoinId>('btc');
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
@@ -366,10 +373,10 @@ export default function FundingHistory() {
       COINS.forEach(id => {
         const canvas = sparkRefs.current[id];
         if (!canvas) return;
-        drawSparkline(canvas, (history[id] ?? []).slice(-rangeCount));
+        drawSparkline(canvas, (history[id] ?? []).slice(-rangeCount), isLight);
       });
     });
-  }, [history, rangeCount]);
+  }, [history, rangeCount, isLight]);
 
   /* redraw full chart when selection, range, or data changes */
   useEffect(() => {
@@ -377,8 +384,8 @@ export default function FundingHistory() {
     if (!canvas) return;
     const pts = (history[selected] ?? []).slice(-rangeCount);
     if (pts.length < 2) return;
-    requestAnimationFrame(() => drawFullChart(canvas, pts));
-  }, [history, selected, rangeCount]);
+    requestAnimationFrame(() => drawFullChart(canvas, pts, isLight));
+  }, [history, selected, rangeCount, isLight]);
 
   function getStats(id: CoinId) {
     const pts = (history[id] ?? []).slice(-rangeCount);
@@ -442,8 +449,8 @@ export default function FundingHistory() {
                   {t('FUNDING_CONTRARIAN_LONG_COUNT', { count: longSignals.length, plural: longSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
-              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', border: '0.5px solid rgba(26,122,255,0.25)', fontWeight: 700 }}>
-                <Tip iconColor="#1a7aff" text={t('FUNDING_CARRY_ARB_TIP')}>
+              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'var(--accent-bg)', color: 'var(--accent)', border: '0.5px solid var(--accent-bdr)', fontWeight: 700 }}>
+                <Tip iconColor="var(--accent)" text={t('FUNDING_CARRY_ARB_TIP')}>
                   {t('FUNDING_CARRY_ARB_COUNT', { count: arbs.length })}
                 </Tip>
               </span>
@@ -474,7 +481,7 @@ export default function FundingHistory() {
                     </span>
                   )}
                   {carryArb && (
-                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'var(--accent-bg)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
                       {t('FUNDING_BADGE_ARB_LABEL')}
                     </span>
                   )}

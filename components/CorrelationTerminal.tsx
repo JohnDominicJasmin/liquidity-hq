@@ -64,7 +64,7 @@ function pearson(a: number[], b: number[]): number | null {
 }
 
 function cellBg(r: number | null, diag: boolean): string {
-  if (diag)     return 'rgba(26,122,255,0.22)';
+  if (diag)     return 'var(--accent-bdr)';
   if (r == null) return 'rgba(255,255,255,0.03)';
   if (r > 0) {
     const t = Math.max(0, (r - 0.35) / 0.65);
@@ -86,7 +86,7 @@ function altSignal(avg: number | null): AltSig {
   if (avg == null) return { labelKey: 'CORRELATION_ALT_SIG_LOADING_LABEL', descKey: null, avg, color: 'var(--txt-dim)', bg: 'transparent' };
   if (avg < 0.30)  return { labelKey: 'CORRELATION_ALT_SIG_ALT_SEASON_LABEL', color: 'var(--green-2)', bg: 'rgba(52,211,153,0.08)', descKey: 'CORRELATION_ALT_SIG_ALT_SEASON_DESC', avg };
   if (avg < 0.55)  return { labelKey: 'CORRELATION_ALT_SIG_MIXED_LABEL', color: 'var(--amber)', bg: 'rgba(251,191,36,0.07)', descKey: 'CORRELATION_ALT_SIG_MIXED_DESC', avg };
-  if (avg < 0.75)  return { labelKey: 'CORRELATION_ALT_SIG_BTC_LEADING_LABEL', color: '#d4b483', bg: 'rgba(212,180,131,0.06)', descKey: 'CORRELATION_ALT_SIG_BTC_LEADING_DESC', avg };
+  if (avg < 0.75)  return { labelKey: 'CORRELATION_ALT_SIG_BTC_LEADING_LABEL', color: 'var(--fr-slight-long)', bg: 'rgba(212,180,131,0.06)', descKey: 'CORRELATION_ALT_SIG_BTC_LEADING_DESC', avg };
   return { labelKey: 'CORRELATION_ALT_SIG_LOCKSTEP_LABEL', color: 'var(--red)', bg: 'rgba(248,113,113,0.07)', descKey: 'CORRELATION_ALT_SIG_LOCKSTEP_DESC', avg };
 }
 
@@ -252,7 +252,7 @@ export default function CorrelationTerminal() {
                             color: cellColor(r, diag),
                             borderRadius: 0,
                             opacity: hovered && !inCross ? 0.25 : 1,
-                            outline: isExact ? '1.5px solid rgba(255,255,255,0.55)' : undefined,
+                            outline: isExact ? '1.5px solid var(--accent)' : undefined,
                             outlineOffset: isExact ? '-1px' : undefined,
                             transition: 'opacity 0.1s',
                             cursor: diag ? 'default' : 'crosshair',
