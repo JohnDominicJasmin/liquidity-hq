@@ -301,11 +301,17 @@ function TEdgeSignals() {
   const fr     = d?.fundingRate;
   const frPct  = fr != null ? fr * 100 : null;
   const frInfo = fr != null ? classifyFunding(fr) : null;
+  // --green/--red, not the -soft variants (#546 C9): --green-soft/--red-soft
+  // are undeclared in terminal's 16-token palette (same gap #542 found for
+  // --amber), and unlike --amber design hasn't confirmed a terminal value for
+  // them. Collapsing to the base tone here - narrower than adding two more
+  // governed tokens on a guess, and light theme already sets this precedent
+  // ("no separate soft tier... collapse to the same audited colour").
   const frCol  = frPct == null ? 'var(--txt3)'
     : frPct >= 0.05   ? 'var(--red)'
-    : frPct >= 0.01   ? 'var(--red-soft)'
+    : frPct >= 0.01   ? 'var(--red)'
     : frPct <= -0.03  ? 'var(--green)'
-    : frPct <= -0.005 ? 'var(--green-soft)'
+    : frPct <= -0.005 ? 'var(--green)'
     : 'var(--txt2)';
 
   const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, d?.oiTrend);
