@@ -185,6 +185,23 @@ for (const theme of THEMES) {
          So: a hard floor first, then require the count to hold across three
          consecutive polls, not one. */
       await page.waitForTimeout(5000);
+
+      /* A settle check alone is still not deterministic on the heaviest routes.
+         Desktop caught /correlation's 2500 cells with it; the mobile run of the
+         SAME commit caught zero, because a node count can hold still for three
+         polls mid-load. Runs that disagree are worse than a run that is wrong
+         in a known direction, so heavy routes get an explicit readiness gate on
+         the element that defines them. Add a route here rather than raising the
+         global timeout — every extra second costs 60 page loads. */
+      const READY = { '/correlation': '.corr-cell' };
+      const sel = READY[route];
+      if (sel) {
+        await page.waitForFunction(
+          s => document.querySelectorAll(s).length > 100,
+          sel, { timeout: 60000 },
+        ).catch(() => {});
+      }
+
       await page.waitForFunction(() => {
         const n = document.querySelectorAll('body *').length;
         const s = (window.__lhqSettle ||= { last: -1, stable: 0 });
