@@ -2385,9 +2385,11 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --amber-dim: rgba(180,83,9,0.12);
   --amber-bg:  rgba(180,83,9,0.07);
   --amber-bdr: rgba(180,83,9,0.20);
-  --orange:     #C2410C;
-  --orange-bg:  rgba(194,65,12,0.07);
-  --orange-bdr: rgba(194,65,12,0.20);
+  /* #519: was #C2410C - 3.09:1 for the grade-D badge on a selected watchlist
+     row, 3.85:1 normally, both below WCAG AA's 4.5:1 for 12px text. */
+  --orange:     #7C2D12;
+  --orange-bg:  rgba(124,45,18,0.07);
+  --orange-bdr: rgba(124,45,18,0.20);
   --blue:     #1D4ED8;
   --blue-bg:  rgba(29,78,216,0.07);
   --blue-bdr: rgba(29,78,216,0.20);

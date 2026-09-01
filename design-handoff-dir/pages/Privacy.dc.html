@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#151719; }
+  a { color:#8b8f94; text-decoration:none; }
+  a:hover { color:#e8e9ea; }
+  *, *::before, *::after { box-sizing:border-box; }
+</style>
+</helmet>
+
+<section style="display:flex; flex-direction:column; gap:28px; padding:40px; font-family:'IBM Plex Sans',sans-serif;">
+  <div id="2b" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.14em; color:#08090a; background:#d9a626; padding:4px 8px;">2B</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:#8b8f94;">Privacy policy · with the processor list</div>
+    </div>
+
+    <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:nowrap;">
+      <div style="width:1440px; height:1100px; flex-shrink:0; overflow:hidden; background:#08090a; border:1px solid #1f2225; display:flex; flex-direction:column;">
+        <div style="height:56px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 40px; gap:34px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <img src="assets/logo.png" alt="LiquidityHQ" style="width:24px; height:24px; border-radius:6px; display:block; flex-shrink:0;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.16em; color:#e8e9ea;">LIQUIDITYHQ</div>
+          </div>
+          <div style="display:flex; gap:24px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; color:#8b8f94;">
+            <sc-for list="{{ marketingNav }}" as="n" hint-placeholder-count="5">
+              <div style="color:{{ n.col }};">{{ n.label }}</div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; color:#8b8f94;">SIGN IN</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#08090a; background:#d9a626; padding:8px 16px;">START FREE</div>
+        </div>
+
+        <div style="flex:1; display:flex; min-height:0;">
+          <aside style="width:264px; flex-shrink:0; border-right:1px solid #1f2225; padding:32px 0;">
+            <div style="padding:0 24px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#5a5f66;">Pages</div>
+            <div style="margin-top:16px;">
+              <sc-for list="{{ indexPrivacy }}" as="p" hint-placeholder-count="7">
+                <div style="padding:10px 24px; border-left:2px solid {{ p.bdr }}; font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.08em; color:{{ p.col }};">{{ p.label }}</div>
+              </sc-for>
+            </div>
+          </aside>
+
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+            <div style="padding:44px 48px 28px 48px; border-bottom:1px solid #1f2225; display:flex; align-items:flex-end; gap:24px;">
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#d9a626;">Legal</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:32px; font-weight:700; color:#e8e9ea; margin-top:14px;">PRIVACY POLICY</div>
+                <div style="font-size:14px; line-height:1.6; color:#8b8f94; margin-top:14px; max-width:640px;">
+                  Short version: an email address, your settings, and which screens you use. No data sold, no advertising, and market context sent for read generation carries nothing that identifies you.
+                </div>
+              </div>
+              <div style="flex:1"></div>
+              <div style="text-align:right;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#5a5f66;">Effective</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#8b8f94; margin-top:6px;">14 AUG 2026</div>
+              </div>
+            </div>
+
+            <div style="flex:1; min-height:0; display:flex;">
+              <div style="flex:1; min-width:0; padding:24px 48px; overflow:hidden;">
+                <sc-for list="{{ privacySections }}" as="s" hint-placeholder-count="8">
+                  <div style="padding:15px 0; border-bottom:1px solid #131618; display:flex; gap:20px; max-width:780px;">
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#3a3f45; width:26px; flex-shrink:0; padding-top:2px;">{{ s.n }}</div>
+                    <div>
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#e8e9ea;">{{ s.head }}</div>
+                      <div style="font-size:14px; line-height:1.65; color:#8b8f94; margin-top:9px; text-wrap:pretty;">{{ s.body }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <aside style="width:300px; flex-shrink:0; border-left:1px solid #1f2225; display:flex; flex-direction:column;">
+                <div style="height:30px; flex-shrink:0; border-bottom:1px solid #1f2225; background:#0c0d0f; display:flex; align-items:center; padding:0 20px;">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#8b8f94;">Processors</div>
+                </div>
+                <sc-for list="{{ dataSources }}" as="d" hint-placeholder-count="6">
+                  <div style="padding:11px 20px; border-bottom:1px solid #131618;">
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#e8e9ea;">{{ d.name }}</div>
+                    <div style="font-size:11.5px; line-height:1.45; color:#5a5f66; margin-top:4px;">{{ d.use }}</div>
+                  </div>
+                </sc-for>
+                <div style="flex:1"></div>
+                <div style="padding:16px 20px; border-top:1px solid #1f2225;">
+                  <div style="height:38px; border:1px solid #2a2e32; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#8b8f94;">EXPORT MY DATA</div>
+                  <div style="height:38px; border:1px solid rgba(240,82,77,.4); margin-top:8px; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#f0524d;">DELETE MY DATA</div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="width:390px; height:1100px; flex-shrink:0; overflow:hidden; background:#08090a; border:1px solid #1f2225; display:flex; flex-direction:column;">
+        <div style="height:52px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:10px;">
+          <img src="assets/logo.png" alt="LiquidityHQ" style="width:22px; height:22px; border-radius:5px; display:block; flex-shrink:0;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.14em; color:#e8e9ea;">PRIVACY</div>
+          <div style="flex:1"></div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#5a5f66; letter-spacing:.1em;">14 AUG 2026</div>
+        </div>
+        <div style="height:36px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:2px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; overflow:hidden;">
+          <sc-for list="{{ indexPrivacy }}" as="p" hint-placeholder-count="7">
+            <div style="padding:5px 9px; color:{{ p.col }}; background:{{ p.bgM }}; flex-shrink:0;">{{ p.label }}</div>
+          </sc-for>
+        </div>
+        <div style="flex-shrink:0; padding:16px; border-bottom:1px solid #1f2225; background:#0c0d0f;">
+          <div style="font-size:13px; line-height:1.6; color:#8b8f94;">
+            Short version: an email address, your settings, and which screens you use. No data sold, no advertising.
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow:hidden; padding:16px;">
+          <sc-for list="{{ privacySections }}" as="s" hint-placeholder-count="8">
+            <div style="padding:13px 0; border-bottom:1px solid #131618; display:flex; gap:12px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#3a3f45; width:20px; flex-shrink:0; padding-top:2px;">{{ s.n }}</div>
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#e8e9ea;">{{ s.head }}</div>
+                <div style="font-size:13px; line-height:1.6; color:#8b8f94; margin-top:7px;">{{ s.body }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2c · REFUNDS ── -->
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#d9a626&quot;,&quot;options&quot;:[&quot;#d9a626&quot;,&quot;#e8e9ea&quot;,&quot;#ff6b35&quot;,&quot;#38b6c4&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const acc = this.props.accent ?? '#d9a626';
+    const TXT = '#e8e9ea', TXT3 = '#5a5f66', GREEN = '#3fb950';
+
+    const PAGES = ['ABOUT', 'FAQ', 'GLOSSARY', 'TERMS', 'PRIVACY', 'REFUNDS', 'DISCLAIMER'];
+    const GROUPS = [['GETTING STARTED', 6], ['DATA & SIGNALS', 5], ['BILLING', 4], ['ACCOUNT', 3]];
+
+    const FAQS = [
+      ['What do I get on the free tier?', 'The daily market read, three Arena runs a day, the full 28-coin markets table, and the liquidation map on a fifteen-minute delay. No card, and nothing expires.', true],
+      ['How is the Arena read produced?', 'Eight measured signals — funding, open interest, CVD, VWAP, spot premium, taker ratio, basis and liquidation proximity — are scored, then written up by a language model that only sees those numbers. It cannot invent a level that is not in the data.', false],
+      ['Why does the read sometimes say "wait"?', 'Because the signals disagree. A read below about 45 means the evidence is split, and the honest answer is that there is no edge in the setup right now.', false],
+      ['Which exchange does the data come from?', 'Bybit is the primary venue for price and funding. Liquidations are aggregated across five venues. Spot premium comes from Coinbase, macro series from FRED.', false],
+      ['How often does the liquidation map update?', 'Every five seconds on Pro, fifteen minutes on free. The clusters themselves recompute as positions open and close.', false],
+      ['Can I use this on my phone?', 'Yes. It installs as an app on iOS and Android, and every screen has a layout built for a phone rather than a shrunk desktop.', false],
+      ['Do you offer refunds?', 'Yes — within fourteen days of a charge, no questions. The refund page has the details.', false],
+      ['Is this financial advice?', 'No. It is analysis. Every number on the screen is measured, but what you do with it is your decision and your risk.', false]
+    ];
+
+    const GLOSSARY = [
+      ['Funding rate', 'FLOW', 'Arena · Markets', 'The periodic payment between long and short holders of a perpetual contract, paid every eight hours on most venues. Positive funding means longs pay shorts, which tells you the crowd is long.', 'At +0.0132% BTC longs are paying roughly 14.4% annualised to hold the position.'],
+      ['Open interest', 'FLOW', 'Arena · Markets', 'The total value of contracts currently open. Rising open interest with rising price means new money is entering; rising open interest with flat price means positions are stacking without conviction.', 'OI up 2.31% in an hour while price barely moved is the second case.'],
+      ['CVD', 'FLOW', 'Arena', 'Cumulative volume delta — the running total of aggressive buying minus aggressive selling. When CVD rises while price does not, someone is absorbing the buying, and vice versa.', 'A bullish CVD divergence is the read calling out buyers who are not yet being paid.'],
+      ['Liquidation cluster', 'LIQUIDITY', 'Liquidation map', 'A price level where a large amount of leveraged position would be force-closed. Price is drawn to these levels because closing them creates the very order flow that reaches them.', '$82M of long liquidations at 113,400 is the largest cluster on the board.'],
+      ['VWAP', 'PRICE', 'Arena · Dashboard', 'Volume-weighted average price for the session. Trading above session VWAP means the average participant today is in profit, which changes how they behave on a pullback.', 'Price +0.42% above VWAP is a mild constructive reading, nothing more.'],
+      ['Spot premium', 'FLOW', 'Arena', 'The gap between a spot venue and the perpetual price — Coinbase against Bybit here. A positive premium means the marginal buyer is paying up on spot rather than levering.', 'Premium turning positive while funding is crowded is the healthier version of a rally.'],
+      ['Basis', 'FLOW', 'Arena', 'The difference between the perpetual and the underlying spot price, as a percentage. Persistent positive basis means perps are rich and carry costs are being paid to stay long.', '+0.18% basis with positive funding is the same story told twice.'],
+      ['Taker buy ratio', 'FLOW', 'Markets', 'The share of market-order volume that was buying rather than selling. Above 60% means buyers are lifting offers; below 40% means sellers are hitting bids.', '58% is buyers leading, but not decisively.'],
+      ['Confluence score', 'SIGNAL', 'Arena', 'How many of the eight tracked signals agree on a direction, out of ten. It is deliberately not the same as confidence, which also weighs how strong each signal is.', 'Confluence 7/10 with confidence 68 means most signals agree, none of them loudly.']
+    ];
+    const CAT_COL = { FLOW: acc, LIQUIDITY: '#f0524d', PRICE: '#8b8f94', SIGNAL: GREEN };
+
+    const glossary = GLOSSARY.map(g => ({
+      term: g[0], cat: g[1], where: g[2], def: g[3], example: g[4], catCol: CAT_COL[g[1]]
+    }));
+
+    const indexFor = active => PAGES.map(label => ({
+      label,
+      col: label === active ? TXT : TXT3,
+      bdr: label === active ? acc : 'transparent',
+      bgM: label === active ? acc : 'transparent'
+    }));
+    const toc = sections => sections.map((s, i) => ({
+      n: String(i + 1).padStart(2, '0'),
+      label: s.head,
+      col: i === 0 ? TXT : TXT3
+    }));
+
+    const termsSections = [
+      { head: 'Who we are', body: 'LiquidityHQ is operated by an independent developer. Correspondence, including legal notices, goes to hello@liquidity-hq.com and is answered from the same address.' },
+      { head: 'What the service provides', body: 'Access to market data, derived indicators and written analysis for cryptocurrency perpetual futures. The service is informational. It does not place orders, custody funds, or connect to your exchange account with trading permissions.' },
+      { head: 'Your account', body: 'You are responsible for the security of your credentials and for everything done under your account. One account is for one person; sharing credentials or reselling access ends the subscription without a refund.' },
+      { head: 'Acceptable use', body: 'Do not scrape, resell or redistribute the data, attempt to bypass rate limits or entitlement checks, or use the service to build a competing dataset. Automated access outside documented endpoints is not permitted.' },
+      { head: 'Payment and renewal', body: 'Paid plans bill monthly or yearly in advance through our payment processor. Subscriptions renew automatically until cancelled. Cancelling stops the next charge and leaves access in place until the end of the paid period.' },
+      { head: 'No financial advice', body: 'Nothing on the service is financial, investment or trading advice, and nothing is a recommendation to enter a position. Every read, score and level is analysis of past and present data. Decisions and their outcomes are yours.' },
+      { head: 'Availability', body: 'We aim for continuous availability but do not guarantee it. Upstream exchanges, data providers and hosting can fail, and the service may be taken down for maintenance. Delayed or missing data is possible and is signalled in the interface where we can detect it.' },
+      { head: 'Limitation of liability', body: 'To the extent permitted by law, liability is limited to the amount you paid in the twelve months before a claim. We are not liable for trading losses, missed opportunities, or indirect or consequential damages.' },
+      { head: 'Termination', body: 'You may close your account at any time from settings. We may suspend access for breach of these terms, fraudulent payment, or abuse of the service or its operator.' },
+      { head: 'Changes to these terms', body: 'Material changes are announced in the product at least fourteen days before they take effect. Continuing to use the service after that date means the revised terms apply.' }
+    ];
+
+    const privacySections = [
+      { head: 'What we collect', body: 'An email address and password hash for your account. Your settings, watchlist, alerts and journal entries. Usage events such as which screens you open and which reads you run. Payment records held by our processor, never card numbers by us.' },
+      { head: 'Why we collect it', body: 'To run the account, deliver alerts you configured, enforce plan limits, and understand which parts of the product are actually used. We do not sell personal data and do not run advertising.' },
+      { head: 'Cookies and analytics', body: 'A session cookie keeps you signed in. Analytics are first-party and load only after you accept the consent banner; declining leaves the product fully functional.' },
+      { head: 'Processors we use', body: 'Supabase for accounts and stored data, Render for hosting, PostHog for product analytics, our payment provider for billing, xAI for generating written reads, and Telegram only if you connect it for alerts.' },
+      { head: 'What leaves the product', body: 'Read generation sends numeric market context — prices, funding, open interest — to the model provider. It does not send your email, journal entries, positions or any identifier tied to you.' },
+      { head: 'Retention', body: 'Account data is kept while the account exists. Deleting the account removes it, along with your journal, alerts and settings, within thirty days. Aggregate, non-identifying usage counts may be retained.' },
+      { head: 'Your rights', body: 'You can export or delete your data from settings, or by email if you prefer. Where local law grants access, correction, portability or objection rights, we honour them without charge.' },
+      { head: 'Contact', body: 'Privacy questions go to hello@liquidity-hq.com and are answered within a few days, usually the same one.' }
+    ];
+
+    const refundSections = [
+      { head: 'Fourteen-day refund', body: 'If the product is not what you expected, ask for a refund within fourteen days of the charge and you get it. No form, no reason required, no follow-up sales attempt.' },
+      { head: 'How to request one', body: 'Email hello@liquidity-hq.com from the address on the account. Refunds are issued to the original payment method and typically clear within five business days, depending on your bank.' },
+      { head: 'The trial', body: 'Pro starts with a seven-day trial. Cancelling before it ends means no charge at all, which is usually simpler than a refund.' },
+      { head: 'What is not refundable', body: 'Charges older than fourteen days, and renewals you did not cancel before they billed. If a renewal caught you by surprise, write anyway — surprise renewals get refunded.' },
+      { head: 'Cancelling', body: 'One click in settings. Cancelling stops future charges and leaves Pro features working until the end of the period you already paid for.' },
+      { head: 'Chargebacks', body: 'Please email before disputing a charge. A dispute locks the account while the bank investigates, which takes weeks; a refund takes days.' }
+    ];
+
+    const disclaimerSections = [
+      { head: 'Not financial advice', body: 'Everything on LiquidityHQ is market analysis. No read, score, level or scanner match is a recommendation to buy, sell or hold anything, and nothing here accounts for your circumstances, capital or risk tolerance.' },
+      { head: 'What a read actually is', body: 'A verdict is produced from eight measured signals at a moment in time. It describes what positioning and order flow look like right now. It does not predict the future, and a high confidence number means the signals agree — not that the outcome is likely.' },
+      { head: 'Leverage risk', body: 'Perpetual futures are leveraged instruments. Losses can exceed your initial margin, positions can be liquidated in seconds during a cascade, and the levels shown on the liquidation map are exactly where that happens most often.' },
+      { head: 'Data may be wrong or late', body: 'Data comes from third-party exchanges and providers. Feeds go down, values arrive late, and aggregation across venues can disagree with any single exchange. Where we can detect staleness we label it, but never assume a number is live because it is on screen.' },
+      { head: 'Model-written analysis', body: 'Written reads are generated by a language model over a fixed numeric context. The model can misread the emphasis of the data or phrase a nuance badly. Treat the numbers as the source of truth and the prose as commentary on them.' },
+      { head: 'Past performance', body: 'Journal statistics, hypothesis hit rates and backtested figures describe what already happened, on your own trades or on historical data. They carry no guarantee about future results.' },
+      { head: 'Your responsibility', body: 'You decide what to trade, how much to risk and when to exit. Consider taking independent, licensed advice before trading leveraged products, and never risk capital you cannot afford to lose.' }
+    ];
+
+    return {
+      indexDisclaimer: indexFor('DISCLAIMER'),
+      disclaimerSections: disclaimerSections.map((s, i) => ({ ...s, n: String(i + 1).padStart(2, '0') })),
+      disclaimerToc: toc(disclaimerSections),
+      riskFacts: [
+        { label: 'Liquidations · 24h', value: '$412M', note: 'across five venues', col: '#f0524d' },
+        { label: 'Longs liquidated', value: '61%', note: 'of that total', col: '#f0524d' },
+        { label: 'Largest single', value: '$18.4M', note: 'one position, 09:12', col: '#f0524d' },
+        { label: 'Typical cascade', value: '< 90s', note: 'peak to exhaustion', col: '#8b8f94' }
+      ],
+      indexTerms: indexFor('TERMS'),
+      indexPrivacy: indexFor('PRIVACY'),
+      indexRefund: indexFor('REFUNDS'),
+      termsSections: termsSections.map((s, i) => ({ ...s, n: String(i + 1).padStart(2, '0') })),
+      privacySections: privacySections.map((s, i) => ({ ...s, n: String(i + 1).padStart(2, '0') })),
+      refundSections: refundSections.map((s, i) => ({ ...s, n: String(i + 1).padStart(2, '0') })),
+      termsToc: toc(termsSections),
+      privacyToc: toc(privacySections),
+      refundToc: toc(refundSections),
+      marketingNav: ['PRODUCT', 'LIQUIDATION MAP', 'ARENA', 'PRICING', 'DOCS'].map(l => ({ label: l, col: '#8b8f94' })),
+      staticIndex: PAGES.map((label, i) => ({
+        label,
+        col: i === 0 ? TXT : TXT3,
+        bdr: i === 0 ? acc : 'transparent',
+        bgM: i === 0 ? acc : 'transparent'
+      })),
+      aboutSections: [
+        { head: 'What it is', body: 'A liquidity terminal for perpetual futures. It maps leveraged positioning to price levels, scores eight order-flow signals per coin, and writes one read per timeframe with an entry zone, an invalidation and the reasoning behind both.' },
+        { head: 'What it is not', body: 'It is not a signal group, a copy-trading service, or a bot. Nothing here places an order for you, and no screen tells you how much to risk beyond the sizing you enter yourself.' },
+        { head: 'How it is built', body: 'Next.js on Render, Supabase for accounts and alerts, market data from Bybit and Binance, liquidations aggregated across five venues, macro series from FRED. Reads are generated by Grok against a fixed numeric context — the model never sees a chart image.' }
+      ],
+      principles: [
+        { n: '01', text: 'Every number on screen is measured. Nothing is estimated to fill a gap.' },
+        { n: '02', text: 'One verdict per read. If the signals disagree, the verdict says wait.' },
+        { n: '03', text: 'Colour means a signal is firing, never decoration.' },
+        { n: '04', text: 'No dark patterns in billing. Cancel is one click, refunds are fourteen days.' }
+      ],
+      dataSources: [
+        { name: 'Bybit', use: 'Price, funding, open interest — primary venue' },
+        { name: 'Binance', use: 'Backup price feed and cross-venue basis' },
+        { name: '5 venues', use: 'Aggregated liquidation data for the map' },
+        { name: 'Coinbase', use: 'Spot premium against the perpetual' },
+        { name: 'FRED', use: 'DXY, yields and macro series' },
+        { name: 'Grok', use: 'Written reads over a fixed numeric context' }
+      ],
+      faqGroups: GROUPS.map((g, i) => ({
+        label: g[0], count: g[1],
+        col: i === 0 ? TXT : TXT3,
+        bdr: i === 0 ? acc : 'transparent',
+        bgM: i === 0 ? acc : 'transparent'
+      })),
+      faqs: FAQS.map(f => ({
+        q: f[0], a: f[1], open: f[2],
+        sign: f[2] ? '−' : '+',
+        signCol: f[2] ? acc : TXT3
+      })),
+      faqsM: FAQS.slice(0, 6).map(f => ({
+        q: f[0], a: f[1], open: f[2],
+        sign: f[2] ? '−' : '+',
+        signCol: f[2] ? acc : TXT3
+      })),
+      glossaryCats: [
+        { label: 'ALL', col: '#08090a', bg: acc },
+        { label: 'FLOW', col: '#8b8f94', bg: 'transparent' },
+        { label: 'LIQUIDITY', col: '#8b8f94', bg: 'transparent' },
+        { label: 'PRICE', col: '#8b8f94', bg: 'transparent' },
+        { label: 'SIGNAL', col: '#8b8f94', bg: 'transparent' }
+      ],
+      alphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(letter => ({
+        letter,
+        col: 'BCFLOPRSTV'.includes(letter) ? '#8b8f94' : '#22262a'
+      })),
+      glossary,
+      glossaryM: glossary.slice(0, 7)
+    };
+  }
+}
+</script>
+</body>
+</html>
