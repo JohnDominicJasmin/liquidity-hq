@@ -107,6 +107,29 @@ Playwright.
 "contrast failures" are largely the *same* 50 placeholder dashes. Headline
 numbers overstate; `contrast-diff.mjs` exists because of this.
 
+**A fixed sleep does not report that it was too short — it reports zero.**
+`token-surfaces.mjs` waited a fixed 4500ms. Enough for most routes; **not**
+enough for `/correlation`'s 2500-cell heatmap on the free tier. The desktop run
+recorded no `corr-cell` rows at all — not zero failures, zero rows — which read
+first as "route not covered", then (on a 9s probe) as "route renders nothing at
+desktop", a serious defect that does not exist. It renders 2500 cells at every
+width from 390 to 1440, both themes, both design modes; only the wait differed.
+**Three consecutive readings of one route, all wrong, all from a fixed sleep.**
+Wait for the DOM to stop growing instead:
+`waitForFunction(() => { const n = document.querySelectorAll('body *').length;
+const p = window.__prev; window.__prev = n; return p !== undefined && n === p && n > 0; })`.
+Same failure as the Dashboard double-mount, different symptom.
+
+**The right unit for finding a problem is the wrong unit for sizing it.**
+`token-surfaces.mjs` reported light-theme failures going **52 (desktop) → 77
+(mobile)**, which reads as "mobile is far worse". It is not. Grouped by
+component, effectively all of the increase is `/correlation`'s heatmap — 24
+near-identical surfaces from one continuous gradient (`#99dfc3` … `#b2e2ce`,
+all 4.01–4.30:1), i.e. **one defect on one component counted 24 times.**
+Per-surface aggregation is correct for locating a cause and misleading as a
+headline. Group by component before quoting a number. This is the same failure
+as `/scanner`'s 392 "empty fields" being 50 dashes.
+
 **A detector that matches too broadly invents failures.** `gating-audit.mjs`
 counted any descendant `<svg>` as a lock glyph and reported **4 "locked but
 enabled" paid-surface leaks** on `/settings` — the theme chips' sun/moon icons

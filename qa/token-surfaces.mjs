@@ -167,7 +167,31 @@ for (const theme of THEMES) {
         const g = [...document.querySelectorAll('.dashboard-grid')];
         return !g.length || g.filter(x => x.getBoundingClientRect().width > 0).length === 1;
       }, { timeout: 60000 }).catch(() => {});
-      await page.waitForTimeout(4500);
+
+      /* A fixed 4500ms wait silently UNDER-COVERS slow routes on the free tier.
+         /correlation's 2500-cell heatmap had not rendered at 4500ms, so the
+         desktop run reported zero corr-cell rows — not zero failures, no rows
+         at all — and the mobile run (which happened to catch it) looked like a
+         mobile-only defect. It is not: the grid renders at every width from 390
+         to 1440, in both themes and both design modes.
+
+         First attempt at a fix made things WORSE and is worth recording: a
+         plain "node count unchanged since last poll" check returns on any two
+         equal polls, which a mid-load pause satisfies. Coverage HALVED (121 ->
+         72 observed surfaces) and /correlation still produced nothing. A
+         readiness check that can fire early is more dangerous than a fixed
+         sleep, because it looks principled.
+
+         So: a hard floor first, then require the count to hold across three
+         consecutive polls, not one. */
+      await page.waitForTimeout(5000);
+      await page.waitForFunction(() => {
+        const n = document.querySelectorAll('body *').length;
+        const s = (window.__lhqSettle ||= { last: -1, stable: 0 });
+        s.stable = n === s.last ? s.stable + 1 : 0;
+        s.last = n;
+        return n > 0 && s.stable >= 3;
+      }, { timeout: 40000, polling: 1200 }).catch(() => {});
 
       for (const rec of await page.evaluate(PAGE_EVAL)) {
         const token = byHex[rec.fg];
