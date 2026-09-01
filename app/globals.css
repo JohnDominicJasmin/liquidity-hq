@@ -5578,7 +5578,18 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      just --bg0. */
   --txt3: #5e6267;
   --txt4: #aeaaa4;
-  --accent: #8a5c00; /* 5.38:1 on --bg0 - darkened from dark theme's #d9a626, which measures 2.23:1 here */
+  /* #559: was #8a5c00 (5.38:1 on --bg0 only - the canvas figure, not the
+     binding one; same --bg0-only gap that dropped --txt3/--green/--red/
+     --amber here before design required a per-token surface figure).
+     Failed 8 of 17 observed surfaces. QA verified #754e00 against all 17:
+     worst 4.55:1 on #d6cab3 (the /correlation diagonal), 4.77 /liq LIVE
+     tag, 4.99 /briefing, 5.20+ on the rest, --bg0 6.83, --bg1 6.09.
+     Design accepted the trade explicitly - fixing the 8 failing surfaces
+     individually was real scope for a marginal gain over one token move,
+     and a brand colour that fails 8 of 17 places it's used isn't holding
+     its job. Visible effect: darker accent chrome (buttons, links) across
+     every light-theme route - intended, not a regression. */
+  --accent: #754e00;
   --green:  #14702c; /* 4.752:1 on --bg2, the binding figure - see --txt3 comment above */
   /* #559: was #cf222e (4.97:1 on --bg0 only - the canvas figure, not the
      binding one, same gap that dropped --txt3 and --green here before
