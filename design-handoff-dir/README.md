@@ -208,8 +208,9 @@ Reference by token name from `lib/terminalTokens.ts`. **Do not restate hex in co
 | `--red` | `#f0524d` | fired, warning |
 | `--mark-idle` | `#22262a` | signal marker, not fired |
 | `--border-input` | `#5e646b` | input / ghost button border |
+| `--amber` | `#fbbf24` | mid-tier / weak signal — confirmed in `app/globals.css` root, and in `components/DashboardTerminal.tsx`'s OI/funding ladders |
 
-15 values. That is the whole palette.
+16 values, not 15 — `--amber` was missing from every prior count on this project. Confirmed via source, not inferred.
 
 ### Light
 
@@ -232,13 +233,13 @@ Four tokens (`--accent`, `--green`, `--red`, and the unlisted `--amber`) are **n
 | `--accent` | `#8a5c00` | 5.38:1 | active state, primary action |
 | `--green` | `#1a7f37` | 4.70:1 | fired, confirming |
 | `--red` | `#cf222e` | 4.97:1 | fired, warning |
-| `--amber` | `#9a6a00` | — | kept distinct from `--accent`, see note below |
+| `--amber` | `#8F4508` | ~6.4:1 | **confirmed, not derived** — this is the app's own `[data-theme="light"]` override in `app/globals.css`, not a frequency guess. Replaces the earlier placeholder `#9a6a00`. |
 | `--mark-idle` | `#d1cec9` | — | signal marker, not fired |
 | `--border-input` | `#75797e` | — | input / ghost button border |
 
 One more thing this table does **not** confirm: the page wrapper outside the 1440/390 frames renders `#e9e7e3` in the light files (dark equivalent `#151719`). That is the canvas/document backdrop, not `--bg0` — do not read it as a 16th token or as `--bg1`'s value. `--bg1` is `#ebe9e6`, measured inside the frame.
 
-`--amber` does not appear in the dark table above because no dark screen in this bundle uses it distinctly from `--accent` — it is carried in the light derivation for completeness only. Confirm with design whether the codebase's actual token file defines a 16th value here, or whether it should be dropped.
+`--amber` is now in both tables above, confirmed via source rather than guessed or flagged as unconfirmed. Dark `#fbbf24` is the app's root `:root` value; light `#8F4508` is its own `[data-theme="light"]` override — the same file defines both, so this pair needs no further design confirmation.
 
 **Type.** IBM Plex Mono 400/500/600/700 for every number, micro-label, nav item, button label and heading. IBM Plex Sans 400/500/600/700 for prose. Three steps plus micro:
 
