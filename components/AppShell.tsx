@@ -6,6 +6,8 @@ import NewsProvider from './NewsProvider';
 import NavDrawer from './NavDrawer';
 import GrokChat from './GrokChat';
 import NewsTicker from './NewsTicker';
+import PriceTickerStrip from './PriceTickerStrip';
+import { useDesignMode } from './DesignModeProvider';
 import AuthProvider from './AuthProvider';
 import LabelsProvider from './LabelsProvider';
 import LanguageSync from './LanguageSync';
@@ -57,6 +59,7 @@ const isAuthRoute = (pathname: string) => AUTH_ROUTES.includes(pathname);
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const config = useAppConfig();
+  const mode = useDesignMode();
 
   useEffect(() => {
     try {
@@ -132,6 +135,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <TimezoneSync />
                     <AnnouncementBanner banner={config?.announcementBanner ?? null} />
                     <NavDrawer />
+                    {mode === 'terminal' && <PriceTickerStrip />}
                     <NewsTicker />
                     <main className="app-content">
                       <TrialBanner />
