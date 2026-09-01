@@ -206,5 +206,35 @@ Confirmed on `/dashboard` by dev reading the components behind the canvas:
   Building the canvas literally would reverse a prior product decision.
 
 **A canvas can specify layout. It cannot invent data or silently overturn a
-product decision.** Expect more of this on other screens; each needs a ruling,
+product decision.**
+
+### The perp-vs-spot ruling was given on an incomplete description — MINE
+
+The owner answered "go all 3" against my summary, which described #328 as a
+*presentation* choice: a metric shown in `x` units rather than a percentage.
+
+Dev then read `lib/perpSpot.ts` and found something categorically stronger — the
+owner's own words, **twice**, defining what perps-vs-spot *measures* on this
+product ("that perps and spot is volume take note" / "perpetual and spot trading
+volume"), a return type (`OHLCVLike`) that deliberately carries **no price
+field**, and a comment stating price cannot enter "without someone widening it
+deliberately", added specifically to stop a price version returning after #343
+removed one.
+
+**A ruling given without that in view is not a ruling on it.** Nobody had it —
+not dev, not me, not him. Building the price-lead version on the strength of
+"go all 3" would use his approval as cover for reversing a constraint he stated
+twice and defended once.
+
+**Status: not built. Goes back to the owner with the quote attached.** The
+framing owed to him is that my summary was incomplete, not that he changed his
+mind.
+
+The other two of the three stand as ruled:
+- **E/S/T** — omitted, no data source, reasoning in the code and the PR body.
+- **Market conditions** — Volatility and Breadth built from real data
+  (`lhq_vol_regime` cache; % of `store.coins` positive over 24h). *Trend
+  strength* and *Liquidity* have no source in this codebase — no ADX-shaped
+  computation, no orderbook or depth data anywhere — so those two bars are left
+  out and documented. Two honest bars beat four where half are invented. Expect more of this on other screens; each needs a ruling,
 not a build.
