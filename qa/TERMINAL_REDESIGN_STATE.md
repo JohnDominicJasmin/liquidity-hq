@@ -107,6 +107,34 @@ Playwright.
 "contrast failures" are largely the *same* 50 placeholder dashes. Headline
 numbers overstate; `contrast-diff.mjs` exists because of this.
 
+**Text on a tint of ITSELF is structurally marginal in light theme.**
+`PerpSpotCard`'s verdict pill sets `color: tone` with
+`background: color-mix(in srgb, tone 12%, transparent)`. A self-tint moves the
+**surface toward the text colour**. In dark the tone is lighter than the card,
+so it starts from a large margin and survives; in light the tone is darker, the
+tint drags the surface down toward it, and the margin was never large.
+
+Computed across all four states × both themes — deterministic from the tokens,
+so states the market may not produce for days are still checkable:
+
+| state | tone | light | dark |
+|---|---|---|---|
+| perp | `--amber` | 4.66 pass | 8.63 pass |
+| spot | `--green-2` | **4.04 FAIL** | 6.00 pass |
+| normal | `--txt2` | **4.41 FAIL** | 4.79 pass |
+| unknown | `--txt3` | **4.06 FAIL** | **4.11 FAIL** |
+
+**Four of eight fail**, and only one was ever observed live — the market moved
+between runs, which is why it first looked flaky. It is not: the defect is
+deterministic per state, only *which state renders* is not.
+
+**`withAlpha()` hides this from a grep.** `lib/color.ts:10` returns
+`color-mix(...)`, so none of its 34 call sites match a search for
+`color-mix(in srgb,`. Searching the *semantics* instead finds the same shape at
+`arena:1374`, `arena:1521`, `briefing:781`, `liq:436`, `liq:513`, `liq:562` —
+seven components across four routes, alphas 8–13%, none of their states
+measured. **Grep what a helper produces, not what call sites spell out.**
+
 **A check that cannot report failure is worse than no check — it gets trusted.**
 Two instances the same night, from both sessions:
 
