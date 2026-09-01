@@ -6601,6 +6601,19 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .csb2-sig      { border-radius: 0; }
 [data-design="terminal"] .csb2-bar-track,
 [data-design="terminal"] .csb2-bar-fill { border-radius: 0; }
+/* #559 C8: the rest of dashboard's rectangular pixel-radii, found by QA's
+   full-page sweep rather than by route inspection - MarketRead and SOTD sit
+   in the dashboard rail but aren't dashboard-specific components, so they'd
+   been missed by every audit scoped to "dashboard's own classes". */
+[data-design="terminal"] .mr-track,
+[data-design="terminal"] .mr-fill          { border-radius: 0; }
+[data-design="terminal"] .sotd-static-badge,
+[data-design="terminal"] .sotd-refresh     { border-radius: 0; }
+[data-design="terminal"] .consent-btn      { border-radius: 0; }
+[data-design="terminal"] .psc-verdict-pill { border-radius: 0; }
+[data-design="terminal"] .vr-hv-track,
+[data-design="terminal"] .vr-hv-track > *  { border-radius: 0; }
+[data-design="terminal"] .ecw-impact-chip  { border-radius: 0; }
 /* briefing */
 [data-design="terminal"] .mb-macro-item { border-radius: 0; }
 [data-design="terminal"] .mb-event-tag  { border-radius: 0; }
