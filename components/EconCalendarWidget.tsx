@@ -142,7 +142,7 @@ export default function EconCalendarWidget() {
                 {e.name}
               </span>
               <span className="ecw-impact-chip" style={{
-                fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.03em', padding: '2px 6px', borderRadius: 4,
+                fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.03em', padding: '2px 6px',
                 color: col, background: withAlpha(col, '22'), flexShrink: 0,
               }}>
                 {e.impact}
