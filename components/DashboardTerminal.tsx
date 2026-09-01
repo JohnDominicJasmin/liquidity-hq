@@ -176,7 +176,7 @@ function TCoinSidebar() {
               <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
-                <span style={{
+                <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
                   fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 0,
                   color: health.color,
