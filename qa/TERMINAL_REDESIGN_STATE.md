@@ -190,6 +190,27 @@ Found so far, all incidentally: `--amber`, `--accent-2`, `--accent-bg` /
 **The query that closes the class**: every custom property referenced under
 terminal scope but declared only at `:root`. Not yet run.
 
+**A second shape of the same class: the derivative that does not follow.**
+When a base token's value changes, tints written as literals rather than
+derived from it keep the old value. Found on 2026-09-02 after `--red`,
+`--amber` and `--accent` light all moved: `--red-bg`/`--red-bdr` and
+`--accent-bg`/`--accent-bdr`/`--accent-dim` were all still the pre-move colour.
+The symptom is subtle and passes a contrast check — **the text is the new
+colour on a tint of the old one**, so it reads as a hue mismatch rather than a
+legibility failure, and only a per-surface palette sweep catches it.
+
+**And the worst variant: correct by coincidence.** `--amber-bg`/`--amber-bdr`
+were never declared in *either* terminal block. Dark rendered correctly anyway,
+because `:root`'s fallback and terminal dark's `--amber` are both `#fbbf24` —
+the same value by accident, not by declaration. Light had no such luck and fell
+through to the current design's amber tint entirely. **A token can render right
+for a reason that is not a rule**, and it will keep doing so until one of the
+two values it accidentally matches is changed.
+
+Whenever a base token moves, check its `-bg`, `-bdr`, `-dim`, `-2` and `-soft`
+derivatives in *both* themes — and check that they are *declared*, not merely
+resolving to something plausible.
+
 ---
 
 ## 7. Terminal had no light theme until #563
