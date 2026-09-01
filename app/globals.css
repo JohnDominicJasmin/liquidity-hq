@@ -5505,17 +5505,23 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   /* #559 second round: was #6a6e73 (5.14:1 on --bg0), the light-theme-
      tokens.md figure - measured against the canvas, not the darkest
      composited surface actually used (--bg2, tinted badge backgrounds).
-     Design's fix, QA-verified across all four observed surfaces (5.69 /
-     5.08 / 4.71 / 4.87) - clean, shipped. --green below is NOT: design's
-     #16752f (4.60:1 against #dee7e1) measures only 4.44:1 against --bg2,
-     which QA found is a surface this token demonstrably lands on
-     (liq-row-lev, scanner badges) - holding at the prior value pending
-     design's ruling on QA's #14702c candidate (5.75/4.72/4.92 across the
-     three surfaces checked). */
-  --txt3: #5e6266;
+     Design's ruling, QA-verified against all five observed surfaces:
+     --bg0 5.690, --bg1 5.075, --bg2 4.709, #dee7e1 4.868, #e8eaed 5.102.
+     Matches light-theme-tokens.md's literal exactly (#5e6267, not the
+     visually-identical #5e6266 an earlier round of this file shipped -
+     three decimal places apart in the contrast math, but globals.css and
+     the spec must not disagree on the literal or the next audit reads it
+     as drift). --green below went through two candidates before landing:
+     design's first #16752f cleared their own reference surface but only
+     4.44:1 on --bg2 (a surface it demonstrably lands on - liq-row-lev,
+     scanner badges); ruled #17702f instead, off QA's re-measurement
+     rather than design's own #14702c, verified against all four (5.73 /
+     5.11 / 4.70 / 4.92). light-theme-tokens.md is being restructured so
+     every token states its --bg2 figure, not just --bg0. */
+  --txt3: #5e6267;
   --txt4: #aeaaa4;
   --accent: #8a5c00; /* 5.38:1 on --bg0 - darkened from dark theme's #d9a626, which measures 2.23:1 here */
-  --green:  #1a7f37; /* 4.70:1 on --bg0 - held per QA, see --txt3 comment above */
+  --green:  #17702f; /* 4.70:1 on --bg2, the binding figure - see --txt3 comment above */
   --red:    #cf222e; /* 4.97:1 on --bg0 */
   --amber:  #9a6a00;
   --mark-idle:    #d1cec9;
