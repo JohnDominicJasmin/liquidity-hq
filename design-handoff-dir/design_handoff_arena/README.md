@@ -134,6 +134,35 @@ New view state is only: selected coin, selected timeframe, hint dismissal, and t
 
 Reference by name from `lib/terminalTokens.ts`. **Do not restate hex in code.** 15 tokens: `--bg0` `--bg1` `--bg2` `--bdr` `--bdr2` `--bdr3` `--txt` `--txt2` `--txt3` `--txt4` `--accent` `--green` `--red` `--mark-idle` `--border-input`.
 
+> ### Amendment — 2026-09-01, owner-approved
+>
+> **Three token values are superseded.** The originals could not satisfy this
+> handoff's own accessibility requirement. Originals are kept on the record
+> rather than overwritten — a handoff that quietly rewrites its own numbers is
+> how the next drift becomes invisible.
+>
+> | Token | Original | **Amended** | Why |
+> |---|---|---|---|
+> | `--bg1` | `#0c0d0f` | **`#141517`** | sat 13 hex units off `--bg0`; imperceptible as a card boundary (#512) |
+> | `--txt3` | `#5a5f66` | **`#7c828a`** | failed 4.5:1 — see below (#512) |
+> | `--border-input` | `#2a2e32` | **`#5e646b`** | **1.36:1** against `--bg1`; WCAG 1.4.11 requires **3:1** for UI component boundaries. `#5e646b` clears **3.14:1**. Amended on the same accessibility grounds, after the owner's ruling rather than as part of it (#520, #527). |
+>
+> **The conflict.** `specs/arena.md` §Accessibility enumerates `--txt3`/`--bg0`
+> as a pair that **must clear 4.5:1**. Measured with the original values it is
+> **3.10:1**; `--txt3` on the original `--bg1` is **3.03:1**. The specified value
+> could not meet the specified bar, on a pair the spec itself names.
+>
+> The amended value clears both: **5.14:1** on `--bg0`, **4.78:1** on the
+> amended `--bg1`.
+>
+> Measured by QA on qa `c16bb62` (#512, #520). The owner ratified on #526, having
+> been offered the alternative of reverting and accepting a documented AA
+> failure. The remaining 12 tokens are unchanged.
+>
+> **`lib/terminalTokens.ts` is the file of record and must match this table.**
+> At time of writing it still holds the originals — which is exactly how this
+> drift stayed invisible, since nothing imports it. See #518.
+
 One documented exception: the liquidation heatmap's canvas is `#0a0710` with a 7-stop ramp over it. It sits under a continuous gradient rather than beside palette colours. Whether it deserves a 16th token is a design-system call, flagged in the spec.
 
 **Type.** IBM Plex Mono for every number, label, nav item and heading; IBM Plex Sans for prose. Scale in use: 34 / 30 / 28 / 26 / 24 / 20 / 19 / 16 / 15 / 14 / 13 / 12 / 11 / 10 / 9.
