@@ -6438,3 +6438,19 @@ main.app-content[data-chrome="none"] {
    explicitly here rather than re-opening that investigation. */
 [data-design="terminal"] .chg-up { color: var(--green) !important; }
 [data-design="terminal"] .chg-dn { color: var(--red) !important; }
+
+/* ── Dashboard rectangular-surface radius (#546 C8, unblocked by
+   specs/radius-ruling.md) ──────────────────────────────────────────────────
+   Ruling: radius 0 applies to rectangular surfaces (panels, cards, buttons,
+   chips, inputs, cells). Circular markers <=24px (coin/avatar icons, status
+   dots, toggle thumbs, step-number circles) are a different glyph and stay
+   round - that's why the CoinIcon <img> markers this section's own audit
+   flagged are correct as-is and NOT touched here. These four are genuinely
+   rectangular: a progress track, a factor chip, a rail panel, and the
+   shared skeleton-loading bar (SkeletonBar sets its radius via inline
+   style, per-instance, across ~26 pages - !important is required to beat
+   that, and is scoped to terminal only). */
+[data-design="terminal"] .mr-track { --_c8-tag: mr-track; border-radius: 0 !important; }
+[data-design="terminal"] .mr-factor { --_c8-tag: mr-factor; border-radius: 0 !important; }
+[data-design="terminal"] .av-rail-panel { --_c8-tag: av-rail-panel; border-radius: 0 !important; }
+[data-design="terminal"] .skel-bar { --_c8-tag: skel-bar; border-radius: 0 !important; }
