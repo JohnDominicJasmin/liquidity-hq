@@ -2333,8 +2333,12 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --txt2: #44475A;
   /* was #888B99 (3.39:1), then #63656F - which cleared white/card/canvas but
      measured 4.14:1 on the darker light surfaces (--bg4 #d8dadd and the tinted
-     panel #dae2ee). Issue #53 found those in use. Worst case now 4.60:1. */
-  --txt3: #5C5E68;
+     panel #dae2ee). Issue #53 found those in use. Then #5C5E68 (4.60:1 on
+     those surfaces) - but #543 found the grade-F badge (var(--txt3) per
+     lib/marketStore.ts) composited to 3.85:1 on the darkened selected-
+     watchlist-row backdrop (#c6c8cb), a surface darker than any #53 checked.
+     #4a4d52 clears 5.06:1 there and 6.30:1 on the lighter normal-row #dedede. */
+  --txt3: #4a4d52;
   /* --txt-dim had NO light value at all - it was declared once in :root and
      inherited its dark grey (#8a8a8a) straight into light mode, where it scored
      2.72:1 on white. The single largest source of light-theme contrast failures
