@@ -312,7 +312,10 @@ function TEdgeSignals() {
   const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : '-';
 
   const sq    = computeSqueezeScore(d);
-  const sqCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt-dim)';
+  // --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's 16-token
+  // palette, and every sibling ladder in this file (cbCol, frCol) already
+  // uses --txt2 for its own "quiet" state - this brings squeeze in line.
+  const sqCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
 
   return (
     <>
