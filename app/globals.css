@@ -6407,3 +6407,15 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .gchat-coin { --_c6-tag: gchat-coin; border-radius: 0 !important; }
 [data-design="terminal"] .gchat-quick { --_c6-tag: gchat-quick; border-radius: 0 !important; }
 [data-design="terminal"] .gchat-send { --_c6-tag: gchat-send; border-radius: 0 !important; }
+
+/* ── Dashboard rail change colour (#546 C9) ────────────────────────────────
+   .chg-up/.chg-dn already read color: var(--green)/var(--red) (app/globals.
+   css:786-787), which should resolve to the terminal palette (--green
+   #3fb950) purely through custom-property inheritance from the
+   [data-design="terminal"] root block - no descendant selector needed. QA
+   measured #4ade80 (the ROOT, non-terminal --green) on .csb2-chg instead,
+   the same "correct rule, wrong resolved value" shape as #526's C6 chrome
+   findings, which never got a cascade explanation either. Forcing it
+   explicitly here rather than re-opening that investigation. */
+[data-design="terminal"] .chg-up { color: var(--green) !important; }
+[data-design="terminal"] .chg-dn { color: var(--red) !important; }
