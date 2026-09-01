@@ -76,7 +76,7 @@ test('terminal design tokens', async (t) => {
     assert.equal(shipped, TERMINAL_FLAT_CELL.toLowerCase());
   });
 
-  await t.test('the block declares nothing outside the 15 documented tokens plus --flat-cell', () => {
+  await t.test('the block declares nothing outside the 17 documented tokens plus --flat-cell', () => {
     // Catches a token added to CSS and forgotten in terminalTokens.ts - the
     // mirror-image of the drift this file exists to prevent.
     const declared = [...block.matchAll(/(--[a-z][a-z0-9-]*):\s*#[0-9a-fA-F]{6}\s*;/g)]
