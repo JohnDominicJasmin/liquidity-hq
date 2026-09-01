@@ -18,8 +18,11 @@ type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
 
 /* LOW was #6b7280 = 3.77:1 on the rail card - and since econImpactKey did not
    exist, EVERY row used it regardless of real impact. See lib/classify.ts. */
+// --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's 16-token
+// palette; --txt2 is the correctly-governed "quiet" text token used for the
+// same role elsewhere in the terminal design.
 const IMPACT_COLOR: Record<EconImpact, string> = {
-  HIGH: 'var(--red)', MEDIUM: 'var(--amber)', LOW: 'var(--txt-dim)',
+  HIGH: 'var(--red)', MEDIUM: 'var(--amber)', LOW: 'var(--txt2)',
 };
 
 const MAX_ROWS = 5;

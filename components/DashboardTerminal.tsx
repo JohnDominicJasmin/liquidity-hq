@@ -66,10 +66,11 @@ function TMarketPulseStrip() {
   const dom = store.btcDom;
   const alt = store.altSeasonScore;
 
+  // --green/--red, not -soft (#546 C9 - see the fuller note at sqCol below).
   const altColor = alt == null ? 'var(--txt3)'
     : alt >= 75 ? 'var(--green)'
-    : alt >= 50 ? 'var(--green-soft)'
-    : alt >= 25 ? 'var(--red-soft)'
+    : alt >= 50 ? 'var(--green)'
+    : alt >= 25 ? 'var(--red)'
     : 'var(--red)';
 
   const volColor = volLabel === 'Low Vol' ? 'var(--green)'
@@ -157,9 +158,9 @@ function TCoinSidebar() {
         if (!sig && d?.fundingRate != null && d.fundingRate !== 0) {
           const fr = d.fundingRate * 100;
           if      (fr >= 0.05)   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_HIGH'),     col: 'var(--red)' };
-          else if (fr >= 0.01)   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_HIGH'), col: 'var(--red-soft)' };
+          else if (fr >= 0.01)   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_HIGH'), col: 'var(--red)' };
           else if (fr <= -0.03)  sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_LOW'),      col: 'var(--green)' };
-          else if (fr <= -0.005) sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_LOW'),  col: 'var(--green-soft)' };
+          else if (fr <= -0.005) sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_LOW'),  col: 'var(--green)' };
           else                   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_NEUTRAL'),        col: 'var(--txt3)' };
         }
 
