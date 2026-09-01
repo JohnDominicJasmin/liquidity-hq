@@ -2060,7 +2060,10 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-quick:hover:not(:disabled) { color: var(--purple); border-color: var(--purple-bdr); background: var(--purple-bg); }
 .gchat-quick:disabled { opacity: 0.4; cursor: not-allowed; }
 .gchat-input-row { display: flex; gap: 8px; padding: 8px 14px 12px; flex-shrink: 0; border-top: 0.5px solid var(--bdr); }
-.gchat-input { flex: 1; padding: 9px 12px; border-radius: 12px; font-size: var(--fs-label); border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt); outline: none; transition: border-color 0.15s; font-family: inherit; resize: none; overflow-y: auto; min-height: 38px; max-height: 120px; line-height: 1.5; }
+/* #520: was border: var(--bdr) (rgba(255,255,255,0.08)) - a hairline divider
+   token, not built for a 3:1 UI-component boundary. rgba(255,255,255,0.35)
+   composites to ~3.17:1 against --bg2. */
+.gchat-input { flex: 1; padding: 9px 12px; border-radius: 12px; font-size: var(--fs-label); border: 0.5px solid rgba(255,255,255,0.35); background: var(--bg2); color: var(--txt); outline: none; transition: border-color 0.15s; font-family: inherit; resize: none; overflow-y: auto; min-height: 38px; max-height: 120px; line-height: 1.5; }
 .gchat-input:focus { border-color: var(--purple-bdr); }
 .gchat-input:disabled { opacity: 0.5; }
 .gchat-send { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; background: var(--accent-bg); border: 0.5px solid var(--accent-bdr); color: var(--accent); font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
@@ -2462,7 +2465,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 [data-theme="light"] .gchat-msg-user .gchat-bubble { color: var(--purple); }
 [data-theme="light"] .gchat-input {
-  background: var(--bg1); border-color: var(--bdr2); color: var(--txt);
+  /* #520: was --bdr2 (rgba(0,0,0,0.14), ~1.38:1 on this input's white bg).
+     rgba(0,0,0,0.45) composites to ~3.36:1. */
+  background: var(--bg1); border-color: rgba(0,0,0,0.45); color: var(--txt);
 }
 [data-theme="light"] .gchat-send {
   background: var(--accent-bg); border-color: var(--accent-bdr); color: var(--accent);
@@ -5291,7 +5296,9 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --green:  #3fb950; /* bullish / FIRING positive */
   --red:    #f0524d; /* bearish / FIRING negative */
   --mark-idle:    #22262a;  /* signal marker when not firing */
-  --border-input: #2a2e32;  /* input and secondary-button border */
+  /* #520: was #2a2e32 - 1.36:1 against --bg1 (#141517), below WCAG 1.4.11's
+     3:1 for UI component boundaries. #5e646b clears 3.14:1. */
+  --border-input: #5e646b;  /* input and secondary-button border */
 
   /* Radius: 0 everywhere in terminal mode. The comment above already states
      this intent; these override the root tokens so CSS classes that reference
@@ -6318,4 +6325,5 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .login-email-input,
 [data-design="terminal"] .st-input,
 [data-design="terminal"] .st-affix,
-[data-design="terminal"] .tj-lev-num { border-color: var(--border-input); }
+[data-design="terminal"] .tj-lev-num,
+[data-design="terminal"] .gchat-input { border-color: var(--border-input); }
