@@ -5580,8 +5580,21 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --txt4: #aeaaa4;
   --accent: #8a5c00; /* 5.38:1 on --bg0 - darkened from dark theme's #d9a626, which measures 2.23:1 here */
   --green:  #14702c; /* 4.752:1 on --bg2, the binding figure - see --txt3 comment above */
-  --red:    #cf222e; /* 4.97:1 on --bg0 */
-  --amber:  #9a6a00;
+  /* #559: was #cf222e (4.97:1 on --bg0 only - the canvas figure, not the
+     binding one, same gap that dropped --txt3 and --green here before
+     design started requiring a per-token surface figure). QA verified
+     #9d1a23 against every surface --red is observed on: worst 4.52:1 on
+     #c6c1be, every other surface higher. Design accepted the trade
+     explicitly - a duller alert red that passes everywhere over a vivid
+     one that failed 23 of 28 places it's actually used. */
+  --red:    #9d1a23;
+  /* #559: was #9a6a00, shipped with no contrast figure at all - the actual
+     cause it went unmeasured on every surface this long. #755100 verified
+     by QA against every surface --amber is observed on: worst 4.51:1 on
+     #cfcdca, every other surface higher. Design's ruling, no more waiting
+     on the tint fix - it never touched these surfaces, and --amber had
+     zero passing surfaces before this. */
+  --amber:  #755100;
   --mark-idle:    #d1cec9;
   --border-input: #75797e;
 
