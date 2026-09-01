@@ -463,19 +463,41 @@ body::after {
 .csb2-bar-fill  { height: 100%; border-radius: 0 0 var(--radius-data) var(--radius-data); transition: width 0.8s ease, background 0.3s; }
 /* #559 Bug 2, "the tint recipe": the health-grade badge backgrounds
    color-mix the grade's own token toward transparent at 13.3%, composited
-   over --bg2. On dark that pulls the surface toward black while the text
-   stays light, so text and background diverge and contrast holds - same
-   shape as .csb2-sig above. Grades C and F use the two muted-grey tokens
-   (--txt2, --txt3), which are themselves mid-dark on light theme, so the
-   same mix pulls the surface toward the TEXT colour instead of away from
-   it and the gap the badge needs shrinks under it. Measured: 3.99:1 (C)
-   and 3.99:1 (F) on --bg2 at 13.3%, both clear 4.5:1 at 4%. Grades A/B/D
-   (amber/green/orange) aren't touched here - they clear the floor already,
-   and this is the alpha, not a token value, so it isn't design's Bug 1. */
+   over the card behind it. On dark that pulls the surface toward black
+   while the text stays light, so text and background diverge and
+   contrast holds - same shape as .csb2-sig above. On light, the same mix
+   pulls the surface toward the TEXT colour instead of away from it,
+   shrinking the gap the badge needs. Originally scoped to grades C/F
+   (--txt2/--txt3) on the assumption A/B/D already cleared the floor.
+
+   QA's full grade x card-state sweep (matrix, not the single earlier
+   reading) found the confirmed live defect is narrower than that: one
+   badge, grade F, ONLY on the selected card (.csb2-sel) in light -
+   4.316:1. Unselected clears at 4.649. Selected renders --bg3, which in
+   terminal light aliases to --bg2 - one step darker than unselected's
+   --bg1 - and that single step is what puts it under. (The earlier "grade
+   B measured 3.98" reading was a mismeasurement of a grade-F badge, not
+   evidence for grade B - see the PR/issue thread. --green-2's own ceiling
+   math below is independently derived, not resting on that number.)
+
+   --txt3 on --bg2 caps at 4.703:1 with NO tint at all - same shape as
+   --green-2's 4.752 ceiling - so alpha alone can't reliably clear 4.5 on
+   the selected card with real margin. Grade F's text is already the
+   muted, no-strong-signal colour (--txt3, not a "bad" red or a "good"
+   green), so there's little semantic loss in the same move already used
+   on the correlation diagonal: text -> --txt, which has no ceiling
+   problem on any card state. Background tint stays reduced too, belt and
+   suspenders. Grades A/D (amber/orange) still untouched - amber's base
+   VALUE is design's #559 Bug 1, not this alpha issue, and orange isn't
+   governed in terminal at all yet (a separate, older gap). */
+[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-b {
+  background: color-mix(in srgb, var(--green-2) 3%, transparent) !important;
+}
 [data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-c {
   background: color-mix(in srgb, var(--txt2) 4%, transparent) !important;
 }
 [data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-f {
+  color: var(--txt) !important;
   background: color-mix(in srgb, var(--txt3) 4%, transparent) !important;
 }
 
