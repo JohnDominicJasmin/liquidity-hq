@@ -29,6 +29,7 @@
  */
 
 import { chromium } from '@playwright/test';
+import { readFileSync, existsSync } from 'node:fs';
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const BASE = arg('--base', 'https://liquidity-hq-qa.onrender.com').replace(/\/$/, '');
@@ -73,19 +74,13 @@ const PAGE_EVAL = ({ tokens }) => {
     return { missing, inOrder: missing.length === 0, seen: hit, kids: kids.map(k => k.txt.slice(0, 34)) };
   };
 
-  const c1 = orderOf('.dash-main', [
-    { name: 'market read', re: /market read/i },
-    { name: 'best setup', re: /best setup/i },
-    { name: 'selected-coin header', re: /\$[\d,]+\.\d\d/ },
-    { name: 'signal cards', re: /coin signals/i },
-    { name: 'next events + conditions', re: /economic calendar|upcoming/i },
-  ]);
-  const c2 = orderOf('.dash-right', [
-    { name: 'coin list', re: /\$[\d,]+\.\d\d/ },
-    { name: 'pulse strip', re: /BTC\.D|ALT\d/i },
-    { name: 'perp/spot', re: /perps? vs spot/i },
-    { name: 'macro backdrop', re: /macro|DXY|gold|S&P/i },
-  ]);
+  /* Section signatures are INJECTED from the canvas — see canvasSections()
+     below. They are no longer written here by hand, because when they were,
+     they were copied off the rendered page and the check could not fail. */
+  const sig = n => ({ name: n, re: new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+  const SEC = window.__QA_SECTIONS || { main: [], rail: [] };
+  const c1 = orderOf('.dash-main', SEC.main.map(sig));
+  const c2 = orderOf('.dash-right', SEC.rail.map(sig));
 
   /* C3: no coin TABLE on this screen. */
   const tables = q('table').filter(t => /coin|symbol|price/i.test(t.textContent || ''));
@@ -155,6 +150,38 @@ const PAGE_EVAL = ({ tokens }) => {
   };
 };
 
+/* Pull the section names out of the ROUTE'S CANVAS. This is the whole point of
+   the rewrite: the expected sections must come from the design, never from the
+   page. If no canvas is mapped, the section checks are reported as UNVERIFIABLE
+   rather than silently passing on page-derived strings. */
+const CANVAS_FOR = { '/dashboard': 'Dashboard 2a' };
+function canvasSections(route) {
+  const name = CANVAS_FOR[route];
+  const file = name && `design-handoff-dir/design_files/${name}.dc.html`;
+  if (!file || !existsSync(file)) return null;
+  let src = readFileSync(file, 'utf8').replace(/<(script|style|helmet)[^>]*>[\s\S]*?<\/>/g, '');
+  const cut = src.search(/>(2A|1A|7A)</); if (cut > 0) src = src.slice(cut);
+  /* Section headers carry font-size:10px in these canvases — that is what makes
+     them identifiable as headers rather than content. Splitting on tags and
+     filtering by text shape does NOT work: it let sample data ("E 114,820",
+     "▲ 1.42%") and chrome ("DISMISS ✕") through as section names, and the check
+     then failed for the wrong reason. Match the STYLE, then the text. */
+  const heads = [];
+  const re = /<div[^>]*style="[^"]*font-size:\s*10px[^"]*"[^>]*>\s*([^<{][^<]{2,38}?)\s*</g;
+  let m;
+  while ((m = re.exec(src))) {
+    const base = m[1].split('·')[0].trim();           // drop "· 14 Aug 11:42 UTC"
+    if (base.length < 4 || base.length > 26) continue;
+    if (!/[a-z]/.test(base)) continue;                // all-caps = chrome/CTA
+    if (/[\d$₿▲▼→←✕%]/.test(base)) continue;          // sample data or glyph
+    if (!heads.includes(base)) heads.push(base);
+  }
+  /* The file contains a mobile frame after the desktop one, which repeats
+     sections under shortened names ("Best setup" for "Best setup today").
+     Drop any header that is a strict prefix of one already found. */
+  return heads.filter(h => !heads.some(o => o !== h && o.startsWith(h)));
+}
+
 const browser = await chromium.launch();
 const out = {};
 for (const theme of THEMES) {
@@ -197,7 +224,12 @@ for (const theme of THEMES) {
     s.stable = n === s.last ? s.stable + 1 : 0; s.last = n;
     return n > 0 && s.stable >= 3;
   }, { timeout: 40000, polling: 1200 }).catch(() => {});
+  const heads = canvasSections(ROUTE);
+  await page.evaluate(h => { window.__QA_SECTIONS = h; }, heads
+    ? { main: heads.slice(0, 5), rail: heads.slice(5, 9) }
+    : { main: [], rail: [] });
   out[theme] = await page.evaluate(PAGE_EVAL, { tokens: theme === 'light' ? LIGHT : DARK });
+  out[theme].canvasSourced = !!heads;
   await ctx.close();
 }
 await browser.close();
@@ -208,8 +240,9 @@ const V = (ok, s) => `${ok ? 'PASS' : 'FAIL'}  ${s}`;
 for (const theme of THEMES) {
   const r = out[theme];
   console.log(`\n## ${ROUTE} vs specs/dashboard-2a.md — ${theme}\n`);
-  console.log(V(r.c1.missing.length === 0 && r.c1.inOrder, `C1 main column order — ${r.c1.seen.length} sections in order${r.c1.missing.length ? `, MISSING ${r.c1.missing.join(', ')}` : ''}`));
-  console.log(V(r.c2.missing.length === 0 && r.c2.inOrder, `C2 rail — ${r.c2.seen.length} sections${r.c2.missing.length ? `, MISSING ${r.c2.missing.join(', ')}` : ''}`));
+  if (!r.canvasSourced) console.log('UNVERIFIABLE  C1/C2 — no canvas mapped for this route; section checks NOT run (they are not passing)');
+  else console.log(V(r.c1.missing.length === 0 && r.c1.inOrder, `C1 main column order [canvas-sourced] — ${r.c1.seen.length}/${r.c1.seen.length + r.c1.missing.length}${r.c1.missing.length ? `, MISSING ${r.c1.missing.join(', ')}` : ''}`));
+  if (r.canvasSourced) console.log(V(r.c2.missing.length === 0 && r.c2.inOrder, `C2 rail [canvas-sourced] — ${r.c2.seen.length}/${r.c2.seen.length + r.c2.missing.length}${r.c2.missing.length ? `, MISSING ${r.c2.missing.join(', ')}` : ''}`));
   console.log(V(r.c3_coinTables === 0, `C3 no coin table — ${r.c3_coinTables} found`));
   console.log(`UNVERIFIED  C4 only fired cards compute green/red — ${r.obs_cardsColoured} of ${r.obs_cards} cards carry a semantic colour; needs a fixture to know which fired`);
   console.log(`UNVERIFIED  C5 verdict colour follows a bearish read — needs a bearish fixture`);
