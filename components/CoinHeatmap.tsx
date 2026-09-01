@@ -192,7 +192,7 @@ export default function CoinHeatmap() {
             border: '0.5px solid rgba(255,255,255,0.04)',
           }}>
             <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: 'var(--txt-dim)' }}>-</span>
-            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>-</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dash)' }}>-</span>
             <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt-dim)', lineHeight: 1 }}>-</span>
           </div>
         ))}
