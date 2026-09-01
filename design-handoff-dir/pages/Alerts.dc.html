@@ -43,23 +43,23 @@
           <div style="flex:1"></div>
           <div style="display:flex; align-items:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;">
             <div style="display:flex; align-items:center; gap:6px; color:#8b8f94;"><div style="width:5px; height:5px; background:#3fb950;"></div>7 ARMED · 1 PAUSED</div>
-            <div style="color:#5a5f66; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
-            <div style="width:22px; height:22px; border:1px solid #2a2e32; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700; flex-shrink:0;">J</div>
+            <div style="color:#7c828a; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
+            <div style="width:22px; height:22px; border:1px solid #5e646b; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700; flex-shrink:0;">J</div>
           </div>
         </div>
 
         <div style="height:42px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:12px;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.1em; color:#e8e9ea;">ALERTS</div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#5a5f66;">8 OF 25 USED</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#7c828a;">8 OF 25 USED</div>
           <div style="flex:1"></div>
           <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; color:#08090a; background:#d9a626; padding:6px 12px; font-weight:700;">+ NEW ALERT</div>
         </div>
 
         <div style="flex:1; display:flex; min-height:0;">
           <div style="flex:1; min-width:0; display:flex; flex-direction:column; border-right:1px solid #1f2225;">
-            <div style="display:grid; grid-template-columns:84px 116px 1fr 176px 96px 96px; border-bottom:1px solid #1f2225; background:#0c0d0f;">
+            <div style="display:grid; grid-template-columns:84px 116px 1fr 176px 96px 96px; border-bottom:1px solid #1f2225; background:#141517;">
               <sc-for list="{{ alertCols }}" as="h" hint-placeholder-count="6">
-                <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#5a5f66; text-align:{{ h.align }};">{{ h.label }}</div>
+                <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#7c828a; text-align:{{ h.align }};">{{ h.label }}</div>
               </sc-for>
             </div>
             <div style="flex:1; min-height:0; overflow:hidden;">
@@ -97,17 +97,17 @@
             <sc-for list="{{ alertTriggers }}" as="t" hint-placeholder-count="4">
               <div style="padding:12px 14px; display:flex; align-items:flex-start; gap:11px; border-bottom:1px solid #131618;">
                 <div style="width:2px; height:26px; background:{{ t.col }}; flex-shrink:0;"></div>
-                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#5a5f66; width:40px; flex-shrink:0;">{{ t.time }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7c828a; width:40px; flex-shrink:0;">{{ t.time }}</div>
                 <div style="font-size:12.5px; line-height:1.45; color:#e8e9ea;">{{ t.text }}</div>
               </div>
             </sc-for>
 
             <div style="flex:1"></div>
             <div style="border-top:1px solid #1f2225; padding:14px;">
-              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#5a5f66;">Alert accuracy · 30d</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7c828a;">Alert accuracy · 30d</div>
               <div style="display:flex; align-items:baseline; gap:10px; margin-top:8px;">
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; color:#e8e9ea;">61%</div>
-                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#5a5f66;">44 of 72 followed through</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7c828a;">44 of 72 followed through</div>
               </div>
             </div>
           </aside>
@@ -132,7 +132,7 @@
               <div style="display:flex; align-items:center; gap:9px;">
                 <div style="width:5px; height:5px; background:{{ a.dot }};"></div>
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; color:#e8e9ea; letter-spacing:.06em;">{{ a.sym }}</div>
-                <div style="font-size:11.5px; color:#5a5f66;">{{ a.type }}</div>
+                <div style="font-size:11.5px; color:#7c828a;">{{ a.type }}</div>
                 <div style="flex:1"></div>
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; color:{{ a.statusCol }};">{{ a.status }}</div>
               </div>
@@ -210,7 +210,7 @@ class Component extends DCLogic {
 
     const mono = this.props.signalColorOnly ?? true;
     const acc = this.props.accent ?? '#d9a626';
-    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#5a5f66';
+    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#7c828a';
 
     const ICON = {
       desk: 'M3.2 3.2h5.6v5.6H3.2zM11.2 3.2h5.6v5.6h-5.6zM3.2 11.2h5.6v5.6H3.2zM11.2 11.2h5.6v5.6h-5.6z',
@@ -457,7 +457,7 @@ class Component extends DCLogic {
       { time: '07:59', src: 'BLOOMBERG', head: 'Options desks report heavy 114k put buying into Friday expiry', coins: 'BTC', impact: 'MED' },
       { time: '07:22', src: 'THE BLOCK', head: 'Chainlink launches cross-chain reserve proofs with two custodians', coins: 'LINK', impact: 'LOW' }
     ];
-    const IMPACT = { HIGH: RED, MED: acc, LOW: '#5a5f66' };
+    const IMPACT = { HIGH: RED, MED: acc, LOW: '#7c828a' };
     const IMPACT_MAP = IMPACT;
 
     const decorate = list => list.map(f => ({
@@ -465,7 +465,7 @@ class Component extends DCLogic {
       note: f.note ?? '',
       icon: f.on ? '✓' : '·',
       iconCol: f.on ? GREEN : '#3a3f45',
-      txtCol: f.on ? TXT : '#5a5f66'
+      txtCol: f.on ? TXT : '#7c828a'
     }));
 
     // ── Setup scanner ──
@@ -605,7 +605,7 @@ class Component extends DCLogic {
     ];
     const alertRows = AL.map(r => ({
       sym: r[0], type: r[1], cond: r[2], channel: r[3], status: r[4], age: r[5],
-      statusCol: r[4] === 'ARMED' ? GREEN : '#5a5f66',
+      statusCol: r[4] === 'ARMED' ? GREEN : '#7c828a',
       dot: r[4] === 'ARMED' ? GREEN : '#3a3f45'
     }));
 
@@ -824,11 +824,11 @@ class Component extends DCLogic {
       heatTrackM: trackFor(20),
       heatSpotTop: heatPct(SPOT).toFixed(2) + '%',
       heatTfs: [
-        { label: '12H', col: '#5a5f66', bg: 'transparent' },
-        { label: '24H', col: '#5a5f66', bg: 'transparent' },
-        { label: '3D', col: '#5a5f66', bg: 'transparent' },
+        { label: '12H', col: '#7c828a', bg: 'transparent' },
+        { label: '24H', col: '#7c828a', bg: 'transparent' },
+        { label: '3D', col: '#7c828a', bg: 'transparent' },
         { label: '7D', col: '#08090a', bg: acc },
-        { label: '30D', col: '#5a5f66', bg: 'transparent' }
+        { label: '30D', col: '#7c828a', bg: 'transparent' }
       ],
       threshold: thr,
       thresholdLabel: thr.toFixed(2),
@@ -836,7 +836,7 @@ class Component extends DCLogic {
       onRefresh: () => this.setState({ seed: (seed * 16807 + 7919) & 0x7fffffff }),
       swatches: RAMPS.map((_, i) => ({
         bg: rampCss(i),
-        bdr: i === palIdx ? acc : '#2a2e32',
+        bdr: i === palIdx ? acc : '#5e646b',
         onPick: () => this.setState({ palette: i })
       })),
       barCss: rampCss(palIdx),

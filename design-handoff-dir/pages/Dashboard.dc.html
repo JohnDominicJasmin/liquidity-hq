@@ -45,8 +45,8 @@
           <div style="flex:1"></div>
           <div style="display:flex; align-items:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;">
             <div style="display:flex; align-items:center; gap:6px; color:#8b8f94;"><div style="width:5px; height:5px; background:#3fb950;"></div>LONDON · 2h 14m</div>
-            <div style="color:#5a5f66; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
-            <div style="width:22px; height:22px; border:1px solid #2a2e32; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700;">J</div>
+            <div style="color:#7c828a; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
+            <div style="width:22px; height:22px; border:1px solid #5e646b; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700;">J</div>
           </div>
         </div>
 
@@ -61,9 +61,9 @@
         </div>
 
         <!-- market read band -->
-        <div style="flex-shrink: 0; border-bottom: 1px solid #1f2225; background: #0c0d0f; display: flex; align-items: stretch; width: 1144px; height: 132px">
+        <div style="flex-shrink: 0; border-bottom: 1px solid #1f2225; background: #141517; display: flex; align-items: stretch; width: 1144px; height: 132px">
           <div style="padding:18px 22px; border-right:1px solid #1f2225; width:430px; flex-shrink:0;">
-            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#5a5f66;">Market read · 14 Aug 11:42 UTC</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">Market read · 14 Aug 11:42 UTC</div>
             <div style="font-family:'IBM Plex Mono',monospace; font-size:30px; font-weight:700; color:#3fb950; line-height:1; margin-top:9px;">RISK-ON, CAUTIOUS</div>
             <div style="font-size:13px; line-height:1.55; color:#8b8f94; margin-top:11px;">
               Spot leads, leverage is crowded long. Trend trades work while BTC holds 114.8k; nothing justifies size into this afternoon's CPI print.
@@ -72,9 +72,9 @@
           <div style="display:grid; grid-template-columns:repeat(4,1fr); flex:1;">
             <sc-for list="{{ pulse }}" as="p" hint-placeholder-count="4">
               <div style="padding:18px 20px; border-right:1px solid #1f2225; display:flex; flex-direction:column; gap:6px;">
-                <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#5a5f66;">{{ p.label }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">{{ p.label }}</div>
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600; color:{{ p.col }}; font-variant-numeric:tabular-nums;">{{ p.value }}</div>
-                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#5a5f66;">{{ p.note }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7c828a;">{{ p.note }}</div>
               </div>
             </sc-for>
           </div>
@@ -86,13 +86,13 @@
           <div style="flex:1; display:flex; flex-direction:column; min-width:0; border-right:1px solid #1f2225;">
             <div style="height:28px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px; gap:10px;">
               <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#8b8f94;">Coins</div>
-              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#5a5f66;">28 TRACKED · 3 FIRING</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#7c828a;">28 TRACKED · 3 FIRING</div>
               <div style="flex:1"></div>
               <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#d9a626;">ALL COINS →</div>
             </div>
             <div style="display:grid; grid-template-columns:90px 1fr 80px 96px 80px 70px 1.1fr 48px; border-bottom:1px solid #1f2225;">
               <sc-for list="{{ coinCols }}" as="h" hint-placeholder-count="8">
-                <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:#5a5f66; text-align:{{ h.align }};">{{ h.label }}</div>
+                <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:#7c828a; text-align:{{ h.align }};">{{ h.label }}</div>
               </sc-for>
             </div>
             <div style="flex:1; min-height:0; overflow:hidden;">
@@ -130,15 +130,15 @@
               <div style="height:3px; background:#1f2225; margin-top:11px;"><div style="width:68%; height:3px; background:#3fb950;"></div></div>
               <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:#1f2225; margin-top:13px;">
                 <div style="background:#08090a; padding:9px 10px;">
-                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#5a5f66;">ENTRY</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a;">ENTRY</div>
                   <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; font-weight:600; color:#e8e9ea; margin-top:4px; font-variant-numeric:tabular-nums;">114,820</div>
                 </div>
                 <div style="background:#08090a; padding:9px 10px;">
-                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#5a5f66;">STOP</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a;">STOP</div>
                   <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; font-weight:600; color:#e8e9ea; margin-top:4px; font-variant-numeric:tabular-nums;">113,410</div>
                 </div>
                 <div style="background:#08090a; padding:9px 10px;">
-                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#5a5f66;">TARGET</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a;">TARGET</div>
                   <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; font-weight:600; color:#e8e9ea; margin-top:4px; font-variant-numeric:tabular-nums;">117,900</div>
                 </div>
               </div>
@@ -150,7 +150,7 @@
             <div style="flex-shrink:0;">
               <sc-for list="{{ macro }}" as="m" hint-placeholder-count="5">
                 <div style="padding:9px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #131618;">
-                  <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:#5a5f66; width:66px;">{{ m.label }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:#7c828a; width:66px;">{{ m.label }}</div>
                   <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#e8e9ea; font-variant-numeric:tabular-nums;">{{ m.value }}</div>
                   <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:{{ m.col }}; margin-left:auto; font-variant-numeric:tabular-nums;">{{ m.chg }}</div>
                 </div>
@@ -166,7 +166,7 @@
                   <div style="width:2px; height:28px; background:{{ ev.col }}; flex-shrink:0;"></div>
                   <div style="min-width:0;">
                     <div style="font-size:12.5px; font-weight:500; color:#e8e9ea;">{{ ev.title }}</div>
-                    <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#5a5f66; margin-top:3px;">{{ ev.meta }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#7c828a; margin-top:3px;">{{ ev.meta }}</div>
                   </div>
                   <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8b8f94; margin-left:auto; flex-shrink:0;">{{ ev.time }}</div>
                 </div>
@@ -184,14 +184,14 @@
           <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#8b8f94; display:flex; align-items:center; gap:5px;"><div style="width:5px;height:5px;background:#3fb950;"></div>LONDON</div>
         </div>
 
-        <div style="flex-shrink:0; background:#0c0d0f; border-bottom:1px solid #1f2225; padding:16px 14px;">
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#5a5f66;">Market read</div>
+        <div style="flex-shrink:0; background:#141517; border-bottom:1px solid #1f2225; padding:16px 14px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">Market read</div>
           <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:700; color:#3fb950; line-height:1.05; margin-top:9px;">RISK-ON,<br>CAUTIOUS</div>
           <div style="font-size:12.5px; line-height:1.5; color:#8b8f94; margin-top:10px;">Spot leads, leverage is crowded long. Nothing justifies size into this afternoon's CPI print.</div>
           <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:#1f2225; margin-top:13px;">
             <sc-for list="{{ pulseM }}" as="p" hint-placeholder-count="3">
-              <div style="background:#0c0d0f; padding:9px 10px;">
-                <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#5a5f66;">{{ p.label }}</div>
+              <div style="background:#141517; padding:9px 10px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a;">{{ p.label }}</div>
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:600; color:{{ p.col }}; margin-top:4px; font-variant-numeric:tabular-nums;">{{ p.value }}</div>
               </div>
             </sc-for>
@@ -217,7 +217,7 @@
 
         <div style="height:30px; flex-shrink:0; display:flex; align-items:center; padding:0 14px; gap:10px; border-bottom:1px solid #1f2225;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; color:#8b8f94;">COINS</div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#5a5f66;">3 FIRING</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#7c828a;">3 FIRING</div>
         </div>
         <div style="flex:1; min-height:0; overflow:hidden;">
           <sc-for list="{{ coinsM }}" as="c" hint-placeholder-count="6">
@@ -249,7 +249,7 @@
 <!-- ═══════════ TURN 1 · ARENA ═══════════ -->
 <section style="display:flex; flex-direction:column; gap:28px; padding:14px 40px 40px 40px; font-family:'IBM Plex Sans',sans-serif;">
   <div style="display:flex; align-items:baseline; gap:16px;">
-    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:#5a5f66;">Turn 1 · Arena</div>
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">Turn 1 · Arena</div>
     <div style="font-size:13px; color:#8b8f94;">Zero radius, hairline dividers, verdict as a full-width band. Amber marks only the active nav item and the primary action.</div>
   </div>
 </section>
@@ -307,7 +307,7 @@ class Component extends DCLogic {
 
     const mono = this.props.signalColorOnly ?? true;
     const acc = this.props.accent ?? '#d9a626';
-    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#5a5f66';
+    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#7c828a';
 
     const ICON = {
       desk: 'M3.2 3.2h5.6v5.6H3.2zM11.2 3.2h5.6v5.6h-5.6zM3.2 11.2h5.6v5.6H3.2zM11.2 11.2h5.6v5.6h-5.6z',
@@ -554,7 +554,7 @@ class Component extends DCLogic {
       { time: '07:59', src: 'BLOOMBERG', head: 'Options desks report heavy 114k put buying into Friday expiry', coins: 'BTC', impact: 'MED' },
       { time: '07:22', src: 'THE BLOCK', head: 'Chainlink launches cross-chain reserve proofs with two custodians', coins: 'LINK', impact: 'LOW' }
     ];
-    const IMPACT = { HIGH: RED, MED: acc, LOW: '#5a5f66' };
+    const IMPACT = { HIGH: RED, MED: acc, LOW: '#7c828a' };
     const IMPACT_MAP = IMPACT;
 
     const decorate = list => list.map(f => ({
@@ -562,7 +562,7 @@ class Component extends DCLogic {
       note: f.note ?? '',
       icon: f.on ? '✓' : '·',
       iconCol: f.on ? GREEN : '#3a3f45',
-      txtCol: f.on ? TXT : '#5a5f66'
+      txtCol: f.on ? TXT : '#7c828a'
     }));
 
     // ── Setup scanner ──
@@ -702,7 +702,7 @@ class Component extends DCLogic {
     ];
     const alertRows = AL.map(r => ({
       sym: r[0], type: r[1], cond: r[2], channel: r[3], status: r[4], age: r[5],
-      statusCol: r[4] === 'ARMED' ? GREEN : '#5a5f66',
+      statusCol: r[4] === 'ARMED' ? GREEN : '#7c828a',
       dot: r[4] === 'ARMED' ? GREEN : '#3a3f45'
     }));
 
@@ -921,11 +921,11 @@ class Component extends DCLogic {
       heatTrackM: trackFor(20),
       heatSpotTop: heatPct(SPOT).toFixed(2) + '%',
       heatTfs: [
-        { label: '12H', col: '#5a5f66', bg: 'transparent' },
-        { label: '24H', col: '#5a5f66', bg: 'transparent' },
-        { label: '3D', col: '#5a5f66', bg: 'transparent' },
+        { label: '12H', col: '#7c828a', bg: 'transparent' },
+        { label: '24H', col: '#7c828a', bg: 'transparent' },
+        { label: '3D', col: '#7c828a', bg: 'transparent' },
         { label: '7D', col: '#08090a', bg: acc },
-        { label: '30D', col: '#5a5f66', bg: 'transparent' }
+        { label: '30D', col: '#7c828a', bg: 'transparent' }
       ],
       threshold: thr,
       thresholdLabel: thr.toFixed(2),
@@ -933,7 +933,7 @@ class Component extends DCLogic {
       onRefresh: () => this.setState({ seed: (seed * 16807 + 7919) & 0x7fffffff }),
       swatches: RAMPS.map((_, i) => ({
         bg: rampCss(i),
-        bdr: i === palIdx ? acc : '#2a2e32',
+        bdr: i === palIdx ? acc : '#5e646b',
         onPick: () => this.setState({ palette: i })
       })),
       barCss: rampCss(palIdx),

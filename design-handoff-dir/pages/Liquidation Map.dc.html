@@ -43,23 +43,23 @@
           <div style="flex:1"></div>
           <div style="display:flex; align-items:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;">
             <div style="display:flex; align-items:center; gap:6px; color:#8b8f94;"><div style="width:5px; height:5px; background:#3fb950;"></div>LIVE FEED</div>
-            <div style="color:#5a5f66; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
-            <div style="width:22px; height:22px; border:1px solid #2a2e32; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700;">J</div>
+            <div style="color:#7c828a; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
+            <div style="width:22px; height:22px; border:1px solid #5e646b; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700;">J</div>
           </div>
         </div>
 
         <!-- title + instrument / timeframe / refresh -->
         <div style="height:46px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:14px;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:700; letter-spacing:.1em; color:#e8e9ea;">BTC LIQUIDATION HEATMAP</div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#5a5f66;">AGGREGATED · 5 VENUES</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#7c828a;">AGGREGATED · 5 VENUES</div>
           <div style="flex:1"></div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; color:#e8e9ea; border:1px solid #2a2e32; padding:5px 10px; display:flex; align-items:center; gap:10px;">BTC <span style="color:#5a5f66;">▾</span></div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; color:#e8e9ea; border:1px solid #5e646b; padding:5px 10px; display:flex; align-items:center; gap:10px;">BTC <span style="color:#7c828a;">▾</span></div>
           <div style="display:flex; gap:2px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; border:1px solid #1f2225;">
             <sc-for list="{{ heatTfs }}" as="tf" hint-placeholder-count="5">
               <div style="padding:5px 10px; color:{{ tf.col }}; background:{{ tf.bg }};">{{ tf.label }}</div>
             </sc-for>
           </div>
-          <div onClick="{{ onRefresh }}" style="border:1px solid #2a2e32; width:30px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="border-color:#d9a626">
+          <div onClick="{{ onRefresh }}" style="border:1px solid #5e646b; width:30px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="border-color:#d9a626">
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6M16.8 3.2v3.4h-3.4" stroke="#8b8f94" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"></path></svg>
           </div>
         </div>
@@ -109,7 +109,7 @@
             </div>
           </div>
 
-          <div style="width:58px; flex-shrink:0; display:flex; flex-direction:column; justify-content:space-between; padding-bottom:20px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#5a5f66; text-align:right;">
+          <div style="width:58px; flex-shrink:0; display:flex; flex-direction:column; justify-content:space-between; padding-bottom:20px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#7c828a; text-align:right;">
             <sc-for list="{{ heatAxis }}" as="a" hint-placeholder-count="9">
               <div>{{ a }}</div>
             </sc-for>
@@ -121,20 +121,20 @@
           <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
             <div style="height:28px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:10px;">
               <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#8b8f94;">Cluster ladder</div>
-              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#5a5f66;">8 LEVELS · $327M STACKED</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#7c828a;">8 LEVELS · $327M STACKED</div>
               <div style="flex:1"></div>
-              <div style="display:flex; align-items:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; color:#5a5f66;">
+              <div style="display:flex; align-items:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; color:#7c828a;">
                 <div style="display:flex; align-items:center; gap:6px;"><div style="width:14px; height:6px; background:#3fb950;"></div>SHORT LIQS</div>
                 <div style="display:flex; align-items:center; gap:6px;"><div style="width:14px; height:6px; background:#f0524d;"></div>LONG LIQS</div>
               </div>
             </div>
             <div style="display:grid; grid-template-columns:100px 62px 1fr 72px 72px 78px; border-bottom:1px solid #1f2225;">
-              <div style="padding:6px 16px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#5a5f66;">LEVEL</div>
-              <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#5a5f66;">SIDE</div>
-              <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#5a5f66;">SIZE</div>
-              <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#5a5f66; text-align:right;">USD</div>
-              <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#5a5f66; text-align:right;">LEVERAGE</div>
-              <div style="padding:6px 16px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#5a5f66; text-align:right;">DISTANCE</div>
+              <div style="padding:6px 16px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#7c828a;">LEVEL</div>
+              <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#7c828a;">SIDE</div>
+              <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#7c828a;">SIZE</div>
+              <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#7c828a; text-align:right;">USD</div>
+              <div style="padding:6px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#7c828a; text-align:right;">LEVERAGE</div>
+              <div style="padding:6px 16px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; color:#7c828a; text-align:right;">DISTANCE</div>
             </div>
             <div style="flex:1; min-height:0; overflow:hidden;">
               <sc-for list="{{ liqLevels }}" as="l" hint-placeholder-count="8">
@@ -144,7 +144,7 @@
                   <div style="padding:7px 12px;"><div style="height:8px; background:#111416;"><div style="width:{{ l.w }}; height:8px; background:{{ l.col }};"></div></div></div>
                   <div style="padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#e8e9ea; text-align:right; font-variant-numeric:tabular-nums;">{{ l.usd }}</div>
                   <div style="padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8b8f94; text-align:right;">{{ l.lev }}</div>
-                  <div style="padding:7px 16px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#5a5f66; text-align:right; font-variant-numeric:tabular-nums;">{{ l.dist }}</div>
+                  <div style="padding:7px 16px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7c828a; text-align:right; font-variant-numeric:tabular-nums;">{{ l.dist }}</div>
                 </div>
               </sc-for>
             </div>
@@ -160,7 +160,7 @@
             <div style="border-top:1px solid #1f2225; display:grid; grid-template-columns:repeat(4,1fr);">
               <sc-for list="{{ liqStats }}" as="s" hint-placeholder-count="4">
                 <div style="padding:9px 10px; border-right:1px solid #131618;">
-                  <div style="font-family:'IBM Plex Mono',monospace; font-size:8.5px; letter-spacing:.12em; text-transform:uppercase; color:#5a5f66;">{{ s.label }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:8.5px; letter-spacing:.12em; text-transform:uppercase; color:#7c828a;">{{ s.label }}</div>
                   <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; font-weight:600; color:{{ s.col }}; margin-top:4px; font-variant-numeric:tabular-nums;">{{ s.value }}</div>
                 </div>
               </sc-for>
@@ -175,7 +175,7 @@
           <img src="assets/logo.png" alt="LiquidityHQ" style="width:18px; height:18px; border-radius:4px; display:block; flex-shrink:0;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.14em; color:#e8e9ea;">LIQ MAP</div>
           <div style="flex:1"></div>
-          <div onClick="{{ onRefresh }}" style="border:1px solid #2a2e32; width:26px; height:24px; display:flex; align-items:center; justify-content:center;">
+          <div onClick="{{ onRefresh }}" style="border:1px solid #5e646b; width:26px; height:24px; display:flex; align-items:center; justify-content:center;">
             <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6M16.8 3.2v3.4h-3.4" stroke="#8b8f94" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"></path></svg>
           </div>
         </div>
@@ -226,7 +226,7 @@
               <div>08 Aug</div><div>11 Aug</div><div>14 Aug</div>
             </div>
           </div>
-          <div style="width:46px; flex-shrink:0; display:flex; flex-direction:column; justify-content:space-between; padding-bottom:16px; font-family:'IBM Plex Mono',monospace; font-size:8.5px; color:#5a5f66; text-align:right;">
+          <div style="width:46px; flex-shrink:0; display:flex; flex-direction:column; justify-content:space-between; padding-bottom:16px; font-family:'IBM Plex Mono',monospace; font-size:8.5px; color:#7c828a; text-align:right;">
             <sc-for list="{{ heatAxis }}" as="a" hint-placeholder-count="9">
               <div>{{ a }}</div>
             </sc-for>
@@ -235,7 +235,7 @@
 
         <div style="height:28px; flex-shrink:0; display:flex; align-items:center; padding:0 14px; gap:10px; border-bottom:1px solid #1f2225;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; color:#8b8f94;">CLUSTERS</div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#5a5f66;">NEAREST −1.6%</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#7c828a;">NEAREST −1.6%</div>
         </div>
         <div style="flex:1; min-height:0; overflow:hidden;">
           <sc-for list="{{ liqLevels }}" as="l" hint-placeholder-count="6">
@@ -316,7 +316,7 @@ class Component extends DCLogic {
 
     const mono = this.props.signalColorOnly ?? true;
     const acc = this.props.accent ?? '#d9a626';
-    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#5a5f66';
+    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#7c828a';
 
     const ICON = {
       desk: 'M3.2 3.2h5.6v5.6H3.2zM11.2 3.2h5.6v5.6h-5.6zM3.2 11.2h5.6v5.6H3.2zM11.2 11.2h5.6v5.6h-5.6z',
@@ -563,7 +563,7 @@ class Component extends DCLogic {
       { time: '07:59', src: 'BLOOMBERG', head: 'Options desks report heavy 114k put buying into Friday expiry', coins: 'BTC', impact: 'MED' },
       { time: '07:22', src: 'THE BLOCK', head: 'Chainlink launches cross-chain reserve proofs with two custodians', coins: 'LINK', impact: 'LOW' }
     ];
-    const IMPACT = { HIGH: RED, MED: acc, LOW: '#5a5f66' };
+    const IMPACT = { HIGH: RED, MED: acc, LOW: '#7c828a' };
     const IMPACT_MAP = IMPACT;
 
     const decorate = list => list.map(f => ({
@@ -571,7 +571,7 @@ class Component extends DCLogic {
       note: f.note ?? '',
       icon: f.on ? '✓' : '·',
       iconCol: f.on ? GREEN : '#3a3f45',
-      txtCol: f.on ? TXT : '#5a5f66'
+      txtCol: f.on ? TXT : '#7c828a'
     }));
 
     // ── Setup scanner ──
@@ -711,7 +711,7 @@ class Component extends DCLogic {
     ];
     const alertRows = AL.map(r => ({
       sym: r[0], type: r[1], cond: r[2], channel: r[3], status: r[4], age: r[5],
-      statusCol: r[4] === 'ARMED' ? GREEN : '#5a5f66',
+      statusCol: r[4] === 'ARMED' ? GREEN : '#7c828a',
       dot: r[4] === 'ARMED' ? GREEN : '#3a3f45'
     }));
 
@@ -930,11 +930,11 @@ class Component extends DCLogic {
       heatTrackM: trackFor(20),
       heatSpotTop: heatPct(SPOT).toFixed(2) + '%',
       heatTfs: [
-        { label: '12H', col: '#5a5f66', bg: 'transparent' },
-        { label: '24H', col: '#5a5f66', bg: 'transparent' },
-        { label: '3D', col: '#5a5f66', bg: 'transparent' },
+        { label: '12H', col: '#7c828a', bg: 'transparent' },
+        { label: '24H', col: '#7c828a', bg: 'transparent' },
+        { label: '3D', col: '#7c828a', bg: 'transparent' },
         { label: '7D', col: '#08090a', bg: acc },
-        { label: '30D', col: '#5a5f66', bg: 'transparent' }
+        { label: '30D', col: '#7c828a', bg: 'transparent' }
       ],
       threshold: thr,
       thresholdLabel: thr.toFixed(2),
@@ -942,7 +942,7 @@ class Component extends DCLogic {
       onRefresh: () => this.setState({ seed: (seed * 16807 + 7919) & 0x7fffffff }),
       swatches: RAMPS.map((_, i) => ({
         bg: rampCss(i),
-        bdr: i === palIdx ? acc : '#2a2e32',
+        bdr: i === palIdx ? acc : '#5e646b',
         onPick: () => this.setState({ palette: i })
       })),
       barCss: rampCss(palIdx),

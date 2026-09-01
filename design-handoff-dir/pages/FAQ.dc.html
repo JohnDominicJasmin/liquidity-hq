@@ -46,17 +46,17 @@
 
         <div style="height:52px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 40px; gap:14px;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:700; letter-spacing:.1em; color:#e8e9ea;">FAQ</div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#5a5f66;">18 QUESTIONS · 4 GROUPS</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#7c828a;">18 QUESTIONS · 4 GROUPS</div>
           <div style="flex:1"></div>
-          <div style="border:1px solid #2a2e32; padding:7px 14px; display:flex; align-items:center; gap:10px; width:300px;">
-            <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="#5a5f66" strokeWidth="1.6"></circle><line x1="13.5" y1="13.5" x2="17.5" y2="17.5" stroke="#5a5f66" strokeWidth="1.6" strokeLinecap="round"></line></svg>
+          <div style="border:1px solid #5e646b; padding:7px 14px; display:flex; align-items:center; gap:10px; width:300px;">
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="#7c828a" strokeWidth="1.6"></circle><line x1="13.5" y1="13.5" x2="17.5" y2="17.5" stroke="#7c828a" strokeWidth="1.6" strokeLinecap="round"></line></svg>
             <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; color:#3a3f45;">SEARCH THE FAQ</div>
           </div>
         </div>
 
         <div style="flex:1; display:flex; min-height:0;">
           <aside style="width:264px; flex-shrink:0; border-right:1px solid #1f2225; padding:28px 0;">
-            <div style="padding:0 24px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#5a5f66;">Groups</div>
+            <div style="padding:0 24px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#7c828a;">Groups</div>
             <div style="margin-top:14px;">
               <sc-for list="{{ faqGroups }}" as="g" hint-placeholder-count="4">
                 <div style="padding:10px 24px; border-left:2px solid {{ g.bdr }}; display:flex; align-items:baseline; gap:10px;">
@@ -67,7 +67,7 @@
               </sc-for>
             </div>
             <div style="padding:26px 24px 0 24px;">
-              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#5a5f66;">Still stuck</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#7c828a;">Still stuck</div>
               <div style="font-size:12.5px; line-height:1.55; color:#8b8f94; margin-top:10px;">Email hello@liquidity-hq.com — answered the same day.</div>
             </div>
           </aside>
@@ -97,11 +97,11 @@
           <img src="assets/logo.png" alt="LiquidityHQ" style="width:22px; height:22px; border-radius:5px; display:block; flex-shrink:0;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.14em; color:#e8e9ea;">FAQ</div>
           <div style="flex:1"></div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#5a5f66; letter-spacing:.1em;">18 Q</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#7c828a; letter-spacing:.1em;">18 Q</div>
         </div>
         <div style="height:44px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px;">
-          <div style="flex:1; border:1px solid #2a2e32; padding:7px 12px; display:flex; align-items:center; gap:9px;">
-            <svg width="12" height="12" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="#5a5f66" strokeWidth="1.6"></circle><line x1="13.5" y1="13.5" x2="17.5" y2="17.5" stroke="#5a5f66" strokeWidth="1.6" strokeLinecap="round"></line></svg>
+          <div style="flex:1; border:1px solid #5e646b; padding:7px 12px; display:flex; align-items:center; gap:9px;">
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="#7c828a" strokeWidth="1.6"></circle><line x1="13.5" y1="13.5" x2="17.5" y2="17.5" stroke="#7c828a" strokeWidth="1.6" strokeLinecap="round"></line></svg>
             <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:#3a3f45;">SEARCH THE FAQ</div>
           </div>
         </div>
@@ -138,7 +138,7 @@
 class Component extends DCLogic {
   renderVals() {
     const acc = this.props.accent ?? '#d9a626';
-    const TXT = '#e8e9ea', TXT3 = '#5a5f66', GREEN = '#3fb950';
+    const TXT = '#e8e9ea', TXT3 = '#7c828a', GREEN = '#3fb950';
 
     const PAGES = ['ABOUT', 'FAQ', 'GLOSSARY', 'TERMS', 'PRIVACY', 'REFUNDS', 'DISCLAIMER'];
     const GROUPS = [['GETTING STARTED', 6], ['DATA & SIGNALS', 5], ['BILLING', 4], ['ACCOUNT', 3]];

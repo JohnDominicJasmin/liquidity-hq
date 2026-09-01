@@ -43,14 +43,14 @@
           <div style="flex:1"></div>
           <div style="display:flex; align-items:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;">
             <div style="display:flex; align-items:center; gap:6px; color:#8b8f94;"><div style="width:5px; height:5px; background:#3fb950;"></div>WIRE LIVE</div>
-            <div style="color:#5a5f66; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
-            <div style="width:22px; height:22px; border:1px solid #2a2e32; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700;">J</div>
+            <div style="color:#7c828a; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
+            <div style="width:22px; height:22px; border:1px solid #5e646b; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700;">J</div>
           </div>
         </div>
 
         <div style="height:38px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:12px;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.1em; color:#e8e9ea;">NEWS WIRE</div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#5a5f66;">14 AUG · 42 STORIES TODAY</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#7c828a;">14 AUG · 42 STORIES TODAY</div>
           <div style="flex:1"></div>
           <div style="display:flex; gap:2px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em;">
             <sc-for list="{{ newsFilters }}" as="f" hint-placeholder-count="6">
@@ -62,7 +62,7 @@
         <div style="flex:1; min-height:0; overflow:hidden;">
           <sc-for list="{{ newsItems }}" as="n" hint-placeholder-count="10">
             <div style="display:grid; grid-template-columns:66px 108px 1fr 96px 74px; border-bottom:1px solid #131618; align-items:baseline;">
-              <div style="padding:13px 14px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#5a5f66; font-variant-numeric:tabular-nums;">{{ n.time }}</div>
+              <div style="padding:13px 14px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#7c828a; font-variant-numeric:tabular-nums;">{{ n.time }}</div>
               <div style="padding:13px 14px 13px 0; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#8b8f94;">{{ n.src }}</div>
               <div style="padding:13px 24px 13px 0; font-size:14px; line-height:1.4; color:#e8e9ea; text-wrap:pretty;">{{ n.head }}</div>
               <div style="padding:13px 14px 13px 0; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.1em; color:#8b8f94;">{{ n.coins }}</div>
@@ -71,7 +71,7 @@
           </sc-for>
         </div>
 
-        <div style="height:34px; flex-shrink:0; border-top:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; color:#5a5f66;">
+        <div style="height:34px; flex-shrink:0; border-top:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; color:#7c828a;">
           SHOWING 1–10 OF 42 · LOAD MORE
         </div>
       </div>
@@ -92,7 +92,7 @@
           <sc-for list="{{ newsItemsM }}" as="n" hint-placeholder-count="7">
             <div style="padding:12px 14px; border-bottom:1px solid #131618;">
               <div style="display:flex; align-items:center; gap:10px;">
-                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#5a5f66; font-variant-numeric:tabular-nums;">{{ n.time }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7c828a; font-variant-numeric:tabular-nums;">{{ n.time }}</div>
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.14em; color:#8b8f94;">{{ n.src }}</div>
                 <div style="flex:1"></div>
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; color:{{ n.impactCol }};">{{ n.impact }}</div>
@@ -169,7 +169,7 @@ class Component extends DCLogic {
 
     const mono = this.props.signalColorOnly ?? true;
     const acc = this.props.accent ?? '#d9a626';
-    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#5a5f66';
+    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#7c828a';
 
     const ICON = {
       desk: 'M3.2 3.2h5.6v5.6H3.2zM11.2 3.2h5.6v5.6h-5.6zM3.2 11.2h5.6v5.6H3.2zM11.2 11.2h5.6v5.6h-5.6z',
@@ -416,7 +416,7 @@ class Component extends DCLogic {
       { time: '07:59', src: 'BLOOMBERG', head: 'Options desks report heavy 114k put buying into Friday expiry', coins: 'BTC', impact: 'MED' },
       { time: '07:22', src: 'THE BLOCK', head: 'Chainlink launches cross-chain reserve proofs with two custodians', coins: 'LINK', impact: 'LOW' }
     ];
-    const IMPACT = { HIGH: RED, MED: acc, LOW: '#5a5f66' };
+    const IMPACT = { HIGH: RED, MED: acc, LOW: '#7c828a' };
     const IMPACT_MAP = IMPACT;
 
     const decorate = list => list.map(f => ({
@@ -424,7 +424,7 @@ class Component extends DCLogic {
       note: f.note ?? '',
       icon: f.on ? '✓' : '·',
       iconCol: f.on ? GREEN : '#3a3f45',
-      txtCol: f.on ? TXT : '#5a5f66'
+      txtCol: f.on ? TXT : '#7c828a'
     }));
 
     // ── Setup scanner ──
@@ -564,7 +564,7 @@ class Component extends DCLogic {
     ];
     const alertRows = AL.map(r => ({
       sym: r[0], type: r[1], cond: r[2], channel: r[3], status: r[4], age: r[5],
-      statusCol: r[4] === 'ARMED' ? GREEN : '#5a5f66',
+      statusCol: r[4] === 'ARMED' ? GREEN : '#7c828a',
       dot: r[4] === 'ARMED' ? GREEN : '#3a3f45'
     }));
 
@@ -783,11 +783,11 @@ class Component extends DCLogic {
       heatTrackM: trackFor(20),
       heatSpotTop: heatPct(SPOT).toFixed(2) + '%',
       heatTfs: [
-        { label: '12H', col: '#5a5f66', bg: 'transparent' },
-        { label: '24H', col: '#5a5f66', bg: 'transparent' },
-        { label: '3D', col: '#5a5f66', bg: 'transparent' },
+        { label: '12H', col: '#7c828a', bg: 'transparent' },
+        { label: '24H', col: '#7c828a', bg: 'transparent' },
+        { label: '3D', col: '#7c828a', bg: 'transparent' },
         { label: '7D', col: '#08090a', bg: acc },
-        { label: '30D', col: '#5a5f66', bg: 'transparent' }
+        { label: '30D', col: '#7c828a', bg: 'transparent' }
       ],
       threshold: thr,
       thresholdLabel: thr.toFixed(2),
@@ -795,7 +795,7 @@ class Component extends DCLogic {
       onRefresh: () => this.setState({ seed: (seed * 16807 + 7919) & 0x7fffffff }),
       swatches: RAMPS.map((_, i) => ({
         bg: rampCss(i),
-        bdr: i === palIdx ? acc : '#2a2e32',
+        bdr: i === palIdx ? acc : '#5e646b',
         onPick: () => this.setState({ palette: i })
       })),
       barCss: rampCss(palIdx),
