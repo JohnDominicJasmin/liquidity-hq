@@ -5311,6 +5311,11 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --accent: #d9a626; /* active nav, primary CTA - ALWAYS with #08090a text */
   --green:  #3fb950; /* bullish / FIRING positive */
   --red:    #f0524d; /* bearish / FIRING negative */
+  /* #542: was undeclared here, so terminal mode fell through to the current
+     design's root --amber (#fbbf24) by inheritance, not by decision. Design
+     confirmed #fbbf24 as the intended terminal value (handoff README, both
+     token tables) - declaring it explicitly, not changing it. */
+  --amber:  #fbbf24; /* weak/caution state (OI-trend, funding ladders) */
   --mark-idle:    #22262a;  /* signal marker when not firing */
   /* #520: was #2a2e32 - 1.36:1 against --bg1 (#141517), below WCAG 1.4.11's
      3:1 for UI component boundaries. #5e646b clears 3.14:1. */

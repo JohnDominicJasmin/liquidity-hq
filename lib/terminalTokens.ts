@@ -15,7 +15,7 @@
  * unchanged. The redesign opts in screen by screen.
  */
 
-/** The 15 documented colour tokens. Values are the README's, EXCEPT --bg1 and
+/** The 16 documented colour tokens. Values are the README's, EXCEPT --bg1 and
  *  --txt3 - see the amendment note below. */
 export const TERMINAL_COLORS = {
   '--bg0':          '#08090a',  // Canvas
@@ -39,11 +39,19 @@ export const TERMINAL_COLORS = {
   '--accent':       '#d9a626',  // Active nav, primary CTA - ALWAYS with #08090a text
   '--green':        '#3fb950',  // Bullish / firing positive
   '--red':          '#f0524d',  // Bearish / firing negative
+  /* Found missing (#542): app-root --amber (#fbbf24) was falling through into
+     terminal mode ungoverned - never redeclared in the terminal block, never
+     documented here, so an inherited current-design colour rendered on
+     terminal screens as if chosen for them. Design confirmed #fbbf24 as the
+     intended value (handoff README, both token tables) and it's used in
+     specs/dashboard-2a.md's OI-trend and funding ladders (weak_up state).
+     11.1:1 on --bg1 - not a contrast fix, a governance one. */
+  '--amber':        '#fbbf24',  // Weak/caution state (OI-trend, funding ladders)
   '--mark-idle':    '#22262a',  // Signal marker when NOT firing
   '--border-input': '#5e646b',  // Input and secondary-button border
 } as const;
 
-/* The sixteenth value: the FLAT cell in the hours expectancy grid.
+/* The seventeenth value: the FLAT cell in the hours expectancy grid.
  *
  * Rendered in `Monochrome Terminal - Tools.dc.html` with its own legend swatch,
  * used when |expectancy| < 0.12, and ABSENT from the README's table - QA found
