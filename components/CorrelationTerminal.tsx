@@ -93,7 +93,14 @@ function cellBg(r: number | null, diag: boolean): string {
 }
 
 function cellColor(r: number | null, diag: boolean): string {
-  if (diag) return 'var(--accent)';
+  /* #570 reopen: --accent on --accent-bdr measured 3.59:1 in light - the
+     diagonal carries no data (self-correlation placeholder, always "-"),
+     so there's nothing here that needs an accent highlight strong enough
+     to risk failing. --txt keeps the accent-tinted background as the
+     visual marker and is always safe against a composited card surface,
+     same as the numeric cells below. 10.99:1 light, comfortable margin
+     over dark's prior 5.43:1 too. */
+  if (diag) return 'var(--txt)';
   if (r == null) return 'var(--txt3)';
   return 'var(--txt)';
 }
