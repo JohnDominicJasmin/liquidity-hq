@@ -436,8 +436,8 @@ export default function FundingTerminal() {
                   {t('FUNDING_CONTRARIAN_LONG_COUNT', { count: longSignals.length, plural: longSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
-              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', border: '0.5px solid rgba(26,122,255,0.25)', fontWeight: 700 }}>
-                <Tip iconColor="#1a7aff" text={t('FUNDING_CARRY_ARB_TIP')}>
+              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent)', border: '0.5px solid var(--accent-bdr)', fontWeight: 700 }}>
+                <Tip iconColor="var(--accent)" text={t('FUNDING_CARRY_ARB_TIP')}>
                   {t('FUNDING_CARRY_ARB_COUNT', { count: arbs.length })}
                 </Tip>
               </span>
@@ -468,7 +468,7 @@ export default function FundingTerminal() {
                     </span>
                   )}
                   {carryArb && (
-                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 0, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
                       {t('FUNDING_BADGE_ARB_LABEL')}
                     </span>
                   )}

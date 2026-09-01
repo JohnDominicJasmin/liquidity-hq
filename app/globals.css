@@ -814,7 +814,7 @@ body::after {
     border-radius: var(--radius-card); padding: 14px 18px; position: relative;
     min-width: 96px; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   }
-  .ticker-see-all:active { background: rgba(26,122,255,0.18); box-shadow: 0 0 28px rgba(26,122,255,0.22); }
+  .ticker-see-all:active { background: color-mix(in srgb, var(--purple) 18%, transparent); box-shadow: 0 0 28px color-mix(in srgb, var(--purple) 22%, transparent); }
   .ticker-see-all-count { display: block; font-size: 2rem; font-weight: 700; color: var(--txt); letter-spacing: -1.5px; line-height: 1; text-align: center; }
   .ticker-see-all-label { display: block; font-size: var(--fs-micro); font-weight: 800; color: var(--txt3); letter-spacing: .14em; text-transform: uppercase; text-align: center; margin-top: 3px; }
   .ticker-see-all-arrow { display: block; font-size: 0.6875rem; font-weight: 700; color: var(--purple); margin-top: 10px; letter-spacing: .01em; text-align: center; }
@@ -2118,17 +2118,17 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-followup-chip {
   font-size: var(--fs-caption); font-weight: 500;
   padding: 5px 11px; border-radius: 20px;
-  border: 0.5px solid rgba(26,122,255,0.22);
-  background: rgba(26,122,255,0.06);
+  border: 0.5px solid var(--accent-bdr);
+  background: var(--accent-bg);
   color: var(--accent-2); cursor: pointer;
   white-space: normal; text-align: left; line-height: 1.35;
   transition: background 0.14s, border-color 0.14s, color 0.14s;
   animation: fadeInUp 0.15s ease;
 }
 .gchat-followup-chip:hover {
-  background: rgba(26,122,255,0.14);
-  border-color: rgba(26,122,255,0.45);
-  color: #d4caff;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent-2);
 }
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
