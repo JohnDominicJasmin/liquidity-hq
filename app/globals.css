@@ -2428,8 +2428,20 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 
 [data-theme="light"] html { background: #E8EAED; }
-[data-theme="light"] body {
+/* #557 investigation (QA, terminal-light audit): unscoped, so terminal+light
+   pages rendered the current design's #E8EAED canvas instead of terminal's
+   own --bg0 (#f7f6f3) - close enough in hue that it went unnoticed visually,
+   caught only by exact-hex contrast measurement on /scanner. Split into two
+   rules rather than switching this one to var(--bg0), since --bg0 isn't
+   declared in the current design's own light block (only :root/dark and the
+   two terminal blocks are) - reading it there would fall through to root's
+   dark value and blacken the current design's light body. */
+[data-theme="light"]:not([data-design="terminal"]) body {
   background: #E8EAED;
+  background-attachment: fixed;
+}
+[data-design="terminal"][data-theme="light"] body {
+  background: var(--bg0);
   background-attachment: fixed;
 }
 [data-theme="light"] body::after { opacity: 0; }

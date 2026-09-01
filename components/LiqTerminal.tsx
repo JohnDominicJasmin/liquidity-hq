@@ -336,7 +336,7 @@ export default function LiqTerminal() {
     : null;
 
   return (
-    <div>
+    <div className="liq-term-wrap">
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
           {t('LIQ_TITLE')}
