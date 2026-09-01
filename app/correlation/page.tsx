@@ -85,7 +85,7 @@ function pearson(a: number[], b: number[]): number | null {
    identical green. Rescale 0.35→1.0 onto the full range with a power curve so
    0.6 reads faint and 0.95+ pops. */
 function cellBg(r: number | null, diag: boolean): string {
-  if (diag)    return 'rgba(26,122,255,0.22)';
+  if (diag)    return 'var(--accent-bdr)';
   if (r == null) return 'rgba(255,255,255,0.03)';
   if (r > 0) {
     const t = Math.max(0, (r - 0.35) / 0.65);
@@ -118,7 +118,7 @@ function altSignal(avg: number | null): AltSig {
   };
   if (avg < 0.75)  return {
     labelKey: 'CORRELATION_ALT_SIG_BTC_LEADING_LABEL',
-    color: '#d4b483', bg: 'rgba(212,180,131,0.06)',
+    color: 'var(--fr-slight-long)', bg: 'rgba(212,180,131,0.06)',
     descKey: 'CORRELATION_ALT_SIG_BTC_LEADING_DESC', avg,
   };
   return {
@@ -297,7 +297,7 @@ export default function CorrelationHeatmap() {
                             background: cellBg(r, diag),
                             color: cellColor(r, diag),
                             opacity: hovered && !inCross ? 0.25 : 1,
-                            outline: isExact ? '1.5px solid rgba(255,255,255,0.55)' : undefined,
+                            outline: isExact ? '1.5px solid var(--accent)' : undefined,
                             outlineOffset: isExact ? '-1px' : undefined,
                             transition: 'opacity 0.1s',
                             cursor: diag ? 'default' : 'crosshair',

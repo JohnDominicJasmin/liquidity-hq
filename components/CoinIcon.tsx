@@ -11,7 +11,7 @@ export default function CoinIcon({ coin, size = 22, color, bg }: { coin: CoinId;
   // ever missing, fall back to a plain neutral circle - never a letter/text abbreviation.
   if (failed) {
     return (
-      <span style={{
+      <span className="coin-icon" style={{
         width: size, height: size, borderRadius: '50%', flexShrink: 0,
         background: bg ?? 'rgba(255,255,255,0.07)',
         border: `0.5px solid ${color ? withAlpha(color, '44') : 'rgba(255,255,255,0.1)'}`,
@@ -27,6 +27,7 @@ export default function CoinIcon({ coin, size = 22, color, bg }: { coin: CoinId;
     // arguing about a cost this particular image does not have.
     // eslint-disable-next-line @next/next/no-img-element
     <img
+      className="coin-icon"
       src={src}
       alt={coin}
       width={size}

@@ -87,4 +87,50 @@ test('terminal design tokens', async (t) => {
       'hex-valued custom properties in the terminal block not listed in TERMINAL_COLORS - ' +
       'add them there (or to the radius/other exception if they are not a colour)');
   });
+
+  await t.test('every custom property USED under [data-design="terminal"] is DECLARED in the terminal block', () => {
+    // #559: the asymmetry that let --accent-bg/--accent-solid/--blue/--bg3/
+    // --bg4 etc fall through ungoverned for months. The test above only ever
+    // checked "does the block declare anything undocumented" - never the
+    // opposite direction, "does everything a terminal-scoped rule USES
+    // actually get declared here". A token can be perfectly correct by
+    // inheritance (--purple: var(--accent) resolves via cascade even though
+    // --purple itself is never redeclared in this block) so this check is
+    // scoped to what terminal-scoped SELECTORS reference directly, not every
+    // var() in the stylesheet - the same query QA specified.
+    const declaredNames = new Set(
+      [...block.matchAll(/(--[a-z][a-z0-9-]*)\s*:/g)].map(m => m[1])
+    );
+
+    // Tokens that are legitimately universal - not part of the colour
+    // palette, so never redeclared per design mode (typography scale,
+    // spacing scale, neumorphic shadows, structural sizing).
+    const EXEMPT = new Set([
+      '--font-mono', '--font-sans-terminal',
+      '--fs-body', '--fs-caption', '--fs-card-title', '--fs-data',
+      '--fs-display', '--fs-label', '--fs-micro', '--fs-page', '--fs-section',
+      '--space-1', '--space-2', '--space-3', '--space-4', '--space-5',
+      '--space-6', '--space-7', '--space-8',
+      '--nm-btn', '--nm-inset', '--nm-raise', '--nm-raise-sm',
+      '--banner-h',
+    ]);
+
+    const rulePattern = /\[data-design="terminal"\][^{]*\{([^}]*)\}/g;
+    const missing = new Map<string, Set<string>>();
+    for (const ruleMatch of CSS.matchAll(rulePattern)) {
+      const selector = ruleMatch[0].slice(0, ruleMatch[0].indexOf('{')).trim();
+      if (selector === BLOCK_SELECTOR.slice(0, -2)) continue; // the token block itself
+      for (const varMatch of ruleMatch[1].matchAll(/var\((--[a-z][a-z0-9-]*)/g)) {
+        const name = varMatch[1];
+        if (declaredNames.has(name) || EXEMPT.has(name)) continue;
+        if (!missing.has(name)) missing.set(name, new Set());
+        missing.get(name)!.add(selector);
+      }
+    }
+
+    assert.deepEqual([...missing.keys()], [],
+      [...missing.entries()]
+        .map(([name, selectors]) => `${name} used in [${[...selectors].join(', ')}] but not declared in the terminal token block`)
+        .join('\n'));
+  });
 });
