@@ -5620,7 +5620,16 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --green-soft: var(--green);
   --red-soft:   var(--red);
   --txt-dim:    var(--txt2);
-  --txt-dash:   var(--txt3); /* #559: light not flagged as failing, see :root's own comment */
+  /* #559: was var(--txt3) - "light not flagged as failing" at the time this
+     alias shipped. It was flagged next round: 3 of 9 observed surfaces
+     failed, worst 3.52:1, because aliasing meant --txt-dash could never be
+     darker than --txt3 lets it be for THAT token's own uses. Same shape as
+     dark theme's --txt-dash (line ~50): a dedicated value for this one use,
+     not a change to the shared token. #4f5257 clears all nine observed
+     surfaces - worst 4.50:1 on #c6c4c0, 5.40/5.49 on the two that were
+     failing, 5.94+ on the rest. --txt3 itself is unchanged - #5e6267,
+     still governs every other muted-text use in light. */
+  --txt-dash:   #4f5257;
   /* rgb(20,112,44) = #14702c, kept in sync with --green above - these tints
      went stale once already when --green moved from #1a7f37 without them. */
   --green-bg:  rgba(20,112,44,0.08);
