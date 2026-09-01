@@ -44,10 +44,12 @@ export default function PerpSpotCard() {
   if (!reading) return null;
 
   const unknown = reading.lean === 'unknown';
+  // --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's
+  // 16-token palette.
   const tone =
     reading.lean === 'perp' ? 'var(--amber)' :
     reading.lean === 'spot' ? 'var(--green-2)' :
-    unknown ? 'var(--txt3)' : 'var(--txt-dim)';
+    unknown ? 'var(--txt3)' : 'var(--txt2)';
 
   const verdict =
     reading.lean === 'perp' ? 'FUTURES LEADING' :
