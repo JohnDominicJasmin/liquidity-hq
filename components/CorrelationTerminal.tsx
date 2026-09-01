@@ -63,22 +63,39 @@ function pearson(a: number[], b: number[]): number | null {
   return Math.max(-1, Math.min(1, num / denom));
 }
 
+/* #570: was a hardcoded rgba(52,211,153/248,113,113) ramp, uncapped up to
+   92-96% alpha, with --txt3 as the default text colour and --txt reserved
+   for |r| >= 0.8. Three bugs compounding: the hardcoded colour isn't
+   theme-aware, so the same ramp ran over a near-black card and a
+   near-white one; the text-colour switch sat far past where the tint
+   started mattering, so 2292 of 2368 dark failures were mid-band cells
+   still on --txt3; and at high alpha the tint itself gets bright/saturated
+   enough (worst measured 1.66:1) that not even --txt could save it - the
+   ramp had to stop short, not just change which token painted it.
+   var(--green)/var(--red) fixes theme-awareness for free (each already has
+   its own dark/light value). The 50%/65% caps are hand-verified against
+   the WCAG contrast formula: dark theme's --green crosses 4.5:1 against
+   --txt at ~60% alpha, light's at ~74% - 50% clears both with margin.
+   Red's two thresholds sit close together (~72-73% either theme) so 65%
+   covers both. Text is always --txt now; at the low end that's compositing
+   against a nearly-untinted card (4% alpha), which --txt already passes
+   everywhere else in the app. */
 function cellBg(r: number | null, diag: boolean): string {
   if (diag)     return 'var(--accent-bdr)';
   if (r == null) return 'rgba(255,255,255,0.03)';
   if (r > 0) {
     const t = Math.max(0, (r - 0.35) / 0.65);
-    const a = 0.04 + Math.pow(t, 2.2) * 0.92;
-    return `rgba(52,211,153,${a.toFixed(2)})`;
+    const pct = 4 + Math.pow(t, 2.2) * 46;
+    return `color-mix(in srgb, var(--green) ${pct.toFixed(1)}%, transparent)`;
   }
-  const a = 0.06 + Math.pow(Math.abs(r), 1.5) * 0.86;
-  return `rgba(248,113,113,${a.toFixed(2)})`;
+  const pct = 6 + Math.pow(Math.abs(r), 1.5) * 59;
+  return `color-mix(in srgb, var(--red) ${pct.toFixed(1)}%, transparent)`;
 }
 
 function cellColor(r: number | null, diag: boolean): string {
   if (diag) return 'var(--accent)';
   if (r == null) return 'var(--txt3)';
-  return Math.abs(r) >= 0.8 ? 'var(--txt)' : 'var(--txt3)';
+  return 'var(--txt)';
 }
 
 interface AltSig { labelKey: LabelKey; descKey: LabelKey | null; avg: number | null; color: string; bg: string; }
