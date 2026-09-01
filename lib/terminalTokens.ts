@@ -15,17 +15,26 @@
  * unchanged. The redesign opts in screen by screen.
  */
 
-/** The 15 documented colour tokens. Values are the README's, verbatim. */
+/** The 15 documented colour tokens. Values are the README's, EXCEPT --bg1 and
+ *  --txt3 - see the amendment note below. */
 export const TERMINAL_COLORS = {
   '--bg0':          '#08090a',  // Canvas
-  '--bg1':          '#0c0d0f',  // Raised region
+  /* Owner-amended 2026-09-01 (#518/#526): handoff said #0c0d0f, which sat only
+     13 hex units off --bg (#000) - imperceptible as a card boundary (#512 bug
+     2). #141517 is the value of record now; the handoff docs were amended to
+     match, not the other way around. */
+  '--bg1':          '#141517',  // Raised region
   '--bg2':          '#111416',  // Bar/track background
   '--bdr':          '#1f2225',  // Structural hairline
   '--bdr2':         '#131618',  // Row hairline
   '--bdr3':         '#16191b',  // Cell hairline
   '--txt':          '#e8e9ea',  // Primary text and data
   '--txt2':         '#8b8f94',  // Secondary text, prose
-  '--txt3':         '#5a5f66',  // Micro-labels, meta
+  /* Owner-amended 2026-09-01 (#518/#526): handoff said #5a5f66, which measures
+     3.03-3.10:1 against --bg0/--bg1 - both are in the spec's own enumerated
+     4.5:1 pairs (arena.md:252), so the handoff's own value failed the
+     handoff's own rule. #7c828a clears 4.5:1 on both. */
+  '--txt3':         '#7c828a',  // Micro-labels, meta
   '--txt4':         '#3a3f45',  // Disabled, axis labels
   '--accent':       '#d9a626',  // Active nav, primary CTA - ALWAYS with #08090a text
   '--green':        '#3fb950',  // Bullish / firing positive
