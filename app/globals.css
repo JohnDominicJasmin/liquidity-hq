@@ -461,6 +461,23 @@ body::after {
 .csb2-sig       { font-size: var(--fs-caption); font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.02); }
 .csb2-bar-track { height: 3px; background: rgba(255,255,255,0.06); border-radius: 0 0 var(--radius-data) var(--radius-data); margin: 0 -10px; }
 .csb2-bar-fill  { height: 100%; border-radius: 0 0 var(--radius-data) var(--radius-data); transition: width 0.8s ease, background 0.3s; }
+/* #559 Bug 2, "the tint recipe": the health-grade badge backgrounds
+   color-mix the grade's own token toward transparent at 13.3%, composited
+   over --bg2. On dark that pulls the surface toward black while the text
+   stays light, so text and background diverge and contrast holds - same
+   shape as .csb2-sig above. Grades C and F use the two muted-grey tokens
+   (--txt2, --txt3), which are themselves mid-dark on light theme, so the
+   same mix pulls the surface toward the TEXT colour instead of away from
+   it and the gap the badge needs shrinks under it. Measured: 3.99:1 (C)
+   and 3.99:1 (F) on --bg2 at 13.3%, both clear 4.5:1 at 4%. Grades A/B/D
+   (amber/green/orange) aren't touched here - they clear the floor already,
+   and this is the alpha, not a token value, so it isn't design's Bug 1. */
+[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-c {
+  background: color-mix(in srgb, var(--txt2) 4%, transparent) !important;
+}
+[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-f {
+  background: color-mix(in srgb, var(--txt3) 4%, transparent) !important;
+}
 
 /* ── MARKET EVENTS STRIP ── */
 
