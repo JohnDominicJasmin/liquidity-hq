@@ -135,12 +135,12 @@ export default function WhaleTradesFeed() {
       <div className="wf-stats">
         <div className="wf-stat">
           <span className="wf-stat-lbl">{t('WHALE_TRADES_FEED_STAT_BUYS')}</span>
-          <span className="wf-stat-val" style={{ color: '#22d3ee' }}>{fmtUSD(stats.buyUsd)}</span>
+          <span className="wf-stat-val" style={{ color: 'var(--green)' }}>{fmtUSD(stats.buyUsd)}</span>
         </div>
         <div className="wf-stat-sep" />
         <div className="wf-stat" style={{ textAlign: 'center' }}>
           <span className="wf-stat-lbl">{t('WHALE_TRADES_FEED_STAT_NET_FLOW')}</span>
-          <span className="wf-stat-val" style={{ color: netFlow >= 0 ? '#22d3ee' : '#f97316' }}>
+          <span className="wf-stat-val" style={{ color: netFlow >= 0 ? 'var(--green)' : 'var(--red)' }}>
             {netFlow >= 0 ? '+' : ''}{fmtUSD(Math.abs(netFlow))}
             <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', marginLeft: 3 }}>
               {netFlow >= 0 ? '↑' : '↓'}
@@ -150,7 +150,7 @@ export default function WhaleTradesFeed() {
         <div className="wf-stat-sep" />
         <div className="wf-stat" style={{ textAlign: 'right' }}>
           <span className="wf-stat-lbl">{t('WHALE_TRADES_FEED_STAT_SELLS')}</span>
-          <span className="wf-stat-val" style={{ color: '#f97316' }}>{fmtUSD(stats.sellUsd)}</span>
+          <span className="wf-stat-val" style={{ color: 'var(--red)' }}>{fmtUSD(stats.sellUsd)}</span>
         </div>
       </div>
 
@@ -163,8 +163,8 @@ export default function WhaleTradesFeed() {
       )}
       {totalUsd > 0 && (
         <div className="wf-bias-label">
-          {netBull && <span style={{ color: '#22d3ee' }}>{t('WHALE_TRADES_FEED_BIAS_NET_BUY')}</span>}
-          {netBear && <span style={{ color: '#f97316' }}>{t('WHALE_TRADES_FEED_BIAS_NET_SELL')}</span>}
+          {netBull && <span style={{ color: 'var(--green)' }}>{t('WHALE_TRADES_FEED_BIAS_NET_BUY')}</span>}
+          {netBear && <span style={{ color: 'var(--red)' }}>{t('WHALE_TRADES_FEED_BIAS_NET_SELL')}</span>}
           {!netBull && !netBear && <span style={{ color: 'var(--txt3)' }}>{t('WHALE_TRADES_FEED_BIAS_BALANCED')}</span>}
         </div>
       )}
@@ -197,7 +197,7 @@ export default function WhaleTradesFeed() {
           const isBuy  = trade.side === 'BUY';
           const isMega = trade.usd >= MEGA_USD;
           const isBig  = trade.usd >= BIG_USD;
-          const accent = isBuy ? '#22d3ee' : '#f97316';
+          const accent = isBuy ? 'var(--green)' : 'var(--red)';
           const badge  = isMega ? t('WHALE_TRADES_FEED_BADGE_MEGA') : isBig ? t('WHALE_TRADES_FEED_BADGE_WHALE') : trade.side;
 
           return (
