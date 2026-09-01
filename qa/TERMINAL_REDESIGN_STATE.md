@@ -107,6 +107,14 @@ Playwright.
 "contrast failures" are largely the *same* 50 placeholder dashes. Headline
 numbers overstate; `contrast-diff.mjs` exists because of this.
 
+**A detector that matches too broadly invents failures.** `gating-audit.mjs`
+counted any descendant `<svg>` as a lock glyph and reported **4 "locked but
+enabled" paid-surface leaks** on `/settings` — the theme chips' sun/moon icons
+and the Ask-AI FAB. All four were fabricated; the real count is zero. Require
+the thing you are detecting to identify itself (a lock-named class, the glyph,
+an accessible name that says so), and be suspicious of any check that finds a
+defect on a surface nobody has complained about.
+
 **A token has one value and many contrast ratios.** One figure per token,
 measured against the page canvas, is the token's *best* case — and it is what
 `light-theme-tokens.md` recorded. It let three values ship that fail on the
