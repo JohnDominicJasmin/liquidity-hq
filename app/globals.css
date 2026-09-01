@@ -5265,14 +5265,18 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    removing radii, not overriding them. */
 [data-design="terminal"] {
   --bg0:  #08090a;   /* canvas */
-  --bg1:  #0c0d0f;   /* raised region */
+  --bg1:  #141517;   /* raised region - lifted from #0c0d0f (#512 bug 2): that
+                         was only 13 hex units off --bg (#000), imperceptible
+                         as a card boundary */
   --bg2:  #111416;   /* bar/track background */
   --bdr:  #1f2225;   /* structural hairline */
   --bdr2: #131618;   /* row hairline */
   --bdr3: #16191b;   /* cell hairline */
   --txt:  #e8e9ea;   /* primary text and data */
   --txt2: #8b8f94;   /* secondary text, prose */
-  --txt3: #5a5f66;   /* micro-labels, meta */
+  --txt3: #7c828a;   /* micro-labels, meta - raised from #5a5f66 (#512 bug 4):
+                         that failed WCAG AA (~3:1) against --bg1; this clears
+                         4.5:1 against the new --bg1 */
   --txt4: #3a3f45;   /* disabled, axis labels */
   --accent: #d9a626; /* active nav, primary CTA - ALWAYS with #08090a text */
   --green:  #3fb950; /* bullish / FIRING positive */
@@ -6290,3 +6294,19 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .briefing-term-wrap * { border-radius: 0 !important; }
 [data-design="terminal"] .liq-term-wrap,
 [data-design="terminal"] .liq-term-wrap * { border-radius: 0 !important; }
+
+/* ── Terminal form input visibility (#512 bug 3) ───────────────────────────
+   These wrap/style real <input>/<textarea> elements with background: --bg2
+   and border-color: --bdr / --bdr2. In terminal's palette --bg2 (#111416)
+   and --bdr2 (#131618) are only 2-3 RGB units apart per channel - the same
+   class of near-invisible gap as #512 bug 2, just on inputs instead of
+   cards. --border-input (#2a2e32) already exists in the terminal token
+   block for exactly this ("input and secondary-button border") but was
+   only wired to 2-3 button classes, never to actual form fields. */
+[data-design="terminal"] .tj-irow,
+[data-design="terminal"] .tj-notes,
+[data-design="terminal"] .ps-irow,
+[data-design="terminal"] .login-email-input,
+[data-design="terminal"] .st-input,
+[data-design="terminal"] .st-affix,
+[data-design="terminal"] .tj-lev-num { border-color: var(--border-input); }
