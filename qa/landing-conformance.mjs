@@ -43,9 +43,10 @@ const DESKTOP = () => {
   /* C1 — 8 top-level sections in order. Identify by content, not class: the
      dashboard audit showed class-based section matching reports a passing
      layout as failing when sections are bare divs. */
-  const main = document.body;
-  const secs = [...main.querySelectorAll('nav, header, section, footer')].filter(vis)
-    .filter(e => !e.parentElement.closest('section'));
+  /* Sections live inside .lp-root, not as body grandchildren. Counting from
+     body picked up the consent banner and missed the real structure. */
+  const root = document.querySelector('.lp-root') || document.body;
+  const secs = [...root.children].filter(vis);
   const c1 = { count: secs.length, tags: secs.map(e => e.tagName.toLowerCase() + (e.className ? '.' + e.className.toString().trim().split(/\s+/)[0] : '')).slice(0, 10) };
 
   /* C2 — link count */
@@ -53,8 +54,10 @@ const DESKTOP = () => {
   const c2 = links.length;
 
   /* C3/C4 — feature grid: 6 cards, ordered hrefs, each outermost is <a> */
+  /* Scope to the actual grid. The first version matched every link to those
+     six paths ANYWHERE on the page and reported 27 cards for a 6-card grid. */
   const wanted = ['/arena', '/settings', '/briefing', '/news', '/dashboard', '/scanner'];
-  const featureLinks = links.filter(a => wanted.includes(new URL(a.href, location.origin).pathname));
+  const featureLinks = [...document.querySelectorAll('.lp-features .lp-feature-card')].filter(vis);
   const seen = [];
   for (const a of featureLinks) { const p = new URL(a.href, location.origin).pathname; if (!seen.includes(p)) seen.push(p); }
   const c3 = { count: featureLinks.length, order: seen };
@@ -62,16 +65,24 @@ const DESKTOP = () => {
 
   /* C5 — footer link columns */
   const footer = Q('footer, .pf-footer')[0];
-  const c5 = footer ? [...footer.querySelectorAll('nav, ul, .pf-footer-col')].filter(vis)
-    .filter(e => e.querySelectorAll('a[href]').length >= 2).length : -1;
+  const fgrid = document.querySelector('.lp-footer-grid');
+  const c5 = fgrid ? [...fgrid.children].filter(vis).filter(e => e.querySelectorAll('a[href]').length >= 2).length : -1;
 
   /* C6 — risk disclosure items */
-  const riskRoot = [...document.querySelectorAll('*')].filter(e => /risk disclosure/i.test(txt(e)) && e.children.length < 20).pop();
-  const c6 = riskRoot ? [...riskRoot.parentElement.querySelectorAll('li')].filter(vis).length : -1;
+  /* Take the UL/OL closest to the RISK DISCLOSURE heading. Matching any
+     ancestor containing li counted all 19 list items on the page. */
+  const riskHead = [...document.querySelectorAll('*')].find(e => !e.children.length && /risk disclosure/i.test(txt(e)));
+  let riskList = null;
+  if (riskHead) { let n = riskHead.parentElement, hops = 0;
+    while (n && !riskList && hops < 4) { riskList = n.querySelector('ul, ol'); n = n.parentElement; hops++; } }
+  const c6 = riskList ? [...riskList.children].filter(vis).length : -1;
 
   /* C7 — pricing: 2 plans, $0 and $25 */
-  const prices = [...document.querySelectorAll('*')].filter(e => !e.children.length && /^\$\d+$/.test(txt(e))).map(txt);
-  const c7 = { prices: [...new Set(prices)] };
+  /* Price strings are embedded in CTA copy ("Get Pro - $25/mo"), not standalone
+     nodes, so an anchored ^\$\d+$ match found nothing. Extract instead. */
+  const planRoot = document.querySelector('[class*="lp-plan"], [class*="pricing"]')?.closest('section') || document;
+  const prices = [...new Set((planRoot.textContent || '').match(/\$\d+/g) || [])];
+  const c7 = { prices };
 
   /* C8 — hero stats */
   const heroStats = ['50', '35', 'Grok', 'Live'];
@@ -88,7 +99,14 @@ const DESKTOP = () => {
 
   /* C11 — nav/ticker heights, hero top */
   const nav = Q('nav, .lp-nav, header')[0];
-  const ticker = Q('[class*="ticker"]')[0];
+  /* No element on this route carries a ticker-ish class. Fall back to content -
+     a strip of coin prices near the top - so "absent" is a finding rather than
+     a selector miss. */
+  const ticker = Q('[class*="ticker"], [class*="marquee"]')[0]
+    || [...document.querySelectorAll('div')].filter(vis).find(e => {
+         const r = e.getBoundingClientRect();
+         return r.top < 200 && r.height > 0 && r.height < 60 && (e.textContent.match(/\$[\d,]+/g) || []).length >= 3;
+       });
   const hero = Q('[class*="hero"], section')[0];
   const c11 = { nav: nav ? nav.offsetHeight : -1, ticker: ticker ? ticker.offsetHeight : -1,
     heroTop: hero ? Math.round(hero.getBoundingClientRect().top + window.scrollY) : -1 };
@@ -143,15 +161,21 @@ const MOBILE = () => {
   const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const Q = s => [...document.querySelectorAll(s)].filter(vis);
   const links = [...document.querySelectorAll('a[href]')];
-  const wanted = ['/arena', '/settings', '/briefing', '/news', '/dashboard', '/scanner'];
-  const cards = links.filter(a => wanted.includes(new URL(a.href, location.origin).pathname));
+  const cards = [...document.querySelectorAll('.lp-features .lp-feature-card')].filter(vis);
   const nav = Q('nav, .lp-nav, header')[0];
-  const ticker = Q('[class*="ticker"]')[0];
+  /* No element on this route carries a ticker-ish class. Fall back to content -
+     a strip of coin prices near the top - so "absent" is a finding rather than
+     a selector miss. */
+  const ticker = Q('[class*="ticker"], [class*="marquee"]')[0]
+    || [...document.querySelectorAll('div')].filter(vis).find(e => {
+         const r = e.getBoundingClientRect();
+         return r.top < 200 && r.height > 0 && r.height < 60 && (e.textContent.match(/\$[\d,]+/g) || []).length >= 3;
+       });
   const txt = e => (e.textContent || '').replace(/\s+/g, ' ').trim();
   const free = [...document.querySelectorAll('*')].filter(e => vis(e) && /\$0/.test(txt(e)) && txt(e).length < 400).pop();
   const pro = [...document.querySelectorAll('*')].filter(e => vis(e) && /\$25/.test(txt(e)) && txt(e).length < 400).pop();
-  const footer = Q('footer, .pf-footer')[0];
-  const cols = footer ? [...footer.querySelectorAll('nav, ul, .pf-footer-col')].filter(vis).filter(e => e.querySelectorAll('a[href]').length >= 2) : [];
+  const fgrid = document.querySelector('.lp-footer-grid');
+  const cols = fgrid ? [...fgrid.children].filter(vis).filter(e => e.querySelectorAll('a[href]').length >= 2) : [];
   return {
     c18: { nav: nav ? nav.offsetHeight : -1, ticker: ticker ? ticker.offsetHeight : -1 },
     c19: { lefts: [...new Set(cards.map(a => Math.round(a.getBoundingClientRect().left)))], n: cards.length },
