@@ -43,20 +43,20 @@
           <div style="flex:1"></div>
           <div style="display:flex; align-items:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;">
             <div style="display:flex; align-items:center; gap:6px; color:#8b8f94;"><div style="width:5px; height:5px; background:#d9a626;"></div>1 POSITION OPEN</div>
-            <div style="color:#5a5f66; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
-            <div style="width:22px; height:22px; border:1px solid #2a2e32; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700; flex-shrink:0;">J</div>
+            <div style="color:#7c828a; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
+            <div style="width:22px; height:22px; border:1px solid #5e646b; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700; flex-shrink:0;">J</div>
           </div>
         </div>
 
         <div style="height:42px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:12px;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.1em; color:#e8e9ea;">JOURNAL</div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#5a5f66;">68 TRADES · LAST 90 DAYS</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#7c828a;">68 TRADES · LAST 90 DAYS</div>
           <div style="flex:1"></div>
           <div style="display:flex; gap:2px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; border:1px solid #1f2225;">
-            <div style="padding:5px 10px; color:#5a5f66;">30D</div>
+            <div style="padding:5px 10px; color:#7c828a;">30D</div>
             <div style="padding:5px 10px; color:#08090a; background:#d9a626;">90D</div>
-            <div style="padding:5px 10px; color:#5a5f66;">YTD</div>
-            <div style="padding:5px 10px; color:#5a5f66;">ALL</div>
+            <div style="padding:5px 10px; color:#7c828a;">YTD</div>
+            <div style="padding:5px 10px; color:#7c828a;">ALL</div>
           </div>
           <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; color:#08090a; background:#d9a626; padding:6px 12px; font-weight:700;">+ LOG TRADE</div>
         </div>
@@ -64,7 +64,7 @@
         <div style="flex-shrink:0; border-bottom:1px solid #1f2225; display:grid; grid-template-columns:repeat(6,1fr);">
           <sc-for list="{{ journalStats }}" as="s" hint-placeholder-count="6">
             <div style="padding:16px 18px; border-right:1px solid #131618;">
-              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#5a5f66;">{{ s.label }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">{{ s.label }}</div>
               <div style="font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; color:{{ s.col }}; margin-top:7px; font-variant-numeric:tabular-nums;">{{ s.value }}</div>
               <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#3a3f45; margin-top:5px;">{{ s.note }}</div>
             </div>
@@ -73,7 +73,7 @@
 
         <div style="height:196px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex;">
           <div style="flex:1; min-width:0; position:relative; padding:16px 18px;">
-            <div style="position:absolute; left:18px; top:14px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#5a5f66;">Equity curve · R multiples</div>
+            <div style="position:absolute; left:18px; top:14px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">Equity curve · R multiples</div>
             <div style="position:absolute; inset:38px 18px 18px 18px;">
               <sc-for list="{{ equityPts }}" as="p" hint-placeholder-count="48">
                 <div style="position:absolute; left:{{ p.left }}; width:{{ p.w }}; top:{{ p.top }}; height:2px; background:#3fb950;"></div>
@@ -81,7 +81,7 @@
             </div>
           </div>
           <div style="width:300px; flex-shrink:0; border-left:1px solid #1f2225; padding:16px 18px;">
-            <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#5a5f66;">By setup</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">By setup</div>
             <div style="margin-top:12px; display:flex; flex-direction:column; gap:9px;">
               <div style="display:flex; align-items:center; gap:10px;">
                 <div style="font-size:12px; color:#e8e9ea; width:120px;">Short squeeze</div>
@@ -107,15 +107,15 @@
           </div>
         </div>
 
-        <div style="display:grid; grid-template-columns:82px 78px 68px 104px 104px 68px 88px 1fr 88px; border-bottom:1px solid #1f2225; background:#0c0d0f;">
+        <div style="display:grid; grid-template-columns:82px 78px 68px 104px 104px 68px 88px 1fr 88px; border-bottom:1px solid #1f2225; background:#141517;">
           <sc-for list="{{ journalCols }}" as="h" hint-placeholder-count="9">
-            <div style="padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#5a5f66; text-align:{{ h.align }};">{{ h.label }}</div>
+            <div style="padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#7c828a; text-align:{{ h.align }};">{{ h.label }}</div>
           </sc-for>
         </div>
         <div style="flex:1; min-height:0; overflow:hidden;">
           <sc-for list="{{ journalRows }}" as="j" hint-placeholder-count="8">
             <div style="display:grid; grid-template-columns:82px 78px 68px 104px 104px 68px 88px 1fr 88px; border-bottom:1px solid #131618; align-items:center;">
-              <div style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#5a5f66;">{{ j.date }}</div>
+              <div style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#7c828a;">{{ j.date }}</div>
               <div style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:#e8e9ea; letter-spacing:.06em;">{{ j.sym }}</div>
               <div style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:{{ j.sideCol }};">{{ j.side }}</div>
               <div style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:#e8e9ea; text-align:right; font-variant-numeric:tabular-nums;">{{ j.entry }}</div>
@@ -134,12 +134,12 @@
           <img src="assets/logo.png" alt="LiquidityHQ" style="width:18px; height:18px; border-radius:4px; display:block; flex-shrink:0;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.14em; color:#e8e9ea;">JOURNAL</div>
           <div style="flex:1"></div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#5a5f66; letter-spacing:.1em;">90D</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#7c828a; letter-spacing:.1em;">90D</div>
         </div>
         <div style="flex-shrink:0; border-bottom:1px solid #1f2225; display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:#1f2225;">
           <sc-for list="{{ journalStats }}" as="s" hint-placeholder-count="6">
             <div style="background:#08090a; padding:10px 12px;">
-              <div style="font-family:'IBM Plex Mono',monospace; font-size:8.5px; letter-spacing:.14em; text-transform:uppercase; color:#5a5f66;">{{ s.label }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:8.5px; letter-spacing:.14em; text-transform:uppercase; color:#7c828a;">{{ s.label }}</div>
               <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:600; color:{{ s.col }}; margin-top:4px; font-variant-numeric:tabular-nums;">{{ s.value }}</div>
             </div>
           </sc-for>
@@ -157,7 +157,7 @@
               <div style="display:flex; align-items:center; gap:9px;">
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; color:#e8e9ea; letter-spacing:.06em;">{{ j.sym }}</div>
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; color:{{ j.sideCol }};">{{ j.side }}</div>
-                <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#5a5f66;">{{ j.date }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#7c828a;">{{ j.date }}</div>
                 <div style="flex:1"></div>
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:{{ j.rCol }};">{{ j.r }}</div>
               </div>
@@ -238,7 +238,7 @@ class Component extends DCLogic {
 
     const mono = this.props.signalColorOnly ?? true;
     const acc = this.props.accent ?? '#d9a626';
-    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#5a5f66';
+    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#7c828a';
 
     const ICON = {
       desk: 'M3.2 3.2h5.6v5.6H3.2zM11.2 3.2h5.6v5.6h-5.6zM3.2 11.2h5.6v5.6H3.2zM11.2 11.2h5.6v5.6h-5.6z',
@@ -485,7 +485,7 @@ class Component extends DCLogic {
       { time: '07:59', src: 'BLOOMBERG', head: 'Options desks report heavy 114k put buying into Friday expiry', coins: 'BTC', impact: 'MED' },
       { time: '07:22', src: 'THE BLOCK', head: 'Chainlink launches cross-chain reserve proofs with two custodians', coins: 'LINK', impact: 'LOW' }
     ];
-    const IMPACT = { HIGH: RED, MED: acc, LOW: '#5a5f66' };
+    const IMPACT = { HIGH: RED, MED: acc, LOW: '#7c828a' };
     const IMPACT_MAP = IMPACT;
 
     const decorate = list => list.map(f => ({
@@ -493,7 +493,7 @@ class Component extends DCLogic {
       note: f.note ?? '',
       icon: f.on ? '✓' : '·',
       iconCol: f.on ? GREEN : '#3a3f45',
-      txtCol: f.on ? TXT : '#5a5f66'
+      txtCol: f.on ? TXT : '#7c828a'
     }));
 
     // ── Setup scanner ──
@@ -633,7 +633,7 @@ class Component extends DCLogic {
     ];
     const alertRows = AL.map(r => ({
       sym: r[0], type: r[1], cond: r[2], channel: r[3], status: r[4], age: r[5],
-      statusCol: r[4] === 'ARMED' ? GREEN : '#5a5f66',
+      statusCol: r[4] === 'ARMED' ? GREEN : '#7c828a',
       dot: r[4] === 'ARMED' ? GREEN : '#3a3f45'
     }));
 
@@ -852,11 +852,11 @@ class Component extends DCLogic {
       heatTrackM: trackFor(20),
       heatSpotTop: heatPct(SPOT).toFixed(2) + '%',
       heatTfs: [
-        { label: '12H', col: '#5a5f66', bg: 'transparent' },
-        { label: '24H', col: '#5a5f66', bg: 'transparent' },
-        { label: '3D', col: '#5a5f66', bg: 'transparent' },
+        { label: '12H', col: '#7c828a', bg: 'transparent' },
+        { label: '24H', col: '#7c828a', bg: 'transparent' },
+        { label: '3D', col: '#7c828a', bg: 'transparent' },
         { label: '7D', col: '#08090a', bg: acc },
-        { label: '30D', col: '#5a5f66', bg: 'transparent' }
+        { label: '30D', col: '#7c828a', bg: 'transparent' }
       ],
       threshold: thr,
       thresholdLabel: thr.toFixed(2),
@@ -864,7 +864,7 @@ class Component extends DCLogic {
       onRefresh: () => this.setState({ seed: (seed * 16807 + 7919) & 0x7fffffff }),
       swatches: RAMPS.map((_, i) => ({
         bg: rampCss(i),
-        bdr: i === palIdx ? acc : '#2a2e32',
+        bdr: i === palIdx ? acc : '#5e646b',
         onPick: () => this.setState({ palette: i })
       })),
       barCss: rampCss(palIdx),
