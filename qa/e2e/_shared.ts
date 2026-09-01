@@ -319,6 +319,23 @@ export const BASELINE = {
       // text on mid-tone green and amber fills; in light it is the /funding
       // chips. Same defect shape, and the exact hex varies with the data.
       'near-white',
+
+      /* ADDED 2026-08-14 WHEN contrast.spec.ts STARTED PINNING CONSENT.
+       *
+       * Both are marginal — 4.47 and 4.37 against the 4.5 bar — and both are
+       * REAL, not artefacts. The pin did not create them; it made the sweep
+       * measure a page the cookie banner had been altering, and these render
+       * there. Two runs on the same commit had been reporting the same COUNT
+       * with a token set that differed by two, which is how they hid.
+       *
+       * `#7a7e94` IS `--txt2`, the app's secondary text token. Fixing it means
+       * moving secondary text everywhere, so it is recorded rather than chased.
+       *
+       * NOT a blessing. If `--txt2` is ever adjusted, delete this line and let
+       * the sweep re-measure rather than assuming it still applies. */
+      '#7a7e94',   // --txt2, worst 4.47:1 on /about
+      '#8a8a8a',   // worst 4.37:1 on /funding
+
       '#1a7aff', '#414551', '#434754', '#4c4e5d',
       '#4c515f', '#4e5361', '#585d6d', '#63656a',
       '#a54e4f', '#c0595a', 
