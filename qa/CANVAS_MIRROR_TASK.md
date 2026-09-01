@@ -112,7 +112,27 @@ The cascade banner is **not** a gap: the canvas shows its active state, and
 
 ---
 
-## 6. Tooling, and what it cannot tell you
+## 6. `/dashboard` — canvas-sourced criteria, current state
+
+`spec-conformance.mjs` now extracts C1/C2's section names from the canvas at
+runtime. On `838471c` it correctly fails:
+
+```
+C1 main column [canvas-sourced]  4/5  MISSING "Next events"
+C2 rail        [canvas-sourced]  1/2  MISSING "Macro backdrop"
+```
+
+Both are real renames: the live page renders **"Economic calendar"** where the
+canvas says *Next events*, and **"Global Macro Context"** where the canvas says
+*Macro backdrop*. Section naming is part of mirroring — a section that is
+present under a different name is not the designed screen.
+
+Known gap in the extraction: *Perp vs spot*'s label does not carry
+`font-size:10px`, so C2 checks 2 rail sections rather than 3.
+
+---
+
+## 7. Tooling, and what it cannot tell you
 
 `qa/canvas-diff.mjs` — pulls the static labels out of each `.dc.html` (skipping
 `{{ handlebars }}`, which are data placeholders) and reports which the live
@@ -132,7 +152,7 @@ canvases. Until that lands, treat their section-level passes as unproven.
 
 ---
 
-## 7. Status — measured, 2026-09-02 on `838471c`
+## 8. Status — measured, 2026-09-02 on `838471c`
 
 `qa/canvas-diff.mjs`, canvas sample data (prices, times, dates) excluded.
 Full output: `qa/reports/canvas-diff-838471c.txt`.

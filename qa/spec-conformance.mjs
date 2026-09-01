@@ -154,7 +154,14 @@ const PAGE_EVAL = ({ tokens }) => {
    the rewrite: the expected sections must come from the design, never from the
    page. If no canvas is mapped, the section checks are reported as UNVERIFIABLE
    rather than silently passing on page-derived strings. */
-const CANVAS_FOR = { '/dashboard': 'Dashboard 2a' };
+const CANVAS_FOR = {
+  '/dashboard': 'Dashboard 2a', '/arena': 'Arena 1a', '/': 'Landing 7a',
+  '/alerts': 'Alerts', '/briefing': 'Briefing', '/calc': 'Calculator',
+  '/econ-calendar': 'Economic Calendar', '/faq': 'FAQ', '/funding': 'Funding',
+  '/journal': 'Journal', '/learn': 'Learn', '/liq': 'Liquidation Map',
+  '/markets': 'Markets', '/news': 'News', '/offline': 'Offline',
+  '/about': 'About', '/disclaimer': 'Disclaimer',
+};
 function canvasSections(route) {
   const name = CANVAS_FOR[route];
   const file = name && `design-handoff-dir/design_files/${name}.dc.html`;
