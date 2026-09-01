@@ -1,0 +1,70 @@
+
+# Canvas vs live — designed labels the route does not render
+
+A label present is NOT proof the section matches. This finds ABSENT and
+RENAMED things only; "present but built differently" is invisible here.
+
+## /briefing  —  2/17 labels present (12%)
+   MISSING: "Briefing · long-form read, levels rail", "LONDON · 2h 14m", "Morning briefing · 14 Aug 2026", "Levels that matter", "Chart", "OPEN TODAY'S ARENA READ", "EMAIL ME THIS BRIEFING DAILY", "14 Aug 2026 · London", "SPOT PAYS UP WHILE LEVERAGE CROWDS ONE SIDE", "OPEN ARENA READ", "Turn 3 · Batch 1", "Markets ·", "Liquidation map ·", "News wire ·", "Auth ·"
+   (2 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /funding  —  3/19 labels present (16%)
+   MISSING: "Funding history + correlation matrix", "NEXT PAYMENT 02:12", "FUNDING &amp; CORRELATION", "BTC funding · 8h payments", "11 CONSECUTIVE POSITIVE", "Across the board", "COIN", "CURRENT", "24H AVG", "7D AVG", "ANNUALISED", "NEXT", "Correlation · 30d", "HOURLY RETURNS", "Read", "NEXT 02:12"
+   (4 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /arena  —  10/51 labels present (20%)
+   MISSING: "Arena · BTC 4H · Pro entitled", "LONDON · 2h 14m", "DISMISS ✕", "BTCUSDT", "PERP", "1D moved 4.2%", "Read · 4H · 11:42 UTC", "LEAN BULLISH", "RE-RUN READ", "SET ALERT", "1M · 5M · 15M NEED PRO", "EMA · VOL · CLUSTERS", "7 FACTORS · 4 VOTING", "+42", "LEANING BULL", "−100 · +100", "4 BULL · 3 NEUTRAL", "Market structure" … +23
+   (6 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /offline  —  2/10 labels present (20%)
+   MISSING: "Offline · cached data with honest timestamps", "Offline", "THE FEED IS GONE, THE NUMBERS ARE OLD.", "RETRY NOW", "VIEW CACHED JOURNAL", "What you still have", "OFFLINE", "RETRYING EVERY 10s"
+
+## /alerts  —  3/13 labels present (23%)
+   MISSING: "7 ARMED · 1 PAUSED", "8 OF 25 USED", "+ NEW ALERT", "Delivery", "Triggered today", "Alert accuracy · 30d", "44 of 72 followed through", "7 ARMED", "TRIGGERED", "DELIVERY"
+   (1 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /journal  —  3/13 labels present (23%)
+   MISSING: "1 POSITION OPEN", "68 TRADES · LAST 90 DAYS", "YTD", "+ LOG TRADE", "Equity curve · R multiples", "By setup", "Short squeeze", "Trend pullback", "Absorption", "Range fade"
+   (6 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /markets  —  2/8 labels present (25%)
+   MISSING: "Markets · 28 coins, sortable, column picker", "LONDON · 2h 14m", "28 PERPETUALS · BYBIT", "SEARCH COIN", "OPEN ARENA →", "SHOWING 1–22 OF 28 · LOAD MORE"
+   (1 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /disclaimer  —  4/14 labels present (29%)
+   MISSING: "START FREE", "Pages", "Effective", "14 AUG 2026", "Contents", "Turn 2 · Legal", "Terms ·", "Privacy ·", "Refunds. Same shell as", ", numbered sections with a contents rail."
+
+## /faq  —  3/10 labels present (30%)
+   MISSING: "FAQ · grouped, first answer open", "START FREE", "SEARCH THE FAQ", "Groups", "Still stuck", "Getting started", "Still stuck? hello@liquidity-hq.com"
+   (2 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /dashboard  —  8/26 labels present (31%)
+   MISSING: "Desk · selected-coin read + rail list", "LONDON · 2h 14m", "DISMISS ✕", "Market read · 14 Aug 11:42 UTC", "LEAN BULLISH", "▲ 1.42%", "Smart buyers stepping in", "OPEN ARENA →", "Coin signals · BTC", "Next events", "3 FIRING", "28 →", "+21 MORE COINS", "Perp vs spot · BTC", "Spot leading perp by", "Macro backdrop", "ARENA →", "3 firing"
+   (6 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /about  —  5/15 labels present (33%)
+   MISSING: "About · shared static shell", "START FREE", "Pages", "Updated", "14 AUG 2026", "Principles", "Where the data comes from", "Contact", "hello@liquidity-hq.com", "@liquidityhq · Telegram"
+   (1 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /news  —  3/8 labels present (38%)
+   MISSING: "News · dense wire feed, no images", "WIRE LIVE", "NEWS WIRE", "14 AUG · 42 STORIES TODAY", "SHOWING 1–10 OF 42 · LOAD MORE"
+
+## /calc  —  4/9 labels present (44%)
+   MISSING: "PREFILLED FROM BTC 4H READ", "Inputs", "RESET", "Also worth knowing", "BTC 4H"
+
+## /liq  —  9/20 labels present (45%)
+   MISSING: "LIVE FEED", "BTC LIQUIDATION HEATMAP", "AGGREGATED · 5 VENUES", "57.08M", "Cluster ladder", "8 LEVELS · $327M STACKED", "SHORT LIQS", "LONG LIQS", "DISTANCE", "LIQ MAP", "NEAREST −1.6%"
+   (5 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /econ-calendar  —  10/21 labels present (48%)
+   MISSING: "CPI IN 48m", "TIMES IN UTC · YOUR ZONE UTC+8", "HIGH ONLY", "REGION", "FORECAST", "Next up", "HIGH IMPACT · 48m", "US CPI YoY", "Session windows", "CPI 48m", "NEXT · HIGH IMPACT"
+   (5 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /  —  25/49 labels present (51%)
+   MISSING: "Landing · every section the real page ships", "Live market data · 50 coins", "STOP GUESSING", "WHERE THE STOPS ARE.", "SEE TODAY'S BRIEFING →", "Live read · BTCUSDT 4H", "LEAN BULLISH", "ENTRY", "TARGET", "SIX SURFACES, ONE VOCABULARY.", "FOUR STEPS, ABOUT A MINUTE.", "TWO TIERS. NO SALES CALL.", "7-DAY TRIAL", "START 7-DAY TRIAL", "THE LEVELS ARE ALREADY THERE.", "START SEEING THEM.", "Read the full disclaimer", "EN ▾" … +6
+   (5 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+
+## /learn  —  3/5 labels present (60%)
+   MISSING: "START FREE", "FIND A TERM"
+   (2 further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)
+

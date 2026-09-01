@@ -132,15 +132,59 @@ canvases. Until that lands, treat their section-level passes as unproven.
 
 ---
 
-## 7. Status
+## 7. Status — measured, 2026-09-02 on `838471c`
 
-| screen | canvas | branch | state |
-|---|---|---|---|
-| `/dashboard` | `Dashboard 2a` | `feature/dashboard-canvas-mirror` | gap documented, not started |
-| `/` | `Landing 7a` | `feature/landing-canvas-mirror` | baseline #586, canvas diff pending |
-| `/arena` | `Arena 1a` | `feature/arena-canvas-mirror` | not started |
-| 14 other mapped routes | — | — | canvas diff running |
+`qa/canvas-diff.mjs`, canvas sample data (prices, times, dates) excluded.
+Full output: `qa/reports/canvas-diff-838471c.txt`.
 
-Scope is unknown until the route-by-route diff completes. If `/dashboard` is
-this far from its canvas, others likely are too — nobody has checked, because
-the audit could not see it.
+| route | canvas labels present | branch |
+|---|---|---|
+| `/learn` | 3/5 — 60% | `feature/learn-canvas-mirror` |
+| `/` | 25/49 — 51% | `feature/landing-canvas-mirror` |
+| `/econ-calendar` | 10/21 — 48% | `feature/econ-calendar-canvas-mirror` |
+| `/liq` | 9/20 — 45% | `feature/liq-canvas-mirror` |
+| `/calc` | 4/9 — 44% | `feature/calc-canvas-mirror` |
+| `/news` | 3/8 — 38% | `feature/news-canvas-mirror` |
+| `/about` | 5/15 — 33% | `feature/about-canvas-mirror` |
+| **`/dashboard`** | **8/26 — 31%** | **`feature/dashboard-canvas-mirror`** — in progress |
+| `/faq` | 3/10 — 30% | `feature/faq-canvas-mirror` |
+| `/disclaimer` | 4/14 — 29% | `feature/disclaimer-canvas-mirror` |
+| `/markets` | 2/8 — 25% | `feature/markets-canvas-mirror` |
+| `/journal` | 3/13 — 23% | `feature/journal-canvas-mirror` |
+| `/alerts` | 3/13 — 23% | `feature/alerts-canvas-mirror` |
+| `/offline` | 2/10 — 20% | `feature/offline-canvas-mirror` |
+| `/arena` | 10/51 — 20% | `feature/arena-canvas-mirror` |
+| `/funding` | 3/19 — 16% | `feature/funding-canvas-mirror` |
+| `/briefing` | 2/17 — 12% | `feature/briefing-canvas-mirror` |
+
+**Median ~29%. Nothing above 60%. No screen currently mirrors its canvas.**
+
+### How to read these numbers
+
+They are a **floor on the gap, not a measure of it**. Three reasons:
+
+1. A label counts as present if the string appears anywhere on the page — so a
+   section that exists but is laid out completely differently still scores as a
+   hit. `/dashboard` is 31% and its *real* divergence is larger.
+2. A renamed section reads as missing even when the equivalent content exists.
+3. "Present but built differently" is invisible to this method entirely.
+
+So: low percentage is reliable evidence of a real gap. A higher percentage is
+**not** evidence of conformance.
+
+### Not all of the gap is buildable as drawn
+
+Confirmed on `/dashboard` by dev reading the components behind the canvas:
+
+- **Entry/Stop/Target** — no local computation produces them; only Arena's
+  per-request AI call, unpersisted. `dashboard-2a.md` never asks for them.
+- **Market conditions' 4 bars** (Volatility / Trend strength / Breadth /
+  Liquidity) — none of those metrics exist in the codebase. New quant work,
+  requires definitions.
+- **Perp vs spot** — canvas draws a price-lead percentage; the real component
+  deliberately uses a volume ratio in `x` units per owner decision **#328**.
+  Building the canvas literally would reverse a prior product decision.
+
+**A canvas can specify layout. It cannot invent data or silently overturn a
+product decision.** Expect more of this on other screens; each needs a ruling,
+not a build.

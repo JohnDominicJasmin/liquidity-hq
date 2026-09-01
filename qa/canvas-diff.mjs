@@ -54,6 +54,25 @@ const MAP = {
 /* Labels that are canvas chrome rather than product copy. */
 const IGNORE = /^(2A|1A|7A|DESK|LONDON|NEW YORK|TOKYO|✕|→|←|▲|▼|·|\.|,|\d+|[A-Z]|⌘K|J)$/;
 
+/* SAMPLE DATA IS NOT DESIGN. A canvas is populated with mock values - prices,
+   percentages, clock times, dates, frame markers - and a live page rendering
+   real data will never contain them. Counting those as "missing" inflates the
+   gap and is the same overstatement as counting instances instead of
+   components. Structural labels only. */
+const SAMPLE = [
+  /^[\d,]+(\.\d+)?$/,                    // 115,284  ·  115,284.50
+  /^[+−-]?[\d.]+%$/,                  // +1.42%  ·  -0.04%
+  /^\$[\d,]+(\.\d+)?$/,                  // $115,284.50
+  /^[+−-]?[\d.]+R$/,                  // +1.6R
+  /^\d{1,2}:\d{2}( UTC)?$/,               // 11:42 UTC
+  /^\d{1,2} [A-Z][a-z]{2}( \d{4})?$/,     // 14 Aug 2026
+  /^>?[0-9]+[A-Z]$/,                       // >2A frame marker
+  /^(E|S|T|FC|PREV) [\d,]+(\.\d+)?%?$/,   // E 114,820  ·  FC 2.9%
+  /\d{1,2}h \d{1,2}m/,                // LONDON · 2h 14m
+  /^\d+ ?(TERMS|Q|PERPS|STORIES)/i,        // 42 TERMS · 18 Q
+];
+const isSample = t => SAMPLE.some(re => re.test(t));
+
 function canvasLabels(file) {
   let s = readFileSync(file, 'utf8');
   s = s.replace(/<(script|style|helmet)[^>]*>[\s\S]*?<\/\1>/g, '');
@@ -108,8 +127,10 @@ for (const j of jobs) {
     continue;
   }
   const norm = live.toLowerCase();
-  const missing = labels.filter(l => !norm.includes(l.toLowerCase()));
-  results.push({ ...j, total: labels.length, missing });
+  const missingAll = labels.filter(l => !norm.includes(l.toLowerCase()));
+  const missing = missingAll.filter(l => !isSample(l));
+  const structural = labels.filter(l => !isSample(l));
+  results.push({ ...j, total: structural.length, missing, sampleSkipped: missingAll.length - missing.length });
   if (!JSON_OUT) process.stderr.write(`  ${j.route} ${labels.length - missing.length}/${labels.length}\n`);
 }
 await browser.close();
@@ -124,6 +145,7 @@ for (const r of sorted) {
   const pct = Math.round(100 * (r.total - r.missing.length) / r.total);
   console.log(`## ${r.route}  —  ${r.total - r.missing.length}/${r.total} labels present (${pct}%)`);
   if (r.missing.length) console.log(`   MISSING: ${r.missing.slice(0, 18).map(m => JSON.stringify(m)).join(', ')}${r.missing.length > 18 ? ` … +${r.missing.length - 18}` : ''}`);
+  if (r.sampleSkipped) console.log(`   (${r.sampleSkipped} further absent strings were canvas SAMPLE DATA - prices, times, dates - not counted)`);
   console.log('');
 }
 for (const r of results.filter(r => r.error)) console.log(`## ${r.route} — ERROR ${r.error} (absent from the data, not passing)`);
