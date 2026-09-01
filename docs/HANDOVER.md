@@ -269,16 +269,18 @@ android/      Capacitor Android shell
   body explaining the real cause and why the fix is shaped that way. Look at recent commits
   before writing one. Trailer: `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
 
-### Branch & deploy state as of 2026-08-27
+### Branch & deploy state as of 2026-09-02
 
 | Branch | Commit | Note |
 |---|---|---|
-| `origin/dev` | `b368469` | PR #484 merged (contrast.spec.ts light-theme fix + eslint globalIgnore restore for design-handoff-dir) |
-| `origin/qa` | `b368469` | same as dev — promoted after #484 |
-| `origin/staging` | `e690816` | Monochrome Terminal revert (#481) + eslint globalIgnore restore — **service deploy status unknown, check /api/version** |
-| `origin/main` | `590dbfb` | merge of PR #374 (staging → main, pre-revert release) |
+| `origin/dev` | `7f0178d` | PR #563 merged — #561 terminal light theme + platform-wide `.consent-accept` contrast fix |
+| `origin/qa` | `7f0178d` | same as dev — promoted and deployed (`liquidity-hq-qa` service, commit confirmed live via `/api/version`) |
+| `origin/staging` | `507c080` | not yet re-promoted with the terminal work below — check `/api/version` on `liquidity-hq-staging` before assuming |
+| `origin/main` | `b9795ee` | production — not yet touched by the terminal redesign batch |
 
-**What changed since 2026-08-01:**
+**Monochrome Terminal redesign (#413) is back and active, unlike the 2026-08-27 revert noted below.** Session 2026-09-01/02 shipped, in order: #558 (Dashboard C8 radius), #560 (platform conformance batch — terminal token governance for `--accent-solid`/`--accent-dim`/`--blue` family/`--bg3`/`--bg4`/`--on-accent`, `/funding`+`/correlation` light-theme contrast, a platform-wide radius carve-out for circular markers, footer link touch targets), #562 (QA's `qa/contrast-diff.mjs` + `qa/platform-audit.mjs` tooling), #563 (the terminal design now has an actual `[data-design="terminal"][data-theme="light"]` token block — it didn't before, terminal+light silently fell back to the current design and QA's #559 audit's light-theme rows were measuring two unrelated systems against each other; see issue #561). A new conformance test direction was added in `__tests__/terminalTokens.test.mts` (2026-09-01): asserts every `var()` a terminal-scoped selector references is actually declared in the terminal token block, not just that the block declares nothing undocumented — the asymmetry that let five different tokens (`--amber`, `--accent-2`, `--accent-bg`/`--accent-bdr`, `--fr-slight-long`, `--on-accent`) fall through ungoverned over the course of the session before being caught by manual sweep or QA's audit.
+
+**What changed since 2026-08-01 (older entries, still accurate):**
 - #481: Monochrome Terminal redesign reverted from qa/staging. Preserved on `feature/monochrome-terminal`. `CONVERTED_ROUTES = []` — palette specs paused.
 - #484: `qa/e2e/contrast.spec.ts` light-theme `byColour` map restored to carry `where`/`what` context (PR #424 was caught in the #481 revert by mistake). Also restored `design-handoff-dir/**` to eslint `globalIgnores` — it had been removed from `dev` by the revert.
 - #368: Closed as known limitation. Non-prod Render services (dev/qa/staging) are on the free plan and share egress IPs — Binance returns 418 from those IPs. Prod is on `starter` plan, unaffected. No real users on qa/staging.
