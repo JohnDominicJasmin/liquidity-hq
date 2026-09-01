@@ -15,7 +15,7 @@
  * unchanged. The redesign opts in screen by screen.
  */
 
-/** The 17 documented colour tokens. Values are the README's, EXCEPT --bg1 and
+/** The 18 documented colour tokens. Values are the README's, EXCEPT --bg1 and
  *  --txt3 - see the amendment note below. */
 export const TERMINAL_COLORS = {
   '--bg0':          '#08090a',  // Canvas
@@ -53,6 +53,11 @@ export const TERMINAL_COLORS = {
      eight states using a bare literal instead of a token, undeclared in the
      terminal block, same governance shape as --amber above. */
   '--fr-slight-long': '#d4b483',
+  /* #559: the empty-cell dash's own colour - --txt3 passes on --bg0/-1/-2
+     but only 4.30:1 on the composited tile background CoinHeatmap.tsx's
+     placeholder actually renders on. Design's ruling: a dedicated value
+     for this one use, not a change to --txt3 itself. */
+  '--txt-dash': '#848a92',
 } as const;
 
 /* The seventeenth value: the FLAT cell in the hours expectancy grid.
