@@ -5262,8 +5262,15 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 
    Radius is 0 EVERYWHERE in this direction. Not a token - an absence. The
    current app uses border-radius extensively, so opting a screen in means
-   removing radii, not overriding them. */
-[data-design="terminal"] {
+   removing radii, not overriding them.
+
+   :not([data-theme="light"]) guard (#511): terminal has no light palette -
+   every rule below reads these vars via var(), never a literal hex, so
+   withholding this override when light theme is active makes the whole
+   terminal scope fall back to light's own tokens instead of colliding on
+   source order (this block sits after [data-theme="light"] in the file,
+   so without the guard terminal's black --bg1 always won). */
+[data-design="terminal"]:not([data-theme="light"]) {
   --bg0:  #08090a;   /* canvas */
   --bg1:  #0c0d0f;   /* raised region */
   --bg2:  #111416;   /* bar/track background */
