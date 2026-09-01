@@ -6356,31 +6356,36 @@ main.app-content[data-chrome="none"] {
    its mini-mode track/fill on every route - same AppShell-sibling shape as
    NavDrawer and GrokChat, just missed in the first pass.
 
-   ONE RULE PER COMPONENT, not one big comma list (#526 follow-up). QA found
-   the single combined rule applied to .nav-menu's branch on the deployed qa
-   build but NOT to .app-bar's or .gchat-panel's branches, in the same
-   declaration, same !important, same specificity - unreproducible locally
-   (my own prod build had every branch working) and not explainable from the
-   cascade. Splitting each root into its own standalone rule removes any
-   possibility of a long comma-list/minifier interaction being the cause,
-   and is the same defensive shape already proven for every other nuclear
-   wrap in this file (one wrap, one rule, never grouped across components).
-   Also added explicit non-wildcard fallbacks for the specific classes QA's
-   sweep named (desktop-nav-item, theme-btn, gchat-coin) so those clear even
-   if a `*` descendant selector is ever the actual point of failure. */
-[data-design="terminal"] .app-bar { border-radius: 0 !important; }
-[data-design="terminal"] .app-bar * { border-radius: 0 !important; }
-[data-design="terminal"] .nav-menu { border-radius: 0 !important; }
-[data-design="terminal"] .nav-menu * { border-radius: 0 !important; }
-[data-design="terminal"] .nav-more-dropdown { border-radius: 0 !important; }
-[data-design="terminal"] .nav-more-dropdown * { border-radius: 0 !important; }
-[data-design="terminal"] .mobile-tab-bar { border-radius: 0 !important; }
-[data-design="terminal"] .mobile-tab-bar * { border-radius: 0 !important; }
-[data-design="terminal"] .gchat-fab { border-radius: 0 !important; }
-[data-design="terminal"] .gchat-panel { border-radius: 0 !important; }
-[data-design="terminal"] .gchat-panel * { border-radius: 0 !important; }
-[data-design="terminal"] .ob-checklist { border-radius: 0 !important; }
-[data-design="terminal"] .ob-checklist * { border-radius: 0 !important; }
-[data-design="terminal"] .desktop-nav-item { border-radius: 0 !important; }
-[data-design="terminal"] .theme-btn { border-radius: 0 !important; }
-[data-design="terminal"] .gchat-coin { border-radius: 0 !important; }
+   ONE RULE PER COMPONENT (#526 second follow-up) - but QA found the build's
+   CSS minifier MERGES adjacent rules that share an identical declaration
+   block back into one combined selector list, undoing the first split
+   before it ever reached the browser: source had 16 separate rules, the
+   deployed CSS had one 640-char comma list, tail verified via CSSOM on the
+   live deploy. That's why nothing moved on the first attempt - the "fix"
+   was never actually tested.
+
+   So every declaration below carries a unique, inert --_c6-tag custom
+   property (never read anywhere) purely so no two declaration blocks are
+   textually identical. A minifier that merges on identical declarations
+   cannot merge these - there is nothing byte-for-byte the same to merge.
+   Verify against the BUILT output, not this source, if this is ever
+   touched again; the source has looked correct at every step so far. */
+[data-design="terminal"] .app-bar { --_c6-tag: app-bar; border-radius: 0 !important; }
+[data-design="terminal"] .app-bar * { --_c6-tag: app-bar-d; border-radius: 0 !important; }
+[data-design="terminal"] .nav-menu { --_c6-tag: nav-menu; border-radius: 0 !important; }
+[data-design="terminal"] .nav-menu * { --_c6-tag: nav-menu-d; border-radius: 0 !important; }
+[data-design="terminal"] .nav-more-dropdown { --_c6-tag: nav-more; border-radius: 0 !important; }
+[data-design="terminal"] .nav-more-dropdown * { --_c6-tag: nav-more-d; border-radius: 0 !important; }
+[data-design="terminal"] .mobile-tab-bar { --_c6-tag: mobile-tab; border-radius: 0 !important; }
+[data-design="terminal"] .mobile-tab-bar * { --_c6-tag: mobile-tab-d; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-fab { --_c6-tag: gchat-fab; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-panel { --_c6-tag: gchat-panel; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-panel * { --_c6-tag: gchat-panel-d; border-radius: 0 !important; }
+[data-design="terminal"] .ob-checklist { --_c6-tag: ob-checklist; border-radius: 0 !important; }
+[data-design="terminal"] .ob-checklist * { --_c6-tag: ob-checklist-d; border-radius: 0 !important; }
+[data-design="terminal"] .desktop-nav-item { --_c6-tag: desktop-nav-item; border-radius: 0 !important; }
+[data-design="terminal"] .theme-btn { --_c6-tag: theme-btn; border-radius: 0 !important; }
+[data-design="terminal"] .lang-nav-btn { --_c6-tag: lang-nav-btn; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-coin { --_c6-tag: gchat-coin; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-quick { --_c6-tag: gchat-quick; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-send { --_c6-tag: gchat-send; border-radius: 0 !important; }
