@@ -1315,9 +1315,11 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 .arena-fire-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .arena-fire-btn:not(:disabled):hover { background: rgba(26,122,255,0.12); border-color: var(--accent); }
 .arena-fire-btn:not(:disabled):active { transform: scale(0.98); }
-/* Quick mode button - green tint */
-.arena-quick-btn { background: rgba(52,211,153,0.08) !important; border-color: rgba(52,211,153,0.3) !important; color: var(--green-2) !important; }
-.arena-quick-btn:not(:disabled):hover { box-shadow: 0 4px 20px rgba(52,211,153,0.15) !important; border-color: #34d399 !important; }
+/* Quick mode button (#513): was a green tint, which reads as a bullish signal
+   next to the Deep Research / Unlock-with-Pro row, not an interactive state.
+   Green means up/long/bullish in this product - never "interactive". Quick
+   now inherits .arena-fire-btn's --accent styling, same as every other
+   interactive control. */
 /* Deep button - locked state (not signed in) */
 /* "Locked" styling for the Quick/Deep Research buttons when signed out.
    Was #8a6020 under opacity 0.75, which computed to #694a1b = 2.4:1 - the
