@@ -6387,7 +6387,16 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .nav-more-dropdown * { --_c6-tag: nav-more-d; border-radius: 0 !important; }
 [data-design="terminal"] .mobile-tab-bar { --_c6-tag: mobile-tab; border-radius: 0 !important; }
 [data-design="terminal"] .mobile-tab-bar * { --_c6-tag: mobile-tab-d; border-radius: 0 !important; }
-[data-design="terminal"] .gchat-fab { --_c6-tag: gchat-fab; border-radius: 0 !important; }
+/* Owner exception to handoff README:141 ("Radius 0 everywhere. No shadows.",
+   unqualified), 2026-09-01: the Ask AI FAB keeps a 16px curve in terminal
+   mode. Current (non-terminal) design's .gchat-fab is 50% (circular); this
+   is a deliberate third value, not an oversight - the owner asked for 16px
+   specifically, not "match current design". Carved out of the C6 rule here
+   rather than layered as a competing !important elsewhere, so there is one
+   place this control's radius is decided, not two rules fighting. If a
+   future conformance sweep flags gchat-fab's radius, it is not a regression -
+   check here and #526/#546 first. */
+[data-design="terminal"] .gchat-fab { --_c6-tag: gchat-fab; border-radius: 16px !important; }
 [data-design="terminal"] .gchat-panel { --_c6-tag: gchat-panel; border-radius: 0 !important; }
 [data-design="terminal"] .gchat-panel * { --_c6-tag: gchat-panel-d; border-radius: 0 !important; }
 [data-design="terminal"] .ob-checklist { --_c6-tag: ob-checklist; border-radius: 0 !important; }
