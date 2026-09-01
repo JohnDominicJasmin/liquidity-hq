@@ -49,6 +49,10 @@ const MAP = {
   'Journal': '/journal', 'Learn': '/learn', 'Liquidation Map': '/liq',
   'Markets': '/markets', 'News': '/news', 'Offline': '/offline',
   'About': '/about', 'Disclaimer': '/disclaimer',
+  'Research': '/research', 'Settings': '/settings', 'Setup Scanner': '/scanner',
+  'Playbook': '/playbook', 'Trading Hours': '/hours', 'Upgrade': '/upgrade',
+  'Privacy': '/privacy', 'Terms': '/terms', 'Refunds': '/refund',
+  'Login - Forgot Password': '/login', 'Reset Password': '/reset-password',
 };
 
 /* Labels that are canvas chrome rather than product copy. */

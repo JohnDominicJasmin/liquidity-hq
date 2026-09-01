@@ -161,6 +161,10 @@ const CANVAS_FOR = {
   '/journal': 'Journal', '/learn': 'Learn', '/liq': 'Liquidation Map',
   '/markets': 'Markets', '/news': 'News', '/offline': 'Offline',
   '/about': 'About', '/disclaimer': 'Disclaimer',
+  '/research': 'Research', '/settings': 'Settings', '/scanner': 'Setup Scanner',
+  '/playbook': 'Playbook', '/hours': 'Trading Hours', '/upgrade': 'Upgrade',
+  '/privacy': 'Privacy', '/terms': 'Terms', '/refund': 'Refunds',
+  '/login': 'Login - Forgot Password', '/reset-password': 'Reset Password',
 };
 function canvasSections(route) {
   const name = CANVAS_FOR[route];

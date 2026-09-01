@@ -107,6 +107,23 @@ Playwright.
 "contrast failures" are largely the *same* 50 placeholder dashes. Headline
 numbers overstate; `contrast-diff.mjs` exists because of this.
 
+**A check that cannot report failure is worse than no check — it gets trusted.**
+Two instances the same night, from both sessions:
+
+- **QA:** `spec-conformance.mjs` derived its expected sections by reading the
+  rendered page, so C1/C2 confirmed the page matched *itself* and passed while
+  `/dashboard` was 31% of its canvas.
+- **Dev:** gates were chained as `lint && tsc && test && build; echo $?` — the
+  `;` resets `$?` to the *echo's* status, so the gate printed `0` no matter
+  which command failed. Caught before pushing; each gate now runs with its own
+  captured exit code.
+
+Different surfaces, one shape: **the check's verdict was structurally
+independent of the thing it was checking.** Before trusting any pass, ask what
+would have to be true for it to fail — and if the answer is "nothing", it is
+not a check. State where each expected value came from; if the answer is "the
+artifact under test", stop.
+
 **An INVALID declaration and an ABSENT one look identical in computed styles.**
 `EconCalendarWidget.tsx:145` had ``background: `${col}22` `` where `col` is
 `'var(--red)'` — producing the string `var(--red)22`, which is not valid CSS.
