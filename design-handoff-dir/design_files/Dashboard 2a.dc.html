@@ -64,10 +64,11 @@
           </sc-for>
         </div>
 
-        <div style="height:36px; flex-shrink:0; border-bottom:1px solid #1f2225; background:rgba(240,82,77,.07); display:flex; align-items:center; padding:0 16px; gap:11px;">
-          <div style="width:6px; height:6px; background:#f0524d; flex-shrink:0;"></div>
-          <div style="font-size:12.5px; color:#f0524d; font-weight:600;">BTC cascade · $18.4M longs liquidated</div>
-          <div style="font-size:12px; color:#8b8f94;">Elevated cascade risk for the next few minutes</div>
+        <sc-if value="{{ cascadeActive }}" hint-placeholder-val="{{ false }}">
+        <div style="height:36px; flex-shrink:0; border-bottom:1px solid #1f2225; background:{{ cascadeBg }}; display:flex; align-items:center; padding:0 16px; gap:11px;">
+          <div style="width:6px; height:6px; background:{{ cascadeCol }}; flex-shrink:0;"></div>
+          <div style="font-size:12.5px; color:{{ cascadeCol }}; font-weight:600;">{{ cascadeHeadline }}</div>
+          <div style="font-size:12px; color:#8b8f94;">{{ cascadeSub }}</div>
           <div style="flex:1"></div>
           <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#7c828a;">DISMISS ✕</div>
         </div>
@@ -78,8 +79,9 @@
 
             <div style="flex-shrink:0; border-bottom:1px solid #1f2225; background:#141517; padding:15px 20px;">
               <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">Market read · 14 Aug 11:42 UTC</div>
-              <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:700; color:#3fb950; line-height:1; margin-top:8px;">RISK-ON, CAUTIOUS</div>
-              <div style="font-size:12.5px; line-height:1.5; color:#8b8f94; margin-top:8px; max-width:680px;">Spot leads, leverage is crowded long. Trend trades work while BTC holds 114.8k; nothing justifies size into this afternoon's CPI print.</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:700; color:{{ verdictCol }}; line-height:1; margin-top:8px;">{{ verdictText }}</div>
+              <div style="font-size:12.5px; line-height:1.5; color:#8b8f94; margin-top:8px; max-width:680px;">{{ verdictSub }}</div>
+              <div style="display:none">Spot leads, leverage is crowded long. Trend trades work while BTC holds 114.8k; nothing justifies size into this afternoon's CPI print.</div>
             </div>
 
             <div style="flex-shrink:0; border-bottom:1px solid #1f2225; padding:14px 20px;">
@@ -165,7 +167,7 @@
               <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#d9a626;">28 →</div>
             </div>
             <div style="flex:1; min-height:0; overflow:hidden;">
-              <sc-for list="{{ sidebarCoins }}" as="c" hint-placeholder-count="7">
+              <sc-for list="{{ sidebarCoinsShown }}" as="c" hint-placeholder-count="7">
                 <div style="padding:9px 14px; border-bottom:1px solid #131618; background:{{ c.selBg }};">
                   <div style="display:flex; align-items:center; gap:8px;">
                     <div style="width:16px; height:16px; border:1px solid #5e646b; border-radius:50%; flex-shrink:0;"></div>
@@ -233,8 +235,8 @@
         <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column;">
           <div style="flex-shrink:0; background:#141517; border-bottom:1px solid #1f2225; padding:14px;">
             <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">Market read</div>
-            <div style="font-family:'IBM Plex Mono',monospace; font-size:21px; font-weight:700; color:#3fb950; line-height:1.1; margin-top:8px;">RISK-ON,<br>CAUTIOUS</div>
-            <div style="font-size:12px; line-height:1.5; color:#8b8f94; margin-top:8px;">Spot leads, leverage crowded long. Nothing justifies size into this afternoon's CPI print.</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:21px; font-weight:700; color:{{ verdictCol }}; line-height:1.1; margin-top:8px;">{{ verdictTextM }}</div>
+            <div style="font-size:12px; line-height:1.5; color:#8b8f94; margin-top:8px;">{{ verdictSub }}</div>
           </div>
 
           <div style="flex-shrink:0; border-bottom:1px solid #1f2225; padding:12px 14px;">
@@ -300,10 +302,13 @@
   </div>
 </section>
 </x-dc>
-<script type="text/x-dc" data-dc-script>
+<script type="text/x-dc" data-dc-script data-props="{&quot;cascadeActive&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;verdictBias&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;bullish&quot;,&quot;tsType&quot;:&quot;'bullish'|'bearish'|'neutral'&quot;,&quot;options&quot;:[&quot;bullish&quot;,&quot;bearish&quot;,&quot;neutral&quot;],&quot;section&quot;:&quot;Behavior&quot;},&quot;sidebarCoinCount&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:7,&quot;min&quot;:5,&quot;max&quot;:15,&quot;step&quot;:1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
 class Component extends DCLogic {
   renderVals() {
     const GREEN = '#3fb950', RED = '#f0524d', ACC = '#d9a626', TXT = '#e8e9ea', TXT3 = '#7c828a', IDLE = '#3a3f45';
+    const cascadeActive = this.props.cascadeActive ?? false;
+    const verdictBias = this.props.verdictBias ?? 'bullish';
+    const sidebarCount = this.props.sidebarCoinCount ?? 7;
     const ICON = {
       desk: 'M3.2 3.2h5.6v5.6H3.2zM11.2 3.2h5.6v5.6h-5.6zM3.2 11.2h5.6v5.6H3.2zM11.2 11.2h5.6v5.6h-5.6z',
       arena: 'M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z',
@@ -375,7 +380,21 @@ class Component extends DCLogic {
       edgeCardsM: edgeCards.slice(0, 4),
       events, conditions,
       sidebarCoins,
+      sidebarCoinsShown: sidebarCoins.slice(0, sidebarCount),
       sidebarCoinsM: sidebarCoins.slice(0, 5),
+      cascadeActive,
+      cascadeCol: cascadeActive ? RED : TXT,
+      cascadeBg: cascadeActive ? 'rgba(240,82,77,.07)' : 'transparent',
+      cascadeHeadline: 'BTC cascade · $18.4M longs liquidated',
+      cascadeSub: 'Elevated cascade risk for the next few minutes',
+      verdictCol: verdictBias === 'bullish' ? GREEN : verdictBias === 'bearish' ? RED : TXT3,
+      verdictText: verdictBias === 'bullish' ? 'RISK-ON, CAUTIOUS' : verdictBias === 'bearish' ? 'RISK-OFF, DEFENSIVE' : 'MIXED, NO EDGE',
+      verdictTextM: verdictBias === 'bullish' ? 'RISK-ON,\u00a0CAUTIOUS'.split('\u00a0').join('<br>') : verdictBias === 'bearish' ? 'RISK-OFF,<br>DEFENSIVE' : 'MIXED,<br>NO EDGE',
+      verdictSub: verdictBias === 'bullish'
+        ? 'Spot leads, leverage is crowded long. Trend trades work while BTC holds 114.8k; nothing justifies size into this afternoon\u2019s CPI print.'
+        : verdictBias === 'bearish'
+        ? 'Leverage is crowded long into falling spot \u2014 the setup a cascade needs. Reduce size, do not add, until funding resets.'
+        : 'Signals disagree across timeframes. No directional edge; size down and wait for confluence.',
       pulse: [
         { label: 'BTC DOM', value: '58.4%', col: TXT },
         { label: 'ALTSEASON', value: '42', col: TXT },
