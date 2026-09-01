@@ -31,7 +31,7 @@ export const TERMINAL_COLORS = {
   '--green':        '#3fb950',  // Bullish / firing positive
   '--red':          '#f0524d',  // Bearish / firing negative
   '--mark-idle':    '#22262a',  // Signal marker when NOT firing
-  '--border-input': '#2a2e32',  // Input and secondary-button border
+  '--border-input': '#5e646b',  // Input and secondary-button border
 } as const;
 
 /* The sixteenth value: the FLAT cell in the hours expectancy grid.
