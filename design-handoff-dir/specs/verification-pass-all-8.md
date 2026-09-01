@@ -1,0 +1,26 @@
+# Verification pass, all 8 — complete
+
+## Restructure — blocked, do not spec as drawn
+**Setup Scanner.** `ScannerTerminal.tsx` composes 7 components (`AccumulationTracker`, `DistributionTracker`, `CoinHeatmap`, `DrawdownChart`, `MultiTFSqueezeView`, `SignalAccuracy`, `SetupScanner`-as-cards); my frame is a criteria-sidebar-plus-table with no source counterpart. Reported separately; unchanged.
+
+## Restyle only — safe to spec against source directly
+Six of the seven have **no separate terminal component and no structural divergence** — terminal mode is a CSS-class toggle on the same page (`Liq`, `Funding`, `Briefing` use a real `*Terminal.tsx` file that mirrors the non-terminal branch almost line-for-line; `Alerts`, `Settings`, `Econ Calendar` use `mode === 'terminal' ? 'x-term-wrap' : undefined` inline). None of the six invert or drop panels the way Dashboard/Scanner did.
+
+**Markets** — corrected already (spec delivered): drop the funding/OI columns my frame invented, add search/sort/pagination/count-strip, which are real.
+
+**Liquidation Map** — safe. Sections in source, top to bottom: coin selector, time-range chips, bias card, real liquidation clusters (live, ranked), long/short account-ratio stats (Bybit + Binance, dual-period), liquidation delta card, whale-positioning divergence card, then the estimated heatmap (short bands above spot, current-price bar, long bands below), legend, disclaimer, live feed, whale trades feed, GEX table. If my frame is missing any of these, it's a coverage gap, not a structure mismatch — flag per-panel, don't rebuild wholesale.
+
+**Funding** — corrected and renamed. `components/CorrelationTerminal.tsx` exists, at its own route `/correlation` with its own `page.tsx`/`layout.tsx` — same shape as `DashboardTerminal.tsx`. Correlation is not a tab or section of Funding; it's a wholly separate screen with no frame yet. File renamed `Funding.dc.html` / `Funding-light-theme.dc.html`. Funding itself: a regime-overview panel (contrarian-short/long counts + carry-arb count, per-coin regime rows), range chips, market-lean summary, a split list-plus-sticky-detail layout (searchable coin table left, selected coin's chart + signal banner right).
+
+**Outstanding, not covered by this bundle:** `/correlation` needs its own frame and its own spec — a 6th screen, added to the backlog, not folded into Funding.
+
+**Briefing** — safe. Sections: header, top-3-setups (score-ranked, direction-coloured), AI briefing generator (empty/generating/error/populated states, session-cached), CVD divergence chip row, session countdown, macro pulse (F&G, BTC dominance, DXY, ETF flow — 4 cells, last one conditional), Yen-watch gauge (140–165 scale, 158/160 thresholds), notable-signals list (top 10 by chip count, "+N more" overflow), events & news feed (econ + geo + whale, coloured by type/proximity).
+
+**Alerts** — safe, but **dense — verify per-section, not at a glance**. Sections: Telegram connect (locked card if not entitled; else a multi-step one-time-code wizard with deep-link + manual fallback + poll-for-connection state machine), Price Alerts (locked if not entitled; else coin/direction/price/label form + list), Manual Check button (Pro-gated via a 403 code, not a separate lock), Alert Conditions (**entitled-only, entirely absent otherwise** — coin multi-select capped at 10, EMA-signal timeframe chips capped at 3 of 8, three alert-group sections — Momentum/Flow/News&Sentiment/Price&Summary — each a toggle list, plus two opt-in market-structure timeframe toggles that invert the mute convention). If your frame shows Alert Conditions as visible-but-locked, that's wrong — it's absent for free users, full stop, same "no double-sell" pattern as the rest of the app.
+
+**Settings** — safe. Signed-out users get a stub (Appearance + a locked-section list + sign-in/sign-up links) — not the full page dimmed. Signed-in: Account (email, password change, sign-out), Watchlist (coin multi-select), Trading Profile (account size, risk %, presets, computed $-at-risk), Arena Defaults (default coin, default timeframe chips — gated ones show a lock glyph and are disabled, not just styled differently), Notifications (push toggle + test button + 5 numeric thresholds: funding, fear-below, greed-above, RSI OB, RSI OS), Appearance (theme + language + analytics consent toggle), Telegram (status dot + manage/setup link to `/alerts`).
+
+**Econ Calendar** — safe. Single-column, max-width 960: header, a "next event" hero banner (impact-coloured left border, live countdown, an "estimated" badge when the date isn't a published one), then day-grouped tables with 8 columns (Time/Country/Event/Previous/Consensus/Actual/Delta/Impact) — Actual and Delta are colour-coded by whether the print beat consensus, Impact is a 3-tier badge (HIGH/MEDIUM/LOW), past events with no actual print render at reduced opacity.
+
+## Net effect
+1 blocked (Scanner), 1 corrected (Markets, done), 1 misnamed (Funding — drop "+ Correlation"), 5 clear to spec directly against the source sections above. No further restructure findings — the failure mode was specific to screens with a genuinely separate `*Terminal.tsx` file that reorganizes rather than restyles (Dashboard, Scanner), not a general pattern across the app.
