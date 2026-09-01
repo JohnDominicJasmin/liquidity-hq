@@ -72,12 +72,18 @@ const PALETTE = {
   light: {
     '--bg0': '#f7f6f3', '--bg1': '#ebe9e6', '--bg2': '#e3e1dd',
     '--bdr': '#d5d2cd', '--bdr2': '#dfdcd7', '--bdr3': '#e2dfda',
-    '--txt': '#15181b', '--txt2': '#585c61', '--txt3': '#6a6e73',
-    '--txt4': '#aeaaa4', '--accent': '#8a5c00', '--green': '#1a7f37',
+    '--txt': '#15181b', '--txt2': '#585c61', '--txt3': '#5e6267',
+    '--txt4': '#aeaaa4', '--accent': '#8a5c00', '--green': '#14702c',
     '--red': '#cf222e', '--amber': '#9a6a00', '--mark-idle': '#d1cec9',
-    '--border-input': '#75797e',
+    '--border-input': '#75797e', '--txt-dash': '#5e6267',
   },
 };
+
+/* An unrecognised foreground is SKIPPED, not counted — so a stale palette here
+   silently omits exactly the tokens that were most recently changed. The first
+   run of this script against c289017 still carried --txt3 #6a6e73 and --green
+   #1a7f37 and reported nothing at all for either, on the run whose whole point
+   was to check them. Re-read globals.css after every token change. */
 
 const VIEWPORT_CFG = {
   desktop: { viewport: { width: 1440, height: 900 } },
