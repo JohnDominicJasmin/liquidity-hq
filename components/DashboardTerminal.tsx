@@ -15,14 +15,12 @@ import {
   useMarket, COINS, COIN_DEC, fmtPrice,
   computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY,
 } from '@/lib/marketStore';
-import type { CoinId } from '@/lib/marketStore';
+import type { CoinId, CoinData } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
-import SOTD from '@/components/SOTD';
 import MarketRead from '@/components/MarketRead';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
 import EconCalendarWidget from '@/components/EconCalendarWidget';
-import MarketConditionsWidget from '@/components/MarketConditionsWidget';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
@@ -46,22 +44,38 @@ const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: s
 
 const SIDEBAR_DEFAULT = 7;
 
-function TMarketPulseStrip() {
-  const { store } = useMarket();
-  const { t } = useLabels();
-  const [volLabel, setVolLabel] = useState<string | null>(null);
+interface VolRegimeState { regime: 'low' | 'neutral' | 'high'; percentile: number }
 
+/* Shared by the pulse strip's VOL chip and the market-conditions Volatility
+ * bar (#413 canvas mirror). Was reading parsed.data?.btc?.label -
+ * VolatilityRegime.tsx (the only writer of this key) has never written that
+ * shape. It writes {ts, btcData, ethData} where btcData is {hv30,
+ * percentile, regime}, no "data"/"btc"/"label" path anywhere - so the VOL
+ * chip has never populated in production, on either design. Fixed to read
+ * the shape that actually gets written; the same pre-existing bug also
+ * lives in app/dashboard/page.tsx's non-terminal copy of this effect, out
+ * of scope for this branch, flagged separately. */
+function useBtcVolRegime(): VolRegimeState | null {
+  const [state, setState] = useState<VolRegimeState | null>(null);
   useEffect(() => {
     try {
       const raw = localStorage.getItem('lhq_vol_regime');
       if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Date.now() - parsed.ts < 4 * 60 * 60 * 1000 && parsed.data?.btc?.label) {
-          setVolLabel(parsed.data.btc.label);
+        const parsed = JSON.parse(raw) as { ts: number; btcData?: VolRegimeState };
+        if (Date.now() - parsed.ts < 4 * 60 * 60 * 1000 && parsed.btcData?.regime != null) {
+          setState(parsed.btcData);
         }
       }
     } catch {}
   }, []);
+  return state;
+}
+
+function TMarketPulseStrip() {
+  const { store } = useMarket();
+  const { t } = useLabels();
+  const vol = useBtcVolRegime();
+  const volRegime = vol?.regime ?? null;
 
   const dom = store.btcDom;
   const alt = store.altSeasonScore;
@@ -73,8 +87,12 @@ function TMarketPulseStrip() {
     : alt >= 25 ? 'var(--red)'
     : 'var(--red)';
 
-  const volColor = volLabel === 'Low Vol' ? 'var(--green)'
-    : volLabel === 'High Vol' ? 'var(--red)'
+  const volLabelKey: LabelKey | null = volRegime === 'low' ? 'VOLATILITY_REGIME_LABEL_LOW'
+    : volRegime === 'high' ? 'VOLATILITY_REGIME_LABEL_HIGH'
+    : volRegime === 'neutral' ? 'VOLATILITY_REGIME_LABEL_NEUTRAL'
+    : null;
+  const volColor = volRegime === 'low' ? 'var(--green)'
+    : volRegime === 'high' ? 'var(--red)'
     : 'var(--txt2)';
 
   const domNote = dom == null ? '' : dom >= 60 ? t('DASH_PULSE_NOTE_BTC_LEADS') : dom >= 55 ? t('DASH_PULSE_NOTE_ELEVATED') : dom >= 48 ? t('DASH_PULSE_NOTE_NORMAL') : t('DASH_PULSE_NOTE_ALT_SEASON');
@@ -84,7 +102,7 @@ function TMarketPulseStrip() {
   const chips: Chip[] = [
     { label: t('DASH_PULSE_BTC_DOM_LABEL'), value: dom != null ? dom.toFixed(1) + '%' : '-', note: domNote, color: 'var(--txt)' },
     { label: t('DASH_PULSE_ALT_LABEL'), value: alt != null ? String(alt) : '-', note: altNote, color: altColor },
-    ...(volLabel ? [{ label: t('DASH_PULSE_VOL_LABEL'), value: volLabel.replace(' Vol', ''), note: t('DASH_PULSE_VOL_NOTE'), color: volColor }] : []),
+    ...(volLabelKey ? [{ label: t('DASH_PULSE_VOL_LABEL'), value: t(volLabelKey), note: t('DASH_PULSE_VOL_NOTE'), color: volColor }] : []),
   ];
 
   return (
@@ -114,29 +132,15 @@ function TMarketPulseStrip() {
   );
 }
 
-function TCoinSidebar() {
-  const { store, selectCoin } = useMarket();
-  const { t } = useLabels();
-  const { settings } = useSettings();
-  const watchlist = settings.watchlist ?? [];
-  const pinned = watchlist.filter((id): id is CoinId => (COINS as string[]).includes(id));
-  const rest    = COINS.filter(id => !watchlist.includes(id));
-  const visibleCoins = [...pinned, ...rest].slice(0, SIDEBAR_DEFAULT);
+type SidebarSignal = { text: string; col: string } | null;
 
-  return (
-    <div className="csb2-container">
-      {visibleCoins.map(id => {
-        const d      = store.coins[id];
-        const dec    = COIN_DEC[id];
-        const chg    = d?.change ?? 0;
-        const up     = chg >= 0;
-        const sel    = store.selectedCoin === id;
-        const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
-        const health = computeCoinHealth(d);
-        const badgeCol = coinBadgeColor(id);
-
-        let sig: { text: string; col: string } | null = null;
-        if (d?.fundingRate != null) {
+/* Priority cascade for the sidebar's one-signal-per-coin tag. Pulled out of
+ * TCoinSidebar's row renderer so the rail header's "N FIRING" count (#413
+ * canvas mirror) can run the same cascade over ALL coins, not just the
+ * visible slice, without duplicating the seven branches. */
+function sidebarSignalFor(d: CoinData | undefined, t: (key: LabelKey) => string): SidebarSignal {
+  let sig: SidebarSignal = null;
+  if (d?.fundingRate != null) {
           const fr = d.fundingRate * 100;
           if (fr >= 0.04)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED'), col: 'var(--red)' };
           else if (fr <= -0.02) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED'),   col: 'var(--green)' };
@@ -162,7 +166,49 @@ function TCoinSidebar() {
           else if (fr <= -0.03)  sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_LOW'),      col: 'var(--green)' };
           else if (fr <= -0.005) sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_LOW'),  col: 'var(--green)' };
           else                   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_NEUTRAL'),        col: 'var(--txt3)' };
-        }
+  }
+  return sig;
+}
+
+function TCoinSidebar() {
+  const { store, selectCoin } = useMarket();
+  const { t } = useLabels();
+  const { settings } = useSettings();
+  const watchlist = settings.watchlist ?? [];
+  const pinned = watchlist.filter((id): id is CoinId => (COINS as string[]).includes(id));
+  const rest    = COINS.filter(id => !watchlist.includes(id));
+  const visibleCoins = [...pinned, ...rest].slice(0, SIDEBAR_DEFAULT);
+  const firingCount = COINS.filter(cid => sidebarSignalFor(store.coins[cid], t) !== null).length;
+
+  return (
+    <>
+      <div style={{
+        height: 28, flexShrink: 0, display: 'flex', alignItems: 'center',
+        padding: '0 14px', gap: 10, borderBottom: '1px solid var(--bdr)',
+        fontFamily: 'var(--font-mono), monospace', fontSize: 10,
+      }}>
+        <span style={{ fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--txt2)' }}>
+          {t('DASH_SIDEBAR_HEADER_TITLE')}
+        </span>
+        <span style={{ color: 'var(--txt3)', textTransform: 'uppercase' }}>
+          {t('DASH_SIDEBAR_HEADER_FIRING', { count: firingCount })}
+        </span>
+        <span style={{ flex: 1 }} />
+        <Link href="/markets" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+          {t('DASH_SIDEBAR_HEADER_VIEW_ALL', { count: COINS.length })}
+        </Link>
+      </div>
+      <div className="csb2-container">
+      {visibleCoins.map(id => {
+        const d      = store.coins[id];
+        const dec    = COIN_DEC[id];
+        const chg    = d?.change ?? 0;
+        const up     = chg >= 0;
+        const sel    = store.selectedCoin === id;
+        const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
+        const health = computeCoinHealth(d);
+        const badgeCol = coinBadgeColor(id);
+        const sig    = sidebarSignalFor(d, t);
 
         const barCol = tbp >= 60 ? 'var(--green)' : tbp <= 40 ? 'var(--red)' : 'var(--txt3)';
 
@@ -173,7 +219,7 @@ function TCoinSidebar() {
             onClick={() => selectCoin(id)}
           >
             <div className="csb2-top">
-              <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
+              <CoinIcon coin={id} size={16} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
                 <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
@@ -218,11 +264,13 @@ function TCoinSidebar() {
           borderTop: '1px solid var(--bdr)', padding: '7px 0',
           fontSize: 'var(--fs-caption)', color: 'var(--txt3)', cursor: 'pointer',
           letterSpacing: '0.04em', textAlign: 'center', textDecoration: 'none',
+          textTransform: 'uppercase',
         }}
       >
         {t('DASH_SIDEBAR_MORE_COINS', { count: COINS.length - SIDEBAR_DEFAULT })}
       </Link>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -266,8 +314,9 @@ function TCascadeAlertBanner() {
       </div>
       <button
         className="cascade-dismiss"
+        style={{ textTransform: 'uppercase', letterSpacing: '.1em', fontSize: 10 }}
         onClick={() => setStore(s => ({ ...s, cascadeAlert: null }))}
-      >✕</button>
+      >{t('DASH_CASCADE_DISMISS')} ✕</button>
     </div>
   );
 }
@@ -325,7 +374,6 @@ function TEdgeSignals() {
   const sqCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
 
   return (
-    <>
       <div className="edge-grid">
         <div className="edge-card">
           <div className="edge-card-label">
@@ -388,9 +436,7 @@ function TEdgeSignals() {
              : t('DASH_EDGE_SETUP_BALANCED')}
           </div>
         </div>
-      </div>
 
-      <div className="edge-grid" style={{ marginTop: 8 }}>
         <div className="edge-card">
           <div className="edge-card-label">
             <Tip text={t('DASH_EDGE_CB_TIP')}>{t('DASH_EDGE_CB_LABEL')}</Tip>
@@ -415,7 +461,6 @@ function TEdgeSignals() {
           </div>
         </div>
       </div>
-    </>
   );
 }
 
@@ -425,6 +470,66 @@ function TCoinSignalsHeader() {
   return (
     <div className="dash-section dash-section-hot">
       {t('DASH_COIN_SIGNALS_HEADER', { coin: store.selectedCoin.toUpperCase() })}
+    </div>
+  );
+}
+
+/* Market conditions (#413 canvas mirror, #587). Canvas draws four labelled
+ * bars: Volatility / Trend strength / Breadth / Liquidity. Replaces
+ * MarketConditionsWidget (Fear&Greed gauge + BTC RSI + long/short ratio,
+ * a different metric set) only in terminal mode - the non-terminal branch
+ * keeps that widget untouched.
+ *
+ * Two of the four bars ship here on real, already-available data:
+ *   Volatility - BTC's 30-day HV percentile (useBtcVolRegime, above -
+ *                same fixed cache read as the pulse strip's VOL chip).
+ *   Breadth    - % of all COINS with a positive 24h change right now.
+ *                Standard definition of market breadth; data already in
+ *                store.coins[*].change.
+ * Trend strength and Liquidity are left out. Neither has a real source in
+ * this codebase today (no ADX/trend-strength calc, no orderbook/depth
+ * fetch anywhere) - inventing one to fill a bar would be fabricating a
+ * financial signal, not restyling an existing one. Confirmed with QA/design
+ * before building; see the PR body. */
+function TMarketConditions() {
+  const { store } = useMarket();
+  const { t } = useLabels();
+  const vol = useBtcVolRegime();
+
+  const positive = COINS.filter(id => (store.coins[id]?.change ?? 0) > 0).length;
+  const breadthPct = COINS.length > 0 ? Math.round((positive / COINS.length) * 100) : 0;
+  const breadthCol = breadthPct >= 60 ? 'var(--green)' : breadthPct <= 40 ? 'var(--red)' : 'var(--txt2)';
+
+  const volLabelKey: LabelKey | null = vol == null ? null
+    : vol.regime === 'low' ? 'VOLATILITY_REGIME_LABEL_LOW'
+    : vol.regime === 'high' ? 'VOLATILITY_REGIME_LABEL_HIGH'
+    : 'VOLATILITY_REGIME_LABEL_NEUTRAL';
+  const volCol = vol == null ? 'var(--txt3)'
+    : vol.regime === 'low' ? 'var(--green)'
+    : vol.regime === 'high' ? 'var(--red)'
+    : 'var(--txt2)';
+
+  const rows: { key: string; label: string; pct: number; value: string; col: string }[] = [
+    { key: 'vol', label: t('DASH_COND_VOLATILITY_LABEL'), pct: vol?.percentile ?? 0, value: vol && volLabelKey ? t(volLabelKey) : '-', col: volCol },
+    { key: 'breadth', label: t('DASH_COND_BREADTH_LABEL'), pct: breadthPct, value: breadthPct + '%', col: breadthCol },
+  ];
+
+  return (
+    <div className="av-rail-panel">
+      <div className="av-rail-panel-h">{t('MARKET_CONDITIONS_WIDGET_TITLE')}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {rows.map(r => (
+          <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 11, color: 'var(--txt3)', width: 90, flexShrink: 0 }}>{r.label}</div>
+            <div style={{ flex: 1, height: 5, background: 'var(--bg3)' }}>
+              <div style={{ width: `${r.pct}%`, height: 5, background: r.col }} />
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 11, color: r.col, width: 60, textAlign: 'right', flexShrink: 0 }}>
+              {r.value}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -449,7 +554,7 @@ function TSelectedCoinCard() {
       className="scc-card"
       title={t('DASH_SELECTED_COIN_OPEN_ARENA', { coin: id.toUpperCase() })}
     >
-      <CoinIcon coin={id} size={30} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
+      <CoinIcon coin={id} size={26} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
       <div className="scc-id">
         <span className="scc-ticker">{id.toUpperCase()}</span>
         <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>
@@ -458,8 +563,61 @@ function TSelectedCoinCard() {
         <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}>{up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%</span>
         <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
-      <span className="scc-arrow" aria-hidden="true">›</span>
+      <span className="scc-cta" aria-hidden="true">{t('DASH_SELECTED_COIN_ARENA_CTA')}</span>
     </Link>
+  );
+}
+
+/* Best-setup headline (#413 canvas mirror, #587). Replaces SOTD ("Secret of
+ * the Day", a static playbook-tips list unrelated to market data - present
+ * under this same header in BOTH designs today, a pre-existing mismatch this
+ * branch does not touch outside terminal mode). Reuses computeSqueezeScore,
+ * the same real number TEdgeSignals already shows as its "Setup score" card
+ * - not a new metric, a more prominent read of the existing one.
+ *
+ * Canvas also draws Entry/Stop/Target levels here. No local computation
+ * produces them - the only place this app generates E/S/T is Arena's
+ * per-request AI call, and its result lives in sessionStorage keyed to
+ * whatever coin the user last ran there, not to whatever coin is selected
+ * on the dashboard right now, with no re-validation against current price
+ * (Arena's own UI has to re-check "stopped"/"target hit" against live price
+ * before showing a cached E/S/T at all - reusing the stored value here
+ * without that check would show a trader a level that may have already
+ * been invalidated). Omitted rather than guessed - see PR body. */
+function TBestSetupToday() {
+  const { store } = useMarket();
+  const { t } = useLabels();
+  const id = store.selectedCoin;
+  const d  = store.coins[id];
+  const sq = computeSqueezeScore(d);
+
+  // "LEAN" below 70 mirrors the shape of this same file's grade bands
+  // (computeSqueezeScore's A/B/C/D/F cutoffs) rather than inventing a new
+  // threshold - flagged for design to confirm or move the line.
+  const biasText = sq.dir === 'SHORT_SQ'
+    ? (sq.score >= 70 ? t('ARENA_VERDICT_LONG') : t('ARENA_VERDICT_LEAN_LONG'))
+    : sq.dir === 'LONG_LIQ'
+    ? (sq.score >= 70 ? t('ARENA_VERDICT_SHORT') : t('ARENA_VERDICT_LEAN_SHORT'))
+    : t('ARENA_VERDICT_WAIT');
+  const biasCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '10px 20px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexShrink: 0 }}>
+        <span style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 12, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.06em' }}>
+          {id.toUpperCase()}
+        </span>
+        <span style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 16, fontWeight: 700, color: biasCol }}>
+          {biasText}
+        </span>
+      </div>
+      <div style={{ flex: 1, height: 3, background: 'var(--bdr)' }}>
+        <div style={{ width: `${sq.score}%`, height: 3, background: biasCol }} />
+      </div>
+      <span style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 12, fontWeight: 700, color: 'var(--txt)', flexShrink: 0 }}>
+        {sq.score}
+      </span>
+    </div>
   );
 }
 
@@ -507,7 +665,7 @@ export default function DashboardTerminal() {
 
         <TPanel id="tour-best-setup">
           <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>{t('DASH_BEST_SETUP_TODAY_HEADER')}</div>
-          <SOTD />
+          <TBestSetupToday />
         </TPanel>
 
         <TSelectedCoinCard />
@@ -519,7 +677,7 @@ export default function DashboardTerminal() {
 
         <div className="dash-conditions-row">
           <EconCalendarWidget />
-          <MarketConditionsWidget />
+          <TMarketConditions />
         </div>
       </div>
 

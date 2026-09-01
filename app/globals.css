@@ -811,7 +811,8 @@ body::after {
 .scc-up { color: var(--green); } .scc-dn { color: var(--red); }
 .scc-sig { font-size: var(--fs-caption); font-weight: 600; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 190px; }
-.scc-arrow { flex-shrink: 0; font-size: 1.1rem; color: var(--txt3); line-height: 1; }
+.scc-cta { flex-shrink: 0; font-family: var(--font-mono), monospace; font-size: var(--fs-caption);
+  font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
 
 /* Macro Context rail wrapper - GlobalMacroContext has its own inner padding,
    this just gives it the flat-card frame the other rail items carry. */
@@ -6640,6 +6641,44 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .mcw-rsi-fill,
 [data-design="terminal"] .mcw-ls-bar,
 [data-design="terminal"] .mcw-ls-bar > *   { border-radius: 0; }
+
+/* Rail width, canvas-exact (qa/reports/dashboard-2a-canvas-geometry.md: aside
+   width 352px). Was 360px, close but not what the canvas draws. */
+@media (min-width: 1100px) {
+  [data-design="terminal"] .dashboard-grid { grid-template-columns: minmax(0, 1fr) 352px; }
+}
+
+/* ── Dashboard canvas mirror (feature/dashboard-canvas-mirror, #587) ──
+   Dashboard 2a.dc.html draws the six coin-signal cards as ONE 3x2 table -
+   hairline-separated cells, no per-card background or gap - not two
+   auto-fit card grids with a gap between them. TEdgeSignals now renders
+   all six as siblings of a single .edge-grid; this makes that grid lay
+   out and look like the canvas's table instead of the base .edge-card's
+   free-standing rounded cards. Scoped to .dash-main so Arena's own
+   .at-snapcells/.at-panelbody overrides (different geometry, same base
+   classes) are untouched.
+   Geometry from qa/reports/dashboard-2a-canvas-geometry.md: cell padding
+   12px 16px, label/value/sig 10.5/15/10.5, hairline #16191b (--bdr3). */
+[data-design="terminal"] .dash-main .edge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  margin-bottom: 0;
+}
+[data-design="terminal"] .dash-main .edge-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-right: 1px solid var(--bdr3);
+  border-bottom: 1px solid var(--bdr3);
+  padding: 12px 16px;
+}
+[data-design="terminal"] .dash-main .edge-card:nth-child(3n) { border-right: 0; }
+[data-design="terminal"] .dash-main .edge-card:nth-last-child(-n+3) { border-bottom: 0; }
+[data-design="terminal"] .dash-main .edge-card-label  { font-size: 10.5px; }
+[data-design="terminal"] .dash-main .edge-card-value  { font-size: 15px; }
+[data-design="terminal"] .dash-main .edge-card-signal { font-size: 10.5px; }
+
 /* briefing */
 [data-design="terminal"] .mb-macro-item { border-radius: 0; }
 [data-design="terminal"] .mb-event-tag  { border-radius: 0; }

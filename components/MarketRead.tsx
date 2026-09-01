@@ -4,6 +4,19 @@ import { useMarket } from '@/lib/marketStore';
 import { computeMarketRead, type FundingSide } from '@/lib/marketRead';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
+
+/* "14 Aug 11:42 UTC" - Dashboard 2a.dc.html's canvas eyebrow (#413 canvas
+ * mirror, #587). Terminal-only: current design keeps its Tip+question
+ * eyebrow, since MarketRead is shared with both dashboard designs and this
+ * branch does not restyle current design. */
+function formatUtcStamp(d: Date): string {
+  const day   = d.getUTCDate();
+  const month = d.toLocaleString(undefined, { month: 'short', timeZone: 'UTC' });
+  const hh    = String(d.getUTCHours()).padStart(2, '0');
+  const mm    = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${day} ${month} ${hh}:${mm} UTC`;
+}
 
 // The dashboard's answer-first hero. Replaces the RaidMeter + Smart Money Score
 // + Sentiment Extremes stack with one plain-language verdict (see lib/marketRead
@@ -11,6 +24,7 @@ import { useLabels } from '@/lib/labels';
 export default function MarketRead() {
   const { t } = useLabels();
   const { store } = useMarket();
+  const mode = useDesignMode();
   const [manualFund, setManualFund] = useState<FundingSide | null>(null);
   const [showOverride, setShowOverride] = useState(false);
   const [, setTick] = useState(0);
@@ -46,10 +60,16 @@ export default function MarketRead() {
   return (
     <section className="mr" data-band={read.band}>
       <div className="mr-eyebrow">
-        <Tip width={280} text={t('MARKET_READ_TIP')}>
-          {t('MARKET_READ_TITLE')}
-        </Tip>
-        <span className="mr-eyebrow-q">{t('MARKET_READ_EYEBROW_Q')}</span>
+        {mode === 'terminal' ? (
+          <span suppressHydrationWarning>{t('MARKET_READ_TITLE')} · {formatUtcStamp(new Date())}</span>
+        ) : (
+          <>
+            <Tip width={280} text={t('MARKET_READ_TIP')}>
+              {t('MARKET_READ_TITLE')}
+            </Tip>
+            <span className="mr-eyebrow-q">{t('MARKET_READ_EYEBROW_Q')}</span>
+          </>
+        )}
       </div>
 
       <div className="mr-top">
