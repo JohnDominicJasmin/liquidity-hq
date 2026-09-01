@@ -67,7 +67,14 @@ const PAGE_EVAL = ({ tokens }) => {
     const hit = [], missing = [];
     let cursor = -1;
     for (const s of sigs) {
-      const i = kids.findIndex((k, idx) => idx > cursor && s.re.test(k.txt));
+      let i = kids.findIndex((k, idx) => idx > cursor && s.re.test(k.txt));
+      /* CO-LOCATED SECTIONS. The canvas puts Next events and Market conditions
+         side by side in one split row, so both live inside a SINGLE child of
+         .dash-main. Requiring each section in a strictly later child reported
+         the second one MISSING while it was plainly on the page. Falling back
+         to the current child preserves ordering between rows without demanding
+         that sections which share a row occupy separate ones. */
+      if (i === -1 && cursor >= 0 && kids[cursor] && s.re.test(kids[cursor].txt)) i = cursor;
       if (i === -1) { missing.push(s.name); continue; }
       hit.push(s.name); cursor = i;               // advancing cursor enforces ORDER
     }
