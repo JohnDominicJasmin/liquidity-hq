@@ -6329,3 +6329,28 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .st-affix,
 [data-design="terminal"] .tj-lev-num,
 [data-design="terminal"] .gchat-input { border-color: var(--border-input); }
+
+/* ── Shared shell chrome: terminal radius (#526 C6) ────────────────────────
+   NavDrawer and GrokChat render once in AppShell, as siblings outside every
+   page's own -term-wrap div (app/globals.css's nuclear-wrap pattern only
+   reaches descendants of a wrap div it never gets, so it can't zero these).
+   Handoff: "Radius 0 everywhere. No shadows." (README:141) - unconditional,
+   not screen-scoped, so shell chrome owes it too once terminal is active.
+   Same wildcard-subtree shape as the per-screen wraps, just anchored on the
+   chrome's own root classes instead of a wrap div nobody put around them.
+   .ob-checklist (SetupChecklist) added after QA's multi-route sweep found
+   its mini-mode track/fill on every route - same AppShell-sibling shape as
+   NavDrawer and GrokChat, just missed in the first pass. */
+[data-design="terminal"] .app-bar,
+[data-design="terminal"] .app-bar *,
+[data-design="terminal"] .nav-menu,
+[data-design="terminal"] .nav-menu *,
+[data-design="terminal"] .nav-more-dropdown,
+[data-design="terminal"] .nav-more-dropdown *,
+[data-design="terminal"] .mobile-tab-bar,
+[data-design="terminal"] .mobile-tab-bar *,
+[data-design="terminal"] .gchat-fab,
+[data-design="terminal"] .gchat-panel,
+[data-design="terminal"] .gchat-panel *,
+[data-design="terminal"] .ob-checklist,
+[data-design="terminal"] .ob-checklist * { border-radius: 0 !important; }
