@@ -5315,6 +5315,18 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --accent: #d9a626; /* active nav, primary CTA - ALWAYS with #08090a text */
   --green:  #3fb950; /* bullish / FIRING positive */
   --red:    #f0524d; /* bearish / FIRING negative */
+  /* #546 C9: derived tints for --green/--red, same pattern as the already-
+     existing --accent-bg/--accent-bdr. Undeclared here, .chg-up/.chg-dn's
+     background/border (app/globals.css:786-787) fell through to the current
+     design's root tints (rgba of #4ade80/#f87171) - QA found these as
+     low-alpha off-palette residue after the text-colour fix landed. Not
+     part of TERMINAL_COLORS/the conformance test, same as --accent-bg/-bdr
+     aren't - these are computed tints of governed tokens, not tokens
+     themselves. */
+  --green-bg:  rgba(63,185,80,0.08);
+  --green-bdr: rgba(63,185,80,0.22);
+  --red-bg:    rgba(240,82,77,0.08);
+  --red-bdr:   rgba(240,82,77,0.22);
   /* #542: was undeclared here, so terminal mode fell through to the current
      design's root --amber (#fbbf24) by inheritance, not by decision. Design
      confirmed #fbbf24 as the intended terminal value (handoff README, both
