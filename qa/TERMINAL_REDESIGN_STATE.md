@@ -107,6 +107,24 @@ Playwright.
 "contrast failures" are largely the *same* 50 placeholder dashes. Headline
 numbers overstate; `contrast-diff.mjs` exists because of this.
 
+**A token has one value and many contrast ratios.** One figure per token,
+measured against the page canvas, is the token's *best* case — and it is what
+`light-theme-tokens.md` recorded. It let three values ship that fail on the
+surfaces they actually land on. `--txt3` light `#6a6e73` was documented at
+5.14:1 on `--bg0` while measuring **3.93:1** on `--bg2` and 4.26:1 on the
+composited `#e8eaed`; `--green` light `#1a7f37` was documented at 4.70:1 and
+measures **3.89:1** on `--bg2`.
+
+The binding surface **differs per token, and is sometimes not a token at all** —
+the `/scanner` em dash lands on a composited `#1d1e20` that appears in no
+palette. So a single "darkest surface" column does not close this either; it has
+to be derived per token from where that token is actually used. Design is
+restructuring the file accordingly: a per-token usage list, each entry naming
+its real landing surface (token or composited hex) and the ratio there.
+
+Two rounds of wrong values came out of this, on both sides. Check a candidate
+against every surface it lands on **before** relaying it to dev.
+
 ---
 
 ## 5. The handoff contradicts itself in places — the files win
@@ -169,12 +187,44 @@ current/light, terminal/dark, terminal/light — have exactly one source of trut
 
 | Item | Owner | Note |
 |---|---|---|
-| Mobile overflow, ~76px, every route | dev | `.app-bar` at 466px. **Pre-existing** — `?design=current` does it too |
-| Placeholder dashes at 1.16:1 | **design** | 50 on `/scanner` alone. Needs a legibility decision, not a guess |
 | Coin badge hues (`#f7931a`, `#627eea`, …) | **owner** | 12 hash-assigned decorative colours vs criterion 19 |
 | `/correlation` has no design frame | design | own route, own `CorrelationTerminal.tsx` |
 | Gating: Alerts absent-not-locked, Settings `disabled` + lock glyph | dev | highest severity — leaks paid surface |
 | E2E | **owner** | costs money; run at finalisation |
+
+### Closed in #567 — pending verification against the deploy
+
+**Mobile overflow (#557), ~76px on every route.** Root cause was **not**
+`.app-bar`, which is what I reported. `.pf-footer-nav` has `flex-shrink:0` and no
+`flex-wrap`, so its 7 links never wrapped even after `.pf-footer-top` stacks at
+640px; its unwrapped width inflated the *document's layout width*, and
+`.app-bar` / `.nav-drawer` (`position:fixed; left:0; right:0`) resolve against
+that rather than the visual viewport. Dev bisected it on the live deploy —
+hiding only `.pf-footer-nav` drops `.app-bar` from 466px to exactly 390px. Fix
+is `flex-wrap` at the existing breakpoint; it needed no
+hamburger/wrap/scroll decision at all.
+
+> **The widest element is not necessarily the cause.** I named `.app-bar`
+> because I was reading which box overflowed, not which one inflated the width
+> everything else resolved against.
+
+**Light-theme token values — design has ruled on all three.**
+
+| token | was | now | why |
+|---|---|---|---|
+| `--txt3` light | `#6a6e73` | `#5e6267` | 3.93:1 on `--bg2` → 4.70:1 |
+| `--green` light | `#1a7f37` | `#14702c` | 3.89:1 on `--bg2` → 4.75:1 |
+| empty-cell dash | inherited `--txt3` | own value `#848a92` | 4.30:1 on composited `#1d1e20` → 4.79:1 |
+
+`--txt3` **dark stays `#7c828a`.** Moving a token that passes on three of four
+surfaces, to fix one composited edge case, degrades what works to fix what is
+local — so the dash gets its own value instead. Design, dev and QA reached that
+independently.
+
+The `--txt3` light change should take `/liq` light-theme contrast to **zero**:
+all 18 failures across 11 distinct causes have `#6a6e73` as the foreground, and
+every background involved clears 4.70 with the new value. Arithmetic, not yet a
+measurement.
 
 ## 9. What no audit can score
 
