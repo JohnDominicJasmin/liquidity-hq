@@ -5490,6 +5490,15 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --green-bdr: rgba(63,185,80,0.22);
   --red-bg:    rgba(240,82,77,0.08);
   --red-bdr:   rgba(240,82,77,0.22);
+  /* #559: found alongside the light-side --red-bg/--red-bdr leak - amber
+     never had a -bg/-bdr pair declared here at all, in either theme.
+     Dark's fallback (root's rgba(251,191,36,...)) happens to be correct
+     since terminal dark --amber and root --amber are both #fbbf24 - right
+     by coincidence, not by decision, same shape this whole file has been
+     closing all session. Declaring explicitly so light's move doesn't
+     silently break this the way it did for red. */
+  --amber-bg:  rgba(251,191,36,0.07);
+  --amber-bdr: rgba(251,191,36,0.22);
   /* #559/#561: found missing here while adding the light terminal block below
      and diffing declared tokens between the two - same shape as --amber
      directly below: undeclared, so falls through to root's dark value by
@@ -5616,9 +5625,12 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      dark, now live for light the moment this block exists). */
   --accent-2:   var(--accent);
   --accent-solid: var(--accent);
-  --accent-bg:  rgba(138,92,0,0.07);
-  --accent-bdr: rgba(138,92,0,0.22);
-  --accent-dim: rgba(138,92,0,0.12);
+  /* #559: kept in sync with --accent above - rgb(117,78,0) = #754e00. These
+     three went stale when --accent moved from #8a5c00, same as --red-bg/
+     --red-bdr below - see that comment. */
+  --accent-bg:  rgba(117,78,0,0.07);
+  --accent-bdr: rgba(117,78,0,0.22);
+  --accent-dim: rgba(117,78,0,0.12);
   /* Categorical hues (blue for "crypto" tags etc) collapse into the single
      terminal accent here too, matching dark's --purple/--blue precedent -
      monochrome means monochrome in both themes, not just the dark one. */
@@ -5645,8 +5657,19 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      went stale once already when --green moved from #1a7f37 without them. */
   --green-bg:  rgba(20,112,44,0.08);
   --green-bdr: rgba(20,112,44,0.22);
-  --red-bg:    rgba(207,34,46,0.08);
-  --red-bdr:   rgba(207,34,46,0.22);
+  /* #559: rgb(157,26,35) = #9d1a23, kept in sync with --red above. These
+     went stale exactly the way this file's own comment two lines up
+     warned about: QA measured .csb2-chg rendering new-red TEXT (#9d1a23)
+     on an old-red TINT (rgba(207,34,46,...)) after the --red move landed -
+     the text followed the token, the derived alpha didn't, because it was
+     never re-derived from it. Same governance gap, not a new one. */
+  --red-bg:    rgba(157,26,35,0.08);
+  --red-bdr:   rgba(157,26,35,0.22);
+  /* #559: amber never had a -bg/-bdr pair declared in either terminal
+     block - see the dark block's identical comment. rgb(117,81,0) =
+     #755100, matching --amber above. */
+  --amber-bg:  rgba(117,81,0,0.07);
+  --amber-bdr: rgba(117,81,0,0.22);
   /* Unlike dark (--on-accent: var(--bg0), near-black on bright gold), light's
      --accent is itself the dark, saturated value - white text is what the
      app already uses on every accent-solid surface regardless of theme
