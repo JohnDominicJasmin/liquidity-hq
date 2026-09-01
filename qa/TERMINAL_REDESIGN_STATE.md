@@ -107,6 +107,24 @@ Playwright.
 "contrast failures" are largely the *same* 50 placeholder dashes. Headline
 numbers overstate; `contrast-diff.mjs` exists because of this.
 
+**An INVALID declaration and an ABSENT one look identical in computed styles.**
+`EconCalendarWidget.tsx:145` had ``background: `${col}22` `` where `col` is
+`'var(--red)'` — producing the string `var(--red)22`, which is not valid CSS.
+The browser drops the whole declaration silently, so `getComputedStyle` returns
+`rgba(0, 0, 0, 0)`. I measured exactly that, read it as "transparent by
+design", and moved on. The chip had **never** rendered its tint.
+
+A computed-style sweep can only ever tell you what the element resolved to, not
+that the author wrote something the parser rejected. So **`transparent`,
+`initial` and "the cascade fell through" are all indistinguishable from
+"deliberate"** — treat an unexpectedly empty value as a question, not an answer,
+especially next to siblings that do have one. Dev found this by reading the
+source after my locator pointed at the element; measurement alone would never
+have surfaced it.
+
+Grepped for the pattern platform-wide afterwards: that was the only instance,
+and the codebase has a correct `withAlpha()` helper used in 129 places.
+
 **A fixed sleep does not report that it was too short — it reports zero.**
 `token-surfaces.mjs` waited a fixed 4500ms. Enough for most routes; **not**
 enough for `/correlation`'s 2500-cell heatmap on the free tier. The desktop run
@@ -189,6 +207,32 @@ Found so far, all incidentally: `--amber`, `--accent-2`, `--accent-bg` /
 
 **The query that closes the class**: every custom property referenced under
 terminal scope but declared only at `:root`. Not yet run.
+
+**The ungoverned RULE — the same failure one level up. 141 of them.**
+A token can be ungoverned; so can an entire CSS rule. A selector scoped
+`[data-theme="light"]` with no `[data-design]` applies in **both** design modes,
+so a declaration written for the current design reaches terminal through the
+cascade. Found via `globals.css:3862` — `[data-theme="light"] .gchat-fab {
+color: #fff }` — which is why the FAB rendered white in terminal light and
+nothing in dark (dark never matches the selector at all).
+
+```
+141  rules matching ^[data-theme="light|dark"] with no [data-design]
+ 75  of those set a hardcoded colour on in-content, non-shell selectors
+```
+
+Affected in-content components include `.liq-row`, `.gex-row`, `.arena-conf-bar`,
+`.fng-bar-bg`, `.sms-gauge-track`, `.gchat-bubble` — all on redesign routes.
+
+**Nothing we run can see this.** The conformance test checks the terminal token
+block, and these are not tokens. `no-bare-hex-colour` reads TSX, not
+stylesheets. A palette sweep sees the *resolved* colour and cannot tell which
+rule supplied it. So they surface one at a time, on whichever route someone
+happens to measure — which is exactly how this one was found.
+
+Not all 75 are defects: shared shell chrome may be meant to look identical in
+both designs. **Whether in-content `[data-theme]` rules must be design-scoped is
+a design decision, not a cleanup task**, and is open with them.
 
 **A second shape of the same class: the derivative that does not follow.**
 When a base token's value changes, tints written as literals rather than
