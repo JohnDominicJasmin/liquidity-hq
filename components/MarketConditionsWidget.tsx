@@ -182,8 +182,11 @@ export default function MarketConditionsWidget() {
           return (
             <>
               <div style={{ display: 'flex', height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 5 }}>
-                <div style={{ width: `${longPct}%`, background: '#34d399' }} />
-                <div style={{ width: `${shortPct}%`, background: '#f87171' }} />
+                {/* Was hardcoded Tailwind emerald-400/red-400 (#546 C9) - off
+                    the terminal palette, and mismatched the labels below,
+                    which already used the real tokens. */}
+                <div style={{ width: `${longPct}%`, background: 'var(--green-2)' }} />
+                <div style={{ width: `${shortPct}%`, background: 'var(--red)' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-caption)' }}>
                 <span style={{ color: 'var(--green-2)', fontWeight: 600 }}>{t('MARKET_CONDITIONS_WIDGET_LONG_PCT', { pct: longPct.toFixed(1) })}</span>
