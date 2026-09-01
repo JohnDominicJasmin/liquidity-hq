@@ -16,7 +16,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.join(process.cwd(), 'design-handoff-dir');
-const PAGES = path.join(ROOT, 'pages');
+const PAGES = fs.existsSync(path.join(ROOT, 'design_files'))
+  ? path.join(ROOT, 'design_files')   // structure as of the 19:46 redelivery
+  : path.join(ROOT, 'pages');        // earlier drops
 
 /* The token values the owner ratified on 2026-09-01 (#526). A canvas still
  * drawing the superseded value is not wrong about geometry, but its colours
@@ -41,11 +43,26 @@ function read(f) {
   try { return fs.readFileSync(f, 'utf8'); } catch { return null; }
 }
 
+/* Light theme ships as a sibling file per screen — `About-light-theme.dc.html`
+ * beside `About.dc.html` — not as an extra artboard inside the dark canvas.
+ * Delivered 2026-09-01 19:16. Treat the pair as one screen so the audit does
+ * not report 31 screens twice and every light file as spec-less. */
+const LIGHT_SUFFIX = '-light-theme';
+
 function canvases() {
   if (!fs.existsSync(PAGES)) return [];
-  return fs.readdirSync(PAGES)
-    .filter(f => f.endsWith('.dc.html'))
-    .map(f => ({ name: f.replace(/\.dc\.html$/, ''), file: path.join(PAGES, f) }))
+  const all = fs.readdirSync(PAGES).filter(f => f.endsWith('.dc.html'));
+  const base = all.filter(f => !f.includes(LIGHT_SUFFIX + '.dc.html'));
+  const lightSet = new Set(
+    all.filter(f => f.includes(LIGHT_SUFFIX + '.dc.html'))
+       .map(f => f.replace(LIGHT_SUFFIX + '.dc.html', '.dc.html'))
+  );
+  return base
+    .map(f => ({
+      name: f.replace(/\.dc\.html$/, ''),
+      file: path.join(PAGES, f),
+      lightFile: lightSet.has(f) ? path.join(PAGES, f.replace('.dc.html', LIGHT_SUFFIX + '.dc.html')) : null,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -65,20 +82,27 @@ function lightArtboardLikely(src) {
   return hits >= 12;
 }
 
+/* Spec filenames do not mechanically match canvas names: `Landing 7a.dc.html`
+ * is specced by `specs/landing.md`, `Dashboard 2a.dc.html` by
+ * `specs/dashboard-2a.md`. Try the full slug, then the name with its trailing
+ * frame code (7a, 2a, 5a) dropped. Arena's lives in its own nested bundle. */
 function specFor(name) {
-  // Arena is the only screen with a normative spec; its layout is nested.
+  const slug = name.toLowerCase().replace(/\s+/g, '-');
+  const noFrameCode = slug.replace(/-\d+[a-z]$/, '');
   const candidates = [
-    path.join(ROOT, 'design_handoff_arena', 'specs', 'arena.md'),
-    path.join(ROOT, 'specs', `${name.toLowerCase().replace(/\s+/g, '-')}.md`),
-    path.join(PAGES, 'specs', `${name}.md`),
+    path.join(ROOT, 'specs', `${slug}.md`),
+    path.join(ROOT, 'specs', `${noFrameCode}.md`),
+    path.join(PAGES, 'specs', `${slug}.md`),
   ];
-  if (!/^arena/i.test(name)) candidates.shift();
+  if (/^arena/i.test(name)) {
+    candidates.unshift(path.join(ROOT, 'specs', 'arena.md'));
+  }
   return candidates.find(p => fs.existsSync(p)) || null;
 }
 
 function readmeFor(name) {
   const candidates = [
-    path.join(ROOT, 'design_handoff_arena', 'README.md'),
+    path.join(ROOT, 'README.md'),
     path.join(PAGES, `${name}.md`),
     path.join(PAGES, 'README.md'),
   ];
@@ -87,7 +111,7 @@ function readmeFor(name) {
 }
 
 const rows = [];
-for (const { name, file } of canvases()) {
+for (const { name, file, lightFile } of canvases()) {
   const src = read(file) || '';
   const w = widths(src);
   const stale = Object.keys(SUPERSEDED).filter(hex => src.includes(hex));
@@ -95,13 +119,30 @@ for (const { name, file } of canvases()) {
     screen: name,
     desktop: w.has(1440),
     mobile: w.has(390),
-    light: lightArtboardLikely(src),
+    // a sibling -light-theme file, or (older shape) a light artboard inside the dark canvas
+    light: !!lightFile || lightArtboardLikely(src),
     spec: !!specFor(name),
     readme: !!readmeFor(name),
     staleTokens: stale,
     kb: Math.round(fs.statSync(file).size / 102.4) / 10,
   });
 }
+
+/* A canvas referenced by another canvas but never delivered is invisible
+ * otherwise — Dashboard 2a cites specs/dashboard-restructure-finding.md, which
+ * is not in the bundle. Surface those rather than let them rot. */
+const referenced = new Set();
+for (const { file, lightFile } of canvases()) {
+  for (const f of [file, lightFile].filter(Boolean)) {
+    for (const m of (read(f) || '').matchAll(/([\w./-]+\.md)/g)) referenced.add(m[1]);
+  }
+}
+const missingRefs = [...referenced].filter(rel => {
+  const bare = path.basename(rel);
+  return !fs.existsSync(path.join(ROOT, rel))
+    && !fs.existsSync(path.join(ROOT, 'design_handoff_arena', rel))
+    && !fs.existsSync(path.join(ROOT, 'design_handoff_arena', 'specs', bare));
+});
 
 const runtimeOk = fs.existsSync(path.join(PAGES, 'support.js'))
   && fs.existsSync(path.join(PAGES, 'assets', 'logo.png'));
@@ -158,6 +199,12 @@ if (staleAny.length) {
   }
   console.log('  These predate the owner-approved amendment (#526). Geometry is unaffected;');
   console.log('  colours must not be measured from these canvases until they are redrawn.');
+}
+
+if (missingRefs.length) {
+  console.log(`\nReferenced but not delivered — ${missingRefs.length}:`);
+  for (const r of missingRefs) console.log(`  - ${r}`);
+  console.log('  A canvas cites these. They are not in the bundle.');
 }
 
 console.log(`\nCanvas runtime (support.js + assets/logo.png): ${runtimeOk ? 'present' : 'MISSING — canvases will not render'}`);
