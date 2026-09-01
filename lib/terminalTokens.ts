@@ -15,7 +15,7 @@
  * unchanged. The redesign opts in screen by screen.
  */
 
-/** The 16 documented colour tokens. Values are the README's, EXCEPT --bg1 and
+/** The 17 documented colour tokens. Values are the README's, EXCEPT --bg1 and
  *  --txt3 - see the amendment note below. */
 export const TERMINAL_COLORS = {
   '--bg0':          '#08090a',  // Canvas
@@ -49,6 +49,10 @@ export const TERMINAL_COLORS = {
   '--amber':        '#fbbf24',  // Weak/caution state (OI-trend, funding ladders)
   '--mark-idle':    '#22262a',  // Signal marker when NOT firing
   '--border-input': '#5e646b',  // Input and secondary-button border
+  /* #559/#561: FundingTerminal's "slight long" signal state - the one of
+     eight states using a bare literal instead of a token, undeclared in the
+     terminal block, same governance shape as --amber above. */
+  '--fr-slight-long': '#d4b483',
 } as const;
 
 /* The seventeenth value: the FLAT cell in the hours expectancy grid.
