@@ -3863,7 +3863,12 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   background: var(--accent-solid);
   border-color: transparent;
   box-shadow: 0 4px 20px rgba(0,82,204,0.22), 0 1px 4px rgba(0,0,0,0.10);
-  color: #fff;
+  /* #559: was #fff. --on-accent already resolves to #ffffff for both
+     current-design light and terminal light at this exact call site, so
+     this is a governance fix with no visual change today - tokenizing it
+     stops it silently going wrong if either theme's --on-accent ever
+     moves, the same reasoning as the "Unlock with Pro" button fix. */
+  color: var(--on-accent);
 }
 [data-theme="light"] .gchat-fab:hover {
   box-shadow: 0 6px 28px rgba(0,82,204,0.30), 0 2px 6px rgba(0,0,0,0.12);
