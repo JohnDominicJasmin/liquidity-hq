@@ -6610,10 +6610,31 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .sotd-static-badge,
 [data-design="terminal"] .sotd-refresh     { border-radius: 0; }
 [data-design="terminal"] .consent-btn      { border-radius: 0; }
+/* #559: these three classes exist ONLY to give a terminal selector a hook -
+   the elements are not design-mode-scoped in JS, so the base (current-
+   design) radius has to live here as an unscoped rule, not stay inline,
+   or the inline declaration keeps winning over the terminal override the
+   same way it did before this comment: a class selector cannot beat an
+   inline style at equal-or-lower specificity, so "add the class" alone
+   does nothing while the inline property is still there to win. Base
+   values match what was previously inline, so current design is
+   pixel-identical to before; only terminal's override actually changes. */
+.psc-verdict-pill  { border-radius: 20px; }
+.ecw-impact-chip   { border-radius: 4px; }
+.vr-hv-zone-low    { border-radius: 3px 0 0 3px; }
+.vr-hv-zone-high   { border-radius: 0 3px 3px 0; }
+.vr-hv-track       { border-radius: 3px; }
+.mcw-rsi-track,
+.mcw-rsi-fill,
+.mcw-ls-bar        { border-radius: 3px; }
 [data-design="terminal"] .psc-verdict-pill { border-radius: 0; }
 [data-design="terminal"] .vr-hv-track,
 [data-design="terminal"] .vr-hv-track > *  { border-radius: 0; }
 [data-design="terminal"] .ecw-impact-chip  { border-radius: 0; }
+[data-design="terminal"] .mcw-rsi-track,
+[data-design="terminal"] .mcw-rsi-fill,
+[data-design="terminal"] .mcw-ls-bar,
+[data-design="terminal"] .mcw-ls-bar > *   { border-radius: 0; }
 /* briefing */
 [data-design="terminal"] .mb-macro-item { border-radius: 0; }
 [data-design="terminal"] .mb-event-tag  { border-radius: 0; }

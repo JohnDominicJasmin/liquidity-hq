@@ -112,11 +112,11 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
            this puts every marker at a position meaning a different value -
            rendering perfectly and lying. Explicit rather than inherited, so
            it stays true when the document direction changes. */}
-      <div dir="ltr" className="vr-hv-track" style={{ position: 'relative', height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'visible' }}>
+      <div dir="ltr" className="vr-hv-track" style={{ position: 'relative', height: 5, background: 'rgba(255,255,255,0.06)', overflow: 'visible' }}>
         {/* Low zone (0–20%) */}
-        <div style={{ position: 'absolute', left: 0, width: '20%', height: '100%', background: 'rgba(52,211,153,0.2)', borderRadius: '3px 0 0 3px' }} />
+        <div className="vr-hv-zone-low" style={{ position: 'absolute', left: 0, width: '20%', height: '100%', background: 'rgba(52,211,153,0.2)' }} />
         {/* High zone (80–100%) */}
-        <div style={{ position: 'absolute', left: '80%', width: '20%', height: '100%', background: 'rgba(248,113,113,0.2)', borderRadius: '0 3px 3px 0' }} />
+        <div className="vr-hv-zone-high" style={{ position: 'absolute', left: '80%', width: '20%', height: '100%', background: 'rgba(248,113,113,0.2)' }} />
         {/* Marker dot */}
         <div style={{
           position: 'absolute', top: '50%', transform: 'translate(-50%, -50%)',

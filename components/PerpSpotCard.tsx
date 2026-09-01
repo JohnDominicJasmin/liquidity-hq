@@ -68,7 +68,7 @@ export default function PerpSpotCard() {
 
       <div className="psc-verdict-pill" style={{
         display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px',
-        borderRadius: 20, marginBottom: 8,
+        marginBottom: 8,
         background: `color-mix(in srgb, ${tone} 12%, transparent)`,
         border: `0.5px solid color-mix(in srgb, ${tone} 40%, transparent)`,
       }}>
