@@ -165,7 +165,7 @@ function CoinSidebar() {
           else                   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_NEUTRAL'),         col: 'var(--txt3)' };
         }
 
-        const barCol = tbp >= 60 ? 'var(--green)' : tbp <= 40 ? 'var(--red)' : '#404040';
+        const barCol = tbp >= 60 ? 'var(--green)' : tbp <= 40 ? 'var(--red)' : 'var(--txt3)';
 
         return (
           // Plain flat card - was ParticleCard/mb-glow-card, which drew a

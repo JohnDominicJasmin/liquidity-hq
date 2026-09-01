@@ -6,6 +6,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { getAuthToken } from '@/lib/supabase';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
+import { withAlpha } from '@/lib/color';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -140,9 +141,9 @@ export default function EconCalendarWidget() {
               <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {e.name}
               </span>
-              <span style={{
+              <span className="ecw-impact-chip" style={{
                 fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.03em', padding: '2px 6px', borderRadius: 4,
-                color: col, background: `${col}22`, flexShrink: 0,
+                color: col, background: withAlpha(col, '22'), flexShrink: 0,
               }}>
                 {e.impact}
               </span>
