@@ -107,10 +107,13 @@ export function oi1hSignal(pct: number | null, oiTrend?: string | null): { txt: 
     ? (trendTxt ?? (isPos ? 'OI spike - rising' : 'OI spike - unwinding'))
     : trendTxt ?? (Math.abs(pct) < 2 ? 'Stable' : isPos ? 'Rising' : 'Unwinding');
 
+  // --green/--red, not the -soft variants (#546 C9): --green-soft/--red-soft
+  // are undeclared in terminal's 16-token palette and fall through to the
+  // current design's Tailwind-derived root values there.
   const col = isSpike && isPos ? 'var(--green)'
     : isSpike && !isPos        ? 'var(--red)'
-    : isPos                    ? 'var(--green-soft)'
-    : pct < 0                  ? 'var(--red-soft)'
+    : isPos                    ? 'var(--green)'
+    : pct < 0                  ? 'var(--red)'
     : 'var(--txt3)';
 
   return { txt, col };

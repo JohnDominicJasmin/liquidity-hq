@@ -5315,6 +5315,13 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --accent: #d9a626; /* active nav, primary CTA - ALWAYS with #08090a text */
   --green:  #3fb950; /* bullish / FIRING positive */
   --red:    #f0524d; /* bearish / FIRING negative */
+  /* #546 C9: --green-2 was undeclared here, so it fell through to the
+     current design's root value (#34d399, Tailwind emerald-400) - used by
+     computeCoinHealth's grade-B badge and MarketConditionsWidget's LONG %
+     label, among others. Aliased to --green rather than given its own
+     terminal shade, matching light theme's own precedent at this exact
+     token (app/globals.css:2381, "--green-2: var(--green)"). */
+  --green-2: var(--green);
   /* #546 C9: derived tints for --green/--red, same pattern as the already-
      existing --accent-bg/--accent-bdr. Undeclared here, .chg-up/.chg-dn's
      background/border (app/globals.css:786-787) fell through to the current
