@@ -536,6 +536,7 @@
   "DASH_EDGE_OI1H_LABEL": "Open Interest 1h - {coin}",
   "DASH_COIN_SIGNALS_HEADER": "Coin Signals - {coin}",
   "DASH_BEST_SETUP_TODAY_HEADER": "Best Setup Today",
+  "DASH_PLAYBOOK_HEADER": "Playbook",
   "ARENA_TF_LABEL_1M": "The 1 minute timeframe",
   "ARENA_TF_LABEL_5M": "The 5 minute timeframe",
   "ARENA_TF_LABEL_15M": "The 15 minute timeframe",
