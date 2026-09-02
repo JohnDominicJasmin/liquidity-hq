@@ -4497,6 +4497,15 @@ body.landing .app-content {
 }
 body.landing {
   overflow-x: hidden;
+}
+
+/* Scoped to the CURRENT design only - LandingTerminal (data-design="terminal")
+   also sets body.landing (it needs the shell-hiding rules further down this
+   file) but has its own light/dark tokens and must fall through to them
+   instead of inheriting this design's forced-dark pin. Without the :not()
+   guard, terminal landing rendered this design's black ground + blue accent
+   in light theme (#595). */
+:root:not([data-design="terminal"]) body.landing {
   background: #050505 !important;
 }
 
@@ -4505,8 +4514,9 @@ body.landing {
    --txt/--accent tokens, which the light theme overrides globally - so a
    visitor with light mode set elsewhere in the app got a black page with
    light-mode card/text colors bleeding through. Re-pin the dark values
-   here, scoped to the landing subtree only, so nothing outside it changes. */
-[data-theme="light"] body.landing {
+   here, scoped to the landing subtree only, so nothing outside it changes.
+   Also scoped off terminal landing for the same reason as above (#595). */
+:root[data-theme="light"]:not([data-design="terminal"]) body.landing {
   --bg0: #030405;
   --bg:  #000000;
   --bg1: #06070a;
