@@ -232,6 +232,63 @@ its real landing surface (token or composited hex) and the ratio there.
 Two rounds of wrong values came out of this, on both sides. Check a candidate
 against every surface it lands on **before** relaying it to dev.
 
+### `color(srgb …)` channels are 0–1, `rgb()` channels are 0–255
+
+The one that has done the most damage, because it was silent and it was in
+**eight** scripts at once.
+
+`getComputedStyle` does not normalise colour syntax. A plain declaration comes
+back as `rgb(240, 82, 77)`. A `color-mix()` result comes back as
+`color(srgb 0.941176 0.321569 0.301961 / 0.8)` — the same colour, channels
+scaled 0–1. Every parser in `qa/` read the numbers positionally and assumed
+0–255, so **every translucent modern-syntax colour composited to near-black**.
+
+On the terminal landing build that reported 50 ticker cells at **1.04:1** —
+invisible text. The real figure is **3.96:1**.
+
+```js
+const k = /^color\(/.test(c.trim()) ? 255 : 1;   // scale by PREFIX
+```
+
+Detect by prefix, never by value range: a genuine `rgb(0, 1, 2)` must not be
+rescaled.
+
+**Why this reaches further than one screen.** `lib/color.ts`'s `withAlpha()`
+returns `color-mix()`, and it has 34 call sites. So every contrast number these
+tools produced at a `withAlpha()` call site was computed wrong. The bug only
+ever manufactures failures and never hides them — no past PASS is in doubt —
+but any *failure* reported on a translucent value has to be re-derived before
+anyone acts on it. Fixed in `180dd6f`.
+
+The general shape, and the third instance of it this project: **a measurement
+that reads a browser's output positionally is assuming a serialisation the
+browser never promised.** The lock-detector counting any `<svg>` and the
+palette check reading raw RGB of translucent declarations were the same
+mistake in different clothes.
+
+### A locator keyed to one design's class prefix fails silently under the other
+
+Both designs coexist behind `?design=terminal`, and the terminal build names
+its landing root `.lpt-root` where the current design uses `.lp-root`. Six
+criteria in `qa/landing-conformance.mjs` were keyed to `lp-`:
+
+| Reported | Actually |
+|---|---|
+| C1 — 2 top-level sections (`main.app-content`, `div.consent-bar`) | 8, correct |
+| C3 — 0 feature cards | 6, correct |
+| C5 — `-1` footer columns | 4, correct |
+| C6 — 8 risk items | 6, correct |
+| C7 — plans `$77` | `$0` / `$25`, correct |
+
+Four false defects on a build that was right. C13 was simultaneously measuring
+the very grid C3 said did not exist — **three passing criteria that
+contradict a failing one is the tell**, and it is the same tell I explained
+away on #572.
+
+Prefer structure to class names: the footer's link grid is "the descendant of
+`<footer>` that is `display: grid` with the most children holding ≥2 links",
+which is true in either design and survives the next one.
+
 ---
 
 ## 5. The handoff contradicts itself in places — the files win

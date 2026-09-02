@@ -6,6 +6,69 @@ without data collapses most bands). `{{ … }}` marks a data slot, not copy.
 
 Raw extraction: `qa/reports/arena-1a-canvas-geometry.txt`.
 
+## Source — read this before trusting any number here
+
+Extracted from **`design_files/Arena 1a.dc.html`**, which `specs/arena.md` calls
+"authored end to end — a search for `: ` inside any style attribute returns
+zero", i.e. free of editor drag.
+
+**Not** from `Monochrome Terminal.dc.html · 1a`. `specs/arena.md` line 10:
+"Do not measure from" it — it carries direct-manipulation artifacts (rail 304,
+verdict 24, band width 1142, hardcoded heights) and is retained only as an
+artifact-detector control.
+
+### Precedence, when the handoff disagrees with itself
+
+`arena.md` and `arena-artifact-finding.md` **beat**
+`arena-blocked-message.md` and `arena-correction-message.md`. The later two
+docs were written before the artifact analysis and contradict it.
+
+The live example: `arena-correction-message.md` line 77 says the verdict is
+"24px desktop, 22px mobile". `arena-artifact-finding.md` lines 56–59 show both
+are drag values — "34 is the authored value, and 24 is what it was dragged
+to" — and `arena.md` carries **34 / 26** forward in its §Conflicts and in
+criteria 9, 14 and 33. **34 desktop, 26 mobile.**
+
+Two carve-outs on that:
+- **26px mobile is soft.** `arena.md` flags it itself: "*ratio argument only —
+  the softest of the five, do not cite as measured*". Build 26; a mobile check
+  that disagrees is a question for design, not a defect.
+- **Never spec 1142 or 705.** The verdict band's inline `width: 1142px;
+  height: 99px` in a 1440 frame, and the rail `<aside>`'s `height: 705px`, are
+  the same drag. Band is full-width; rail height is flex, which is why this
+  doc says flex rather than a number.
+
+## `globals.css` already has an `.at-*` skeleton — mostly right
+
+`app/globals.css` carries a full set of `[data-design="terminal"] .at-*` rules
+that no `.tsx` references yet. They are **not** contaminated — no 24px verdict,
+no 1142, no 705 — and several match this doc character-for-character
+(`.at-chart { height: 430px; padding: 16px 62px 24px 16px }`,
+`.at-rail { flex: 0 0 352px }`, `.at-vlabel { font-size: 34px }`,
+`.at-snapband` 88, `.at-phead` 30, `.at-vlevelval` 20px, `.at-vmain` 330).
+
+Four values diverge from the canvas. Canvas wins — the requirement is a mirror
+of the handoff:
+
+| Rule | `globals.css` | `Arena 1a.dc.html` |
+|---|---|---|
+| `.at-vmain` padding | `16px` | **20px** |
+| `.at-vmain` gap | `6px` | **10px** |
+| `.at-vlevel` padding | `16px` | **20px 22px** |
+| `.at-vlevel` gap | `5px` | **7px** |
+
+Treat it as a correct skeleton with four wrong values, not as suspect wholesale.
+
+## Structure — one scroll, not tabs
+
+`arena.md`: "one scroll. All 15 modules in production order, restyled. No
+regrouping, no tabs. Tabs are a separate proposal for the owner."
+
+So arena is closer to dashboard's restyle than to landing's from-scratch build,
+despite the 20% label coverage quoted at the end of this file — that figure
+counts labels the canvas draws that the live page does not, and many sit inside
+modules that already exist.
+
 ## Band sequence
 
 ```
