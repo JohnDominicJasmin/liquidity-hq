@@ -8,7 +8,7 @@
  * handle the class-level radii (--radius-card → 0, --radius-data → 0, plus
  * targeted rules for hardcoded px values like .edge-card and .scc-card). */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useOnboarding } from '@/components/OnboardingProvider';
 import {
@@ -39,9 +39,12 @@ const SPARK_W = 36;
  * other time-derived value on this route (session windows, day-of-week
  * scoring in computeMarketRead) is anchored to UTC, and a local stamp beside
  * a UTC-derived read would disagree either side of the viewer's midnight. */
-function formatUtcStamp(d: Date): string {
+function formatUtcStamp(d: Date, locale?: string): string {
   const day   = d.getUTCDate();
-  const month = d.toLocaleString(undefined, { month: 'short', timeZone: 'UTC' });
+  // The app's own selected locale, not the browser's: the label beside this
+  // stamp resolves through t(), so passing undefined here spliced a
+  // navigator.language month into an otherwise app-locale line.
+  const month = d.toLocaleString(locale, { month: 'short', timeZone: 'UTC' });
   const hh    = String(d.getUTCHours()).padStart(2, '0');
   const mm    = String(d.getUTCMinutes()).padStart(2, '0');
   return `${day} ${month} ${hh}:${mm} UTC`;
@@ -74,9 +77,9 @@ function formatUtcStamp(d: Date): string {
  * #587 - either this mapping is confirmed, or a market-wide directional
  * read is a data question to answer before the colour can mean direction. */
 function TMarketReadBanner() {
-  const { t } = useLabels();
+  const { t, locale } = useLabels();
   const { store } = useMarket();
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
 
   // Re-derive every 60s so the stamp and the time-of-day factor inside
   // computeMarketRead stay current without a reload - same cadence the
@@ -86,17 +89,50 @@ function TMarketReadBanner() {
     return () => clearInterval(id);
   }, []);
 
-  const read = computeMarketRead(store);
+  const coin = store.coins[store.selectedCoin];
+
+  /* Memoised on the same inputs computeMarketRead actually reads. useMarket()
+     is a context, so without this the whole read - wallProximity's reduce over
+     the wall arrays, computeSmartMoney, computeContrarian - re-ran on every
+     websocket price tick, tens of times a second, for a string that changes
+     once a minute. `tick` is a dependency on purpose: it is what makes the
+     time-of-day and day-of-week factors re-derive on the 60s interval. */
+  const read = useMemo(
+    () => computeMarketRead(store),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [store.fng, store.selectedCoin, store.cbPremiumPct, store.btcExchangeNetFlow, coin, tick],
+  );
+
   const verdictCol = read.band === 'good' ? 'var(--green)' : 'var(--txt2)';
 
+  /* No market data yet - render the band's shape without its conclusion.
+     computeMarketRead has no "unknown" state: with an empty store it still
+     scores time-of-day and day-of-week, lands around 40, and returns "Weak
+     setup - better to wait" - a confident market call derived from no market
+     data, in the largest text on the route. The gauge this replaced at least
+     showed a 0/100 track and five blank factor cells beside that string;
+     the banner shows only the conclusion, so it needs the guard the gauge
+     did not. Same SkeletonBar every other card in this file falls back to. */
+  const hasData = coin?.price != null;
+
   return (
-    <div className="dash-market-read-banner">
-      <div className="dmrb-eyebrow" suppressHydrationWarning>
-        {t('MARKET_READ_TITLE')} · {formatUtcStamp(new Date())}
+    <section className="dash-market-read-banner" aria-label={t('MARKET_READ_TITLE')}>
+      <div className="dmrb-eyebrow">
+        <Tip width={280} text={t('MARKET_READ_TIP')}>{t('MARKET_READ_TITLE')}</Tip>
+        {hasData && <span suppressHydrationWarning> · {formatUtcStamp(new Date(), locale)}</span>}
       </div>
-      <div className="dmrb-verdict" style={{ color: verdictCol }}>{read.verdict}</div>
-      <div className="dmrb-sub">{read.sub}</div>
-    </div>
+      {hasData ? (
+        <>
+          <h2 className="dmrb-verdict" style={{ color: verdictCol }}>{read.verdict}</h2>
+          <div className="dmrb-sub">{read.sub}</div>
+        </>
+      ) : (
+        <>
+          <div className="dmrb-verdict"><SkeletonBar width={260} height={24} radius={0} /></div>
+          <div className="dmrb-sub"><SkeletonBar width={420} height={12} radius={0} /></div>
+        </>
+      )}
+    </section>
   );
 }
 
