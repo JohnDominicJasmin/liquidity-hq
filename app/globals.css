@@ -6795,8 +6795,17 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .at-h-verdict {
   font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--txt);
 }
+/* --txt3, not --txt4 (#639). --txt4 measures 1.88:1 dark and 2.14:1 light,
+   which is correct for what that token IS - disabled controls and axis
+   labels - and wrong for an empty state. "No cluster data" / "No history
+   yet" is the one message a reader MUST get to understand why a panel is
+   blank; in the disabled colour the panel just looks broken.
+   The design's own rule is narrower than the failure: landing.md:506 says
+   "--txt4 is used only for the excluded-feature ✕ and the route string in
+   card footers". An arena empty state is neither, so this use was outside
+   the token's stated scope before it was a contrast problem. */
 [data-design="terminal"] .at-empty {
-  font-family: var(--font-sans); font-size: 12px; color: var(--txt4); padding: 10px 16px;
+  font-family: var(--font-sans); font-size: 12px; color: var(--txt3); padding: 10px 16px;
 }
 [data-design="terminal"] .at-rail-spacer { flex: 1; }
 

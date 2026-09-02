@@ -231,7 +231,19 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         }}>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>${fmt(signal.ema9_4h)}</b></span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
+          {/* --txt2, not #f97316 (#638). This was the only literal in a row
+              whose three siblings all use tokens, and a literal chosen against
+              a dark ground: it measures 2.59:1 on terminal light and fails in
+              the current design's light theme too - older than the redesign,
+              which makes it older rather than acceptable.
+              --txt2 clears AA in all four combinations - current dark 5.03,
+              current light 9.15, terminal dark 5.62, terminal light 5.56.
+              Not the EMA-50 line's colour on purpose: terminal already paints
+              that line #5e646b (KLineProChart's TERMINAL_EMA_COLOR), a
+              border-weight grey that fails as text on dark, and there is no
+              governed orange in the terminal palette at all - #614 established
+              that. */}
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
         </div>
       )}
