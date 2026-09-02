@@ -1,0 +1,152 @@
+# Arena 1a canvas — structure + geometry
+
+<div> height:44px; padding:0 16px; gap:28px; border-bottom:1px solid #1f2225
+  <div> gap:9px
+    <div> font-size:12px
+      · LIQUIDITYHQ
+  <div> gap:2px; font-size:11px
+      <div> padding:6px 12px
+        · {{ n.label }}
+  <div> flex:1
+  <div> gap:14px; font-size:11px
+    <div> gap:6px
+      <div> height:5px; width:5px
+      · LONDON · 2h 14m
+    <div> padding:4px 8px
+      · ⌘K
+    <div> height:22px; width:22px; font-size:10px
+      · J
+<div> height:34px; border-bottom:1px solid #1f2225; font-size:11px
+    <div> padding:0 16px; gap:8px; border-right:1px solid #16191b
+        · {{ tk.sym }}
+        · {{ tk.px }}
+        · {{ tk.chg }}
+<div> height:36px; padding:0 16px; gap:10px; border-bottom:1px solid #1f2225
+  <div> height:14px; width:2px
+  <div> font-size:12.5px
+  <div> flex:1
+  <div> font-size:10px
+    · DISMISS ✕
+<div> height:88px; border-bottom:1px solid #1f2225
+  <div> width:330px; padding:0 20px; gap:13px; border-right:1px solid #1f2225
+    <div> height:32px; width:32px; font-size:11px
+      · ₿
+      <div> gap:9px
+        <div> font-size:16px
+          · BTCUSDT
+        <div> padding:2px 6px; font-size:9.5px
+          · PERP
+        <div> font-size:9px
+          · ▾
+      <div> gap:9px
+        <div> font-size:19px
+          · 115,284.50
+        <div> font-size:12px
+          · +1.42%
+  <div> grid-template-columns:repeat(5,1fr); flex:1
+      <div> padding:0 18px; gap:6px; border-right:1px solid #1f2225
+        <div> font-size:9.5px
+          · {{ s.label }}
+        <div> font-size:14px
+          · {{ s.value }}
+        <div> font-size:10px
+          · {{ s.note }}
+  <div> width:230px; padding:0 18px; gap:11px
+    <div> height:34px; width:2px
+      <div> font-size:9.5px
+        · 1D moved 4.2%
+      <div> font-size:11.5px
+<div> border-bottom:1px solid #1f2225
+  <div> width:330px; padding:20px; gap:10px; border-right:1px solid #1f2225
+    <div> font-size:10px
+      · Read · 4H · 11:42 UTC
+    <div> font-size:34px
+      · LEAN BULLISH
+    <div> gap:10px
+      <div> height:3px; flex:1
+        <div> height:3px; width:68%
+      <div> font-size:13px
+        · 68
+      <div> font-size:10px
+        · CONF
+  <div> grid-template-columns:repeat(4,1fr); flex:1
+      <div> padding:20px 22px; gap:7px; border-right:1px solid #1f2225
+        <div> font-size:10px
+          · {{ l.label }}
+        <div> font-size:20px
+          · {{ l.value }}
+        <div> font-size:11px
+          · {{ l.note }}
+  <div> width:170px
+    <div> font-size:11px; flex:1
+      · RE-RUN READ
+    <div> font-size:11px; flex:1
+      · SET ALERT
+<div> height:42px; padding:0 16px; gap:2px; border-bottom:1px solid #1f2225
+    <div> padding:6px 12px; gap:6px
+      <div> font-size:11px
+        · {{ t.label }}
+<div> flex:1
+<div> font-size:10px
+  · 1M · 5M · 15M NEED PRO
+<div> width:14px
+<div> padding:5px 10px; font-size:10px
+  · EMA · VOL · CLUSTERS
+<div> flex:1
+  <div> border-right:1px solid #1f2225; flex:1
+    <div> height:430px; padding:16px 62px 24px 16px; border-bottom:1px solid #1f2225
+          <div> width:{{ c.w }}
+            <div> height:{{ c.wickH }}; width:1px
+            <div> height:{{ c.h }}
+        <div> height:{{ entryH }}; border-bottom:1px dashed rgba(63,185,80,.5)
+        <div> padding:1px 3px; font-size:10px
+          · 113,410
+        <div> padding:1px 3px; font-size:10px
+          · 117,900
+        <div> padding:1px 3px; font-size:10px
+          · 115,284
+    <div> border-bottom:1px solid #1f2225
+      <div> height:30px; padding:0 16px; gap:10px; border-bottom:1px solid #1f2225
+        <div> font-size:10px
+          · Confluence score
+        <div> padding:2px 7px; font-size:9.5px
+          · PRO
+        <div> flex:1
+        <div> font-size:10px
+          · 7 FACTORS · 4 VOTING
+      <div> padding:18px 16px; gap:24px; border-bottom:1px solid #1f2225
+        <div> width:250px; gap:12px
+          <div> font-size:34px
+            · +42
+          <div> font-size:14px
+            · LEANING BULL
+        <div> height:8px; flex:1
+          <div> width:1px
+          <div> width:21%
+        <div> width:74px; font-size:10px
+          · −100 · +100
+      <div> grid-template-columns:repeat(4,1fr)
+          <div> padding:11px 16px; gap:10px; border-bottom:1px solid #16191b; border-right:1px solid #16191b
+            <div> height:18px; width:2px
+            <div> font-size:12.5px
+              · {{ f.label }}
+            <div> flex:1
+            <div> font-size:12px
+              · {{ f.value }}
+    <div> border-bottom:1px solid #1f2225
+      <div> border-right:1px solid #1f2225; flex:1
+        <div> height:30px; padding:0 16px; gap:10px; border-bottom:1px solid #1f2225
+          <div> font-size:10px
+            · Timeframe alignment
+          <div> flex:1
+          <div> font-size:10px
+            · 4 BULL · 3 NEUTRAL
+          <div> padding:9px 16px; gap:12px; border-bottom:1px solid #16191b
+            <div> width:32px; font-size:11px
+              · {{ m.tf }}
+            <div> width:14px; font-size:12px
+              · {{ m.icon }}
+            <div> height:6px; flex:1
+              <div> width:{{ m.w }}
+              <div> width:1px
+              <div> width:1px

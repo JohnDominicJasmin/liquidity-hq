@@ -128,6 +128,19 @@ so states the market may not produce for days are still checkable:
 between runs, which is why it first looked flaky. It is not: the defect is
 deterministic per state, only *which state renders* is not.
 
+**RULED, and it is the standing pattern.** Design's call, 2026-09-02: the text
+takes a fixed `--txt`, and the tone is carried by the tint alone — the same
+shape as the correlation-diagonal fix. Their reasoning is the durable part:
+
+> A self-tint where text colour equals tone colour is marginal in light *by
+> construction*, and that does not go away by tuning alpha. Fixing text-colour
+> once is **one rule**; tuning alpha per component is **seven tunings that can
+> each drift back out of range** as content changes.
+
+Applied to `PerpSpotCard` immediately. The other six sites inherit it **when
+their canvas rebuilds land, not before** — a contrast fix applied now would be
+thrown away by the rebuild.
+
 **`withAlpha()` hides this from a grep.** `lib/color.ts:10` returns
 `color-mix(...)`, so none of its 34 call sites match a search for
 `color-mix(in srgb,`. Searching the *semantics* instead finds the same shape at
