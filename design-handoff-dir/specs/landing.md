@@ -348,6 +348,13 @@ DATA      FEATURE_META in LandingContent.tsx, paired with dict.features.cards.
 CONTROLS  The WHOLE CARD is a link — it is an <a>, not a div with a link inside.
           Affordance is carried by: the "OPEN →" in accent, the route string,
           and a hover state. Not by colour alone.
+          NOTE (#639, 2026-09-03): listing the route string as an affordance
+          reads against the accessibility clause below, which calls it
+          non-essential decoration and exempts it from 4.5:1 at --txt4.
+          The owner ruled the accessibility clause wins: the route string is
+          decoration, its pairing holds, and it STAYS at --txt4. Affordance
+          here rests on "OPEN →" and the hover. Recorded so the tension is
+          not rediscovered as a bug report against correct code.
 STATES    hover  card ground → --bg1; "OPEN →" underline; 120ms ease
           focus  2px outline --accent offset -2px (inset, so it is not clipped
                  by the 1px grid gap)
@@ -504,6 +511,22 @@ The same applies to `lib/labelKeys.ts` DB-driven labels: any panel whose text ca
 | `--red` on `--bg1` | verdict when bearish |
 
 `--txt4` is used only for the excluded-feature `✕` and the route string in card footers. Both are **non-essential decoration paired with a text label**, so they are exempt from 4.5:1 — but if either ever becomes the only carrier of meaning, it must be re-tokened. Flag it rather than darkening it.
+
+> **AMENDED 2026-09-03 (#639), owner's ruling.** The exemption is **revoked for
+> the `✕`** and stands for the route string.
+>
+> The `✕`'s pairing lapsed without anyone editing this clause. The pricing row
+> renders the glyph beside `f.text`, and `f.text` names the **feature**, never
+> whether it is included — so the `✕` plus a colour shift on the label are the
+> only carriers, and colour alone is not one. That is exactly the condition
+> above, so the `✕` is now **`--txt3`** in `LandingTerminal.tsx`. It is not a
+> departure from this clause; it is this clause firing.
+>
+> The route string keeps `--txt4`. Its pairing holds: the card carries
+> `OPEN →` in accent plus the feature name, and the route string genuinely is
+> decoration beside them.
+>
+> Do not "fix" the `✕` back to `--txt4` on the strength of the sentence above.
 
 **Do not apply alpha to a token to de-emphasise it.** The README notes this pattern has already produced sub-AA text five times. Size and weight carry de-emphasis; the token is already tuned to the line.
 
