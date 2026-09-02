@@ -1512,7 +1512,14 @@ function ArenaContent() {
           <div className="at-panelbody"><MultiTFAlignment coin={selectedCoin} /></div>
         </div>
         <div className="at-bodypanel">
-          <div className="at-phead"><span className="at-ptitle">{t('MARKET_STRUCTURE_TITLE')}</span></div>
+          {/* ARENA_MS_PANEL_TITLE, not MARKET_STRUCTURE_TITLE: that label
+              ships "Market Structure · 4H" and the arena canvas draws the
+              panel header as just "Market structure". The "· 4H" I saw
+              during the #598 build and could not explain was never a
+              rendering artefact - it is in the label string. The shared
+              label keeps its own value for the current design's three call
+              sites in MarketStructure.tsx. */}
+          <div className="at-phead"><span className="at-ptitle">{t('ARENA_MS_PANEL_TITLE')}</span></div>
           <div className="at-panelbody"><MarketStructure coin={selectedCoin} onData={handleMsData} /></div>
         </div>
       </div>
