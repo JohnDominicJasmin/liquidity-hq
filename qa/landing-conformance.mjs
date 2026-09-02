@@ -218,7 +218,7 @@ const DESKTOP = () => {
   const ctaEl = [...document.querySelectorAll('a, button')].filter(vis)
     .find(e => /start for free|get started/i.test(txt(e)));
   const q1 = {
-    tokenBg: tok('--bg0'), paintedBg: hex(paintedBg),
+    tokenBg: tok('--bg0'), tokenBg1: tok('--bg1'), paintedBg: hex(paintedBg),
     tokenAccent: tok('--accent'),
     paintedCta: ctaEl ? hex(getComputedStyle(ctaEl).backgroundColor) : null,
   };
@@ -364,9 +364,17 @@ for (const theme of THEMES) {
   /* Q-criteria are QA's, not the spec's — each exists because a real defect
      scored 20/21. They are labelled Q so nobody mistakes them for handoff
      criteria when reading a report. */
-  const bgOk = d.q1.paintedBg === d.q1.tokenBg;
+  /* Compare the ground against the terminal ground tokens as a SET, with a
+     small tolerance. Requiring body to equal --bg0 exactly reported dark as
+     failing on #06070a vs #08090a - two units, on an element that is not the
+     token-bearing surface. The defect this exists to catch painted #050505
+     against a #f7f6f3 token, which no tolerance hides. */
+  const nearHex = (a, b) => { if (!a || !b) return false;
+    const ch = c => [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16));
+    const [x, y] = [ch(a), ch(b)]; return x.every((v, i) => Math.abs(v - y[i]) <= 4); };
+  const bgOk = [d.q1.tokenBg, d.q1.tokenBg1].filter(Boolean).some(g => nearHex(d.q1.paintedBg, g));
   const ctaOk = d.q1.paintedCta === null ? null : d.q1.paintedCta === d.q1.tokenAccent;
-  console.log(V(bgOk, `Q1a ground paints --bg0 — token ${d.q1.tokenBg}, painted ${d.q1.paintedBg}`));
+  console.log(V(bgOk, `Q1a ground paints a terminal ground token — tokens ${d.q1.tokenBg}/${d.q1.tokenBg1}, painted ${d.q1.paintedBg}`));
   console.log(V(ctaOk, `Q1b CTA paints --accent — token ${d.q1.tokenAccent}, painted ${d.q1.paintedCta ?? 'CTA not found'}`));
   console.log(V(d.q2.length === 0, `Q2  no text wider than its own box — ${d.q2.length}`));
   d.q2.forEach(x => console.log(`      "${x.t}" box ${x.box} needs ${x.needs} (+${x.over}${x.escapes ? ', ESCAPES — paints outside' : ', clipped'})`));

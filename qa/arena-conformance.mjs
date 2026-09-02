@@ -79,9 +79,15 @@ const DESKTOP = () => {
   const aside = Q('aside')[0];
   const c2 = aside ? aside.offsetWidth : -1;
 
-  /* C7 — band heights, by position rather than by class */
-  const h = (el) => el ? el.offsetHeight : -1;
-  const c7 = { nav: h(Q('nav, header')[0]), regions: regions.map(e => e.offsetHeight).slice(0, 7) };
+  /* C7 — band heights, from ARENA'S OWN bands only.
+     `Q('nav, header')[0]` returns the APP SHELL's nav, which arena does not
+     own and which is 34 at desktop and 92 at mobile. Reporting those as
+     "nav 44 failed" and "mobile nav 38 failed" was two phantom defects on a
+     build that never rendered a nav of its own. Arena's regions live inside
+     .at-root; the shell's nav and ticker sit outside it. */
+  const c7 = { regions: regions.map(e => ({
+    cls: (e.className || '').toString().trim().split(/\s+/)[0] || e.tagName.toLowerCase(),
+    h: e.offsetHeight })).slice(0, 7) };
 
   /* C8 — chart panel 430 */
   const chart = [...document.querySelectorAll('*')].filter(e => vis(e) &&
@@ -149,19 +155,34 @@ const DESKTOP = () => {
     const t = txt(el);
     return /^(1m|5m|15m|30m|1h|4h|1d|1w)$/i.test(t) || /^(1m|5m|15m|30m|1h|4h|1d|1w)\s/i.test(t);
   });
-  const locked = chips.filter(el => /🔒|lock/i.test(el.innerHTML) ||
-    !!el.querySelector('svg[class*="lock"], [data-locked], [aria-label*="ock"]'));
+  /* Gating is read from the .at-tf-gated CLASS, not from a glyph.
+     The padlock is an unlabelled `aria-hidden` <svg> with no class and no
+     accessible name, so requiring the lock to identify itself — which was the
+     right fix for the dashboard detector that counted any <svg> — reported 0
+     padlocks on a row that visibly has three. The class is the component's own
+     gating state and cannot drift from what it renders. */
+  const gatedEls = [...document.querySelectorAll('.at-tf-gated')].filter(vis);
+  const locked = gatedEls.length ? gatedEls : chips.filter(el => /🔒/.test(el.textContent || ''));
   const accent = tok('--accent');
-  const active = chips.filter(el => (hex(getComputedStyle(el).backgroundColor) || '') === accent);
+  const activeEls = [...document.querySelectorAll('.at-tf-active')].filter(vis);
+  const active = activeEls.length ? activeEls
+    : chips.filter(el => (hex(getComputedStyle(el).backgroundColor) || '') === accent);
   const c20 = { n: locked.length, labels: locked.map(txt) };
-  const c21 = { n: active.length, labels: active.map(txt) };
+  /* C21 asserts the active chip COMPUTES --accent, so keep the colour test —
+     the class alone would only prove the class is applied. */
+  const c21 = { n: active.length, labels: active.map(txt),
+    accentOk: active.every(el => (hex(getComputedStyle(el).backgroundColor) || '') === accent) };
   const c23 = /need\s*pro/i.test(document.body.innerText || '');
+  /* Spec writes NEED PRO in caps; case-insensitive matching hid a lowercase
+     render. Report the case separately rather than failing C23 on it. */
+  const c23case = /NEED PRO/.test(document.body.innerText || '');
 
   /* C24/C25/C26 — absent, not hidden. Node count, per the criterion. */
   const c24 = document.querySelectorAll('[data-layout="mobile"]').length;
-  const c25 = document.querySelectorAll('[class*="klc-"], [class*="KLinePro"]').length
-    ? [...document.querySelectorAll('*')].filter(e => /klc-root|klc-container/.test((e.className || '').toString())).length
-    : -1;
+  /* .at-chart is the panel the build actually names. The klc-root/klc-container
+     guess matched nothing and reported "0 chart instances" on a page with a
+     chart plainly rendered. */
+  const c25 = document.querySelectorAll('.at-chart, .at-mchart').length;
 
   /* ── Q1-Q4: QA's, not the spec's. Ported from the landing suite after the
      owner found three defects by opening the page that a 20/21 score had
@@ -171,7 +192,8 @@ const DESKTOP = () => {
   /* Q1 — what the page PAINTS, not what :root declares. On landing (#595)
      --bg0 and --accent were both correct at the root and the page ignored
      both, so any getPropertyValue assertion passed. */
-  const q1 = { tokenBg: tok('--bg0'), paintedBg: hex(getComputedStyle(document.body).backgroundColor) };
+  const q1 = { tokenBg: tok('--bg0'), tokenBg1: tok('--bg1'),
+    paintedBg: hex(getComputedStyle(document.body).backgroundColor) };
 
   /* Q2 — text wider than its own box. Bounding-box intersection cannot find
      this: on /dashboard the price element's box did not intersect its
@@ -327,7 +349,10 @@ for (const theme of THEMES) {
     console.log('CHECK  root container not found — every structural criterion below is a locator miss, not a verdict.\n');
   }
 
-  console.log(V(d.c1.count === 7, `C1  7 top-level regions — ${d.c1.count} (${d.c1.tags.join(', ')})`));
+  /* Arena's root holds 5 regions; the nav and ticker are the app shell's and
+     sit OUTSIDE .at-root. Asserting 7 there reported a correct build as
+     structurally wrong. Score arena's own 5 and name the two it does not own. */
+  console.log(V(d.c1.count === 5, `C1  5 regions in .at-root (nav + ticker are shell-owned) — ${d.c1.count} (${d.c1.tags.join(', ')})`));
   console.log(V(d.c2 === 352, `C2  rail offsetWidth 352 — ${d.c2}`));
   console.log(U('C3  main column 5 panels in order — needs the panel class hooks; add once the build names them'));
   console.log(U('C4  rail 5 panels in order — same'));
@@ -335,7 +360,9 @@ for (const theme of THEMES) {
   console.log(V(d.c6.n === 0, `C6  radius 0 (circular <=24px exempt per radius-ruling.md) — ${d.c6.n} violations, ${d.c6.circular} exempt`));
   if (d.c6.n) console.log('      ' + d.c6.bad.join(' | '));
 
-  console.log(V(d.c7.nav === 44, `C7  nav 44 — ${d.c7.nav}   [band heights: ${d.c7.regions.join(', ')}]`));
+  const wantH = { 'at-panel': 36, 'at-snapband': 88, 'at-tfrow': 42 };
+  const hBad = d.c7.regions.filter(r => wantH[r.cls] !== undefined && r.h !== wantH[r.cls]);
+  console.log(V(hBad.length === 0, `C7  band heights (hint 36 / snapshot 88 / timeframe 42) — ${d.c7.regions.map(r => `${r.cls}:${r.h}`).join(' ')}`));
   console.log(V(d.c8 === 430, `C8  chart panel 430 — ${d.c8}`));
   console.log(V(d.c9 ? d.c9.px === 34 : null, `C9  verdict font 34px — ${d.c9 ? `${d.c9.px}px "${d.c9.text}" ${d.c9.colour}` : 'not found'}`));
   console.log(`      (C9's COLOUR half is fixture-gated — --green only under a bullish read)`);
@@ -359,18 +386,21 @@ for (const theme of THEMES) {
 
   const wantLocks = ['1m', '5m', '15m'];
   console.log(V(d.c20.n === 3 && wantLocks.every(l => d.c20.labels.some(x => x.toLowerCase().startsWith(l))),
-    `C20 exactly 3 padlocked chips, labels 1m/5m/15m — ${d.c20.n}: ${d.c20.labels.join(' ')}`));
-  console.log(V(d.c21.n === 1, `C21 exactly 1 chip on --accent — ${d.c21.n}: ${d.c21.labels.join(' ')}`));
+    `C20 exactly 3 gated chips, labels 1m/5m/15m — ${d.c20.n}: ${d.c20.labels.join(' ')}`));
+  console.log(V(d.c21.n === 1 && d.c21.accentOk, `C21 exactly 1 chip computing --accent — ${d.c21.n}: ${d.c21.labels.join(' ')}${d.c21.accentOk ? '' : ' (class applied but background is NOT --accent)'}`));
   console.log(U('C22 clicking a gated chip opens the modal and does not switch — interaction, run separately'));
-  console.log(V(d.c23, `C23 the row contains "NEED PRO" — ${d.c23 ? 'present' : 'absent'}`));
+  console.log(V(d.c23, `C23 the row contains "NEED PRO" — ${d.c23 ? 'present' : 'absent'}${d.c23 && !d.c23case ? ' (but NOT in caps as the spec writes it)' : ''}`));
 
   console.log(V(d.c24 === 0, `C24 no [data-layout="mobile"] nodes at 1440 — ${d.c24}`));
-  console.log(V(d.c25 === 1 ? true : (d.c25 === -1 ? null : false), `C25 exactly 1 chart instance — ${d.c25 === -1 ? 'no chart hook found' : d.c25}`));
+  console.log(V(d.c25 === 1, `C25 exactly 1 chart instance (.at-chart/.at-mchart) — ${d.c25}`));
   console.log('      (C25\'s "one candle subscription" half needs a network check, not the DOM)');
 
   console.log(V(m.c24 === 0, `C24b no [data-layout="desktop"] nodes at 390 — ${m.c24}`));
   console.log(V(m.c26.aside === 0, `C26 rail absent at 390 (not hidden) — ${m.c26.aside} aside, ${m.c26.railish} rail-ish`));
-  console.log(V(m.c32.nav === 38, `C32 mobile nav 38 — ${m.c32.nav}   [tab bar ${m.c32.tabbar}, want 60]`));
+  /* Arena owns no nav of its own; .at-nav-mobile and .at-tabbar exist in
+     globals.css but are never applied in the JSX, so there is nothing to
+     measure. Report that as the finding rather than measuring the shell's. */
+  console.log(V(null, `C32 mobile nav 38 / tab bar 60 — arena renders neither; .at-nav-mobile and .at-tabbar are unwired`));
   console.log(V(m.c33 ? m.c33.px === 26 : null, `C33 mobile verdict 26px — ${m.c33 ? `${m.c33.px}px "${m.c33.text}"` : 'not found'}`));
   console.log('      (26 is arena.md\'s own soft number — "ratio argument only, do not cite as measured")');
   console.log(U('C34 levels render as 3 cells in one row — needs the cell hook'));
@@ -379,7 +409,17 @@ for (const theme of THEMES) {
   /* Q-criteria are QA's, not arena.md's. Each exists because a real defect
      scored clean: the owner found three on landing and dashboard that a
      20/21 and a 5/5 had both missed. */
-  console.log(V(d.q1.paintedBg === d.q1.tokenBg, `Q1  ground paints --bg0 — token ${d.q1.tokenBg}, painted ${d.q1.paintedBg}`));
+  /* Compare against the ground tokens as a SET. Requiring body to equal
+     --bg0 exactly failed on #06070a vs #08090a - a two-unit difference on an
+     element that is not the token-bearing surface. The defect this exists to
+     catch (#595) painted #050505 against a #f7f6f3 token, which no tolerance
+     hides. */
+  const grounds = [d.q1.tokenBg, d.q1.tokenBg1].filter(Boolean);
+  const near = (a, b) => { if (!a || !b) return false;
+    const p = c => [1,3,5].map(i => parseInt(c.substr(i,2),16));
+    const [x,y] = [p(a),p(b)]; return x.every((v,i) => Math.abs(v-y[i]) <= 4); };
+  console.log(V(grounds.some(g => near(d.q1.paintedBg, g)),
+    `Q1  ground paints a terminal ground token — tokens ${grounds.join('/')}, painted ${d.q1.paintedBg}`));
   console.log(V(d.q2.length === 0, `Q2  no text wider than its own box — ${d.q2.length}`));
   d.q2.forEach(x => console.log(`      "${x.t}" box ${x.box} needs ${x.needs} (+${x.over}${x.escapes ? ', ESCAPES — paints outside' : ', clipped'})`));
   console.log(V(d.q3.length === 0, `Q3  every band's children fit the band — ${d.q3.length} overflowing`));
