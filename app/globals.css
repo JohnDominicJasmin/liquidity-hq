@@ -461,50 +461,62 @@ body::after {
 .csb2-sig       { font-size: var(--fs-caption); font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.02); }
 .csb2-bar-track { height: 3px; background: rgba(255,255,255,0.06); border-radius: 0 0 var(--radius-data) var(--radius-data); margin: 0 -10px; }
 .csb2-bar-fill  { height: 100%; border-radius: 0 0 var(--radius-data) var(--radius-data); transition: width 0.8s ease, background 0.3s; }
-/* #559 Bug 2, "the tint recipe": the health-grade badge backgrounds
-   color-mix the grade's own token toward transparent at 13.3%, composited
-   over the card behind it. On dark that pulls the surface toward black
-   while the text stays light, so text and background diverge and
-   contrast holds - same shape as .csb2-sig above. On light, the same mix
-   pulls the surface toward the TEXT colour instead of away from it,
-   shrinking the gap the badge needs. Originally scoped to grades C/F
-   (--txt2/--txt3) on the assumption A/B/D already cleared the floor.
+/* #614 removed four terminal-scoped .csb2-health-badge overrides that used to
+   sit here: grade-b and grade-c background reductions (light), grade-f's
+   `color: var(--txt)` (both themes) and grade-f's background reduction
+   (light). They are gone rather than adjusted because the thing they were
+   patching is gone FOR THOSE THREE STATES - one comes back below, changed.
 
-   QA's full grade x card-state sweep (matrix, not the single earlier
-   reading) found the confirmed live defect is narrower than that: one
-   badge, grade F, ONLY on the selected card (.csb2-sel) in light -
-   4.316:1. Unselected clears at 4.649. Selected renders --bg3, which in
-   terminal light aliases to --bg2 - one step darker than unselected's
-   --bg1 - and that single step is what puts it under. (The earlier "grade
-   B measured 3.98" reading was a mismeasurement of a grade-F badge, not
-   evidence for grade B - see the PR/issue thread. --green-2's own ceiling
-   math below is independently derived, not resting on that number.)
+   They existed to rescue a self-tint: the badge painted its text in a token
+   and its background in a 13.3% mix of THAT SAME token, so on light the
+   surface moved toward the text instead of away, and grade F on a selected
+   card measured 4.316:1. Under the canvas's rule C, D and F escape that
+   entirely - Dashboard 2a.dc.html:377 paints their text --txt but tints with
+   --txt2, two different tokens - and they now measure 11.2:1 to 12.5:1 across
+   both themes and both card states. Nothing left to patch there.
 
-   --txt3 on --bg2 caps at 4.703:1 with NO tint at all - same shape as
-   --green-2's 4.752 ceiling - so alpha alone can't reliably clear 4.5 on
-   the selected card with real margin. Grade F's text is already the
-   muted, no-strong-signal colour (--txt3, not a "bad" red or a "good"
-   green), so there's little semantic loss in the same move already used
-   on the correlation diagonal: text -> --txt, which has no ceiling
-   problem on any card state. Background tint stays reduced too, belt and
-   suspenders. Grades A/D (amber/orange) still untouched - amber's base
-   VALUE is design's #559 Bug 1, not this alpha issue, and orange isn't
-   governed in terminal at all yet (a separate, older gap). */
+   A and B do NOT escape it. The canvas tints green with green, so the self-
+   tint is still exactly what it was, only in a different token: --green
+   rather than --green-2. Measured at the canvas's own 15%:
+
+     dark  unselected 5.679   dark  selected 5.765   (both clear)
+     light unselected 4.171   light selected 3.886   (both FAIL AA)
+
+   Dark is fine because the mix pulls toward black, away from the text. Light
+   fails, and alpha barely rescues it: --green on light --bg2 with NO tint at
+   all caps near 4.66:1, so 3% is the largest value that clears 4.5 on the
+   selected card (4.585) and every value from 4% up fails. That is the same
+   ceiling shape --green-2 had, which is why the rule this replaces also
+   landed on 3% - the old value was right, for a reason that outlived the
+   token it was written for.
+
+   So the light green tint keeps its reduction and the comparison to the
+   canvas is a knowing one: at 15% the canvas's own light variant does not
+   meet AA here, and its lighter GREEN (#1a7f37 vs our #14702c) would measure
+   worse still. Mirroring the canvas everywhere except this alpha.
+
+   Kept as history rather than deleted outright, because the measurements
+   below are still the record of what was wrong and someone will otherwise
+   re-derive them:
+
+     "#559 Bug 2, the tint recipe": badge backgrounds color-mix the grade's
+     own token toward transparent at 13.3%, composited over the card. On dark
+     that pulls the surface toward black while the text stays light, so they
+     diverge and contrast holds. On light the same mix pulls the surface
+     toward the TEXT colour, shrinking the gap. QA's full grade x card-state
+     sweep found the confirmed live defect was one badge - grade F, only on
+     the selected card (.csb2-sel) in light, 4.316:1; unselected cleared at
+     4.649. Selected renders --bg3, which in terminal light aliases to --bg2,
+     one step darker than unselected's --bg1, and that step is what put it
+     under. --txt3 on --bg2 caps at 4.703:1 with NO tint at all, the same
+     shape as --green-2's 4.752 ceiling, so alpha alone could not clear 4.5
+     with margin - hence text -> --txt for grade F.
+
+   __tests__/contrastTokens.test.mts pins the --txt2/--txt3 pair for the
+   .csb2-sig overlay, which is a different element and is untouched. */
+[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-a,
 [data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-b {
-  background: color-mix(in srgb, var(--green-2) 3%, transparent) !important;
-}
-[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-c {
-  background: color-mix(in srgb, var(--txt2) 4%, transparent) !important;
-}
-/* Base rule, not theme-scoped: dark had the identical self-tint problem
-   (--txt3 text on a 13% tint of --txt3, 4.11:1) and was simply never fixed
-   when light was. DashboardTerminal.tsx no longer sets an inline `color`
-   for grade F, so this needs no !important to win. */
-[data-design="terminal"] .csb2-health-badge.grade-f {
-  color: var(--txt);
-}
-[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-f {
-  background: color-mix(in srgb, var(--txt3) 4%, transparent) !important;
+  background: color-mix(in srgb, var(--green) 3%, transparent) !important;
 }
 
 /* ── MARKET EVENTS STRIP ── */
