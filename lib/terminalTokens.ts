@@ -60,6 +60,52 @@ export const TERMINAL_COLORS = {
   '--txt-dash': '#848a92',
 } as const;
 
+/** The same 18 tokens under `[data-design="terminal"][data-theme="light"]`
+ *  (#602). Terminal light is a real, separately-specified palette, not the
+ *  dark values on a pale ground - `--accent`/`--green`/`--red`/`--amber` are
+ *  all darkened because their dark-theme hex measures under 2.6:1 on a light
+ *  ground. Without this set, any conformance check that reads
+ *  TERMINAL_COLORS could only ever validate half the design's themes, and
+ *  #595 showed what an unvalidated light theme costs: terminal landing shipped
+ *  painting the current design's black ground and blue accent, passing 20/21
+ *  because no criterion asserted a colour.
+ *
+ *  Transcribed from `app/globals.css`'s terminal-light block, which is in turn
+ *  sourced from `specs/light-theme-tokens.md` - same reason the dark set
+ *  exists here: one place for both the stylesheet and a test to read, so the
+ *  two cannot drift apart invisibly. Hex case is copied as declared; compare
+ *  case-insensitively.
+ *
+ *  NOTE: `TERMINAL_FLAT_CELL` below has NO light counterpart - it is absent
+ *  from the terminal-light CSS block, from `:root`, and from
+ *  `specs/light-theme-tokens.md`. So under terminal+light `var(--flat-cell)`
+ *  resolves to nothing and the declaration using it is dropped. Not given a
+ *  value here because inventing one would be a design decision; raised on
+ *  #602 for design to rule on. */
+export const TERMINAL_COLORS_LIGHT = {
+  '--bg0':          '#f7f6f3',  // Canvas
+  '--bg1':          '#ebe9e6',  // Raised region
+  '--bg2':          '#e3e1dd',  // Bar/track background
+  '--bdr':          '#d5d2cd',  // Structural hairline
+  '--bdr2':         '#dfdcd7',  // Row hairline
+  '--bdr3':         '#e2dfda',  // Cell hairline
+  '--txt':          '#15181b',  // Primary text and data
+  '--txt2':         '#585c61',  // Secondary text, prose
+  /* #559 second round: 5.690:1 on --bg0 and 4.709:1 on --bg2, the binding
+     surface - chosen against the darkest composited background actually
+     used, not just the canvas. */
+  '--txt3':         '#5e6267',  // Micro-labels, meta
+  '--txt4':         '#aeaaa4',  // Disabled, axis labels
+  '--accent':       '#754e00',  // Active nav, primary CTA - with #ffffff text here, not --bg0
+  '--green':        '#14702c',  // Bullish / firing positive
+  '--red':          '#9d1a23',  // Bearish / firing negative
+  '--amber':        '#755100',  // Weak/caution state
+  '--mark-idle':    '#d1cec9',  // Signal marker when NOT firing
+  '--border-input': '#75797e',  // Input and secondary-button border
+  '--fr-slight-long': '#7C5E2E',
+  '--txt-dash':     '#4f5257',
+} as const;
+
 /* The seventeenth value: the FLAT cell in the hours expectancy grid.
  *
  * Rendered in `Monochrome Terminal - Tools.dc.html` with its own legend swatch,
@@ -97,9 +143,20 @@ export const MAGMA_RAMP = [
 ] as const;
 /* eslint-enable local/no-bare-hex-colour */
 
-/** Every colour the design is allowed to render, for a conformance check. */
+/** Every colour the design is allowed to render in DARK, for a conformance
+ *  check. */
 export const TERMINAL_ALLOWED = [
   ...Object.values(TERMINAL_COLORS),
   TERMINAL_FLAT_CELL,
+  ...MAGMA_RAMP.map(s => s.color),
+];
+
+/** The same list for LIGHT (#602). The magma ramp is shared deliberately: the
+ *  liquidation map is dark-only by design (see the ramp's comment above), so
+ *  it renders the same seven stops under either theme rather than having a
+ *  light variant. TERMINAL_FLAT_CELL is NOT included - it has no light value
+ *  anywhere, see TERMINAL_COLORS_LIGHT's note. */
+export const TERMINAL_ALLOWED_LIGHT = [
+  ...Object.values(TERMINAL_COLORS_LIGHT),
   ...MAGMA_RAMP.map(s => s.color),
 ];
