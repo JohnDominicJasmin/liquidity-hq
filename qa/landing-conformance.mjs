@@ -36,8 +36,12 @@ const DESKTOP = () => {
   const Q = s => [...document.querySelectorAll(s)].filter(vis);
   const cs = getComputedStyle(document.documentElement);
   const tok = n => cs.getPropertyValue(n).trim().toLowerCase();
+  /* Same 0-1 vs 0-255 scaling as parse(): a `color(srgb ...)` declaration
+     hexes to near-black without it, which is how 50 correctly-coloured
+     ticker cells were reported as 1.04:1 failures. */
   const hex = c => { const m = (c.match(/[\d.]+/g) || []).map(Number); if (m.length < 3) return null;
-    return '#' + m.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join(''); };
+    const k = /^color\(/.test(c.trim()) ? 255 : 1;
+    return '#' + m.slice(0, 3).map(v => Math.round(v * k).toString(16).padStart(2, '0')).join(''); };
   const txt = e => (e.textContent || '').replace(/\s+/g, ' ').trim();
 
   /* C1 — 8 top-level sections in order. Identify by content, not class: the
@@ -45,7 +49,13 @@ const DESKTOP = () => {
      layout as failing when sections are bare divs. */
   /* Sections live inside .lp-root, not as body grandchildren. Counting from
      body picked up the consent banner and missed the real structure. */
-  const root = document.querySelector('.lp-root') || document.body;
+  /* The terminal build names its root `.lpt-root`, not `.lp-root`. The first
+     version hard-coded the current design's prefix and reported 2 sections
+     (`main.app-content`, `div.consent-bar`) for an 8-section page — a locator
+     miss dressed up as a structural failure. Accept either, and fall back to
+     the deepest single wrapper rather than <body>. */
+  const root = document.querySelector('.lpt-root, .lp-root')
+    || document.querySelector('main.app-content > div') || document.body;
   const secs = [...root.children].filter(vis);
   const c1 = { count: secs.length, tags: secs.map(e => e.tagName.toLowerCase() + (e.className ? '.' + e.className.toString().trim().split(/\s+/)[0] : '')).slice(0, 10) };
 
@@ -57,30 +67,65 @@ const DESKTOP = () => {
   /* Scope to the actual grid. The first version matched every link to those
      six paths ANYWHERE on the page and reported 27 cards for a 6-card grid. */
   const wanted = ['/arena', '/settings', '/briefing', '/news', '/dashboard', '/scanner'];
-  const featureLinks = [...document.querySelectorAll('.lp-features .lp-feature-card')].filter(vis);
+  /* Scoping to a `.lp-features` ANCESTOR was the over-correction: the terminal
+     build has no such wrapper, so the scoped selector matched nothing and
+     reported 0 cards for a grid C13 simultaneously measured at 3×452px. The
+     card class alone is specific enough — it only ever appears in the grid. */
+  const featureLinks = [...document.querySelectorAll('.lpt-feature-card, .lp-feature-card')].filter(vis);
   const seen = [];
   for (const a of featureLinks) { const p = new URL(a.href, location.origin).pathname; if (!seen.includes(p)) seen.push(p); }
   const c3 = { count: featureLinks.length, order: seen };
   const c4 = featureLinks.filter(a => a.tagName === 'A' && vis(a)).length;
 
   /* C5 — footer link columns */
+  /* Find the link-column grid STRUCTURALLY rather than by class: the real
+     footer grid is whichever descendant of <footer> is display:grid and has
+     the most children that each hold >=2 links. `.lp-footer-grid` does not
+     exist in the terminal build and returned -1 for a correct 4-column
+     footer. */
   const footer = Q('footer, .pf-footer')[0];
-  const fgrid = document.querySelector('.lp-footer-grid');
-  const c5 = fgrid ? [...fgrid.children].filter(vis).filter(e => e.querySelectorAll('a[href]').length >= 2).length : -1;
+  const colsOf = g => [...g.children].filter(vis).filter(e => e.querySelectorAll('a[href]').length >= 2);
+  const fgrid = footer
+    ? [...footer.querySelectorAll('*')].filter(e => vis(e) && getComputedStyle(e).display === 'grid')
+        .map(g => ({ g, n: colsOf(g).length })).sort((a, b) => b.n - a.n)[0]?.g || null
+    : null;
+  const c5 = fgrid ? colsOf(fgrid).length : -1;
 
   /* C6 — risk disclosure items */
   /* Take the UL/OL closest to the RISK DISCLOSURE heading. Matching any
      ancestor containing li counted all 19 list items on the page. */
+  /* The items are NOT a list in the terminal build — they are a grid of divs.
+     Hunting for a ul/ol near the heading walked up four levels and found the
+     PRICING list instead, reporting 8 risk items for a 6-item block. Take the
+     heading's own container and the sibling block that follows it, counting
+     element children either way. */
   const riskHead = [...document.querySelectorAll('*')].find(e => !e.children.length && /risk disclosure/i.test(txt(e)));
-  let riskList = null;
-  if (riskHead) { let n = riskHead.parentElement, hops = 0;
-    while (n && !riskList && hops < 4) { riskList = n.querySelector('ul, ol'); n = n.parentElement; hops++; } }
-  const c6 = riskList ? [...riskList.children].filter(vis).length : -1;
+  let riskBlock = null;
+  if (riskHead) {
+    let n = riskHead;
+    for (let hops = 0; n && hops < 4 && !riskBlock; hops++, n = n.parentElement) {
+      const sib = [...(n.parentElement?.children || [])].filter(vis);
+      const after = sib.slice(sib.indexOf(n) + 1);
+      riskBlock = after.find(e => [...e.children].filter(vis).length >= 4) || null;
+    }
+  }
+  const c6 = riskBlock ? [...riskBlock.children].filter(vis).length : -1;
 
   /* C7 — pricing: 2 plans, $0 and $25 */
   /* Price strings are embedded in CTA copy ("Get Pro - $25/mo"), not standalone
      nodes, so an anchored ^\$\d+$ match found nothing. Extract instead. */
-  const planRoot = document.querySelector('[class*="lp-plan"], [class*="pricing"]')?.closest('section') || document;
+  /* Scope by CONTENT, not class. `[class*="lp-plan"]` matched nothing in the
+     terminal build, and the `|| document` fallback then silently widened to
+     the whole page — which happened to work, but only by accident. Anchor on
+     the section that actually contains a price. */
+  /* "the first section containing a $" is the HERO, not pricing — the live
+     read panel prints a dollar price, so a BTC quote near 77,000 made this
+     report `$77` as the only plan. Prefer the pricing landmark; fall back to
+     the section carrying BOTH prices, never to `document`. */
+  const planRoot = document.querySelector('#pricing')
+    || [...document.querySelectorAll('section')].filter(vis)
+         .find(s => /\$0\b/.test(s.textContent || '') && /\$25\b/.test(s.textContent || ''))
+    || document;
   const prices = [...new Set((planRoot.textContent || '').match(/\$\d+/g) || [])];
   const c7 = { prices };
 
@@ -135,7 +180,15 @@ const DESKTOP = () => {
 
   /* C15 — Pro plan border-top */
   const accent = tok('--accent');
-  const proCard = [...document.querySelectorAll('*')].filter(e => vis(e) && /\$25/.test(txt(e)) && txt(e).length < 400).pop();
+  /* `.pop()` takes the DEEPEST element containing "$25" — the price <div>
+     itself, whose border-top is legitimately 0px. The card is an ANCESTOR of
+     that node. Walk up from the price until a border-top actually exists,
+     which is what the criterion is about. */
+  const priceNode = [...document.querySelectorAll('*')].filter(e => vis(e) && /\$25/.test(txt(e)) && txt(e).length < 400).pop();
+  let proCard = null;
+  for (let n = priceNode, hops = 0; n && hops < 6; n = n.parentElement, hops++) {
+    if (getComputedStyle(n).borderTopWidth !== '0px') { proCard = n; break; }
+  }
   const c15 = proCard ? { w: getComputedStyle(proCard).borderTopWidth, c: (hex(getComputedStyle(proCard).borderTopColor) || '').toLowerCase(), accent } : null;
 
   /* C16 — live read panel width */
@@ -161,7 +214,7 @@ const MOBILE = () => {
   const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const Q = s => [...document.querySelectorAll(s)].filter(vis);
   const links = [...document.querySelectorAll('a[href]')];
-  const cards = [...document.querySelectorAll('.lp-features .lp-feature-card')].filter(vis);
+  const cards = [...document.querySelectorAll('.lpt-feature-card, .lp-feature-card')].filter(vis);
   const nav = Q('nav, .lp-nav, header')[0];
   /* No element on this route carries a ticker-ish class. Fall back to content -
      a strip of coin prices near the top - so "absent" is a finding rather than
@@ -174,8 +227,15 @@ const MOBILE = () => {
   const txt = e => (e.textContent || '').replace(/\s+/g, ' ').trim();
   const free = [...document.querySelectorAll('*')].filter(e => vis(e) && /\$0/.test(txt(e)) && txt(e).length < 400).pop();
   const pro = [...document.querySelectorAll('*')].filter(e => vis(e) && /\$25/.test(txt(e)) && txt(e).length < 400).pop();
-  const fgrid = document.querySelector('.lp-footer-grid');
-  const cols = fgrid ? [...fgrid.children].filter(vis).filter(e => e.querySelectorAll('a[href]').length >= 2) : [];
+  /* Same structural lookup as C5 — see the note there on why the class hook
+     was wrong. */
+  const footerEl = Q('footer, .pf-footer')[0];
+  const colsOf = g => [...g.children].filter(vis).filter(e => e.querySelectorAll('a[href]').length >= 2);
+  const fgrid = footerEl
+    ? [...footerEl.querySelectorAll('*')].filter(e => vis(e) && getComputedStyle(e).display === 'grid')
+        .map(g => ({ g, n: colsOf(g).length })).sort((a, b) => b.n - a.n)[0]?.g || null
+    : null;
+  const cols = fgrid ? colsOf(fgrid) : [];
   return {
     c18: { nav: nav ? nav.offsetHeight : -1, ticker: ticker ? ticker.offsetHeight : -1 },
     c19: { lefts: [...new Set(cards.map(a => Math.round(a.getBoundingClientRect().left)))], n: cards.length },

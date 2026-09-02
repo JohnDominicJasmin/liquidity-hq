@@ -42,8 +42,12 @@ const LIGHT = ['#f7f6f3','#ebe9e6','#e3e1dd','#d5d2cd','#dfdcd7','#e2dfda','#151
 
 const PAGE_EVAL = ({ tokens }) => {
   const TOK = Object.fromEntries(tokens.map(t => [t.toLowerCase(), 1]));
+  /* Same 0-1 vs 0-255 scaling as parse(): a `color(srgb ...)` declaration
+     hexes to near-black without it, which is how 50 correctly-coloured
+     ticker cells were reported as 1.04:1 failures. */
   const hex = c => { const m = (c.match(/[\d.]+/g) || []).map(Number); if (m.length < 3) return null; if (m.length > 3 && m[3] === 0) return null;
-    return '#' + m.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join(''); };
+    const k = /^color\(/.test(c.trim()) ? 255 : 1;
+    return '#' + m.slice(0, 3).map(v => Math.round(v * k).toString(16).padStart(2, '0')).join(''); };
   const isChrome = el => !!el.closest('.nav-menu, .gchat-panel, .app-bar, .nav-drawer, .pf-footer, .mobile-tab-bar');
   const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const q = s => [...document.querySelectorAll(s)].filter(vis);
