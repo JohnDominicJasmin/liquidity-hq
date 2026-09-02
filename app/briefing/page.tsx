@@ -20,6 +20,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import BriefingTerminal from '@/components/BriefingTerminal';
+import { parseBrief } from '@/lib/briefFormat';
 
 /* ── helpers ── */
 
@@ -538,8 +539,17 @@ export default function MorningBriefing() {
 
         {brief && !generating && (
           <div className="mb-brief-text">
-            {brief.split('\n\n').filter(Boolean).map((para, i) => (
-              <p key={i} className="mb-brief-para">{para.trim()}</p>
+            {/* parseBrief, not split('\n\n') (#620): /api/briefing now returns
+                a JSON payload, so splitting the raw reply on blank lines would
+                render the JSON itself to current-design users. The parser
+                yields section bodies as paragraphs when structured and falls
+                back to the old blank-line split when it isn't, so this renders
+                identically to before either way - including for briefs cached
+                in sessionStorage under the previous contract. The current
+                design deliberately does NOT show the new headline or section
+                heads; it is not being redesigned here. */}
+            {parseBrief(brief).paragraphs.map((para, i) => (
+              <p key={i} className="mb-brief-para">{para}</p>
             ))}
             {(() => {
               try {
