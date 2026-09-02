@@ -12,8 +12,12 @@
 import { useMarket, COINS, COIN_DEC, fmtPrice } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 
-export default function LandingTicker({ mobile }: { mobile: boolean }) {
+export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: 'ltr' | 'rtl' }) {
   const { store } = useMarket();
+  // landing.md line 518: the fade is direction-dependent - under RTL the
+  // gradient must mirror to 270deg, or it hides the first cell instead of
+  // the last (#592 review).
+  const maskAngle = dir === 'rtl' ? 270 : 90;
 
   return (
     <div
@@ -22,8 +26,8 @@ export default function LandingTicker({ mobile }: { mobile: boolean }) {
         height: mobile ? 30 : 34, flexShrink: 0, borderBottom: '1px solid var(--bdr)',
         display: 'flex', alignItems: 'stretch', overflowX: 'auto',
         fontFamily: 'var(--font-mono), monospace',
-        maskImage: mobile ? 'linear-gradient(90deg, #000 86%, transparent)' : undefined,
-        WebkitMaskImage: mobile ? 'linear-gradient(90deg, #000 86%, transparent)' : undefined,
+        maskImage: mobile ? `linear-gradient(${maskAngle}deg, #000 86%, transparent)` : undefined,
+        WebkitMaskImage: mobile ? `linear-gradient(${maskAngle}deg, #000 86%, transparent)` : undefined,
       }}
     >
       {COINS.map(id => {

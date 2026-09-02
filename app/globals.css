@@ -6632,6 +6632,13 @@ main.app-content[data-chrome="none"] {
    values match what was previously inline, so current design is
    pixel-identical to before; only terminal's override actually changes. */
 .psc-verdict-pill  { border-radius: 20px; }
+/* #592 review: LanguageSwitcher.tsx is landing-exclusive (current design +
+   terminal both render it), no design-mode branch in its own JS - same
+   "class exists only for a terminal hook" shape as the rule above. Base
+   values match what was previously inline, so current design (8px button,
+   10px dropdown) is unchanged; only terminal's override below changes. */
+.lp-lang-btn  { border-radius: 8px; }
+.lp-lang-menu { border-radius: 10px; border: 0.5px solid var(--bdr2); }
 .ecw-impact-chip   { border-radius: 4px; }
 .vr-hv-zone-low    { border-radius: 3px 0 0 3px; }
 .vr-hv-zone-high   { border-radius: 0 3px 3px 0; }
@@ -6640,6 +6647,10 @@ main.app-content[data-chrome="none"] {
 .mcw-rsi-fill,
 .mcw-ls-bar        { border-radius: 3px; }
 [data-design="terminal"] .psc-verdict-pill { border-radius: 0; }
+/* #592: menu's 0.5px border is C17's "no 0.5px on this route" too - only
+   invisible to the automated pass because the closed menu never renders it. */
+[data-design="terminal"] .lp-lang-btn  { border-radius: 0; }
+[data-design="terminal"] .lp-lang-menu { border-radius: 0; border: 1px solid var(--bdr2); }
 [data-design="terminal"] .vr-hv-track,
 [data-design="terminal"] .vr-hv-track > *  { border-radius: 0; }
 [data-design="terminal"] .ecw-impact-chip  { border-radius: 0; }
