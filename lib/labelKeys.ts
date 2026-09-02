@@ -325,6 +325,13 @@ export const LABEL_KEYS = [
   'DASH_EDGE_CB_TIP', 'DASH_EDGE_CB_LABEL',
   'DASH_EDGE_OI1H_TIP', 'DASH_EDGE_OI1H_LABEL',
   // Dashboard - misc headers
+  // Terminal shell nav (#599). TNAV_DESK_LABEL and TNAV_DESK_TAB_LABEL are
+  // both needed because the frames draw that one key differently in the two
+  // bars - OVERVIEW in the desktop nav, DESK in the mobile tab bar. The other
+  // four use one label in both places.
+  'TNAV_WORDMARK', 'TNAV_ARIA_LABEL', 'TNAV_MORE_ARIA',
+  'TNAV_DESK_LABEL', 'TNAV_DESK_TAB_LABEL', 'TNAV_ARENA_LABEL',
+  'TNAV_SCAN_LABEL', 'TNAV_FLOW_LABEL', 'TNAV_BOOK_LABEL',
   'DASH_COIN_SIGNALS_HEADER', 'DASH_BEST_SETUP_TODAY_HEADER', 'DASH_PLAYBOOK_HEADER',
   'DASH_SELECTED_COIN_OPEN_ARENA',
   'DASH_SELECTED_COIN_ARENA_CTA', 'DASH_COND_VOLATILITY_LABEL', 'DASH_COND_BREADTH_LABEL',

@@ -7,6 +7,8 @@ import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
 import UsageModal from './UsageModal';
 import LanguageNavSwitcher from './LanguageNavSwitcher';
+import TerminalNav from './TerminalNav';
+import { useDesignMode } from './DesignModeProvider';
 import { getCurrentWindow } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { withAlpha } from '@/lib/color';
@@ -253,6 +255,7 @@ export default function NavDrawer() {
   const { theme, toggleTheme }          = useTheme();
   const pathname = usePathname();
   const dot      = useStatusDot();
+  const mode     = useDesignMode();
   const { user, loading: authLoading, signOut } = useAuth();
   const authRef  = useRef<HTMLDivElement>(null);
   const initials = user?.email?.[0]?.toUpperCase() ?? '?';
@@ -290,8 +293,19 @@ export default function NavDrawer() {
   const toggleDrop = (key: DropKey) => setOpenDrop(v => v === key ? null : key);
   const closeDrop  = () => setOpenDrop(null);
 
+  /* Terminal renders TerminalNav in place of .app-bar and .mobile-tab-bar,
+     and keeps the drawer below (#599). Not additive: the .tnav-* CSS carries
+     its own warning that the two tab bars must never stack, and they would -
+     .mobile-tab-bar and .tnav-tabs are both position:fixed at bottom:0.
+     TerminalNav lives HERE rather than in AppShell because the drawer's open
+     state is local to this component; rendering it here means the opener is
+     a prop instead of a window event threaded through the shell. */
+  const terminal = mode === 'terminal';
+
   return (
     <>
+      {terminal && <TerminalNav onOpenDrawer={() => setDrawerOpen(true)} />}
+      {!terminal && (
       <div className="app-bar">
         <div className="app-bar-inner">
           <Link href="/dashboard" className="app-logo" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
@@ -416,6 +430,7 @@ export default function NavDrawer() {
           </div>
         </div>
       </div>
+      )}
 
       <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
 
@@ -426,6 +441,7 @@ export default function NavDrawer() {
           "More" lights up whenever the current route isn't one of the 4 direct
           tabs, so the bar always reflects location and the long tail is always
           one tap away. On phones this replaces the top hamburger entirely. */}
+      {!terminal && (
       <nav className="mobile-tab-bar" aria-label="Main navigation">
         {[
           { path: '/dashboard', labelKey: 'NAV_HOME'     as const, Icon: IconDashboard },
@@ -463,6 +479,7 @@ export default function NavDrawer() {
           <span className="mobile-tab-label">{t('NAV_MORE')}</span>
         </button>
       </nav>
+      )}
 
       {/* inert while closed - see the same fix in GrokChat. The drawer is
           hidden with a transform and pointer-events:none, so its 23 focusable

@@ -8,6 +8,19 @@
      the banner rendering underneath them. 0px when no banner is showing. */
   --banner-h: 0px;
 
+  /* Height of whichever top bar is rendering (#599). The shell's fixed stack
+     - .app-content's top padding, .nav-drawer's top, .news-ticker's top,
+     .breaking-alert's two offsets - was keyed to the literal 52px in five
+     separate calc()s, so the app-bar's height was a magic number repeated
+     rather than a value anything could read.
+
+     Terminal replaces that bar with .tnav at 44px (38px below 768), which is
+     the canvas's height and not negotiable, so the five offsets have to
+     follow it. They now derive from this instead. The current design's
+     numbers are unchanged by construction: 52px here reproduces every
+     literal that was there before. */
+  --appbar-h: 52px;
+
   /* Terminal charcoal-black - no blue tint */
   --bg0: #030405;
   --bg:  #000000;
@@ -292,7 +305,7 @@ body::after {
 }
 .app-logo { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
 .app-logo span { color: var(--accent-2); }
-.app-content { max-width: 700px; margin: 0 auto; padding: calc(84px + var(--banner-h)) 1rem 2rem; }
+.app-content { max-width: 700px; margin: 0 auto; padding: calc(var(--appbar-h) + 32px + var(--banner-h)) 1rem 2rem; }
 /* 84px = navbar(52) + ticker(22) + 10px gap - safe at all times, plus --banner-h
    on top when the announcement banner is showing (see components/AnnouncementBanner.tsx) */
 
@@ -571,7 +584,7 @@ body::after {
    scrollable overflow. The actual fix is overflow-x:hidden on <html> (audit
    P2-6). Kept here anyway as correct hygiene for a fixed container with an
    off-canvas child - harmless, changes nothing visually. */
-.nav-drawer { position: fixed; top: calc(52px + var(--banner-h)); left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; overflow: hidden; }
+.nav-drawer { position: fixed; top: calc(var(--appbar-h) + var(--banner-h)); left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; overflow: hidden; }
 .nav-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); opacity: 0; transition: opacity 0.25s; pointer-events: none; }
 .nav-menu {
   position: absolute; top: 0; right: 0; width: min(90vw, 360px); height: 100%;
@@ -1014,7 +1027,7 @@ body[data-rpm-level="high"]::before {
 .nf-headline { font-size: var(--fs-caption); font-weight: 500; color: var(--txt); line-height: 1.5; }
 
 /* ── BREAKING ALERT ── */
-.breaking-alert { position: fixed; top: calc(62px + var(--banner-h)); right: 12px; width: min(340px, calc(100vw - 24px)); z-index: 9000; pointer-events: none; }
+.breaking-alert { position: fixed; top: calc(var(--appbar-h) + 10px + var(--banner-h)); right: 12px; width: min(340px, calc(100vw - 24px)); z-index: 9000; pointer-events: none; }
 
 /* ── ANNOUNCEMENT BANNER ──
    Fixed at the very top, above .app-bar (z-index 1000) - its real rendered
@@ -1044,7 +1057,7 @@ body[data-rpm-level="high"]::before {
 
 /* ── NEWS TICKER ── */
 .news-ticker {
-  position: fixed; top: calc(52px + var(--banner-h)); left: 0; right: 0; z-index: 999;
+  position: fixed; top: calc(var(--appbar-h) + var(--banner-h)); left: 0; right: 0; z-index: 999;
   height: 22px; display: flex; align-items: center; gap: 0;
   background: #0a090e;                   /* fully opaque - no bleed-through */
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
@@ -1134,7 +1147,7 @@ body[data-rpm-level="high"]::before {
 
 /* body.ticker-on no longer needed for app-content - base padding covers both states */
 /* Keep for breaking alerts positioning */
-body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
+body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + 32px + var(--banner-h)); }
 
 /* ── INDICATORS ── */
 .ind-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
@@ -5749,8 +5762,24 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    is untouched until the flag is on. Radius is 0 throughout - the design has no
    rounded corners anywhere, so these rules set none rather than overriding. */
 
+/* Terminal's bar is 44px, and 38px once .tnav-mhead takes over below 768.
+   --appbar-h is what carries that into .app-content's top padding and the
+   .nav-drawer / .news-ticker / .breaking-alert offsets - see its definition
+   at the top of this file. Without it those five stay pinned to the
+   current design's 52px and terminal renders an 8px dead band under a bar
+   that is not there. */
+[data-design="terminal"] { --appbar-h: 44px; }
+@media (max-width: 767px) {
+  [data-design="terminal"] { --appbar-h: 38px; }
+}
+
+/* Fixed, matching .app-bar, because the whole shell stack above assumes the
+   top bar is out of flow. The frames put a static header at the top of a
+   column-flex app frame, which is the same result in a layout that owns the
+   full viewport - this one does not. */
 [data-design="terminal"] .tnav {
   display: none;
+  position: fixed; top: var(--banner-h); left: 0; right: 0; z-index: 1000;
   /* gap 28, not 18 (#599): Dashboard 2a.dc.html:39 draws the nav at
      gap:28px. Height, padding and the bottom hairline all matched already;
      this one value did not, and nothing recorded why. */
@@ -5800,13 +5829,21 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   border: 1px solid var(--bdr);
   padding: 4px 8px;
 }
+/* A <button> since #599 - it is the desktop drawer opener, because hiding
+   .app-bar for terminal takes the hamburger with it. The frames draw this
+   box and give it no behaviour, so the appearance below is unchanged and
+   only the element type moved. background/padding/font are resets: a button
+   does not inherit them the way the span did. */
 [data-design="terminal"] .tnav-avatar {
   width: 22px; height: 22px;
   border: 1px solid var(--border-input);
   display: flex; align-items: center; justify-content: center;
   color: var(--txt2); font-size: 10px; font-weight: 700;
   flex-shrink: 0;
+  background: none; padding: 0; cursor: pointer;
+  font-family: var(--font-mono), monospace;
 }
+[data-design="terminal"] .tnav-avatar:hover { color: var(--txt); }
 /* The design's one inversion: active nav is amber-filled with #08090a text.
    --bg0 IS #08090a, so this is the token rather than the literal. */
 [data-design="terminal"] .tnav-item.on { background: var(--accent); color: var(--bg0); font-weight: 700; }
@@ -5839,10 +5876,35 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
     /* 60px tall and a fifth of the viewport wide - comfortably past the 24x24
        WCAG 2.2 AA minimum without needing an overlay like #388's control. */
   }
+  /* Reserve the band the tab bar sits over, the same reservation #173 added
+     for .mobile-tab-bar - that one is scoped to max-width 640 and to 56px,
+     and neither number applies here. Without this the last 60px of every
+     terminal page on a phone sits under the bar, which #173 found was
+     landing on real controls, not just footer links. */
+  [data-design="terminal"] .app-content {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 1rem);
+  }
   [data-design="terminal"] .tnav-tab.on { color: var(--accent); }
   [data-design="terminal"] .tnav-tab-label {
     font-family: var(--font-mono), monospace;
+    /* text-transform, added with the component (#599): the frames' tab
+       labels are uppercase strings ('DESK'), but the label VALUES are
+       stored in natural case so .tnav-item can uppercase them in CSS the
+       way the frames' desktop bar does. Uppercasing here means one stored
+       string feeds both bars instead of two that can drift apart. */
     font-size: 9px; letter-spacing: .1em; font-weight: 500;
+    text-transform: uppercase;
+  }
+  /* Drawer opener, mobile. Not in the frames - they draw no opener at all,
+     and the tab bar they DO specify is repeat(5,1fr), so a sixth MORE tab
+     would contradict a value they state outright. This sits in the header's
+     empty spacer instead, where they are silent. 32px box around a 16px
+     glyph for the tap target. */
+  [data-design="terminal"] .tnav-mmore {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; margin-right: -8px;
+    background: none; border: 0; padding: 0; cursor: pointer;
+    color: var(--txt2); flex-shrink: 0;
   }
   /* The old drawer's tab bar must not stack with the new one.
      Already retired for terminal, so #599 changes nothing here - but the
@@ -5985,6 +6047,7 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 @media (max-width: 767px) {
   [data-design="terminal"] .tnav-mhead {
     display: flex; align-items: center; gap: 10px;
+    position: fixed; top: var(--banner-h); left: 0; right: 0; z-index: 1000;
     /* padding 0 14px, not 12: Dashboard 2a.dc.html:235. Height, gap and the
        bottom hairline all matched already; this one value did not. Same
        shape of miss as the desktop bar's gap in #616. */
