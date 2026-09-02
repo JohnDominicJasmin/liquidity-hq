@@ -20,6 +20,7 @@
  */
 
 import { chromium, devices } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 const url = process.argv[2];
 if (!url) { console.error('usage: node qa/mobile-audit.mjs <url> [--theme dark|light]'); process.exit(1); }
@@ -27,26 +28,50 @@ const theme = (process.argv.includes('--theme') ? process.argv[process.argv.inde
 const width = Number(process.argv.includes('--width') ? process.argv[process.argv.indexOf('--width') + 1] : 390);
 
 /* The 16 governed terminal tokens (15 documented + --amber, confirmed on #542). */
-/* The governed terminal tokens, PER THEME. Light was missing entirely until
-   #641: the list held only the dark 16, so a light-theme run counted every
-   legitimate light token as off-palette - #15181b, #754e00, #14702c, #9d1a23
-   and the rest, roughly a thousand false entries per route. The off-palette
-   figure was therefore meaningful in dark only, and silently noise in light,
-   which is the worst of both: it looked like a measurement.
-   Light values read from the [data-design="terminal"][data-theme="light"]
-   block in app/globals.css, not from the canvases - the canvases' light
-   frames are stale on colour (see qa/CANVAS_ASKS_WE_CANT_BUILD.md). */
-const TOKENS_DARK = [
-  '#08090a', '#141517', '#111416', '#1f2225', '#131618', '#16191b',
-  '#e8e9ea', '#8b8f94', '#7c828a', '#3a3f45',
-  '#d9a626', '#3fb950', '#f0524d', '#22262a', '#5e646b', '#fbbf24',
-];
-const TOKENS_LIGHT = [
-  '#f7f6f3', '#ebe9e6', '#e3e1dd', '#d5d2cd', '#dfdcd7', '#e2dfda',
-  '#15181b', '#585c61', '#5e6267', '#aeaaa4',
-  '#754e00', '#14702c', '#9d1a23', '#8a5c00', '#5e6266', '#d6cab3',
-];
-const TOKENS = theme === 'light' ? TOKENS_LIGHT : TOKENS_DARK;
+/* The governed palette is DERIVED from lib/terminalTokens.ts, not copied.
+   #641 exposed why this matters twice over. First the list here held only
+   the dark 16, so every light-theme run counted legitimate light tokens as
+   off-palette - about a thousand false entries per route, which is worse
+   than no check because it looked like a measurement. Then the fix for that
+   hand-copied the light values out of app/globals.css and got three of them
+   wrong: the stylesheet documents its own history in place, so a hex-grep
+   over that block picks up #8a5c00 and #5e6266 from comments explaining the
+   values that REPLACED them, plus #d6cab3 which is the /correlation diagonal
+   and not a token at all.
+   A copied list drifts and a stale hex is invisible among live ones - the
+   whole failure is "a plausible hex in a list of hexes". So parse the source
+   of truth instead. terminalTokens.ts is a .ts module and this is a plain
+   .mjs script with no loader, so read and extract rather than import; the
+   shapes below are pinned to that file's actual declarations and throw
+   loudly if it is restructured, rather than silently yielding an empty
+   palette and reporting a screen as perfectly on-token. */
+const tokenSrc = readFileSync(new URL('../lib/terminalTokens.ts', import.meta.url), 'utf8');
+
+/* indexOf/slice rather than a RegExp for the block boundaries: the first
+   version of this used a template-literal regex and the backslashes
+   collapsed, so [\s\S] compiled as [sS] and every lookup silently returned
+   no match. Caught only because the guard below throws instead of returning
+   an empty palette - which would have reported every screen as perfectly
+   on-token. Keep the guard even if the parsing is simplified again. */
+const mapOf = (name) => {
+  const open = tokenSrc.indexOf('export const ' + name + ' = {');
+  if (open === -1) throw new Error('mobile-audit: no ' + name + ' in lib/terminalTokens.ts');
+  const close = tokenSrc.indexOf('\n} as const;', open);
+  if (close === -1) throw new Error('mobile-audit: ' + name + ' has no closing "} as const;"');
+  const hexes = tokenSrc.slice(open, close).match(/'(#[0-9a-fA-F]{6})'/g) || [];
+  if (hexes.length < 10) throw new Error('mobile-audit: ' + name + ' yielded ' + hexes.length + ' colours, expected >= 10');
+  return hexes.map((h) => h.slice(1, -1).toLowerCase());
+};
+const rampHexes = (tokenSrc.match(/color:\s*'(#[0-9a-fA-F]{6})'/g) || [])
+  .map((m) => m.slice(m.indexOf('#'), m.indexOf('#') + 7).toLowerCase());
+const flatCell = (/export const TERMINAL_FLAT_CELL = '(#[0-9a-fA-F]{6})'/.exec(tokenSrc) || [])[1];
+
+/* Mirrors TERMINAL_ALLOWED / TERMINAL_ALLOWED_LIGHT exactly: the magma ramp is
+   shared because the liquidation map is dark-only by design, and
+   TERMINAL_FLAT_CELL has no light value anywhere. */
+const TOKENS = theme === 'light'
+  ? [...mapOf('TERMINAL_COLORS_LIGHT'), ...rampHexes]
+  : [...mapOf('TERMINAL_COLORS'), flatCell, ...rampHexes].filter(Boolean);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width, height: 844 } });
