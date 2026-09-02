@@ -7242,7 +7242,13 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .ps-coin-trigger-dot,
 [data-design="terminal"] .ps-coin-opt-dot,
 [data-design="terminal"] .auth-avatar-btn,
-[data-design="terminal"] .coin-icon,
+/* .coin-icon removed (#630/#631). CoinIcon sets border-radius inline on
+   every render path - `square ? 0 : '50%'` - so its default already keeps
+   the rail's 16px marks round without a rule, and this entry's !important
+   was overruling the component's own square request on the 26px mark.
+   The list is also too blunt for the ruling it enforces: 50% is permitted
+   on inherently circular glyphs at 24px or under, and a selector cannot
+   tell a 16px icon from a 26px one. The component can. */
 [data-design="terminal"] .tj-lev-slider::-webkit-slider-thumb,
 [data-design="terminal"] .tj-lev-slider::-moz-range-thumb {
   border-radius: 50% !important;
