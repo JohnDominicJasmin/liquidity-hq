@@ -1078,7 +1078,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               {
                 type: 'text',
                 attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
-                styles: { color, size: 9, weight: '700' },
+                // #598 D1 residual, QA pixel-sampled: no backgroundColor meant
+                // klinecharts filled the label with its own default primary
+                // (#1677ff) instead of anything from this file's palette -
+                // same shape as the priceTag figure above, which already
+                // sets its own backgroundColor and never had the bug.
+                styles: {
+                  color: '#ffffff', size: 9, weight: '700',
+                  paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
+                  backgroundColor: color,
+                  // registerOverlay is a one-time, module-level registration
+                  // (srLevelLineRegistered guards it) - createPointFigures is
+                  // what runs per repaint, so design mode has to be read
+                  // fresh here rather than closed over from a React value at
+                  // registration time, same reason the EMA ribbon colour
+                  // above reads document.documentElement directly instead of
+                  // capturing `mode`.
+                  borderRadius: document.documentElement.getAttribute('data-design') === 'terminal' ? 0 : 3,
+                },
               },
             ];
           },
@@ -1116,7 +1133,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               {
                 type: 'text',
                 attrs: { x: 6, y: labelY, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
-                styles: { color, size: 9, weight: '700' },
+                styles: {
+                  color: '#ffffff', size: 9, weight: '700',
+                  paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
+                  backgroundColor: color,
+                  borderRadius: document.documentElement.getAttribute('data-design') === 'terminal' ? 0 : 3,
+                },
               },
             ];
           },
