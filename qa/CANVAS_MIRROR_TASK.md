@@ -175,29 +175,64 @@ cannot see "present but built differently" per §7, so a fresh percentage would
 undersell what live verification already confirmed and oversell what it can't
 check (structural correctness, colour-as-data rules, states).
 
-| route | canvas labels present (838471c) | branch | status, 2026-09-02 |
+| route | canvas labels present (838471c) | branch | status, 2026-09-03 |
 |---|---|---|---|
 | `/learn` | 3/5 — 60% | `feature/learn-canvas-mirror` | untouched |
-| **`/`** (landing) | ~~25/49 — 51%~~ | `feature/landing-canvas-mirror` | **done, deployed, verified live** |
+| **`/`** (landing) | ~~25/49 — 51%~~ | `feature/landing-canvas-mirror` | **built, deployed** — open: #639 (two `--txt4` flags needing a design ruling), #641 (footer column links). |
 | `/econ-calendar` | 10/21 — 48% | `feature/econ-calendar-canvas-mirror` | untouched |
 | `/liq` | 9/20 — 45% | `feature/liq-canvas-mirror` | untouched — has a spec (`liquidation-map.md`) |
 | `/calc` | 4/9 — 44% | `feature/calc-canvas-mirror` | untouched |
 | `/news` | 3/8 — 38% | `feature/news-canvas-mirror` | untouched |
 | `/about` | 5/15 — 33% | `feature/about-canvas-mirror` | untouched |
-| **`/dashboard`** | ~~8/26 — 31%~~ | `feature/dashboard-canvas-mirror` | **done, deployed, verified live** — one open colour gap, #614 |
+| **`/dashboard`** | ~~8/26 — 31%~~ | `feature/dashboard-canvas-mirror` | **built, deployed** — #614 closed. Open: #635 (substitutions), #641 (tap target, tints). See the note below on what "done" does and does not mean here. |
 | `/faq` | 3/10 — 30% | `feature/faq-canvas-mirror` | untouched |
 | `/disclaimer` | 4/14 — 29% | `feature/disclaimer-canvas-mirror` | untouched |
 | `/markets` | 2/8 — 25% | `feature/markets-canvas-mirror` | untouched — has a spec (`markets.md`) |
 | `/journal` | 3/13 — 23% | `feature/journal-canvas-mirror` | untouched — has a spec (`journal.md`) |
 | `/alerts` | 3/13 — 23% | `feature/alerts-canvas-mirror` | untouched — has a spec (`alerts.md`) |
 | `/offline` | 2/10 — 20% | `feature/offline-canvas-mirror` | untouched |
-| **`/arena`** | ~~10/51 — 20%~~ | `feature/arena-canvas-mirror` | **done, deployed, verified live** — one open colour gap (#614, shared with dashboard), shell nav in progress (#616) |
+| **`/arena`** | ~~10/51 — 20%~~ | `feature/arena-canvas-mirror` | **built, deployed** — #614 and #616 both closed. Open: #637 (BTC liq levels in the per-coin AI prompt), #638, #639, #641. |
 | `/funding` | 3/19 — 16% | `feature/funding-canvas-mirror` | untouched — has a spec (`funding.md`) |
 | **`/briefing`** | 2/17 — 12%, and this is probably generous | `feature/briefing-canvas-mirror` | **retracted the colour-fix assignment same day — real gap, see #620.** briefing.md's fidelity note compares terminal against production, never against the canvas; both share the same `mb-*` structure and neither has anything the canvas draws (headline+prose+levels rail+candlestick chart+CTAs vs the built page's setups/gauges/chips/news-feed). Zero section overlap, confirmed by reading the canvas directly, not the spec's note. Rebuild-sized, not a colour pass. |
 
-**3 of 17 routes done as of 2026-09-02. 1 in progress. 13 untouched.
-This is not close to finished — do not read three done screens as the
+**3 of 17 routes built as of 2026-09-03. 14 untouched.
+This is not close to finished — do not read three built screens as the
 project being near done.**
+
+### "Built and deployed" is not "done" — read this before reporting status
+
+The three rows above were marked *done, deployed, verified live* on
+2026-09-02 and that was true of the work that had been done. It was not
+true of the screens. A measurement pass on 2026-09-03 against staging
+`365f574` found five open defects on them, none of which any earlier check
+could have caught:
+
+- Two colours with **no light-theme value at all** (#638) — literals, not
+  tokens, so nothing in the token layer could surface them.
+- `--txt4` carrying content it is not scoped for (#639), including one case
+  the design **exempts by name** whose exemption's own revocation condition
+  has since been met.
+- **160 hardcoded `rgba()` tints across 37 files** (#641), of which the
+  three screens own 37 on 21 lines. `globals.css` had already predicted
+  exactly this in a comment: governing the tokens did not reach the inline
+  literals.
+- **A contrast failure that only exists in some data states** (#642) — the
+  ground under one row comes from an inline `background` computed per
+  market-structure event, so it fails at 4.02/4.13/3.97 in three states and
+  passes in the fourth. Not reproducible from the stylesheet.
+- BTC-scoped data feeding a per-coin AI analysis with no scope disclosure
+  (#637).
+
+**The lesson for the remaining 14 routes:** a screen that mirrors its canvas
+structurally can still be wrong in ways structural comparison cannot see —
+theme coverage, token discipline, and data-dependent states. Budget a
+measurement pass per screen *after* the mirror work, and run
+`qa/mobile-audit.mjs` and `qa/dialog-audit.mjs` rather than writing a new
+sweep: an ad-hoc script produced three false positives in one session
+(a phantom 334px overflow, a phantom 1.14:1, and a missed tint) against
+committed tools that had already solved each trap.
+
+Dialogs on all three screens are still **unmeasured**.
 
 ### How to read these numbers
 
