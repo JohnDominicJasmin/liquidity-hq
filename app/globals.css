@@ -777,6 +777,13 @@ body::after {
   .mr-factors { grid-template-columns: repeat(2, 1fr); }
   .mr-score { font-size: 2.7rem; }
   .mr-verdict { font-size: 1.05rem; }
+  /* #587: the sub-label ("0.00% away · tight") needs 126px and the cell is
+     121 at 360, 101 at 320, so nowrap+ellipsis was cutting real values off
+     the end. Two columns leave enough height for a second line, and the
+     grid's auto rows absorb it - wrap rather than truncate, so the number
+     survives at every width. .mr-factor-v keeps its ellipsis: it is a short
+     single token ("Tight", "Neutral") that does not benefit from wrapping. */
+  .mr-factor-s { white-space: normal; }
 }
 
 /* ── Dashboard columns: answers (left) + context rail (right) ──
