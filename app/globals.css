@@ -6683,17 +6683,21 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .edge-card     { border-radius: 0; }
 [data-design="terminal"] .scc-card      { border-radius: 0; }
 [data-design="terminal"] .macro-rail-card { border-radius: 0; border: 1px solid var(--bdr); }
-[data-design="terminal"] .mr            { border-radius: 0; }
+/* .mr / .mr-track / .mr-fill / .mr-factor rules removed (#587): MarketRead is
+   emitted only by app/dashboard/page.tsx's non-terminal branch now that the
+   terminal dashboard renders TMarketReadBanner in that slot, so nothing on a
+   terminal route can carry those classes. Same reasoning as deleting the
+   component's own terminal branch - dead design-specific code, just in CSS. */
 [data-design="terminal"] .cascade-dismiss { border-radius: 0; }
 [data-design="terminal"] .csb2-sig      { border-radius: 0; }
 [data-design="terminal"] .csb2-bar-track,
 [data-design="terminal"] .csb2-bar-fill { border-radius: 0; }
 /* #559 C8: the rest of dashboard's rectangular pixel-radii, found by QA's
-   full-page sweep rather than by route inspection - MarketRead and SOTD sit
-   in the dashboard rail but aren't dashboard-specific components, so they'd
-   been missed by every audit scoped to "dashboard's own classes". */
-[data-design="terminal"] .mr-track,
-[data-design="terminal"] .mr-fill          { border-radius: 0; }
+   full-page sweep rather than by route inspection - SOTD sits in the
+   dashboard rail but isn't a dashboard-specific component, so it had been
+   missed by every audit scoped to "dashboard's own classes". (MarketRead's
+   .mr-track/.mr-fill were here too until #587 moved terminal off that
+   component - see the note above.) */
 [data-design="terminal"] .sotd-static-badge,
 [data-design="terminal"] .sotd-refresh     { border-radius: 0; }
 [data-design="terminal"] .consent-btn      { border-radius: 0; }
@@ -6751,31 +6755,6 @@ main.app-content[data-chrome="none"] {
    classes) are untouched.
    Geometry from qa/reports/dashboard-2a-canvas-geometry.md: cell padding
    12px 16px, label/value/sig 10.5/15/10.5, hairline #16191b (--bdr3). */
-/* Market read banner - the canvas's first main-column panel (#587). Geometry
-   read straight off Dashboard 2a.dc.html: background #141517 (--bg2),
-   padding 15px 20px, bottom hairline #1f2225 (--bdr); eyebrow 10px mono
-   .16em uppercase #7c828a (--txt3); verdict 24px mono 700 line-height 1 at
-   8px above; sub 12.5px/1.5 #8b8f94 (--txt2) at 8px above, capped 680px so
-   the sentence wraps at a readable measure instead of the full column. */
-[data-design="terminal"] .dash-market-read-banner {
-  background: var(--bg2);
-  border-bottom: 1px solid var(--bdr);
-  padding: 15px 20px;
-}
-[data-design="terminal"] .dmrb-eyebrow {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--txt3);
-}
-[data-design="terminal"] .dmrb-verdict {
-  font-family: var(--font-mono), monospace;
-  font-size: 24px; font-weight: 700; line-height: 1; margin-top: 8px;
-}
-[data-design="terminal"] .dmrb-sub {
-  font-size: 12.5px; line-height: 1.5; color: var(--txt2);
-  margin-top: 8px; max-width: 680px;
-}
-
 [data-design="terminal"] .dash-main .edge-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -6795,6 +6774,49 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .dash-main .edge-card-label  { font-size: 10.5px; }
 [data-design="terminal"] .dash-main .edge-card-value  { font-size: 15px; }
 [data-design="terminal"] .dash-main .edge-card-signal { font-size: 10.5px; }
+
+/* Market read banner - the canvas's first main-column panel (#587).
+   Desktop geometry, Dashboard 2a.dc.html:79-83: background #141517, padding
+   15px 20px, bottom hairline #1f2225 (--bdr); eyebrow 10px mono .16em
+   uppercase --txt3; verdict 24px mono 700 line-height 1 at 8px above; sub
+   12.5px/1.5 --txt2 at 8px above, capped 680px so the sentence wraps at a
+   readable measure rather than the full column width.
+
+   #141517 is --bg1, NOT --bg2. This shipped as --bg2 (#111416) with a
+   comment claiming it was #141517, so the wrong value read as verified:
+   the banner painted DARKER than the TPanel siblings below it, inverting
+   the canvas relationship where the band is a lifted surface on the
+   column ground. Light theme had the same inversion (canvas #ebe9e6 is
+   terminal-light --bg1; --bg2 there is #e3e1dd). */
+[data-design="terminal"] .dash-market-read-banner {
+  background: var(--bg1);
+  border-bottom: 1px solid var(--bdr);
+  padding: 15px 20px;
+}
+[data-design="terminal"] .dmrb-eyebrow {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--txt3);
+}
+[data-design="terminal"] .dmrb-verdict {
+  font-family: var(--font-mono), monospace;
+  font-size: 24px; font-weight: 700; line-height: 1; margin-top: 8px;
+}
+[data-design="terminal"] .dmrb-sub {
+  font-size: 12.5px; line-height: 1.5; color: var(--txt2);
+  margin-top: 8px; max-width: 680px;
+}
+/* Mobile band, Dashboard 2a.dc.html:236-239 - a distinct geometry, not the
+   desktop one reflowed: padding 14, verdict 21px at line-height 1.1, sub
+   12px. The canvas hand-breaks its verdict string ("RISK-ON,<br>CAUTIOUS")
+   precisely because 24px at line-height 1 does not survive a narrow column -
+   production strings are longer still ("Decent conditions - be selective" is
+   32 characters), so without this they wrap and the lines touch. */
+@media (max-width: 640px) {
+  [data-design="terminal"] .dash-market-read-banner { padding: 14px; }
+  [data-design="terminal"] .dmrb-verdict { font-size: 21px; line-height: 1.1; }
+  [data-design="terminal"] .dmrb-sub { font-size: 12px; }
+}
 
 /* briefing */
 [data-design="terminal"] .mb-macro-item { border-radius: 0; }
@@ -7016,12 +7038,11 @@ main.app-content[data-chrome="none"] {
    chips, inputs, cells). Circular markers <=24px (coin/avatar icons, status
    dots, toggle thumbs, step-number circles) are a different glyph and stay
    round - that's why the CoinIcon <img> markers this section's own audit
-   flagged are correct as-is and NOT touched here. These four are genuinely
-   rectangular: a progress track, a factor chip, a rail panel, and the
-   shared skeleton-loading bar (SkeletonBar sets its radius via inline
-   style, per-instance, across ~26 pages - !important is required to beat
-   that, and is scoped to terminal only). */
-[data-design="terminal"] .mr-track { --_c8-tag: mr-track; border-radius: 0 !important; }
-[data-design="terminal"] .mr-factor { --_c8-tag: mr-factor; border-radius: 0 !important; }
+   flagged are correct as-is and NOT touched here. These are genuinely
+   rectangular: a rail panel and the shared skeleton-loading bar
+   (SkeletonBar sets its radius via inline style, per-instance, across ~26
+   pages - !important is required to beat that, and is scoped to terminal
+   only). The .mr-track/.mr-factor entries that were here are gone with
+   #587: MarketRead no longer renders on any terminal route. */
 [data-design="terminal"] .av-rail-panel { --_c8-tag: av-rail-panel; border-radius: 0 !important; }
 [data-design="terminal"] .skel-bar { --_c8-tag: skel-bar; border-radius: 0 !important; }
