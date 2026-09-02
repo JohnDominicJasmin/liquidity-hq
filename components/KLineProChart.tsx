@@ -141,6 +141,75 @@ const DARK: Record<string, unknown> = {
   },
 };
 
+// #598 D1: KLineProChart is shared and correct elsewhere, but on the
+// terminal Arena it kept rendering DARK's teal/red candles and the current
+// design's blue/orange, because klinecharts draws to a <canvas> - CSS
+// (`[data-design="terminal"] .at-chart .klc-*`) can only reach the toolbar's
+// own DOM buttons, not anything painted onto the canvas itself. Every value
+// below is a hex QA measured directly from Arena 1a.dc.html (frequency
+// count in #598) - zero invented colours. Terminal is dark-only (arena.md
+// "Out of scope: Light theme"), so this is the only terminal variant.
+const TERMINAL_DARK: Record<string, unknown> = {
+  grid: {
+    horizontal: { color: '#1f2225', size: 1 },
+    vertical:   { color: '#1f2225', size: 1 },
+  },
+  candle: {
+    bar: {
+      upColor:            '#3fb950',
+      downColor:          '#f0524d',
+      upBorderColor:      '#3fb950',
+      downBorderColor:    '#f0524d',
+      noChangeBorderColor:'#7c828a',
+      upWickColor:        '#3fb950',
+      downWickColor:      '#f0524d',
+    },
+    tooltip: { showRule: 'follow_cross' },
+    priceMark: {
+      high: { show: true, color: '#8b8f94', textSize: 10 },
+      low:  { show: true, color: '#8b8f94', textSize: 10 },
+      last: {
+        show: true,
+        line: { show: true, color: '#3a3f45' },
+        text: { show: true, color: '#e8e9ea', size: 11 },
+      },
+    },
+  },
+  xAxis: {
+    tickText: { color: '#7c828a', size: 10 },
+    axisLine: { color: '#1f2225' },
+    tickLine: { color: '#1f2225' },
+  },
+  yAxis: {
+    tickText: { color: '#7c828a', size: 10 },
+    axisLine: { color: '#1f2225' },
+    tickLine: { color: '#1f2225' },
+  },
+  crosshair: {
+    horizontal: {
+      line: { color: '#3a3f45' },
+      text: { color: '#e8e9ea', background: '#16191b', size: 11 },
+    },
+    vertical: {
+      line: { color: '#3a3f45' },
+      text: { color: '#e8e9ea', background: '#16191b', size: 11 },
+    },
+  },
+  // klinecharts' built-in drawing-tool overlays (trendline etc, from the
+  // toolbar) use this as their default line colour. The custom overlays
+  // below (S/R, GEX, analysis levels, structure) each set their own colour
+  // per instance and are unaffected by this. --accent's terminal value
+  // (#d9a626, gold) resolved to a literal hex - unlike 'var(--accent-2)' in
+  // DARK/LIGHT above, a canvas fillStyle cannot resolve a CSS custom
+  // property string at all.
+  overlay: {
+    line: { color: '#d9a626', size: 1 },
+  },
+  indicator: {
+    tooltip: { showRule: 'follow_cross' },
+  },
+};
+
 const LIGHT: Record<string, unknown> = {
   grid: {
     horizontal: { color: 'rgba(0,0,0,0.06)', size: 1 },
@@ -254,6 +323,18 @@ const EMA_PERIODS = [
   { period: 50,  color: '#f97316', size: 1.5 },  // orange
   { period: 200, color: 'var(--accent)', size: 2   },  // blue (thicker)
 ] as const;
+
+// #598 D1: the canvas draws zero blue/orange anywhere on the chart. Only
+// these two hardcoded hex values need a terminal swap - period 9/200 above
+// already read through --amber/--accent tokens (a separate, pre-existing
+// "does a CSS var string resolve inside a canvas fillStyle" question that
+// applies to every 'var(--x)' color in this file, not something D1 asked
+// for). Picked from QA's confirmed canvas hex list, darker as the period
+// lengthens, same convention the ribbon already uses via size.
+const TERMINAL_EMA_COLOR: Partial<Record<number, string>> = {
+  20: '#8b8f94',
+  50: '#5e646b',
+};
 
 interface EmaPoint { timestamp: number; value: number; }
 
@@ -558,9 +639,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   // ── Theme sync - apply DARK/LIGHT styles when theme changes ─────────────
   useEffect(() => {
     const apply = () => {
+      const terminal = document.documentElement.getAttribute('data-design') === 'terminal';
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chartRef.current?.setStyles((dark ? DARK : LIGHT) as any);
+      chartRef.current?.setStyles((terminal ? TERMINAL_DARK : dark ? DARK : LIGHT) as any);
     };
     apply();
     window.addEventListener('theme-change', apply);
@@ -578,6 +660,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const chart = chartRef.current;
     const bars = emaBarsRef.current;
     if (!chart || !bars.length) return;
+    const terminal = document.documentElement.getAttribute('data-design') === 'terminal';
     EMA_PERIODS.forEach((cfg, idx) => {
       const series = computeEmaSeries(bars, cfg.period);
       if (!series.length) return;
@@ -608,7 +691,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           // _figureMouseDownEvent, plus the `!overlay.lock` guard on
           // onPressedMoving), so hover and tooltips are unaffected.
           lock: true,
-          extendData: { color: cfg.color, size: cfg.size },
+          extendData: { color: terminal ? (TERMINAL_EMA_COLOR[cfg.period] ?? cfg.color) : cfg.color, size: cfg.size },
           // Higher zLevel paints on top. EMA_PERIODS is ordered fast-to-slow
           // (9, 20, 50, 200), so EMA200 (idx 3, thickest) ends up on top and
           // EMA9 (idx 0, thinnest) on the bottom - matches the original
