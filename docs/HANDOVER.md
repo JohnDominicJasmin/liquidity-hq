@@ -606,6 +606,22 @@ Context for the move off the desktop GUI.
 - **A command's success message describes the command, not the state.** `git push` printed
   "Everything up-to-date" while the remote was two commits behind. Only `git ls-remote` — or
   `/api/version` for a deploy — can say what the remote or the service actually holds.
+- **Exit code 0 is a claim about the command, not about the state you're about to act on —
+  and the two came apart four separate ways in one session (2026-09-02).** `git fetch ... :branch`
+  into an already-checked-out branch moved the ref and silently left the working tree on the old
+  commit — a `grep` for the new content matched the file on disk, which was stale. `gh pr merge`
+  without a preceding `git pull` moved the remote while the local `dev` stayed behind, so a diff
+  taken locally described a branch that no longer existed upstream. Four gates run green, then
+  the file edited *after* them — the green was real when it ran and stale the moment the file
+  changed; nothing re-ran to notice. A Turbopack dev server kept serving a `.next` cache built
+  from an earlier branch checkout after a fresh `next dev` restart on the correct branch — the
+  process was new, the cache on disk was not, and `display: block` where the shipped CSS said
+  `flex` read exactly like a real layout bug until the cache was cleared by hand. None of the
+  four commands reported failure. **Before trusting a measurement taken right after a command
+  that changes state (checkout, fetch, merge, edit, restart), verify the state directly** — reread
+  the file, `git log -1`, `git ls-remote`, a fresh `grep` against the actual served output — rather
+  than trusting that a `0` exit code means the thing you just did is reflected in what you're about
+  to look at.
 - **A magnitude bug doesn't end at the fix.** Bybit quoting PEPE/BONK per 1000 tokens was
   normalised in two places and missed in four. Fixing it surfaced three more bugs
   immediately, because correct-but-tiny numbers finally reached code that had never seen
