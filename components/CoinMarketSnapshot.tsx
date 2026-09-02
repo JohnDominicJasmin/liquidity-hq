@@ -115,11 +115,18 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
       ? ((price - d.low) / (d.high - d.low)) * 100
       : null;
 
-    /* The canvas's own note here reads "Bybit perp". Ours says Binance,
-       because that is where the number actually comes from:
-       app/api/market/snapshot/route.ts:174 reads
-       fapi.binance.com/fapi/v1/ticker/24hr. Copying the frame's literal
-       would have attributed our data to an exchange we do not call. */
+    /* The canvas's note here reads "Bybit perp". Ours says just "Binance",
+       and BOTH halves of that literal had to go.
+       "Bybit" is an exchange this route never calls. "perp" then looked
+       correct and was not: app/api/market/snapshot/route.ts:155 takes
+       Binance SPOT (/api/v3/ticker/24hr) as the default and only falls back
+       to futures when spot returns nothing, and the route's own comment says
+       the two are not the same figure - "a degraded answer rather than an
+       equal one, which is why it is a fallback and not the default". So on a
+       healthy day "perp" would label spot volume.
+       The route computes `source` but only hands it to reportHealth, so a
+       note that tracked the actual path would need the payload to carry it.
+       "Binance" is true on both paths and claims no more than it knows. */
     const cells = [
       {
         key: 'vol',

@@ -330,8 +330,10 @@ export const LABEL_KEYS = [
   // bars - OVERVIEW in the desktop nav, DESK in the mobile tab bar. The other
   // four use one label in both places.
   // Arena terminal snapshot band, the canvas's five cells (#631).
-  // Arena 1a.dc.html:721-726. ARENA_SNAP_VOL_NOTE says Binance, not the
-  // frame's "Bybit perp" - see the component for why.
+  // Arena 1a.dc.html:721-726. ARENA_SNAP_VOL_NOTE is "Binance", not the
+  // frame's "Bybit perp": wrong exchange, and "perp" would be wrong too on
+  // the normal path, since the snapshot route defaults to spot. See the
+  // component for the full reasoning.
   'ARENA_SNAP_VOL_LABEL', 'ARENA_SNAP_VOL_NOTE',
   'ARENA_SNAP_OI_LABEL', 'ARENA_SNAP_OI_NOTE',
   'ARENA_SNAP_FUNDING_LABEL',

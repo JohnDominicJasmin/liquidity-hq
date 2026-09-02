@@ -1864,7 +1864,7 @@
   "COIN_MARKET_SNAPSHOT_VWAP_TOOLTIP": "Volume Weighted Average Price - the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.",
   "COIN_MARKET_SNAPSHOT_VWAP_LABEL": "VWAP",
   "ARENA_SNAP_VOL_LABEL": "24h volume",
-  "ARENA_SNAP_VOL_NOTE": "Binance perp",
+  "ARENA_SNAP_VOL_NOTE": "Binance",
   "ARENA_SNAP_OI_LABEL": "Open interest",
   "ARENA_SNAP_OI_NOTE": "{pct} 1h",
   "ARENA_SNAP_FUNDING_LABEL": "Funding 8h",
