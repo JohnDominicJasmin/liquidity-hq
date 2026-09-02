@@ -225,7 +225,13 @@ function TCoinSidebar() {
                 <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
                   fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 0,
-                  color: health.color,
+                  // Grade F's own colour is --txt3 - text painted in the same
+                  // token as its own tint reads 4.11:1 in dark by construction
+                  // (the self-tint pattern design ruled on for PerpSpotCard).
+                  // Left unset here so the .grade-f CSS rule below can set it
+                  // to --txt without needing !important to beat this inline
+                  // style, the way the light-only fix at globals.css had to.
+                  ...(health.grade !== 'F' && { color: health.color }),
                   background: withAlpha(health.color, '22'),
                   border: `1px solid var(--bdr)`,
                   letterSpacing: '.04em', flexShrink: 0,

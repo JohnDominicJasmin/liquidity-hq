@@ -496,8 +496,14 @@ body::after {
 [data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-c {
   background: color-mix(in srgb, var(--txt2) 4%, transparent) !important;
 }
+/* Base rule, not theme-scoped: dark had the identical self-tint problem
+   (--txt3 text on a 13% tint of --txt3, 4.11:1) and was simply never fixed
+   when light was. DashboardTerminal.tsx no longer sets an inline `color`
+   for grade F, so this needs no !important to win. */
+[data-design="terminal"] .csb2-health-badge.grade-f {
+  color: var(--txt);
+}
 [data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-f {
-  color: var(--txt) !important;
   background: color-mix(in srgb, var(--txt3) 4%, transparent) !important;
 }
 
@@ -800,7 +806,14 @@ body::after {
   text-decoration: none; color: inherit; cursor: pointer;
   transition: border-color 0.15s, background 0.15s; }
 .scc-card:hover { border-color: var(--bdr2); background: var(--bg2); }
-.scc-id { display: flex; flex-direction: column; min-width: 0; }
+/* flex-shrink: 0 - #587: at 390/360/320 this shrank below .scc-price's own
+   content width (an unbreakable string like "$77,585.08" has no space to
+   wrap on, so a squeezed container doesn't wrap it, it overflows past the
+   box and paints across .scc-meta's text to its right - measured 76px in a
+   116px-needed box at 390, worse narrower). .scc-meta's .scc-sig already
+   truncates safely with an ellipsis for exactly this squeeze - it should
+   be the one absorbing narrow viewports, not the price. */
+.scc-id { display: flex; flex-direction: column; min-width: 0; flex-shrink: 0; }
 .scc-ticker { font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   font-weight: 700; letter-spacing: .08em; color: var(--txt3); }
 .scc-price { font-family: var(--font-mono), monospace; font-size: 1.25rem; font-weight: 700;
