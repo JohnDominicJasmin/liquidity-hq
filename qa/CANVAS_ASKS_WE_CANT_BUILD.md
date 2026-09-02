@@ -6,11 +6,28 @@ Yes. Repeatedly, and it has been discovered one issue at a time — which means 
 
 **Read this before building any screen against its canvas.** A canvas can specify layout. It cannot invent a data source, and it cannot silently overturn a product decision. Every row below is a place where building the frame literally would require one or the other.
 
+## The owner's ruling on all of this, 2026-09-03
+
+> *"We have 2 options either make it work or use it as reference meaning we dont need to put the correct data in there it might be different data but it will only happen if and only if the data propose on the handoff cant be achieved."*
+
+So the order of preference is fixed, and it is not what this project has been doing:
+
+1. **Make it work.** Build the data the canvas asks for. This is the default and it is tried first.
+2. **Only if that genuinely cannot be achieved** — substitute *different* real data in that slot. The canvas becomes a reference for the *shape*, not a contract for the *content*.
+
+**What this changes.** The prior habit was to leave an unachievable slot em-dashed and call it honest — "two honest bars beat four where half are invented." That was right about never inventing a number, and wrong about the conclusion: an empty slot is not the only alternative to a fabricated one. A **different real metric** in the same slot is better than a permanent em dash, because it keeps the layout the canvas designed *and* tells the user something true.
+
+The line that does not move: **never fabricate.** Substituting a real measurement is not inventing one. A placeholder, a zero, or a plausible-looking number with no source behind it remains forbidden, and so does putting a *label* on data that doesn't match it — the mislabelling that #589 and the `Liq 24h`/`LIQ 15M` relabel were both about.
+
+Every "No source" row below therefore now carries an open question it did not have before: **what real data should go in this slot instead?** Those are product calls, not QA's, and they are listed rather than answered.
+
+---
+
 The distinction that matters on every row is **why** it can't be built, because the four reasons need completely different answers:
 
 | category | what it means | what to do |
 |---|---|---|
-| **No source** | Nothing in the codebase can compute it | Render an em dash, keep the row so layout is stable, never a zero or a placeholder |
+| **No source** | Nothing in the codebase can compute it | Per the ruling above: propose a real substitute for the slot. Em dash only while that decision is outstanding — it is a holding state now, not an answer. |
 | **Ruled against** | A prior product decision says no | Do not rebuild it because a frame draws it — amend the frame |
 | **Needs new work** | Buildable, but requires new plumbing or a contract change | Own decision, own issue, own estimate |
 | **Buildable now** | Data already exists, just not wired to that slot | Ordinary work, no decision needed |
@@ -28,7 +45,21 @@ The distinction that matters on every row is **why** it can't be built, because 
 | **Entry / Stop / Target** | dashboard, Best setup today | No local computation produces them. Only Arena's per-request AI call does, and that result is unpersisted and not necessarily for the coin/timeframe on screen. |
 | **`⌘K`** chip | shell nav, every terminal route | There is no command palette. Grepped for `cmdk`, palette, and the glyph — nothing. Omitted rather than shipping a keyboard hint for a shortcut that does nothing. |
 
-**Three of the eight arena evidence rows are permanently em-dashed** (`CB PREM`, `BASIS`, `LIQ 15M`), where the spec's acceptance criteria were written expecting one. Criterion 12's "2 of 8 rows carry colour" is therefore testable against only 5 candidate rows.
+**Three of the eight arena evidence rows are currently em-dashed** (`CB PREM`, `BASIS`, `LIQ 15M`), where the spec's acceptance criteria were written expecting one. Criterion 12's "2 of 8 rows carry colour" is therefore testable against only 5 candidate rows.
+
+### Substitutes to decide on
+
+Per the ruling, each of these needs a proposal rather than a permanent dash. Candidates below are **suggestions for the product owner, not decisions** — every one is real data already in the codebase, so none of them requires inventing anything:
+
+| empty slot | real data that could fill it instead |
+|---|---|
+| `CB prem` | Coinbase premium is genuinely unavailable, but `store.cbPremiumPct` feeds the dashboard's own CB premium card — worth confirming whether that source can serve arena too, before substituting something else |
+| `Liq 15m` | `store.btcLiqLevels` (cluster data) or the taker-flow ratio already rendered elsewhere |
+| Trend strength | RSI-based multi-timeframe bias — `MultiTFAlignment` already computes it across 15m/1h/4h |
+| Liquidity | Taker buy/sell ratio (`takerBuyRatio`), already used for the sidebar pressure bars |
+| Entry / Stop / Target | Nothing local produces trade levels. The honest substitute may be a different *kind* of row entirely rather than three empty level cells |
+
+**These are the "what goes there instead" questions the ruling creates. They are product decisions and they are open.**
 
 ## Ruled against — a prior decision says no, and the frame is what changes
 
