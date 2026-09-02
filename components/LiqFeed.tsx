@@ -9,7 +9,11 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 
 /* ── Types ── */
-interface LiqEvent {
+/* Exported for the heatmap (#652). LiqFeed owns ingestion - two websockets
+   plus the Supabase 24h load - and nothing else should open a second one, so
+   consumers that need the raw stream take it from here rather than querying
+   liq_events themselves. */
+export interface LiqEvent {
   id:     number;
   symbol: string;
   coin:   string;
@@ -78,7 +82,14 @@ function fmtEventPrice(price: number): string {
   return '$' + price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 3 : 2 });
 }
 
-export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string }) {
+export default function LiqFeed({ onClusters, onEvents, coinFilter }: {
+  onClusters?: (clusters: Bucket[]) => void;
+  /* Raw events, for consumers that need a TIME axis. onClusters aggregates
+     the whole 24h window into price buckets and throws the timestamps away,
+     which is exactly what a density-over-time surface needs (#652). */
+  onEvents?: (events: LiqEvent[]) => void;
+  coinFilter: string;
+}) {
   const { t } = useLabels();
   const [feed,     setFeed]     = useState<LiqEvent[]>([]);
   const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
@@ -141,7 +152,8 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
       .slice(0, 100);
     setClusters(buckets);
     onClusters?.(buckets);
-  }, [onClusters]);
+    onEvents?.(history);
+  }, [onClusters, onEvents]);
 
   /* ── Sync coinFilter prop → ref and re-derive stats/clusters ── */
   useEffect(() => {
