@@ -89,10 +89,13 @@ const DESKTOP = () => {
     cls: (e.className || '').toString().trim().split(/\s+/)[0] || e.tagName.toLowerCase(),
     h: e.offsetHeight })).slice(0, 7) };
 
-  /* C8 — chart panel 430 */
-  const chart = [...document.querySelectorAll('*')].filter(e => vis(e) &&
-    /klc-|chart/i.test((e.className || '').toString()))
-    .sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+  /* C8 — chart panel 430.
+     Match .at-chart EXACTLY. The previous version took the tallest element
+     whose class matched /klc-|chart/, which is a wrapper, and reported 858 on a
+     build where .at-chart is correctly `height: 430px` desktop / 210px mobile
+     with `position: relative; overflow: hidden`. That was a phantom defect
+     against a correct build - the third my locators produced on this route. */
+  const chart = document.querySelector('.at-chart, .at-mchart');
   const c8 = chart ? chart.offsetHeight : -1;
 
   /* C9 — verdict 34px. Find the largest mono text on the page above 24px;
