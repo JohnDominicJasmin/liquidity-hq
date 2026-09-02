@@ -155,9 +155,16 @@ const DESKTOP = (PALETTE) => {
   const c11 = band ? { w: band.offsetWidth, inner: root.clientWidth,
     fixedPx: /width:\s*\d+px/.test(band.getAttribute('style') || '') } : null;
 
-  /* C6 — radius 0, circular <=24px exempt per radius-ruling.md */
+  /* C6 — radius 0, circular <=24px exempt per radius-ruling.md.
+     Scoped to .at-root: unscoped, this counted the APP SHELL's nav
+     (desktop-nav-item, theme-btn, lang-nav-btn from NavDrawer.tsx /
+     LanguageNavSwitcher.tsx) as 12 arena violations, with sub-pixel radii
+     like 0.0210918px that are floating-point residue on shell chrome, not a
+     real radius and not arena's to fix even if it were. Same scoping bug
+     Q2/Q4 had before they were fixed the same way. */
   const radBad = [], radCircle = [];
-  document.querySelectorAll('body *').forEach(el => {
+  const c6root = document.querySelector('.at-root');
+  (c6root ? c6root.querySelectorAll('*') : []).forEach(el => {
     if (!vis(el)) return;
     const s = getComputedStyle(el);
     const r = ['borderTopLeftRadius','borderTopRightRadius','borderBottomLeftRadius','borderBottomRightRadius'].map(k => s[k]);
