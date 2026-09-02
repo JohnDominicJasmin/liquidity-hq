@@ -152,32 +152,42 @@ canvases. Until that lands, treat their section-level passes as unproven.
 
 ---
 
-## 8. Status — measured, 2026-09-02 on `838471c`
+## 8. Status
 
-`qa/canvas-diff.mjs`, canvas sample data (prices, times, dates) excluded.
-Full output: `qa/reports/canvas-diff-838471c.txt`.
+Original measurement below is `qa/canvas-diff.mjs` on `838471c`, 2026-09-02
+morning, canvas sample data excluded. Full output:
+`qa/reports/canvas-diff-838471c.txt`. **Three rows are now stale** — dashboard,
+landing (`/`) and arena went through full mirror work the same day, each
+independently verified live (dark+light, desktop+mobile) on the deployed
+build, not re-measured by the script. See #587/#598/#603/#604/#605/#607/#609/
+#610/#611/#615 for the trail. Not re-running canvas-diff.mjs on them — it
+cannot see "present but built differently" per §7, so a fresh percentage would
+undersell what live verification already confirmed and oversell what it can't
+check (structural correctness, colour-as-data rules, states).
 
-| route | canvas labels present | branch |
-|---|---|---|
-| `/learn` | 3/5 — 60% | `feature/learn-canvas-mirror` |
-| `/` | 25/49 — 51% | `feature/landing-canvas-mirror` |
-| `/econ-calendar` | 10/21 — 48% | `feature/econ-calendar-canvas-mirror` |
-| `/liq` | 9/20 — 45% | `feature/liq-canvas-mirror` |
-| `/calc` | 4/9 — 44% | `feature/calc-canvas-mirror` |
-| `/news` | 3/8 — 38% | `feature/news-canvas-mirror` |
-| `/about` | 5/15 — 33% | `feature/about-canvas-mirror` |
-| **`/dashboard`** | **8/26 — 31%** | **`feature/dashboard-canvas-mirror`** — in progress |
-| `/faq` | 3/10 — 30% | `feature/faq-canvas-mirror` |
-| `/disclaimer` | 4/14 — 29% | `feature/disclaimer-canvas-mirror` |
-| `/markets` | 2/8 — 25% | `feature/markets-canvas-mirror` |
-| `/journal` | 3/13 — 23% | `feature/journal-canvas-mirror` |
-| `/alerts` | 3/13 — 23% | `feature/alerts-canvas-mirror` |
-| `/offline` | 2/10 — 20% | `feature/offline-canvas-mirror` |
-| `/arena` | 10/51 — 20% | `feature/arena-canvas-mirror` |
-| `/funding` | 3/19 — 16% | `feature/funding-canvas-mirror` |
-| `/briefing` | 2/17 — 12% | `feature/briefing-canvas-mirror` |
+| route | canvas labels present (838471c) | branch | status, 2026-09-02 |
+|---|---|---|---|
+| `/learn` | 3/5 — 60% | `feature/learn-canvas-mirror` | untouched |
+| **`/`** (landing) | ~~25/49 — 51%~~ | `feature/landing-canvas-mirror` | **done, deployed, verified live** |
+| `/econ-calendar` | 10/21 — 48% | `feature/econ-calendar-canvas-mirror` | untouched |
+| `/liq` | 9/20 — 45% | `feature/liq-canvas-mirror` | untouched — has a spec (`liquidation-map.md`) |
+| `/calc` | 4/9 — 44% | `feature/calc-canvas-mirror` | untouched |
+| `/news` | 3/8 — 38% | `feature/news-canvas-mirror` | untouched |
+| `/about` | 5/15 — 33% | `feature/about-canvas-mirror` | untouched |
+| **`/dashboard`** | ~~8/26 — 31%~~ | `feature/dashboard-canvas-mirror` | **done, deployed, verified live** — one open colour gap, #614 |
+| `/faq` | 3/10 — 30% | `feature/faq-canvas-mirror` | untouched |
+| `/disclaimer` | 4/14 — 29% | `feature/disclaimer-canvas-mirror` | untouched |
+| `/markets` | 2/8 — 25% | `feature/markets-canvas-mirror` | untouched — has a spec (`markets.md`) |
+| `/journal` | 3/13 — 23% | `feature/journal-canvas-mirror` | untouched — has a spec (`journal.md`) |
+| `/alerts` | 3/13 — 23% | `feature/alerts-canvas-mirror` | untouched — has a spec (`alerts.md`) |
+| `/offline` | 2/10 — 20% | `feature/offline-canvas-mirror` | untouched |
+| **`/arena`** | ~~10/51 — 20%~~ | `feature/arena-canvas-mirror` | **done, deployed, verified live** — one open colour gap (#614, shared with dashboard), shell nav in progress (#616) |
+| `/funding` | 3/19 — 16% | `feature/funding-canvas-mirror` | untouched — has a spec (`funding.md`) |
+| **`/briefing`** | 2/17 — 12% | `feature/briefing-canvas-mirror` | **assigned to dev, 2026-09-02** — spec's own fidelity note says no structural divergence, colour-rules-only task |
 
-**Median ~29%. Nothing above 60%. No screen currently mirrors its canvas.**
+**3 of 17 routes done as of 2026-09-02. 1 in progress. 13 untouched.
+This is not close to finished — do not read three done screens as the
+project being near done.**
 
 ### How to read these numbers
 
