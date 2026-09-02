@@ -279,7 +279,18 @@ export function buildPrompt(ctx: GrokContext): string {
     // Quick mode has no tools, so it was a standing instruction the model
     // could not act on, spending tokens to say nothing. Restore alongside a
     // source that actually answers, not as a search prompt.
-    '=== LIQUIDATION CLUSTERS ===',
+    /* BTC in the header, because the data is BTC's whatever coin is being
+       analysed (#637): ctx.liqLevels is built from store.btcLiqLevels, and
+       the string it carries is bare prices and sides with no coin in it. An
+       analysis of SOL was handed a section titled LIQUIDATION CLUSTERS
+       containing BTC's, with nothing marking whose they were - and a model
+       asked for a per-coin read will weave those levels in rather than
+       reject them. Every sibling field in this prompt already names its
+       scope: "CB Premium (Coinbase BTC - Binance BTC)" at :240, "BTC
+       exchange net flow" at :268, "BTC Put/Call Ratio" and "BTC Max Pain
+       Strike" at :232-233. This one was the gap in an otherwise careful
+       set. */
+    '=== BTC LIQUIDATION CLUSTERS (BTC-wide, not the analysed coin) ===',
     ctx.liqLevels,
     '',
     '=== MACRO EVENTS - RELEASED (LAST 72H) + UPCOMING (48H) ===',

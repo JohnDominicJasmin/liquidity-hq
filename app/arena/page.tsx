@@ -779,7 +779,11 @@ function ArenaContent() {
     const exchangeNetFlow = store.btcExchangeNetFlow != null
       ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M'
         + (store.btcExchangeNetFlow > 50 ? ' (inflow - sell pressure)' : store.btcExchangeNetFlow < -50 ? ' (outflow - accumulation)' : ' (neutral)')
-      : 'AI will search';
+      /* Same dead fallback as liqLevels below, and beyond #637's literal
+         scope - fixed anyway because leaving one of two identical instances
+         in the same function is how the anti-chop toggle ended up with its
+         background converted and its own boxShadow not. */
+      : 'Not available';
 
     /* Stablecoin flow */
     const stablecoinFlow = store.stablecoinSupply != null
@@ -790,9 +794,17 @@ function ArenaContent() {
       : '-';
 
     /* Liquidation levels */
+    /* "Not available" rather than 'AI will search' (#637). The fallback was a
+       standing instruction to go and look, and Quick mode has no tools to
+       look with - so it spent tokens telling the model to do something it
+       cannot do, and in Deep mode invited a web-searched number to stand in
+       for our own missing data. That is the same reasoning that deleted the
+       retail-sentiment block on 2026-07-31; its removal comment sits eight
+       lines above the LIQUIDATION CLUSTERS header in lib/grok.ts and the
+       pattern survived directly beneath it. */
     const liqLevels = store.btcLiqLevels && store.btcLiqLevels.length > 0
       ? store.btcLiqLevels.slice(0, 4).map(l => '$' + l.price.toLocaleString() + ' ' + l.side).join(' | ')
-      : 'AI will search';
+      : 'Not available';
 
     /* BTC dom trend */
     const btcDomTrend = store.btcDomHistory && store.btcDomHistory.length >= 3
