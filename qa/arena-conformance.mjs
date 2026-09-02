@@ -163,7 +163,64 @@ const DESKTOP = () => {
     ? [...document.querySelectorAll('*')].filter(e => /klc-root|klc-container/.test((e.className || '').toString())).length
     : -1;
 
+  /* ── Q1-Q4: QA's, not the spec's. Ported from the landing suite after the
+     owner found three defects by opening the page that a 20/21 score had
+     missed. Labelled Q so a report never confuses them with arena.md's
+     criteria. ── */
+
+  /* Q1 — what the page PAINTS, not what :root declares. On landing (#595)
+     --bg0 and --accent were both correct at the root and the page ignored
+     both, so any getPropertyValue assertion passed. */
+  const q1 = { tokenBg: tok('--bg0'), paintedBg: hex(getComputedStyle(document.body).backgroundColor) };
+
+  /* Q2 — text wider than its own box. Bounding-box intersection cannot find
+     this: on /dashboard the price element's box did not intersect its
+     neighbour's, yet the string painted 40px across it, and page-level
+     horizontal overflow was 0 at the same moment. */
+  const q2 = [];
+  document.querySelectorAll('body *').forEach(e => {
+    if (e.children.length) return;
+    const t = txt(e); if (t.length < 2) return;
+    const r = e.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return;
+    const over = e.scrollWidth - e.clientWidth;
+    if (over > 1) q2.push({ t: t.slice(0, 22), box: Math.round(r.width),
+      needs: e.scrollWidth, over, escapes: getComputedStyle(e).overflowX === 'visible' });
+  });
+
+  /* Q3 — a band's children must fit inside it. C7 asserts each band's own
+     height; landing's nav was correctly 52 while its child rendered 55. Arena
+     has six fixed-height bands, so this is six chances at the same defect. */
+  const q3 = [];
+  regions.forEach((band, i) => {
+    const br = band.getBoundingClientRect();
+    if (br.height < 20 || br.height > 200) return;   // flex bands have no fixed height to violate
+    [...band.querySelectorAll('a, button, span, div')].forEach(e => {
+      if (!vis(e)) return;
+      const er = e.getBoundingClientRect();
+      const out = Math.max(br.top - er.top, er.bottom - br.bottom);
+      if (out > 0.5) q3.push({ band: i, t: txt(e).slice(0, 14), h: Math.round(er.height),
+                               bandH: Math.round(br.height), out: +out.toFixed(1) });
+    });
+  });
+
+  /* Q4 — dev's own arena root-cause, generalised. `.at-chart` had a fixed
+     430px height with no overflow rule, so the chart's price-tag overlays
+     bled into the panels below (the garbled Market Structure the owner saw).
+     Any fixed-height box whose content exceeds it and which does not clip is
+     the same bug waiting to happen. */
+  const q4 = [];
+  document.querySelectorAll('body *').forEach(e => {
+    if (!vis(e)) return;
+    const s = getComputedStyle(e);
+    if (s.overflowY !== 'visible') return;
+    if (!/^\d+(\.\d+)?px$/.test(s.height)) return;
+    const spill = e.scrollHeight - e.clientHeight;
+    if (spill > 2) q4.push({ cls: (e.className || '').toString().trim().split(/\s+/)[0] || e.tagName.toLowerCase(),
+                             h: s.height, spill });
+  });
+
   return { c1, c2, c6, c7, c8, c9, c10, c11, c16, c19, c20, c21, c23, c24, c25,
+    q1, q2: q2.slice(0, 8), q3: q3.slice(0, 6), q4: q4.slice(0, 6),
     rootMissing: !root };
 };
 
@@ -203,7 +260,30 @@ const MOBILE = () => {
   });
   const c35 = { total: small.length, nonInline: small.filter(s => !s.inline).length, sample: small.slice(0, 6) };
 
-  return { c24, c26, c32, c33, c35 };
+  /* Q2/Q4 at 390 — dashboard's price overflow only appears at mobile widths
+     and worsens sharply below 390 (box 76 at 390, 43 at 320, for a string
+     needing 116). Arena's snapshot band is denser than dashboard's coin row. */
+  const q2 = [];
+  document.querySelectorAll('body *').forEach(e => {
+    if (e.children.length) return;
+    const t = txt(e); if (t.length < 2) return;
+    const r = e.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return;
+    const over = e.scrollWidth - e.clientWidth;
+    if (over > 1) q2.push({ t: t.slice(0, 22), box: Math.round(r.width),
+      needs: e.scrollWidth, over, escapes: getComputedStyle(e).overflowX === 'visible' });
+  });
+  const q4 = [];
+  document.querySelectorAll('body *').forEach(e => {
+    if (!vis(e)) return;
+    const s = getComputedStyle(e);
+    if (s.overflowY !== 'visible') return;
+    if (!/^\d+(\.\d+)?px$/.test(s.height)) return;
+    const spill = e.scrollHeight - e.clientHeight;
+    if (spill > 2) q4.push({ cls: (e.className || '').toString().trim().split(/\s+/)[0] || e.tagName.toLowerCase(),
+                             h: s.height, spill });
+  });
+
+  return { c24, c26, c32, c33, c35, q2: q2.slice(0, 8), q4: q4.slice(0, 6) };
 };
 
 const browser = await chromium.launch();
@@ -295,6 +375,23 @@ for (const theme of THEMES) {
   console.log('      (26 is arena.md\'s own soft number — "ratio argument only, do not cite as measured")');
   console.log(U('C34 levels render as 3 cells in one row — needs the cell hook'));
   console.log(V(m.c35.nonInline === 0, `C35 controls >=24x24 — ${m.c35.nonInline} non-inline undersized of ${m.c35.total} total`));
+
+  /* Q-criteria are QA's, not arena.md's. Each exists because a real defect
+     scored clean: the owner found three on landing and dashboard that a
+     20/21 and a 5/5 had both missed. */
+  console.log(V(d.q1.paintedBg === d.q1.tokenBg, `Q1  ground paints --bg0 — token ${d.q1.tokenBg}, painted ${d.q1.paintedBg}`));
+  console.log(V(d.q2.length === 0, `Q2  no text wider than its own box — ${d.q2.length}`));
+  d.q2.forEach(x => console.log(`      "${x.t}" box ${x.box} needs ${x.needs} (+${x.over}${x.escapes ? ', ESCAPES — paints outside' : ', clipped'})`));
+  console.log(V(d.q3.length === 0, `Q3  every band's children fit the band — ${d.q3.length} overflowing`));
+  d.q3.forEach(x => console.log(`      band ${x.band} "${x.t}" ${x.h}px in ${x.bandH}px, out by ${x.out}`));
+  console.log(V(d.q4.length === 0, `Q4  no fixed-height box spills unclipped — ${d.q4.length}`));
+  d.q4.forEach(x => console.log(`      .${x.cls} height ${x.h}, content spills ${x.spill}px, overflow-y visible`));
+
+  const mq2 = m.q2 || [], mq4 = m.q4 || [];
+  console.log(V(mq2.length === 0, `Q2m mobile: no text wider than its own box — ${mq2.length}`));
+  mq2.forEach(x => console.log(`      "${x.t}" box ${x.box} needs ${x.needs} (+${x.over}${x.escapes ? ', ESCAPES' : ', clipped'})`));
+  console.log(V(mq4.length === 0, `Q4m mobile: no fixed-height box spills unclipped — ${mq4.length}`));
+  mq4.forEach(x => console.log(`      .${x.cls} height ${x.h}, spills ${x.spill}px`));
   if (m.c35.nonInline) console.log('      ' + m.c35.sample.filter(s => !s.inline).map(s => `${s.cls} ${s.size}`).join(' | '));
 }
 
