@@ -14,7 +14,7 @@ export default function PriceTickerStrip() {
   const { store } = useMarket();
 
   return (
-    <div style={{
+    <div className="price-ticker-strip" style={{
       height: 34, flexShrink: 0, borderBottom: '1px solid var(--bdr)',
       display: 'flex', alignItems: 'stretch', overflowX: 'auto',
       fontFamily: 'var(--font-mono), monospace', fontSize: 11,

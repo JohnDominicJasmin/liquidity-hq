@@ -4480,6 +4480,12 @@ body.landing .app-bar,
 body.landing .nav-drawer,
 body.landing .mobile-tab-bar,
 body.landing .news-ticker,
+/* Terminal-mode landing (#413 canvas mirror, landing.md) has its own ticker
+   with its own coin selection (all tracked coins vs dashboard's curated 8)
+   and its own mobile geometry - AppShell's shared PriceTickerStrip must not
+   also render underneath it. Same hide-on-landing mechanism as the rest of
+   this block, not new logic. */
+body.landing .price-ticker-strip,
 body.landing .gchat-fab,
 body.landing .gchat-panel,
 body.landing .ob-checklist { display: none !important; }
