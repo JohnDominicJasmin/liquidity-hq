@@ -116,8 +116,8 @@ function evCol(ev: StructureEvent): string {
 }
 function evBg(ev: StructureEvent): string {
   return ev.type === 'CHoCH'
-    ? (ev.dir === 'bullish' ? withAlpha('var(--accent)', '1a') : 'rgba(248,113,113,0.10)')
-    : (ev.dir === 'bullish' ? 'rgba(52,211,153,0.10)'  : 'rgba(248,113,113,0.10)');
+    ? (ev.dir === 'bullish' ? withAlpha('var(--accent)', '1a') : 'color-mix(in srgb, var(--red) 10%, transparent)')
+    : (ev.dir === 'bullish' ? 'color-mix(in srgb, var(--green-2) 10%, transparent)'  : 'color-mix(in srgb, var(--red) 10%, transparent)');
 }
 
 /* ── Component ── */

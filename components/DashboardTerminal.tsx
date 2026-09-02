@@ -295,7 +295,18 @@ function TCoinSidebar() {
           {t('DASH_SIDEBAR_HEADER_FIRING', { count: firingCount })}
         </span>
         <span style={{ flex: 1 }} />
-        <Link href="/markets" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+        {/* alignSelf stretch, not padding (#641): measured 31x15, and only
+            the height failed SC 2.5.8 - 31 already clears 24. The header
+            above is a fixed height:28 flex row, so stretching the link to
+            fill it gives a 28px target and moves nothing. Padding would have
+            grown the row instead, and this row's 28px is the canvas's. */}
+        <Link
+          href="/markets"
+          style={{
+            color: 'var(--accent)', textDecoration: 'none',
+            alignSelf: 'stretch', display: 'inline-flex', alignItems: 'center',
+          }}
+        >
           {t('DASH_SIDEBAR_HEADER_VIEW_ALL', { count: COINS.length })}
         </Link>
       </div>
@@ -426,8 +437,8 @@ function TCascadeAlertBanner() {
   const col = alert.side === 'LONG' ? 'var(--red)'
             : alert.side === 'SHORT' ? 'var(--green)'
             : 'var(--amber)';
-  const bdr = alert.side === 'LONG' ? 'rgba(248,113,113,0.35)'
-            : alert.side === 'SHORT' ? 'rgba(52,211,153,0.35)'
+  const bdr = alert.side === 'LONG' ? 'color-mix(in srgb, var(--red) 35%, transparent)'
+            : alert.side === 'SHORT' ? 'color-mix(in srgb, var(--green-2) 35%, transparent)'
             : 'rgba(251,191,36,0.35)';
 
   return (
@@ -479,7 +490,7 @@ function TContrarianBanner() {
   if (!c || dismissed === id) return null;
 
   const col = c.dir === 'bear' ? 'var(--red)' : 'var(--green)';
-  const bdr = c.dir === 'bear' ? 'rgba(248,113,113,0.35)' : 'rgba(52,211,153,0.35)';
+  const bdr = c.dir === 'bear' ? 'color-mix(in srgb, var(--red) 35%, transparent)' : 'color-mix(in srgb, var(--green-2) 35%, transparent)';
 
   return (
     <div className="cascade-alert" style={{ borderColor: bdr }}>

@@ -263,8 +263,8 @@ function CascadeAlertBanner() {
   const col = alert.side === 'LONG' ? 'var(--red)'
             : alert.side === 'SHORT' ? 'var(--green)'
             : 'var(--amber)';
-  const bdr = alert.side === 'LONG' ? 'rgba(248,113,113,0.35)'
-            : alert.side === 'SHORT' ? 'rgba(52,211,153,0.35)'
+  const bdr = alert.side === 'LONG' ? 'color-mix(in srgb, var(--red) 35%, transparent)'
+            : alert.side === 'SHORT' ? 'color-mix(in srgb, var(--green-2) 35%, transparent)'
             : 'rgba(251,191,36,0.35)';
 
   return (
