@@ -205,9 +205,54 @@ const DESKTOP = () => {
     });
   });
 
+  /* ── Q1/Q2: MINE, NOT THE SPEC'S. ──────────────────────────────────────
+     specs/landing.md has 21 criteria and NOT ONE asserts a colour. This page
+     scored 20/21 while rendering the current design's black ground and
+     #1a7aff blue accent in light theme (#595). A conformance suite that can
+     score a page in the wrong palette is measuring the wrong thing.
+
+     Q1 checks what is PAINTED, not what :root declares. On #595 the root
+     tokens were correct — --bg0 #f7f6f3, --accent #754e00 — and the page
+     ignored both. Reading the token would have passed. */
+  const paintedBg = getComputedStyle(document.body).backgroundColor;
+  const ctaEl = [...document.querySelectorAll('a, button')].filter(vis)
+    .find(e => /start for free|get started/i.test(txt(e)));
+  const q1 = {
+    tokenBg: tok('--bg0'), paintedBg: hex(paintedBg),
+    tokenAccent: tok('--accent'),
+    paintedCta: ctaEl ? hex(getComputedStyle(ctaEl).backgroundColor) : null,
+  };
+
+  /* Q2 — text wider than its own box. A bounding-box overlap test cannot see
+     this: on /dashboard the price element's box did not intersect its
+     neighbour's, yet the price STRING painted 40px across it, because the
+     element was narrower than its content with overflow-x visible. Page-level
+     horizontal overflow was 0 at the same time. */
+  const q2 = [];
+  document.querySelectorAll('body *').forEach(e => {
+    if (e.children.length) return;
+    const t = txt(e); if (t.length < 2) return;
+    const r = e.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return;
+    const over = e.scrollWidth - e.clientWidth;
+    if (over > 1) q2.push({ t: t.slice(0, 22), box: Math.round(r.width),
+      needs: e.scrollWidth, over, escapes: getComputedStyle(e).overflowX === 'visible' });
+  });
+
+  /* Q3 — a nav child taller than the nav. C11/C18 assert the nav's own
+     height, which is 52 and correct, while `Sign In` renders 55px tall inside
+     it and clips at both edges (#595). "The container is the right size" is
+     not "its contents fit". */
+  const navEl = Q('nav, header')[0];
+  const q3 = navEl ? [...navEl.querySelectorAll('a, button, span')].filter(vis).map(e => {
+    const nr = navEl.getBoundingClientRect(), er = e.getBoundingClientRect();
+    return { t: txt(e).slice(0, 14), h: Math.round(er.height), navH: Math.round(nr.height),
+             out: +Math.max(nr.top - er.top, er.bottom - nr.bottom).toFixed(1) };
+  }).filter(x => x.out > 0.5) : [];
+
   return { c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
     c12: { violations: radAll.length, sample: radAll.slice(0, 6), circularSmall: radCircularSmall.length, circularSample: radCircularSmall.slice(0, 4) },
-    c13, c14, c15, c16, c17: { count: halfPx.length, sample: halfPx.slice(0, 4) } };
+    c13, c14, c15, c16, c17: { count: halfPx.length, sample: halfPx.slice(0, 4) },
+    q1, q2: q2.slice(0, 6), q3: q3.slice(0, 4) };
 };
 
 const MOBILE = () => {
@@ -236,7 +281,26 @@ const MOBILE = () => {
         .map(g => ({ g, n: colsOf(g).length })).sort((a, b) => b.n - a.n)[0]?.g || null
     : null;
   const cols = fgrid ? colsOf(fgrid) : [];
+  /* Q2/Q3 again at 390 — both landing defects in #595 are worse or only
+     visible here. `Sign In` wraps to 3 lines and stands 55px tall in a 52px
+     nav at 390, 360 and 320 alike. */
+  const q2 = [];
+  document.querySelectorAll('body *').forEach(e => {
+    if (e.children.length) return;
+    const t = txt(e); if (t.length < 2) return;
+    const r = e.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return;
+    const over = e.scrollWidth - e.clientWidth;
+    if (over > 1) q2.push({ t: t.slice(0, 22), box: Math.round(r.width),
+      needs: e.scrollWidth, over, escapes: getComputedStyle(e).overflowX === 'visible' });
+  });
+  const q3 = nav ? [...nav.querySelectorAll('a, button, span')].filter(vis).map(e => {
+    const nr = nav.getBoundingClientRect(), er = e.getBoundingClientRect();
+    return { t: txt(e).slice(0, 14), h: Math.round(er.height), navH: Math.round(nr.height),
+             out: +Math.max(nr.top - er.top, er.bottom - nr.bottom).toFixed(1) };
+  }).filter(x => x.out > 0.5) : [];
+
   return {
+    q2: q2.slice(0, 6), q3: q3.slice(0, 4),
     c18: { nav: nav ? nav.offsetHeight : -1, ticker: ticker ? ticker.offsetHeight : -1 },
     c19: { lefts: [...new Set(cards.map(a => Math.round(a.getBoundingClientRect().left)))], n: cards.length },
     c20: (free && pro) ? { freeBottom: Math.round(free.getBoundingClientRect().bottom), proTop: Math.round(pro.getBoundingClientRect().top) } : null,
@@ -296,5 +360,23 @@ for (const theme of THEMES) {
   console.log(V(m.c19.lefts.length === 1, `C19 feature cards stack — ${m.c19.lefts.length} distinct offsetLeft across ${m.c19.n}`));
   console.log(V(m.c20 ? m.c20.proTop > m.c20.freeBottom : null, `C20 pricing stacks — ${m.c20 ? `free bottom ${m.c20.freeBottom}, pro top ${m.c20.proTop}` : 'plans not found'}`));
   console.log(V(m.c21.distinctLefts === 2, `C21 footer 2 columns on mobile — ${m.c21.distinctLefts} distinct lefts across ${m.c21.cols}`));
+
+  /* Q-criteria are QA's, not the spec's — each exists because a real defect
+     scored 20/21. They are labelled Q so nobody mistakes them for handoff
+     criteria when reading a report. */
+  const bgOk = d.q1.paintedBg === d.q1.tokenBg;
+  const ctaOk = d.q1.paintedCta === null ? null : d.q1.paintedCta === d.q1.tokenAccent;
+  console.log(V(bgOk, `Q1a ground paints --bg0 — token ${d.q1.tokenBg}, painted ${d.q1.paintedBg}`));
+  console.log(V(ctaOk, `Q1b CTA paints --accent — token ${d.q1.tokenAccent}, painted ${d.q1.paintedCta ?? 'CTA not found'}`));
+  console.log(V(d.q2.length === 0, `Q2  no text wider than its own box — ${d.q2.length}`));
+  d.q2.forEach(x => console.log(`      "${x.t}" box ${x.box} needs ${x.needs} (+${x.over}${x.escapes ? ', ESCAPES — paints outside' : ', clipped'})`));
+  console.log(V(d.q3.length === 0, `Q3  every nav child fits the nav — ${d.q3.length} overflowing`));
+  d.q3.forEach(x => console.log(`      "${x.t}" ${x.h}px in a ${x.navH}px nav, out by ${x.out}`));
+
+  const mq2 = m.q2 || [], mq3 = m.q3 || [];
+  console.log(V(mq2.length === 0, `Q2m mobile: no text wider than its own box — ${mq2.length}`));
+  mq2.forEach(x => console.log(`      "${x.t}" box ${x.box} needs ${x.needs} (+${x.over}${x.escapes ? ', ESCAPES' : ', clipped'})`));
+  console.log(V(mq3.length === 0, `Q3m mobile: every nav child fits the nav — ${mq3.length} overflowing`));
+  mq3.forEach(x => console.log(`      "${x.t}" ${x.h}px in a ${x.navH}px nav, out by ${x.out}`));
 }
 console.log('\nCHECK = the checker could not locate the element; that is a checker gap, not a verdict.');
