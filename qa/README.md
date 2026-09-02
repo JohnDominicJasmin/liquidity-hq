@@ -73,10 +73,50 @@ cross-account access. The data check after it is what still has teeth.
 
 ## Running the automated sweep
 
-The audit harness is not committed (it lives in the session scratchpad). To
-rebuild it, see §9 of `pendings/QA_AUDIT_2026-08-04.md` — it documents the
-scripts, the Playwright import path, and the flaky-measurement traps found
-along the way.
+**The audit harness is committed.** It used to live in the session scratchpad,
+which meant every session rebuilt it and re-made the same measurement mistakes.
+
+| Script | Answers |
+|---|---|
+| `platform-audit.mjs` | the whole platform in one table — 30 routes x {desktop, mobile} x {dark, light}: overflow, off-palette, radius, contrast, sub-24px targets, empty fields |
+| `contrast-diff.mjs` | *why* contrast fails on one route — groups failures by `class\|fg\|bg` so you see causes, not counts |
+| `token-surfaces.mjs` | **per token, every background it was actually rendered against and the contrast there.** Exists because one figure per token measured against `--bg0` is the token's *best* case and shipped three failing values |
+| `gating-audit.mjs` | whether paid surface leaks to a non-entitled visitor — Alert Conditions absent (not locked), gated chips `disabled` *and* lock-glyphed. **`--free` signs in as the seeded free-tier fixture**, which is the only way `/settings` exercises the criterion at all |
+| `tap-targets.mjs` | interactive elements under WCAG 2.2's 24px minimum, **grouped by component**, with SC 2.5.8's inline and spacing exceptions applied and the exempt list printed so it can be audited |
+| `mobile-overflow.mjs` | *what* element pushes a page wider than the viewport |
+| `mobile-audit.mjs` | one route at 390px |
+| `audit-handoff.mjs` | what `design-handoff-dir/` is missing |
+
+All take `--base <url>` and default to the qa deploy. Run them against a
+**deployed host**, and **check `/api/version` first** — a stale-deploy read has
+already produced one "the fix did not work" report on a fix that had worked.
+
+```bash
+MSYS_NO_PATHCONV=1 node qa/platform-audit.mjs
+MSYS_NO_PATHCONV=1 node qa/token-surfaces.mjs --md > surfaces.md
+```
+
+`MSYS_NO_PATHCONV=1` is required in Git Bash — without it `/dashboard` is
+mangled into a Windows path. Note it does **not** apply to redirects or `cp`
+targets, so keep temp files in the repo or an absolute Windows path, not `/tmp`.
+
+**Read `TERMINAL_REDESIGN_STATE.md` §4 before trusting any sweep**, including
+your own. Every trap listed there produced a wrong finding that cost a round
+trip with dev. Two are worth repeating here because they govern how you *report*
+a sweep, not just how you run one:
+
+**`platform-audit.mjs` is a finder, not a sizer.** Its totals are instance
+counts. Three separate headline numbers turned out to be one component each:
+`/scanner`'s "392 empty fields" (≈50 placeholder dashes), `/correlation`'s "24
+failing surfaces" (one gradient), and "74 sub-24px tap targets" (one inline
+consent link, which is *exempt*). **Group by component before quoting a number
+to anyone.**
+
+**A fixed sleep does not report that it was too short — it reports zero.** A
+stuck page and a finished page are indistinguishable to a wait that only
+watches for stillness, and both `/correlation`'s heatmap and `/settings`'
+`Loading…` placeholder are stable DOMs. Wait for the element that defines the
+page.
 
 ```bash
 npm run build && PORT=3100 npm start
