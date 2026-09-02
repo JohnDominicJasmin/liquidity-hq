@@ -21,6 +21,11 @@
      literal that was there before. */
   --appbar-h: 52px;
 
+  /* Height of the terminal price ticker strip (#628). 0 outside terminal,
+     where no such strip is rendered at all, so every offset below that adds
+     it is unchanged for the current design. */
+  --strip-h: 0px;
+
   /* Terminal charcoal-black - no blue tint */
   --bg0: #030405;
   --bg:  #000000;
@@ -305,7 +310,7 @@ body::after {
 }
 .app-logo { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
 .app-logo span { color: var(--accent-2); }
-.app-content { max-width: 700px; margin: 0 auto; padding: calc(var(--appbar-h) + 32px + var(--banner-h)) 1rem 2rem; }
+.app-content { max-width: 700px; margin: 0 auto; padding: calc(var(--appbar-h) + var(--strip-h) + 32px + var(--banner-h)) 1rem 2rem; }
 /* 84px = navbar(52) + ticker(22) + 10px gap - safe at all times, plus --banner-h
    on top when the announcement banner is showing (see components/AnnouncementBanner.tsx) */
 
@@ -584,7 +589,7 @@ body::after {
    scrollable overflow. The actual fix is overflow-x:hidden on <html> (audit
    P2-6). Kept here anyway as correct hygiene for a fixed container with an
    off-canvas child - harmless, changes nothing visually. */
-.nav-drawer { position: fixed; top: calc(var(--appbar-h) + var(--banner-h)); left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; overflow: hidden; }
+.nav-drawer { position: fixed; top: calc(var(--appbar-h) + var(--strip-h) + var(--banner-h)); left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; overflow: hidden; }
 .nav-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); opacity: 0; transition: opacity 0.25s; pointer-events: none; }
 .nav-menu {
   position: absolute; top: 0; right: 0; width: min(90vw, 360px); height: 100%;
@@ -1027,7 +1032,7 @@ body[data-rpm-level="high"]::before {
 .nf-headline { font-size: var(--fs-caption); font-weight: 500; color: var(--txt); line-height: 1.5; }
 
 /* ── BREAKING ALERT ── */
-.breaking-alert { position: fixed; top: calc(var(--appbar-h) + 10px + var(--banner-h)); right: 12px; width: min(340px, calc(100vw - 24px)); z-index: 9000; pointer-events: none; }
+.breaking-alert { position: fixed; top: calc(var(--appbar-h) + var(--strip-h) + 10px + var(--banner-h)); right: 12px; width: min(340px, calc(100vw - 24px)); z-index: 9000; pointer-events: none; }
 
 /* ── ANNOUNCEMENT BANNER ──
    Fixed at the very top, above .app-bar (z-index 1000) - its real rendered
@@ -1057,7 +1062,7 @@ body[data-rpm-level="high"]::before {
 
 /* ── NEWS TICKER ── */
 .news-ticker {
-  position: fixed; top: calc(var(--appbar-h) + var(--banner-h)); left: 0; right: 0; z-index: 999;
+  position: fixed; top: calc(var(--appbar-h) + var(--strip-h) + var(--banner-h)); left: 0; right: 0; z-index: 999;
   height: 22px; display: flex; align-items: center; gap: 0;
   background: #0a090e;                   /* fully opaque - no bleed-through */
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
@@ -1147,7 +1152,7 @@ body[data-rpm-level="high"]::before {
 
 /* body.ticker-on no longer needed for app-content - base padding covers both states */
 /* Keep for breaking alerts positioning */
-body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + 32px + var(--banner-h)); }
+body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32px + var(--banner-h)); }
 
 /* ── INDICATORS ── */
 .ind-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
@@ -5768,10 +5773,43 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    at the top of this file. Without it those five stay pinned to the
    current design's 52px and terminal renders an 8px dead band under a bar
    that is not there. */
-[data-design="terminal"] { --appbar-h: 44px; }
+[data-design="terminal"] { --appbar-h: 44px; --strip-h: 34px; }
 @media (max-width: 767px) {
-  [data-design="terminal"] { --appbar-h: 38px; }
+  /* Mobile drops the strip entirely - arena.md's region table line 51 lists
+     it absent below 768, replaced by a 44px symbol row that is a separate
+     component and not built yet (#628). --strip-h back to 0 so the offsets
+     do not reserve space for something that is not there. */
+  [data-design="terminal"] { --appbar-h: 38px; --strip-h: 0px; }
 }
+
+/* #628: the strip was `position: static` at top 0, so it laid out UNDERNEATH
+   the fixed bar and was never once visible - measured 0 -> 34 under a 44px
+   bar, and under the 52px .app-bar before that, so it had been invisible for
+   the whole life of the terminal design. It leaves no gap and no overlap
+   artefact, which is why it read as ordinary spacing for so long.
+
+   Pinned below the bar, and every offset below it now adds --strip-h.
+   Dashboard 2a.dc.html:57 draws it immediately after the 44px nav at
+   height:34, and arena.md's region table line 25 names it `| 2 | Ticker | 34
+   | shell |` - shell, which is where AppShell already renders it.
+
+   The background is the one value not transcribed: the canvas sets none,
+   because there it sits in a column-flex frame over the frame's own ground.
+   Pinned, it needs an opaque fill or page content scrolls through it, and
+   --bg0 IS that ground. */
+[data-design="terminal"] .price-ticker-strip {
+  position: fixed; left: 0; right: 0;
+  top: calc(var(--appbar-h) + var(--banner-h));
+  z-index: 999;
+  background: var(--bg0);
+}
+/* No `display: none` companion rule below 768. There was one, and it did
+   nothing: PriceTickerStrip sets `display: 'flex'` as an inline style, which
+   beats a stylesheet rule without !important, so the strip stayed on screen
+   at 375 pinned over content that --strip-h: 0px had told nothing to reserve.
+   The component returns null below 768 instead (useIsDesktop, breakpoint
+   768). Not re-added as !important - a rule that has to shout to beat the
+   component it styles is a sign the component should own the decision. */
 
 /* Fixed, matching .app-bar, because the whole shell stack above assumes the
    top bar is out of flow. The frames put a static header at the top of a

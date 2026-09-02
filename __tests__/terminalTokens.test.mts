@@ -112,7 +112,18 @@ test('terminal design tokens', async (t) => {
       '--space-1', '--space-2', '--space-3', '--space-4', '--space-5',
       '--space-6', '--space-7', '--space-8',
       '--nm-btn', '--nm-inset', '--nm-raise', '--nm-raise-sm',
-      '--banner-h',
+      /* Shell layout heights, the same category as --banner-h above and for
+         the same reason: they are structural sizing, not colour, so the
+         terminal token block is the wrong place to look for them. Both DO
+         take a terminal-specific value - --appbar-h is 44px (38 below 768)
+         against the current design's 52, and --strip-h is 34px against 0 -
+         but that value is set on the [data-design="terminal"] block as a
+         declaration, which is what this assertion skips, not as a colour.
+         Added when #628 pinned .price-ticker-strip with
+         top: calc(var(--appbar-h) + var(--banner-h)) and the check caught
+         the first half of an expression whose second half it already
+         exempted. */
+      '--banner-h', '--appbar-h', '--strip-h',
     ]);
 
     const rulePattern = /\[data-design="terminal"\][^{]*\{([^}]*)\}/g;
