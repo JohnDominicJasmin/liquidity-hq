@@ -132,6 +132,16 @@ Known gap in the extraction: *Perp vs spot*'s label does not carry
 
 ---
 
+## 6b. What the canvas asks for that we cannot build
+
+Some canvases specify data this product does not have, and two of them would
+reverse a product decision if built literally. That is tracked separately, per
+screen and per reason, in **`qa/CANVAS_ASKS_WE_CANT_BUILD.md`** — read it before
+building any screen against its frame. It also records the places the canvases
+are themselves wrong (the light frames are stale on colour, and one grade-badge
+rule specifies a contrast failure), which are the standing exceptions to
+"mirror the canvas".
+
 ## 7. Tooling, and what it cannot tell you
 
 `qa/canvas-diff.mjs` — pulls the static labels out of each `.dc.html` (skipping
