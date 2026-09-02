@@ -203,8 +203,15 @@
             <div style="flex-shrink:0; border-top:1px solid #1f2225; padding:12px 14px;">
               <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#8b8f94;">Perp vs spot · BTC</div>
               <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
-                <div style="font-size:11.5px; color:#8b8f94;">Spot leading perp by</div>
-                <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:#3fb950;">+0.18%</div>
+                <!-- Amended per #588: was "Spot leading perp by +0.18%", which
+                     reads as a PRICE lead. Nothing in the codebase computes
+                     one. lib/perpSpot.ts measures spot vs perp QUOTE VOLUME as
+                     a ratio against that coin's own 7d median, and
+                     PerpSpotCard renders that as a verdict (SPOT LEADING /
+                     FUTURES LEADING / NORMAL). Copy now describes the volume
+                     relationship the metric actually is. -->
+                <div style="font-size:11.5px; color:#8b8f94;">Spot volume vs perp, against its 7d median</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:#3fb950;">1.4x</div>
               </div>
             </div>
 

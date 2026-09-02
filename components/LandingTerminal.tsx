@@ -367,6 +367,15 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
                   <span style={{ fontSize: 10.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.12em', color: 'var(--accent)', textTransform: 'uppercase' }}>
                     {dict.features.openLabel} {stepArrow}
                   </span>
+                  {/* --txt4 is correct here and measured 1.88:1 on purpose:
+                      the design's accessibility section exempts it by name -
+                      "--txt4 is used only for the excluded-feature ✕ and the
+                      route string in card footers. Both are non-essential
+                      decoration paired with a text label, so they are exempt
+                      from 4.5:1 - but if either ever becomes the only carrier
+                      of meaning, it must be re-tokened." Checked on #593
+                      against the design project itself, not the repo's copy.
+                      Do not "fix" this without re-reading that clause. */}
                   <span style={{ fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt4)' }}>{FEATURE_ROUTES[i]}</span>
                 </div>
               )}

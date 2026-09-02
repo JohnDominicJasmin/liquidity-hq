@@ -18,7 +18,7 @@ import {
 import type { CoinId, CoinData } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
-import { computeMarketRead } from '@/lib/marketRead';
+import { computeMarketRead, computeContrarian } from '@/lib/marketRead';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
 import EconCalendarWidget from '@/components/EconCalendarWidget';
 import SpotlightTour from '@/components/SpotlightTour';
@@ -428,6 +428,57 @@ function TCascadeAlertBanner() {
   );
 }
 
+/* Contrarian crowd warning (#606). computeContrarian fires at 2-of-3 crowd
+ * extremes and the old <MarketRead /> surfaced it as .mr-flag; when the
+ * terminal dashboard moved to TMarketReadBanner (#587) the value was still
+ * computed and then discarded, so a real risk-facing string disappeared from
+ * the route with nothing else showing it.
+ *
+ * Reuses TCascadeAlertBanner's .cascade-alert pattern rather than inventing
+ * geometry the canvas doesn't draw: same conditional/dismissible/colour-coded
+ * shape, same slot above the main column, and the two never both fire on the
+ * same input (one reads liquidation cascades, the other crowd positioning).
+ *
+ * Colour follows the cascade banner's own semantics - the direction that is
+ * BAD for the reader is red. Longs overcrowded is flush risk (--red); shorts
+ * overcrowded is squeeze risk against shorts, which favours a long (--green).
+ *
+ * label/desc are English literals from lib/marketRead.ts, not label keys -
+ * they predate this component and are shared with the current design's
+ * MarketRead. Rendering them as-is rather than forking the strings; the i18n
+ * gap is marketRead.ts's and is the same one TMarketReadBanner's verdict has. */
+function TContrarianBanner() {
+  const { store } = useMarket();
+  const { t } = useLabels();
+  const c = computeContrarian(store);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+
+  // Identity, not a boolean: dismissing "Longs overcrowded 2/3" should not
+  // also suppress a later escalation to 3/3, or a flip to the other side.
+  const id = c ? `${c.dir}-${c.count}` : null;
+  if (!c || dismissed === id) return null;
+
+  const col = c.dir === 'bear' ? 'var(--red)' : 'var(--green)';
+  const bdr = c.dir === 'bear' ? 'rgba(248,113,113,0.35)' : 'rgba(52,211,153,0.35)';
+
+  return (
+    <div className="cascade-alert" style={{ borderColor: bdr }}>
+      <div className="cascade-dot" style={{ background: col }} />
+      <div className="cascade-body">
+        <div className="cascade-title" style={{ color: col }}>
+          {c.label} · {c.count}/3
+        </div>
+        <div className="cascade-sub">{c.desc}</div>
+      </div>
+      <button
+        className="cascade-dismiss"
+        style={{ textTransform: 'uppercase', letterSpacing: '.1em', fontSize: 10 }}
+        onClick={() => setDismissed(id)}
+      >{t('DASH_CASCADE_DISMISS')} ✕</button>
+    </div>
+  );
+}
+
 function TEdgeSignals() {
   const { store } = useMarket();
   const { t } = useLabels();
@@ -771,6 +822,7 @@ export default function DashboardTerminal() {
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
       <TCascadeAlertBanner />
+      <TContrarianBanner />
 
       {/* No GlobalSpotlight in terminal mode — cursor glow effects don't fit
           the flat monochrome aesthetic. */}
