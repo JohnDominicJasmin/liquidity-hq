@@ -183,7 +183,7 @@ check (structural correctness, colour-as-data rules, states).
 | `/offline` | 2/10 — 20% | `feature/offline-canvas-mirror` | untouched |
 | **`/arena`** | ~~10/51 — 20%~~ | `feature/arena-canvas-mirror` | **done, deployed, verified live** — one open colour gap (#614, shared with dashboard), shell nav in progress (#616) |
 | `/funding` | 3/19 — 16% | `feature/funding-canvas-mirror` | untouched — has a spec (`funding.md`) |
-| **`/briefing`** | 2/17 — 12% | `feature/briefing-canvas-mirror` | **assigned to dev, 2026-09-02** — spec's own fidelity note says no structural divergence, colour-rules-only task |
+| **`/briefing`** | 2/17 — 12%, and this is probably generous | `feature/briefing-canvas-mirror` | **retracted the colour-fix assignment same day — real gap, see #620.** briefing.md's fidelity note compares terminal against production, never against the canvas; both share the same `mb-*` structure and neither has anything the canvas draws (headline+prose+levels rail+candlestick chart+CTAs vs the built page's setups/gauges/chips/news-feed). Zero section overlap, confirmed by reading the canvas directly, not the spec's note. Rebuild-sized, not a colour pass. |
 
 **3 of 17 routes done as of 2026-09-02. 1 in progress. 13 untouched.
 This is not close to finished — do not read three done screens as the
