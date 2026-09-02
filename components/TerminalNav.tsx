@@ -178,10 +178,17 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
       {/* Desktop 44px bar */}
       <header className="tnav">
         <Link href="/dashboard" className="tnav-brand">
-          {/* tone/radius fixed rather than theme-derived: the frames use one
-              logo asset in both the dark and light variants, and radius 0 is
-              the design's blanket rule - it has no round elements. */}
-          <BrandMark size={20} tone="mono" radiusPct={0} compact />
+          {/* tone="dark", NOT "mono" (#630). The mark's blue IS the design -
+              BrandMark's own header records that the handoff's logo.png
+              decodes to #2E7BFF/#6FD3FF/#1C3E76 and that frame 7a references
+              it three times, which is why the colour check exempts it rather
+              than "fixing" the component. mono paints the tile #080C15
+              against a #08090a nav, so the mark all but vanished and read as
+              a missing logo. LandingTerminal, already shipped and verified,
+              uses tone="dark" radiusPct={0} - this now matches it.
+              radius 0 is the design's blanket rule; compact is BrandMark's
+              own guidance for <=24px, where three thin bars turn to mush. */}
+          <BrandMark size={20} tone="dark" radiusPct={0} compact />
           <span className="tnav-wordmark">{t('TNAV_WORDMARK')}</span>
         </Link>
 
@@ -237,7 +244,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
 
       {/* Mobile 38px header */}
       <header className="tnav-mhead">
-        <BrandMark size={18} tone="mono" radiusPct={0} compact />
+        <BrandMark size={18} tone="dark" radiusPct={0} compact />
         <span className="tnav-mbrand">{screenNameFor(pathname, t)}</span>
         <span className="tnav-mscreen" />
         {session && (

@@ -6938,6 +6938,44 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .dash-main > .dash-conditions-row > * + * {
   border-left: 1px solid var(--bdr);
 }
+
+/* #630: the RAIL is banded too. #607 did this for .dash-main and stopped
+   there, so the main column read as one continuous surface while the rail
+   beside it still read as a stack of boxes - which is why the page looked
+   nearly right rather than right.
+
+   Dashboard 2a.dc.html:171 draws each rail row as
+   `padding:9px 14px; border-bottom:1px solid #131618; background:{{ c.selBg }}`
+   with selBg from :381 - `transparent`, or `rgba(217,166,38,.05)` when
+   selected. #131618 IS --bdr2 and #d9a626 IS --accent, both exactly, so this
+   is tokens rather than transcribed literals.
+
+   `border: 0` first because the base rule sets border-left-width: 2px, which
+   a border-bottom shorthand alone would leave standing. */
+[data-design="terminal"] .csb2-card {
+  padding: 9px 14px;
+  background: transparent;
+  border: 0; border-bottom: 1px solid var(--bdr2);
+}
+[data-design="terminal"] .csb2-card.csb2-sel {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  /* The base rule raises the selected card with --nm-raise. A neumorphic
+     shadow is the opposite of this design - flat, hairlines only. */
+  box-shadow: none;
+}
+/* Hover is the one state the frames cannot specify - they are static, and
+   this row is clickable, so it needs an affordance. A faint neutral tint
+   rather than a second accent state, so it never reads as "selected": the
+   same 4% --txt2 mix the badge overlays already use. */
+[data-design="terminal"] .csb2-card:hover {
+  background: color-mix(in srgb, var(--txt2) 4%, transparent);
+}
+[data-design="terminal"] .csb2-card.csb2-sel:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* #630: 12px 20px, per the canvas's selected-coin row. */
+[data-design="terminal"] .dash-main > .scc-card { padding: 12px 20px; }
 [data-design="terminal"] .dash-conditions-row .av-rail-panel { background: transparent; }
 /* Kept as the radius floor for .scc-card. Under terminal the only .scc-card
    that renders is the one inside .dash-main above (app/dashboard/page.tsx's
@@ -7204,7 +7242,13 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .ps-coin-trigger-dot,
 [data-design="terminal"] .ps-coin-opt-dot,
 [data-design="terminal"] .auth-avatar-btn,
-[data-design="terminal"] .coin-icon,
+/* .coin-icon removed (#630/#631). CoinIcon sets border-radius inline on
+   every render path - `square ? 0 : '50%'` - so its default already keeps
+   the rail's 16px marks round without a rule, and this entry's !important
+   was overruling the component's own square request on the 26px mark.
+   The list is also too blunt for the ruling it enforces: 50% is permitted
+   on inherently circular glyphs at 24px or under, and a selector cannot
+   tell a 16px icon from a 26px one. The component can. */
 [data-design="terminal"] .tj-lev-slider::-webkit-slider-thumb,
 [data-design="terminal"] .tj-lev-slider::-moz-range-thumb {
   border-radius: 50% !important;

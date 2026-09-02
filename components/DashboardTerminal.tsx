@@ -732,7 +732,12 @@ function TSelectedCoinCard() {
       className="scc-card"
       title={t('DASH_SELECTED_COIN_OPEN_ARENA', { coin: id.toUpperCase() })}
     >
-      <CoinIcon coin={id} size={26} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
+      {/* square (#630): the canvas draws this one at 26x26 with a 1px border
+          and NO border-radius, and the project's radius ruling allows 50%
+          only on inherently circular glyphs at 24px or under. The rail's
+          16px marks stay round - the frames draw those with
+          border-radius:50% - so this is the single 26px mark, not a sweep. */}
+      <CoinIcon coin={id} size={26} color={badgeCol} bg={withAlpha(badgeCol, '24')} square />
       <div className="scc-id">
         <span className="scc-ticker">{id.toUpperCase()}</span>
         <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>
