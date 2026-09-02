@@ -6443,6 +6443,42 @@ main.app-content[data-chrome="none"] {
 }
 
 /* ── region 6: timeframe row, 42 ── */
+/* AI-read rows (#594) - the override notice, wait-for line, liquidity-raid
+   block and catalysts, which arena.md's inventory never named despite its own
+   "nothing dropped" promise. They sit between the verdict band and the
+   timeframe row, in the current design's order, as bands rather than the
+   rounded/tinted cards production draws: hairline bottom, no radius, token
+   colours. Same geometry language as every other band on this route. */
+[data-design="terminal"] .at-airow {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--bdr);
+  font-size: 12.5px; line-height: 1.5; color: var(--txt2);
+}
+[data-design="terminal"] .at-airow-label {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt3);
+  margin-right: 8px;
+}
+[data-design="terminal"] .at-airow-waitfor .at-airow-label { color: var(--accent); }
+[data-design="terminal"] .at-airow-val {
+  font-family: var(--font-mono); font-weight: 600; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-airow-kv {
+  display: flex; gap: 8px; align-items: baseline; margin-top: 5px;
+}
+/* The raid header keeps a directional colour because that IS the setup's
+   direction (short squeeze vs long flush) - §"Colour is data" permits it,
+   and it is set per-instance in the JSX rather than here. */
+[data-design="terminal"] .at-airow-raid .at-airow-label { margin-right: 0; display: block; }
+[data-design="terminal"] .at-airow-catalysts ul {
+  margin: 0; padding-left: 16px; list-style: disc;
+}
+[data-design="terminal"] .at-airow-catalysts li { margin-top: 3px; }
+@media (max-width: 767px) {
+  [data-design="terminal"] .at-airow { padding: 10px 14px; }
+}
+
 [data-design="terminal"] .at-tfrow {
   display: flex; align-items: center; gap: 2px; height: 42px; padding: 0 16px;
   border-bottom: 1px solid var(--bdr); overflow: hidden;

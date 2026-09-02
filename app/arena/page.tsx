@@ -1383,6 +1383,77 @@ function ArenaContent() {
     // whichever tree is actually rendered, so there is exactly one
     // <KLineProChart> and one candle subscription regardless of viewport -
     // arena.md's own requirement (§Absent vs hidden, criterion 25).
+    /* The four AI-read rows the restyle had no home for (#594). arena.md
+       promises "nothing dropped" in its panel inventory but never names the
+       override notice, wait-for line, liquidity-raid block or catalysts -
+       production's AI-read card carries all four and the verdict band
+       visually replaces that card. QA's ruling: append them below the verdict
+       band in the current design's own order, restyled to terminal tokens.
+       Not folded into a named panel (that puts AI-read output in a slot with
+       a different job - the mistake #606 was raised against) and not dropped.
+
+       Same conditionals and same fields as the current-design blocks, so
+       nothing renders here that would not render there. Terminal treatment
+       is hairline + no radius + token colours instead of the rounded/tinted
+       card; the raid block keeps its red/green semantic because that IS the
+       setup's direction, which §"Colour is data" allows. */
+    const prevQuickSignal = quickSignals[selectedCoin];
+    const showOverride = !!(
+      cacheEntry?.mode === 'deep' && prevQuickSignal && prevQuickSignal !== result?.signal
+    );
+    const raidGreen = result?.raidSetup === 'SHORT SQUEEZE';
+
+    const aiReadRows = result && (
+      <>
+        {showOverride && (
+          <div className="at-airow at-airow-override">
+            {t('ARENA_OVERRIDE_NOTICE_PRE')}{' '}
+            <strong>{prevQuickSignal}</strong> {t('ARENA_OVERRIDE_NOTICE_TO')}{' '}
+            <strong>{result.signal}</strong>{t('ARENA_OVERRIDE_NOTICE_POST')}
+          </div>
+        )}
+
+        {result.waitFor && (
+          <div className="at-airow at-airow-waitfor">
+            <span className="at-airow-label">
+              {result.signal === 'LEAN BEARISH' ? t('ARENA_CONFIRMS_TO_SHORT')
+                : result.signal === 'LEAN BULLISH' ? t('ARENA_CONFIRMS_TO_LONG')
+                : t('ARENA_WAIT_FOR')}
+            </span>
+            <span className="at-airow-body">{result.waitFor}</span>
+          </div>
+        )}
+
+        {result.raidSetup && (
+          <div className="at-airow at-airow-raid">
+            <div className="at-airow-label" style={{ color: raidGreen ? 'var(--green)' : 'var(--red)' }}>
+              {t('ARENA_RAID_HEADER', { setup: result.raidSetup })}
+            </div>
+            {result.raidTarget && (
+              <div className="at-airow-kv">
+                <span className="at-micro">{t('ARENA_RAID_TARGET_LABEL')}</span>
+                <span className="at-airow-val">{result.raidTarget}</span>
+              </div>
+            )}
+            {result.raidTrigger && (
+              <div className="at-airow-kv">
+                <span className="at-micro">{t('ARENA_RAID_TRIGGER_LABEL')}</span>
+                <span className="at-airow-body">{result.raidTrigger}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {result.catalysts && result.catalysts.length > 0 && (
+          <div className="at-airow at-airow-catalysts">
+            <ul>
+              {result.catalysts.slice(0, 3).map((c, i) => <li key={i}>{c}</li>)}
+            </ul>
+          </div>
+        )}
+      </>
+    );
+
     const timeframeRow = (
       <div className="at-tfrow">
         {TIMEFRAMES.map(tf => {
@@ -1532,6 +1603,8 @@ function ArenaContent() {
             </div>
           </div>
 
+          {aiReadRows}
+
           {timeframeRow}
 
           <div className="at-main">
@@ -1644,6 +1717,8 @@ function ArenaContent() {
             </button>
           </div>
         </div>
+
+        {aiReadRows}
 
         {timeframeRow}
 
