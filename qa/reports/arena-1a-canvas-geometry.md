@@ -47,8 +47,8 @@ no 1142, no 705 — and several match this doc character-for-character
 `.at-rail { flex: 0 0 352px }`, `.at-vlabel { font-size: 34px }`,
 `.at-snapband` 88, `.at-phead` 30, `.at-vlevelval` 20px, `.at-vmain` 330).
 
-Four values diverge from the canvas. Canvas wins — the requirement is a mirror
-of the handoff:
+**Eight** values diverge from the canvas. Canvas wins — the requirement is a
+mirror of the handoff:
 
 | Rule | `globals.css` | `Arena 1a.dc.html` |
 |---|---|---|
@@ -56,8 +56,36 @@ of the handoff:
 | `.at-vmain` gap | `6px` | **10px** |
 | `.at-vlevel` padding | `16px` | **20px 22px** |
 | `.at-vlevel` gap | `5px` | **7px** |
+| `.at-coincell` padding | `0 18px` | **0 20px** |
+| `.at-coincell` gap | `12px` | **13px** |
+| `.at-coinsym` font-size | `15px` | **16px** |
+| `.at-snapcells .edge-card` gap | `4px` | **6px** |
 
-Treat it as a correct skeleton with four wrong values, not as suspect wholesale.
+The stat cell's `padding: 0 18px` **is** right — only its `gap` is wrong there.
+`.at-coincell`'s `flex: 0 0 330px` and `.at-badgecell`'s `230px` are both right.
+
+Also correct, so do not second-guess them: `.at-ev` gap 11 with a 2×18 marker,
+`.at-ev-label` 9.5px `.1em`, `.at-ev-val` 12.5px/600, `.at-vlabel` 34 desktop /
+26 mobile, `.at-msym` 44, mobile `.at-tfrow` 40, `.at-mchart` 210,
+`.at-snapband` 88, `.at-phead` 30, `.at-rhead` 28.
+
+Treat it as a correct skeleton with eight wrong values, not as suspect
+wholesale.
+
+### Two numbers criterion 32 needs that the scaffold does not supply
+
+C32 reads "Nav **38**, symbol row 44, timeframe row 40, chart 210, tab bar
+**60**". The scaffold covers the middle three. **No `.at-` rule sets a mobile
+nav height or a tab-bar height** — both have to be written, or C32 fails on
+numbers nobody chose.
+
+### One stale comment in the scaffold
+
+The body-panel block reads *"ArenaTerminal's BodyPanel supplies the pattern"*.
+It was written assuming a separate `ArenaTerminal.tsx`. Arena is being built as
+an in-place branch of `ArenaContent()` instead — ~40 shared hooks make a second
+component a synchronisation hazard, and that was the right call. The class names
+still apply; the comment does not.
 
 ## Structure — one scroll, not tabs
 
