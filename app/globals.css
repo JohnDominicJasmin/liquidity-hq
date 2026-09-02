@@ -6417,8 +6417,12 @@ main.app-content[data-chrome="none"] {
      The canvas specifies the 34px size, not the leading, so raising the line
      box to contain the glyphs keeps the specified figure and stops the
      overflow. Same shape as the 24px/line-height-1 wrap on the dashboard
-     banner (#608). */
-  line-height: 1.15;
+     banner (#608).
+     1.25, not the 1.15 this first shipped as: QA measured the 1.15 box at
+     39px against 41px needed on "NO READ" - still 2px short, because 34 x
+     1.15 = 39.1 only just exceeds the nominal size and leaves nothing for
+     the glyphs' actual overshoot. 34 x 1.25 = 42.5 clears it with margin. */
+  line-height: 1.25;
 }
 [data-design="terminal"] .at-vconf { display: flex; align-items: center; gap: 8px; }
 [data-design="terminal"] .at-vtrack {
