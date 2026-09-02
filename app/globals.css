@@ -5739,12 +5739,19 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 
 [data-design="terminal"] .tnav {
   display: none;
-  height: 44px; align-items: center; gap: 18px;
+  /* gap 28, not 18 (#599): Dashboard 2a.dc.html:39 draws the nav at
+     gap:28px. Height, padding and the bottom hairline all matched already;
+     this one value did not, and nothing recorded why. */
+  height: 44px; align-items: center; gap: 28px;
   padding: 0 16px;
   background: var(--bg0);
   border-bottom: 1px solid var(--bdr);
 }
-[data-design="terminal"] .tnav-brand { text-decoration: none; display: inline-flex; align-items: center; }
+/* gap 9 (#599): the canvas wraps the logo and wordmark in gap:9px. The rule
+   set no gap at all, so they would have rendered flush. */
+[data-design="terminal"] .tnav-brand {
+  text-decoration: none; display: inline-flex; align-items: center; gap: 9px;
+}
 [data-design="terminal"] .tnav-wordmark {
   font-family: var(--font-mono), monospace;
   font-size: 12px; font-weight: 700; letter-spacing: .14em;
@@ -5758,6 +5765,36 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   transition: color .12s;
 }
 [data-design="terminal"] .tnav-item:hover { color: var(--txt2); }
+
+/* The nav's right-hand cluster (#599). Dashboard 2a.dc.html:49-53 draws
+   three elements after a flex spacer at gap:14px - a session indicator, a
+   ⌘K hint and an avatar. None of them had ANY rule before this: wiring the
+   scaffold as it stood would have produced a nav with a brand, nav items
+   and nothing on the right, which is roughly a third of the canvas's nav.
+   Values transcribed from the frame, not chosen here. */
+[data-design="terminal"] .tnav-right {
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .08em;
+}
+[data-design="terminal"] .tnav-session {
+  display: flex; align-items: center; gap: 6px; color: var(--txt2);
+}
+[data-design="terminal"] .tnav-session-dot {
+  width: 5px; height: 5px; background: var(--green); flex-shrink: 0;
+}
+[data-design="terminal"] .tnav-kbd {
+  color: var(--txt3);
+  border: 1px solid var(--bdr);
+  padding: 4px 8px;
+}
+[data-design="terminal"] .tnav-avatar {
+  width: 22px; height: 22px;
+  border: 1px solid var(--border-input);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--txt2); font-size: 10px; font-weight: 700;
+  flex-shrink: 0;
+}
 /* The design's one inversion: active nav is amber-filled with #08090a text.
    --bg0 IS #08090a, so this is the token rather than the literal. */
 [data-design="terminal"] .tnav-item.on { background: var(--accent); color: var(--bg0); font-weight: 700; }
@@ -5765,10 +5802,17 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 /* Mobile bottom tab bar - 60px, five items, active in --accent. */
 [data-design="terminal"] .tnav-tabs { display: none; }
 
-@media (min-width: 900px) {
+/* 768, not 900 (#599). 900 appeared nowhere else in this codebase with any
+   stated reasoning, while landing.md and arena.md both explicitly reason to
+   768 for their own tree splits, and the CURRENT design's shell nav already
+   swaps at 768 (globals.css:949) - so the new terminal nav did not even
+   match the shell convention it replaces. Left at 900 there is a real bug,
+   not just a mismatch: 768-899px would get every terminal route's MOBILE
+   content tree underneath DESKTOP nav chrome. */
+@media (min-width: 768px) {
   [data-design="terminal"] .tnav { display: flex; }
 }
-@media (max-width: 899px) {
+@media (max-width: 767px) {
   [data-design="terminal"] .tnav-tabs {
     display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997;
     height: 60px; background: var(--bg0); border-top: 1px solid var(--bdr);
@@ -5784,7 +5828,15 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
     font-family: var(--font-mono), monospace;
     font-size: 9px; letter-spacing: .1em; font-weight: 500;
   }
-  /* The old drawer's tab bar must not stack with the new one. */
+  /* The old drawer's tab bar must not stack with the new one.
+     Already retired for terminal, so #599 changes nothing here - but the
+     consequence is worth stating rather than leaving implicit: .tnav-tabs
+     above is NOT wired to any component (grep .tnav- across *.tsx returns
+     nothing), so between this rule and that, terminal mobile currently has
+     NO bottom nav at all. The hamburger is separately hidden below 640
+     (globals.css:5363), so there is no drawer opener either. Fixing the
+     rules in this file does not fix that - it needs the .tnav-* component
+     built. Tracked on #599. */
   [data-design="terminal"] .mobile-tab-bar { display: none !important; }
 }
 
