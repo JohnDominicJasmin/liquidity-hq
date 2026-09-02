@@ -7,6 +7,7 @@ import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
+import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -447,6 +448,7 @@ function computeSRLevels(
 }
 
 export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, onStructure }: Props) {
+  const mode = useDesignMode();
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -636,18 +638,30 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     };
   }, [chartReady]);
 
-  // ── Theme sync - apply DARK/LIGHT styles when theme changes ─────────────
+  // ── Theme sync - apply DARK/LIGHT/TERMINAL_DARK styles when theme or
+  //    design mode changes. #598 D1 follow-up: this used to run once at
+  //    mount with `[]` deps and read `data-design` off the DOM directly -
+  //    chartRef.current was still null the first time (every sibling effect
+  //    gates on chartReady for exactly this reason), so setStyles() was a
+  //    silent no-op, and nothing ever re-ran it once the chart mounted or
+  //    once design mode resolved. QA caught it via canvas pixel sampling:
+  //    candles were still painting DARK.upColor, tags were still painting
+  //    klinecharts' own untouched default. `mode` from useDesignMode() is
+  //    now a real dependency, so this re-fires on both. ─────────────────
   useEffect(() => {
+    if (!chartReady) return;
     const apply = () => {
-      const terminal = document.documentElement.getAttribute('data-design') === 'terminal';
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chartRef.current?.setStyles((terminal ? TERMINAL_DARK : dark ? DARK : LIGHT) as any);
+      chartRef.current?.setStyles((mode === 'terminal' ? TERMINAL_DARK : dark ? DARK : LIGHT) as any);
     };
     apply();
+    // Theme (not design mode) can still change without a re-render of this
+    // component - 'theme-change' covers that; `mode` in the dependency
+    // array below covers design mode resolving or changing.
     window.addEventListener('theme-change', apply);
     return () => window.removeEventListener('theme-change', apply);
-  }, []);
+  }, [chartReady, mode]);
 
   // Keep coinRef fresh for the DataLoader closure
   useEffect(() => { coinRef.current = coin; }, [coin]);
