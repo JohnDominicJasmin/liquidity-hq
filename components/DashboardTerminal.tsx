@@ -18,7 +18,7 @@ import {
 import type { CoinId, CoinData } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
-import MarketRead from '@/components/MarketRead';
+import { computeMarketRead } from '@/lib/marketRead';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
 import EconCalendarWidget from '@/components/EconCalendarWidget';
 import SpotlightTour from '@/components/SpotlightTour';
@@ -34,6 +34,71 @@ import type { LabelKey } from '@/lib/labelKeys';
 import PerpSpotCard from '@/components/PerpSpotCard';
 
 const SPARK_W = 36;
+
+/* "14 Aug 11:42 UTC" - the canvas eyebrow's stamp. UTC, not local: every
+ * other time-derived value on this route (session windows, day-of-week
+ * scoring in computeMarketRead) is anchored to UTC, and a local stamp beside
+ * a UTC-derived read would disagree either side of the viewer's midnight. */
+function formatUtcStamp(d: Date): string {
+  const day   = d.getUTCDate();
+  const month = d.toLocaleString(undefined, { month: 'short', timeZone: 'UTC' });
+  const hh    = String(d.getUTCHours()).padStart(2, '0');
+  const mm    = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${day} ${month} ${hh}:${mm} UTC`;
+}
+
+/* Market read banner - Dashboard 2a.dc.html's first main-column panel (#587).
+ *
+ * This slot used to render <MarketRead />, the production conditions gauge
+ * (58/100 bar + Order Wall / Fear & Greed / Day / Funding / Smart Money
+ * boxes + a funding override control). None of that is in the canvas or in
+ * specs/dashboard-2a.md: the frame draws one eyebrow line, one 24px verdict
+ * string, one sentence. The gauge stayed because this branch restyled the
+ * existing component rather than checking what the canvas wanted in the
+ * position - the owner caught it by comparing the live page to the frame.
+ *
+ * Same computeMarketRead() the gauge used, so the words are the production
+ * read, not a second opinion - only the presentation changes here.
+ *
+ * COLOUR, and the one place this deliberately departs from criterion 5:
+ * the spec asks the verdict to take the READ'S DIRECTION (bullish --green /
+ * bearish --red / neutral --txt2), and the canvas fixture shows a
+ * directional string ("RISK-ON, CAUTIOUS"). computeMarketRead does not
+ * produce a direction - its band is trade-CONDITIONS QUALITY (good / mid /
+ * weak, "Good time to trade" ... "Weak setup - better to wait"), and no
+ * market-wide directional read exists anywhere in the codebase (confluence
+ * and Grok are both per-coin). Painting "weak conditions" --red would tell
+ * the reader the market is falling when it means the setup is poor - the
+ * exact substitution §"Colour is data" forbids. So the band maps on its own
+ * axis: favourable --green, everything else quiet. Flagged for design on
+ * #587 - either this mapping is confirmed, or a market-wide directional
+ * read is a data question to answer before the colour can mean direction. */
+function TMarketReadBanner() {
+  const { t } = useLabels();
+  const { store } = useMarket();
+  const [, setTick] = useState(0);
+
+  // Re-derive every 60s so the stamp and the time-of-day factor inside
+  // computeMarketRead stay current without a reload - same cadence the
+  // gauge used.
+  useEffect(() => {
+    const id = setInterval(() => setTick(n => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const read = computeMarketRead(store);
+  const verdictCol = read.band === 'good' ? 'var(--green)' : 'var(--txt2)';
+
+  return (
+    <div className="dash-market-read-banner">
+      <div className="dmrb-eyebrow" suppressHydrationWarning>
+        {t('MARKET_READ_TITLE')} · {formatUtcStamp(new Date())}
+      </div>
+      <div className="dmrb-verdict" style={{ color: verdictCol }}>{read.verdict}</div>
+      <div className="dmrb-sub">{read.sub}</div>
+    </div>
+  );
+}
 
 const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: string }> = {
   strong_up:   { txtKey: 'OI_TREND_STRONG_UP_TXT',   subKey: 'OI_TREND_STRONG_UP_SUB',   col: 'var(--green)' },
@@ -667,7 +732,7 @@ export default function DashboardTerminal() {
           the flat monochrome aesthetic. */}
 
       <div className="dash-main">
-        <MarketRead />
+        <TMarketReadBanner />
 
         <TPanel id="tour-best-setup">
           <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>{t('DASH_BEST_SETUP_TODAY_HEADER')}</div>
