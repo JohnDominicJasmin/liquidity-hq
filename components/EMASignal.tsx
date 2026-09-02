@@ -8,8 +8,8 @@ import { SkeletonBar } from '@/components/Skeleton';
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
   SHORT_SETUP:    { label: '▼ SHORT SETUP',    color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 8%, transparent)', border: 'color-mix(in srgb, var(--red) 25%, transparent)' },
-  TRENDING_LONG:  { label: '↗ TRENDING LONG',  color: 'var(--green-soft)', bg: 'rgba(134,239,172,0.06)', border: 'rgba(134,239,172,0.2)'  },
-  TRENDING_SHORT: { label: '↘ TRENDING SHORT', color: 'var(--red-soft)', bg: 'rgba(252,165,165,0.06)', border: 'rgba(252,165,165,0.2)'  },
+  TRENDING_LONG:  { label: '↗ TRENDING LONG',  color: 'var(--green-soft)', bg: 'color-mix(in srgb, var(--green-soft) 6%, transparent)', border: 'color-mix(in srgb, var(--green-soft) 20%, transparent)'  },
+  TRENDING_SHORT: { label: '↘ TRENDING SHORT', color: 'var(--red-soft)', bg: 'color-mix(in srgb, var(--red-soft) 6%, transparent)', border: 'color-mix(in srgb, var(--red-soft) 20%, transparent)'  },
   /* #6b7280 was 4.01:1 - the same grey-500 the econ calendar used for its
      (never-reachable) LOW bucket. FREEZE is a live signal state, not a
      placeholder, so it takes the AA-safe neutral. */

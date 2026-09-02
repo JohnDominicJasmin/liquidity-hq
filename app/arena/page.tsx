@@ -2592,7 +2592,7 @@ function ArenaContent() {
             width: 32,
             height: 18,
             borderRadius: 9,
-            background: antiChopEnabled ? '#34d399' : 'rgba(255,255,255,0.14)',
+            background: antiChopEnabled ? 'var(--green-2)' : 'rgba(255,255,255,0.14)',
             boxShadow: antiChopEnabled
               ? '0 0 0 1px color-mix(in srgb, var(--green-2) 35%, transparent), 0 0 8px color-mix(in srgb, var(--green-2) 45%, transparent)'
               : 'inset 0 1px 3px rgba(0,0,0,0.45)',

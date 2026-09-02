@@ -6389,16 +6389,26 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 [data-design="terminal"] .lt-plan-cta-pro { background: var(--accent); color: var(--bg0); border-color: var(--accent); font-weight: 700; }
 
 /* ── 8. footer ── */
-/* #641: the "~3d 8h ago" stamp measured 4.02:1 on arena dark at 390px.
-   --txt2 rather than --txt3, and flagged rather than presented as a
-   diagnosis: --txt3 computes 4.71 on --bg1, 4.77 on --bg2 and 5.14 on
-   --bg0, so token maths does not reproduce 4.02 on any surface this row is
-   supposed to sit on. Something composites underneath it that I have not
-   identified - QA's tool measured the real page and I could not.
-   --txt2 clears on every one of those surfaces with margin (5.62 / 5.68 /
-   6.12 dark, 5.56 light), so it raises the floor wherever the row actually
-   sits. The open question is what the surface is, because if it is a
-   composite the siblings in the same row share it. */
+/* #641: the "~3d 8h ago" stamp. QA reproduced the 4.02 and the ground turned
+   out to be DATA-dependent, which is why no stylesheet contains it and I
+   could not find it: .ms-last-event takes an inline `background: evBg(le)`
+   (MarketStructure.tsx:227), a 10% tint of the latest event's own colour -
+   --accent, --red or --green-2 depending on what the market last did. Gold
+   at 10% over --bg1 is rgb(40,36,25), exactly what the audit measured.
+
+   --txt3 fails on EVERY state once composited, not just the gold one:
+
+     dark  accent 4.02  red 4.25  green 4.08
+     light accent 4.39  red 4.29  green 4.42
+
+   --txt2 clears all six - 4.78 / 5.07 / 4.87 dark, 4.82 / 4.70 / 4.85 light.
+
+   BOTH classes, because they are different elements: .ms-ev-ago sits inside
+   the tinted .ms-last-event and is the one that fails; .ms-hist-ago sits in
+   .ms-hist-row, which has no background of its own and composites on plain
+   --bg1 at 4.71 - passing. Only the BADGE in a history row is tinted, not
+   the row. The first version of this rule targeted the passing element. */
+[data-design="terminal"] .ms-ev-ago,
 [data-design="terminal"] .ms-hist-ago { color: var(--txt2); }
 
 /* Footer column links: a 25px hit area with ZERO layout change (#641).

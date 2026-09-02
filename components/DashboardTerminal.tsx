@@ -295,7 +295,18 @@ function TCoinSidebar() {
           {t('DASH_SIDEBAR_HEADER_FIRING', { count: firingCount })}
         </span>
         <span style={{ flex: 1 }} />
-        <Link href="/markets" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+        {/* alignSelf stretch, not padding (#641): measured 31x15, and only
+            the height failed SC 2.5.8 - 31 already clears 24. The header
+            above is a fixed height:28 flex row, so stretching the link to
+            fill it gives a 28px target and moves nothing. Padding would have
+            grown the row instead, and this row's 28px is the canvas's. */}
+        <Link
+          href="/markets"
+          style={{
+            color: 'var(--accent)', textDecoration: 'none',
+            alignSelf: 'stretch', display: 'inline-flex', alignItems: 'center',
+          }}
+        >
           {t('DASH_SIDEBAR_HEADER_VIEW_ALL', { count: COINS.length })}
         </Link>
       </div>
