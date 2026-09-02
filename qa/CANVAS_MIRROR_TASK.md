@@ -232,7 +232,32 @@ sweep: an ad-hoc script produced three false positives in one session
 (a phantom 334px overflow, a phantom 1.14:1, and a missed tint) against
 committed tools that had already solved each trap.
 
-Dialogs on all three screens are still **unmeasured**.
+### Dialogs — measured 2026-09-03, on `qa` at `97b8552`
+
+`qa/dialog-audit.mjs`, terminal design, dark and light:
+
+| screen | surfaces | result |
+|---|---|---|
+| `/dashboard` | Ask-AI panel (66 nodes), nav drawer (25 nodes) | clean, both themes |
+| `/arena` | Ask-AI panel (66 nodes), nav drawer (25 nodes) | clean, both themes |
+| `/` (landing) | **none exist** | see below |
+
+Landing returned `did NOT open — UNVERIFIED, not passing` for both, which is the
+tool being correctly conservative rather than a finding. The real answer is that
+landing has no dialog surfaces at all: `app/globals.css:4529-4541` hides
+`.nav-drawer`, `.gchat-fab` and `.gchat-panel` under `body.landing` with
+`display: none !important`, and `components/LandingTerminal.tsx` contains no
+click handlers and no modal state. **"Not applicable" and "not tested" look
+identical in that output — check which one it is before recording either.**
+
+The audit's own caveat still stands and is worth repeating: its triggers are an
+allow-list of known non-destructive openers, so **a dialog not on that list is
+unmeasured, not passing** — including anything behind a destructive control. Its
+`Coin selector` trigger reports "not present on this route" on all three, which
+has not been chased.
+
+So dialogs are covered for the three built screens, and the modal surface of the
+other 14 routes remains entirely unmeasured.
 
 ### How to read these numbers
 
