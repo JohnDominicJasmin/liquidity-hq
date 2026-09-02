@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import { bybitSymbolPriceFactor } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
+import { useDesignMode } from '@/components/DesignModeProvider';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { detectStructureSignals, structureState, type PACandle } from '@/lib/priceAction';
@@ -125,6 +126,19 @@ interface Props { coin: CoinId; onData?: (d: MSData | null) => void }
 
 export default function MarketStructure({ coin, onData }: Props) {
   const { t } = useLabels();
+  /* #644, owner's ruling: in terminal the event badges paint a FLAT --bg1
+     rather than a tint of their own colour, so the text is not sitting on a
+     wash of itself. All six states then clear AA - 8.21/5.24/7.19 dark,
+     6.09/6.65/5.12 light - and the direction colour survives, which is what
+     the alternatives cost.
+     Terminal only. The current design's version of this badge measures
+     1.68-3.52 across its light theme, far worse, but it is a live page on a
+     screen not approved for work - recorded on #644, not changed here.
+     Set inline rather than in CSS because the background is an inline style;
+     a stylesheet rule would lose to it without !important, which is the
+     specificity trap #629 and #630 both hit from opposite directions. */
+  const terminal = useDesignMode() === 'terminal';
+  const badgeBg = (ev: StructureEvent) => (terminal ? 'var(--bg1)' : evBg(ev));
   const [data,    setData]    = useState<MSData | null>(null);
   const [loading, setLoading] = useState(true);
   const [err,     setErr]     = useState('');
@@ -225,7 +239,7 @@ export default function MarketStructure({ coin, onData }: Props) {
       {/* ── Last event ── */}
       {le && (
         <div className="ms-last-event" style={{ borderColor: withAlpha(evCol(le), '33'), background: evBg(le) }}>
-          <span className="ms-ev-badge" style={{ background: evBg(le), color: evCol(le), border: `0.5px solid ${withAlpha(evCol(le), '44')}` }}>
+          <span className="ms-ev-badge" style={{ background: badgeBg(le), color: evCol(le), border: `0.5px solid ${withAlpha(evCol(le), '44')}` }}>
             {le.type} <span className="ms-dir-glyph">{le.dir === 'bullish' ? '▲' : '▼'}</span>
           </span>
           <span className="ms-ev-price">${fmtP(le.price)}</span>
@@ -257,7 +271,7 @@ export default function MarketStructure({ coin, onData }: Props) {
         <div className="ms-history">
           {d.events.slice(1, 5).map((ev, i) => (
             <div key={i} className="ms-hist-row">
-              <span className="ms-hist-badge" style={{ background: evBg(ev), color: evCol(ev) }}>
+              <span className="ms-hist-badge" style={{ background: badgeBg(ev), color: evCol(ev) }}>
                 {ev.type} <span className="ms-dir-glyph">{ev.dir === 'bullish' ? '▲' : '▼'}</span>
               </span>
               <span className="ms-hist-price">${fmtP(ev.price)}</span>
