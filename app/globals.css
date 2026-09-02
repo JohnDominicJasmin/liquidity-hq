@@ -7352,6 +7352,13 @@ main.app-content[data-chrome="none"] {
   justify-content: space-between; padding-bottom: 20px;
   font-family: var(--font-mono), monospace; font-size: 9.5px; color: var(--txt3); text-align: right;
 }
+[data-design="terminal"] .liq-heat-tz { color: var(--txt3); letter-spacing: .12em; }
+[data-design="terminal"] .liq-heat-cap {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .12em; color: var(--amber);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+  padding: 3px 8px;
+}
 [data-design="terminal"] .liq-heat-empty {
   flex: 1; display: flex; align-items: center; justify-content: center;
   padding: 2rem; color: var(--txt3);

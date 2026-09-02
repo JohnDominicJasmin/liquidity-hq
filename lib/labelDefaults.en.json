@@ -798,6 +798,8 @@
   "LIQ_BIAS_BALANCED_SUB": "Roughly equal liquidation pressure on both sides - no strong directional lean",
   "LIQ_TITLE": "Liquidation Map",
   "LIQ_HEAT_TITLE": "{coin} LIQUIDATION HEATMAP",
+  "LIQ_HEAT_TZ": "UTC",
+  "LIQ_HEAT_CAP_NOTE": "HEATMAP: LAST 24H",
   "LIQ_HEAT_SOURCE": "OBSERVED · BINANCE + BYBIT",
   "LIQ_HEAT_SOURCE_TIP": "Density of liquidations this app observed on its own Binance and Bybit websocket feeds, not every liquidation on those venues. There is no server-side collector - events are recorded by browsers with this page open - so an empty stretch can mean a quiet market or simply that nobody was watching.",
   "LIQ_HEAT_NO_EVENTS": "No {coin} liquidations observed in this window",

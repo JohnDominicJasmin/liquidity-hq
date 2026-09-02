@@ -90,7 +90,16 @@ export default function LiqDensityMap({ events, spot, coin, threshold, palette, 
 
   const model = useMemo(() => {
     const now = Date.now();
-    const from = now - windowMs;
+    /* Hour-aligned, not now-relative (#655 review). `from = now - windowMs`
+       puts the boundaries on arbitrary minutes, so at 14:37 a label reading
+       "14:00" is not rounded, it is wrong - the axis asserts the column
+       starts on the hour and it does not. Ceiling `to` to the next hour and
+       measuring back means every label lands on a real hour AND the columns
+       stop sliding with the clock between renders. The rightmost bucket is
+       the hour in progress, which is what a live map should show. */
+    const HOUR = 3_600_000;
+    const to = Math.ceil(now / HOUR) * HOUR;
+    const from = to - windowMs;
     const evts = events.filter(e => e.coin === coin && e.ts >= from);
     if (evts.length === 0) return null;
 
@@ -112,7 +121,7 @@ export default function LiqDensityMap({ events, spot, coin, threshold, palette, 
     const grid: number[][] = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
     for (const e of evts) {
       const r = Math.min(ROWS - 1, Math.max(0, Math.floor(((hi - e.price) / range) * ROWS)));
-      const c = Math.min(COLS - 1, Math.max(0, Math.floor(((e.ts - from) / windowMs) * COLS)));
+      const c = Math.min(COLS - 1, Math.max(0, Math.floor(((e.ts - from) / (to - from)) * COLS)));
       grid[r][c] += e.usd;
     }
 
@@ -140,8 +149,13 @@ export default function LiqDensityMap({ events, spot, coin, threshold, palette, 
     const priceAxis = Array.from({ length: 9 }, (_, i) =>
       Math.round(hi - (i / 8) * range).toLocaleString());
 
+    /* Seven labels across an hour-aligned span, so each :00 is true. The
+       zone is marked once at the end of the row rather than repeated - the
+       reader is in Asia/Manila, UTC+8, so an unmarked axis is eight hours
+       from what they will assume it means, and "when did this happen" is
+       the question this axis exists to answer. */
     const timeAxis = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(from + (i / 6) * windowMs);
+      const d = new Date(from + (i / 6) * (to - from));
       return `${String(d.getUTCHours()).padStart(2, '0')}:00`;
     });
 
@@ -189,6 +203,7 @@ export default function LiqDensityMap({ events, spot, coin, threshold, palette, 
         </div>
         <div className="liq-heat-time">
           {timeAxis.map((d, i) => <div key={i}>{d}</div>)}
+          <div className="liq-heat-tz">{t('LIQ_HEAT_TZ')}</div>
         </div>
       </div>
 

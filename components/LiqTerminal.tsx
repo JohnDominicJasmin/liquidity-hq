@@ -411,6 +411,14 @@ export default function LiqTerminal() {
             see only what our own sockets saw - so the string says OBSERVED
             and names the two. Substitute the metric, never the label. */}
         <div className="liq-heat-source" title={t('LIQ_HEAT_SOURCE_TIP')}>{t('LIQ_HEAT_SOURCE')}</div>
+        {/* The cap has to be VISIBLE, not just documented (#655 review).
+            Selecting 1w while the surface draws 24h is a chip asserting a
+            window the surface is not showing - the same defect class as a
+            label claiming data it does not have. Shown only when the
+            selected range actually exceeds what LiqFeed can load. */}
+        {rangeConf.ms > HEAT_MAX_MS && (
+          <div className="liq-heat-cap">{t('LIQ_HEAT_CAP_NOTE')}</div>
+        )}
         <div style={{ flex: 1 }} />
         <div className="liq-heat-tfs">
           {RANGES.map(r => (
