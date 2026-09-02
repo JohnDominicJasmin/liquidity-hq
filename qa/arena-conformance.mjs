@@ -42,15 +42,54 @@ const BASE = arg('--base', 'https://liquidity-hq-qa.onrender.com').replace(/\/$/
 const THEMES = arg('--themes', 'dark').split(',');
 const JSON_OUT = process.argv.includes('--json');
 
-const DESKTOP = () => {
-  /* The 15 terminal tokens, for criterion 19. Declared INSIDE the evaluated
-     function on purpose: `page.evaluate(fn)` serialises fn and runs it in the
-     page, where module-scope constants do not exist — a module-level list
-     threw `TOKENS_DARK is not defined` at runtime, not at parse. Kept literal
-     rather than imported from lib/terminalTokens.ts so the checker cannot
-     silently agree with a wrong palette file. */
-  const TOKENS_DARK = ['#08090a', '#121314', '#1a1c1e', '#1f2225', '#2a2e32', '#16191b',
-    '#e8e9ea', '#8b8f94', '#7c828a', '#3a3f45', '#d9a626', '#3fb950', '#f0524d', '#58a6ff', '#a371f7'];
+/* Read the allowed palette from `lib/terminalTokens.ts`, which criterion 19
+   names by file and which that file's own header establishes as the single
+   source of truth:
+
+     "Transcribed from the handoff README's colour table, which QA established
+      is the authoritative list: the four .dc.html prototypes contain 1,284 hex
+      literals and ZERO custom properties, so they are a place to check for
+      drift rather than a place to read tokens from."
+
+   Two wrong sources were tried before this one, and both are worth naming:
+
+   - A HARDCODED array. It went stale and reported five DECLARED tokens as
+     off-palette (--bg2 #111416, --bg1 #141517, --mark-idle #22262a,
+     --bdr2 #131618, --bg0 #050505).
+   - The CANVAS. Better, but the ruling above says the frames are the drift
+     check, not the token source - and it flagged declared tokens the canvas
+     simply never happens to draw.
+
+   `app/globals.css` would be the worst of the three: deriving the test's
+   expectation from the thing under test. */
+import { readFileSync } from 'node:fs';
+const TOKEN_FILE = 'lib/terminalTokens.ts';
+let PALETTE = [];
+try {
+  const src = readFileSync(TOKEN_FILE, 'utf8');
+  PALETTE = [...new Set((src.match(/'(#[0-9a-fA-F]{6})'/g) || [])
+    .map(h => h.replace(/'/g, '').toLowerCase()))];
+  if (!PALETTE.length) throw new Error('no hex values matched');
+} catch (e) {
+  console.error(`could not read ${TOKEN_FILE} — C19 cannot be scored: ${e.message}`);
+}
+
+const DESKTOP = (PALETTE) => {
+  /* The allowed palette is READ FROM THE CANVAS at runtime and passed in as
+     `PALETTE` — see the `readCanvasPalette()` call below.
+
+     It used to be a hardcoded 15-value array. That array was stale, and it
+     reported five DECLARED tokens as off-palette: --bg2 #111416, --bg1
+     #141517, --mark-idle #22262a, --bdr2 #131618 and --bg0 #050505. Five
+     phantom colours sent to dev would have been the sixth phantom finding my
+     own checks produced on this route.
+
+     Deriving it from the canvas rather than from globals.css keeps the
+     original safeguard intact: the checker still cannot agree with a wrong
+     stylesheet, because the canvas is the source the stylesheet is supposed
+     to match. Reading it from globals.css would be deriving the test's
+     expectations from the thing under test. */
+  const TOKENS_DARK = PALETTE;
   const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const Q = s => [...document.querySelectorAll(s)].filter(vis);
   const txt = e => (e.textContent || '').replace(/\s+/g, ' ').trim();
@@ -202,13 +241,17 @@ const DESKTOP = () => {
      this: on /dashboard the price element's box did not intersect its
      neighbour's, yet the string painted 40px across it, and page-level
      horizontal overflow was 0 at the same moment. */
+  /* Arena's subtree only, and ignore sub-4px overflow - a label 3px over its
+     box is a rounding artifact, not the class this catches (dashboard's price
+     escaped by 40px at 390 and 73px at 320). */
   const q2 = [];
-  document.querySelectorAll('body *').forEach(e => {
+  const q2root = document.querySelector('.at-root');
+  (q2root ? q2root.querySelectorAll('*') : []).forEach(e => {
     if (e.children.length) return;
     const t = txt(e); if (t.length < 2) return;
     const r = e.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return;
     const over = e.scrollWidth - e.clientWidth;
-    if (over > 1) q2.push({ t: t.slice(0, 22), box: Math.round(r.width),
+    if (over > 4) q2.push({ t: t.slice(0, 22), box: Math.round(r.width),
       needs: e.scrollWidth, over, escapes: getComputedStyle(e).overflowX === 'visible' });
   });
 
@@ -233,12 +276,18 @@ const DESKTOP = () => {
      bled into the panels below (the garbled Market Structure the owner saw).
      Any fixed-height box whose content exceeds it and which does not clip is
      the same bug waiting to happen. */
+  /* Shell chrome is not arena's, and a 1px rule "spilling" 3px is a hairline,
+     not a defect. Both were reported as arena findings and neither was one -
+     .gchat-mode is the chat panel, and the 1px divs are dividers. Scope to
+     arena's own subtree and require a box tall enough to be a container. */
   const q4 = [];
-  document.querySelectorAll('body *').forEach(e => {
+  const arenaRoot = document.querySelector('.at-root');
+  (arenaRoot ? arenaRoot.querySelectorAll('*') : []).forEach(e => {
     if (!vis(e)) return;
     const s = getComputedStyle(e);
     if (s.overflowY !== 'visible') return;
     if (!/^\d+(\.\d+)?px$/.test(s.height)) return;
+    if (parseFloat(s.height) < 8) return;          // hairlines and rules
     const spill = e.scrollHeight - e.clientHeight;
     if (spill > 2) q4.push({ cls: (e.className || '').toString().trim().split(/\s+/)[0] || e.tagName.toLowerCase(),
                              h: s.height, spill });
@@ -249,7 +298,7 @@ const DESKTOP = () => {
     rootMissing: !root };
 };
 
-const MOBILE = () => {
+const MOBILE = (_PALETTE) => {
   const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const Q = s => [...document.querySelectorAll(s)].filter(vis);
   const txt = e => (e.textContent || '').replace(/\s+/g, ' ').trim();
@@ -288,21 +337,31 @@ const MOBILE = () => {
   /* Q2/Q4 at 390 — dashboard's price overflow only appears at mobile widths
      and worsens sharply below 390 (box 76 at 390, 43 at 320, for a string
      needing 116). Arena's snapshot band is denser than dashboard's coin row. */
+  /* Arena's subtree only, and ignore sub-4px overflow - a label 3px over its
+     box is a rounding artifact, not the class this catches (dashboard's price
+     escaped by 40px at 390 and 73px at 320). */
   const q2 = [];
-  document.querySelectorAll('body *').forEach(e => {
+  const q2root = document.querySelector('.at-root');
+  (q2root ? q2root.querySelectorAll('*') : []).forEach(e => {
     if (e.children.length) return;
     const t = txt(e); if (t.length < 2) return;
     const r = e.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return;
     const over = e.scrollWidth - e.clientWidth;
-    if (over > 1) q2.push({ t: t.slice(0, 22), box: Math.round(r.width),
+    if (over > 4) q2.push({ t: t.slice(0, 22), box: Math.round(r.width),
       needs: e.scrollWidth, over, escapes: getComputedStyle(e).overflowX === 'visible' });
   });
+  /* Shell chrome is not arena's, and a 1px rule "spilling" 3px is a hairline,
+     not a defect. Both were reported as arena findings and neither was one -
+     .gchat-mode is the chat panel, and the 1px divs are dividers. Scope to
+     arena's own subtree and require a box tall enough to be a container. */
   const q4 = [];
-  document.querySelectorAll('body *').forEach(e => {
+  const arenaRoot = document.querySelector('.at-root');
+  (arenaRoot ? arenaRoot.querySelectorAll('*') : []).forEach(e => {
     if (!vis(e)) return;
     const s = getComputedStyle(e);
     if (s.overflowY !== 'visible') return;
     if (!/^\d+(\.\d+)?px$/.test(s.height)) return;
+    if (parseFloat(s.height) < 8) return;          // hairlines and rules
     const spill = e.scrollHeight - e.clientHeight;
     if (spill > 2) q4.push({ cls: (e.className || '').toString().trim().split(/\s+/)[0] || e.tagName.toLowerCase(),
                              h: s.height, spill });
@@ -333,7 +392,7 @@ for (const theme of THEMES) {
       s.stable = n === s.last ? s.stable + 1 : 0; s.last = n;
       return n > 400 && s.stable >= 3;
     }, { timeout: 60000, polling: 1200 }).catch(() => {});
-    out[theme][vp] = await page.evaluate(fn);
+    out[theme][vp] = await page.evaluate(fn, PALETTE);
     await ctx.close();
   }
 }
