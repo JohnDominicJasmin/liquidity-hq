@@ -543,7 +543,11 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? 9 : 7, marginTop: 14 }}>
                   {col.links.map(([href, label]) => (
-                    <Link key={href} href={href} style={{ fontSize: isDesktop ? 13 : 12.5, color: 'var(--txt3)', textDecoration: 'none' }}>{label}</Link>
+                    /* lt-foot-link carries the 24px hit area (#641). These are
+                       column links in a flex stack, not prose - SC 2.5.8's
+                       Inline exception does NOT cover them, unlike the
+                       disclaimer sentence's links further down this file. */
+                    <Link key={href} href={href} className="lt-foot-link" style={{ fontSize: isDesktop ? 13 : 12.5, color: 'var(--txt3)', textDecoration: 'none' }}>{label}</Link>
                   ))}
                 </div>
               </div>

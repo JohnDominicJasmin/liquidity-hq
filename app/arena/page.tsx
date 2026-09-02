@@ -1906,12 +1906,12 @@ function ArenaContent() {
           <span style={{ flex: 1 }} />
           {/* Active signal chips */}
           {sqzCount > 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)', background: 'rgba(52,211,153,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.2)' }}>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)', background: 'color-mix(in srgb, var(--green-2) 10%, transparent)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid color-mix(in srgb, var(--green-2) 20%, transparent)' }}>
               ↑ {sqzCount}
             </span>
           )}
           {flushCount > 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)', background: 'rgba(248,113,113,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(248,113,113,0.2)' }}>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)', background: 'color-mix(in srgb, var(--red) 10%, transparent)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid color-mix(in srgb, var(--red) 20%, transparent)' }}>
               ↓ {flushCount}
             </span>
           )}
@@ -2477,8 +2477,8 @@ function ArenaContent() {
               <div className="arena-raid-block" style={{
                 marginTop: 8,
                 borderRadius: 10,
-                border: `0.5px solid ${result.raidSetup === 'SHORT SQUEEZE' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
-                background: result.raidSetup === 'SHORT SQUEEZE' ? 'rgba(52,211,153,0.06)' : 'rgba(248,113,113,0.06)',
+                border: `0.5px solid ${result.raidSetup === 'SHORT SQUEEZE' ? 'color-mix(in srgb, var(--green-2) 30%, transparent)' : 'color-mix(in srgb, var(--red) 30%, transparent)'}`,
+                background: result.raidSetup === 'SHORT SQUEEZE' ? 'color-mix(in srgb, var(--green-2) 6%, transparent)' : 'color-mix(in srgb, var(--red) 6%, transparent)',
                 overflow: 'hidden',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px 6px', borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
@@ -2552,8 +2552,8 @@ function ArenaContent() {
                   const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
                   const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
                   const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
-                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
-                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
+                  const bg  = isBull ? 'color-mix(in srgb, var(--green-2) 8%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 8%, transparent)' : 'rgba(26,122,255,0.08)';
+                  const bdr = isBull ? 'color-mix(in srgb, var(--green-2) 25%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 25%, transparent)' : 'rgba(26,122,255,0.25)';
                   return (
                     <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
                   );
@@ -2594,7 +2594,7 @@ function ArenaContent() {
             borderRadius: 9,
             background: antiChopEnabled ? '#34d399' : 'rgba(255,255,255,0.14)',
             boxShadow: antiChopEnabled
-              ? '0 0 0 1px rgba(52,211,153,0.35), 0 0 8px rgba(52,211,153,0.45)'
+              ? '0 0 0 1px color-mix(in srgb, var(--green-2) 35%, transparent), 0 0 8px color-mix(in srgb, var(--green-2) 45%, transparent)'
               : 'inset 0 1px 3px rgba(0,0,0,0.45)',
             position: 'relative',
             flexShrink: 0,

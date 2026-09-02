@@ -6389,6 +6389,35 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 [data-design="terminal"] .lt-plan-cta-pro { background: var(--accent); color: var(--bg0); border-color: var(--accent); font-weight: 700; }
 
 /* ── 8. footer ── */
+/* #641: the "~3d 8h ago" stamp measured 4.02:1 on arena dark at 390px.
+   --txt2 rather than --txt3, and flagged rather than presented as a
+   diagnosis: --txt3 computes 4.71 on --bg1, 4.77 on --bg2 and 5.14 on
+   --bg0, so token maths does not reproduce 4.02 on any surface this row is
+   supposed to sit on. Something composites underneath it that I have not
+   identified - QA's tool measured the real page and I could not.
+   --txt2 clears on every one of those surfaces with margin (5.62 / 5.68 /
+   6.12 dark, 5.56 light), so it raises the floor wherever the row actually
+   sits. The open question is what the surface is, because if it is a
+   composite the siblings in the same row share it. */
+[data-design="terminal"] .ms-hist-ago { color: var(--txt2); }
+
+/* Footer column links: a 25px hit area with ZERO layout change (#641).
+   Measured at 166x19, and SC 2.5.8's Inline exception does not reach them -
+   they are a flex column of sibling links, not prose. The disclaimer
+   sentence's links further down that file ARE prose and are left alone.
+
+   padding grows the box 19 -> 25 and the equal negative margin pulls the
+   flow back, so nothing moves - which is what landing.md:512 asks for,
+   "a padded hit area without changing their painted box". Column gap is 7
+   mobile / 9 desktop, so the 3px each side leaves adjacent hit areas 1-3px
+   apart rather than overlapping.
+   Not min-height on a flex item: that would grow each link by 5px and add
+   ~40px to the mobile footer, which is a layout change dressed as a fix. */
+[data-design="terminal"] .lt-foot-link {
+  display: inline-block;
+  padding: 3px 0;
+  margin: -3px 0;
+}
 [data-design="terminal"] .lt-footer { padding: 52px 40px 0; }
 [data-design="terminal"] .lt-footer-top { display: flex; gap: 48px; }
 [data-design="terminal"] .lt-footer-brand { flex: 0 0 290px; }

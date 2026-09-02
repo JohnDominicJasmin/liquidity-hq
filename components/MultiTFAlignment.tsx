@@ -31,8 +31,8 @@ function BiasBadge({ bias }: { bias: Bias }) {
   const icon = bias === 'bullish' ? '▲' : bias === 'bearish' ? '▼' : '→';
   const label = bias === 'bullish' ? t('MULTI_TF_ALIGNMENT_BIAS_BULLISH') : bias === 'bearish' ? t('MULTI_TF_ALIGNMENT_BIAS_BEARISH') : t('MULTI_TF_ALIGNMENT_BIAS_NEUTRAL');
   const color = bias === 'bullish' ? 'var(--green-2)' : bias === 'bearish' ? 'var(--red)' : 'var(--txt3)';
-  const border = bias === 'bullish' ? 'rgba(52,211,153,0.4)' : bias === 'bearish' ? 'rgba(248,113,113,0.4)' : 'rgba(255,255,255,0.15)';
-  const bg = bias === 'bullish' ? 'rgba(52,211,153,0.12)' : bias === 'bearish' ? 'rgba(248,113,113,0.12)' : 'transparent';
+  const border = bias === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : bias === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : 'rgba(255,255,255,0.15)';
+  const bg = bias === 'bullish' ? 'color-mix(in srgb, var(--green-2) 12%, transparent)' : bias === 'bearish' ? 'color-mix(in srgb, var(--red) 12%, transparent)' : 'transparent';
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -163,8 +163,8 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
 
   const verdictLabel = verdict === 'bullish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BULLISH') : verdict === 'bearish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BEARISH') : verdict === 'conflicting' ? t('MULTI_TF_ALIGNMENT_VERDICT_CONFLICTING') : t('MULTI_TF_ALIGNMENT_VERDICT_MIXED');
   const verdictColor = verdict === 'bullish' ? 'var(--green-2)' : verdict === 'bearish' ? 'var(--red)' : verdict === 'conflicting' ? 'var(--amber)' : 'var(--txt3)';
-  const verdictBorder = verdict === 'bullish' ? 'rgba(52,211,153,0.4)' : verdict === 'bearish' ? 'rgba(248,113,113,0.4)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.18)';
-  const verdictBg = verdict === 'bullish' ? 'rgba(52,211,153,0.1)' : verdict === 'bearish' ? 'rgba(248,113,113,0.1)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.1)' : 'transparent';
+  const verdictBorder = verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.18)';
+  const verdictBg = verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 10%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 10%, transparent)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.1)' : 'transparent';
 
   const footerText = verdict === 'bullish'
     ? t('MULTI_TF_ALIGNMENT_FOOTER_BULLISH')

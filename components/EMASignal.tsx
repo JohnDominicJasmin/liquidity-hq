@@ -6,8 +6,8 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
-  LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.25)'  },
-  SHORT_SETUP:    { label: '▼ SHORT SETUP',    color: 'var(--red)', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)' },
+  LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
+  SHORT_SETUP:    { label: '▼ SHORT SETUP',    color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 8%, transparent)', border: 'color-mix(in srgb, var(--red) 25%, transparent)' },
   TRENDING_LONG:  { label: '↗ TRENDING LONG',  color: 'var(--green-soft)', bg: 'rgba(134,239,172,0.06)', border: 'rgba(134,239,172,0.2)'  },
   TRENDING_SHORT: { label: '↘ TRENDING SHORT', color: 'var(--red-soft)', bg: 'rgba(252,165,165,0.06)', border: 'rgba(252,165,165,0.2)'  },
   /* #6b7280 was 4.01:1 - the same grey-500 the econ calendar used for its
@@ -170,7 +170,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           {signal.conditions.map((c, i) => {
             const pass = c.pass;
             const col  = pass === true ? 'var(--green-2)' : pass === false ? 'var(--red)' : 'var(--txt-dim)';
-            const bg   = pass === true ? 'rgba(52,211,153,0.07)' : pass === false ? 'rgba(248,113,113,0.07)' : 'rgba(255,255,255,0.02)';
+            const bg   = pass === true ? 'color-mix(in srgb, var(--green-2) 7%, transparent)' : pass === false ? 'color-mix(in srgb, var(--red) 7%, transparent)' : 'rgba(255,255,255,0.02)';
             const icon = pass === true ? '✓' : pass === false ? '✗' : '-';
             return (
               <div
