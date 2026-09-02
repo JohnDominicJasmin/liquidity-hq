@@ -6330,6 +6330,11 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .at-rhead {
   display: flex; align-items: center; gap: 8px;
   padding: 0 16px; border-bottom: 1px solid var(--bdr);
+  /* #598 D3: same fixed-height-no-clip shape the chart bug was. Titles are
+     short static UI labels (not dynamic data), so clipping here is a safe
+     fallback rather than a data loss - unlike the hint band, which got a
+     minHeight instead because its content is a real sentence. */
+  overflow: hidden;
 }
 [data-design="terminal"] .at-phead { height: 30px; }
 [data-design="terminal"] .at-rhead { height: 28px; }
@@ -6487,15 +6492,29 @@ main.app-content[data-chrome="none"] {
   [data-design="terminal"] .at-vlevelval { font-size: 15px; }
   [data-design="terminal"] .at-tfrow { height: 40px; padding: 0 14px; }
   [data-design="terminal"] .at-tf { padding: 6px 10px; }
-  [data-design="terminal"] .at-mchart { height: 210px; }
+  /* #598 D2: this was .at-mchart, a class the JSX never applies (only
+     .at-chart is used at any viewport) - so the mobile chart stayed 430px
+     tall instead of 210, and the two suppression rules below stayed dead
+     too. Renamed to the class that's actually on the element. */
+  [data-design="terminal"] .at-chart { height: 210px; }
   [data-design="terminal"] .at-ev { padding: 10px 14px; }
   [data-design="terminal"] .at-root { padding-bottom: 60px; }
-  /* C32: nav 38 and the 5-destination tab bar 60. Nav itself is shell chrome
-     (out of scope this branch, matches every other terminal route tonight) -
-     this only sets the height so the mobile tree matches the spec's number;
-     it does not restyle nav content. */
+  /* .at-pair (MTF+Structure, EMA+Absorption) stacks instead of sitting
+     side-by-side - two ~170px-wide halves at 390px isn't enough room for
+     either panel's own content. */
+  [data-design="terminal"] .at-pair { flex-direction: column; }
+  [data-design="terminal"] .at-pair > * + * { border-left: 0; border-top: 1px solid var(--bdr); }
+  /* Structure row: type + price + ago, direction glyph absent (arena.md
+     mobile region table). MarketStructure is shared, so the glyph itself
+     stays - restyled off, not deleted, same as the KLineProChart toolbar
+     buttons above. */
+  [data-design="terminal"] .at-panelbody .ms-dir-glyph { display: none; }
+  /* C32: nav 38. Nav itself is shell chrome (out of scope this branch,
+     matches every other terminal route tonight) - this only sets the height
+     so the mobile tree matches the spec's number; it does not restyle nav
+     content. The tab bar (60, five destinations) is the app shell's own
+     .mobile-tab-bar below, not a second arena-only bar. */
   [data-design="terminal"] .at-nav-mobile { height: 38px; }
-  [data-design="terminal"] .at-tabbar { height: 60px; }
 }
 
 /* Rail panels — clusters, Why, session history. Rows use --bdr3 (list
@@ -6640,11 +6659,9 @@ main.app-content[data-chrome="none"] {
 
    Suppressed, not deleted: the same chart renders on other screens where its
    own selector is the only one. */
-[data-design="terminal"] .at-chart .klc-tf-btn,
-[data-design="terminal"] .at-mchart .klc-tf-btn { display: none; }
+[data-design="terminal"] .at-chart .klc-tf-btn { display: none; }
 /* The scale badge sits with them and reads as orphaned once they are gone. */
-[data-design="terminal"] .at-chart .klc-scale-badge,
-[data-design="terminal"] .at-mchart .klc-scale-badge { display: none; }
+[data-design="terminal"] .at-chart .klc-scale-badge { display: none; }
 
 /* ── Dashboard (Desk 2a) terminal overrides (#413) ─────────────────────────
    Hardcoded pixel radii that the token override (--radius-card: 0) cannot

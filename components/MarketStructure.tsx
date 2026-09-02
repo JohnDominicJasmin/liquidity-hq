@@ -106,12 +106,17 @@ function fmtP(n: number): string {
 /* ── Event colour helpers ── */
 function evCol(ev: StructureEvent): string {
   return ev.type === 'CHoCH'
-    ? (ev.dir === 'bullish' ? '#1a7aff' : 'var(--red)')
+    // Bullish CHoCH used to hardcode the current design's blue (#1a7aff) -
+    // the only branch of either helper that wasn't a token, invisible until
+    // terminal un-hid this component (#598). --accent takes gold on
+    // terminal and the same blue on the current design, so this is a fix
+    // for both, not just terminal.
+    ? (ev.dir === 'bullish' ? 'var(--accent)' : 'var(--red)')
     : (ev.dir === 'bullish' ? 'var(--green-2)' : 'var(--red)');
 }
 function evBg(ev: StructureEvent): string {
   return ev.type === 'CHoCH'
-    ? (ev.dir === 'bullish' ? 'rgba(26,122,255,0.10)' : 'rgba(248,113,113,0.10)')
+    ? (ev.dir === 'bullish' ? withAlpha('var(--accent)', '1a') : 'rgba(248,113,113,0.10)')
     : (ev.dir === 'bullish' ? 'rgba(52,211,153,0.10)'  : 'rgba(248,113,113,0.10)');
 }
 
@@ -221,7 +226,7 @@ export default function MarketStructure({ coin, onData }: Props) {
       {le && (
         <div className="ms-last-event" style={{ borderColor: withAlpha(evCol(le), '33'), background: evBg(le) }}>
           <span className="ms-ev-badge" style={{ background: evBg(le), color: evCol(le), border: `0.5px solid ${withAlpha(evCol(le), '44')}` }}>
-            {le.type} {le.dir === 'bullish' ? '▲' : '▼'}
+            {le.type} <span className="ms-dir-glyph">{le.dir === 'bullish' ? '▲' : '▼'}</span>
           </span>
           <span className="ms-ev-price">${fmtP(le.price)}</span>
           <span className="ms-ev-ago">{fmtAge(le.candlesAgo)}</span>
@@ -253,7 +258,7 @@ export default function MarketStructure({ coin, onData }: Props) {
           {d.events.slice(1, 5).map((ev, i) => (
             <div key={i} className="ms-hist-row">
               <span className="ms-hist-badge" style={{ background: evBg(ev), color: evCol(ev) }}>
-                {ev.type} {ev.dir === 'bullish' ? '▲' : '▼'}
+                {ev.type} <span className="ms-dir-glyph">{ev.dir === 'bullish' ? '▲' : '▼'}</span>
               </span>
               <span className="ms-hist-price">${fmtP(ev.price)}</span>
               <span className="ms-hist-ago">{fmtAge(ev.candlesAgo)}</span>
