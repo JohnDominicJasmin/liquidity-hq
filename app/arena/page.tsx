@@ -1907,11 +1907,11 @@ function ArenaContent() {
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent-2)',
-            background: 'rgba(90,163,255,0.1)', padding: '2px 9px 2px 5px',
-            borderRadius: 20, border: '0.5px solid rgba(90,163,255,0.2)',
+            background: 'color-mix(in srgb, var(--accent-2) 10%, transparent)', padding: '2px 9px 2px 5px',
+            borderRadius: 20, border: '0.5px solid color-mix(in srgb, var(--accent-2) 20%, transparent)',
             flexShrink: 0,
           }}>
-            <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="rgba(90,163,255,0.15)" />
+            <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="color-mix(in srgb, var(--accent-2) 15%, transparent)" />
             {selectedCoin.toUpperCase()}
           </span>
           {/* Spacer */}
@@ -2056,7 +2056,7 @@ function ArenaContent() {
                     width: '100%', display: 'grid',
                     gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
                     alignItems: 'center', padding: '7px 12px',
-                    background: isSelected ? 'rgba(90,163,255,0.08)' : 'transparent',
+                    background: isSelected ? 'color-mix(in srgb, var(--accent-2) 8%, transparent)' : 'transparent',
                     border: 'none',
                     borderBottom: '0.5px solid var(--bdr)',
                     cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',

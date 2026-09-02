@@ -274,8 +274,16 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             marginTop: 10,
             width: '100%',
             padding: '7px 0',
-            background: 'rgba(90,163,255,0.06)',
-            border: '0.5px solid rgba(90,163,255,0.2)',
+            /* Derived from --accent-2, was rgba(90,163,255,...) (#647/#648).
+               Written as an rgb() triplet, so a `5aa3ff` grep misses it -
+               the same disguise as the rgba(248,113,113,...) tints in #641,
+               and the reason QA's selectors were worth more than the hex
+               list both times. Terminal aliases --accent-2 to var(--accent)
+               in both themes, so token users already followed a theme change
+               and this literal did not. --accent-2 IS #5aa3ff at :root, so
+               the current design is byte-identical. */
+            background: 'color-mix(in srgb, var(--accent-2) 6%, transparent)',
+            border: '0.5px solid color-mix(in srgb, var(--accent-2) 20%, transparent)',
             borderRadius: 7,
             fontSize: 'var(--fs-caption)',
             fontWeight: 600,
@@ -284,8 +292,8 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             letterSpacing: '.02em',
             transition: 'background 0.15s',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(90,163,255,0.12)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(90,163,255,0.06)'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--accent-2) 12%, transparent)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--accent-2) 6%, transparent)'; }}
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>

@@ -930,7 +930,16 @@ export default function GrokChat() {
                     <>
                       <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt3)' }}>Sign in to use LiquidityAI</div>
                       <button
-                        style={{ marginTop: 10, fontSize: 'var(--fs-caption)', color: 'var(--accent-2)', background: 'none', border: '0.5px solid #5aa3ff44', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
+                        /* Border derived from the same token as the text
+                           (#647): it was `#5aa3ff44`, the current design's
+                           --accent-2 as a literal, on an element whose colour
+                           already used var(--accent-2). Token for the text,
+                           literal for the border, one element - the exact
+                           pattern #641 closed on the market-structure badge.
+                           withAlpha keeps 0x44, and --accent-2 IS #5aa3ff at
+                           :root, so the current design is unchanged; terminal
+                           aliases it to var(--accent) and now follows. */
+                        style={{ marginTop: 10, fontSize: 'var(--fs-caption)', color: 'var(--accent-2)', background: 'none', border: `0.5px solid ${withAlpha('var(--accent-2)', '44')}`, borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
                         onClick={() => setShowLoginModal(true)}
                       >
                         Sign In →

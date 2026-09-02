@@ -5569,8 +5569,18 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      by coincidence, not by decision, same shape this whole file has been
      closing all session. Declaring explicitly so light's move doesn't
      silently break this the way it did for red. */
-  --amber-bg:  rgba(251,191,36,0.07);
-  --amber-bdr: rgba(251,191,36,0.22);
+  /* #647: derived from var(--amber) rather than restating its dark hex.
+     The comment above set out to stop light's move breaking these, and then
+     declared the DARK literal in a block both themes inherit - so terminal
+     light kept painting rgba(251,191,36,...) while its --amber had moved to
+     #755100. The intent was right and the mechanism reproduced the bug it
+     was written to prevent, one level up: a literal cannot follow a token.
+     color-mix keeps both alphas and re-derives per theme, so the light block
+     below needs no amber-tint override at all - it inherits these and
+     resolves them against its own --amber. Same fix shape as #642's inline
+     tints. */
+  --amber-bg:  color-mix(in srgb, var(--amber) 7%, transparent);
+  --amber-bdr: color-mix(in srgb, var(--amber) 22%, transparent);
   /* #559/#561: found missing here while adding the light terminal block below
      and diffing declared tokens between the two - same shape as --amber
      directly below: undeclared, so falls through to root's dark value by
