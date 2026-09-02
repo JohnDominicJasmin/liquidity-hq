@@ -72,7 +72,12 @@ export default function PerpSpotCard() {
         background: `color-mix(in srgb, ${tone} 12%, transparent)`,
         border: `0.5px solid color-mix(in srgb, ${tone} 40%, transparent)`,
       }}>
-        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: tone, letterSpacing: '0.05em' }}>
+        {/* Text is --txt, not `tone` (#590 review, design ruling) - a self-tint
+         * where text colour equals the tint's source colour is structurally
+         * marginal in light theme by construction (the surface drags toward
+         * the text), independent of alpha. State is carried by the tint and
+         * border alone now. Same shape as CorrelationTerminal's diagonal fix. */}
+        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: 'var(--txt)', letterSpacing: '0.05em' }}>
           {verdict}
         </span>
       </div>
