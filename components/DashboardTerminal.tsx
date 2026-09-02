@@ -308,6 +308,17 @@ function TCoinSidebar() {
         const sel    = store.selectedCoin === id;
         const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
         const health = computeCoinHealth(d);
+        /* #614: the canvas paints this badge in TWO states, not the five
+           computeCoinHealth() returns. Dashboard 2a.dc.html:377 is
+           `gradeCol: r[4][0] <= 'B' ? GREEN : TXT` - A and B green, C/D/F
+           plain text - and 2a-light-theme.dc.html:366 is the same rule.
+           So there is no amber for A, no --green-2 for B and no --orange
+           for D. #614 asked what value terminal's --orange should take;
+           the answer is that the badge has no orange state to give one to.
+           This is terminal-only: DashboardTerminal renders solely under
+           mode === 'terminal' (app/dashboard/page.tsx:519), so
+           health.color still drives the current design untouched. */
+        const gradeStrong = health.grade <= 'B';
         const badgeCol = coinBadgeColor(id);
         const sig    = sidebarSignalFor(d, t);
 
@@ -326,14 +337,23 @@ function TCoinSidebar() {
                 <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
                   fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 0,
-                  // Grade F's own colour is --txt3 - text painted in the same
-                  // token as its own tint reads 4.11:1 in dark by construction
-                  // (the self-tint pattern design ruled on for PerpSpotCard).
-                  // Left unset here so the .grade-f CSS rule below can set it
-                  // to --txt without needing !important to beat this inline
-                  // style, the way the light-only fix at globals.css had to.
-                  ...(health.grade !== 'F' && { color: health.color }),
-                  background: withAlpha(health.color, '22'),
+                  color: gradeStrong ? 'var(--green)' : 'var(--txt)',
+                  /* 15%, the canvas's own alpha, not withAlpha('22')'s 13.3%.
+                     For C/D/F the tint token is NOT the text token - the
+                     canvas tints with --txt2 (rgba(139,143,148,.15)) and
+                     paints the text --txt - so those three measure 11.2:1 or
+                     better everywhere and need no override. A/B is still a
+                     self-tint (green on green) and light still fails AA at
+                     15%; globals.css reduces that one case to 3% and carries
+                     the measurements. Dark keeps 15% in both states.
+                     One knowing divergence: the light canvas leaves the
+                     neutral literal at the DARK --txt2 (#8b8f94) while it
+                     does swap GREEN's rgba for the light one - so it is
+                     either a deliberate theme-invariant tint or a missed
+                     line. var(--txt2) is used here because it is governed
+                     and follows the theme; flagged on the PR for QA to rule
+                     on rather than settled silently. */
+                  background: `color-mix(in srgb, ${gradeStrong ? 'var(--green)' : 'var(--txt2)'} 15%, transparent)`,
                   border: `1px solid var(--bdr)`,
                   letterSpacing: '.04em', flexShrink: 0,
                 }}>
