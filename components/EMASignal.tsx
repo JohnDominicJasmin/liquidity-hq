@@ -92,7 +92,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
   const canExplain = coin && !signal.loading && signal.verdict !== 'LOADING';
 
   return (
-    <div style={{
+    <div className="ema-card" style={{
       background: 'var(--bg1)',
       border: '0.5px solid var(--bdr)',
       borderRadius: 10,
@@ -100,7 +100,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
       marginBottom: 10,
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
+      <div className="ema-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
         <div>
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 3 }}>
             EMA Ribbon Strategy
