@@ -69,6 +69,77 @@ into a Windows path.
 
 Each cost a round trip with dev. They are listed because they will recur.
 
+### THE ONE THAT MATTERS MOST: never say "verified" about a page you have not looked at
+
+On 2026-09-02 `/dashboard` and `/` were both reported **verified and signed
+off** on Playwright criterion runs alone. Nobody had opened either page.
+
+Two things were wrong with that, and the second is worse than the first.
+
+**The checks could not have failed.** Every run set
+`localStorage.lhq-design-mode = 'terminal'` in an `addInitScript` before
+navigating. The `?design=terminal` URL flag was therefore never exercised —
+if it had been broken, every criterion would still have passed. The build
+happened to be correct, so the reports happened to be true. That is luck, not
+verification.
+
+**The criteria did not cover what a person sees.** `specs/landing.md` has 21
+criteria and **not one asserts a colour**. Landing scored 20/21 while rendering
+the current design's `#050505` ground and `#1a7aff` accent in light theme
+(#595), and while `Sign In` stood 55px tall inside a 52px nav. The owner found
+both in under a minute by opening the URL.
+
+**The standing rule, and it is not negotiable:**
+
+> Render the page and read the image before the word *verified* is used.
+> Dark **and** light, desktop **and** mobile. Every screen, every time.
+
+Practical form:
+
+- Drive the design flag **the way a person does** — through the URL. Never
+  pre-seed storage, or the check cannot fail.
+- **Screenshot first**, probe second. A `getComputedStyle(null)` in a probe
+  killed an 8-shot loop after one file.
+- **Screenshot and measurement must come from the same page instance.** Taking
+  them from two runs compares two different market states — that produced
+  flatly contradictory answers about whether a text collision existed.
+- **Gate on paint before capturing.** A wedged context returns a blank frame
+  that looks exactly like a crashed page. Three blank captures were nearly
+  filed as bugs, and one *was* announced before being retracted.
+- **Do not mutate the DOM before capturing.** Removing `[class*="consent"]`
+  nodes matched something structural on `/arena` and produced blank frames.
+- **Then still read the source before calling anything a defect.** The blue
+  `LIQUIDITYHQ` mark looked like drift and is documented as correct in
+  `BrandMark.tsx` — the handoff's own `logo.png` colours.
+
+### Three checks that find what criteria cannot
+
+Added after the above, labelled `Q` so they are never mistaken for handoff
+criteria. Each exists because a specific defect scored clean:
+
+| | asserts | why a criterion missed it |
+|---|---|---|
+| `Q1` | the ground and CTA **paint** the terminal tokens | the root tokens were *correct*; the page ignored them, so any `getPropertyValue` read passed |
+| `Q2` | no leaf's text is wider than its own box (`scrollWidth > clientWidth`) | the two element boxes did not intersect and page-level overflow was 0, yet the string painted 40px across its neighbour |
+| `Q3` | every nav/band child fits its parent | `C11`/`C18` assert the nav's own height, which was correctly 52 while its child rendered 55 |
+
+`Q4` (arena) generalises dev's `.at-chart` root-cause: any fixed-height box
+whose content spills with `overflow-y: visible`.
+
+### A checker that reports phantom defects is worse than no checker
+
+The first arena run produced **five failures that were the checker's, not the
+build's** — 0 padlocked chips on a row that visibly has three, "nav 44 failed"
+against the app shell's nav, a missing chart that was present, a 5-region root
+scored as a failed 7, and a two-unit colour difference. Sending those would
+have cost dev a cycle chasing nothing.
+
+**Look at the render before filing.** Three passing criteria that contradict a
+failing one is the tell — it was the tell on #572 too, and it was explained
+away then.
+
+---
+
 **Alpha compositing.** Reading the first non-transparent ancestor background as
 opaque reported **20 contrast failures that did not exist**. Translucent tint
 layers must be composited down to an opaque base before computing a ratio.
