@@ -342,6 +342,10 @@ export const LABEL_KEYS = [
   'TNAV_WORDMARK', 'TNAV_ARIA_LABEL', 'TNAV_MORE_ARIA',
   'TNAV_DESK_LABEL', 'TNAV_DESK_TAB_LABEL', 'TNAV_ARENA_LABEL',
   'TNAV_SCAN_LABEL', 'TNAV_FLOW_LABEL', 'TNAV_BOOK_LABEL',
+  // Market Conditions substituted slots (#635). The canvas labels these
+  // "Trend strength" and "Liquidity"; we have neither metric, so real
+  // data goes in the slots under its own name - see TMarketConditions.
+  'DASH_COND_RSI_BIAS_LABEL', 'DASH_COND_TAKER_FLOW_LABEL',
   'DASH_COIN_SIGNALS_HEADER', 'DASH_BEST_SETUP_TODAY_HEADER', 'DASH_PLAYBOOK_HEADER',
   'DASH_SELECTED_COIN_OPEN_ARENA',
   'DASH_SELECTED_COIN_ARENA_CTA', 'DASH_COND_VOLATILITY_LABEL', 'DASH_COND_BREADTH_LABEL',

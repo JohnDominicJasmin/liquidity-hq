@@ -658,17 +658,46 @@ function TCoinSignalsHeader() {
  * a different metric set) only in terminal mode - the non-terminal branch
  * keeps that widget untouched.
  *
- * Two of the four bars ship here on real, already-available data:
- *   Volatility - BTC's 30-day HV percentile (useBtcVolRegime, above -
+ * All four slots now carry real data (#635):
+ *   BTC volatility - BTC's 30-day HV percentile (useBtcVolRegime, above -
  *                same fixed cache read as the pulse strip's VOL chip).
+ *                RENAMED from "Volatility" by the scope sweep below: the
+ *                hook reads parsed.btcData and nothing else, so a bar
+ *                labelled "Volatility" in a market-wide panel was showing
+ *                one coin's. The pulse strip's VOL chip already disclosed
+ *                this in its note ("BTC regime"); this bar did not. No
+ *                aggregate exists to build instead - the cache stores only
+ *                btcData - so the honest fix is the scope in the name.
+ *   RSI bias   - mean rsi14 across COINS that have it. Fills the slot the
+ *                canvas labels "Trend strength".
  *   Breadth    - % of all COINS with a positive 24h change right now.
  *                Standard definition of market breadth; data already in
  *                store.coins[*].change.
- * Trend strength and Liquidity are left out. Neither has a real source in
- * this codebase today (no ADX/trend-strength calc, no orderbook/depth
- * fetch anywhere) - inventing one to fill a bar would be fabricating a
- * financial signal, not restyling an existing one. Confirmed with QA/design
- * before building; see the PR body. */
+ *   Taker flow - mean takerBuyRatio across COINS that have it. Fills the
+ *                slot the canvas labels "Liquidity".
+ *
+ * TWO OF THE FOUR ARE RENAMED, AND THAT IS THE POINT. The owner's ruling on
+ * #632 is "make it work, or put different real data in the slot" - so the
+ * canvas's four bars are a layout the frame designed, not four contracts for
+ * four specific metrics. Where the named metric has no source, a different
+ * real one goes in the slot and CARRIES ITS OWN NAME:
+ *
+ *   "Trend strength" means an ADX-shaped computation. There is none here,
+ *   and mean RSI is momentum, not trend strength - a market can sit at RSI
+ *   70 in a choppy range. So the bar says RSI bias.
+ *
+ *   "Liquidity" means depth and spread. We have neither - takerBuyRatio is
+ *   aggressive-order flow, which is a different thing that happens to live
+ *   nearby. So the bar says Taker flow.
+ *
+ * Renaming rather than relabelling is the whole distinction: substituting a
+ * real measurement is allowed, putting a canvas label on data that is not
+ * what the label says is the #589 mislabel and stays forbidden. Decided on
+ * #635, where two other candidates were killed outright for scope.
+ *
+ * Both new bars are aggregated across COINS, the way breadth already is,
+ * because this panel is MARKET-WIDE. Per-coin sources in a market-wide slot
+ * was the error that killed CB prem and Liq 15m on the same issue. */
 function TMarketConditions() {
   const { store } = useMarket();
   const { t } = useLabels();
@@ -677,6 +706,29 @@ function TMarketConditions() {
   const positive = COINS.filter(id => (store.coins[id]?.change ?? 0) > 0).length;
   const breadthPct = COINS.length > 0 ? Math.round((positive / COINS.length) * 100) : 0;
   const breadthCol = breadthPct >= 60 ? 'var(--green)' : breadthPct <= 40 ? 'var(--red)' : 'var(--txt2)';
+
+  /* Averaged over the coins that actually HAVE the field, not over COINS.
+     Dividing by COINS.length would drag the mean toward zero every time a
+     feed is partial, and read as a bearish market rather than a thin one -
+     a data gap rendered as a signal. Null until at least one coin reports,
+     so the bar shows an em dash instead of a confident 0. */
+  const mean = (vals: number[]): number | null =>
+    vals.length === 0 ? null : vals.reduce((a, b) => a + b, 0) / vals.length;
+
+  // rsi14 is already 0-100, so it maps to the bar's width with no rescaling.
+  const rsiMean = mean(
+    COINS.map(id => store.coins[id]?.rsi14).filter((v): v is number => v != null),
+  );
+  const rsiCol = rsiMean == null ? 'var(--txt3)'
+    : rsiMean >= 55 ? 'var(--green)' : rsiMean <= 45 ? 'var(--red)' : 'var(--txt2)';
+
+  // takerBuyRatio is 0-1 (buy volume / total), so x100 for both bar and value.
+  const takerMean = mean(
+    COINS.map(id => store.coins[id]?.takerBuyRatio).filter((v): v is number => v != null),
+  );
+  const takerPct = takerMean == null ? null : takerMean * 100;
+  const takerCol = takerPct == null ? 'var(--txt3)'
+    : takerPct >= 55 ? 'var(--green)' : takerPct <= 45 ? 'var(--red)' : 'var(--txt2)';
 
   const volLabelKey: LabelKey | null = vol == null ? null
     : vol.regime === 'low' ? 'VOLATILITY_REGIME_LABEL_LOW'
@@ -689,7 +741,11 @@ function TMarketConditions() {
 
   const rows: { key: string; label: string; pct: number; value: string; col: string }[] = [
     { key: 'vol', label: t('DASH_COND_VOLATILITY_LABEL'), pct: vol?.percentile ?? 0, value: vol && volLabelKey ? t(volLabelKey) : '-', col: volCol },
+    // Canvas order: Volatility, [Trend strength], Breadth, [Liquidity] - the
+    // two substituted slots keep their positions and take their own names.
+    { key: 'rsi', label: t('DASH_COND_RSI_BIAS_LABEL'), pct: rsiMean ?? 0, value: rsiMean != null ? rsiMean.toFixed(0) : '-', col: rsiCol },
     { key: 'breadth', label: t('DASH_COND_BREADTH_LABEL'), pct: breadthPct, value: breadthPct + '%', col: breadthCol },
+    { key: 'taker', label: t('DASH_COND_TAKER_FLOW_LABEL'), pct: takerPct ?? 0, value: takerPct != null ? takerPct.toFixed(0) + '%' : '-', col: takerCol },
   ];
 
   return (
