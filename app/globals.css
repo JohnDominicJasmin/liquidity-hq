@@ -6751,6 +6751,31 @@ main.app-content[data-chrome="none"] {
    classes) are untouched.
    Geometry from qa/reports/dashboard-2a-canvas-geometry.md: cell padding
    12px 16px, label/value/sig 10.5/15/10.5, hairline #16191b (--bdr3). */
+/* Market read banner - the canvas's first main-column panel (#587). Geometry
+   read straight off Dashboard 2a.dc.html: background #141517 (--bg2),
+   padding 15px 20px, bottom hairline #1f2225 (--bdr); eyebrow 10px mono
+   .16em uppercase #7c828a (--txt3); verdict 24px mono 700 line-height 1 at
+   8px above; sub 12.5px/1.5 #8b8f94 (--txt2) at 8px above, capped 680px so
+   the sentence wraps at a readable measure instead of the full column. */
+[data-design="terminal"] .dash-market-read-banner {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--bdr);
+  padding: 15px 20px;
+}
+[data-design="terminal"] .dmrb-eyebrow {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--txt3);
+}
+[data-design="terminal"] .dmrb-verdict {
+  font-family: var(--font-mono), monospace;
+  font-size: 24px; font-weight: 700; line-height: 1; margin-top: 8px;
+}
+[data-design="terminal"] .dmrb-sub {
+  font-size: 12.5px; line-height: 1.5; color: var(--txt2);
+  margin-top: 8px; max-width: 680px;
+}
+
 [data-design="terminal"] .dash-main .edge-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
