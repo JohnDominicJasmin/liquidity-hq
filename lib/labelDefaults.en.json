@@ -671,6 +671,7 @@
   "ARENA_USAGE_HEADER": "Usage",
   "ARENA_EVIDENCE_HEADER": "Evidence",
   "ARENA_EMA_PANEL_TITLE": "EMA Signal",
+  "ARENA_MS_PANEL_TITLE": "Market structure",
   "ARENA_HINT_TERMINAL_LABEL": "Pick a coin and timeframe, then run the analysis.",
   "ARENA_CLUSTERS_HEADER": "Clusters",
   "ARENA_WHY_HEADER": "Why",
