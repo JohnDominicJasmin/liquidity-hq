@@ -7,11 +7,23 @@
  * COINS" - the canvas draws one static row, not a scrolling market list. */
 import { useMarket, COIN_DEC, fmtPrice } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 
 const TICKER_COINS: CoinId[] = ['btc', 'eth', 'sol', 'bnb', 'hype', 'link', 'doge', 'arb'];
 
 export default function PriceTickerStrip() {
   const { store } = useMarket();
+  const isDesktop = useIsDesktop();
+
+  /* Absent below 768 - arena.md's region table line 51 lists no ticker on
+     mobile, replaced by a 44px symbol row that is a separate component.
+     Gated HERE rather than by CSS: #629's first attempt used
+     `@media (max-width: 767px) { .price-ticker-strip { display: none } }`,
+     which never applied, because the inline `display: 'flex'` below beats a
+     stylesheet rule without !important. QA caught it still rendering at 375,
+     pinned over 34px of content area that nothing reserved for it.
+     The component owns its own presence - that is the fix, not !important. */
+  if (!isDesktop) return null;
 
   return (
     <div className="price-ticker-strip" style={{

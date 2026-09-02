@@ -5803,9 +5803,13 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   z-index: 999;
   background: var(--bg0);
 }
-@media (max-width: 767px) {
-  [data-design="terminal"] .price-ticker-strip { display: none; }
-}
+/* No `display: none` companion rule below 768. There was one, and it did
+   nothing: PriceTickerStrip sets `display: 'flex'` as an inline style, which
+   beats a stylesheet rule without !important, so the strip stayed on screen
+   at 375 pinned over content that --strip-h: 0px had told nothing to reserve.
+   The component returns null below 768 instead (useIsDesktop, breakpoint
+   768). Not re-added as !important - a rule that has to shout to beat the
+   component it styles is a sign the component should own the decision. */
 
 /* Fixed, matching .app-bar, because the whole shell stack above assumes the
    top bar is out of flow. The frames put a static header at the top of a
