@@ -54,6 +54,25 @@ const event = (hoursAhead: number) => ({
  * as stale", so null is a distinct case worth being able to produce.
  */
 async function installSnapshot(page: Page, opts: { ageHours: number | null; events: unknown[] }) {
+  /* PIN USD/JPY QUIET, and this is not optional.
+   *
+   * `computeMacroRisk` returns `unknown` only when the calendar is stale AND
+   * NOTHING was found - and USD/JPY is a finding. `lib/confluence.ts:126` fires
+   * a caution at >= 158, and qa was serving 159.3 live, so every stale case
+   * legitimately reported the carry-trade line instead of the staleness notice.
+   *
+   * That cost a wrong conclusion: the spec was red on the fixed build and the
+   * obvious reading was "dev's fix does not work". It works. My scenario was
+   * never the one I thought I was testing, because a live input I had not
+   * controlled was supplying a finding.
+   *
+   * Dev's unit test passes `jpyUsd` directly; the browser reads /api/forex/jpy
+   * (arena/page.tsx:403), so this pins it there. 150 is well below the 158
+   * threshold - quiet, no reason emitted, nothing to mask the calendar state. */
+  await page.route('**/api/forex/jpy**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ jpy: 150 }),
+  }));
+
   await page.route(SNAPSHOT_ROUTE, route => route.fulfill({
     status: 200,
     contentType: 'application/json',

@@ -1,6 +1,8 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import MarketsTerminal from '@/components/MarketsTerminal';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, computeSqueezeScore } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { coinBadgeColor } from '@/lib/coinBadge';
@@ -40,6 +42,7 @@ const PAGE_SIZE = 20;
 const ROW_COLS = '48px 1fr 40px 96px 58px 92px 1fr';
 
 export default function MarketsPage() {
+  const mode = useDesignMode();
   const { t } = useLabels();
   const { store, selectCoin } = useMarket();
   const router = useRouter();
@@ -79,6 +82,8 @@ export default function MarketsPage() {
 
   // Reset to page 1 whenever the result set changes shape
   useEffect(() => { setPage(0); }, [query, sort, sortAsc]);
+
+  if (mode === 'terminal') return <MarketsTerminal />;
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageSafe  = Math.min(page, pageCount - 1);

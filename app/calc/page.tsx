@@ -10,6 +10,7 @@ import RiskRewardCalc   from '@/components/RiskRewardCalc';
 import FundingCostCalc  from '@/components/FundingCostCalc';
 import DcaCalc          from '@/components/DcaCalc';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 const TABS = [
   { id: 'sizer',       key: 'CALC_TAB_SIZER'       },
@@ -21,6 +22,7 @@ const TABS = [
 ] as const;
 
 function CalcPageContent() {
+  const mode = useDesignMode();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState('sizer');
   const { t } = useLabels();
@@ -56,7 +58,7 @@ function CalcPageContent() {
   }, [coinMenuOpen]);
 
   return (
-    <div>
+    <div className={mode === 'terminal' ? 'calc-term-wrap' : undefined}>
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_PAGE_TITLE')}</h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_PAGE_SUBTITLE')}</div>

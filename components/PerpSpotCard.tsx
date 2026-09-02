@@ -44,10 +44,12 @@ export default function PerpSpotCard() {
   if (!reading) return null;
 
   const unknown = reading.lean === 'unknown';
+  // --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's
+  // 16-token palette.
   const tone =
     reading.lean === 'perp' ? 'var(--amber)' :
     reading.lean === 'spot' ? 'var(--green-2)' :
-    unknown ? 'var(--txt3)' : 'var(--txt-dim)';
+    unknown ? 'var(--txt3)' : 'var(--txt2)';
 
   const verdict =
     reading.lean === 'perp' ? 'FUTURES LEADING' :
@@ -64,13 +66,18 @@ export default function PerpSpotCard() {
         Perps vs Spot · {coin.toUpperCase()}
       </div>
 
-      <div style={{
+      <div className="psc-verdict-pill" style={{
         display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px',
-        borderRadius: 20, marginBottom: 8,
+        marginBottom: 8,
         background: `color-mix(in srgb, ${tone} 12%, transparent)`,
         border: `0.5px solid color-mix(in srgb, ${tone} 40%, transparent)`,
       }}>
-        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: tone, letterSpacing: '0.05em' }}>
+        {/* Text is --txt, not `tone` (#590 review, design ruling) - a self-tint
+         * where text colour equals the tint's source colour is structurally
+         * marginal in light theme by construction (the surface drags toward
+         * the text), independent of alpha. State is carried by the tint and
+         * border alone now. Same shape as CorrelationTerminal's diagonal fix. */}
+        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: 'var(--txt)', letterSpacing: '0.05em' }}>
           {verdict}
         </span>
       </div>

@@ -6,6 +6,8 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { getAuthToken } from '@/lib/supabase';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
+import { withAlpha } from '@/lib/color';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -18,8 +20,11 @@ type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
 
 /* LOW was #6b7280 = 3.77:1 on the rail card - and since econImpactKey did not
    exist, EVERY row used it regardless of real impact. See lib/classify.ts. */
+// --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's 16-token
+// palette; --txt2 is the correctly-governed "quiet" text token used for the
+// same role elsewhere in the terminal design.
 const IMPACT_COLOR: Record<EconImpact, string> = {
-  HIGH: 'var(--red)', MEDIUM: 'var(--amber)', LOW: 'var(--txt-dim)',
+  HIGH: 'var(--red)', MEDIUM: 'var(--amber)', LOW: 'var(--txt2)',
 };
 
 const MAX_ROWS = 5;
@@ -40,6 +45,7 @@ function fmtDateHeader(iso: string, t: TFn, now: number): string {
    data source, just a compact preview of the next few high-impact events. ── */
 export default function EconCalendarWidget() {
   const { t } = useLabels();
+  const mode = useDesignMode();
   const [events, setEvents]   = useState<CalEvent[] | null>(null);
   const [error, setError]     = useState(false);
 
@@ -85,7 +91,7 @@ export default function EconCalendarWidget() {
   return (
     <div className="av-rail-panel">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div className="av-rail-panel-h" style={{ marginBottom: 0 }}>{t('ECON_CALENDAR_WIDGET_TITLE')}</div>
+        <div className="av-rail-panel-h" style={{ marginBottom: 0 }}>{mode === 'terminal' ? t('DASH_NEXT_EVENTS_HEADER') : t('ECON_CALENDAR_WIDGET_TITLE')}</div>
         <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.04em' }}>
           {t('ECON_CALENDAR_WIDGET_UPCOMING')}
         </span>
@@ -137,9 +143,9 @@ export default function EconCalendarWidget() {
               <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {e.name}
               </span>
-              <span style={{
-                fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.03em', padding: '2px 6px', borderRadius: 4,
-                color: col, background: `${col}22`, flexShrink: 0,
+              <span className="ecw-impact-chip" style={{
+                fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.03em', padding: '2px 6px',
+                color: col, background: withAlpha(col, '22'), flexShrink: 0,
               }}>
                 {e.impact}
               </span>

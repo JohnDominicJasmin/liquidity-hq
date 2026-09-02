@@ -8,6 +8,8 @@ import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import LiqTerminal from '@/components/LiqTerminal';
 import type { LabelKey } from '@/lib/labelKeys';
 
 
@@ -263,6 +265,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
 
 /* ─── Page ─────────────────────────────────────────────────────────────────── */
 export default function LiqPage() {
+  const mode = useDesignMode();
   const { t } = useLabels();
   const { store }  = useMarket();
   const [coin, setCoin]   = useState<CoinId>('btc');
@@ -343,6 +346,8 @@ export default function LiqPage() {
       ? { txt: t('LIQ_BIAS_SHORT_HEAVY'), sub: t('LIQ_BIAS_SHORT_HEAVY_SUB'), col: 'var(--green-2)' }
       : { txt: t('LIQ_BIAS_BALANCED'), sub: t('LIQ_BIAS_BALANCED_SUB'), col: 'var(--txt-dim)' }
     : null;
+
+  if (mode === 'terminal') return <LiqTerminal />;
 
   return (
     <div>

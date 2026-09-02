@@ -339,10 +339,13 @@ export function computeCoinHealth(coin: CoinData | undefined): {
     score >= 42 ? 'C' :
     score >= 25 ? 'D' : 'F';
 
+  // --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's 16-token
+  // palette, and this is the actual source of the grade-C badge colour
+  // rendered app-wide.
   const color =
     grade === 'A' ? 'var(--amber)' :   // gold
     grade === 'B' ? 'var(--green-2)' :   // green
-    grade === 'C' ? 'var(--txt-dim)' :   // gray
+    grade === 'C' ? 'var(--txt2)' :   // gray
     grade === 'D' ? 'var(--orange)' :   // orange
                     'var(--txt3)';  // muted (F)
 

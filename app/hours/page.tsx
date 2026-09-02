@@ -6,6 +6,7 @@ import SessionCountdown from '@/components/SessionCountdown';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 /* Typical-weekday session blocks, as UTC hour ranges - the same windows
    lib/session.ts enforces. These used to be PHT hours on a fixed PHT axis
@@ -61,6 +62,7 @@ const WINDOWS: { cls: string; badgeKey: LabelKey; descKey: LabelKey; utc: [numbe
 function pad(n: number) { return n < 10 ? '0' + n : '' + n; }
 
 export default function BestHours() {
+  const mode = useDesignMode();
   // This page is statically prerendered, so which session window is "active"
   // in the server HTML reflects whenever the last build ran, not real time.
   // Gate the win/dead-driven blocks below on `mounted` so the server render
@@ -89,7 +91,7 @@ export default function BestHours() {
   const upcoming = (!win && !dead) ? getUpcomingWindows(now, 3) : [];
 
   return (
-    <div>
+    <div className={mode === 'terminal' ? 'hours-term-wrap' : undefined}>
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('HOURS_TITLE')}</h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('HOURS_SUBTITLE')}</div>

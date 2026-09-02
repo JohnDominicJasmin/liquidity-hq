@@ -7,6 +7,8 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import type { LandingDict, Locale } from '@/lib/i18n/dictionaries';
 import { BeamsBackground } from '@/components/BeamsBackground';
 import BrandMark from '@/components/BrandMark';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import LandingTerminal from '@/components/LandingTerminal';
 
 interface Props {
   dict: LandingDict;
@@ -47,6 +49,7 @@ const FEATURE_META: Array<{ href: string; accent: string; icon: ReactNode }> = [
 export default function LandingContent({ dict, locale, dir }: Props) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const mode = useDesignMode();
   const stepArrow = dir === 'rtl' ? '←' : '→';
 
   /* Redirect signed-in users straight to the app */
@@ -75,12 +78,22 @@ export default function LandingContent({ dict, locale, dir }: Props) {
   // the marketing page is never painted at all for a returning session.
   if (loading || user) {
     return (
-      <div className="lp-loading">
-        <span className="lp-loading-logo" aria-hidden="true">LiquidityHQ</span>
+      <div className="lp-loading" style={mode === 'terminal' ? { background: 'var(--bg0)' } : undefined}>
+        <span
+          className="lp-loading-logo"
+          aria-hidden="true"
+          style={mode === 'terminal' ? { color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' } : undefined}
+        >
+          LiquidityHQ
+        </span>
         <span className="lp-loading-spin" aria-hidden="true" />
         <span className="sr-only" role="status">Loading your session…</span>
       </div>
     );
+  }
+
+  if (mode === 'terminal') {
+    return <LandingTerminal dict={dict} locale={locale} dir={dir} />;
   }
 
   return (

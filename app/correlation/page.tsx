@@ -7,6 +7,8 @@ import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import CorrelationTerminal from '@/components/CorrelationTerminal';
 
 /* ── constants ── */
 
@@ -83,7 +85,7 @@ function pearson(a: number[], b: number[]): number | null {
    identical green. Rescale 0.35→1.0 onto the full range with a power curve so
    0.6 reads faint and 0.95+ pops. */
 function cellBg(r: number | null, diag: boolean): string {
-  if (diag)    return 'rgba(26,122,255,0.22)';
+  if (diag)    return 'var(--accent-bdr)';
   if (r == null) return 'rgba(255,255,255,0.03)';
   if (r > 0) {
     const t = Math.max(0, (r - 0.35) / 0.65);
@@ -116,7 +118,7 @@ function altSignal(avg: number | null): AltSig {
   };
   if (avg < 0.75)  return {
     labelKey: 'CORRELATION_ALT_SIG_BTC_LEADING_LABEL',
-    color: '#d4b483', bg: 'rgba(212,180,131,0.06)',
+    color: 'var(--fr-slight-long)', bg: 'rgba(212,180,131,0.06)',
     descKey: 'CORRELATION_ALT_SIG_BTC_LEADING_DESC', avg,
   };
   return {
@@ -128,6 +130,7 @@ function altSignal(avg: number | null): AltSig {
 
 /* ── component ── */
 export default function CorrelationHeatmap() {
+  const mode = useDesignMode();
   const { t }                   = useLabels();
   const [rets, setRets]         = useState<Partial<Record<CoinId, number[]>>>({});
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
@@ -180,6 +183,8 @@ export default function CorrelationHeatmap() {
   }));
   const strongest = [...pairs].sort((a, b) => b.r - a.r).slice(0, 5);
   const weakest   = [...pairs].sort((a, b) => a.r - b.r).slice(0, 3);
+
+  if (mode === 'terminal') return <CorrelationTerminal />;
 
   return (
     <div>
@@ -292,7 +297,7 @@ export default function CorrelationHeatmap() {
                             background: cellBg(r, diag),
                             color: cellColor(r, diag),
                             opacity: hovered && !inCross ? 0.25 : 1,
-                            outline: isExact ? '1.5px solid rgba(255,255,255,0.55)' : undefined,
+                            outline: isExact ? '1.5px solid var(--accent)' : undefined,
                             outlineOffset: isExact ? '-1px' : undefined,
                             transition: 'opacity 0.1s',
                             cursor: diag ? 'default' : 'crosshair',

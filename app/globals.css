@@ -47,6 +47,15 @@
      semantic that sits beside --green and --red (squeeze direction, funding
      bias, EMA pass state) and should not read as tinted. */
   --txt-dim: #909090;
+  /* #559: the empty-cell "-" placeholder's own colour, not --txt3
+     (#7c828a) - that passes on --bg0/--bg1/--bg2 but only 4.30:1 on
+     /scanner's composited tile background #1d1e20. Design's ruling:
+     moving --txt3 dark to fix one composited edge case would be the same
+     "wrong surface" mistake in reverse, since --txt3 passes on three of
+     four surfaces already. Dedicated value instead - CoinHeatmap.tsx's
+     empty-cell dash only. Verified: 5.724/5.248/5.312/4.791 across
+     --bg0/--bg1/--bg2/#1d1e20. */
+  --txt-dash: #848a92;
 
   /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
@@ -66,6 +75,12 @@
      Rule: --accent for text, borders, glows and rgba tints; --accent-solid
      wherever the blue is the background under white text. */
   --accent-solid: #1668e3;
+  /* #561: consent-accept hardcoded #fff instead of a token, which is what let
+     terminal mode inherit white-on-gold (2.23:1) unnoticed - terminalTokens.ts
+     documents --accent as "ALWAYS with #08090a text", a contract white text
+     violates. Declared here too so var(--on-accent) resolves for every design
+     mode/theme, not just terminal's two. */
+  --on-accent:  #ffffff;
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(26,122,255,0.12);
   --accent-bg:  rgba(26,122,255,0.07);
@@ -102,6 +117,14 @@
   --amber-dim: rgba(251,191,36,0.12);
   --amber-bg:  rgba(251,191,36,0.08);
   --amber-bdr: rgba(251,191,36,0.22);
+
+  /* #559: /funding's "slight long" signal state (FundingTerminal.tsx
+     frSignal) was the one state of eight using a bare literal instead of a
+     token - every sibling state already used var(--red)/--orange/--amber/
+     etc, which pick up the light-theme overrides two blocks down. This one
+     didn't, so it rendered the same washed-out tan in both themes: fine on
+     a near-black canvas, ~2:1 on white. */
+  --fr-slight-long: #d4b483;
 
   --orange:     #fb923c;
   --orange-bg:  rgba(251,146,60,0.08);
@@ -438,6 +461,51 @@ body::after {
 .csb2-sig       { font-size: var(--fs-caption); font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.02); }
 .csb2-bar-track { height: 3px; background: rgba(255,255,255,0.06); border-radius: 0 0 var(--radius-data) var(--radius-data); margin: 0 -10px; }
 .csb2-bar-fill  { height: 100%; border-radius: 0 0 var(--radius-data) var(--radius-data); transition: width 0.8s ease, background 0.3s; }
+/* #559 Bug 2, "the tint recipe": the health-grade badge backgrounds
+   color-mix the grade's own token toward transparent at 13.3%, composited
+   over the card behind it. On dark that pulls the surface toward black
+   while the text stays light, so text and background diverge and
+   contrast holds - same shape as .csb2-sig above. On light, the same mix
+   pulls the surface toward the TEXT colour instead of away from it,
+   shrinking the gap the badge needs. Originally scoped to grades C/F
+   (--txt2/--txt3) on the assumption A/B/D already cleared the floor.
+
+   QA's full grade x card-state sweep (matrix, not the single earlier
+   reading) found the confirmed live defect is narrower than that: one
+   badge, grade F, ONLY on the selected card (.csb2-sel) in light -
+   4.316:1. Unselected clears at 4.649. Selected renders --bg3, which in
+   terminal light aliases to --bg2 - one step darker than unselected's
+   --bg1 - and that single step is what puts it under. (The earlier "grade
+   B measured 3.98" reading was a mismeasurement of a grade-F badge, not
+   evidence for grade B - see the PR/issue thread. --green-2's own ceiling
+   math below is independently derived, not resting on that number.)
+
+   --txt3 on --bg2 caps at 4.703:1 with NO tint at all - same shape as
+   --green-2's 4.752 ceiling - so alpha alone can't reliably clear 4.5 on
+   the selected card with real margin. Grade F's text is already the
+   muted, no-strong-signal colour (--txt3, not a "bad" red or a "good"
+   green), so there's little semantic loss in the same move already used
+   on the correlation diagonal: text -> --txt, which has no ceiling
+   problem on any card state. Background tint stays reduced too, belt and
+   suspenders. Grades A/D (amber/orange) still untouched - amber's base
+   VALUE is design's #559 Bug 1, not this alpha issue, and orange isn't
+   governed in terminal at all yet (a separate, older gap). */
+[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-b {
+  background: color-mix(in srgb, var(--green-2) 3%, transparent) !important;
+}
+[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-c {
+  background: color-mix(in srgb, var(--txt2) 4%, transparent) !important;
+}
+/* Base rule, not theme-scoped: dark had the identical self-tint problem
+   (--txt3 text on a 13% tint of --txt3, 4.11:1) and was simply never fixed
+   when light was. DashboardTerminal.tsx no longer sets an inline `color`
+   for grade F, so this needs no !important to win. */
+[data-design="terminal"] .csb2-health-badge.grade-f {
+  color: var(--txt);
+}
+[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-f {
+  background: color-mix(in srgb, var(--txt3) 4%, transparent) !important;
+}
 
 /* ── MARKET EVENTS STRIP ── */
 
@@ -534,9 +602,14 @@ body::after {
   border-radius: 9px;
 }
 .nav-search-icon { color: var(--txt3); flex-shrink: 0; }
+/* #526 C35: measured 20px tall - under WCAG 2.5.8's 24px minimum. The
+   surrounding .nav-search-wrap has its own padding, but this input is the
+   actual focusable target a screen reader or switch-access user acts on,
+   so its own box needs to clear 24, not just the pill around it. */
 .nav-search {
   flex: 1; min-width: 0; background: none; border: none; outline: none;
   color: var(--txt); font-size: var(--fs-label); font-family: inherit; padding: 0;
+  min-height: 24px;
 }
 .nav-search::placeholder { color: var(--txt3); }
 .nav-search-clear {
@@ -704,6 +777,13 @@ body::after {
   .mr-factors { grid-template-columns: repeat(2, 1fr); }
   .mr-score { font-size: 2.7rem; }
   .mr-verdict { font-size: 1.05rem; }
+  /* #587: the sub-label ("0.00% away · tight") needs 126px and the cell is
+     121 at 360, 101 at 320, so nowrap+ellipsis was cutting real values off
+     the end. Two columns leave enough height for a second line, and the
+     grid's auto rows absorb it - wrap rather than truncate, so the number
+     survives at every width. .mr-factor-v keeps its ellipsis: it is a short
+     single token ("Tight", "Neutral") that does not benefit from wrapping. */
+  .mr-factor-s { white-space: normal; }
 }
 
 /* ── Dashboard columns: answers (left) + context rail (right) ──
@@ -733,7 +813,14 @@ body::after {
   text-decoration: none; color: inherit; cursor: pointer;
   transition: border-color 0.15s, background 0.15s; }
 .scc-card:hover { border-color: var(--bdr2); background: var(--bg2); }
-.scc-id { display: flex; flex-direction: column; min-width: 0; }
+/* flex-shrink: 0 - #587: at 390/360/320 this shrank below .scc-price's own
+   content width (an unbreakable string like "$77,585.08" has no space to
+   wrap on, so a squeezed container doesn't wrap it, it overflows past the
+   box and paints across .scc-meta's text to its right - measured 76px in a
+   116px-needed box at 390, worse narrower). .scc-meta's .scc-sig already
+   truncates safely with an ellipsis for exactly this squeeze - it should
+   be the one absorbing narrow viewports, not the price. */
+.scc-id { display: flex; flex-direction: column; min-width: 0; flex-shrink: 0; }
 .scc-ticker { font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   font-weight: 700; letter-spacing: .08em; color: var(--txt3); }
 .scc-price { font-family: var(--font-mono), monospace; font-size: 1.25rem; font-weight: 700;
@@ -744,7 +831,8 @@ body::after {
 .scc-up { color: var(--green); } .scc-dn { color: var(--red); }
 .scc-sig { font-size: var(--fs-caption); font-weight: 600; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 190px; }
-.scc-arrow { flex-shrink: 0; font-size: 1.1rem; color: var(--txt3); line-height: 1; }
+.scc-cta { flex-shrink: 0; font-family: var(--font-mono), monospace; font-size: var(--fs-caption);
+  font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
 
 /* Macro Context rail wrapper - GlobalMacroContext has its own inner padding,
    this just gives it the flat-card frame the other rail items carry. */
@@ -801,7 +889,7 @@ body::after {
     border-radius: var(--radius-card); padding: 14px 18px; position: relative;
     min-width: 96px; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   }
-  .ticker-see-all:active { background: rgba(26,122,255,0.18); box-shadow: 0 0 28px rgba(26,122,255,0.22); }
+  .ticker-see-all:active { background: color-mix(in srgb, var(--purple) 18%, transparent); box-shadow: 0 0 28px color-mix(in srgb, var(--purple) 22%, transparent); }
   .ticker-see-all-count { display: block; font-size: 2rem; font-weight: 700; color: var(--txt); letter-spacing: -1.5px; line-height: 1; text-align: center; }
   .ticker-see-all-label { display: block; font-size: var(--fs-micro); font-weight: 800; color: var(--txt3); letter-spacing: .14em; text-transform: uppercase; text-align: center; margin-top: 3px; }
   .ticker-see-all-arrow { display: block; font-size: 0.6875rem; font-weight: 700; color: var(--purple); margin-top: 10px; letter-spacing: .01em; text-align: center; }
@@ -1315,9 +1403,11 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 .arena-fire-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .arena-fire-btn:not(:disabled):hover { background: rgba(26,122,255,0.12); border-color: var(--accent); }
 .arena-fire-btn:not(:disabled):active { transform: scale(0.98); }
-/* Quick mode button - green tint */
-.arena-quick-btn { background: rgba(52,211,153,0.08) !important; border-color: rgba(52,211,153,0.3) !important; color: var(--green-2) !important; }
-.arena-quick-btn:not(:disabled):hover { box-shadow: 0 4px 20px rgba(52,211,153,0.15) !important; border-color: #34d399 !important; }
+/* Quick mode button (#513): was a green tint, which reads as a bullish signal
+   next to the Deep Research / Unlock-with-Pro row, not an interactive state.
+   Green means up/long/bullish in this product - never "interactive". Quick
+   now inherits .arena-fire-btn's --accent styling, same as every other
+   interactive control. */
 /* Deep button - locked state (not signed in) */
 /* "Locked" styling for the Quick/Deep Research buttons when signed out.
    Was #8a6020 under opacity 0.75, which computed to #694a1b = 2.4:1 - the
@@ -2058,7 +2148,10 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-quick:hover:not(:disabled) { color: var(--purple); border-color: var(--purple-bdr); background: var(--purple-bg); }
 .gchat-quick:disabled { opacity: 0.4; cursor: not-allowed; }
 .gchat-input-row { display: flex; gap: 8px; padding: 8px 14px 12px; flex-shrink: 0; border-top: 0.5px solid var(--bdr); }
-.gchat-input { flex: 1; padding: 9px 12px; border-radius: 12px; font-size: var(--fs-label); border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt); outline: none; transition: border-color 0.15s; font-family: inherit; resize: none; overflow-y: auto; min-height: 38px; max-height: 120px; line-height: 1.5; }
+/* #520: was border: var(--bdr) (rgba(255,255,255,0.08)) - a hairline divider
+   token, not built for a 3:1 UI-component boundary. rgba(255,255,255,0.35)
+   composites to ~3.17:1 against --bg2. */
+.gchat-input { flex: 1; padding: 9px 12px; border-radius: 12px; font-size: var(--fs-label); border: 0.5px solid rgba(255,255,255,0.35); background: var(--bg2); color: var(--txt); outline: none; transition: border-color 0.15s; font-family: inherit; resize: none; overflow-y: auto; min-height: 38px; max-height: 120px; line-height: 1.5; }
 .gchat-input:focus { border-color: var(--purple-bdr); }
 .gchat-input:disabled { opacity: 0.5; }
 .gchat-send { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; background: var(--accent-bg); border: 0.5px solid var(--accent-bdr); color: var(--accent); font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
@@ -2100,17 +2193,17 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-followup-chip {
   font-size: var(--fs-caption); font-weight: 500;
   padding: 5px 11px; border-radius: 20px;
-  border: 0.5px solid rgba(26,122,255,0.22);
-  background: rgba(26,122,255,0.06);
+  border: 0.5px solid var(--accent-bdr);
+  background: var(--accent-bg);
   color: var(--accent-2); cursor: pointer;
   white-space: normal; text-align: left; line-height: 1.35;
   transition: background 0.14s, border-color 0.14s, color 0.14s;
   animation: fadeInUp 0.15s ease;
 }
 .gchat-followup-chip:hover {
-  background: rgba(26,122,255,0.14);
-  border-color: rgba(26,122,255,0.45);
-  color: #d4caff;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent-2);
 }
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -2323,14 +2416,22 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --txt2: #44475A;
   /* was #888B99 (3.39:1), then #63656F - which cleared white/card/canvas but
      measured 4.14:1 on the darker light surfaces (--bg4 #d8dadd and the tinted
-     panel #dae2ee). Issue #53 found those in use. Worst case now 4.60:1. */
-  --txt3: #5C5E68;
+     panel #dae2ee). Issue #53 found those in use. Then #5C5E68 (4.60:1 on
+     those surfaces) - but #543 found the grade-F badge (var(--txt3) per
+     lib/marketStore.ts) composited to 3.85:1 on the darkened selected-
+     watchlist-row backdrop (#c6c8cb), a surface darker than any #53 checked.
+     #4a4d52 clears 5.06:1 there and 6.30:1 on the lighter normal-row #dedede. */
+  --txt3: #4a4d52;
   /* --txt-dim had NO light value at all - it was declared once in :root and
      inherited its dark grey (#8a8a8a) straight into light mode, where it scored
      2.72:1 on white. The single largest source of light-theme contrast failures
      in issue #53: 190 of 882. AA on white/card/canvas/bg3/bg4:
      6.48/5.84/5.38/5.19/4.63 - clears the floor on every light surface. */
   --txt-dim: #5E5E5E;
+  /* #559: light was never flagged as failing for the empty-cell dash -
+     only dark's composited /scanner tile background was. Alias rather
+     than invent a second light value nobody measured a failure on. */
+  --txt-dash: var(--txt3);
   --bdr:  rgba(0,0,0,0.08);
   --bdr2: rgba(0,0,0,0.14);
 
@@ -2348,6 +2449,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --accent-dim: rgba(0,82,204,0.10);
   --accent-bg:  rgba(0,82,204,0.07);
   --accent-bdr: rgba(0,82,204,0.22);
+  --on-accent:  #ffffff; /* #561: --accent-solid falls through to :root's blue here (undeclared), white still reads correctly on it */
 
   /* Purple aliased to accent - no separate violet in light mode */
   --purple:     var(--accent);
@@ -2380,9 +2482,14 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --amber-dim: rgba(180,83,9,0.12);
   --amber-bg:  rgba(180,83,9,0.07);
   --amber-bdr: rgba(180,83,9,0.20);
-  --orange:     #C2410C;
-  --orange-bg:  rgba(194,65,12,0.07);
-  --orange-bdr: rgba(194,65,12,0.20);
+  /* #559: same darkened-hue treatment as --amber/--orange above - #d4b483
+     (the dark value) measures ~2:1 on white. */
+  --fr-slight-long: #7C5E2E;
+  /* #519: was #C2410C - 3.09:1 for the grade-D badge on a selected watchlist
+     row, 3.85:1 normally, both below WCAG AA's 4.5:1 for 12px text. */
+  --orange:     #7C2D12;
+  --orange-bg:  rgba(124,45,18,0.07);
+  --orange-bdr: rgba(124,45,18,0.20);
   --blue:     #1D4ED8;
   --blue-bg:  rgba(29,78,216,0.07);
   --blue-bdr: rgba(29,78,216,0.20);
@@ -2394,8 +2501,20 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 
 [data-theme="light"] html { background: #E8EAED; }
-[data-theme="light"] body {
+/* #557 investigation (QA, terminal-light audit): unscoped, so terminal+light
+   pages rendered the current design's #E8EAED canvas instead of terminal's
+   own --bg0 (#f7f6f3) - close enough in hue that it went unnoticed visually,
+   caught only by exact-hex contrast measurement on /scanner. Split into two
+   rules rather than switching this one to var(--bg0), since --bg0 isn't
+   declared in the current design's own light block (only :root/dark and the
+   two terminal blocks are) - reading it there would fall through to root's
+   dark value and blacken the current design's light body. */
+[data-theme="light"]:not([data-design="terminal"]) body {
   background: #E8EAED;
+  background-attachment: fixed;
+}
+[data-design="terminal"][data-theme="light"] body {
+  background: var(--bg0);
   background-attachment: fixed;
 }
 [data-theme="light"] body::after { opacity: 0; }
@@ -2460,7 +2579,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 [data-theme="light"] .gchat-msg-user .gchat-bubble { color: var(--purple); }
 [data-theme="light"] .gchat-input {
-  background: var(--bg1); border-color: var(--bdr2); color: var(--txt);
+  /* #520: was --bdr2 (rgba(0,0,0,0.14), ~1.38:1 on this input's white bg).
+     rgba(0,0,0,0.45) composites to ~3.36:1. */
+  background: var(--bg1); border-color: rgba(0,0,0,0.45); color: var(--txt);
 }
 [data-theme="light"] .gchat-send {
   background: var(--accent-bg); border-color: var(--accent-bdr); color: var(--accent);
@@ -3063,8 +3184,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 /* bias bar */
 .wf-bias-wrap   { display: flex; height: 3px; background: var(--bg3); }
 .wf-bias-bar    { height: 100%; transition: width .6s ease; }
-.wf-bias-buy    { background: #22d3ee; }
-.wf-bias-sell   { background: #f97316; }
+.wf-bias-buy    { background: var(--green); }
+.wf-bias-sell   { background: var(--red); }
 .wf-bias-label  { padding: 6px 14px 8px; font-size: var(--fs-label); font-weight: 600; border-bottom: 0.5px solid var(--bdr); }
 
 /* feed list */
@@ -3074,8 +3195,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .wf-row-big     { background: rgba(255,255,255,.025); }
 .wf-row-coin    { font-size: var(--fs-caption); font-weight: 800; }
 .wf-row-side    { font-size: var(--fs-caption); font-weight: 700; letter-spacing: .04em; }
-.wf-row-side-buy  { color: #22d3ee; }
-.wf-row-side-sell { color: #f97316; }
+.wf-row-side-buy  { color: var(--green); }
+.wf-row-side-sell { color: var(--red); }
 .wf-row-usd     { font-size: var(--fs-label); font-weight: 700; font-variant-numeric: tabular-nums; }
 .wf-row-price   { font-size: var(--fs-data); color: var(--txt3); font-variant-numeric: tabular-nums; }
 .wf-row-time    { font-size: var(--fs-caption); color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums; }
@@ -3199,6 +3320,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .frh-sig-chip    { display: inline-flex; flex-direction: column; gap: 1px; padding: 4px 9px; border-radius: 7px; border: 0.5px solid; white-space: nowrap; }
 .frh-sig-crowd   { font-size: var(--fs-caption); font-weight: 700; line-height: 1.3; }
 .frh-sig-hint    { font-size: var(--fs-caption); font-weight: 500; color: rgba(255,255,255,0.6); line-height: 1.3; }
+[data-theme="light"] .frh-sig-hint { color: var(--txt2); }
 
 .frh-signal      { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--radius-card); border: 0.5px solid; margin-bottom: 12px; }
 .frh-signal-top   { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
@@ -3762,7 +3884,12 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   background: var(--accent-solid);
   border-color: transparent;
   box-shadow: 0 4px 20px rgba(0,82,204,0.22), 0 1px 4px rgba(0,0,0,0.10);
-  color: #fff;
+  /* #559: was #fff. --on-accent already resolves to #ffffff for both
+     current-design light and terminal light at this exact call site, so
+     this is a governance fix with no visual change today - tokenizing it
+     stops it silently going wrong if either theme's --on-accent ever
+     moves, the same reasoning as the "Unlock with Pro" button fix. */
+  color: var(--on-accent);
 }
 [data-theme="light"] .gchat-fab:hover {
   box-shadow: 0 6px 28px rgba(0,82,204,0.30), 0 2px 6px rgba(0,0,0,0.12);
@@ -4034,7 +4161,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   display: inline-flex; align-items: center; justify-content: center;
   transition: filter 0.15s, background 0.15s;
 }
-.consent-accept  { background: var(--accent-solid); border: 0.5px solid var(--accent); color: #fff; }
+.consent-accept  { background: var(--accent-solid); border: 0.5px solid var(--accent); color: var(--on-accent); }
 .consent-decline { background: var(--bg4); border: 0.5px solid var(--txt3); color: var(--txt); }
 .consent-accept:hover  { filter: brightness(1.08); }
 .consent-decline:hover { filter: brightness(1.25); }
@@ -4373,6 +4500,12 @@ body.landing .app-bar,
 body.landing .nav-drawer,
 body.landing .mobile-tab-bar,
 body.landing .news-ticker,
+/* Terminal-mode landing (#413 canvas mirror, landing.md) has its own ticker
+   with its own coin selection (all tracked coins vs dashboard's curated 8)
+   and its own mobile geometry - AppShell's shared PriceTickerStrip must not
+   also render underneath it. Same hide-on-landing mechanism as the rest of
+   this block, not new logic. */
+body.landing .price-ticker-strip,
 body.landing .gchat-fab,
 body.landing .gchat-panel,
 body.landing .ob-checklist { display: none !important; }
@@ -4384,6 +4517,15 @@ body.landing .app-content {
 }
 body.landing {
   overflow-x: hidden;
+}
+
+/* Scoped to the CURRENT design only - LandingTerminal (data-design="terminal")
+   also sets body.landing (it needs the shell-hiding rules further down this
+   file) but has its own light/dark tokens and must fall through to them
+   instead of inheriting this design's forced-dark pin. Without the :not()
+   guard, terminal landing rendered this design's black ground + blue accent
+   in light theme (#595). */
+:root:not([data-design="terminal"]) body.landing {
   background: #050505 !important;
 }
 
@@ -4392,8 +4534,9 @@ body.landing {
    --txt/--accent tokens, which the light theme overrides globally - so a
    visitor with light mode set elsewhere in the app got a black page with
    light-mode card/text colors bleeding through. Re-pin the dark values
-   here, scoped to the landing subtree only, so nothing outside it changes. */
-[data-theme="light"] body.landing {
+   here, scoped to the landing subtree only, so nothing outside it changes.
+   Also scoped off terminal landing for the same reason as above (#595). */
+:root[data-theme="light"]:not([data-design="terminal"]) body.landing {
   --bg0: #030405;
   --bg:  #000000;
   --bg1: #06070a;
@@ -4712,7 +4855,11 @@ body.landing {
 .pf-footer-logo { font-size: var(--fs-caption); font-weight: 700; color: var(--txt); letter-spacing: -0.02em; }
 .pf-footer-tagline { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.4; }
 .pf-footer-nav { display: flex; gap: 20px; align-items: center; flex-shrink: 0; }
-.pf-footer-link { font-size: var(--fs-caption); color: var(--txt3); text-decoration: none; transition: color 0.15s; letter-spacing: 0.01em; padding: 12px 0; display: inline-flex; align-items: center; }
+/* #526 C35: "FAQ" measured 23px wide with only vertical padding - the
+   shortest link in the row, and the only one under the 24px WCAG 2.5.8
+   minimum. Horizontal padding added so every link in .pf-footer-nav clears
+   24 on both axes, not just this one. */
+.pf-footer-link { font-size: var(--fs-caption); color: var(--txt3); text-decoration: none; transition: color 0.15s; letter-spacing: 0.01em; padding: 12px 4px; display: inline-flex; align-items: center; }
 .pf-footer-link:hover { color: var(--txt); }
 .pf-footer-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
 .pf-footer-divider-label {
@@ -4768,6 +4915,15 @@ body.landing {
 @media (max-width: 900px) { .pf-footer-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) {
   .pf-footer-top { flex-direction: column; }
+  /* #557: this row's 7 links (min-width defaults to auto on a flex item,
+     and flex-shrink:0 above blocks shrinking too) refused to wrap even after
+     .pf-footer-top stacked it below the brand, so it alone forced the
+     document's layout width to 466px on a 390px viewport - the root cause
+     behind .app-bar/.nav-drawer also measuring 466 (position:fixed;left:0;
+     right:0 resolves against that inflated layout width, not the visual
+     viewport). Confirmed by bisection: hiding only this element restores
+     app-bar to exactly 390px, with .nav-drawer untouched. */
+  .pf-footer-nav { flex-wrap: wrap; row-gap: 8px; }
   .pf-footer-grid { grid-template-columns: 1fr; gap: 16px; }
   .pf-footer-bottom { flex-direction: column; align-items: flex-start; }
 }
@@ -4781,7 +4937,10 @@ body.landing {
 .lp-footer-brand p { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.6; margin: 12px 0 0; max-width: 260px; }
 .lp-footer-col      { display: flex; flex-direction: column; gap: 11px; }
 .lp-footer-col-title { font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); margin-bottom: 3px; }
-.lp-footer-col a    { font-size: var(--fs-caption); color: var(--txt2); text-decoration: none; transition: color .15s; }
+/* #559: was mobile-only (the media-query rule below) - desktop viewports
+   never got the same fix, so every link in every landing footer column
+   still measured under WCAG 2.5.8's 24px minimum there. */
+.lp-footer-col a    { font-size: var(--fs-caption); color: var(--txt2); text-decoration: none; transition: color .15s; padding: 4px 0; min-height: 24px; display: inline-flex; align-items: center; }
 .lp-footer-col a:hover { color: var(--accent-2); }
 .lp-footer-bottom   { max-width: 1100px; margin: 36px auto 0; padding-top: 20px; border-top: 0.5px solid var(--bdr); display: flex; flex-direction: column; gap: 10px; }
 .lp-footer-copy     { font-size: var(--fs-caption); color: var(--txt3); }
@@ -5141,10 +5300,15 @@ html[lang="ar"] .lp-h1-accent {
   height: 100%; background: var(--purple); border-radius: 2px;
   transition: width 0.3s;
 }
+/* #526 C35: measured 10x16 - a bare glyph with no hit-area padding, well
+   under WCAG 2.5.8's 24x24. min-width/height plus flex-centering keeps the
+   glyph the same visual size while growing the actual tap target. */
 .ob-cl-mini-close {
   background: none; border: none; color: var(--txt3);
   font-size: 1rem; cursor: pointer; line-height: 1; padding: 0; flex-shrink: 0;
   opacity: 0.7;
+  min-width: 24px; min-height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .ob-cl-mini-close:hover { opacity: 1; color: var(--txt); }
 
@@ -5249,3 +5413,1684 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   .edge-card { display: flex; flex-direction: column; }
   .edge-card-label { min-width: 0; }
 }
+/* ── Monochrome Terminal design tokens (#413) ─────────────────────────────
+   The redesign's palette, scoped to [data-design="terminal"] so NOTHING in the
+   running app changes until a screen opts in. The redesign lands screen by
+   screen; a big-bang swap of :root would restyle 31 screens in one commit and
+   make every regression un-bisectable.
+
+   Values are mirrored in lib/terminalTokens.ts, which is the source both this
+   block and the conformance spec read from. If you change a value here, change
+   it there - __tests__/terminalTokens.test.mts fails if they drift, which is
+   the whole reason the .ts file exists.
+
+   Radius is 0 EVERYWHERE in this direction. Not a token - an absence. The
+   current app uses border-radius extensively, so opting a screen in means
+   removing radii, not overriding them.
+
+   :not([data-theme="light"]) guard (#511): terminal has no light palette -
+   every rule below reads these vars via var(), never a literal hex, so
+   withholding this override when light theme is active makes the whole
+   terminal scope fall back to light's own tokens instead of colliding on
+   source order (this block sits after [data-theme="light"] in the file,
+   so without the guard terminal's black --bg1 always won). */
+[data-design="terminal"]:not([data-theme="light"]) {
+  --bg0:  #08090a;   /* canvas */
+  --bg1:  #141517;   /* raised region - lifted from #0c0d0f (#512 bug 2): that
+                         was only 13 hex units off --bg (#000), imperceptible
+                         as a card boundary */
+  --bg2:  #111416;   /* bar/track background */
+  --bdr:  #1f2225;   /* structural hairline */
+  --bdr2: #131618;   /* row hairline */
+  --bdr3: #16191b;   /* cell hairline */
+  --txt:  #e8e9ea;   /* primary text and data */
+  --txt2: #8b8f94;   /* secondary text, prose */
+  --txt3: #7c828a;   /* micro-labels, meta - raised from #5a5f66 (#512 bug 4):
+                         that failed WCAG AA (~3:1) against --bg1; this clears
+                         4.5:1 against the new --bg1 */
+  --txt4: #3a3f45;   /* disabled, axis labels */
+  --accent: #d9a626; /* active nav, primary CTA - ALWAYS with #08090a text */
+  /* #559 sweep, forward-check test: --on-accent was never declared ANYWHERE
+     in the file (only named in a comment at .auth-gate-btn, which itself uses
+     a hardcoded #fff instead) - .sshell-cta was the one real consumer, and an
+     undeclared custom property computes to nothing, not to --txt or any other
+     fallback. Declared as --bg0 to match the convention every other on-accent
+     surface in this block already follows (.tnav-item.on, .lt-plan-cta-pro):
+     near-black text on the gold fill. */
+  --on-accent: var(--bg0);
+  /* #559 platform audit: likely THE dominant off-palette source. --accent
+     itself was already governed above, but --accent-bg/--accent-bdr (the
+     Tailwind-blue #1a7aff tint pair used for nearly every "selected/hover"
+     treatment app-wide: .klc-tool-btn.on, .st-preset.on, .obw-row.is-
+     selected, .desktop-nav-item.on, dozens more) and --accent-2 (#5aa3ff,
+     app-logo/links/hover text) were never declared here at all. --purple/
+     --purple-bg/--purple-bdr alias to these three, so the leak was invisible
+     at the --accent level (correctly gold) while every -bg/-bdr/-2 consumer
+     still rendered blue. This is very likely the root cause behind "#1a7aff
+     leaking into terminal scope", named three times now (Arena C21, Markets,
+     Dashboard's initial C9 read) as if each were a separate finding. */
+  --accent-2:   var(--accent);
+  --accent-bg:  rgba(217,166,38,0.07);
+  --accent-bdr: rgba(217,166,38,0.22);
+  /* #559 sweep round 2: --accent-solid (29 uses - desktop-nav-item.on,
+     onboarding wizard, .ncard-ask-btn hover, several CTAs) and --accent-dim
+     were also undeclared, same shape as --accent-bg/-bdr above: root's
+     #1668e3 blue leaking through. --blue/--blue-bg/--blue-bdr are a distinct
+     literal (not an --accent alias) used for "crypto" category tags
+     (.nc-crypto, .wp-london, .gchat-bubble links) - collapsing them into
+     --accent here too, matching the precedent already set for --purple
+     (a categorical hue folded into the single terminal accent, not a
+     bull/bear/caution state like --green/--red/--amber which stay distinct). */
+  --accent-solid: var(--accent);
+  --accent-dim:   rgba(217,166,38,0.12);
+  --blue:      var(--accent);
+  --blue-bg:   var(--accent-bg);
+  --blue-bdr:  var(--accent-bdr);
+  /* --bg3/--bg4 (53 uses combined - .csb2-card, .av-rail-panel, .badge-flat,
+     .gchat-hist-item-active, .login-pw-tab.on, dozens more) are root's own
+     near-black layering scale, undeclared here. Aliased to terminal's own
+     --bg2/--bg1 rather than given new literals, preserving the raised-surface
+     ordering (bg3 sits above card level like bg2; bg4 sits above that like
+     bg1) instead of introducing a fourth near-identical near-black. */
+  --bg3: var(--bg2);
+  --bg4: var(--bg1);
+  --green:  #3fb950; /* bullish / FIRING positive */
+  --red:    #f0524d; /* bearish / FIRING negative */
+  /* #546 C9: --green-2 was undeclared here, so it fell through to the
+     current design's root value (#34d399, Tailwind emerald-400) - used by
+     computeCoinHealth's grade-B badge and MarketConditionsWidget's LONG %
+     label, among others. Aliased to --green rather than given its own
+     terminal shade, matching light theme's own precedent at this exact
+     token (app/globals.css:2381, "--green-2: var(--green)"). */
+  --green-2: var(--green);
+  /* #559 platform audit: --green-soft/--red-soft/--txt-dim were undeclared
+     here too, same governance gap as --green-2/--amber, but hit PER-CALL-SITE
+     fixes on Dashboard (#546) rather than being governed at the token level -
+     which only fixed the specific components touched, not the other ~29
+     routes using the same three tokens. The audit's near-universal off-
+     palette count (1242 instances, every route) is exactly what that partial
+     fix predicted: same shared-source shape, just not closed at the source.
+     Collapsing all three here, matching light theme's own precedent for the
+     first two (line ~2381) and Dashboard's own precedent for --txt-dim
+     (component-level swaps to --txt2 throughout #546). */
+  --green-soft: var(--green);
+  --red-soft:   var(--red);
+  --txt-dim:    var(--txt2);
+  /* #559: same dedicated-value shape as :root's own --txt-dash (line ~50)
+     - terminal's --txt3 is the identical #7c828a literal, so the same
+     composited-surface failure applies here too. */
+  --txt-dash: #848a92;
+  /* #546 C9: derived tints for --green/--red, same pattern as the already-
+     existing --accent-bg/--accent-bdr. Undeclared here, .chg-up/.chg-dn's
+     background/border (app/globals.css:786-787) fell through to the current
+     design's root tints (rgba of #4ade80/#f87171) - QA found these as
+     low-alpha off-palette residue after the text-colour fix landed. Not
+     part of TERMINAL_COLORS/the conformance test, same as --accent-bg/-bdr
+     aren't - these are computed tints of governed tokens, not tokens
+     themselves. */
+  --green-bg:  rgba(63,185,80,0.08);
+  --green-bdr: rgba(63,185,80,0.22);
+  --red-bg:    rgba(240,82,77,0.08);
+  --red-bdr:   rgba(240,82,77,0.22);
+  /* #559: found alongside the light-side --red-bg/--red-bdr leak - amber
+     never had a -bg/-bdr pair declared here at all, in either theme.
+     Dark's fallback (root's rgba(251,191,36,...)) happens to be correct
+     since terminal dark --amber and root --amber are both #fbbf24 - right
+     by coincidence, not by decision, same shape this whole file has been
+     closing all session. Declaring explicitly so light's move doesn't
+     silently break this the way it did for red. */
+  --amber-bg:  rgba(251,191,36,0.07);
+  --amber-bdr: rgba(251,191,36,0.22);
+  /* #559/#561: found missing here while adding the light terminal block below
+     and diffing declared tokens between the two - same shape as --amber
+     directly below: undeclared, so falls through to root's dark value by
+     inheritance rather than decision. Declaring explicitly at the same value
+     (not changing current behaviour), matching the --amber precedent. */
+  --fr-slight-long: #d4b483;
+  /* #542: was undeclared here, so terminal mode fell through to the current
+     design's root --amber (#fbbf24) by inheritance, not by decision. Design
+     confirmed #fbbf24 as the intended terminal value (handoff README, both
+     token tables) - declaring it explicitly, not changing it. */
+  --amber:  #fbbf24; /* weak/caution state (OI-trend, funding ladders) */
+  --mark-idle:    #22262a;  /* signal marker when not firing */
+  /* #520: was #2a2e32 - 1.36:1 against --bg1 (#141517), below WCAG 1.4.11's
+     3:1 for UI component boundaries. #5e646b clears 3.14:1. */
+  --border-input: #5e646b;  /* input and secondary-button border */
+
+  /* Radius: 0 everywhere in terminal mode. The comment above already states
+     this intent; these override the root tokens so CSS classes that reference
+     var(--radius-card) etc. produce 0 without needing per-class rules. */
+  --radius-data: 0;
+  --radius-card: 0;
+  --radius-chip: 0;
+  --radius-pill: 0;
+  --radius-sharp: 0;
+
+  /* Undocumented in the README, real in the prototypes: the FLAT cell of the
+     hours expectancy grid (|expectancy| < 0.12), with its own legend swatch.
+     Close to --mark-idle and deliberately not equal to it. */
+  --flat-cell: #1c1f22;
+
+  /* Typography (#413). Mono already ships app-wide as --font-mono and is
+     unchanged; the redesign's SANS is IBM Plex Sans, declared in
+     app/layout.tsx as --font-sans-terminal and pointed at here rather than
+     replacing --font-sans globally. Same reason as the colours: a screen opts
+     in, the rest of the app does not move. */
+  --font-sans: var(--font-sans-terminal), 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── Monochrome Terminal: LIGHT theme (#561) ───────────────────────────────
+   Until this block existed, [data-design="terminal"]:not([data-theme="light"])
+   above withheld terminal's palette under light without anything replacing
+   it, so terminal+light silently fell back to the current design's own
+   light theme - QA measured this on 128198c (--accent came back #0052cc
+   blue, font came back Figtree) and invalidated 60 of #559's 120 audit rows,
+   which had compared the current design's light colours against terminal's
+   dark palette as if they were the same system.
+
+   Do NOT remove the :not([data-theme="light"]) guard above to "merge" these
+   two blocks - that guard exists because of #511/PR #514: without it,
+   terminal's dark tokens beat light theme's on source order and rendered
+   black cards on a light page. Three states, three blocks: current/light
+   (already existed), terminal/dark (above), terminal/light (this one).
+
+   Values from specs/light-theme-tokens.md, confirmed from the design source
+   rather than derived - --amber/--mark-idle/--border-input specifically
+   correct three values QA had earlier assumed matched dark and got wrong.
+   --accent/--green/--red/--amber are darkened from their dark-theme hex
+   because the dark values measure under 2.6:1 on a light ground (spec's own
+   before-numbers); every light value here clears WCAG AA against --bg0. */
+[data-design="terminal"][data-theme="light"] {
+  --bg0:  #f7f6f3;
+  --bg1:  #ebe9e6;
+  --bg2:  #e3e1dd;
+  --bdr:  #d5d2cd;
+  --bdr2: #dfdcd7;
+  --bdr3: #e2dfda;
+  --txt:  #15181b;
+  --txt2: #585c61;
+  /* #559 second round: was #6a6e73 (5.14:1 on --bg0), the light-theme-
+     tokens.md figure - measured against the canvas, not the darkest
+     composited surface actually used (--bg2, tinted badge backgrounds).
+     Design's ruling, QA-verified against all five observed surfaces:
+     --bg0 5.690, --bg1 5.075, --bg2 4.709, #dee7e1 4.868, #e8eaed 5.102.
+     Matches light-theme-tokens.md's literal exactly (#5e6267, not the
+     visually-identical #5e6266 an earlier round of this file shipped -
+     three decimal places apart in the contrast math, but globals.css and
+     the spec must not disagree on the literal or the next audit reads it
+     as drift). --green below went through three candidates before
+     landing: design's first #16752f cleared their own reference surface
+     but only 4.44:1 on --bg2 (a surface it demonstrably lands on -
+     liq-row-lev, scanner badges); design provisionally ruled #17702f,
+     then re-ruled #14702c once QA argued --bg2 is the binding surface
+     rather than design's own reference #dee7e1 - verified against all
+     five (5.742 / 5.122 / 4.752 / 4.913 / 5.149). light-theme-tokens.md
+     is being restructured so every token states its --bg2 figure, not
+     just --bg0. */
+  --txt3: #5e6267;
+  --txt4: #aeaaa4;
+  /* #559: was #8a5c00 (5.38:1 on --bg0 only - the canvas figure, not the
+     binding one; same --bg0-only gap that dropped --txt3/--green/--red/
+     --amber here before design required a per-token surface figure).
+     Failed 8 of 17 observed surfaces. QA verified #754e00 against all 17:
+     worst 4.55:1 on #d6cab3 (the /correlation diagonal), 4.77 /liq LIVE
+     tag, 4.99 /briefing, 5.20+ on the rest, --bg0 6.83, --bg1 6.09.
+     Design accepted the trade explicitly - fixing the 8 failing surfaces
+     individually was real scope for a marginal gain over one token move,
+     and a brand colour that fails 8 of 17 places it's used isn't holding
+     its job. Visible effect: darker accent chrome (buttons, links) across
+     every light-theme route - intended, not a regression. */
+  --accent: #754e00;
+  --green:  #14702c; /* 4.752:1 on --bg2, the binding figure - see --txt3 comment above */
+  /* #559: was #cf222e (4.97:1 on --bg0 only - the canvas figure, not the
+     binding one, same gap that dropped --txt3 and --green here before
+     design started requiring a per-token surface figure). QA verified
+     #9d1a23 against every surface --red is observed on: worst 4.52:1 on
+     #c6c1be, every other surface higher. Design accepted the trade
+     explicitly - a duller alert red that passes everywhere over a vivid
+     one that failed 23 of 28 places it's actually used. */
+  --red:    #9d1a23;
+  /* #559: was #9a6a00, shipped with no contrast figure at all - the actual
+     cause it went unmeasured on every surface this long. #755100 verified
+     by QA against every surface --amber is observed on: worst 4.51:1 on
+     #cfcdca, every other surface higher. Design's ruling, no more waiting
+     on the tint fix - it never touched these surfaces, and --amber had
+     zero passing surfaces before this. */
+  --amber:  #755100;
+  --mark-idle:    #d1cec9;
+  --border-input: #75797e;
+
+  /* Same governance shape as the dark block: every alias/derived token that
+     block declares, this one must declare too, or it falls through to
+     :root's or [data-theme="light"]'s current-design values (the same
+     off-palette-by-inheritance bug #559 spent the whole session closing for
+     dark, now live for light the moment this block exists). */
+  --accent-2:   var(--accent);
+  --accent-solid: var(--accent);
+  /* #559: kept in sync with --accent above - rgb(117,78,0) = #754e00. These
+     three went stale when --accent moved from #8a5c00, same as --red-bg/
+     --red-bdr below - see that comment. */
+  --accent-bg:  rgba(117,78,0,0.07);
+  --accent-bdr: rgba(117,78,0,0.22);
+  --accent-dim: rgba(117,78,0,0.12);
+  /* Categorical hues (blue for "crypto" tags etc) collapse into the single
+     terminal accent here too, matching dark's --purple/--blue precedent -
+     monochrome means monochrome in both themes, not just the dark one. */
+  --blue:      var(--accent);
+  --blue-bg:   var(--accent-bg);
+  --blue-bdr:  var(--accent-bdr);
+  --bg3: var(--bg2);
+  --bg4: var(--bg1);
+  --green-2:    var(--green);
+  --green-soft: var(--green);
+  --red-soft:   var(--red);
+  --txt-dim:    var(--txt2);
+  /* #559: was var(--txt3) - "light not flagged as failing" at the time this
+     alias shipped. It was flagged next round: 3 of 9 observed surfaces
+     failed, worst 3.52:1, because aliasing meant --txt-dash could never be
+     darker than --txt3 lets it be for THAT token's own uses. Same shape as
+     dark theme's --txt-dash (line ~50): a dedicated value for this one use,
+     not a change to the shared token. #4f5257 clears all nine observed
+     surfaces - worst 4.50:1 on #c6c4c0, 5.40/5.49 on the two that were
+     failing, 5.94+ on the rest. --txt3 itself is unchanged - #5e6267,
+     still governs every other muted-text use in light. */
+  --txt-dash:   #4f5257;
+  /* rgb(20,112,44) = #14702c, kept in sync with --green above - these tints
+     went stale once already when --green moved from #1a7f37 without them. */
+  --green-bg:  rgba(20,112,44,0.08);
+  --green-bdr: rgba(20,112,44,0.22);
+  /* #559: rgb(157,26,35) = #9d1a23, kept in sync with --red above. These
+     went stale exactly the way this file's own comment two lines up
+     warned about: QA measured .csb2-chg rendering new-red TEXT (#9d1a23)
+     on an old-red TINT (rgba(207,34,46,...)) after the --red move landed -
+     the text followed the token, the derived alpha didn't, because it was
+     never re-derived from it. Same governance gap, not a new one. */
+  --red-bg:    rgba(157,26,35,0.08);
+  --red-bdr:   rgba(157,26,35,0.22);
+  /* #559: amber never had a -bg/-bdr pair declared in either terminal
+     block - see the dark block's identical comment. rgb(117,81,0) =
+     #755100, matching --amber above. */
+  --amber-bg:  rgba(117,81,0,0.07);
+  --amber-bdr: rgba(117,81,0,0.22);
+  /* Unlike dark (--on-accent: var(--bg0), near-black on bright gold), light's
+     --accent is itself the dark, saturated value - white text is what the
+     app already uses on every accent-solid surface regardless of theme
+     (.desktop-nav-item.on, .ncard-ask-btn:hover, both literal #fff). */
+  --on-accent: #ffffff;
+  /* FundingTerminal's "slight long" signal state (#559) - reusing the
+     current design's own light value rather than inventing a second one. */
+  --fr-slight-long: #7C5E2E;
+
+  /* Radius and typography are theme-invariant design-system rules, not
+     colours - omitting them here would leave terminal+light with :root's
+     rounded corners (12px cards) since nothing else zeroes them under light. */
+  --radius-data: 0;
+  --radius-card: 0;
+  --radius-chip: 0;
+  --radius-pill: 0;
+  --radius-sharp: 0;
+  --font-sans: var(--font-sans-terminal), 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── Monochrome Terminal: navigation (#413) ───────────────────────────────
+   Scoped to [data-design="terminal"] like the tokens, so the existing NavDrawer
+   is untouched until the flag is on. Radius is 0 throughout - the design has no
+   rounded corners anywhere, so these rules set none rather than overriding. */
+
+[data-design="terminal"] .tnav {
+  display: none;
+  height: 44px; align-items: center; gap: 18px;
+  padding: 0 16px;
+  background: var(--bg0);
+  border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .tnav-brand { text-decoration: none; display: inline-flex; align-items: center; }
+[data-design="terminal"] .tnav-wordmark {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px; font-weight: 700; letter-spacing: .14em;
+  color: var(--txt);
+}
+[data-design="terminal"] .tnav-items { display: flex; align-items: center; gap: 2px; }
+[data-design="terminal"] .tnav-item {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+  padding: 6px 12px; color: var(--txt3); text-decoration: none;
+  transition: color .12s;
+}
+[data-design="terminal"] .tnav-item:hover { color: var(--txt2); }
+/* The design's one inversion: active nav is amber-filled with #08090a text.
+   --bg0 IS #08090a, so this is the token rather than the literal. */
+[data-design="terminal"] .tnav-item.on { background: var(--accent); color: var(--bg0); font-weight: 700; }
+
+/* Mobile bottom tab bar - 60px, five items, active in --accent. */
+[data-design="terminal"] .tnav-tabs { display: none; }
+
+@media (min-width: 900px) {
+  [data-design="terminal"] .tnav { display: flex; }
+}
+@media (max-width: 899px) {
+  [data-design="terminal"] .tnav-tabs {
+    display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997;
+    height: 60px; background: var(--bg0); border-top: 1px solid var(--bdr);
+  }
+  [data-design="terminal"] .tnav-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; color: var(--txt3); text-decoration: none;
+    /* 60px tall and a fifth of the viewport wide - comfortably past the 24x24
+       WCAG 2.2 AA minimum without needing an overlay like #388's control. */
+  }
+  [data-design="terminal"] .tnav-tab.on { color: var(--accent); }
+  [data-design="terminal"] .tnav-tab-label {
+    font-family: var(--font-mono), monospace;
+    font-size: 9px; letter-spacing: .1em; font-weight: 500;
+  }
+  /* The old drawer's tab bar must not stack with the new one. */
+  [data-design="terminal"] .mobile-tab-bar { display: none !important; }
+}
+
+/* ── Monochrome Terminal: /disclaimer (#413) ──────────────────────────────
+   Radius 0 throughout, hairlines never doubled - each region owns its bottom
+   border, per the handoff's spacing rules. */
+
+[data-design="terminal"] .dterm { max-width: 1180px; margin: 0 auto; padding: 40px 24px 96px; }
+
+[data-design="terminal"] .dterm-head { border-bottom: 1px solid var(--bdr); padding-bottom: 28px; margin-bottom: 32px; }
+[data-design="terminal"] .dterm-eyebrow {
+  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 600;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--txt3); margin-bottom: 12px;
+}
+[data-design="terminal"] .dterm-title {
+  font-family: var(--font-mono), monospace; font-size: 34px; font-weight: 700;
+  color: var(--txt); margin: 0; line-height: 1.1; letter-spacing: -.01em;
+}
+
+/* The risk row. --red because these ARE firing signals in the design's sense:
+   the number is the event, not a decoration. */
+[data-design="terminal"] .dterm-risk { display: flex; flex-wrap: wrap; gap: 1px; margin-top: 26px; background: var(--bdr3); }
+[data-design="terminal"] .dterm-risk-cell { flex: 1 1 200px; background: var(--bg1); padding: 13px 16px; }
+[data-design="terminal"] .dterm-risk-label {
+  font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt3); margin-bottom: 7px;
+}
+[data-design="terminal"] .dterm-risk-value {
+  font-family: var(--font-mono), monospace; font-size: 26px; font-weight: 700;
+  color: var(--red); font-variant-numeric: tabular-nums; line-height: 1;
+}
+[data-design="terminal"] .dterm-risk-note { font-size: 12px; color: var(--txt3); margin-top: 6px; }
+
+[data-design="terminal"] .dterm-body { display: grid; grid-template-columns: 264px 1fr; gap: 48px; align-items: start; }
+
+/* Contents rail - active item carries a 2px amber left border, per README:165. */
+[data-design="terminal"] .dterm-toc { position: sticky; top: 60px; display: flex; flex-direction: column; }
+[data-design="terminal"] .dterm-toc-item {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 7px 0 7px 12px; border-left: 2px solid transparent;
+  font-size: 12.5px; color: var(--txt3); text-decoration: none; line-height: 1.4;
+  transition: color .12s, border-color .12s;
+}
+[data-design="terminal"] .dterm-toc-item:hover { color: var(--txt2); }
+[data-design="terminal"] .dterm-toc-item.on { border-left-color: var(--accent); color: var(--txt); }
+[data-design="terminal"] .dterm-toc-num {
+  font-family: var(--font-mono), monospace; font-size: 10px; color: var(--txt4); flex-shrink: 0;
+}
+
+[data-design="terminal"] .dterm-section { padding-bottom: 26px; margin-bottom: 26px; border-bottom: 1px solid var(--bdr2); scroll-margin-top: 64px; }
+[data-design="terminal"] .dterm-section:last-of-type { border-bottom: none; }
+[data-design="terminal"] .dterm-section-num {
+  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 600;
+  letter-spacing: .14em; color: var(--accent); margin-bottom: 8px;
+}
+[data-design="terminal"] .dterm-section-title {
+  font-family: var(--font-mono), monospace; font-size: 15px; font-weight: 700;
+  color: var(--txt); margin: 0 0 8px; letter-spacing: .01em;
+}
+[data-design="terminal"] .dterm-section-body { font-size: 13.5px; line-height: 1.65; color: var(--txt2); margin: 0; text-wrap: pretty; }
+
+[data-design="terminal"] .dterm-foot { border-top: 1px solid var(--bdr); padding-top: 22px; font-size: 12.5px; color: var(--txt3); line-height: 1.7; }
+[data-design="terminal"] .dterm-foot-meta { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 14px; }
+[data-design="terminal"] .dterm-foot-meta a { color: var(--txt3); }
+
+@media (max-width: 899px) {
+  /* The rail becomes a scrolling strip above the sections - a 264px column has
+     nowhere to go at 390px, and dropping it entirely would lose the numbering. */
+  [data-design="terminal"] .dterm-body { grid-template-columns: 1fr; gap: 24px; }
+  [data-design="terminal"] .dterm-toc { position: static; flex-direction: row; overflow-x: auto; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--bdr2); }
+  [data-design="terminal"] .dterm-toc-item { border-left: none; border-bottom: 2px solid transparent; white-space: nowrap; padding: 6px 10px; }
+  [data-design="terminal"] .dterm-toc-item.on { border-left-color: transparent; border-bottom-color: var(--accent); }
+  [data-design="terminal"] .dterm-title { font-size: 26px; }
+  [data-design="terminal"] .dterm { padding-bottom: 84px; }
+}
+
+/* ── Monochrome Terminal: the STATIC marketing shell (#413, #430) ─────────
+   The design has two shells; the app had one. These seven routes -
+   /disclaimer /about /faq /learn /terms /privacy /refunds - are read by
+   signed-out visitors and carry a marketing bar, not the five app
+   destinations.
+
+   Values measured from Static.dc.html, disclaimer frame at 1440x900:
+     bar        1438 x 56        wordmark 13px mono 700, .16em
+     links      11px mono, .12em, --txt2, gap 24
+     SIGN IN    11px mono, .12em
+     START FREE 11px mono 700, amber fill with --on-accent */
+
+[data-design="terminal"] .sshell {
+  display: flex; align-items: center; gap: 24px;
+  height: 56px; padding: 0 16px;
+  background: var(--bg0); border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .sshell-brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px; font-weight: 700; letter-spacing: .16em;
+  color: var(--txt); text-decoration: none;
+}
+[data-design="terminal"] .sshell-spacer { flex: 1; }
+[data-design="terminal"] .sshell-signin {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--txt2); text-decoration: none;
+}
+[data-design="terminal"] .sshell-signin:hover { color: var(--txt); }
+[data-design="terminal"] .sshell-cta {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  background: var(--accent); color: var(--on-accent);
+  padding: 7px 14px; text-decoration: none;
+  /* Radius 0 - "not a token, an absence". The app's own CTA is 20px rounded. */
+}
+@media (max-width: 899px) {
+  /* 52, not 56. Every shell in this design steps down at mobile - the app bar
+     goes 44 -> 38 and this one goes 56 -> 52. Measured by QA across the Static
+     file: 7 frames at 56px (desktop), 9 at 52px (mobile), and ZERO at 60px,
+     which is why these screens correctly have no bottom tab bar. */
+  [data-design="terminal"] .sshell { height: 52px; gap: 12px; padding: 0 12px; }
+  [data-design="terminal"] .sshell-brand { font-size: 12px; letter-spacing: .12em; }
+}
+/* Mobile 38px header (README:82) - logo, screen name, status. */
+[data-design="terminal"] .tnav-mhead { display: none; }
+@media (max-width: 899px) {
+  [data-design="terminal"] .tnav-mhead {
+    display: flex; align-items: center; gap: 10px;
+    height: 38px; padding: 0 12px;
+    background: var(--bg0); border-bottom: 1px solid var(--bdr);
+  }
+  [data-design="terminal"] .tnav-mbrand {
+    font-family: var(--font-mono), monospace;
+    font-size: 11px; font-weight: 700; letter-spacing: .14em; color: var(--txt);
+  }
+  [data-design="terminal"] .tnav-mscreen {
+    font-family: var(--font-mono), monospace;
+    font-size: 10px; letter-spacing: .12em; color: var(--txt3); flex: 1;
+  }
+  [data-design="terminal"] .tnav-mstatus {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--font-mono), monospace;
+    font-size: 10px; letter-spacing: .1em; color: var(--txt2);
+  }
+  /* 5px SQUARE, per the nav spec - the design has no round elements at all. */
+  [data-design="terminal"] .tnav-mdot { width: 5px; height: 5px; background: var(--green); }
+}
+
+/* ══ Landing, Monochrome Terminal — Landing 7a.dc.html · 7a (#413) ═════════
+   Every value measured off frame 7a. QA measured it independently before the
+   markup was written and every size corroborated: H1 54/32, price 46, final
+   CTA 36, section h2 34/24, verdict 32/26, ticker 34/30, CTAs 50/48/46.
+
+   RADIUS 0 EVERYWHERE ON THIS ROUTE, no exceptions - criterion 12 asserts it on
+   every element including <img>. The frame rounds the logo 6px; the design's
+   own rule does not permit it, and the spec resolves that in favour of the
+   rule. So the reset below is deliberate and must not be relaxed for one
+   element later.
+
+   EVERY RULE IS 1px on this route - criterion 17. Both 0.5px and 1px exist
+   elsewhere in this design and are different decisions; here it is always 1. */
+
+[data-design="terminal"] .lt-root,
+[data-design="terminal"] .lt-root * { border-radius: 0 !important; }
+
+[data-design="terminal"] .lt-root {
+  background: var(--bg0);
+  color: var(--txt);
+  font-family: var(--font-sans);
+}
+
+/* ── 1. nav, 56 / 52 ── */
+[data-design="terminal"] .lt-nav {
+  display: flex; align-items: center; gap: 12px;
+  height: 56px; padding: 0 40px;
+  border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .lt-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+[data-design="terminal"] .lt-wordmark {
+  font-family: var(--font-mono); font-size: 14px; font-weight: 700;
+  letter-spacing: .16em; color: var(--txt);
+}
+[data-design="terminal"] .lt-spacer { flex: 1; }
+[data-design="terminal"] .lt-ghost {
+  border: 1px solid var(--border-input); color: var(--txt2);
+  padding: 9px 16px; text-decoration: none;
+  font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .12em;
+}
+[data-design="terminal"] .lt-ghost:hover { border-color: var(--txt3); }
+[data-design="terminal"] .lt-cta-sm {
+  background: var(--accent); color: var(--bg0); font-weight: 700;
+  padding: 10px 18px; text-decoration: none;
+  font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .12em;
+}
+[data-design="terminal"] .lt-cta-sm:hover { opacity: .9; }
+
+/* ── 2. ticker, 34 / 30. Extends to every tracked coin, one row ── */
+[data-design="terminal"] .lt-ticker {
+  display: flex; height: 34px; overflow: hidden;
+  border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .lt-tcell {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  padding: 0 16px; border-right: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .lt-tsym {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; color: var(--txt2);
+}
+[data-design="terminal"] .lt-tpx {
+  font-family: var(--font-mono); font-size: 11px; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+/* The ONE place on this route where sign maps to colour. A price change
+   genuinely is directional; nowhere else on the page is. */
+[data-design="terminal"] .lt-tchg {
+  font-family: var(--font-mono); font-size: 11px; opacity: .8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 3. hero ── */
+[data-design="terminal"] .lt-hero {
+  display: flex; gap: 56px; padding: 76px 40px 64px;
+  border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .lt-hero-l { flex: 1; min-width: 0; }
+[data-design="terminal"] .lt-hero-r { flex: 0 0 472px; }
+[data-design="terminal"] .lt-badge-live {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--bdr); background: var(--bg1); padding: 7px 13px;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--txt2);
+}
+[data-design="terminal"] .lt-dot { width: 6px; height: 6px; background: var(--green); display: inline-block; }
+[data-design="terminal"] .lt-h1 {
+  font-family: var(--font-mono); font-size: 54px; font-weight: 700;
+  line-height: 1.06; letter-spacing: -.015em; color: var(--txt);
+  margin: 26px 0 0;
+}
+[data-design="terminal"] .lt-h1-accent { color: var(--accent); }
+[data-design="terminal"] .lt-hero-sub {
+  font-size: 17px; line-height: 1.6; color: var(--txt2);
+  margin: 22px 0 0; max-width: 600px; text-wrap: pretty;
+}
+[data-design="terminal"] .lt-hero-ctas { display: flex; gap: 12px; margin-top: 30px; }
+[data-design="terminal"] .lt-cta {
+  display: inline-flex; align-items: center; height: 50px; padding: 0 30px;
+  background: var(--accent); color: var(--bg0); text-decoration: none;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: .12em;
+}
+[data-design="terminal"] .lt-ghost-lg {
+  display: inline-flex; align-items: center; height: 50px; padding: 0 26px;
+  border: 1px solid var(--border-input); color: var(--txt2); text-decoration: none;
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: .12em;
+}
+[data-design="terminal"] .lt-stats {
+  display: flex; margin-top: 40px; border-top: 1px solid var(--bdr); padding-top: 24px;
+}
+[data-design="terminal"] .lt-stat { padding-right: 38px; margin-right: 38px; border-right: 1px solid var(--bdr); }
+[data-design="terminal"] .lt-stat:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
+[data-design="terminal"] .lt-stat-v {
+  display: block; font-family: var(--font-mono); font-size: 26px; font-weight: 700;
+  color: var(--txt); line-height: 1;
+}
+[data-design="terminal"] .lt-stat-l {
+  display: block; margin-top: 8px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--txt3);
+}
+
+/* ── live read panel ── */
+[data-design="terminal"] .lt-read { background: var(--bg1); border: 1px solid var(--bdr); }
+[data-design="terminal"] .lt-read-head {
+  display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 14px;
+  border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .lt-read-head .lt-dot { width: 5px; height: 5px; }
+[data-design="terminal"] .lt-read-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--txt2);
+}
+[data-design="terminal"] .lt-read-ts {
+  margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--txt3);
+}
+[data-design="terminal"] .lt-read-body { padding: 20px; }
+/* Colour comes from the read, never hardcoded. The frame is green because its
+   fixture is bullish. */
+[data-design="terminal"] .lt-verdict {
+  font-family: var(--font-mono); font-size: 32px; font-weight: 700; line-height: 1;
+}
+[data-design="terminal"] .lt-conf { display: flex; align-items: center; gap: 9px; margin-top: 14px; }
+[data-design="terminal"] .lt-conf-track { flex: 1; height: 3px; background: var(--bdr); display: block; }
+[data-design="terminal"] .lt-conf-fill { display: block; height: 3px; }
+[data-design="terminal"] .lt-conf-val { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--txt); }
+[data-design="terminal"] .lt-conf-lab {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em; color: var(--txt3);
+}
+[data-design="terminal"] .lt-levels {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+  background: var(--bdr); margin-top: 16px;
+}
+[data-design="terminal"] .lt-level { background: var(--bg1); padding: 11px 12px; }
+[data-design="terminal"] .lt-level-lab {
+  display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--txt3);
+}
+[data-design="terminal"] .lt-level-val {
+  display: block; margin-top: 5px;
+  font-family: var(--font-mono); font-size: 13.5px; font-weight: 600; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .lt-evidence { margin-top: 16px; }
+[data-design="terminal"] .lt-ev {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 14px; border-bottom: 1px solid var(--bdr2);
+}
+[data-design="terminal"] .lt-ev-mark { width: 2px; height: 18px; flex-shrink: 0; }
+[data-design="terminal"] .lt-ev-label {
+  width: 76px; flex-shrink: 0;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--txt3);
+}
+[data-design="terminal"] .lt-ev-val {
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .lt-ev-note {
+  margin-left: auto; text-align: right; font-size: 11px; color: var(--txt3);
+}
+
+/* ── sections 4-7 ── */
+[data-design="terminal"] .lt-sec { padding: 64px 40px; border-bottom: 1px solid var(--bdr); }
+[data-design="terminal"] .lt-how   { background: var(--bg1); padding: 60px 40px; }
+[data-design="terminal"] .lt-final { background: var(--bg1); display: flex; align-items: center; gap: 40px; }
+[data-design="terminal"] .lt-sec-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--txt3);
+}
+[data-design="terminal"] .lt-h2 {
+  font-family: var(--font-mono); font-size: 34px; font-weight: 700;
+  color: var(--txt); margin: 14px 0 0; line-height: 1.15;
+}
+[data-design="terminal"] .lt-final-h {
+  font-family: var(--font-mono); font-size: 36px; font-weight: 700;
+  color: var(--txt); margin: 0; line-height: 1.15;
+}
+[data-design="terminal"] .lt-sec-sub {
+  font-size: 15px; line-height: 1.6; color: var(--txt2); margin: 12px 0 0; max-width: 620px;
+}
+
+/* features: 3 columns, the GAP is the hairline - container painted --bdr */
+[data-design="terminal"] .lt-fgrid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+  background: var(--bdr); border: 1px solid var(--bdr); margin-top: 32px;
+}
+[data-design="terminal"] .lt-fcard {
+  display: block; background: var(--bg0); padding: 22px 20px; text-decoration: none; color: var(--txt2);
+}
+[data-design="terminal"] .lt-fcard:hover { background: var(--bg1); }
+[data-design="terminal"] .lt-fcard-title {
+  /* margin:0 because these became <h3> for the heading outline (#448) and the
+     UA stylesheet gives h3 a block margin a <span> never had. Without this the
+     card grows and the 66px description min-height no longer lines the six
+     cards up. */
+  display: block; margin: 14px 0 0;
+  font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--txt);
+}
+/* min-height so all six description blocks align - criterion 14 */
+[data-design="terminal"] .lt-fcard-desc {
+  display: block; margin-top: 9px; min-height: 66px;
+  font-size: 13px; line-height: 1.6; color: var(--txt2); text-wrap: pretty;
+}
+[data-design="terminal"] .lt-fcard-open {
+  display: block; margin-top: 12px;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .12em; color: var(--accent);
+}
+
+[data-design="terminal"] .lt-steps {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--bdr); border: 1px solid var(--bdr); margin-top: 32px;
+}
+[data-design="terminal"] .lt-step { background: var(--bg1); padding: 22px 20px; }
+[data-design="terminal"] .lt-step-n {
+  display: block; font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--accent);
+}
+[data-design="terminal"] .lt-step-title {
+  display: block; margin: 12px 0 0;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--txt);
+}
+[data-design="terminal"] .lt-step-desc {
+  display: block; margin-top: 8px; font-size: 13px; line-height: 1.6; color: var(--txt2);
+}
+
+[data-design="terminal"] .lt-plans {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px;
+  background: var(--bdr); border: 1px solid var(--bdr); margin-top: 32px;
+}
+[data-design="terminal"] .lt-plan { background: var(--bg0); padding: 28px 26px; }
+/* 2px accent top border marks Pro - criterion 15 */
+[data-design="terminal"] .lt-plan-pro { background: var(--bg1); border-top: 2px solid var(--accent); }
+[data-design="terminal"] .lt-plan-name {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--txt2);
+}
+[data-design="terminal"] .lt-badge {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em;
+  background: var(--accent); color: var(--bg0); padding: 3px 7px; font-weight: 700;
+}
+[data-design="terminal"] .lt-price {
+  font-family: var(--font-mono); font-size: 46px; font-weight: 700; color: var(--txt);
+  line-height: 1; margin-top: 14px;
+}
+[data-design="terminal"] .lt-plan-sub { font-size: 13px; color: var(--txt3); margin-top: 8px; }
+[data-design="terminal"] .lt-plan-list { list-style: none; margin: 22px 0 0; padding: 0; }
+[data-design="terminal"] .lt-plan-list li {
+  display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--bdr2);
+  font-size: 13px; color: var(--txt2);
+}
+[data-design="terminal"] .lt-tick { color: var(--txt3); font-family: var(--font-mono); }
+[data-design="terminal"] .lt-plan-cta {
+  display: flex; align-items: center; justify-content: center; height: 46px; margin-top: 22px;
+  border: 1px solid var(--border-input); color: var(--txt2); text-decoration: none;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .12em;
+}
+[data-design="terminal"] .lt-plan-cta-pro { background: var(--accent); color: var(--bg0); border-color: var(--accent); font-weight: 700; }
+
+/* ── 8. footer ── */
+[data-design="terminal"] .lt-footer { padding: 52px 40px 0; }
+[data-design="terminal"] .lt-footer-top { display: flex; gap: 48px; }
+[data-design="terminal"] .lt-footer-brand { flex: 0 0 290px; }
+[data-design="terminal"] .lt-footer-desc { font-size: 13px; line-height: 1.6; color: var(--txt3); margin: 14px 0 0; }
+[data-design="terminal"] .lt-footer-cols { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+[data-design="terminal"] .lt-footer-col { display: flex; flex-direction: column; gap: 9px; }
+[data-design="terminal"] .lt-footer-col-title {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--txt3); margin-bottom: 4px;
+}
+/* #559: never had the #526 C35 sizing fix applied, unlike the current
+   design's .lp-footer-col a - same footer, same links, undersized in both
+   themes at every viewport. */
+[data-design="terminal"] .lt-footer-col a { font-size: 13px; color: var(--txt2); text-decoration: none; padding: 4px 0; min-height: 24px; display: inline-flex; align-items: center; }
+[data-design="terminal"] .lt-footer-col a:hover { color: var(--txt); }
+[data-design="terminal"] .lt-risk-divider {
+  display: flex; align-items: center; gap: 14px; margin-top: 44px;
+  border-top: 1px solid var(--bdr); padding-top: 22px;
+}
+[data-design="terminal"] .lt-risk-divider span {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em; color: var(--txt3);
+}
+[data-design="terminal"] .lt-risk {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px 32px; margin-top: 18px;
+}
+[data-design="terminal"] .lt-risk-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--txt2);
+}
+[data-design="terminal"] .lt-risk-text { font-size: 12.5px; line-height: 1.6; color: var(--txt3); margin: 6px 0 0; }
+[data-design="terminal"] .lt-legal {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  margin-top: 34px; border-top: 1px solid var(--bdr); padding: 20px 0 34px;
+  font-size: 12px; color: var(--txt3);
+}
+[data-design="terminal"] .lt-legal a { color: var(--txt3); text-decoration: underline; text-underline-offset: 2px; }
+
+/* ── mobile, below 768. A SEPARATE layout, and the JS renders only one tree -
+      these rules restyle the mobile tree, they do not hide a desktop one. ── */
+@media (max-width: 767px) {
+  [data-design="terminal"] .lt-nav { height: 52px; padding: 0 16px; gap: 9px; }
+  [data-design="terminal"] .lt-wordmark { font-size: 11.5px; letter-spacing: .14em; }
+  [data-design="terminal"] .lt-ticker {
+    height: 30px;
+    -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent);
+            mask-image: linear-gradient(90deg, #000 86%, transparent);
+  }
+  [data-design="terminal"] .lt-tcell { padding: 0 12px; gap: 6px; }
+  [data-design="terminal"] .lt-tsym { font-size: 10px; }
+
+  [data-design="terminal"] .lt-hero { flex-direction: column; gap: 26px; padding: 34px 18px 30px; }
+  [data-design="terminal"] .lt-hero-r { flex: 1 1 auto; }
+  [data-design="terminal"] .lt-h1 { font-size: 32px; line-height: 1.1; margin-top: 18px; }
+  [data-design="terminal"] .lt-hero-sub { font-size: 14.5px; margin-top: 14px; max-width: none; }
+  [data-design="terminal"] .lt-hero-ctas { flex-direction: column; gap: 9px; }
+  [data-design="terminal"] .lt-cta { height: 48px; justify-content: center; }
+  [data-design="terminal"] .lt-ghost-lg { height: 46px; justify-content: center; }
+  [data-design="terminal"] .lt-stats {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px;
+    background: var(--bdr); border: 1px solid var(--bdr); padding-top: 0; border-top: 0;
+  }
+  [data-design="terminal"] .lt-stat {
+    background: var(--bg0); padding: 13px 14px; margin: 0; border-right: 0;
+  }
+  [data-design="terminal"] .lt-stat-v { font-size: 20px; }
+  [data-design="terminal"] .lt-stat-l { font-size: 8.5px; letter-spacing: .14em; }
+
+  [data-design="terminal"] .lt-verdict { font-size: 26px; }
+  [data-design="terminal"] .lt-read-body { padding: 18px; }
+  [data-design="terminal"] .lt-level { padding: 9px 10px; }
+  [data-design="terminal"] .lt-level-val { font-size: 12.5px; }
+
+  [data-design="terminal"] .lt-sec { padding: 30px 18px; }
+  [data-design="terminal"] .lt-how { padding: 30px 18px; }
+  [data-design="terminal"] .lt-h2 { font-size: 24px; }
+  [data-design="terminal"] .lt-final { flex-direction: column; align-items: stretch; gap: 20px; }
+  [data-design="terminal"] .lt-final-h { font-size: 26px; }
+
+  [data-design="terminal"] .lt-fgrid  { grid-template-columns: 1fr; }
+  [data-design="terminal"] .lt-steps  { grid-template-columns: 1fr; gap: 16px; background: transparent; border: 0; }
+  [data-design="terminal"] .lt-step   { border: 1px solid var(--bdr); }
+  [data-design="terminal"] .lt-plans  { grid-template-columns: 1fr; }
+  [data-design="terminal"] .lt-plan-pro { margin-top: 14px; }
+
+  [data-design="terminal"] .lt-footer { padding: 34px 18px 0; }
+  [data-design="terminal"] .lt-footer-top { flex-direction: column; gap: 28px; }
+  [data-design="terminal"] .lt-footer-brand { flex: 1 1 auto; }
+  [data-design="terminal"] .lt-footer-cols { grid-template-columns: repeat(2, 1fr); gap: 22px; }
+  [data-design="terminal"] .lt-risk { grid-template-columns: 1fr; gap: 16px; }
+}
+
+/* Landing owns its chrome: no reserved nav offset, no content max-width.
+   .app-content reserves 84px of top padding for the app nav and caps width at
+   1340px. Landing renders its own 56px nav and full-bleed sections, so both
+   would be wrong - the padding pushed the hero from y=90 to y=174, and the cap
+   would have boxed a page the frame draws edge to edge. */
+main.app-content[data-chrome="none"] {
+  padding-top: var(--banner-h, 0px);
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+  max-width: none;
+}
+
+/* ══ Arena, Monochrome Terminal — Arena 1a.dc.html · 1a (#413) ═════════════
+   Spec: design-handoff-dir/design_handoff_arena/specs/arena.md
+
+   RAIL IS 352, not 304. The 304 in the superseded frame is a
+   direct-manipulation artifact - three sibling frames say 352, and it carried
+   a hardcoded height on a flex column, which nobody authors. Recorded here
+   because a previous build shipped 304 from a correct measurement of a wrong
+   frame.
+
+   HAIRLINES: --bdr is STRUCTURAL only (regions, panel borders). Rows inside
+   panels and rail lists use --bdr3 (#16191b). Getting these the wrong way
+   round makes every list look like a set of regions.
+
+   RADIUS 0 EVERYWHERE, no exceptions. */
+
+[data-design="terminal"] .at-root,
+[data-design="terminal"] .at-root * { border-radius: 0 !important; }
+
+[data-design="terminal"] .at-root {
+  background: var(--bg0);
+  color: var(--txt);
+  font-family: var(--font-sans);
+}
+
+/* ── shared type ── */
+[data-design="terminal"] .at-micro {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--txt3);
+}
+
+/* ── panel headers: body 30, rail 28 ── */
+[data-design="terminal"] .at-phead,
+[data-design="terminal"] .at-rhead {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 16px; border-bottom: 1px solid var(--bdr);
+  /* #598 D3: same fixed-height-no-clip shape the chart bug was. Titles are
+     short static UI labels (not dynamic data), so clipping here is a safe
+     fallback rather than a data loss - unlike the hint band, which got a
+     minHeight instead because its content is a real sentence. */
+  overflow: hidden;
+}
+[data-design="terminal"] .at-phead { height: 30px; }
+[data-design="terminal"] .at-rhead { height: 28px; }
+[data-design="terminal"] .at-ptitle {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--txt2);
+}
+[data-design="terminal"] .at-pro {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: .12em;
+  background: var(--accent); color: var(--bg0); padding: 2px 5px;
+}
+[data-design="terminal"] .at-pspacer { flex: 1; }
+[data-design="terminal"] .at-pcount {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--txt3);
+}
+[data-design="terminal"] .at-panel { border-bottom: 1px solid var(--bdr); }
+
+/* ── region 2: ticker strip 34 ── */
+[data-design="terminal"] .ticker-wrap {
+  height: 34px; flex-shrink: 0; overflow-x: auto; overflow-y: hidden;
+  display: flex; align-items: stretch;
+  border-bottom: 1px solid var(--bdr);
+  font-family: var(--font-mono); font-size: 11px;
+  background: var(--bg0); margin-bottom: 0; scrollbar-width: none;
+}
+[data-design="terminal"] .ticker-wrap::-webkit-scrollbar { display: none; }
+[data-design="terminal"] .at-tk-cell {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 16px; border-right: 1px solid var(--bdr3); flex-shrink: 0;
+}
+[data-design="terminal"] .at-tk-sym {
+  color: var(--txt2); font-weight: 600; letter-spacing: .06em;
+}
+[data-design="terminal"] .at-tk-px {
+  color: var(--txt); font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-tk-chg {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── region 3-4: hint band 36, snapshot band 88 ── */
+[data-design="terminal"] .at-snapband {
+  display: flex; align-items: stretch; min-height: 88px;
+  border-bottom: 1px solid var(--bdr);
+}
+
+/* ── region 5: verdict ── */
+[data-design="terminal"] .at-verdict {
+  display: flex; align-items: stretch;
+  border-bottom: 1px solid var(--bdr); background: var(--bg1);
+}
+[data-design="terminal"] .at-vmain {
+  flex: 0 0 330px; padding: 20px; display: flex; flex-direction: column; gap: 10px;
+  border-right: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-vlabel {
+  font-family: var(--font-mono); font-size: 34px; font-weight: 700;
+  /* #609: was line-height: 1, which makes the line BOX exactly 34px while the
+     font's ascenders and descenders paint past it - measured 4-5px of spill.
+     The canvas specifies the 34px size, not the leading, so raising the line
+     box to contain the glyphs keeps the specified figure and stops the
+     overflow. Same shape as the 24px/line-height-1 wrap on the dashboard
+     banner (#608).
+     1.25, not the 1.15 this first shipped as: QA measured the 1.15 box at
+     39px against 41px needed on "NO READ" - still 2px short, because 34 x
+     1.15 = 39.1 only just exceeds the nominal size and leaves nothing for
+     the glyphs' actual overshoot. 34 x 1.25 = 42.5 clears it with margin. */
+  line-height: 1.25;
+}
+[data-design="terminal"] .at-vconf { display: flex; align-items: center; gap: 8px; }
+[data-design="terminal"] .at-vtrack {
+  flex: 1; max-width: 200px; height: 3px; background: var(--mark-idle); display: block;
+}
+[data-design="terminal"] .at-vfill { display: block; height: 3px; }
+[data-design="terminal"] .at-vnum {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--txt);
+}
+[data-design="terminal"] .at-vlevels { display: flex; flex: 1; }
+[data-design="terminal"] .at-vlevel {
+  flex: 1; padding: 20px 22px; display: flex; flex-direction: column; gap: 7px;
+  border-right: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-vlevelval {
+  font-family: var(--font-mono); font-size: 20px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── region 6: timeframe row, 42 ── */
+[data-design="terminal"] .at-tfrow {
+  display: flex; align-items: center; gap: 2px; height: 42px; padding: 0 16px;
+  border-bottom: 1px solid var(--bdr); overflow: hidden;
+}
+[data-design="terminal"] .at-tf {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  cursor: pointer; background: transparent;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em;
+}
+[data-design="terminal"] .at-tf-active {
+  background: var(--accent); color: var(--bg0); font-weight: 700; border: 1px solid var(--accent);
+}
+[data-design="terminal"] .at-tf-available { color: var(--txt2); border: 1px solid var(--bdr); }
+/* Gated is legible without colour - the padlock carries it. The border drops
+   to --bdr3 as a secondary cue, never the only one. */
+[data-design="terminal"] .at-tf-gated { color: var(--txt3); border: 1px solid var(--bdr3); }
+[data-design="terminal"] .at-tfhint {
+  margin-left: 10px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--txt3);
+}
+
+/* ── region 7: body, main + 352 rail ── */
+[data-design="terminal"] .at-body { display: flex; align-items: stretch; }
+[data-design="terminal"] .at-main {
+  flex: 1; min-width: 0; border-right: 1px solid var(--bdr);
+}
+[data-design="terminal"] .at-rail { flex: 0 0 352px; display: flex; flex-direction: column; }
+/* overflow/position: KLineProChart is restyled by tokens, not rebuilt
+   (arena.md, out of scope) - it sizes its own internal canvas/overlay price
+   tags from assumptions that predate this 430px box. Without a clip
+   boundary here, anything it renders taller than 430px spills into
+   MultiTF/MarketStructure below instead of being cropped by its own panel. */
+[data-design="terminal"] .at-chart {
+  height: 430px; padding: 16px 62px 24px 16px;
+  position: relative; overflow: hidden;
+}
+/* The two paired rows: each half flex:1, divided by one structural hairline. */
+[data-design="terminal"] .at-pair { display: flex; align-items: stretch; border-bottom: 1px solid var(--bdr); }
+[data-design="terminal"] .at-pair > * { flex: 1; min-width: 0; }
+[data-design="terminal"] .at-pair > * + * { border-left: 1px solid var(--bdr); }
+
+/* ── evidence rows ── */
+[data-design="terminal"] .at-ev {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 16px; border-bottom: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-ev-mark { width: 2px; height: 18px; flex-shrink: 0; }
+[data-design="terminal"] .at-ev-label {
+  width: 78px; flex-shrink: 0;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--txt3);
+}
+[data-design="terminal"] .at-ev-val {
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* No fixed width and no ellipsis anywhere on this route - labels are DB-driven
+   and change length at runtime (spec §Honest labels). */
+[data-design="terminal"] .at-ev-note {
+  margin-left: auto; text-align: right; font-size: 11px; color: var(--txt3);
+}
+
+/* ── mobile, below 768. A separate TREE - these rules style it, they do not
+      hide a desktop one. ── */
+@media (max-width: 767px) {
+  [data-design="terminal"] .at-msym {
+    display: flex; align-items: center; height: 44px; padding: 0 14px;
+    border-bottom: 1px solid var(--bdr);
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--txt);
+  }
+  [data-design="terminal"] .at-verdict { flex-direction: column; }
+  [data-design="terminal"] .at-vmain { flex: 1 1 auto; border-right: 0; padding: 14px; }
+  [data-design="terminal"] .at-vlabel { font-size: 26px; }
+  [data-design="terminal"] .at-vlevels {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; border-top: 1px solid var(--bdr3);
+  }
+  [data-design="terminal"] .at-vlevel { padding: 12px 14px; }
+  [data-design="terminal"] .at-vlevelval { font-size: 15px; }
+  [data-design="terminal"] .at-tfrow { height: 40px; padding: 0 14px; }
+  [data-design="terminal"] .at-tf { padding: 6px 10px; }
+  /* #598 D2: this was .at-mchart, a class the JSX never applies (only
+     .at-chart is used at any viewport) - so the mobile chart stayed 430px
+     tall instead of 210, and the two suppression rules below stayed dead
+     too. Renamed to the class that's actually on the element. */
+  [data-design="terminal"] .at-chart { height: 210px; }
+  [data-design="terminal"] .at-ev { padding: 10px 14px; }
+  [data-design="terminal"] .at-root { padding-bottom: 60px; }
+  /* .at-pair (MTF+Structure, EMA+Absorption) stacks instead of sitting
+     side-by-side - two ~170px-wide halves at 390px isn't enough room for
+     either panel's own content. */
+  [data-design="terminal"] .at-pair { flex-direction: column; }
+  [data-design="terminal"] .at-pair > * + * { border-left: 0; border-top: 1px solid var(--bdr); }
+  /* Structure row: type + price + ago, direction glyph absent (arena.md
+     mobile region table). MarketStructure is shared, so the glyph itself
+     stays - restyled off, not deleted, same as the KLineProChart toolbar
+     buttons above. */
+  [data-design="terminal"] .at-panelbody .ms-dir-glyph { display: none; }
+  /* C32: nav 38. Nav itself is shell chrome (out of scope this branch,
+     matches every other terminal route tonight) - this only sets the height
+     so the mobile tree matches the spec's number; it does not restyle nav
+     content. The tab bar (60, five destinations) is the app shell's own
+     .mobile-tab-bar below, not a second arena-only bar. */
+  [data-design="terminal"] .at-nav-mobile { height: 38px; }
+}
+
+/* Rail panels — clusters, Why, session history. Rows use --bdr3 (list
+   hairline), never --bdr, which is structural. */
+[data-design="terminal"] .at-cl {
+  display: grid; grid-template-columns: 48px minmax(0, 1fr) 46px;
+  align-items: center; gap: 8px; padding: 7px 16px;
+  border-bottom: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-cl-px,
+[data-design="terminal"] .at-cl-usd {
+  font-family: var(--font-mono); font-size: 11px; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-cl-usd { text-align: right; }
+[data-design="terminal"] .at-cl-bar { display: block; height: 8px; background: var(--mark-idle); }
+[data-design="terminal"] .at-cl-fill { display: block; height: 8px; }
+[data-design="terminal"] .at-why {
+  font-family: var(--font-sans); font-size: 12.5px; line-height: 1.6;
+  color: var(--txt2); margin: 0; padding: 12px 16px; text-wrap: pretty;
+}
+[data-design="terminal"] .at-hrow {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) 28px;
+  align-items: center; gap: 8px; padding: 8px 16px;
+  border-bottom: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-h-time,
+[data-design="terminal"] .at-h-conf {
+  font-family: var(--font-mono); font-size: 11px; color: var(--txt2);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-h-conf { text-align: right; }
+[data-design="terminal"] .at-h-verdict {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--txt);
+}
+[data-design="terminal"] .at-empty {
+  font-family: var(--font-sans); font-size: 12px; color: var(--txt4); padding: 10px 16px;
+}
+[data-design="terminal"] .at-rail-spacer { flex: 1; }
+
+/* Region 4, snapshot band: 330 coin cell | stat cells | 230 badge cell. */
+[data-design="terminal"] .at-coincell {
+  flex: 0 0 330px; display: flex; align-items: center; gap: 13px;
+  padding: 0 20px; border-right: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .at-coinsym {
+  font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: var(--txt);
+}
+[data-design="terminal"] .at-snapcells { flex: 1; min-width: 0; display: flex; align-items: center; }
+[data-design="terminal"] .at-badgecell {
+  flex: 0 0 230px; display: flex; align-items: center; padding: 0 18px;
+  border-left: 1px solid var(--bdr3);
+}
+
+/* CoinMarketSnapshot, re-expressed for the terminal band (#413).
+ *
+ * The component ships .edge-grid / .edge-card: an auto-fit grid of rounded
+ * cards with their own borders and gaps. Dropped into the 88px band it WRAPPED
+ * to 253px - QA measured it. Placing a production component in a new layout is
+ * not the same as moving it into the new design, and this is what the
+ * difference looks like.
+ *
+ * Restyled in place rather than reimplemented: the component keeps its data,
+ * its labels and its legacy appearance everywhere else, and only the terminal
+ * band gets the spec's geometry - five equal cells, one row, hairline-separated.
+ *
+ * The ellipsis override is not cosmetic. Labels here are DB-driven and change
+ * length at runtime, and spec §Honest labels forbids truncation on this route -
+ * a clipped label reads as a different signal. */
+[data-design="terminal"] .at-snapband { height: 88px; }
+[data-design="terminal"] .at-snapcells .edge-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 0; margin: 0; width: 100%; height: 100%;
+}
+[data-design="terminal"] .at-snapcells .edge-card {
+  background: transparent; border: 0; border-right: 1px solid var(--bdr3);
+  padding: 0 18px; display: flex; flex-direction: column; justify-content: center;
+  /* #609: label + value + note plus two 6px gaps measured 87px of content in
+     the band's 88px slot - no headroom, and any rounding or a taller glyph
+     tips it over. 4px buys 4px back without changing the three type sizes,
+     which are the parts the canvas actually specifies. overflow guards the
+     remainder: this is a fixed-height band, so content that still does not
+     fit should crop rather than spill into the verdict band below it - the
+     same rule already applied to .at-chart and the panel headers. */
+  gap: 4px;
+  min-height: 0; overflow: hidden;
+}
+[data-design="terminal"] .at-snapcells .edge-card:last-child { border-right: 0; }
+[data-design="terminal"] .at-snapcells .edge-card-label {
+  font-size: 9.5px; letter-spacing: .16em; color: var(--txt3); margin: 0;
+  /* No truncation on this route - labels are DB-driven. */
+  overflow: visible; text-overflow: clip; white-space: normal;
+}
+[data-design="terminal"] .at-snapcells .edge-card-value {
+  font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-snapcells .edge-card-signal {
+  font-family: var(--font-mono); font-size: 10px; color: var(--txt4);
+}
+
+/* Body panels wear the spec's header (§Panel header: "every panel in the body
+   uses it"). The passed-in components draw their own, so theirs is suppressed
+   here and .at-phead (app/arena/page.tsx's terminal branch - no separate
+   ArenaTerminal.tsx, see #413 architecture note there) supplies the pattern -
+   height 30, 0 16px, 10px mono/700 .16em, optional PRO chip.
+   Suppressed rather than deleted: these components render on other screens
+   where their headers are correct. */
+[data-design="terminal"] .at-bodypanel .sms-header,
+[data-design="terminal"] .at-bodypanel .ms-header,
+[data-design="terminal"] .at-bodypanel .abs-header,
+[data-design="terminal"] .at-bodypanel .ema-header {
+  /* !important: ema-header carries an inline display:'flex' - same
+     "inline beats a non-important class rule" shape as #559's radius
+     fixes tonight, just for display instead of border-radius. The other
+     three (sms/ms/abs-header) have no competing inline style, so this is
+     harmless for them. */
+  display: none !important;
+}
+[data-design="terminal"] .at-panelbody { padding: 0; }
+/* MultiTFAlignment's own title is an .edge-card-label, the same class its
+   repeated row-cells use elsewhere (dashboard's signal grid) - safe to
+   suppress wholesale here because .at-panelbody never hosts that repeated
+   pattern, only this one title use. */
+[data-design="terminal"] .at-panelbody .edge-card-label { display: none; }
+/* EMASignal ships its own card chrome (bg/border/radius) with no class to
+   flatten via the .card/.edge-card hook above - same shape as the "class
+   exists only for a terminal selector" pattern used throughout this file. */
+[data-design="terminal"] .at-panelbody .ema-card {
+  background: transparent !important; border: 0 !important; border-radius: 0 !important;
+  padding: 0 !important; margin: 0 !important;
+}
+/* The cards these components ship lose their frames inside a panel that
+   already has one - otherwise every row reads as its own region. */
+[data-design="terminal"] .at-panelbody .card,
+[data-design="terminal"] .at-panelbody .edge-card {
+  background: transparent; border: 0; padding: 10px 16px;
+}
+[data-design="terminal"] .at-panelbody .edge-grid { gap: 0; margin: 0; }
+
+/* KLineProChart's own timeframe buttons are suppressed on the terminal Arena
+   (#461). The spec gives this screen ONE timeframe selector - region 6, the
+   42px row with three states and padlocks - and the chart shipped a second one
+   inside its toolbar, so /arena had two controls for the same state sitting
+   inches apart, with different styling and different gating.
+
+   Only the TF BUTTONS go. The rest of the toolbar - draw tools, S/R, structure,
+   fullscreen - is chart functionality with no equivalent in the terminal row,
+   and removing it would delete features to fix a duplication.
+
+   Suppressed, not deleted: the same chart renders on other screens where its
+   own selector is the only one. */
+[data-design="terminal"] .at-chart .klc-tf-btn { display: none; }
+/* The scale badge sits with them and reads as orphaned once they are gone. */
+[data-design="terminal"] .at-chart .klc-scale-badge { display: none; }
+
+/* ── Dashboard (Desk 2a) terminal overrides (#413) ─────────────────────────
+   Hardcoded pixel radii that the token override (--radius-card: 0) cannot
+   reach because they are literal px values in the shared class definitions.
+   Each rule is one class, one property: no cascade, no specificity surprise. */
+[data-design="terminal"] .edge-card     { border-radius: 0; }
+/* #607: the main column is banded, not carded - see TPanel's comment. Same
+   treatment for the three .dash-main children that still drew their own box:
+   no gap between bands, bottom hairline only, column ground rather than a
+   per-band fill. Terminal only - the current design's dashboard keeps its
+   spaced cards, and .scc-card/.dash-conditions-row both render there too. */
+[data-design="terminal"] .dash-main { gap: 0; }
+[data-design="terminal"] .dash-main > .scc-card {
+  border: 0; border-bottom: 1px solid var(--bdr);
+  background: transparent; border-radius: 0;
+}
+[data-design="terminal"] .dash-main > .dash-conditions-row {
+  gap: 0; border-bottom: 1px solid var(--bdr);
+}
+/* The split's own internal divider, which the 14px grid gap used to imply. */
+[data-design="terminal"] .dash-main > .dash-conditions-row > * + * {
+  border-left: 1px solid var(--bdr);
+}
+[data-design="terminal"] .dash-conditions-row .av-rail-panel { background: transparent; }
+/* Kept as the radius floor for .scc-card. Under terminal the only .scc-card
+   that renders is the one inside .dash-main above (app/dashboard/page.tsx's
+   copy is on the branch terminal early-returns past), so this is belt to
+   that rule's braces rather than a second live case. */
+[data-design="terminal"] .scc-card      { border-radius: 0; }
+[data-design="terminal"] .macro-rail-card { border-radius: 0; border: 1px solid var(--bdr); }
+/* .mr / .mr-track / .mr-fill / .mr-factor rules removed (#587): MarketRead is
+   emitted only by app/dashboard/page.tsx's non-terminal branch now that the
+   terminal dashboard renders TMarketReadBanner in that slot, so nothing on a
+   terminal route can carry those classes. Same reasoning as deleting the
+   component's own terminal branch - dead design-specific code, just in CSS. */
+[data-design="terminal"] .cascade-dismiss { border-radius: 0; }
+[data-design="terminal"] .csb2-sig      { border-radius: 0; }
+[data-design="terminal"] .csb2-bar-track,
+[data-design="terminal"] .csb2-bar-fill { border-radius: 0; }
+/* #559 C8: the rest of dashboard's rectangular pixel-radii, found by QA's
+   full-page sweep rather than by route inspection - SOTD sits in the
+   dashboard rail but isn't a dashboard-specific component, so it had been
+   missed by every audit scoped to "dashboard's own classes". (MarketRead's
+   .mr-track/.mr-fill were here too until #587 moved terminal off that
+   component - see the note above.) */
+[data-design="terminal"] .sotd-static-badge,
+[data-design="terminal"] .sotd-refresh     { border-radius: 0; }
+[data-design="terminal"] .consent-btn      { border-radius: 0; }
+/* #559: these three classes exist ONLY to give a terminal selector a hook -
+   the elements are not design-mode-scoped in JS, so the base (current-
+   design) radius has to live here as an unscoped rule, not stay inline,
+   or the inline declaration keeps winning over the terminal override the
+   same way it did before this comment: a class selector cannot beat an
+   inline style at equal-or-lower specificity, so "add the class" alone
+   does nothing while the inline property is still there to win. Base
+   values match what was previously inline, so current design is
+   pixel-identical to before; only terminal's override actually changes. */
+.psc-verdict-pill  { border-radius: 20px; }
+/* #592 review: LanguageSwitcher.tsx is landing-exclusive (current design +
+   terminal both render it), no design-mode branch in its own JS - same
+   "class exists only for a terminal hook" shape as the rule above. Base
+   values match what was previously inline, so current design (8px button,
+   10px dropdown) is unchanged; only terminal's override below changes. */
+.lp-lang-btn  { border-radius: 8px; }
+.lp-lang-menu { border-radius: 10px; border: 0.5px solid var(--bdr2); }
+.ecw-impact-chip   { border-radius: 4px; }
+.vr-hv-zone-low    { border-radius: 3px 0 0 3px; }
+.vr-hv-zone-high   { border-radius: 0 3px 3px 0; }
+.vr-hv-track       { border-radius: 3px; }
+.mcw-rsi-track,
+.mcw-rsi-fill,
+.mcw-ls-bar        { border-radius: 3px; }
+[data-design="terminal"] .psc-verdict-pill { border-radius: 0; }
+/* #592: menu's 0.5px border is C17's "no 0.5px on this route" too - only
+   invisible to the automated pass because the closed menu never renders it. */
+[data-design="terminal"] .lp-lang-btn  { border-radius: 0; }
+[data-design="terminal"] .lp-lang-menu { border-radius: 0; border: 1px solid var(--bdr2); }
+[data-design="terminal"] .vr-hv-track,
+[data-design="terminal"] .vr-hv-track > *  { border-radius: 0; }
+[data-design="terminal"] .ecw-impact-chip  { border-radius: 0; }
+[data-design="terminal"] .mcw-rsi-track,
+[data-design="terminal"] .mcw-rsi-fill,
+[data-design="terminal"] .mcw-ls-bar,
+[data-design="terminal"] .mcw-ls-bar > *   { border-radius: 0; }
+
+/* Rail width, canvas-exact (qa/reports/dashboard-2a-canvas-geometry.md: aside
+   width 352px). Was 360px, close but not what the canvas draws. */
+@media (min-width: 1100px) {
+  [data-design="terminal"] .dashboard-grid { grid-template-columns: minmax(0, 1fr) 352px; }
+}
+
+/* ── Dashboard canvas mirror (feature/dashboard-canvas-mirror, #587) ──
+   Dashboard 2a.dc.html draws the six coin-signal cards as ONE 3x2 table -
+   hairline-separated cells, no per-card background or gap - not two
+   auto-fit card grids with a gap between them. TEdgeSignals now renders
+   all six as siblings of a single .edge-grid; this makes that grid lay
+   out and look like the canvas's table instead of the base .edge-card's
+   free-standing rounded cards. Scoped to .dash-main so Arena's own
+   .at-snapcells/.at-panelbody overrides (different geometry, same base
+   classes) are untouched.
+   Geometry from qa/reports/dashboard-2a-canvas-geometry.md: cell padding
+   12px 16px, label/value/sig 10.5/15/10.5, hairline #16191b (--bdr3). */
+[data-design="terminal"] .dash-main .edge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  margin-bottom: 0;
+}
+[data-design="terminal"] .dash-main .edge-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-right: 1px solid var(--bdr3);
+  border-bottom: 1px solid var(--bdr3);
+  padding: 12px 16px;
+}
+[data-design="terminal"] .dash-main .edge-card:nth-child(3n) { border-right: 0; }
+[data-design="terminal"] .dash-main .edge-card:nth-last-child(-n+3) { border-bottom: 0; }
+[data-design="terminal"] .dash-main .edge-card-label  { font-size: 10.5px; }
+[data-design="terminal"] .dash-main .edge-card-value  { font-size: 15px; }
+[data-design="terminal"] .dash-main .edge-card-signal { font-size: 10.5px; }
+
+/* Market read banner - the canvas's first main-column panel (#587).
+   Desktop geometry, Dashboard 2a.dc.html:79-83: background #141517, padding
+   15px 20px, bottom hairline #1f2225 (--bdr); eyebrow 10px mono .16em
+   uppercase --txt3; verdict 24px mono 700 line-height 1 at 8px above; sub
+   12.5px/1.5 --txt2 at 8px above, capped 680px so the sentence wraps at a
+   readable measure rather than the full column width.
+
+   #141517 is --bg1, NOT --bg2. This shipped as --bg2 (#111416) with a
+   comment claiming it was #141517, so the wrong value read as verified:
+   the banner painted DARKER than the TPanel siblings below it, inverting
+   the canvas relationship where the band is a lifted surface on the
+   column ground. Light theme had the same inversion (canvas #ebe9e6 is
+   terminal-light --bg1; --bg2 there is #e3e1dd). */
+[data-design="terminal"] .dash-market-read-banner {
+  background: var(--bg1);
+  border-bottom: 1px solid var(--bdr);
+  padding: 15px 20px;
+}
+[data-design="terminal"] .dmrb-eyebrow {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--txt3);
+}
+[data-design="terminal"] .dmrb-verdict {
+  font-family: var(--font-mono), monospace;
+  font-size: 24px; font-weight: 700; line-height: 1; margin-top: 8px;
+}
+[data-design="terminal"] .dmrb-sub {
+  font-size: 12.5px; line-height: 1.5; color: var(--txt2);
+  margin-top: 8px; max-width: 680px;
+}
+/* Mobile band, Dashboard 2a.dc.html:236-239 - a distinct geometry, not the
+   desktop one reflowed: padding 14, verdict 21px at line-height 1.1, sub
+   12px. The canvas hand-breaks its verdict string ("RISK-ON,<br>CAUTIOUS")
+   precisely because 24px at line-height 1 does not survive a narrow column -
+   production strings are longer still ("Decent conditions - be selective" is
+   32 characters), so without this they wrap and the lines touch. */
+@media (max-width: 640px) {
+  [data-design="terminal"] .dash-market-read-banner { padding: 14px; }
+  [data-design="terminal"] .dmrb-verdict { font-size: 21px; line-height: 1.1; }
+  [data-design="terminal"] .dmrb-sub { font-size: 12px; }
+}
+
+/* briefing */
+[data-design="terminal"] .mb-macro-item { border-radius: 0; }
+[data-design="terminal"] .mb-event-tag  { border-radius: 0; }
+[data-design="terminal"] .mb-brief-btn  { border-radius: 0; }
+[data-design="terminal"] .mb-cvd-chip   { border-radius: 0; }
+/* liq */
+[data-design="terminal"] .liq-range-btn    { border-radius: 0; }
+[data-design="terminal"] .liq-stats-row    { border-radius: 0; }
+[data-design="terminal"] .liq-bias-card    { border-radius: 0; }
+[data-design="terminal"] .liq-bias-badge   { border-radius: 0; }
+[data-design="terminal"] .liq-magnet-box   { border-radius: 0; }
+[data-design="terminal"] .liq-card         { border-radius: 0; }
+[data-design="terminal"] .liq-insight-card { border-radius: 0; }
+[data-design="terminal"] .liq-current-tag  { border-radius: 0; }
+[data-design="terminal"] .liq-row-bar-wrap { border-radius: 0; }
+[data-design="terminal"] .liq-row-bar      { border-radius: 0; }
+[data-design="terminal"] .liq-howto        { border-radius: 0; }
+[data-design="terminal"] .liq-cluster-bars { border-radius: 0; }
+[data-design="terminal"] .liq-cluster-bar  { border-radius: 0; }
+/* funding */
+[data-design="terminal"] .frh-range-btn    { border-radius: 0; }
+[data-design="terminal"] .frh-summary-bar  { border-radius: 0; }
+[data-design="terminal"] .frh-sig-chip     { border-radius: 0; }
+[data-design="terminal"] .frh-signal       { border-radius: 0; }
+/* correlation */
+[data-design="terminal"] .corr-cell          { border-radius: 0; }
+[data-design="terminal"] .corr-pair-bar-wrap { border-radius: 0; }
+[data-design="terminal"] .corr-pair-bar      { border-radius: 0; }
+/* scanner */
+[data-design="terminal"] .scanner-term-wrap,
+[data-design="terminal"] .scanner-term-wrap * { border-radius: 0 !important; }
+/* journal / alerts / news */
+[data-design="terminal"] .journal-term-wrap,
+[data-design="terminal"] .journal-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .alerts-term-wrap,
+[data-design="terminal"] .alerts-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .news-term-wrap,
+[data-design="terminal"] .news-term-wrap * { border-radius: 0 !important; }
+/* calc / playbook / hours / research / econ-calendar / settings terminal (#413) */
+[data-design="terminal"] .calc-term-wrap,
+[data-design="terminal"] .calc-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .playbook-term-wrap,
+[data-design="terminal"] .playbook-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .hours-term-wrap,
+[data-design="terminal"] .hours-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .research-term-wrap,
+[data-design="terminal"] .research-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .econ-term-wrap,
+[data-design="terminal"] .econ-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .settings-term-wrap,
+[data-design="terminal"] .settings-term-wrap * { border-radius: 0 !important; }
+/* login / forgot-password / reset-password terminal (#413) */
+[data-design="terminal"] .login-term-wrap,
+[data-design="terminal"] .login-term-wrap * { border-radius: 0 !important; }
+/* upgrade-gate / locked-feature-card / full-page-upgrade-gate terminal (#413) */
+[data-design="terminal"] .locked-card-term-wrap,
+[data-design="terminal"] .locked-card-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .upgrade-gate-term-wrap,
+[data-design="terminal"] .upgrade-gate-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .upgrade-modal-term-wrap,
+[data-design="terminal"] .upgrade-modal-term-wrap * { border-radius: 0 !important; }
+/* faq / terms / refund / upgrade terminal (#501) */
+[data-design="terminal"] .faq-term-wrap,
+[data-design="terminal"] .faq-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .terms-term-wrap,
+[data-design="terminal"] .terms-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .refund-term-wrap,
+[data-design="terminal"] .refund-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .upgrade-term-wrap,
+[data-design="terminal"] .upgrade-term-wrap * { border-radius: 0 !important; }
+
+/* arena / dashboard / briefing / liq nuclear term-wrap (#505) */
+[data-design="terminal"] .arena-term-wrap,
+[data-design="terminal"] .arena-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .dashboard-term-wrap,
+[data-design="terminal"] .dashboard-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .briefing-term-wrap,
+[data-design="terminal"] .briefing-term-wrap * { border-radius: 0 !important; }
+[data-design="terminal"] .liq-term-wrap,
+[data-design="terminal"] .liq-term-wrap * { border-radius: 0 !important; }
+
+/* ── #559 platform radius sweep: circular-glyph carve-out ──────────────────
+   specs/radius-ruling.md: "border-radius: 0 applies to rectangular surfaces
+   ... It does not apply to elements that are inherently circular in the
+   source - status dots, avatar/coin-marker circles, toggle-switch thumbs."
+   Every *-term-wrap block above (and its 19 live routes: scanner, journal,
+   alerts, news, calc, playbook, hours, research, econ, locked-card, upgrade-
+   gate/modal, faq, terms, refund, upgrade, arena, briefing, liq - confirmed
+   by grep, not dashboard/login/settings which never got the wrap className
+   wired to begin with) zeroes EVERY descendant via `* { border-radius: 0
+   !important }`, which is unconditional: it flattens these dot/marker
+   classes into squares wherever they render inside any of those wraps, not
+   only inside Dashboard where #548 first caught this same shape. Restoring
+   50% here, after the wildcard rules, so source order (both sides carry
+   !important) resolves in this block's favour.
+   Scope note: this list is every element that unambiguously matches one of
+   the ruling's four named categories (status dot / avatar-coin marker /
+   toggle-slider thumb / step circle). It does NOT include round icon
+   buttons that aren't glyphs (.tj-del-btn, .tj-edit-btn, .smod-close,
+   .gchat-login-close), loading spinners, or .num (26px, over the ruling's
+   24px step-circle line) - those are a judgment call for QA, not something
+   this pass assumed either way. */
+[data-design="terminal"] .status-dot,
+[data-design="terminal"] .ticker-dot,
+[data-design="terminal"] .nf-type-dot,
+[data-design="terminal"] .klc-ws-dot,
+[data-design="terminal"] .gchat-dot,
+[data-design="terminal"] .liq-current-dot,
+[data-design="terminal"] .liq-howto-dot,
+[data-design="terminal"] .scan-legend-dot,
+[data-design="terminal"] .ps-live-dot,
+[data-design="terminal"] .wf-dot,
+[data-design="terminal"] .mb-brief-dot,
+[data-design="terminal"] .st-tg-dot,
+[data-design="terminal"] .tg-cond-dot,
+[data-design="terminal"] .cascade-dot,
+[data-design="terminal"] .dash-section-hot::before,
+[data-design="terminal"] .session-pill-dot,
+[data-design="terminal"] .liqfeed-dot,
+[data-design="terminal"] .fng-marker,
+[data-design="terminal"] .cf-signal-icon,
+[data-design="terminal"] .ps-coin-trigger-dot,
+[data-design="terminal"] .ps-coin-opt-dot,
+[data-design="terminal"] .auth-avatar-btn,
+[data-design="terminal"] .coin-icon,
+[data-design="terminal"] .tj-lev-slider::-webkit-slider-thumb,
+[data-design="terminal"] .tj-lev-slider::-moz-range-thumb {
+  border-radius: 50% !important;
+}
+
+/* ── Terminal form input visibility (#512 bug 3) ───────────────────────────
+   These wrap/style real <input>/<textarea> elements with background: --bg2
+   and border-color: --bdr / --bdr2. In terminal's palette --bg2 (#111416)
+   and --bdr2 (#131618) are only 2-3 RGB units apart per channel - the same
+   class of near-invisible gap as #512 bug 2, just on inputs instead of
+   cards. --border-input (#2a2e32) already exists in the terminal token
+   block for exactly this ("input and secondary-button border") but was
+   only wired to 2-3 button classes, never to actual form fields. */
+[data-design="terminal"] .tj-irow,
+[data-design="terminal"] .tj-notes,
+[data-design="terminal"] .ps-irow,
+[data-design="terminal"] .login-email-input,
+[data-design="terminal"] .st-input,
+[data-design="terminal"] .st-affix,
+[data-design="terminal"] .tj-lev-num,
+[data-design="terminal"] .gchat-input { border-color: var(--border-input); }
+
+/* ── Shared shell chrome: terminal radius (#526 C6) ────────────────────────
+   NavDrawer and GrokChat render once in AppShell, as siblings outside every
+   page's own -term-wrap div (app/globals.css's nuclear-wrap pattern only
+   reaches descendants of a wrap div it never gets, so it can't zero these).
+   Handoff: "Radius 0 everywhere. No shadows." (README:141) - unconditional,
+   not screen-scoped, so shell chrome owes it too once terminal is active.
+   Same wildcard-subtree shape as the per-screen wraps, just anchored on the
+   chrome's own root classes instead of a wrap div nobody put around them.
+   .ob-checklist (SetupChecklist) added after QA's multi-route sweep found
+   its mini-mode track/fill on every route - same AppShell-sibling shape as
+   NavDrawer and GrokChat, just missed in the first pass.
+
+   ONE RULE PER COMPONENT (#526 second follow-up) - but QA found the build's
+   CSS minifier MERGES adjacent rules that share an identical declaration
+   block back into one combined selector list, undoing the first split
+   before it ever reached the browser: source had 16 separate rules, the
+   deployed CSS had one 640-char comma list, tail verified via CSSOM on the
+   live deploy. That's why nothing moved on the first attempt - the "fix"
+   was never actually tested.
+
+   So every declaration below carries a unique, inert --_c6-tag custom
+   property (never read anywhere) purely so no two declaration blocks are
+   textually identical. A minifier that merges on identical declarations
+   cannot merge these - there is nothing byte-for-byte the same to merge.
+   Verify against the BUILT output, not this source, if this is ever
+   touched again; the source has looked correct at every step so far. */
+[data-design="terminal"] .app-bar { --_c6-tag: app-bar; border-radius: 0 !important; }
+[data-design="terminal"] .app-bar * { --_c6-tag: app-bar-d; border-radius: 0 !important; }
+[data-design="terminal"] .nav-menu { --_c6-tag: nav-menu; border-radius: 0 !important; }
+[data-design="terminal"] .nav-menu * { --_c6-tag: nav-menu-d; border-radius: 0 !important; }
+[data-design="terminal"] .nav-more-dropdown { --_c6-tag: nav-more; border-radius: 0 !important; }
+[data-design="terminal"] .nav-more-dropdown * { --_c6-tag: nav-more-d; border-radius: 0 !important; }
+[data-design="terminal"] .mobile-tab-bar { --_c6-tag: mobile-tab; border-radius: 0 !important; }
+[data-design="terminal"] .mobile-tab-bar * { --_c6-tag: mobile-tab-d; border-radius: 0 !important; }
+/* Owner exception to handoff README:141 ("Radius 0 everywhere. No shadows.",
+   unqualified), 2026-09-01: the Ask AI FAB keeps a 16px curve in terminal
+   mode. Current (non-terminal) design's .gchat-fab is 50% (circular); this
+   is a deliberate third value, not an oversight - the owner asked for 16px
+   specifically, not "match current design". Carved out of the C6 rule here
+   rather than layered as a competing !important elsewhere, so there is one
+   place this control's radius is decided, not two rules fighting. If a
+   future conformance sweep flags gchat-fab's radius, it is not a regression -
+   check here and #526/#546 first. */
+[data-design="terminal"] .gchat-fab { --_c6-tag: gchat-fab; border-radius: 16px !important; }
+[data-design="terminal"] .gchat-panel { --_c6-tag: gchat-panel; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-panel * { --_c6-tag: gchat-panel-d; border-radius: 0 !important; }
+[data-design="terminal"] .ob-checklist { --_c6-tag: ob-checklist; border-radius: 0 !important; }
+[data-design="terminal"] .ob-checklist * { --_c6-tag: ob-checklist-d; border-radius: 0 !important; }
+[data-design="terminal"] .desktop-nav-item { --_c6-tag: desktop-nav-item; border-radius: 0 !important; }
+[data-design="terminal"] .theme-btn { --_c6-tag: theme-btn; border-radius: 0 !important; }
+[data-design="terminal"] .lang-nav-btn { --_c6-tag: lang-nav-btn; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-coin { --_c6-tag: gchat-coin; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-quick { --_c6-tag: gchat-quick; border-radius: 0 !important; }
+[data-design="terminal"] .gchat-send { --_c6-tag: gchat-send; border-radius: 0 !important; }
+
+/* ── Dashboard rail change colour (#546 C9) ────────────────────────────────
+   .chg-up/.chg-dn already read color: var(--green)/var(--red) (app/globals.
+   css:786-787), which should resolve to the terminal palette (--green
+   #3fb950) purely through custom-property inheritance from the
+   [data-design="terminal"] root block - no descendant selector needed. QA
+   measured #4ade80 (the ROOT, non-terminal --green) on .csb2-chg instead,
+   the same "correct rule, wrong resolved value" shape as #526's C6 chrome
+   findings, which never got a cascade explanation either. Forcing it
+   explicitly here rather than re-opening that investigation. */
+[data-design="terminal"] .chg-up { color: var(--green) !important; }
+[data-design="terminal"] .chg-dn { color: var(--red) !important; }
+
+/* ── Dashboard rectangular-surface radius (#546 C8, unblocked by
+   specs/radius-ruling.md) ──────────────────────────────────────────────────
+   Ruling: radius 0 applies to rectangular surfaces (panels, cards, buttons,
+   chips, inputs, cells). Circular markers <=24px (coin/avatar icons, status
+   dots, toggle thumbs, step-number circles) are a different glyph and stay
+   round - that's why the CoinIcon <img> markers this section's own audit
+   flagged are correct as-is and NOT touched here. These are genuinely
+   rectangular: a rail panel and the shared skeleton-loading bar
+   (SkeletonBar sets its radius via inline style, per-instance, across ~26
+   pages - !important is required to beat that, and is scoped to terminal
+   only). The .mr-track/.mr-factor entries that were here are gone with
+   #587: MarketRead no longer renders on any terminal route. */
+[data-design="terminal"] .av-rail-panel { --_c8-tag: av-rail-panel; border-radius: 0 !important; }
+[data-design="terminal"] .skel-bar { --_c8-tag: skel-bar; border-radius: 0 !important; }

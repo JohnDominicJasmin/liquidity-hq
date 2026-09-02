@@ -34,7 +34,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
         style={{
           fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)',
           background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
-          borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+          padding: '6px 10px', cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', gap: 5,
         }}
       >
@@ -43,9 +43,9 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
         <span style={{ fontSize: '0.6875rem', opacity: 0.6 }}>▾</span>
       </button>
       {open && (
-        <div style={{
+        <div className="lp-lang-menu" style={{
           position: 'absolute', top: 'calc(100% + 6px)', insetInlineEnd: 0, zIndex: 50,
-          background: 'var(--bg1)', border: '0.5px solid var(--bdr2)', borderRadius: 10,
+          background: 'var(--bg1)',
           overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', minWidth: 120,
         }}>
           {OPTIONS.map(o => (

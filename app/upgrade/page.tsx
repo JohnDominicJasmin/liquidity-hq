@@ -8,6 +8,7 @@ import LoadingState from '@/components/LoadingState';
 import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 const CHECKOUT_CONFIGURED = isCheckoutConfigured();
 const CHECKOUT_ANNUAL_CONFIGURED = isCheckoutConfiguredAnnual();
@@ -67,6 +68,7 @@ const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
 ];
 
 export default function UpgradePage() {
+  const mode = useDesignMode();
   const { user, loading, isPro } = useAuth();
   const router = useRouter();
   const [redirecting, setRedirecting] = useState(false);
@@ -105,7 +107,7 @@ export default function UpgradePage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--txt)', fontFamily: 'inherit' }}>
+    <div className={mode === 'terminal' ? 'upgrade-term-wrap' : undefined} style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--txt)', fontFamily: 'inherit' }}>
 
       {/* Nav */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg)', borderBottom: '0.5px solid var(--bdr)', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

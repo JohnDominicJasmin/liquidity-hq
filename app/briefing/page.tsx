@@ -18,6 +18,8 @@ import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import BriefingTerminal from '@/components/BriefingTerminal';
 
 /* ── helpers ── */
 
@@ -186,6 +188,7 @@ function buildBriefingContext(
 
 /* ── page ── */
 export default function MorningBriefing() {
+  const mode                                   = useDesignMode();
   const { store }                              = useMarket();
   const { econEvents, geoEvents, whaleAlerts } = useNews();
   const { user }                               = useAuth();
@@ -406,8 +409,10 @@ export default function MorningBriefing() {
      `nowMs` already carries the same guard. Reusing it rather than asserting. */
   const jpyMinutesAgo = jpyUpdated ? Math.round((nowMs - jpyUpdated.getTime()) / 60_000) : null;
 
+  if (mode === 'terminal') return <BriefingTerminal />;
+
   return (
-    <div>
+    <div className="briefing-term-wrap">
 
       {/* ── Header ── */}
       <div className="mb-header">

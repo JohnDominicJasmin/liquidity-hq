@@ -7,6 +7,7 @@ import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
+import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -141,6 +142,75 @@ const DARK: Record<string, unknown> = {
   },
 };
 
+// #598 D1: KLineProChart is shared and correct elsewhere, but on the
+// terminal Arena it kept rendering DARK's teal/red candles and the current
+// design's blue/orange, because klinecharts draws to a <canvas> - CSS
+// (`[data-design="terminal"] .at-chart .klc-*`) can only reach the toolbar's
+// own DOM buttons, not anything painted onto the canvas itself. Every value
+// below is a hex QA measured directly from Arena 1a.dc.html (frequency
+// count in #598) - zero invented colours. Terminal is dark-only (arena.md
+// "Out of scope: Light theme"), so this is the only terminal variant.
+const TERMINAL_DARK: Record<string, unknown> = {
+  grid: {
+    horizontal: { color: '#1f2225', size: 1 },
+    vertical:   { color: '#1f2225', size: 1 },
+  },
+  candle: {
+    bar: {
+      upColor:            '#3fb950',
+      downColor:          '#f0524d',
+      upBorderColor:      '#3fb950',
+      downBorderColor:    '#f0524d',
+      noChangeBorderColor:'#7c828a',
+      upWickColor:        '#3fb950',
+      downWickColor:      '#f0524d',
+    },
+    tooltip: { showRule: 'follow_cross' },
+    priceMark: {
+      high: { show: true, color: '#8b8f94', textSize: 10 },
+      low:  { show: true, color: '#8b8f94', textSize: 10 },
+      last: {
+        show: true,
+        line: { show: true, color: '#3a3f45' },
+        text: { show: true, color: '#e8e9ea', size: 11 },
+      },
+    },
+  },
+  xAxis: {
+    tickText: { color: '#7c828a', size: 10 },
+    axisLine: { color: '#1f2225' },
+    tickLine: { color: '#1f2225' },
+  },
+  yAxis: {
+    tickText: { color: '#7c828a', size: 10 },
+    axisLine: { color: '#1f2225' },
+    tickLine: { color: '#1f2225' },
+  },
+  crosshair: {
+    horizontal: {
+      line: { color: '#3a3f45' },
+      text: { color: '#e8e9ea', background: '#16191b', size: 11 },
+    },
+    vertical: {
+      line: { color: '#3a3f45' },
+      text: { color: '#e8e9ea', background: '#16191b', size: 11 },
+    },
+  },
+  // klinecharts' built-in drawing-tool overlays (trendline etc, from the
+  // toolbar) use this as their default line colour. The custom overlays
+  // below (S/R, GEX, analysis levels, structure) each set their own colour
+  // per instance and are unaffected by this. --accent's terminal value
+  // (#d9a626, gold) resolved to a literal hex - unlike 'var(--accent-2)' in
+  // DARK/LIGHT above, a canvas fillStyle cannot resolve a CSS custom
+  // property string at all.
+  overlay: {
+    line: { color: '#d9a626', size: 1 },
+  },
+  indicator: {
+    tooltip: { showRule: 'follow_cross' },
+  },
+};
+
 const LIGHT: Record<string, unknown> = {
   grid: {
     horizontal: { color: 'rgba(0,0,0,0.06)', size: 1 },
@@ -255,6 +325,18 @@ const EMA_PERIODS = [
   { period: 200, color: 'var(--accent)', size: 2   },  // blue (thicker)
 ] as const;
 
+// #598 D1: the canvas draws zero blue/orange anywhere on the chart. Only
+// these two hardcoded hex values need a terminal swap - period 9/200 above
+// already read through --amber/--accent tokens (a separate, pre-existing
+// "does a CSS var string resolve inside a canvas fillStyle" question that
+// applies to every 'var(--x)' color in this file, not something D1 asked
+// for). Picked from QA's confirmed canvas hex list, darker as the period
+// lengthens, same convention the ribbon already uses via size.
+const TERMINAL_EMA_COLOR: Partial<Record<number, string>> = {
+  20: '#8b8f94',
+  50: '#5e646b',
+};
+
 interface EmaPoint { timestamp: number; value: number; }
 
 function computeEmaSeries(bars: Array<{ timestamp: number; close: number }>, period: number): EmaPoint[] {
@@ -366,6 +448,7 @@ function computeSRLevels(
 }
 
 export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, onStructure }: Props) {
+  const mode = useDesignMode();
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -555,17 +638,30 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     };
   }, [chartReady]);
 
-  // ── Theme sync - apply DARK/LIGHT styles when theme changes ─────────────
+  // ── Theme sync - apply DARK/LIGHT/TERMINAL_DARK styles when theme or
+  //    design mode changes. #598 D1 follow-up: this used to run once at
+  //    mount with `[]` deps and read `data-design` off the DOM directly -
+  //    chartRef.current was still null the first time (every sibling effect
+  //    gates on chartReady for exactly this reason), so setStyles() was a
+  //    silent no-op, and nothing ever re-ran it once the chart mounted or
+  //    once design mode resolved. QA caught it via canvas pixel sampling:
+  //    candles were still painting DARK.upColor, tags were still painting
+  //    klinecharts' own untouched default. `mode` from useDesignMode() is
+  //    now a real dependency, so this re-fires on both. ─────────────────
   useEffect(() => {
+    if (!chartReady) return;
     const apply = () => {
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chartRef.current?.setStyles((dark ? DARK : LIGHT) as any);
+      chartRef.current?.setStyles((mode === 'terminal' ? TERMINAL_DARK : dark ? DARK : LIGHT) as any);
     };
     apply();
+    // Theme (not design mode) can still change without a re-render of this
+    // component - 'theme-change' covers that; `mode` in the dependency
+    // array below covers design mode resolving or changing.
     window.addEventListener('theme-change', apply);
     return () => window.removeEventListener('theme-change', apply);
-  }, []);
+  }, [chartReady, mode]);
 
   // Keep coinRef fresh for the DataLoader closure
   useEffect(() => { coinRef.current = coin; }, [coin]);
@@ -578,6 +674,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const chart = chartRef.current;
     const bars = emaBarsRef.current;
     if (!chart || !bars.length) return;
+    const terminal = document.documentElement.getAttribute('data-design') === 'terminal';
     EMA_PERIODS.forEach((cfg, idx) => {
       const series = computeEmaSeries(bars, cfg.period);
       if (!series.length) return;
@@ -608,7 +705,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           // _figureMouseDownEvent, plus the `!overlay.lock` guard on
           // onPressedMoving), so hover and tooltips are unaffected.
           lock: true,
-          extendData: { color: cfg.color, size: cfg.size },
+          extendData: { color: terminal ? (TERMINAL_EMA_COLOR[cfg.period] ?? cfg.color) : cfg.color, size: cfg.size },
           // Higher zLevel paints on top. EMA_PERIODS is ordered fast-to-slow
           // (9, 20, 50, 200), so EMA200 (idx 3, thickest) ends up on top and
           // EMA9 (idx 0, thinnest) on the bottom - matches the original
@@ -981,7 +1078,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               {
                 type: 'text',
                 attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
-                styles: { color, size: 9, weight: '700' },
+                // #598 D1 residual, QA pixel-sampled: no backgroundColor meant
+                // klinecharts filled the label with its own default primary
+                // (#1677ff) instead of anything from this file's palette -
+                // same shape as the priceTag figure above, which already
+                // sets its own backgroundColor and never had the bug.
+                styles: {
+                  color: '#ffffff', size: 9, weight: '700',
+                  paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
+                  backgroundColor: color,
+                  // registerOverlay is a one-time, module-level registration
+                  // (srLevelLineRegistered guards it) - createPointFigures is
+                  // what runs per repaint, so design mode has to be read
+                  // fresh here rather than closed over from a React value at
+                  // registration time, same reason the EMA ribbon colour
+                  // above reads document.documentElement directly instead of
+                  // capturing `mode`.
+                  borderRadius: document.documentElement.getAttribute('data-design') === 'terminal' ? 0 : 3,
+                },
               },
             ];
           },
@@ -1019,7 +1133,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               {
                 type: 'text',
                 attrs: { x: 6, y: labelY, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
-                styles: { color, size: 9, weight: '700' },
+                styles: {
+                  color: '#ffffff', size: 9, weight: '700',
+                  paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
+                  backgroundColor: color,
+                  borderRadius: document.documentElement.getAttribute('data-design') === 'terminal' ? 0 : 3,
+                },
               },
             ];
           },

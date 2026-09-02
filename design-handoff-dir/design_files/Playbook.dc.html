@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#151719; }
+  a { color:#8b8f94; text-decoration:none; }
+  a:hover { color:#e8e9ea; }
+  *, *::before, *::after { box-sizing:border-box; }
+</style>
+</helmet>
+
+<section style="display:flex; flex-direction:column; gap:28px; padding:40px; font-family:'IBM Plex Sans',sans-serif;">
+  <div id="1b" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.14em; color:#08090a; background:#d9a626; padding:4px 8px;">1B</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:#8b8f94;">Playbook · your rules, measured against your trades</div>
+    </div>
+
+    <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:nowrap;">
+      <div style="width:1440px; height:900px; flex-shrink:0; overflow:hidden; background:#08090a; border:1px solid #1f2225; display:flex; flex-direction:column;">
+        <div style="height:44px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:28px;">
+          <div style="display:flex; align-items:center; gap:9px;">
+            <img src="assets/logo.png" alt="LiquidityHQ" style="width:20px; height:20px; border-radius:5px; display:block; flex-shrink:0;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; letter-spacing:.14em; color:#e8e9ea;">LIQUIDITYHQ</div>
+          </div>
+          <div style="display:flex; gap:2px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase;">
+            <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+              <div style="padding:6px 12px; color:{{ n.col }}; background:{{ n.bg }}; font-weight:{{ n.weight }};">{{ n.label }}</div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div style="display:flex; align-items:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;">
+            <div style="color:#8b8f94;">ADHERENCE 82% · 30D</div>
+            <div style="color:#7c828a; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
+            <div style="width:22px; height:22px; border:1px solid #5e646b; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700; flex-shrink:0;">J</div>
+          </div>
+        </div>
+
+        <div style="height:42px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:12px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.1em; color:#e8e9ea;">PLAYBOOK</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:#7c828a;">9 RULES · 7 ACTIVE</div>
+          <div style="flex:1"></div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; color:#08090a; background:#d9a626; padding:6px 12px; font-weight:700;">+ NEW RULE</div>
+        </div>
+
+        <div style="flex:1; display:flex; min-height:0;">
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column; border-right:1px solid #1f2225;">
+            <div style="display:grid; grid-template-columns:52px 1fr 132px 116px 96px 84px; border-bottom:1px solid #1f2225; background:#141517;">
+              <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a;">#</div>
+              <div style="padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a;">RULE</div>
+              <div style="padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a;">CATEGORY</div>
+              <div style="padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a;">ADHERENCE</div>
+              <div style="padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a; text-align:right;">EDGE</div>
+              <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a; text-align:right;">STATUS</div>
+            </div>
+            <div style="flex:1; min-height:0; overflow:hidden;">
+              <sc-for list="{{ rules }}" as="r" hint-placeholder-count="9">
+                <div style="display:grid; grid-template-columns:52px 1fr 132px 116px 96px 84px; border-bottom:1px solid #131618; align-items:center;">
+                  <div style="padding:13px 14px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#3a3f45;">{{ r.n }}</div>
+                  <div style="padding:13px 12px; font-size:13px; color:#e8e9ea;">{{ r.text }}</div>
+                  <div style="padding:13px 12px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#8b8f94;">{{ r.cat }}</div>
+                  <div style="padding:13px 12px; display:flex; align-items:center; gap:8px;">
+                    <div style="flex:1; height:6px; background:#111416;"><div style="width:{{ r.w }}; height:6px; background:{{ r.adhCol }};"></div></div>
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:{{ r.adhCol }}; width:30px; text-align:right;">{{ r.adh }}</div>
+                  </div>
+                  <div style="padding:13px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:{{ r.edgeCol }}; text-align:right;">{{ r.edge }}</div>
+                  <div style="padding:13px 14px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; color:{{ r.stCol }}; text-align:right;">{{ r.status }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <aside style="width:396px; flex-shrink:0; display:flex; flex-direction:column;">
+            <div style="height:28px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#8b8f94;">Pre-entry checklist</div>
+            </div>
+            <sc-for list="{{ checklist }}" as="c" hint-placeholder-count="6">
+              <div style="padding:12px 14px; display:flex; align-items:center; gap:12px; border-bottom:1px solid #131618;">
+                <div style="width:14px; height:14px; border:1px solid {{ c.boxCol }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:10px; color:{{ c.boxCol }};">{{ c.tick }}</div>
+                <div style="font-size:12.5px; color:{{ c.txtCol }};">{{ c.label }}</div>
+              </div>
+            </sc-for>
+
+            <div style="height:28px; flex-shrink:0; border-top:1px solid #1f2225; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#8b8f94;">Where you broke rules</div>
+            </div>
+            <sc-for list="{{ breaks }}" as="b" hint-placeholder-count="3">
+              <div style="padding:12px 14px; border-bottom:1px solid #131618; display:flex; align-items:flex-start; gap:11px;">
+                <div style="width:2px; height:28px; background:#f0524d; flex-shrink:0;"></div>
+                <div>
+                  <div style="font-size:12.5px; color:#e8e9ea;">{{ b.text }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#7c828a; margin-top:4px;">{{ b.meta }}</div>
+                </div>
+                <div style="flex:1"></div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#f0524d;">{{ b.cost }}</div>
+              </div>
+            </sc-for>
+
+            <div style="flex:1"></div>
+            <div style="padding:14px; border-top:1px solid #1f2225;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#7c828a;">Cost of broken rules · 30d</div>
+              <div style="display:flex; align-items:baseline; gap:10px; margin-top:8px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:#f0524d;">−$684</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7c828a;">across 6 trades</div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <div style="width:390px; height:844px; flex-shrink:0; overflow:hidden; background:#08090a; border:1px solid #1f2225; display:flex; flex-direction:column;">
+        <div style="height:38px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px; gap:10px;">
+          <img src="assets/logo.png" alt="LiquidityHQ" style="width:18px; height:18px; border-radius:4px; display:block; flex-shrink:0;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.14em; color:#e8e9ea;">PLAYBOOK</div>
+          <div style="flex:1"></div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#8b8f94; letter-spacing:.1em;">82% ADHERENCE</div>
+        </div>
+        <div style="height:34px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px; gap:2px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em;">
+          <div style="padding:5px 11px; color:#08090a; background:#d9a626;">RULES</div>
+          <div style="padding:5px 11px; color:#8b8f94;">CHECKLIST</div>
+          <div style="padding:5px 11px; color:#8b8f94;">BREAKS</div>
+        </div>
+        <div style="flex:1; min-height:0; overflow:hidden;">
+          <sc-for list="{{ rulesM }}" as="r" hint-placeholder-count="7">
+            <div style="padding:12px 14px; border-bottom:1px solid #131618;">
+              <div style="display:flex; align-items:baseline; gap:10px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#3a3f45;">{{ r.n }}</div>
+                <div style="font-size:12.5px; color:#e8e9ea; flex:1;">{{ r.text }}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; color:#7c828a; width:78px;">{{ r.cat }}</div>
+                <div style="flex:1; height:5px; background:#111416;"><div style="width:{{ r.w }}; height:5px; background:{{ r.adhCol }};"></div></div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:{{ r.adhCol }};">{{ r.adh }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:{{ r.edgeCol }}; width:44px; text-align:right;">{{ r.edge }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="height:44px; flex-shrink:0; border-top:1px solid #1f2225; background:#d9a626; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; letter-spacing:.12em; color:#08090a;">+ NEW RULE</div>
+        <div style="height:60px; flex-shrink:0; border-top:1px solid #1f2225; display:grid; grid-template-columns:repeat(5,1fr);">
+          <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="5">
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;">
+              <svg width="19" height="19" viewBox="0 0 20 20" fill="none"><path d="{{ tb.d }}" stroke="{{ tb.col }}" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path></svg>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.1em; color:{{ tb.col }};">{{ tb.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 1c · RESEARCH ── -->
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#d9a626&quot;,&quot;options&quot;:[&quot;#d9a626&quot;,&quot;#e8e9ea&quot;,&quot;#ff6b35&quot;,&quot;#38b6c4&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const acc = this.props.accent ?? '#d9a626';
+    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', TXT3 = '#7c828a', DIM = '#22262a';
+
+    const ICON = {
+      desk: 'M3.2 3.2h5.6v5.6H3.2zM11.2 3.2h5.6v5.6h-5.6zM3.2 11.2h5.6v5.6H3.2zM11.2 11.2h5.6v5.6h-5.6z',
+      arena: 'M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z',
+      scan: 'M10 2.6v3.2M10 14.2v3.2M2.6 10h3.2M14.2 10h3.2M10 6.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z',
+      flow: 'M2.5 10.5h3l2-5 3 9 2-6 1.5 2h3.5',
+      book: 'M5 2.8h8.5A1.5 1.5 0 0 1 15 4.3v12.9H6.5A1.5 1.5 0 0 1 5 15.7V2.8ZM5 14.2h10M7.5 6h4.5M7.5 9h4.5'
+    };
+    const KEYS = ['desk', 'arena', 'scan', 'flow', 'book'];
+
+    // ── hours grid: expectancy per weekday × hour ──
+    const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    let x = 5150;
+    const rnd = () => { x = (x * 1103515245 + 12345) & 0x7fffffff; return x / 0x7fffffff; };
+    const cellFor = v => {
+      if (v == null) return { bg: '#141517', col: '#22262a', label: '' };
+      const a = Math.min(0.85, Math.abs(v) * 0.9 + 0.12).toFixed(2);
+      return {
+        bg: Math.abs(v) < 0.12 ? '#1c1f22' : v > 0 ? 'rgba(63,185,80,' + a + ')' : 'rgba(240,82,77,' + a + ')',
+        col: Math.abs(v) < 0.12 ? '#7c828a' : Math.abs(v) > 0.6 ? '#08090a' : TXT,
+        label: Math.abs(v) < 0.12 ? '·' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1)
+      };
+    };
+    const expectancy = (day, hour) => {
+      if (day > 4) return (rnd() - 0.62) * 0.9;                    // weekends thin and negative
+      const overlap = hour >= 14 && hour <= 22;                     // London–NY overlap in UTC+8
+      const early = hour < 14;
+      const core = day >= 1 && day <= 3;
+      let base = overlap ? (core ? 1.05 : 0.5) : early ? -0.55 : 0.1;
+      return base + (rnd() - 0.5) * 0.7;
+    };
+    const hoursGrid = DAYS.map((day, d) => ({
+      day,
+      cells: Array.from({ length: 24 }, (_, h) => cellFor(expectancy(d, h)))
+    }));
+    let x2 = 7711;
+    const rnd2 = () => { x2 = (x2 * 1103515245 + 12345) & 0x7fffffff; return x2 / 0x7fffffff; };
+    const hoursGridM = DAYS.map((day, d) => ({
+      day,
+      cells: Array.from({ length: 6 }, (_, b) => {
+        const h = b * 4 + 2;
+        const overlap = h >= 14 && h <= 22;
+        const core = d >= 1 && d <= 3;
+        const v = d > 4 ? (rnd2() - 0.62) * 0.9
+          : (overlap ? (core ? 1.05 : 0.5) : h < 14 ? -0.55 : 0.1) + (rnd2() - 0.5) * 0.4;
+        return cellFor(v);
+      })
+    }));
+
+    const RULES = [
+      ['01', 'No entry before 14:00 unless the read is above 75', 'TIMING', 94, '+0.6R', 'ACTIVE'],
+      ['02', 'Risk 1% per trade, no exceptions', 'SIZING', 97, '+0.4R', 'ACTIVE'],
+      ['03', 'Stop goes at the invalidation level, not at a round number', 'EXITS', 88, '+0.5R', 'ACTIVE'],
+      ['04', 'No new position within 90 minutes of a high-impact print', 'TIMING', 71, '+0.8R', 'ACTIVE'],
+      ['05', 'Skip the setup if funding is above +0.04%', 'FILTERS', 62, '+0.3R', 'ACTIVE'],
+      ['06', 'Take half off at the first target', 'EXITS', 84, '+0.2R', 'ACTIVE'],
+      ['07', 'Two losses in a session ends the session', 'DISCIPLINE', 58, '+0.9R', 'ACTIVE'],
+      ['08', 'One position per correlated group', 'SIZING', 45, '−0.1R', 'PAUSED'],
+      ['09', 'No trading on weekends', 'TIMING', 100, '+0.2R', 'PAUSED']
+    ];
+    const rules = RULES.map(r => ({
+      n: r[0], text: r[1], cat: r[2], adh: r[3] + '%', w: r[3] + '%',
+      edge: r[4], status: r[5],
+      adhCol: r[3] >= 85 ? GREEN : r[3] >= 65 ? acc : RED,
+      edgeCol: r[4].startsWith('−') ? RED : GREEN,
+      stCol: r[5] === 'ACTIVE' ? GREEN : TXT3
+    }));
+
+    const HYP = [
+      ['BTC', 'OPEN', 'Spot premium leads price when funding is already crowded', 14, 9, '+1.8R', '2h ago', true],
+      ['HYPE', 'OPEN', 'Negative funding on new listings resolves up within two sessions', 8, 5, '+2.2R', '1d ago', false],
+      ['ANY', 'CONFIRMED', 'Setups taken in the London–NY overlap outperform by 0.7R', 22, 18, '+0.7R', '3d ago', false],
+      ['SOL', 'OPEN', 'Funding above +0.04% marks local tops within 12 hours', 11, 6, '+0.4R', '4d ago', false],
+      ['BTC', 'CONFIRMED', 'Cluster sweeps below spot reverse within the same session', 19, 12, '+1.1R', '1w ago', false],
+      ['ETH', 'INVALIDATED', 'Staking queue depth predicts 7-day direction', 9, 3, '−0.6R', '2w ago', false],
+      ['ANY', 'OPEN', 'Reads above 75 beat reads between 60 and 75 by more than 1R', 16, 14, '+1.3R', '2w ago', false],
+      ['WIF', 'INVALIDATED', 'Memecoin OI spikes lead BTC volatility', 7, 2, '−0.9R', '3w ago', false]
+    ];
+    const hypotheses = HYP.map(h => ({
+      sym: h[0], status: h[1], thesis: h[2], evidence: h[3], trades: h[4], r: h[5], updated: h[6],
+      stCol: h[1] === 'CONFIRMED' ? GREEN : h[1] === 'INVALIDATED' ? RED : acc,
+      rCol: h[5].startsWith('−') ? RED : GREEN,
+      bg: h[7] ? '#141517' : 'transparent'
+    }));
+
+    return {
+      nav: KEYS.map(k => ({
+        label: k === 'desk' ? 'OVERVIEW' : k.toUpperCase(),
+        col: k === 'book' ? '#08090a' : TXT3,
+        bg: k === 'book' ? acc : 'transparent',
+        weight: k === 'book' ? 700 : 400
+      })),
+      tabs: KEYS.map(k => ({
+        label: k.toUpperCase(), d: ICON[k], col: k === 'book' ? acc : TXT3
+      })),
+      hourStats: [
+        { label: 'Best window', value: '16:00–20:00', note: 'Tue–Thu', col: GREEN },
+        { label: 'Worst window', value: '08:00–12:00', note: 'every day', col: RED },
+        { label: 'Overlap expectancy', value: '+0.9R', note: '31 trades', col: GREEN },
+        { label: 'Off-hours expectancy', value: '−0.3R', note: '37 trades', col: RED }
+      ],
+      hourLabels: Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')),
+      hoursGrid,
+      hoursGridM,
+      bestWindows: [
+        { window: 'WED 16:00–20:00', note: '9 trades · 67% win', value: '+1.4R', col: GREEN },
+        { window: 'TUE 16:00–20:00', note: '7 trades · 71% win', value: '+1.2R', col: GREEN },
+        { window: 'THU 14:00–18:00', note: '8 trades · 63% win', value: '+0.9R', col: GREEN },
+        { window: 'MON 08:00–12:00', note: '6 trades · 33% win', value: '−0.7R', col: RED }
+      ],
+      sessions: [
+        { name: 'ASIA', window: '08:00 – 16:00', state: 'ACTIVE', col: GREEN },
+        { name: 'LONDON', window: '15:00 – 00:00', state: 'OPENS 3h', col: acc },
+        { name: 'NEW YORK', window: '20:00 – 05:00', state: 'OPENS 8h', col: TXT3 },
+        { name: 'OVERLAP', window: '20:00 – 00:00', state: 'YOUR EDGE', col: '#8b8f94' }
+      ],
+      rules,
+      rulesM: rules.slice(0, 7),
+      checklist: [
+        { label: 'Arena read above 60', on: true },
+        { label: 'Inside your best window', on: true },
+        { label: 'No high-impact print within 90 minutes', on: false },
+        { label: 'Funding not stretched against you', on: true },
+        { label: 'Stop sits at the invalidation level', on: true },
+        { label: 'Size is 1% risk', on: true }
+      ].map(c => ({
+        label: c.label,
+        tick: c.on ? '✓' : '',
+        boxCol: c.on ? GREEN : RED,
+        txtCol: c.on ? TXT : '#8b8f94'
+      })),
+      breaks: [
+        { text: 'Entered SOL 40 minutes before CPI', meta: '12 Aug · rule 04', cost: '−$188' },
+        { text: 'Third trade after two losses', meta: '11 Aug · rule 07', cost: '−$204' },
+        { text: 'Took WIF short with funding at +0.036%', meta: '11 Aug · rule 05', cost: '−$292' }
+      ],
+      hypotheses,
+      hypothesesM: hypotheses.slice(0, 6),
+      evidenceLog: [
+        { date: '14 Aug', text: 'Premium +0.031% with funding positive 11 payments — open', result: 'PENDING', col: acc },
+        { date: '09 Aug', text: 'Premium +0.044%, funding positive 9 payments', result: '+2.1%', col: GREEN },
+        { date: '02 Aug', text: 'Premium +0.028%, funding positive 14 payments', result: '+1.4%', col: GREEN },
+        { date: '27 Jul', text: 'Premium +0.036%, funding positive 8 payments', result: '−0.8%', col: RED },
+        { date: '21 Jul', text: 'Premium +0.052%, funding positive 12 payments', result: '+3.2%', col: GREEN }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

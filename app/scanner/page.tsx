@@ -8,9 +8,13 @@ import AccumulationTracker from '@/components/AccumulationTracker';
 import DistributionTracker from '@/components/DistributionTracker';
 import PageHint from '@/components/PageHint';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import ScannerTerminal from '@/components/ScannerTerminal';
 
 export default function ScannerPage() {
+  const mode = useDesignMode();
   const { t } = useLabels();
+  if (mode === 'terminal') return <ScannerTerminal />;
   return (
     <div>
       <PageHint

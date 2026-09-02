@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import DashboardTerminal from '@/components/DashboardTerminal';
 import { useOnboarding } from '@/components/OnboardingProvider';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
@@ -163,7 +165,7 @@ function CoinSidebar() {
           else                   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_NEUTRAL'),         col: 'var(--txt3)' };
         }
 
-        const barCol = tbp >= 60 ? 'var(--green)' : tbp <= 40 ? 'var(--red)' : '#404040';
+        const barCol = tbp >= 60 ? 'var(--green)' : tbp <= 40 ? 'var(--red)' : 'var(--txt3)';
 
         return (
           // Plain flat card - was ParticleCard/mb-glow-card, which drew a
@@ -496,12 +498,12 @@ function SelectedCoinCard() {
 }
 
 export default function Dashboard() {
-  const { t } = useLabels();
+  const mode     = useDesignMode();
+  const { t }    = useLabels();
   const [showTour, setShowTour] = useState(false);
   const rightRef = useRef<HTMLElement>(null);
   const mainRef  = useRef<HTMLDivElement>(null);
   const isMobile = useMobile();
-
   const { tourPending, clearTourPending } = useOnboarding();
 
   // OnboardingGate flips tourPending right after a user finishes onboarding
@@ -514,8 +516,10 @@ export default function Dashboard() {
     }
   }, [tourPending, clearTourPending]);
 
+  if (mode === 'terminal') return <DashboardTerminal />;
+
   return (
-    <div className="dashboard-grid" data-spotlight-section>
+    <div className="dashboard-grid dashboard-term-wrap" data-spotlight-section>
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
       {/* Floating cascade toast - fixed-positioned, render once */}

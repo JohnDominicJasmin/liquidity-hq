@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#151719; }
+  a { color:#8b8f94; text-decoration:none; }
+  a:hover { color:#e8e9ea; }
+  *, *::before, *::after { box-sizing:border-box; }
+</style>
+</helmet>
+
+<!-- ═══════════ TURN 6 · LANDING PAGE ═══════════ -->
+<section style="display:flex; flex-direction:column; gap:28px; padding:40px 40px 14px 40px; font-family:'IBM Plex Sans',sans-serif;">
+  <div id="4b" style="display:flex; flex-direction:column; gap:14px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.14em; color:#08090a; background:#d9a626; padding:4px 8px;">4B</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:#8b8f94;">Funding history + correlation matrix</div>
+    </div>
+
+    <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:nowrap;">
+      <div style="width:1440px; height:900px; flex-shrink:0; overflow:hidden; background:#08090a; border:1px solid #1f2225; display:flex; flex-direction:column;">
+        <div style="height:44px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:28px;">
+          <div style="display:flex; align-items:center; gap:9px;">
+            <img src="assets/logo.png" alt="LiquidityHQ" style="width:20px; height:20px; border-radius:5px; display:block; flex-shrink:0;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; letter-spacing:.14em; color:#e8e9ea;">LIQUIDITYHQ</div>
+          </div>
+          <div style="display:flex; gap:2px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase;">
+            <sc-for list="{{ navFlow }}" as="n" hint-placeholder-count="5">
+              <div style="padding:6px 12px; color:{{ n.col }}; background:{{ n.bg }}; font-weight:{{ n.weight }};">{{ n.label }}</div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div style="display:flex; align-items:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em;">
+            <div style="display:flex; align-items:center; gap:6px; color:#8b8f94;"><div style="width:5px; height:5px; background:#3fb950;"></div>NEXT PAYMENT 02:12</div>
+            <div style="color:#7c828a; border:1px solid #1f2225; padding:4px 8px;">⌘K</div>
+            <div style="width:22px; height:22px; border:1px solid #5e646b; display:flex; align-items:center; justify-content:center; color:#8b8f94; font-size:10px; font-weight:700; flex-shrink:0;">J</div>
+          </div>
+        </div>
+
+        <div style="height:42px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 16px; gap:12px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.1em; color:#e8e9ea;">FUNDING &amp; CORRELATION</div>
+          <div style="flex:1"></div>
+          <div style="display:flex; gap:2px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; border:1px solid #1f2225;">
+            <div style="padding:5px 10px; color:#7c828a;">24H</div>
+            <div style="padding:5px 10px; color:#7c828a;">7D</div>
+            <div style="padding:5px 10px; color:#08090a; background:#d9a626;">30D</div>
+            <div style="padding:5px 10px; color:#7c828a;">90D</div>
+          </div>
+        </div>
+
+        <div style="flex:1; display:flex; min-height:0;">
+          <div style="flex:1; display:flex; flex-direction:column; min-width:0; border-right:1px solid #1f2225;">
+            <div style="height:28px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px; gap:10px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#8b8f94;">BTC funding · 8h payments</div>
+              <div style="flex:1"></div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; color:#7c828a;">11 CONSECUTIVE POSITIVE</div>
+            </div>
+            <div style="height:230px; flex-shrink:0; position:relative; padding:16px 14px; border-bottom:1px solid #1f2225;">
+              <div style="position:absolute; inset:16px 14px;">
+                <div style="position:absolute; left:0; right:0; top:50%; border-top:1px solid #1f2225;"></div>
+                <sc-for list="{{ fundBars }}" as="b" hint-placeholder-count="56">
+                  <div style="position:absolute; left:{{ b.left }}; width:{{ b.w }}; top:{{ b.top }}; height:{{ b.h }}; background:{{ b.col }};"></div>
+                </sc-for>
+              </div>
+              <div style="position:absolute; left:14px; top:16px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#3a3f45;">+0.04%</div>
+              <div style="position:absolute; left:14px; bottom:16px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#3a3f45;">−0.04%</div>
+            </div>
+            <div style="height:28px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#8b8f94;">Across the board</div>
+            </div>
+            <div style="display:grid; grid-template-columns:88px 1fr 1fr 1fr 88px 78px; border-bottom:1px solid #1f2225; background:#141517;">
+              <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a;">COIN</div>
+              <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a; text-align:right;">CURRENT</div>
+              <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a; text-align:right;">24H AVG</div>
+              <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a; text-align:right;">7D AVG</div>
+              <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a; text-align:right;">ANNUALISED</div>
+              <div style="padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#7c828a; text-align:right;">NEXT</div>
+            </div>
+            <div style="flex:1; min-height:0; overflow:hidden;">
+              <sc-for list="{{ fundTable }}" as="f" hint-placeholder-count="8">
+                <div style="display:grid; grid-template-columns:88px 1fr 1fr 1fr 88px 78px; border-bottom:1px solid #131618; align-items:center;">
+                  <div style="padding:9px 14px; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:#e8e9ea; letter-spacing:.06em;">{{ f.sym }}</div>
+                  <div style="padding:9px 14px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:{{ f.col }}; text-align:right; font-variant-numeric:tabular-nums;">{{ f.now }}</div>
+                  <div style="padding:9px 14px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:#8b8f94; text-align:right; font-variant-numeric:tabular-nums;">{{ f.avg24 }}</div>
+                  <div style="padding:9px 14px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:#8b8f94; text-align:right; font-variant-numeric:tabular-nums;">{{ f.avg7 }}</div>
+                  <div style="padding:9px 14px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:{{ f.col }}; text-align:right; font-variant-numeric:tabular-nums;">{{ f.apr }}</div>
+                  <div style="padding:9px 14px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#3a3f45; text-align:right; font-variant-numeric:tabular-nums;">{{ f.next }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <aside style="width:474px; flex-shrink:0; display:flex; flex-direction:column;">
+            <div style="height:28px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px; gap:10px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#8b8f94;">Correlation · 30d</div>
+              <div style="flex:1"></div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; color:#7c828a;">HOURLY RETURNS</div>
+            </div>
+            <div style="padding:14px;">
+              <div style="display:grid; grid-template-columns:54px repeat(8, 1fr);">
+                <div></div>
+                <sc-for list="{{ corrCoins }}" as="c" hint-placeholder-count="8">
+                  <div style="padding-bottom:7px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.06em; color:#7c828a; text-align:center;">{{ c }}</div>
+                </sc-for>
+              </div>
+              <sc-for list="{{ corrRows }}" as="r" hint-placeholder-count="8">
+                <div style="display:grid; grid-template-columns:54px repeat(8, 1fr); gap:2px; margin-bottom:2px;">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.06em; color:#8b8f94; display:flex; align-items:center;">{{ r.sym }}</div>
+                  <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="8">
+                    <div style="height:44px; background:{{ c.bg }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; color:{{ c.col }};">{{ c.val }}</div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex:1"></div>
+            <div style="border-top:1px solid #1f2225; padding:12px 14px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#8b8f94;">Read</div>
+              <div style="font-size:12.5px; line-height:1.55; color:#8b8f94; margin-top:8px;">
+                HYPE is the only name on the board trading its own story — 0.41 against BTC. Everything else moves as one book, so eight positions here is one position with extra fees.
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <div style="width:390px; height:844px; flex-shrink:0; overflow:hidden; background:#08090a; border:1px solid #1f2225; display:flex; flex-direction:column;">
+        <div style="height:38px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px; gap:10px;">
+          <img src="assets/logo.png" alt="LiquidityHQ" style="width:18px; height:18px; border-radius:4px; display:block; flex-shrink:0;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.14em; color:#e8e9ea;">FUNDING</div>
+          <div style="flex:1"></div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#7c828a; letter-spacing:.1em;">NEXT 02:12</div>
+        </div>
+        <div style="height:34px; flex-shrink:0; border-bottom:1px solid #1f2225; display:flex; align-items:center; padding:0 14px; gap:2px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em;">
+          <div style="padding:5px 11px; color:#08090a; background:#d9a626;">FUNDING</div>
+          <div style="padding:5px 11px; color:#8b8f94;">CORRELATION</div>
+        </div>
+        <div style="height:150px; flex-shrink:0; border-bottom:1px solid #1f2225; position:relative; padding:14px 12px;">
+          <div style="position:absolute; inset:14px 12px;">
+            <div style="position:absolute; left:0; right:0; top:50%; border-top:1px solid #1f2225;"></div>
+            <sc-for list="{{ fundBars }}" as="b" hint-placeholder-count="56">
+              <div style="position:absolute; left:{{ b.left }}; width:{{ b.w }}; top:{{ b.top }}; height:{{ b.h }}; background:{{ b.col }};"></div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow:hidden;">
+          <sc-for list="{{ fundTableM }}" as="f" hint-placeholder-count="6">
+            <div style="padding:11px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #131618;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; color:#e8e9ea; width:48px; letter-spacing:.06em;">{{ f.sym }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:{{ f.col }}; width:82px; font-variant-numeric:tabular-nums;">{{ f.now }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8b8f94; font-variant-numeric:tabular-nums;">7d {{ f.avg7 }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:{{ f.col }}; margin-left:auto; font-variant-numeric:tabular-nums;">{{ f.apr }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="height:60px; flex-shrink:0; border-top:1px solid #1f2225; display:grid; grid-template-columns:repeat(5,1fr);">
+          <sc-for list="{{ tabsFlow }}" as="tb" hint-placeholder-count="5">
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;">
+              <svg width="19" height="19" viewBox="0 0 20 20" fill="none"><path d="{{ tb.d }}" stroke="{{ tb.col }}" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path></svg>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.1em; color:{{ tb.col }};">{{ tb.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4c · ECON CALENDAR ── -->
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;signalColorOnly&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behaviour&quot;},&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#d9a626&quot;,&quot;options&quot;:[&quot;#d9a626&quot;,&quot;#e8e9ea&quot;,&quot;#ff6b35&quot;,&quot;#38b6c4&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;}}">
+class Component extends DCLogic {
+  state = { threshold: 0.75, palette: 0, seed: 990911 };
+
+  mkCandles(n, seed) {
+    let x = seed, p = 114600;
+    const rnd = () => { x = (x * 1103515245 + 12345) & 0x7fffffff; return x / 0x7fffffff; };
+    const raw = [];
+    for (let i = 0; i < n; i++) {
+      const centre = 114150 + (i / n) * 1500;
+      const o = p;
+      const c = p + (centre - p) * 0.16 + (rnd() - 0.5) * 540;
+      raw.push({ o, c, hi: Math.max(o, c) + rnd() * 260, lo: Math.min(o, c) - rnd() * 260 });
+      p = c;
+    }
+    const last = raw[raw.length - 1];
+    last.c = 115284;
+    last.hi = Math.max(last.hi, 115284);
+    return raw;
+  }
+
+  scale(raw) {
+    const lo = Math.min(...raw.map(r => r.lo), 113410);
+    const hi = Math.max(...raw.map(r => r.hi), 117900);
+    const pad = (hi - lo) * 0.07;
+    const min = lo - pad, max = hi + pad, range = max - min;
+    const pct = v => ((max - v) / range) * 100;
+    const slot = 100 / raw.length;
+    const cs = raw.map((r, i) => {
+      const bull = r.c >= r.o;
+      const top = pct(Math.max(r.o, r.c));
+      const bot = pct(Math.min(r.o, r.c));
+      return {
+        left: (i * slot).toFixed(3) + '%',
+        w: (slot * 0.66).toFixed(3) + '%',
+        top: top.toFixed(2) + '%',
+        h: Math.max(0.5, bot - top).toFixed(2) + '%',
+        wickTop: pct(r.hi).toFixed(2) + '%',
+        wickH: (pct(r.lo) - pct(r.hi)).toFixed(2) + '%',
+        col: bull ? '#3fb950' : '#f0524d',
+        dim: bull ? 'rgba(63,185,80,.55)' : 'rgba(240,82,77,.55)'
+      };
+    });
+    return { cs, pct };
+  }
+
+  renderVals() {
+    const raw = this.mkCandles(64, 20260814);
+    const { cs, pct } = this.scale(raw);
+    const m = this.scale(raw.slice(-34));
+
+    const mono = this.props.signalColorOnly ?? true;
+    const acc = this.props.accent ?? '#d9a626';
+    const GREEN = '#3fb950', RED = '#f0524d', TXT = '#e8e9ea', DIM = '#22262a', TXT3 = '#7c828a';
+
+    const ICON = {
+      desk: 'M3.2 3.2h5.6v5.6H3.2zM11.2 3.2h5.6v5.6h-5.6zM3.2 11.2h5.6v5.6H3.2zM11.2 11.2h5.6v5.6h-5.6z',
+      arena: 'M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z',
+      scan: 'M10 2.6v3.2M10 14.2v3.2M2.6 10h3.2M14.2 10h3.2M10 6.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z',
+      flow: 'M2.5 10.5h3l2-5 3 9 2-6 1.5 2h3.5',
+      book: 'M5 2.8h8.5A1.5 1.5 0 0 1 15 4.3v12.9H6.5A1.5 1.5 0 0 1 5 15.7V2.8ZM5 14.2h10M7.5 6h4.5M7.5 9h4.5'
+    };
+    const KEYS = ['desk', 'arena', 'scan', 'flow', 'book'];
+    const navFor = active => KEYS.map(k => ({
+      label: k === 'desk' ? 'OVERVIEW' : k.toUpperCase(),
+      col: k === active ? '#08090a' : TXT3,
+      bg: k === active ? acc : 'transparent',
+      weight: k === active ? 700 : 400
+    }));
+    const tabsFor = active => KEYS.map(k => ({
+      label: k.toUpperCase(), d: ICON[k], col: k === active ? acc : TXT3
+    }));
+
+    const rows = [
+      { label: 'Funding 8h', value: '+0.0132%', note: 'crowded long', fire: 'red' },
+      { label: 'CVD 4h', value: 'Bull div', note: 'smart buyers', fire: 'green' },
+      { label: 'OI 1h', value: '+2.31%', note: 'new positions', fire: null },
+      { label: 'VWAP', value: '+0.42%', note: 'above session', fire: null },
+      { label: 'CB prem', value: '+0.031%', note: 'spot bid', fire: null },
+      { label: 'Taker buy', value: '58%', note: 'buyers lead', fire: null },
+      { label: 'Basis', value: '+0.18%', note: 'perps rich', fire: null },
+      { label: 'Liq 24h', value: '$412M', note: '61% longs', fire: null }
+    ];
+    const evidence = rows.map(r => {
+      const fired = mono ? r.fire : (r.fire || 'neutral');
+      return {
+        label: r.label.toUpperCase(),
+        value: r.value,
+        note: r.note,
+        col: fired === 'green' ? GREEN : fired === 'red' ? RED : TXT,
+        mark: r.fire ? (r.fire === 'green' ? GREEN : RED) : DIM
+      };
+    });
+
+    const clusterRows = [
+      { px: '119.6k', w: '34%', usd: '$44M', side: 'short' },
+      { px: '117.9k', w: '58%', usd: '$61M', side: 'short' },
+      { px: '116.2k', w: '22%', usd: '$19M', side: 'short' },
+      { px: '114.8k', w: '41%', usd: '$38M', side: 'long' },
+      { px: '113.4k', w: '92%', usd: '$82M', side: 'long' },
+      { px: '111.7k', w: '27%', usd: '$24M', side: 'long' }
+    ];
+
+    const tickers = [
+      { sym: 'BTC', px: '115,284.50', chg: '+1.42%', up: true },
+      { sym: 'ETH', px: '4,182.30', chg: '+0.86%', up: true },
+      { sym: 'SOL', px: '241.62', chg: '−0.34%', up: false },
+      { sym: 'BNB', px: '892.11', chg: '+0.21%', up: true },
+      { sym: 'HYPE', px: '48.07', chg: '+3.18%', up: true },
+      { sym: 'LINK', px: '27.44', chg: '−1.02%', up: false },
+      { sym: 'DOGE', px: '0.2418', chg: '+0.64%', up: true },
+      { sym: 'ARB', px: '0.8912', chg: '−2.11%', up: false }
+    ];
+
+    const coinRows = [
+      { sym: 'BTC', px: '115,284.50', chg: '+1.42%', up: true, funding: '+0.0132%', fund: 'hot', oi: '+2.31%', taker: 58, signal: 'Smart buyers stepping in', sig: 'green', grade: 'A−' },
+      { sym: 'ETH', px: '4,182.30', chg: '+0.86%', up: true, funding: '+0.0094%', fund: null, oi: '+1.04%', taker: 54, signal: 'Holding session VWAP', sig: null, grade: 'B+' },
+      { sym: 'SOL', px: '241.62', chg: '−0.34%', up: false, funding: '+0.0410%', fund: 'hot', oi: '+4.82%', taker: 47, signal: 'Longs overcrowded', sig: 'red', grade: 'C' },
+      { sym: 'BNB', px: '892.11', chg: '+0.21%', up: true, funding: '+0.0061%', fund: null, oi: '−0.42%', taker: 51, signal: 'Range, no edge', sig: null, grade: 'B' },
+      { sym: 'HYPE', px: '48.07', chg: '+3.18%', up: true, funding: '−0.0220%', fund: 'cool', oi: '+6.15%', taker: 64, signal: 'Shorts being squeezed', sig: 'green', grade: 'A' },
+      { sym: 'LINK', px: '27.44', chg: '−1.02%', up: false, funding: '+0.0088%', fund: null, oi: '−1.28%', taker: 43, signal: 'Sellers in control', sig: null, grade: 'C+' },
+      { sym: 'DOGE', px: '0.2418', chg: '+0.64%', up: true, funding: '+0.0105%', fund: null, oi: '+0.87%', taker: 52, signal: 'Following BTC', sig: null, grade: 'B−' },
+      { sym: 'ARB', px: '0.8912', chg: '−2.11%', up: false, funding: '+0.0037%', fund: null, oi: '−2.94%', taker: 39, signal: 'Positions unwinding', sig: null, grade: 'D+' }
+    ];
+    const coins = coinRows.map(c => ({
+      sym: c.sym,
+      px: c.px,
+      chg: c.chg,
+      chgCol: c.up ? GREEN : RED,
+      funding: c.funding,
+      fundCol: mono ? (c.fund === 'hot' ? RED : c.fund === 'cool' ? GREEN : TXT) : (c.funding.startsWith('−') ? GREEN : RED),
+      oi: c.oi,
+      takerW: c.taker + '%',
+      takerCol: c.taker >= 60 ? GREEN : c.taker <= 42 ? RED : '#3a3f45',
+      signal: c.signal,
+      sigCol: c.sig === 'green' ? GREEN : c.sig === 'red' ? RED : '#8b8f94',
+      grade: c.grade,
+      mark: c.sig === 'green' ? GREEN : c.sig === 'red' ? RED : DIM
+    }));
+
+    // ── Markets (28 tracked) ──
+    const MK = [
+      ['BTC', '115,284.50', 1.42, '+0.0132%', 'hot', '+2.31%', 'Smart buyers stepping in', 'green'],
+      ['ETH', '4,182.30', 0.86, '+0.0094%', null, '+1.04%', 'Holding session VWAP', null],
+      ['SOL', '241.62', -0.34, '+0.0410%', 'hot', '+4.82%', 'Longs overcrowded', 'red'],
+      ['BNB', '892.11', 0.21, '+0.0061%', null, '−0.42%', 'Range, no edge', null],
+      ['XRP', '3.1284', -0.72, '+0.0078%', null, '+0.36%', 'Following majors', null],
+      ['HYPE', '48.07', 3.18, '−0.0220%', 'cool', '+6.15%', 'Shorts being squeezed', 'green'],
+      ['DOGE', '0.2418', 0.64, '+0.0105%', null, '+0.87%', 'Following BTC', null],
+      ['ADA', '0.8104', -0.48, '+0.0052%', null, '−0.61%', 'Quiet', null],
+      ['LINK', '27.44', -1.02, '+0.0088%', null, '−1.28%', 'Sellers in control', null],
+      ['AVAX', '31.28', 1.06, '+0.0071%', null, '+1.92%', 'Bid on dips', null],
+      ['SUI', '4.0912', 2.24, '+0.0164%', null, '+3.41%', 'Momentum building', null],
+      ['TON', '3.4180', -0.19, '+0.0044%', null, '+0.12%', 'Quiet', null],
+      ['DOT', '4.6120', -0.88, '+0.0039%', null, '−0.74%', 'Drifting lower', null],
+      ['LTC', '118.40', 0.32, '+0.0058%', null, '+0.28%', 'Range, no edge', null],
+      ['ARB', '0.8912', -2.11, '+0.0037%', null, '−2.94%', 'Positions unwinding', null],
+      ['OP', '1.4208', -1.64, '+0.0041%', null, '−1.86%', 'Sellers in control', null],
+      ['APT', '9.1840', 0.74, '+0.0066%', null, '+0.94%', 'Following majors', null],
+      ['NEAR', '4.2260', 1.18, '+0.0082%', null, '+1.44%', 'Bid on dips', null],
+      ['INJ', '18.62', -0.94, '+0.0049%', null, '−0.88%', 'Quiet', null],
+      ['SEI', '0.4184', 4.06, '−0.0180%', 'cool', '+7.28%', 'Shorts being squeezed', 'green'],
+      ['PEPE', '0.00001284', 2.88, '+0.0198%', null, '+4.12%', 'Momentum building', null],
+      ['WIF', '1.8420', -3.24, '+0.0356%', 'hot', '+5.06%', 'Longs overcrowded', 'red'],
+      ['ENA', '0.6842', 1.62, '+0.0074%', null, '+2.18%', 'Bid on dips', null],
+      ['ONDO', '1.1264', 0.44, '+0.0055%', null, '+0.51%', 'Quiet', null],
+      ['JUP', '0.9128', -0.62, '+0.0043%', null, '−0.42%', 'Range, no edge', null],
+      ['LDO', '1.6408', -1.18, '+0.0047%', null, '−1.06%', 'Drifting lower', null],
+      ['CRV', '0.8264', 0.92, '+0.0069%', null, '+1.12%', 'Following majors', null],
+      ['GMX', '14.28', -0.36, '+0.0051%', null, '−0.24%', 'Quiet', null]
+    ];
+    const markets = MK.map(r => ({
+      sym: r[0],
+      px: r[1],
+      chg: (r[2] >= 0 ? '+' : '−') + Math.abs(r[2]).toFixed(2) + '%',
+      chgCol: r[2] >= 0 ? GREEN : RED,
+      funding: r[3],
+      fundCol: mono ? (r[4] === 'hot' ? RED : r[4] === 'cool' ? GREEN : TXT) : (r[3].startsWith('−') ? GREEN : RED),
+      oi: r[5],
+      signal: r[6],
+      sigCol: r[7] === 'green' ? GREEN : r[7] === 'red' ? RED : '#8b8f94',
+      mark: r[7] === 'green' ? GREEN : r[7] === 'red' ? RED : DIM
+    }));
+
+    // ── Liquidation heatmap · cumulative leverage density in the chart's price scale ──
+    const HEAT_CLUSTERS = [
+      [119600, 44], [118400, 28], [117900, 61], [116200, 19],
+      [114800, 38], [114100, 31], [113400, 82], [112000, 24]
+    ];
+    const SPOT = 115284;
+    // four intensity ramps, switchable from the swatches
+    const RAMPS = [
+      [[0, [10, 6, 20]], [.14, [42, 17, 78]], [.32, [104, 30, 122]], [.52, [181, 48, 106]], [.7, [232, 91, 58]], [.86, [249, 169, 74]], [1, [253, 243, 200]]],
+      [[0, [8, 12, 18]], [.18, [23, 54, 76]], [.38, [22, 100, 96]], [.58, [45, 148, 88]], [.76, [140, 190, 62]], [1, [237, 240, 138]]],
+      [[0, [8, 10, 22]], [.2, [24, 48, 108]], [.42, [30, 96, 176]], [.62, [56, 156, 214]], [.8, [140, 206, 232]], [1, [236, 248, 255]]],
+      [[0, [14, 12, 10]], [.2, [64, 40, 26]], [.42, [124, 72, 32]], [.62, [186, 118, 40]], [.8, [226, 170, 74]], [1, [250, 236, 196]]]
+    ];
+    const rampCss = idx => 'linear-gradient(0deg,' + RAMPS[idx].map(s =>
+      'rgb(' + s[1].join(',') + ') ' + (s[0] * 100).toFixed(0) + '%').join(',') + ')';
+    const rampColor = (v, idx) => {
+      const R = RAMPS[idx];
+      for (let i = 1; i < R.length; i++) {
+        if (v <= R[i][0]) {
+          const [t0, c0] = R[i - 1], [t1, c1] = R[i];
+          const k = (v - t0) / (t1 - t0);
+          return 'rgb(' + c0.map((n, j) => Math.round(n + (c1[j] - n) * k)).join(',') + ')';
+        }
+      }
+      return 'rgb(' + R[R.length - 1][1].join(',') + ')';
+    };
+    // one div per price level, its intensity painted as a horizontal gradient —
+    // gives the streaked look without thousands of cells
+    const buildHeat = (cols, rows, lo, hi, seed, threshold, palIdx) => {
+      let hx = seed;
+      const hrnd = () => { hx = (hx * 1103515245 + 12345) & 0x7fffffff; return hx / 0x7fffffff; };
+      const range = hi - lo;
+      const sigma = range * 0.013;
+      const grid = [];
+      for (let r = 0; r < rows; r++) {
+        const level = hi - ((r + 0.5) / rows) * range;
+        let dens = 0;
+        for (const [px, usd] of HEAT_CLUSTERS) {
+          const d = (level - px) / sigma;
+          dens += usd * Math.exp(-0.5 * d * d);
+        }
+        dens = Math.min(1, dens / 74);
+        const row = [];
+        let carry = hrnd();
+        for (let c = 0; c < cols; c++) {
+          carry = carry * 0.72 + hrnd() * 0.28;          // streaks along time
+          const t = 0.22 + (c / cols) * 0.9;              // leverage builds up
+          row.push(Math.max(0, Math.min(1, (dens * 0.82 + 0.1) * t * (0.55 + carry * 0.85))));
+        }
+        grid.push(row);
+      }
+      // light vertical smoothing so bands bleed into neighbours
+      const sm = grid.map((row, r) => row.map((v, c) => {
+        const up = grid[r - 1] ? grid[r - 1][c] : v;
+        const dn = grid[r + 1] ? grid[r + 1][c] : v;
+        return v * 0.6 + up * 0.2 + dn * 0.2;
+      }));
+      // threshold: how much of the low end is suppressed before anything paints
+      const cut = threshold * 0.55;
+      return sm.map((row, r) => ({
+        top: (r * (100 / rows)).toFixed(3) + '%',
+        h: (100 / rows + 0.1).toFixed(3) + '%',
+        bg: 'linear-gradient(90deg,' + row.map((v, c) => {
+          const adj = v <= cut ? 0 : (v - cut) / (1 - cut);
+          return rampColor(adj, palIdx) + ' ' + ((c / (cols - 1)) * 100).toFixed(2) + '%';
+        }).join(',') + ')'
+      }));
+    };
+    const heatLo = Math.min(...raw.map(r => r.lo), 111600);
+    const heatHi = Math.max(...raw.map(r => r.hi), 120100);
+    const heatPct = v => ((heatHi - v) / (heatHi - heatLo)) * 100;
+    const thr = this.state.threshold ?? 0.75;
+    const palIdx = this.state.palette ?? 0;
+    const seed = this.state.seed ?? 990911;
+    const heat = buildHeat(34, 44, heatLo, heatHi, seed, thr, palIdx);
+    const heatM = buildHeat(20, 30, heatLo, heatHi, seed + 7, thr, palIdx);
+    // price track drawn over the heat, same scale
+    const trackFor = cols => {
+      const step = raw.length / cols;
+      return Array.from({ length: cols }, (_, c) => {
+        const px = raw[Math.min(raw.length - 1, Math.floor(c * step))].c;
+        return {
+          left: (c * (100 / cols)).toFixed(3) + '%',
+          w: (100 / cols + 0.05).toFixed(3) + '%',
+          top: heatPct(px).toFixed(2) + '%'
+        };
+      });
+    };
+    const fmtK = v => (v / 1000).toFixed(1) + 'k';
+    const heatAxis = Array.from({ length: 9 }, (_, i) => fmtK(heatHi - (i / 8) * (heatHi - heatLo)));
+    const heatTimeAxis = ['08 Aug', '09 Aug', '10 Aug', '11 Aug', '12 Aug', '13 Aug', '14 Aug'];
+    const heatTfs = ['12H', '24H', '3D', '7D', '30D'];
+
+    const liqLevels = [
+      { px: '119,600', side: 'SHORT', usd: '$44M', w: '34%', lev: '25–50x', dist: '+3.7%' },
+      { px: '118,400', side: 'SHORT', usd: '$28M', w: '21%', lev: '50x+', dist: '+2.7%' },
+      { px: '117,900', side: 'SHORT', usd: '$61M', w: '58%', lev: '10–25x', dist: '+2.3%' },
+      { px: '116,200', side: 'SHORT', usd: '$19M', w: '22%', lev: '50x+', dist: '+0.8%' },
+      { px: '114,800', side: 'LONG', usd: '$38M', w: '41%', lev: '25–50x', dist: '−0.4%' },
+      { px: '114,100', side: 'LONG', usd: '$31M', w: '33%', lev: '50x+', dist: '−1.0%' },
+      { px: '113,400', side: 'LONG', usd: '$82M', w: '92%', lev: '10–25x', dist: '−1.6%' },
+      { px: '112,000', side: 'LONG', usd: '$24M', w: '27%', lev: '50x+', dist: '−2.9%' }
+    ];
+
+    const newsItems = [
+      { time: '11:38', src: 'REUTERS', head: 'US CPI expected at 2.9% YoY as shelter costs cool', coins: 'MACRO', impact: 'HIGH' },
+      { time: '11:12', src: 'BLOOMBERG', head: 'Spot bitcoin ETFs log fourth straight day of net inflows, $214M Wednesday', coins: 'BTC', impact: 'MED' },
+      { time: '10:47', src: 'THE BLOCK', head: 'Hyperliquid open interest hits record as perp volumes overtake two centralised venues', coins: 'HYPE', impact: 'MED' },
+      { time: '10:05', src: 'COINDESK', head: 'Ethereum staking queue clears after validator exit wave', coins: 'ETH', impact: 'LOW' },
+      { time: '09:41', src: 'WSJ', head: 'Treasury yields steady ahead of inflation print; dollar index slips 0.18%', coins: 'MACRO', impact: 'MED' },
+      { time: '09:18', src: 'THE BLOCK', head: 'Solana network fees fall 22% week-over-week as memecoin activity slows', coins: 'SOL', impact: 'LOW' },
+      { time: '08:52', src: 'REUTERS', head: 'Japan considers stablecoin framework revision, industry consultation opens September', coins: 'MACRO', impact: 'LOW' },
+      { time: '08:30', src: 'COINDESK', head: 'Arbitrum DAO approves treasury diversification proposal', coins: 'ARB', impact: 'LOW' },
+      { time: '07:59', src: 'BLOOMBERG', head: 'Options desks report heavy 114k put buying into Friday expiry', coins: 'BTC', impact: 'MED' },
+      { time: '07:22', src: 'THE BLOCK', head: 'Chainlink launches cross-chain reserve proofs with two custodians', coins: 'LINK', impact: 'LOW' }
+    ];
+    const IMPACT = { HIGH: RED, MED: acc, LOW: '#7c828a' };
+    const IMPACT_MAP = IMPACT;
+
+    const decorate = list => list.map(f => ({
+      label: f.label,
+      note: f.note ?? '',
+      icon: f.on ? '✓' : '·',
+      iconCol: f.on ? GREEN : '#3a3f45',
+      txtCol: f.on ? TXT : '#7c828a'
+    }));
+
+    // ── Setup scanner ──
+    const SC = [
+      ['BTC', 'Short squeeze', 82, '114,820', '113,410', '117,900', '1.9R', 'CVD div + funding', '12m'],
+      ['HYPE', 'Short squeeze', 78, '47.40', '45.10', '52.80', '2.3R', 'Negative funding', '34m'],
+      ['SEI', 'Short squeeze', 74, '0.4106', '0.3940', '0.4520', '2.5R', 'OI + spot bid', '51m'],
+      ['ETH', 'Trend pullback', 68, '4,148', '4,062', '4,340', '2.2R', 'VWAP reclaim', '1h 08m'],
+      ['SUI', 'Trend pullback', 64, '4.0180', '3.8900', '4.3400', '2.5R', 'Higher lows', '1h 22m'],
+      ['NEAR', 'Absorption', 61, '4.1840', '4.0600', '4.4200', '1.9R', 'Bid absorption', '2h 04m'],
+      ['SOL', 'Range fade', 57, '243.80', '247.10', '236.40', '2.2R', 'Longs crowded', '2h 41m'],
+      ['WIF', 'Range fade', 54, '1.8840', '1.9420', '1.7600', '2.1R', 'Funding extreme', '3h 12m'],
+      ['ARB', 'Breakdown', 49, '0.8860', '0.9080', '0.8340', '2.4R', 'OI unwind', '4h 06m'],
+      ['LINK', 'Breakdown', 44, '27.28', '27.90', '25.90', '2.2R', 'Lower highs', '5h 18m']
+    ];
+    const scanRows = SC.map(r => ({
+      sym: r[0], setup: r[1], score: String(r[2]), w: r[2] + '%',
+      entry: r[3], stop: r[4], target: r[5], r: r[6], trigger: r[7], age: r[8],
+      col: r[2] >= 70 ? GREEN : r[2] >= 55 ? TXT : '#8b8f94',
+      bar: r[2] >= 70 ? GREEN : r[2] >= 55 ? '#8b8f94' : '#3a3f45',
+      side: /squeeze|pullback|absorption/i.test(r[1]) ? 'LONG' : 'SHORT',
+      sideCol: /squeeze|pullback|absorption/i.test(r[1]) ? GREEN : RED
+    }));
+
+    // ── Funding history ──
+    let fx = 4242;
+    const frnd = () => { fx = (fx * 1103515245 + 12345) & 0x7fffffff; return fx / 0x7fffffff; };
+    const fundBars = Array.from({ length: 56 }, (_, i) => {
+      const v = Math.sin(i / 7) * 0.018 + (frnd() - 0.42) * 0.016 + (i / 56) * 0.012;
+      const h = Math.min(46, Math.abs(v) * 1100);
+      return {
+        left: (i * (100 / 56)).toFixed(3) + '%',
+        w: (100 / 56 * 0.62).toFixed(3) + '%',
+        h: Math.max(1.5, h).toFixed(1) + '%',
+        pos: v >= 0,
+        top: v >= 0 ? (50 - Math.max(1.5, h)).toFixed(1) + '%' : '50%',
+        col: v >= 0 ? RED : GREEN
+      };
+    });
+    const fundTable = [
+      ['BTC', '+0.0132%', '+0.0104%', '+0.0089%', '14.4%', '02:12', 'hot'],
+      ['ETH', '+0.0094%', '+0.0081%', '+0.0072%', '10.3%', '02:12', null],
+      ['SOL', '+0.0410%', '+0.0322%', '+0.0244%', '44.9%', '02:12', 'hot'],
+      ['HYPE', '−0.0220%', '−0.0164%', '−0.0098%', '−24.1%', '02:12', 'cool'],
+      ['SEI', '−0.0180%', '−0.0142%', '−0.0071%', '−19.7%', '02:12', 'cool'],
+      ['WIF', '+0.0356%', '+0.0301%', '+0.0210%', '39.0%', '02:12', 'hot'],
+      ['SUI', '+0.0164%', '+0.0128%', '+0.0102%', '18.0%', '02:12', null],
+      ['LINK', '+0.0088%', '+0.0074%', '+0.0068%', '9.6%', '02:12', null]
+    ].map(r => ({
+      sym: r[0], now: r[1], avg24: r[2], avg7: r[3], apr: r[4], next: r[5],
+      col: mono ? (r[6] === 'hot' ? RED : r[6] === 'cool' ? GREEN : TXT) : (r[1].startsWith('−') ? GREEN : RED)
+    }));
+
+    // ── Correlation matrix ──
+    const CORR_COINS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'HYPE', 'LINK', 'DOGE'];
+    const CORR = [
+      [1, .89, .82, .74, .68, .41, .77, .71],
+      [.89, 1, .86, .72, .66, .44, .81, .69],
+      [.82, .86, 1, .69, .61, .52, .74, .73],
+      [.74, .72, .69, 1, .58, .31, .64, .59],
+      [.68, .66, .61, .58, 1, .24, .57, .62],
+      [.41, .44, .52, .31, .24, 1, .34, .38],
+      [.77, .81, .74, .64, .57, .34, 1, .66],
+      [.71, .69, .73, .59, .62, .38, .66, 1]
+    ];
+    const corrRows = CORR.map((row, i) => ({
+      sym: CORR_COINS[i],
+      cells: row.map((v, j) => ({
+        val: i === j ? '—' : v.toFixed(2),
+        bg: i === j ? '#131618' : 'rgba(217,166,38,' + (v * 0.5).toFixed(3) + ')',
+        col: i === j ? '#3a3f45' : v > 0.75 ? '#08090a' : TXT
+      }))
+    }));
+
+    // ── Econ calendar ──
+    const econ = [
+      { day: 'THU 14 AUG', rows: [
+        { time: '12:30', region: 'US', name: 'CPI YoY (Jul)', impact: 'HIGH', act: '—', fc: '2.9%', prev: '3.0%' },
+        { time: '12:30', region: 'US', name: 'Core CPI MoM (Jul)', impact: 'HIGH', act: '—', fc: '0.2%', prev: '0.2%' },
+        { time: '12:30', region: 'US', name: 'Initial jobless claims', impact: 'LOW', act: '—', fc: '228K', prev: '226K' },
+        { time: '15:00', region: 'US', name: 'Fed speaker · Waller', impact: 'MED', act: '—', fc: '—', prev: '—' }
+      ] },
+      { day: 'FRI 15 AUG', rows: [
+        { time: '08:00', region: 'GLOBAL', name: 'BTC options expiry · $3.1B', impact: 'MED', act: '—', fc: '—', prev: '—' },
+        { time: '12:30', region: 'US', name: 'Retail sales MoM (Jul)', impact: 'MED', act: '—', fc: '0.4%', prev: '0.6%' },
+        { time: '14:00', region: 'US', name: 'Michigan sentiment (prelim)', impact: 'LOW', act: '—', fc: '66.4', prev: '66.4' }
+      ] },
+      { day: 'MON 18 AUG', rows: [
+        { time: '01:30', region: 'CN', name: 'Loan prime rate 1Y', impact: 'MED', act: '—', fc: '3.00%', prev: '3.00%' },
+        { time: '22:00', region: 'US', name: 'Treasury 20Y auction', impact: 'LOW', act: '—', fc: '—', prev: '—' }
+      ] }
+    ].map(d => ({ day: d.day, rows: d.rows.map(r => ({ ...r, impactCol: IMPACT_MAP[r.impact] })) }));
+
+    // ── Journal ──
+    const JR = [
+      ['14 Aug', 'BTC', 'LONG', '114,860', 'open', null, 'open', 'Short squeeze', 'OPEN'],
+      ['13 Aug', 'HYPE', 'LONG', '46.20', '48.90', 2.1, '+$412', 'Funding reset', 'TARGET'],
+      ['13 Aug', 'SOL', 'SHORT', '246.40', '247.90', -1.0, '−$188', 'Range fade', 'STOP'],
+      ['12 Aug', 'ETH', 'LONG', '4,062', '4,214', 1.8, '+$338', 'Trend pullback', 'TARGET'],
+      ['12 Aug', 'BTC', 'LONG', '113,940', '114,180', 0.3, '+$61', 'Absorption', 'MANUAL'],
+      ['11 Aug', 'SEI', 'LONG', '0.3980', '0.4310', 2.4, '+$286', 'Short squeeze', 'TARGET'],
+      ['11 Aug', 'WIF', 'SHORT', '1.9240', '1.9680', -1.0, '−$204', 'Funding extreme', 'STOP'],
+      ['08 Aug', 'ARB', 'SHORT', '0.9120', '0.8640', 1.6, '+$242', 'Breakdown', 'TARGET']
+    ];
+    const journalRows = JR.map(r => ({
+      date: r[0], sym: r[1], side: r[2], entry: r[3], exit: r[4],
+      r: r[5] == null ? '—' : (r[5] > 0 ? '+' : '') + r[5].toFixed(1) + 'R',
+      pnl: r[6], setup: r[7], outcome: r[8],
+      sideCol: r[2] === 'LONG' ? GREEN : RED,
+      rCol: r[5] == null ? '#8b8f94' : r[5] > 0 ? GREEN : RED,
+      outCol: r[8] === 'TARGET' ? GREEN : r[8] === 'STOP' ? RED : r[8] === 'OPEN' ? acc : '#8b8f94'
+    }));
+    let ex = 8117;
+    const ernd = () => { ex = (ex * 1103515245 + 12345) & 0x7fffffff; return ex / 0x7fffffff; };
+    let eq = 0;
+    const equity = Array.from({ length: 48 }, (_, i) => {
+      eq += (ernd() - 0.38) * 1.6;
+      return eq;
+    });
+    const eqMin = Math.min(...equity, 0), eqMax = Math.max(...equity, 1);
+    const equityPts = equity.map((v, i) => ({
+      left: (i * (100 / 48)).toFixed(3) + '%',
+      w: (100 / 48 + 0.06).toFixed(3) + '%',
+      top: (((eqMax - v) / (eqMax - eqMin)) * 100).toFixed(2) + '%'
+    }));
+
+    // ── Alerts ──
+    const AL = [
+      ['BTC', 'Price', 'crosses below 113,400', 'Push + Telegram', 'ARMED', '2h ago'],
+      ['BTC', 'Liq cluster', 'price enters 117,900 shelf', 'Push', 'ARMED', '2h ago'],
+      ['SOL', 'Funding', 'above +0.05% for 2 payments', 'Telegram', 'ARMED', '1d ago'],
+      ['HYPE', 'Funding', 'flips positive', 'Push + Email', 'ARMED', '1d ago'],
+      ['ETH', 'Price', 'crosses above 4,340', 'Push', 'ARMED', '3d ago'],
+      ['SEI', 'OI change', '1h change above 5%', 'Push', 'PAUSED', '4d ago'],
+      ['ANY', 'Setup score', 'scanner match above 75', 'Push + Telegram', 'ARMED', '1w ago'],
+      ['ANY', 'Cascade', 'liquidations above $50M in 5m', 'Push', 'ARMED', '2w ago']
+    ];
+    const alertRows = AL.map(r => ({
+      sym: r[0], type: r[1], cond: r[2], channel: r[3], status: r[4], age: r[5],
+      statusCol: r[4] === 'ARMED' ? GREEN : '#7c828a',
+      dot: r[4] === 'ARMED' ? GREEN : '#3a3f45'
+    }));
+
+    return {
+      landingNav: ['PRODUCT', 'LIQUIDATION MAP', 'ARENA', 'PRICING', 'DOCS'],
+      landingCaps: [
+        { n: '01', head: 'Liquidation map', body: 'Every leveraged position on five venues, mapped to the price levels where it gets closed. You see the shelf before price finds it.' },
+        { n: '02', head: 'Arena read', body: 'One verdict per coin per timeframe, with the entry zone, the invalidation and the eight signals it was built from. No chat window to interrogate.' },
+        { n: '03', head: 'Session discipline', body: 'Funding payments, session windows and the economic calendar in one clock, so you stop taking size into prints you forgot about.' }
+      ],
+      featureGrid: [
+        { tag: 'SCANNER', head: 'Setup scanner', body: 'Ten ranked setups across 28 coins, filtered by score, funding band, session and open-interest change.' },
+        { tag: 'BRIEFING', head: 'Morning briefing', body: 'What matters today, where the money is positioned, and what would change the read — in three paragraphs.' },
+        { tag: 'ALERTS', head: 'Alerts that mean something', body: 'Price, funding, liquidation cluster, open interest, cascade size or scanner score. Push, Telegram or email.' },
+        { tag: 'JOURNAL', head: 'Journal and expectancy', body: 'Every trade logged against the setup that produced it, with expectancy, drawdown and performance by setup type.' },
+        { tag: 'PLAYBOOK', head: 'Playbook with receipts', body: 'Your rules, each one scored for adherence and measured edge — including what breaking them cost you.' },
+        { tag: 'HOURS', head: 'Your best hours', body: 'Expectancy by hour and weekday from your own trades, not generic volatility charts.' },
+        { tag: 'FLOW', head: 'Funding and correlation', body: 'Payment history per coin, annualised carry, and an 8×8 correlation matrix so you know when eight positions are one.' },
+        { tag: 'CALENDAR', head: 'Calendar and sessions', body: 'Economic prints with forecast and previous, session windows, and funding countdowns in one clock.' }
+      ],
+      landingProof: [
+        { value: '28', label: 'perpetuals tracked' },
+        { value: '5', label: 'venues aggregated' },
+        { value: '8', label: 'signals per read' },
+        { value: '4H', label: 'read cadence' }
+      ],
+      footerCols: [
+        { head: 'Product', links: ['Desk', 'Arena', 'Liquidation map', 'Scanner', 'Journal'] },
+        { head: 'Data', links: ['Funding history', 'Correlation', 'Econ calendar', 'News wire'] },
+        { head: 'Company', links: ['About', 'Pricing', 'Changelog', 'Status'] },
+        { head: 'Legal', links: ['Terms', 'Privacy', 'Refunds', 'Risk disclosure'] }
+      ],
+      journalRows,
+      journalRowsM: journalRows.slice(0, 6),
+      journalCols: [
+        { label: 'Date', align: 'left' }, { label: 'Coin', align: 'left' },
+        { label: 'Side', align: 'left' }, { label: 'Entry', align: 'right' },
+        { label: 'Exit', align: 'right' }, { label: 'R', align: 'right' },
+        { label: 'P&L', align: 'right' }, { label: 'Setup', align: 'left' },
+        { label: 'Outcome', align: 'right' }
+      ],
+      journalStats: [
+        { label: 'Trades', value: '68', note: 'last 90 days', col: TXT },
+        { label: 'Win rate', value: '54%', note: '37 W / 31 L', col: TXT },
+        { label: 'Expectancy', value: '+0.42R', note: 'per trade', col: GREEN },
+        { label: 'Net P&L', value: '+$4,182', note: '+16.7%', col: GREEN },
+        { label: 'Max drawdown', value: '−7.4%', note: '11 Jul', col: RED },
+        { label: 'Best streak', value: '6', note: 'wins', col: TXT }
+      ],
+      equityPts,
+      alertRows,
+      alertRowsM: alertRows.slice(0, 6),
+      alertCols: [
+        { label: 'Coin', align: 'left' }, { label: 'Type', align: 'left' },
+        { label: 'Condition', align: 'left' }, { label: 'Delivery', align: 'left' },
+        { label: 'Status', align: 'left' }, { label: 'Created', align: 'right' }
+      ],
+      alertChannels: [
+        { label: 'Push (this device)', value: 'ON', on: true },
+        { label: 'Telegram · @jasmin_desk', value: 'ON', on: true },
+        { label: 'Email · jasmin@desk.trade', value: 'OFF', on: false },
+        { label: 'Quiet hours 22:00–07:00', value: 'ON', on: true }
+      ],
+      alertTriggers: [
+        { time: '09:12', text: 'BTC cascade · $18.4M longs liquidated', col: RED },
+        { time: '04:10', text: 'BTC funding crossed +0.01%', col: acc },
+        { time: '23:48', text: 'HYPE funding flipped negative', col: GREEN },
+        { time: '20:02', text: 'SOL setup score above 75', col: acc }
+      ],
+      sizerInputs: [
+        { label: 'Account size', value: '$25,000', unit: 'USDT' },
+        { label: 'Risk per trade', value: '1.00%', unit: '$250' },
+        { label: 'Entry', value: '114,820', unit: 'BTC' },
+        { label: 'Stop', value: '113,410', unit: '−1.23%' }
+      ],
+      sizerOutputs: [
+        { label: 'Position size', value: '0.1773', unit: 'BTC', col: TXT },
+        { label: 'Notional', value: '$20,357', unit: '0.81× account', col: TXT },
+        { label: 'Risk at stop', value: '$250', unit: '1.00% of account', col: RED },
+        { label: 'At target 117,900', value: '+$546', unit: '2.18R', col: GREEN }
+      ],
+      calcTabs: [
+        { label: 'POSITION SIZER', col: '#08090a', bg: acc },
+        { label: 'FUNDING COST', col: '#8b8f94', bg: 'transparent' },
+        { label: 'LIQUIDATION PRICE', col: '#8b8f94', bg: 'transparent' },
+        { label: 'DCA LADDER', col: '#8b8f94', bg: 'transparent' }
+      ],
+      calcSecondary: [
+        { label: 'Funding cost · 3 days', value: '$24.18', note: '0.0132% × 9 payments' },
+        { label: 'Liquidation · 3× isolated', value: '77,180', note: '−32.8% from entry' },
+        { label: 'Break-even with fees', value: '114,935', note: 'taker in / taker out' },
+        { label: 'Max size at 1% risk', value: '0.1773 BTC', note: 'stop 113,410' }
+      ],
+      settingsGroups: [
+        { head: 'Account', rows: [
+          { label: 'Email', value: 'jasmin@desk.trade', kind: 'text' },
+          { label: 'Plan', value: 'PRO · renews 04 Sep', kind: 'link' },
+          { label: 'Password', value: 'Change', kind: 'link' },
+          { label: 'Two-factor', value: 'ON', kind: 'toggle', on: true }
+        ] },
+        { head: 'Display', rows: [
+          { label: 'Theme', value: 'TERMINAL DARK', kind: 'select' },
+          { label: 'Timezone', value: 'UTC+8 · MANILA', kind: 'select' },
+          { label: 'Number format', value: '1,234.56', kind: 'select' },
+          { label: 'Colour on neutral signals', value: 'OFF', kind: 'toggle', on: false }
+        ] },
+        { head: 'Data', rows: [
+          { label: 'Primary venue', value: 'BYBIT', kind: 'select' },
+          { label: 'Aggregate liquidations', value: '5 VENUES', kind: 'select' },
+          { label: 'Watchlist', value: 'BTC · ETH · SOL · HYPE + 4', kind: 'link' },
+          { label: 'Refresh interval', value: '5s', kind: 'select' }
+        ] },
+        { head: 'AI reads', rows: [
+          { label: 'Reads used today', value: '11 of unlimited', kind: 'text' },
+          { label: 'Auto-run at session open', value: 'ON', kind: 'toggle', on: true },
+          { label: 'Include macro context', value: 'ON', kind: 'toggle', on: true },
+          { label: 'Model', value: 'GROK · 4H CONTEXT', kind: 'select' }
+        ] }
+      ],
+      sessions: [
+        { name: 'ASIA', window: '00:00 – 08:00', state: 'CLOSED', col: '#3a3f45' },
+        { name: 'LONDON', window: '07:00 – 16:00', state: 'ACTIVE · 2h 14m', col: GREEN },
+        { name: 'NEW YORK', window: '12:00 – 21:00', state: 'OPENS 20m', col: acc },
+        { name: 'OVERLAP', window: '12:00 – 16:00', state: 'BEST LIQUIDITY', col: '#8b8f94' }
+      ],
+      scanRows,
+      scanRowsM: scanRows.slice(0, 6),
+      scanPresets: [
+        { label: 'ALL SETUPS', col: '#08090a', bg: acc },
+        { label: 'SQUEEZE', col: '#8b8f94', bg: 'transparent' },
+        { label: 'ABSORPTION', col: '#8b8f94', bg: 'transparent' },
+        { label: 'FUNDING RESET', col: '#8b8f94', bg: 'transparent' },
+        { label: 'TREND PULLBACK', col: '#8b8f94', bg: 'transparent' },
+        { label: 'MY FILTER', col: '#8b8f94', bg: 'transparent' }
+      ],
+      scanCriteria: [
+        { label: 'Min score', value: '40', note: 'of 100' },
+        { label: 'Funding band', value: '±0.02%', note: 'or wider' },
+        { label: 'OI change 1h', value: '>1.0%', note: 'either side' },
+        { label: 'CVD divergence', value: 'ANY', note: '' },
+        { label: 'Session', value: 'LONDON + NY', note: '' },
+        { label: 'Universe', value: '28 coins', note: 'all tracked' }
+      ],
+      scanCols: [
+        { label: 'Coin', align: 'left' }, { label: 'Setup', align: 'left' },
+        { label: 'Score', align: 'left' }, { label: 'Side', align: 'left' },
+        { label: 'Entry', align: 'right' }, { label: 'Stop', align: 'right' },
+        { label: 'Target', align: 'right' }, { label: 'R', align: 'right' },
+        { label: 'Trigger', align: 'left' }, { label: 'Age', align: 'right' }
+      ],
+      fundBars,
+      fundTable,
+      fundTableM: fundTable.slice(0, 6),
+      corrCoins: CORR_COINS,
+      corrRows,
+      corrRowsM: corrRows.slice(0, 5).map(r => ({ sym: r.sym, cells: r.cells.slice(0, 5) })),
+      corrCoinsM: CORR_COINS.slice(0, 5),
+      econ,
+      econM: econ.slice(0, 2).map(d => ({ day: d.day, rows: d.rows.slice(0, 4) })),
+      briefSections: [
+        { head: 'What matters today', body: 'CPI at 12:30 is the only print that can reprice the whole board. Consensus is 2.9% YoY; the options market has 114k puts stacked into Friday expiry, which tells you where desks think the downside lives. Until that number lands, treat every long as a scalp rather than a position.' },
+        { head: 'Where the money is positioned', body: 'Perp funding has been positive for eleven straight payments on BTC and SOL, and open interest added 2.3% overnight without price following. That is a crowded book. Spot, meanwhile, is bid: Coinbase premium flipped positive at 04:10 and ETFs took $214M on Wednesday. Spot buying against levered longs is the healthier version of this setup, but it only stays healthy while 114.8k holds.' },
+        { head: 'What would change the read', body: 'A sweep of 113,400 clears $82M of long liquidations and turns the bid into supply. On the other side, reclaiming 117,900 puts $61M of short liquidations in play and is the only path to a squeeze worth chasing.' }
+      ].map((s, i) => ({ ...s, i })),
+      briefLevels: [
+        { label: 'Invalidation', value: '113,400', note: '$82M longs', col: RED },
+        { label: 'Support in play', value: '114,800', note: 'entry zone floor', col: TXT },
+        { label: 'Spot', value: '115,284', note: '+1.42%', col: TXT },
+        { label: 'First resistance', value: '117,900', note: '$61M shorts', col: GREEN }
+      ],
+      briefMeta: [
+        { label: 'Generated', value: '11:42 UTC' },
+        { label: 'Window', value: 'London session' },
+        { label: 'Model', value: 'Grok · 4H context' },
+        { label: 'Confidence', value: '68 / 100' }
+      ],
+      navScan: navFor('scan'),
+      navFlow: navFor('flow'),
+      navBook: navFor('book'),
+      tabsScan: tabsFor('scan'),
+      tabsFlow: tabsFor('flow'),
+      tabsBook: tabsFor('book'),
+      marketFilters: [
+        { label: 'ALL', col: '#08090a', bg: acc },
+        { label: 'WATCHLIST', col: '#8b8f94', bg: 'transparent' },
+        { label: 'MAJORS', col: '#8b8f94', bg: 'transparent' },
+        { label: 'FIRING', col: '#8b8f94', bg: 'transparent' },
+        { label: 'GAINERS', col: '#8b8f94', bg: 'transparent' }
+      ],
+      markets,
+      marketsDesk: markets.slice(0, 22),
+      scanPresetsM: [
+        { label: 'ALL SETUPS', col: '#08090a', bg: acc },
+        { label: 'SQUEEZE', col: '#8b8f94', bg: 'transparent' },
+        { label: 'ABSORPTION', col: '#8b8f94', bg: 'transparent' }
+      ],
+      calcTabsM: [
+        { label: 'POSITION SIZER', col: '#08090a', bg: acc },
+        { label: 'FUNDING COST', col: '#8b8f94', bg: 'transparent' }
+      ],
+      marketsM: markets.slice(0, 9),
+      marketCols: [
+        { label: 'Coin', align: 'left' },
+        { label: 'Price', align: 'left' },
+        { label: '24h %', align: 'right' },
+        { label: 'Funding 8h', align: 'right' },
+        { label: 'OI 1h', align: 'right' },
+        { label: 'Signal', align: 'left' },
+        { label: '+ Columns', align: 'right' }
+      ],
+      heat,
+      heatM,
+      heatAxis: Array.from({ length: 9 }, (_, i) => Math.round((heatHi - (i / 8) * (heatHi - heatLo)) / 100) * 100),
+      heatTimeAxis,
+      heatTrack: trackFor(34),
+      heatTrackM: trackFor(20),
+      heatSpotTop: heatPct(SPOT).toFixed(2) + '%',
+      heatTfs: [
+        { label: '12H', col: '#7c828a', bg: 'transparent' },
+        { label: '24H', col: '#7c828a', bg: 'transparent' },
+        { label: '3D', col: '#7c828a', bg: 'transparent' },
+        { label: '7D', col: '#08090a', bg: acc },
+        { label: '30D', col: '#7c828a', bg: 'transparent' }
+      ],
+      threshold: thr,
+      thresholdLabel: thr.toFixed(2),
+      onThreshold: e => this.setState({ threshold: parseFloat(e.target.value) }),
+      onRefresh: () => this.setState({ seed: (seed * 16807 + 7919) & 0x7fffffff }),
+      swatches: RAMPS.map((_, i) => ({
+        bg: rampCss(i),
+        bdr: i === palIdx ? acc : '#5e646b',
+        onPick: () => this.setState({ palette: i })
+      })),
+      barCss: rampCss(palIdx),
+      liqTabs: [
+        { label: 'HEATMAP', col: '#08090a', bg: acc },
+        { label: 'RECENT LIQUIDATIONS', col: '#8b8f94', bg: 'transparent' }
+      ],
+      liqTabsM: [
+        { label: 'HEATMAP', col: '#08090a', bg: acc },
+        { label: 'LADDER', col: '#8b8f94', bg: 'transparent' },
+        { label: 'RECENT', col: '#8b8f94', bg: 'transparent' }
+      ],
+      liqLevels: liqLevels.map(l => ({ ...l, col: l.side === 'LONG' ? RED : GREEN })),
+      liqStats: [
+        { label: 'Liquidated 24h', value: '$412M', note: '61% longs', col: TXT },
+        { label: 'Largest single', value: '$18.4M', note: 'BTC long · 09:12', col: TXT },
+        { label: 'Nearest cluster', value: '113,400', note: '$82M · −1.6%', col: RED },
+        { label: 'Cascade risk', value: 'ELEVATED', note: 'stacked below spot', col: mono ? RED : TXT }
+      ],
+      newsItems: newsItems.map(n => ({ ...n, impactCol: IMPACT[n.impact] })),
+      newsItemsM: newsItems.slice(0, 7).map(n => ({ ...n, impactCol: IMPACT[n.impact] })),
+      newsFilters: [
+        { label: 'ALL', col: '#08090a', bg: acc },
+        { label: 'MACRO', col: '#8b8f94', bg: 'transparent' },
+        { label: 'BTC', col: '#8b8f94', bg: 'transparent' },
+        { label: 'ETH', col: '#8b8f94', bg: 'transparent' },
+        { label: 'ALTS', col: '#8b8f94', bg: 'transparent' },
+        { label: 'HIGH IMPACT', col: '#8b8f94', bg: 'transparent' }
+      ],
+      freeFeatures: decorate([
+        { label: 'Market read · daily', on: true },
+        { label: 'Arena reads', on: true, note: '3 / day' },
+        { label: 'Markets table · 28 coins', on: true },
+        { label: 'Liquidation map', on: true, note: 'delayed 15m' },
+        { label: 'Confluence score', on: false },
+        { label: 'Order-flow panels', on: false },
+        { label: 'Price alerts', on: false },
+        { label: 'Backtesting', on: false }
+      ]),
+      proFeatures: decorate([
+        { label: 'Market read · every 4H', on: true },
+        { label: 'Arena reads', on: true, note: 'unlimited' },
+        { label: 'Markets table · 28 coins', on: true },
+        { label: 'Liquidation map', on: true, note: 'live' },
+        { label: 'Confluence score', on: true },
+        { label: 'Order-flow panels', on: true },
+        { label: 'Price alerts', on: true, note: '25 active' },
+        { label: 'Backtesting', on: true }
+      ]),
+      candles: cs,
+      candlesM: m.cs,
+      entryTop: pct(115340).toFixed(2) + '%',
+      entryH: (pct(114820) - pct(115340)).toFixed(2) + '%',
+      stopTop: pct(113410).toFixed(2) + '%',
+      tgtTop: pct(117900).toFixed(2) + '%',
+      pxTop: pct(115284).toFixed(2) + '%',
+      tfs: ['5m', '15m', '1H', '1D', '1W'],
+      tickers: tickers.map(t => ({ ...t, col: t.up ? 'rgba(63,185,80,.8)' : 'rgba(240,82,77,.8)' })),
+      evidence,
+      evidenceM: evidence.slice(0, 6),
+      evidenceArenaM: evidence.slice(0, 2),
+      briefSectionsM: [
+        { head: 'What matters today', body: 'CPI at 12:30 is the only print that can reprice the whole board. Consensus is 2.9% YoY, and the options market has 114k puts stacked into Friday expiry. Until that number lands, treat every long as a scalp rather than a position.' },
+        { head: 'Where the money is positioned', body: 'Funding has been positive for eleven straight payments and open interest added 2.3% overnight without price following. Spot is bid against that crowded book — healthier, but only while 114.8k holds.' }
+      ],
+      settingsGroupsM: [
+        { head: 'Account', rows: [
+          { label: 'Email', value: 'jasmin@desk.trade' },
+          { label: 'Plan', value: 'PRO · renews 04 Sep' },
+          { label: 'Password', value: 'Change' },
+          { label: 'Two-factor', value: 'ON' }
+        ] },
+        { head: 'Display', rows: [
+          { label: 'Theme', value: 'TERMINAL DARK' },
+          { label: 'Timezone', value: 'UTC+8 · MANILA' },
+          { label: 'Number format', value: '1,234.56' },
+          { label: 'Colour on neutral signals', value: 'OFF' }
+        ] },
+        { head: 'Data', rows: [
+          { label: 'Primary venue', value: 'BYBIT' },
+          { label: 'Watchlist', value: 'BTC · ETH · SOL · HYPE + 4' },
+          { label: 'Refresh interval', value: '5s' }
+        ] }
+      ],
+
+      clusters: clusterRows.map(c => ({ ...c, col: c.side === 'long' ? RED : GREEN })),
+      navArena: navFor('arena'),
+      navDesk: navFor('desk'),
+      tabs: tabsFor('arena'),
+      tabsDesk: tabsFor('desk'),
+      history: [
+        { time: '04:10', verdict: 'LEAN BULLISH', conf: '61', outcome: 'OPEN', col: GREEN },
+        { time: '00:00', verdict: 'WAIT', conf: '38', outcome: '—', col: '#8b8f94' },
+        { time: '20:00', verdict: 'BEARISH', conf: '72', outcome: 'STOP', col: RED },
+        { time: '16:00', verdict: 'LEAN BEARISH', conf: '55', outcome: 'TGT 1', col: RED }
+      ],
+      pulse: [
+        { label: 'BTC dominance', value: '58.4%', note: 'BTC leads', col: TXT },
+        { label: 'Altseason', value: '42', note: 'lean BTC', col: TXT },
+        { label: 'Volatility', value: 'LOW', note: '30d realised', col: TXT },
+        { label: 'Fear & greed', value: '71', note: 'greed', col: mono ? RED : TXT }
+      ],
+      pulseM: [
+        { label: 'BTC DOM', value: '58.4%', col: TXT },
+        { label: 'ALTSEASON', value: '42', col: TXT },
+        { label: 'FEAR/GREED', value: '71', col: mono ? RED : TXT }
+      ],
+      coinCols: [
+        { label: 'Coin', align: 'left' },
+        { label: 'Price', align: 'left' },
+        { label: '24h', align: 'right' },
+        { label: 'Funding', align: 'right' },
+        { label: 'OI 1h', align: 'right' },
+        { label: 'Taker', align: 'right' },
+        { label: 'Signal', align: 'left' },
+        { label: 'Grade', align: 'right' }
+      ],
+      coins,
+      coinsM: coins.slice(0, 6),
+      macro: [
+        { label: 'DXY', value: '97.42', chg: '−0.18%', col: GREEN },
+        { label: 'US 10Y', value: '4.21%', chg: '+0.03', col: '#8b8f94' },
+        { label: 'S&P 500', value: '6,418', chg: '+0.42%', col: GREEN },
+        { label: 'Gold', value: '3,388', chg: '−0.26%', col: RED },
+        { label: 'ETF flow', value: '+$214M', chg: '4d in', col: GREEN }
+      ],
+      events: [
+        { title: 'US CPI (July, YoY)', meta: 'High impact · consensus 2.9%', time: '12:30', col: RED },
+        { title: 'Fed speakers · Waller', meta: 'Medium impact', time: '15:00', col: acc },
+        { title: 'BTC options expiry', meta: '$3.1B notional · max pain 114k', time: '08:00 Fri', col: '#8b8f94' },
+        { title: 'Initial jobless claims', meta: 'Low impact', time: '12:30 Thu', col: DIM }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -39,6 +39,8 @@ import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_T
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
+import { useDesignMode } from '@/components/DesignModeProvider';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 
 /* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -161,6 +163,23 @@ const TF_FEATURE_LABEL_KEYS: Record<string, LabelKey> = {
 
 function ArenaContent() {
   const { t } = useLabels();
+  const mode = useDesignMode();
+  const isDesktop = useIsDesktop();
+  // Terminal hint band's own dismiss state - same localStorage key PageHint
+  // uses for pageKey="arena", so a dismissal in either design mode sticks in
+  // both. Three states (not two) for the same reason PageHint documents on
+  // its own: reading localStorage in an effect means 'show' arrives a beat
+  // after paint, and starting at 'show' would flash the band for a returning
+  // visitor who already dismissed it.
+  const [hintState, setHintState] = useState<'pending' | 'show' | 'hide'>('pending');
+  useEffect(() => {
+    try { setHintState(localStorage.getItem('lhq_hint_arena') ? 'hide' : 'show'); }
+    catch { setHintState('show'); }
+  }, []);
+  const dismissHint = () => {
+    try { localStorage.setItem('lhq_hint_arena', '1'); } catch {}
+    setHintState('hide');
+  };
   // Clock for the analysis-freshness display and the cache-age gate below.
   // Both used to call Date.now() mid-render, which meant the "just now" label
   // and the expiry check only moved when something else re-rendered the page -
@@ -1248,14 +1267,467 @@ function ArenaContent() {
     ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
     : scannerRows;
 
+  /* ── Terminal mode (#413 canvas mirror, arena.md). In-place branch, not a
+   * separate ArenaTerminal.tsx - this component carries ~40 hooks (results
+   * cache, alert form, scanner, notifications, Grok context) that every
+   * module and the verdict band need. Duplicating that into a second file
+   * is a synchronisation hazard dashboard/landing's smaller state never had.
+   *
+   * Un-hides MarketStructure and AbsorptionDetector: arena.md names both in
+   * the 15-module inventory with real geometry ("nothing dropped"), they
+   * are not new UI - production already computes their data via
+   * handleMsData/handleAbsData, it just wraps them in display:none today.
+   * Flagged in the PR body as a visible product change, not a silent one.
+   *
+   * Evidence list: 5 of 8 rows are real (funding, CVD, OI1h, VWAP, taker-
+   * buy - all off store.coins[selectedCoin] already used elsewhere on this
+   * page). CB PREM, BASIS and LIQ 15M render an em dash always - CB PREM
+   * and LIQ 15M have no source wired anywhere in this codebase (checked;
+   * the only liquidation endpoint is a Coinglass heatmap feed, wrong
+   * provider/window/shape, and unconfigured on qa), BASIS was deliberately
+   * removed from computation on #343, the same ruling #588 is re-litigating
+   * for dashboard right now. Building a basis number here would be the
+   * same mistake a second time in one night.
+   *
+   * Levels (Entry/Stop/Target/R:R) are em-dashed always, same reasoning as
+   * dashboard's Best Setup Today (#587): no local computation produces
+   * them, only Arena's own AI call does, and that result is not
+   * necessarily for whatever coin/timeframe is currently selected.
+   *
+   * Deferred per #594 (design ruling pending, not decided here): the
+   * existing AI-read card's Quick→Deep override notice, liquidity-raid
+   * setup block, top-3 catalysts and wait-for line have no named home in
+   * arena.md's panel inventory. Not dropped, not built - left exactly as
+   * they render in the current-design branch below, reachable there only,
+   * until design rules. */
+  if (mode === 'terminal') {
+    const d = store.coins[selectedCoin];
+    const dec = 2;
+
+    const verdictCol = !result ? 'var(--txt2)'
+      : result.signal.includes('BULLISH') ? 'var(--green)'
+      : result.signal.includes('BEARISH') ? 'var(--red)'
+      : 'var(--txt2)';
+    const hasConfidence = !!result;
+
+    const frPct = d?.fundingRate != null ? d.fundingRate * 100 : null;
+    const frFire: 'red' | 'green' | null = frPct == null ? null : frPct >= 0.01 ? 'red' : frPct <= -0.02 ? 'green' : null;
+    const cvdFire: 'red' | 'green' | null = d?.cvdDivergence === 'bullish' ? 'green' : d?.cvdDivergence === 'bearish' ? 'red' : null;
+    const { col: oi1hEvCol } = oi1hSignal(oi1h.pct, d?.oiTrend);
+    const oi1hFire: 'red' | 'green' | null = oi1h.pct == null ? null : oi1hEvCol === 'var(--green)' ? 'green' : oi1hEvCol === 'var(--red)' ? 'red' : null;
+    const vwapAbove = d?.vwap != null && d?.price != null ? d.price > d.vwap : null;
+    const vwapPct = d?.vwap && d?.price ? ((d.price - d.vwap) / d.vwap) * 100 : null;
+    const vwapFire: 'red' | 'green' | null = vwapAbove == null ? null : vwapAbove ? 'green' : 'red';
+    const tbp = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : null;
+    const tbpFire: 'red' | 'green' | null = tbp == null ? null : tbp >= 60 ? 'green' : tbp <= 40 ? 'red' : null;
+
+    const evidenceRows: { label: string; value: string | null; fire: 'red' | 'green' | null }[] = [
+      { label: 'FUNDING 8H', value: frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : null, fire: frFire },
+      { label: 'CVD 4H',     value: d?.cvdDivergence ? (d.cvdDivergence === 'bullish' ? 'Bull div' : 'Bear div') : null, fire: cvdFire },
+      { label: 'OI 1H',      value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), fire: oi1hFire },
+      { label: 'VWAP',       value: vwapPct != null ? (vwapPct >= 0 ? '+' : '') + vwapPct.toFixed(2) + '%' : null, fire: vwapFire },
+      { label: 'CB PREM',    value: null, fire: null },
+      { label: 'TAKER BUY',  value: tbp != null ? tbp + '%' : null, fire: tbpFire },
+      { label: 'BASIS',      value: null, fire: null },
+      { label: 'LIQ 15M',    value: null, fire: null },
+    ];
+
+    const whyText = result?.reasoning
+      ? result.reasoning.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ')
+      : null;
+
+    const clusters = selectedCoin === 'btc' ? store.btcLiqLevels : [];
+    const maxClusterAmt = clusters.reduce((m, l) => Math.max(m, l.amount), 0);
+
+    const TIMEFRAMES: ChartTf[] = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'];
+
+    // Hint band - a bespoke minimal construct, not <PageHint>. The spec's
+    // panel inventory wants "2px --accent bar + 12.5px --txt2", one line -
+    // PageHint's own rounded/tinted title+body card is a different shape and
+    // is what overflowed a 36px band by 20px+ (#598 D4). Same localStorage
+    // key PageHint uses for pageKey="arena", so a dismissal in either design
+    // mode sticks in both. minHeight, not height: if a translation ever runs
+    // longer than this English string, the band grows instead of clipping or
+    // spilling into the snapshot band below it (the same fixed-height-no-clip
+    // shape as the chart bug, #598 D3 - safer to let it grow here since there
+    // is nothing sitting flush underneath it to spill onto).
+    const hintBand = hintState !== 'hide' && (
+      <div
+        className="at-panel"
+        style={{
+          minHeight: 36, display: 'flex', alignItems: 'center', gap: 10,
+          padding: isDesktop ? '0 16px' : '0 14px',
+          visibility: hintState === 'pending' ? 'hidden' : 'visible',
+        }}
+      >
+        <span style={{ width: 2, height: 14, background: 'var(--accent)', flexShrink: 0 }} />
+        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--txt2)', flex: 1, minWidth: 0 }}>
+          {t('ARENA_HINT_TERMINAL_LABEL')}
+        </span>
+        <button
+          onClick={dismissHint}
+          aria-label={t('PAGE_HINT_DISMISS_LABEL')}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)',
+            fontSize: '1rem', lineHeight: 1, flexShrink: 0,
+            minWidth: 24, minHeight: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >×</button>
+      </div>
+    );
+
+    // Region 6 (timeframe row), the chart, and the four shared body panels
+    // are pixel-identical markup at every viewport - only their CSS geometry
+    // (height, padding, .at-pair direction) changes at mobile, all handled by
+    // the existing @media(max-width:767px) block. Built once, placed in
+    // whichever tree is actually rendered, so there is exactly one
+    // <KLineProChart> and one candle subscription regardless of viewport -
+    // arena.md's own requirement (§Absent vs hidden, criterion 25).
+    const timeframeRow = (
+      <div className="at-tfrow">
+        {TIMEFRAMES.map(tf => {
+          const gated = !entitled && GATED_TFS.includes(tf);
+          const active = tf === readTf;
+          return (
+            <button
+              key={tf}
+              onClick={() => handleTfChange(tf)}
+              className={`at-tf ${active ? 'at-tf-active' : gated ? 'at-tf-gated' : 'at-tf-available'}`}
+            >
+              {gated && (
+                <svg width="9" height="11" viewBox="0 0 9 11" fill="none" aria-hidden="true">
+                  <rect x="0.5" y="4.5" width="8" height="6" stroke="currentColor" strokeWidth="1" />
+                  <path d="M2 4.5V3a2.5 2.5 0 0 1 5 0v1.5" stroke="currentColor" strokeWidth="1" />
+                </svg>
+              )}
+              {tf}
+            </button>
+          );
+        })}
+        <span className="at-tfhint">1M · 5M · 15M {t('ARENA_NEED_PRO_LABEL')}</span>
+      </div>
+    );
+
+    const chartPanel = (
+      <div className="at-chart">
+        <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} onStructure={setChartStructure} />
+      </div>
+    );
+
+    const confluencePanel = (
+      <div className="at-bodypanel">
+        <div className="at-phead">
+          <span className="at-ptitle">{t('ARENA_CONFLUENCE_GATE_TITLE')}</span>
+          <span className="at-pro">PRO</span>
+        </div>
+        <div className="at-panelbody">
+          {authLoading || entitled ? (
+            <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
+          ) : (
+            <LockedFeatureCard
+              title={t('ARENA_CONFLUENCE_GATE_TITLE')}
+              description={t('ARENA_CONFLUENCE_GATE_DESC')}
+              onUnlock={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
+            />
+          )}
+        </div>
+      </div>
+    );
+
+    const mtfStructurePair = (
+      <div className="at-pair">
+        <div className="at-bodypanel">
+          <div className="at-phead"><span className="at-ptitle">{t('ARENA_MTF_PANEL_TITLE')}</span></div>
+          <div className="at-panelbody"><MultiTFAlignment coin={selectedCoin} /></div>
+        </div>
+        <div className="at-bodypanel">
+          <div className="at-phead"><span className="at-ptitle">{t('MARKET_STRUCTURE_TITLE')}</span></div>
+          <div className="at-panelbody"><MarketStructure coin={selectedCoin} onData={handleMsData} /></div>
+        </div>
+      </div>
+    );
+
+    const emaAbsorptionSection = entitled ? (
+      <div className="at-pair">
+        <div className="at-bodypanel">
+          <div className="at-phead"><span className="at-ptitle">{t('ARENA_EMA_PANEL_TITLE')}</span></div>
+          <div className="at-panelbody"><EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} /></div>
+        </div>
+        <div className="at-bodypanel">
+          <div className="at-phead"><span className="at-ptitle">{t('ARENA_ABSORPTION_PANEL_TITLE')}</span><span className="at-pro">PRO</span></div>
+          <div className="at-panelbody"><AbsorptionDetector coin={selectedCoin} onData={handleAbsData} /></div>
+        </div>
+      </div>
+    ) : (
+      <div className="at-bodypanel">
+        <div className="at-phead"><span className="at-ptitle">{t('ARENA_EMA_PANEL_TITLE')}</span></div>
+        <div className="at-panelbody"><EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} /></div>
+      </div>
+    );
+
+    if (!isDesktop) {
+      // Mobile tree (390 reference, 768 breakpoint) - a separate tree per
+      // arena.md §Absent vs hidden, not a reflow of the desktop one: the
+      // snapshot band, the 352 rail (clusters + session history) and
+      // LiqHeatmap do not exist in this DOM at all (criterion 24/26), not
+      // display:none. Usage/Why/Evidence move out of the rail into the main
+      // column instead of disappearing with it - arena.md's mobile region
+      // table lists them separately from "Rail | absent", and criterion 26
+      // only names clusters/session-history/heatmap as required-absent.
+      return (
+        <div className="at-root" data-layout="mobile">
+          <div className="at-msym">
+            <CoinIcon coin={selectedCoin} size={22} />
+            <span style={{ marginLeft: 8 }}>{selectedCoin.toUpperCase()}</span>
+          </div>
+
+          {hintBand}
+
+          {/* HigherTfMoveBadge becomes its own block (spec: "absent as a
+              band; HigherTfMoveBadge becomes its own block"). */}
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--bdr)' }}>
+            <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
+          </div>
+
+          {/* Verdict - stacked block, 3 level cells (Entry/Stop/Target - R:R
+              dropped, criterion 34 wants exactly 3 in one row), full-width
+              action instead of the 170px desktop column. */}
+          <div className="at-verdict">
+            <div className="at-vmain">
+              <div className="at-vlabel" style={{ color: verdictCol }} suppressHydrationWarning>
+                {result ? result.signal : 'NO READ'}
+              </div>
+              {hasConfidence && (
+                <div className="at-vconf">
+                  <span className="at-vtrack"><span className="at-vfill" style={{ width: result!.confidence + '%', background: verdictCol }} /></span>
+                  <span className="at-vnum">{result!.confidence}%</span>
+                </div>
+              )}
+            </div>
+            <div className="at-vlevels">
+              {(['Entry', 'Stop', 'Target'] as const).map(label => (
+                <div key={label} className="at-vlevel">
+                  <span className="at-micro">{label}</span>
+                  <span className="at-vlevelval" style={{ color: 'var(--txt)' }}>—</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, padding: 14 }}>
+              <button
+                onClick={() => { if (!user) { window.location.href = '/login'; return; } readMarket('quick'); }}
+                disabled={readLoading}
+                className="at-tf"
+                style={{ flex: 1, justifyContent: 'center', border: '1px solid var(--bdr)', color: 'var(--txt2)' }}
+              >
+                {readLoading && readMode === 'quick' ? (readStep || t('ARENA_WORKING')) : t('ARENA_QUICK_RESEARCH_BUTTON')}
+              </button>
+              <button
+                onClick={() => { if (!user) { window.location.href = '/login'; return; } readMarket('deep'); }}
+                disabled={readLoading}
+                className="at-tf"
+                style={{ flex: 1, justifyContent: 'center', background: 'var(--accent)', color: 'var(--bg0)', fontWeight: 700, border: '1px solid var(--accent)' }}
+              >
+                {readLoading && readMode === 'deep' ? (readStep || t('ARENA_WORKING')) : t('ARENA_DEEP_RESEARCH_BUTTON')}
+              </button>
+            </div>
+          </div>
+
+          {timeframeRow}
+
+          <div className="at-main">
+            {chartPanel}
+            {confluencePanel}
+            {mtfStructurePair}
+            {emaAbsorptionSection}
+            {/* No LiqHeatmap at mobile (criterion 26) - a colour-only graphic
+                with no numeric ladder beside it once the rail is gone. */}
+
+            <div className="at-bodypanel">
+              <div className="at-phead"><span className="at-ptitle">{t('ARENA_USAGE_HEADER')}</span></div>
+              <div className="at-panelbody"><div id="usage-meter" style={{ scrollMarginTop: 90 }}><UsageMeter /></div></div>
+            </div>
+
+            <div className="at-bodypanel">
+              <div className="at-phead"><span className="at-ptitle">{t('ARENA_WHY_HEADER')}</span></div>
+              <div className="at-panelbody"><p className="at-why">{whyText || t('ARENA_WHY_EMPTY')}</p></div>
+            </div>
+
+            <div className="at-bodypanel">
+              <div className="at-phead"><span className="at-ptitle">{t('ARENA_EVIDENCE_HEADER')}</span></div>
+              <div className="at-panelbody">
+                {evidenceRows.map(row => (
+                  <div key={row.label} className="at-ev">
+                    <span className="at-ev-mark" style={{ background: row.value == null ? 'var(--mark-idle)' : row.fire === 'red' ? 'var(--red)' : row.fire === 'green' ? 'var(--green)' : 'var(--mark-idle)' }} />
+                    <span className="at-ev-label">{row.label}</span>
+                    <span className="at-ev-val" style={{ color: row.value == null ? 'var(--txt2)' : row.fire === 'red' ? 'var(--red)' : row.fire === 'green' ? 'var(--green)' : 'var(--txt)' }}>
+                      {row.value ?? '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Tab bar (spec: 60, five destinations) is the app shell's
+              existing .mobile-tab-bar (NavDrawer.tsx) - restyled for
+              terminal and un-hidden in globals.css rather than a second,
+              arena-only bar invented alongside it. It was previously
+              suppressed for ALL terminal routes (display:none!important),
+              which also left dashboard/landing-mobile-terminal with no
+              bottom nav AND no hamburger (the hamburger is deliberately
+              hidden below the same 640px breakpoint the tab bar owns) - so
+              this fix closes that gap shell-wide, not just on this route.
+              .at-root's mobile padding-bottom:60px already clears it. */}
+
+          <UpgradeGateModal open={upgradeGate !== null} onClose={() => setUpgradeGate(null)} feature={upgradeGate ?? undefined} />
+        </div>
+      );
+    }
+
+    return (
+      <div className="at-root" data-layout="desktop">
+        {hintBand}
+
+        {/* Region 4: snapshot band */}
+        <div className="at-snapband">
+          <div className="at-coincell">
+            <CoinIcon coin={selectedCoin} size={32} />
+            <div>
+              <div className="at-coinsym">{selectedCoin.toUpperCase()}</div>
+            </div>
+          </div>
+          <div className="at-snapcells">
+            <CoinMarketSnapshot coin={selectedCoin} />
+          </div>
+          <div className="at-badgecell">
+            <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
+          </div>
+        </div>
+
+        {/* Region 5: verdict band */}
+        <div className="at-verdict">
+          <div className="at-vmain">
+            <div className="at-vlabel" style={{ color: verdictCol }} suppressHydrationWarning>
+              {result ? result.signal : 'NO READ'}
+            </div>
+            {hasConfidence && (
+              <div className="at-vconf">
+                <span className="at-vtrack"><span className="at-vfill" style={{ width: result!.confidence + '%', background: verdictCol }} /></span>
+                <span className="at-vnum">{result!.confidence}%</span>
+              </div>
+            )}
+          </div>
+          <div className="at-vlevels">
+            {(['Entry', 'Stop', 'Target', 'R:R'] as const).map(label => (
+              <div key={label} className="at-vlevel">
+                <span className="at-micro">{label}</span>
+                <span className="at-vlevelval" style={{ color: 'var(--txt)' }}>—</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ flex: '0 0 170px', display: 'flex', flexDirection: 'column', gap: 6, padding: 16, justifyContent: 'center' }}>
+            <button
+              onClick={() => { if (!user) { window.location.href = '/login'; return; } readMarket('quick'); }}
+              disabled={readLoading}
+              className="at-tf"
+              style={{ justifyContent: 'center', border: '1px solid var(--bdr)', color: 'var(--txt2)' }}
+            >
+              {readLoading && readMode === 'quick' ? (readStep || t('ARENA_WORKING')) : t('ARENA_QUICK_RESEARCH_BUTTON')}
+            </button>
+            <button
+              onClick={() => { if (!user) { window.location.href = '/login'; return; } readMarket('deep'); }}
+              disabled={readLoading}
+              className="at-tf"
+              style={{ justifyContent: 'center', background: 'var(--accent)', color: 'var(--bg0)', fontWeight: 700, border: '1px solid var(--accent)' }}
+            >
+              {readLoading && readMode === 'deep' ? (readStep || t('ARENA_WORKING')) : t('ARENA_DEEP_RESEARCH_BUTTON')}
+            </button>
+          </div>
+        </div>
+
+        {timeframeRow}
+
+        {/* Region 7: body */}
+        <div className="at-body">
+          <div className="at-main">
+            {chartPanel}
+            {confluencePanel}
+            {mtfStructurePair}
+            {emaAbsorptionSection}
+
+            {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
+              <LiqHeatmap levels={store.btcLiqLevels} currentPrice={store.coins['btc']?.price ?? 0} />
+            )}
+          </div>
+
+          <aside className="at-rail">
+            <div className="at-rhead"><span className="at-ptitle">{t('ARENA_USAGE_HEADER')}</span></div>
+            <div id="usage-meter" style={{ scrollMarginTop: 90 }}><UsageMeter /></div>
+
+            <div className="at-rhead"><span className="at-ptitle">{t('ARENA_CLUSTERS_HEADER')}</span></div>
+            {clusters.length === 0 ? (
+              <div className="at-empty">{selectedCoin !== 'btc' ? 'BTC only' : 'No cluster data'}</div>
+            ) : clusters.slice(0, 8).map((l, i) => (
+              <div key={i} className="at-cl">
+                <span className="at-cl-px">{fmtPrice(l.price)}</span>
+                <span className="at-cl-bar"><span className="at-cl-fill" style={{ width: (maxClusterAmt > 0 ? (l.amount / maxClusterAmt) * 100 : 0) + '%', background: l.side === 'long' ? 'var(--red)' : 'var(--green)' }} /></span>
+                <span className="at-cl-usd">{fmtPrice(l.amount * l.price)}</span>
+              </div>
+            ))}
+
+            <div className="at-rhead"><span className="at-ptitle">{t('ARENA_WHY_HEADER')}</span></div>
+            <p className="at-why">{whyText || t('ARENA_WHY_EMPTY')}</p>
+
+            <div className="at-rhead"><span className="at-ptitle">{t('ARENA_EVIDENCE_HEADER')}</span><span className="at-pspacer" /></div>
+            {evidenceRows.map(row => (
+              <div key={row.label} className="at-ev">
+                <span className="at-ev-mark" style={{ background: row.value == null ? 'var(--mark-idle)' : row.fire === 'red' ? 'var(--red)' : row.fire === 'green' ? 'var(--green)' : 'var(--mark-idle)' }} />
+                <span className="at-ev-label">{row.label}</span>
+                <span className="at-ev-val" style={{ color: row.value == null ? 'var(--txt2)' : row.fire === 'red' ? 'var(--red)' : row.fire === 'green' ? 'var(--green)' : 'var(--txt)' }}>
+                  {row.value ?? '—'}
+                </span>
+              </div>
+            ))}
+
+            <div className="at-rhead">
+              <span className="at-ptitle">{t('ARENA_SESSION_HISTORY_HEADER')}</span>
+              <span className="at-pspacer" />
+              {history.length > 0 && (
+                <button
+                  onClick={() => { setHistory([]); setDetailIdx(null); try { sessionStorage.removeItem(ARENA_HIST_KEY); } catch {} }}
+                  style={{ fontSize: 10, color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  {t('ARENA_SESSION_HISTORY_CLEAR_BUTTON')}
+                </button>
+              )}
+            </div>
+            {history.length === 0 ? (
+              <div className="at-empty">No history yet</div>
+            ) : history.slice(0, 8).map((h, i) => (
+              <div key={i} className="at-hrow">
+                <span className="at-h-time">{h.time}</span>
+                <span className="at-h-verdict">{h.signal}</span>
+                <span className="at-h-conf">{h.confidence}%</span>
+              </div>
+            ))}
+
+            <span className="at-rail-spacer" />
+          </aside>
+        </div>
+
+        <UpgradeGateModal open={upgradeGate !== null} onClose={() => setUpgradeGate(null)} feature={upgradeGate ?? undefined} />
+      </div>
+    );
+  }
+
   return (
-    <div>
+    <div className="arena-term-wrap">
 
       {/* ── PAGE HEADER ── */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>{t('ARENA_PAGE_TITLE')}</div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#12233f', color: 'var(--accent-2)', border: '0.5px solid #2a4a7a', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>

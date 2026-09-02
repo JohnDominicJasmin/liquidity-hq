@@ -5,6 +5,7 @@ import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -80,6 +81,7 @@ const COL_LABEL_KEYS: LabelKey[] = [
 ];
 
 export default function EconCalendarPage() {
+  const mode = useDesignMode();
   const { t } = useLabels();
   const [events, setEvents]   = useState<CalEvent[]>([]);
   const [source, setSource]   = useState('');
@@ -112,7 +114,7 @@ export default function EconCalendarPage() {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 16px 48px' }}>
+    <div className={mode === 'terminal' ? 'econ-term-wrap' : undefined} style={{ maxWidth: 960, margin: '0 auto', padding: '0 16px 48px' }}>
 
       {/* Page header */}
       <div style={{ padding: '20px 0 16px' }}>

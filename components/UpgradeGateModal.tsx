@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl, isCheckoutConfigured } from '@/lib/checkout';
 import { useLabels } from '@/lib/labels';
+import { useDesignMode } from '@/components/DesignModeProvider';
 
 interface Props {
   open: boolean;
@@ -21,6 +22,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
   description: string;
   onUnlock: () => void;
 }) {
+  const mode = useDesignMode();
   const { t } = useLabels();
   return (
     /* data-testid so the paywall can be COUNTED per screen (#441).
@@ -37,7 +39,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
      * gradient binds it to styling the redesign is actively changing - so the
      * check would break on the very commit it exists to catch. An explicit
      * hook survives both. */
-    <div data-testid="locked-feature" style={{
+    <div data-testid="locked-feature" className={mode === 'terminal' ? 'locked-card-term-wrap' : undefined} style={{
       background: 'linear-gradient(180deg, var(--bg2), var(--bg1))',
       border: '0.5px solid var(--bdr)',
       borderRadius: 'var(--radius-card, 12px)',
@@ -58,7 +60,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
       <button
         onClick={onUnlock}
         style={{
-          background: 'var(--accent-solid)', color: '#fff', border: 'none', cursor: 'pointer',
+          background: 'var(--accent-solid)', color: 'var(--on-accent)', border: 'none', cursor: 'pointer',
           fontSize: 'var(--fs-label)', fontWeight: 700, padding: '9px 16px', borderRadius: 8,
           flexShrink: 0,
         }}
@@ -87,10 +89,11 @@ function useCheckoutHref() {
 // (UpgradeGateModal). Same copy conventions as both - one "Pro Feature"
 // eyebrow + CTA pattern instead of three hand-rolled versions drifting apart.
 export function FullPageUpgradeGate({ title, description }: { title: string; description: string }) {
+  const mode = useDesignMode();
   const ctaHref = useCheckoutHref();
   const { t } = useLabels();
   return (
-    <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div className={mode === 'terminal' ? 'upgrade-gate-term-wrap' : undefined} style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{
         width: '100%', maxWidth: 480,
         background: 'linear-gradient(180deg, var(--bg2), var(--bg1))',
@@ -115,7 +118,7 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
           href={ctaHref}
           style={{
             display: 'block', textAlign: 'center',
-            background: 'var(--accent-solid)', color: '#fff',
+            background: 'var(--accent-solid)', color: 'var(--on-accent)',
             fontSize: 'var(--fs-body)', fontWeight: 700,
             padding: '12px 16px', borderRadius: 8,
             textDecoration: 'none',
@@ -138,6 +141,7 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
 // user's email + id (or falls back to /login?signup=1 while checkout is not
 // configured yet).
 export default function UpgradeGateModal({ open, onClose, feature }: Props) {
+  const mode = useDesignMode();
   const ctaHref = useCheckoutHref();
   const { t } = useLabels();
 
@@ -162,6 +166,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label={t('UPGRADE_GATE_CTA')}
+      className={mode === 'terminal' ? 'upgrade-modal-term-wrap' : undefined}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
         background: 'rgba(4, 6, 12, 0.72)',
@@ -221,7 +226,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
           href={ctaHref}
           style={{
             display: 'block', textAlign: 'center',
-            background: 'var(--accent-solid)', color: '#fff',
+            background: 'var(--accent-solid)', color: 'var(--on-accent)',
             fontSize: 'var(--fs-body)', fontWeight: 700,
             padding: '12px 16px', borderRadius: 8,
             textDecoration: 'none',

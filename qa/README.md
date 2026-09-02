@@ -61,6 +61,8 @@ cross-account access. The data check after it is what still has teeth.
 | File | What it is | Status |
 |---|---|---|
 | [`STATUS.md`](STATUS.md) | **Decisions and standing risks.** Deliberately records no state — it went stale twice doing that. **Read the risks before trusting any result, including your own.** | Living |
+| [`TERMINAL_REDESIGN_STATE.md`](TERMINAL_REDESIGN_STATE.md) | **The terminal redesign: what is measured, what is not, and the traps.** §1 is the owner's batching rule. §4 lists eight measurement traps that each produced a wrong finding — read it before running any sweep. §5 records that the handoff's prose has been wrong three times where its `.dc.html` files were right. | Living, records state |
+| [`HANDOFF-REQUEST.md`](HANDOFF-REQUEST.md) | What QA asked design for, and why. Largely delivered — kept for the reasoning about what a spec must carry that a canvas cannot. | Historical |
 | [`TEST_GAPS.md`](TEST_GAPS.md) | **What a green suite does not mean** — every known coverage gap, ranked by value per unit of effort, with what closing each would take. The answer to "what is still untested?" | Living list, updated as gaps close |
 | [`QA_TEST_PLAN.md`](QA_TEST_PLAN.md) | Manual test approach + rigor tiers, plus the RLS deny-all gotcha. Pre-existing — **moved here from `docs/` on 2026-08-04**, so `HANDOVER.md` §4's doc table still points at the old path. | Plan, largely unexecuted |
 | [`../pendings/QA_AUDIT_2026-08-04.md`](../pendings/QA_AUDIT_2026-08-04.md) | Full automated sweep, 2026-08-04 — build gates, 65-route API security, responsiveness at 1440/375, a11y, SEO, CWV, tech debt | Executed, findings unfixed |

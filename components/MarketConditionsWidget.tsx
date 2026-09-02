@@ -163,9 +163,9 @@ export default function MarketConditionsWidget() {
             {rsi != null ? rsi.toFixed(1) : '-'} {rsi != null && `· ${rsiLabel}`}
           </span>
         </div>
-        <div style={{ height: 5, borderRadius: 3, background: 'var(--bg3)', position: 'relative', overflow: 'hidden' }}>
+        <div className="mcw-rsi-track" style={{ height: 5, background: 'var(--bg3)', position: 'relative', overflow: 'hidden' }}>
           {rsi != null && (
-            <div style={{ position: 'absolute', inset: 0, width: `${Math.min(100, rsi)}%`, background: rsiCol, borderRadius: 3 }} />
+            <div className="mcw-rsi-fill" style={{ position: 'absolute', inset: 0, width: `${Math.min(100, rsi)}%`, background: rsiCol }} />
           )}
         </div>
       </div>
@@ -181,9 +181,12 @@ export default function MarketConditionsWidget() {
           const shortPct = 100 - longPct;
           return (
             <>
-              <div style={{ display: 'flex', height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 5 }}>
-                <div style={{ width: `${longPct}%`, background: '#34d399' }} />
-                <div style={{ width: `${shortPct}%`, background: '#f87171' }} />
+              <div className="mcw-ls-bar" style={{ display: 'flex', height: 5, overflow: 'hidden', marginBottom: 5 }}>
+                {/* Was hardcoded Tailwind emerald-400/red-400 (#546 C9) - off
+                    the terminal palette, and mismatched the labels below,
+                    which already used the real tokens. */}
+                <div style={{ width: `${longPct}%`, background: 'var(--green-2)' }} />
+                <div style={{ width: `${shortPct}%`, background: 'var(--red)' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-caption)' }}>
                 <span style={{ color: 'var(--green-2)', fontWeight: 600 }}>{t('MARKET_CONDITIONS_WIDGET_LONG_PCT', { pct: longPct.toFixed(1) })}</span>

@@ -57,7 +57,7 @@ test('the prompt carries reading.explanation VERBATIM - not a paraphrase', () =>
 
   assert.ok(prompt.includes(r.explanation),
     'the prompt must contain the card sentence character-for-character');
-  assert.match(r.explanation, /leveraged traders/, 'sanity: this fixture is the perp-led wording');
+  assert.match(r.explanation, /usual share against spot/, 'sanity: this fixture is the perp-led wording');
 });
 
 test('every prompt builder carries it, not just the long one', () => {

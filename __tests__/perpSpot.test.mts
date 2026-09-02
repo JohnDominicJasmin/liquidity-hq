@@ -55,7 +55,10 @@ test('a genuine spike above the coin\'s own normal reads as futures-driven', () 
   const r = computePerpSpot(spot, perp, HOUR, nowMs);
   assert.equal(r.lean, 'perp');
   assert.ok(r.relative! > PERP_LED_AT);
-  assert.match(r.explanation, /leveraged traders/);
+  assert.match(r.explanation, /usual share against spot/);
+  // The owner removed the second sentence on #397. Asserted as an absence so
+  // it cannot drift back in via a copy edit nobody reviews.
+  assert.doesNotMatch(r.explanation, /leveraged traders|unwinds faster/);
 });
 
 test('unusually quiet futures reads as spot-led', () => {
