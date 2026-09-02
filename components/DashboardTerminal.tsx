@@ -729,13 +729,21 @@ function TBestSetupToday() {
 }
 
 /* Flat terminal panel replacing mb-glow-card. No shadow, no glow, no radius. */
+/* A main-column BAND, not a card (#607). The canvas's main column is a flex
+   column with no gap, where each band carries only a bottom hairline and sits
+   on the column's own ground - Dashboard 2a.dc.html:77-86. This used to be a
+   free-standing bordered card on --bg1, which with .dash-main's 14px gap read
+   as a stack of floating boxes rather than the canvas's continuous banded
+   column: every band drew four borders, and the 14px of page ground between
+   them turned each hairline into a stray underline instead of a divider.
+   Background left to the column so the market-read banner stays the one
+   lifted surface, which is how the canvas distinguishes it. */
 function TPanel({ children, id }: { children: React.ReactNode; id?: string }) {
   return (
     <div
       id={id}
       style={{
-        background: 'var(--bg1)',
-        border: '1px solid var(--bdr)',
+        borderBottom: '1px solid var(--bdr)',
         borderRadius: 0,
       }}
     >
