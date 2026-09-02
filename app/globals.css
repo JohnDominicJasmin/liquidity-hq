@@ -5831,7 +5831,11 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   }
   [data-design="terminal"] .tnav-tab {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px; color: var(--txt3); text-decoration: none;
+    /* gap 6, not 3: Dashboard 2a.dc.html:301 sets gap:6px between the 19px
+       icon and its 9px label. Third value in this block that did not match
+       the frame it claims to mirror, after the 899 breakpoint and the
+       header's padding. */
+    gap: 6px; color: var(--txt3); text-decoration: none;
     /* 60px tall and a fifth of the viewport wide - comfortably past the 24x24
        WCAG 2.2 AA minimum without needing an overlay like #388's control. */
   }
@@ -5972,10 +5976,19 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 }
 /* Mobile 38px header (README:82) - logo, screen name, status. */
 [data-design="terminal"] .tnav-mhead { display: none; }
-@media (max-width: 899px) {
+/* 767, not 899. #616 moved .tnav to min-width:768 and .tnav-tabs to
+   max-width:767 but left this one at 899, so 768-899px matched BOTH the
+   desktop bar and the mobile header and would have rendered two navs stacked
+   the moment a component wired these classes. Latent rather than live only
+   because nothing renders .tnav-mhead yet (#599). The three rules now share
+   one boundary, which is the point of having one. */
+@media (max-width: 767px) {
   [data-design="terminal"] .tnav-mhead {
     display: flex; align-items: center; gap: 10px;
-    height: 38px; padding: 0 12px;
+    /* padding 0 14px, not 12: Dashboard 2a.dc.html:235. Height, gap and the
+       bottom hairline all matched already; this one value did not. Same
+       shape of miss as the desktop bar's gap in #616. */
+    height: 38px; padding: 0 14px;
     background: var(--bg0); border-bottom: 1px solid var(--bdr);
   }
   [data-design="terminal"] .tnav-mbrand {
