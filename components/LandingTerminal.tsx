@@ -200,28 +200,34 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
       {/* ── NAV ── */}
       <nav style={{
         height: isDesktop ? 56 : 52, display: 'flex', alignItems: 'center',
-        padding: isDesktop ? '0 40px' : '0 16px', gap: isDesktop ? 12 : 9,
+        padding: isDesktop ? '0 40px' : '0 16px', gap: isDesktop ? 12 : 6,
         borderBottom: '1px solid var(--bdr)',
       }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <BrandMark size={isDesktop ? 26 : 22} tone="dark" radiusPct={0} />
-          <span style={{ fontFamily: 'var(--font-mono), monospace', fontWeight: 700, letterSpacing: '.16em', fontSize: isDesktop ? 14 : 11.5, color: 'var(--txt)' }}>
+          <span style={{
+            fontFamily: 'var(--font-mono), monospace', fontWeight: 700, letterSpacing: '.16em',
+            fontSize: isDesktop ? 14 : 11.5, color: 'var(--txt)', whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
             LIQUIDITYHQ
           </span>
         </span>
-        <span style={{ flex: 1 }} />
+        <span style={{ flex: 1, minWidth: isDesktop ? undefined : 4 }} />
         <LanguageSwitcher locale={locale} />
         <Link href="/login" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, letterSpacing: '.12em',
-          color: 'var(--txt2)', border: '1px solid var(--border-input)', padding: '9px 16px',
-          textDecoration: 'none', textTransform: 'uppercase',
+          color: 'var(--txt2)', border: '1px solid var(--border-input)',
+          padding: isDesktop ? '9px 16px' : '9px 10px',
+          textDecoration: 'none', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0,
         }}>
           {isDesktop ? dict.nav.signIn : dict.nav.signIn}
         </Link>
         <Link href="/login?signup=1" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, fontWeight: 700, letterSpacing: '.12em',
-          color: 'var(--bg0)', background: 'var(--accent)', padding: '10px 18px',
-          textDecoration: 'none', textTransform: 'uppercase',
+          color: 'var(--bg0)', background: 'var(--accent)',
+          padding: isDesktop ? '10px 18px' : '10px 12px',
+          textDecoration: 'none', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0,
         }}>
           {isDesktop ? dict.nav.getStarted : 'START'}
         </Link>
