@@ -533,9 +533,22 @@ export default function Dashboard() {
         {/* 1. Market Read - the verdict */}
         <MarketRead />
 
-        {/* 2. Best Setup Today */}
+        {/* 2. Playbook - reference content, NOT a setup read.
+            The header used to be DASH_BEST_SETUP_TODAY_HEADER ("Best Setup
+            Today") over <SOTD />, which renders a rotating entry from the
+            fixed SECRETS library. Its own labels say what it is:
+            SOTD_BADGE_LABEL is "Playbook", SOTD_NEW_PLAY_BUTTON is "new
+            play", and SOTD_FOOTER opens "Educational reference, not a live
+            signal." So the header promised a computed daily setup and the
+            body delivered a static teaching card (#589).
+
+            Renamed rather than re-pointed at real setup data: a wrong label
+            is a bug, but changing what a live page SHOWS is a product
+            decision. The terminal design keeps
+            DASH_BEST_SETUP_TODAY_HEADER, because there it sits over
+            <TBestSetupToday />, which is the real thing. */}
         <div id="tour-best-setup" className="mb-glow-card" style={{ borderRadius: 10 }}>
-          <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>{t('DASH_BEST_SETUP_TODAY_HEADER')}</div>
+          <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>{t('DASH_PLAYBOOK_HEADER')}</div>
           <SOTD />
         </div>
 
