@@ -10,7 +10,6 @@
  * question (flagged to QA, not resolved here) - this file only answers it
  * for landing, where the spec is explicit. */
 import { useMarket, COINS, COIN_DEC, fmtPrice } from '@/lib/marketStore';
-import { withAlpha } from '@/lib/color';
 
 export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: 'ltr' | 'rtl' }) {
   const { store } = useMarket();
@@ -50,7 +49,19 @@ export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: '
             )}
             <span style={{
               fontSize: mobile ? 10 : 11, fontVariantNumeric: 'tabular-nums',
-              color: chg == null ? 'var(--txt2)' : withAlpha(up ? 'var(--green)' : 'var(--red)', 'cc'),
+              /* No alpha, both signs (#593). The Ticker panel spec mandated
+                 80% on the change value, which put --red at 3.96:1 - but the
+                 same document's accessibility section forbids exactly this:
+                 "Do not apply alpha to a token to de-emphasise it. This
+                 pattern has already produced sub-AA text five times. Size and
+                 weight carry de-emphasis; the token is already tuned to the
+                 line." The ticker rule was the current instance of the banned
+                 pattern, so the fix is removing the alpha rather than tuning
+                 it - raising it to 90% would have kept the pattern and just
+                 moved the number. Verified against the design project itself,
+                 not the repo's static copy. If this needs de-emphasising, use
+                 size or weight. */
+              color: chg == null ? 'var(--txt2)' : (up ? 'var(--green)' : 'var(--red)'),
             }}>
               {chg == null ? '—' : `${up ? '+' : '−'}${Math.abs(chg).toFixed(2)}%`}
             </span>
