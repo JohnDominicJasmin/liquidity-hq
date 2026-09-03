@@ -68,9 +68,26 @@ function calcDelta(actual?: string, estimate?: string): { text: string; positive
    painted the whole calendar in the LOW style. See lib/classify.ts.
    LOW's colour also failed AA on its own (#6b7280 = 3.77:1). */
 const IMPACT_CFG: Record<EconImpact, { color: string; bg: string; border: string; accent: string }> = {
-  HIGH:   { color: 'var(--red)', bg: 'rgba(248,113,113,0.14)', border: 'rgba(248,113,113,0.35)', accent: 'var(--red)' },
-  MEDIUM: { color: 'var(--amber)', bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.3)',   accent: 'var(--amber)' },
-  LOW:    { color: 'var(--txt-dim)', bg: 'rgba(107,114,128,0.10)', border: 'rgba(107,114,128,0.25)', accent: 'rgba(107,114,128,0.4)' },
+  /* #684: tints derive from the tokens instead of rgba() literals, and HIGH's
+     foreground takes --red-fg.
+
+     20 of this screen's 23 dark contrast failures were this one badge - --red
+     on a wash of itself, worst 4.04, the same arithmetic as .gex-net-chip's
+     4.05 on /liq that #688 just answered.
+
+     TWO SEPARATE CAUSES, and tokenising fixes most of the first. The literal
+     was rgba(248,113,113,...) - the CURRENT design's --red - so terminal was
+     painting a lighter ground than its own palette would, which is why the
+     measured 4.04 was worse than the 4.49 the tokenised tint gives. --red IS
+     #f87171 at :root, so the current design is byte-identical; only terminal
+     moves, and only to its own colour. Amber and the grey follow the same
+     rule for the same reason.
+
+     4.49 still misses on --bg1, so HIGH's foreground takes --red-fg - the
+     --green-fg counterpart from #688, aliased to --red wherever it passes. */
+  HIGH:   { color: 'var(--red-fg)', bg: 'color-mix(in srgb, var(--red) 14%, transparent)', border: 'color-mix(in srgb, var(--red) 35%, transparent)', accent: 'var(--red)' },
+  MEDIUM: { color: 'var(--amber)', bg: 'color-mix(in srgb, var(--amber) 12%, transparent)', border: 'color-mix(in srgb, var(--amber) 30%, transparent)', accent: 'var(--amber)' },
+  LOW:    { color: 'var(--txt-dim)', bg: 'color-mix(in srgb, var(--txt3) 10%, transparent)', border: 'color-mix(in srgb, var(--txt3) 25%, transparent)', accent: 'color-mix(in srgb, var(--txt3) 40%, transparent)' },
 };
 
 const COLS = '68px 72px 1fr 90px 95px 82px 72px 70px';
@@ -223,7 +240,18 @@ export default function EconCalendarPage() {
                       padding: '11px 16px', alignItems: 'center',
                       borderLeft: `3px solid ${e.impact === 'HIGH' ? ic.accent : 'transparent'}`,
                       borderBottom: i < dayEvents.length - 1 ? '0.5px solid var(--bdr)' : 'none',
-                      background: isNext ? 'rgba(255,255,255,0.025)' : 'transparent',
+                      /* #684: the overlay that composites this row up is what
+                         put --txt3 at 4.46 in dark - four cells, dev's
+                         predicted 4.45 against QA's measured 4.46. The cells
+                         below take --txt-dash on this row for the same reason
+                         /liq's marker and /correlation's null cell did. */
+                      background: isNext ? 'color-mix(in srgb, var(--txt) 2.5%, transparent)' : 'transparent',
+                      /* The cells below read --ec-muted rather than --txt3 directly.
+                         A CSS rule could not reach them - they set colour inline, which
+                         outranks every selector (#663) - but an inline value that READS a
+                         custom property still inherits, so the row can move all four at
+                         once without a class toggle per cell. */
+                      ['--ec-muted' as string]: isNext ? 'var(--txt-dash)' : 'var(--txt3)',
                       opacity: isPast && !e.actual ? 0.45 : 1,
                       minWidth: 680,
                     }}
@@ -235,12 +263,12 @@ export default function EconCalendarPage() {
                     >
                       {e.estimated ? '~' : ''}{fmtTime(e.isoDate)}
                       {!isPast && !ctObj.released && (
-                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1 }}>{t('ECON_CALENDAR_IN_COUNTDOWN', { countdown: ct })}</div>
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--ec-muted)', marginTop: 1 }}>{t('ECON_CALENDAR_IN_COUNTDOWN', { countdown: ct })}</div>
                       )}
                     </div>
 
                     {/* COUNTRY */}
-                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--ec-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <span style={{ fontWeight: 600 }}>{t('ECON_CALENDAR_COUNTRY_US')}</span>
                     </div>
 
@@ -257,7 +285,7 @@ export default function EconCalendarPage() {
                     </div>
 
                     {/* CONSENSUS */}
-                    <div style={{ fontSize: 'var(--fs-caption)', color: e.estimate ? 'var(--amber)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', fontWeight: e.estimate ? 500 : 400 }}>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: e.estimate ? 'var(--amber)' : 'var(--ec-muted)', fontVariantNumeric: 'tabular-nums', fontWeight: e.estimate ? 500 : 400 }}>
                       {e.estimate || '-'}
                     </div>
 
@@ -266,7 +294,7 @@ export default function EconCalendarPage() {
                       fontSize: 'var(--fs-caption)', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
                       color: e.actual
                         ? (delta ? (delta.positive ? 'var(--green-2)' : 'var(--red)') : 'var(--green-2)')
-                        : 'var(--txt3)',
+                        : 'var(--ec-muted)',
                     }}>
                       {e.actual || '-'}
                     </div>
@@ -274,7 +302,7 @@ export default function EconCalendarPage() {
                     {/* DELTA */}
                     <div style={{
                       fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums',
-                      color: delta ? (delta.positive ? 'var(--green-2)' : 'var(--red)') : 'var(--txt3)',
+                      color: delta ? (delta.positive ? 'var(--green-fg)' : 'var(--red)') : 'var(--ec-muted)',
                     }}>
                       {delta?.text || '-'}
                     </div>

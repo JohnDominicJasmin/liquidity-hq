@@ -65,6 +65,10 @@ export const TERMINAL_COLORS = {
      exactly as --txt-dash above, rather than moving --green and shifting every
      green in the light theme to fix three elements on one screen. */
   '--green-fg': '#3fb950',
+  /* #684: red FOREGROUND on a composited red tint, the --green-fg counterpart.
+     --red on its own 14% wash measures 4.49 over --bg1 - short by 0.01 - so the
+     impact badge takes this instead. Aliased to --red everywhere it passes. */
+  '--red-fg':   '#ff8a85',
 } as const;
 
 /** The same 18 tokens under `[data-design="terminal"][data-theme="light"]`
@@ -111,6 +115,7 @@ export const TERMINAL_COLORS_LIGHT = {
   '--border-input': '#75797e',  // Input and secondary-button border
   '--fr-slight-long': '#7C5E2E',
   '--txt-dash':     '#4f5257',
+  '--red-fg':       '#7d0f18',   // 6.52 worst of three grounds
   '--green-fg':     '#0f5a22',   // see the dark entry - 5.87 / 5.66 on the two tints
 } as const;
 
