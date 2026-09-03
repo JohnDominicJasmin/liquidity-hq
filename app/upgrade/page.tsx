@@ -198,6 +198,7 @@ export default function UpgradePage() {
             <>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <button
+                  data-testid="checkout-cta-monthly"
                   onClick={handleCheckout}
                   disabled={redirecting}
                   style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
@@ -207,6 +208,7 @@ export default function UpgradePage() {
                   {redirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_MONTHLY_CHECKOUT_BUTTON_CTA')}
                 </button>
                 <button
+                  data-testid="checkout-cta-annual"
                   onClick={handleCheckoutAnnual}
                   disabled={redirecting}
                   style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative' }}
@@ -230,6 +232,7 @@ export default function UpgradePage() {
             /* State 2: monthly only — pixel-identical to today */
             <>
               <button
+                data-testid="checkout-cta-monthly"
                 onClick={handleCheckout}
                 disabled={redirecting}
                 style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#fff', background: 'var(--accent-solid)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}

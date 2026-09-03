@@ -84,8 +84,17 @@ function unsignedJwt(userId: string, email: string, expSeconds: number): string 
 
 export interface EntitledOptions {
   /** 'pro' is a paid subscriber; 'trial' exercises the OTHER branch of
-   *  `entitled = isPro || isTrial`, which is the one a real new signup gets. */
-  as?: 'pro' | 'trial';
+   *  `entitled = isPro || isTrial`, which is the one a real new signup gets.
+   *
+   *  'free' is SIGNED IN BUT NOT ENTITLED, and it is not a contradiction of
+   *  this file's name - it is the state `/upgrade` needs. That page redirects
+   *  Pro users straight to /arena (app/upgrade/page.tsx:84), so a 'pro'
+   *  session cannot see the checkout button at all, and a signed-OUT session
+   *  renders no CTA either. Only a signed-in non-subscriber is shown the
+   *  thing being sold. Found by running it: my first #243 check used 'pro',
+   *  got redirected, and reported a config disagreement that was really my
+   *  own wrong session state. */
+  as?: 'pro' | 'trial' | 'free';
   supabaseUrl?: string;
 }
 
@@ -159,7 +168,12 @@ export async function useEntitledSession(page: Page, opts: EntitledOptions = {})
      trigger writes it (supabase/migrations/20260804g_trial_email_dedup.sql). */
   const row = as === 'pro'
     ? { role: 'pro', trial_ends_at: null }
-    : { role: 'free', trial_ends_at: new Date(Date.now() + 14 * 864e5).toISOString() };
+    : as === 'trial'
+      ? { role: 'free', trial_ends_at: new Date(Date.now() + 14 * 864e5).toISOString() }
+      /* 'free': a PAST trial end, not null. Both read as not-entitled, but an
+         expired window also exercises the `trialEndsAt > clock` comparison
+         rather than short-circuiting on null - closer to a real lapsed user. */
+      : { role: 'free', trial_ends_at: new Date(Date.now() - 864e5).toISOString() };
 
   await page.route(`${supabaseUrl}/rest/v1/**`, async route => {
     const url = route.request().url();
