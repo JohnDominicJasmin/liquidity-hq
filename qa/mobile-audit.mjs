@@ -262,6 +262,33 @@ const result = await page.evaluate(TOKENS => {
           const after = getComputedStyle(el).getPropertyValue(p);
           el.style.setProperty(p, inline, prio);
           if (before !== after) continue;            // the inline value is doing the work
+
+          /* Two very different reasons the removal changed nothing, and only
+             one is a finding:
+
+               OVERRIDDEN  a rule outranks inline entirely - #633's shape, and
+                           what #663 says has no detector
+               REDUNDANT   the inline value happens to equal the rule's, so it
+                           changes nothing but would win if it differed
+
+             The first run of this reported twelve rows on every route and
+             almost all were redundant - `display:block` computing to `block`,
+             `font-weight:400` to `400`. True, useless, and enough noise to bury
+             the real case, which is the mistake #666's first version made in
+             the other direction.
+
+             The split needs a second question: CAN anything inline move this
+             property? Set a sentinel the property cannot already hold and read
+             back. If the computed value still does not move, nothing inline can
+             win and a rule owns it unconditionally. */
+          const SENTINEL = { 'font-size': '7px', 'font-family': 'cursive', 'font-weight': '333',
+            'letter-spacing': '7px', 'color': 'rgb(1, 2, 3)', 'background-color': 'rgb(1, 2, 3)',
+            'padding': '7px', 'margin': '7px', 'border-radius': '7px', 'display': 'inline-table' };
+          el.style.setProperty(p, SENTINEL[p] || '7px');
+          const moved = getComputedStyle(el).getPropertyValue(p) !== before;
+          el.style.setProperty(p, inline, prio);
+          if (moved) continue;                       // redundant, not overridden
+
           out.push({
             prop: p,
             inline: inline.slice(0, 40),

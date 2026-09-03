@@ -11,8 +11,19 @@
   measuring zero loads. So every check gets a page it is KNOWN to fail on.
 
   Run:  node qa/mobile-audit.mjs "file:///<abs path>/qa/fixtures/inert-inline-control.html"
-  Expect inertInline to contain BOTH .control-important and .control-redundant,
-  and NOT .control-effective.
+
+  Expect inertInline to contain ONLY .control-important.
+
+  All three cases below are exercised and each must land differently:
+    .control-important  reported     a rule outranks inline unconditionally
+    .control-redundant  NOT reported inline matches the rule, so it changes
+                                     nothing - but it would win if it differed
+    .control-effective  NOT reported inline correctly beats an ordinary rule
+
+  The middle case is why the check does a second test. Its first version
+  reported redundant declarations too and returned twelve rows on every real
+  route, almost all of them `display:block` computing to `block`. True, useless,
+  and enough noise to bury the one row that mattered.
 -->
 <style>
   html { background: #06070a; }
