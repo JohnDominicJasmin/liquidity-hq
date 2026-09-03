@@ -508,6 +508,63 @@ all 18 failures across 11 distinct causes have `#6a6e73` as the foreground, and
 every background involved clears 4.70 with the new value. Arithmetic, not yet a
 measurement.
 
+**Measured 2026-09-03: `/liq` reaches zero in both themes, and the route there
+needed two more tokens.** The arithmetic above held, but it did not cover the
+case that dominated the remaining failures.
+
+### The `-fg` pattern — a foreground for a composited ground
+
+| token | dark | light | for |
+|---|---|---|---|
+| `--txt-dash` | `#848a92` | `#4f5257` | muted text on a translucent overlay |
+| `--green-fg` | `#3fb950` (= `--green`) | `#0f5a22` | positive value on a green tint |
+| `--red-fg` | `#ff8a85` | `#7d0f18` | negative value on a red tint |
+
+**The recurring failure is a signal colour on a wash of itself.** `/liq`'s
+`.gex-net-chip` measured 4.05, `/econ-calendar`'s impact badge 4.04, and
+`/scanner` runs 3.51–4.23 across four tint strengths. Same arithmetic each time:
+the tint lifts the ground toward the foreground, and the stronger the signal the
+worse the contrast — so the worst case is set by the data, not by a fixed value.
+
+**Each `-fg` token aliases its base wherever the base passes**, so only the
+composited case moves and the rest of the palette is untouched. That is the same
+reasoning that kept `--txt3` dark at `#7c828a`: fix what is local, do not degrade
+what works.
+
+### Two things this pattern does NOT solve
+
+**A data-driven tint can outrun any foreground.** `/scanner`'s green tint
+`rgb(30,78,62)` puts `--green-fg` at 3.73 — it is stronger than the 12% wash the
+token was sized against, and the next stronger mover would beat a new value too.
+Recorded on #698 with three options; **the durable one is `/correlation`'s**,
+where #570 moved the text to `--txt` and let the tint carry the meaning. That
+measures 2450 cells at zero failures on production and cannot be reopened by a
+stronger tint.
+
+**A theme-aware overlay is not automatically safer than a literal.** Replacing
+`rgba(255,255,255,0.025)` with `color-mix(in srgb, var(--txt) 2.5%, transparent)`
+correctly stopped a dark-palette literal being painted in light — and made the
+light row *darker*, taking `--txt3` there from 4.74 to 4.48. Nothing failed,
+because every cell on that row had already moved to `--txt-dash`, but the row
+went from a dark-only hazard to an all-theme one. **A tokenisation can move a
+number in the direction nobody was watching.**
+
+### Opacity is not a fade tool here
+
+Minimum opacity each token needs to hold 4.5:1 against `--bg1`:
+
+| token | dark | light |
+|---|---|---|
+| `--txt` | 50% | 61% |
+| `--txt2` | 87% | 91% |
+| `--txt3` | 97% | 95% |
+| `--txt-dash` | 91% | 85% |
+
+**Only `--txt` survives a fade anyone would perceive.** A 0.45 stale-row fade
+measured 1.87–1.93 and was removed rather than tuned (#692) — there was no safe
+value to tune it to. If a de-emphasised state is wanted, a background tint or a
+left border moves no text contrast.
+
 ## 9. What no audit can score
 
 These need controlled fixtures, not a live sweep. They are **unverified**, not
