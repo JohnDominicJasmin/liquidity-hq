@@ -37,8 +37,23 @@ const ROUTE = arg('--route', '/dashboard');
 const THEMES = arg('--themes', 'dark,light').split(',');
 const JSON_OUT = process.argv.includes('--json');
 
-const DARK = ['#08090a','#141517','#111416','#1f2225','#131618','#16191b','#e8e9ea','#8b8f94','#7c828a','#3a3f45','#d9a626','#3fb950','#f0524d','#22262a','#5e646b','#fbbf24'];
-const LIGHT = ['#f7f6f3','#ebe9e6','#e3e1dd','#d5d2cd','#dfdcd7','#e2dfda','#15181b','#585c61','#5e6267','#aeaaa4','#754e00','#14702c','#9d1a23','#755100','#d1cec9','#75797e','#4f5257'];
+/* DERIVED from lib/terminalTokens.ts, not written out here. The hand-written
+   version had drifted by 2026-09-03: the dark list was missing
+   --fr-slight-long and --txt-dash entirely, so both read as off-palette.
+   qa/mobile-audit.mjs took this approach on #641 for the same reason - a
+   copied list drifts, and a stale hex is invisible among live ones. */
+const specTokenSrc = readFileSync(new URL('../lib/terminalTokens.ts', import.meta.url), 'utf8');
+const specPalette = (name) => {
+  const open = specTokenSrc.indexOf('export const ' + name + ' = {');
+  if (open === -1) throw new Error('spec-conformance: no ' + name + ' in lib/terminalTokens.ts');
+  const close = specTokenSrc.indexOf('\n} as const;', open);
+  if (close === -1) throw new Error('spec-conformance: ' + name + ' has no closing "} as const;"');
+  const hexes = specTokenSrc.slice(open, close).match(/'(#[0-9a-fA-F]{6})'/g) || [];
+  if (hexes.length < 10) throw new Error('spec-conformance: ' + name + ' yielded ' + hexes.length + ' colours, expected >= 10');
+  return hexes.map((h) => h.slice(1, -1).toLowerCase());
+};
+const DARK  = specPalette('TERMINAL_COLORS');
+const LIGHT = specPalette('TERMINAL_COLORS_LIGHT');
 
 const PAGE_EVAL = ({ tokens }) => {
   const TOK = Object.fromEntries(tokens.map(t => [t.toLowerCase(), 1]));
