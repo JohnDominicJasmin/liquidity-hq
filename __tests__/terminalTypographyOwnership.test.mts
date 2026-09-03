@@ -17,11 +17,38 @@
  * flagging those would bury the real case, which is the mistake #666's first
  * version made in the other direction by flagging `button, input`.
  *
- * The reverse collision - a CSS `!important` beating a component's inline value,
- * which is #633's shape - is NOT covered here. 53 terminal rules use
- * `!important` across background, border, border-radius, color, display, margin
- * and padding. That is a live exposure with no detector, and it is recorded on
- * #663 rather than silently implied to be handled.
+ * The reverse collision - a CSS `!important` beating a component's inline
+ * value, which is #633's shape - IS covered, by the second assertion at the
+ * foot of this file. It was not, when the paragraph above was first written;
+ * that gap is what #663 called "a live exposure with no detector".
+ *
+ * ── THE CONVENTION THIS ENFORCES ──────────────────────────────────────────
+ *
+ * Ruled on #663 by QA on 2026-09-04, after dev declined to pick it. Written
+ * here rather than left in an issue comment, because the rule has to be
+ * findable from the code it governs:
+ *
+ *   1. A TERMINAL-ONLY component puts all typography and constant colour in
+ *      CSS. There is no second design to serve, so a constant has no reason
+ *      to be inline. `DashboardTerminal` and the `.csb2-*` rules are the
+ *      pattern; #660 already did this.
+ *
+ *   2. In a DUAL-DESIGN component, inline is for COMPUTED values only - a
+ *      colour derived from data, a width from a percentage, a transform from
+ *      a measurement. Anything constant belongs in CSS. The test to apply:
+ *      could this value have been written in a stylesheet? Then it should be.
+ *
+ * A third rule - banning `!important` under `[data-design="terminal"]`
+ * outright - was DECLINED on sequencing, not on merit. Converting 53
+ * declarations to higher-specificity selectors is a large mechanical change
+ * across shared chrome, and #748 is about to make terminal the default on
+ * every route; the risk lands exactly where the blast radius widens. It is
+ * the right end state and gets its own issue once terminal-default has been
+ * live long enough for a regression to be attributable.
+ *
+ * Both adopted rules describe which side SHOULD own a declaration. This file
+ * detects only that both sides claim one - which is what makes it valid under
+ * either rule, and why it does not try to auto-decide the fix.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -54,9 +81,9 @@ const PROPS: Array<[css: string, jsx: string]> = [
  *  Only the last sequence matters: ancestors restrict WHICH elements match, so
  *  ignoring them can over-report but never under-report, and over-reporting on
  *  an ancestor is rare enough to accept against parsing full descendant paths. */
-interface Owned { need: string[]; props: Set<string> }
+interface Owned { need: string[]; props: Set<string>; important: Set<string> }
 
-function terminalRules(): Owned[] {
+function terminalRules(props_: Array<[string, string]> = PROPS): Owned[] {
   const css = readFileSync(path.join(ROOT, 'app', 'globals.css'), 'utf8');
   const out: Owned[] = [];
   const rule = /\[data-design="terminal"\][^{}]*\{([^{}]*)\}/g;
@@ -65,15 +92,24 @@ function terminalRules(): Owned[] {
     const selector = css.slice(m.index, m.index + m[0].indexOf('{'));
     const body = m[1];
     const props = new Set<string>();
-    for (const [cssProp] of PROPS) {
-      if (new RegExp('(^|;|\\s)' + cssProp + '\\s*:').test(body)) props.add(cssProp);
+    const important = new Set<string>();
+    for (const [cssProp] of props_) {
+      const decl = new RegExp('(^|;|\\s)' + cssProp + '\\s*:([^;]*)').exec(body);
+      if (!decl) continue;
+      props.add(cssProp);
+      /* WHICH SIDE WINS IS THE POINT (#663). Without !important the inline
+         value outranks every selector and the CSS rule is dead - #629 and
+         #660. With it the CSS wins and the component's inline value is dead
+         instead - #633. Both are a declaration lying about what it does, but
+         the fix is opposite, so the report has to say which. */
+      if (decl[2].includes('!important')) important.add(cssProp);
     }
     if (props.size === 0) continue;
     /* Each comma-separated selector contributes its own last compound group. */
     for (const one of selector.split(',')) {
       const last = one.trim().split(/\s+|>/).filter(Boolean).pop() ?? '';
       const need = [...last.matchAll(/\.([A-Za-z0-9_-]+)/g)].map(c => c[1]);
-      if (need.length) out.push({ need, props });
+      if (need.length) out.push({ need, props, important });
     }
   }
   return out;
@@ -124,7 +160,7 @@ const STYLE_AT = /style=\{\{/g;
 
 /** Collisions between a terminal-owned property and an inline style on the
  *  same element, in either attribute order. */
-function collisions(source: string, rules: Owned[]): string[] {
+function collisions(source: string, rules: Owned[], props_: Array<[string, string]> = PROPS): string[] {
   const hits: string[] = [];
   const styles: Array<{ idx: number; obj: string }> = [];
   let m: RegExpExecArray | null;
@@ -133,7 +169,7 @@ function collisions(source: string, rules: Owned[]): string[] {
     styles.push({ idx: m.index, obj: styleObjectAt(source, m.index) });
   }
 
-  for (const { need, props } of rules) {
+  for (const { need, props, important } of rules) {
     /* EVERY class in the compound must be present, not any. */
     const res = need.map(c => new RegExp('\\b' + c + '\\b'));
     for (const { idx, obj } of styles) {
@@ -142,10 +178,18 @@ function collisions(source: string, rules: Owned[]): string[] {
       const attr = (before.match(/className=[^>]*$/) ?? [''])[0] + ' ' +
                    (after.match(/^[^>]*className=[^>]*/) ?? [''])[0];
       if (!res.every(r => r.test(attr))) continue;
-      for (const [cssProp, jsxProp] of PROPS) {
+      for (const [cssProp, jsxProp] of props_) {
         if (props.has(cssProp) && new RegExp('\\b' + jsxProp + '\\s*:').test(obj)) {
-          hits.push('.' + need.join('.') + ' — inline ' + jsxProp +
-                    " kills the terminal rule's " + cssProp);
+          /* The direction is decided by !important, and it decides the fix.
+             Reported as two distinct sentences rather than one neutral
+             "collision", because "delete the CSS rule" and "delete the inline
+             value" are opposite instructions and the reader needs the right
+             one without re-deriving the cascade. */
+          hits.push(important.has(cssProp)
+            ? '.' + need.join('.') + ' — the terminal rule\'s ' + cssProp +
+              ' !important kills inline ' + jsxProp
+            : '.' + need.join('.') + ' — inline ' + jsxProp +
+              " kills the terminal rule's " + cssProp);
         }
       }
     }
@@ -209,4 +253,102 @@ test('no component sets a property inline that a terminal rule already owns', ()
     found.length + ' dead terminal rule(s). An inline style outranks every selector, so the ' +
     'CSS rule can never apply - see #629, #633, #660. Move the value to globals.css, or if ' +
     'the component genuinely needs it inline, delete the CSS rule so nothing claims to own it.');
+});
+
+/* ── THE OTHER SEVEN PROPERTIES, AND BOTH DIRECTIONS (#663) ────────────────
+ *
+ * The assertion above covers typography and holds at zero. It was never the
+ * whole exposure: #663 counted 53 terminal rules using `!important` across
+ * background, border, border-radius, color, display, margin and padding, and
+ * called that "a live exposure with no detector".
+ *
+ * This is that detector. It reports the same collision in both directions,
+ * because the fix is opposite depending on which side carries `!important`:
+ *
+ *     inline kills the CSS rule    the rule is dead      #629, #660
+ *     CSS !important kills inline  the inline is dead    #633
+ *
+ * WHY A FROZEN LIST RATHER THAN ZERO. There are 25 today and they are not all
+ * defects - `.edge-card-value`'s inline `color` is a data-driven value where
+ * the CSS colour is a deliberate fallback, and several `.card` entries are
+ * components legitimately styling a generic class. Asserting zero would mean
+ * either 25 edits I cannot justify or an exemption list longer than the check.
+ *
+ * So the list is enumerated, not counted. A new collision fails; fixing one
+ * fails until its line is removed; swapping one for another fails. That is a
+ * ratchet rather than a suppression, and it is the shape #663 asked for -
+ * "the instances are the symptom, the missing rule is the defect".
+ *
+ * TWO ENTRIES ARE #633's SHAPE AND WERE INVISIBLE UNTIL NOW: `.skel-bar` and
+ * `.locked-card-term-wrap` both set an inline borderRadius that a terminal
+ * `!important` overrides. Neither is harmful - terminal wants zero radius and
+ * gets it - but both are inline values that do nothing, which is exactly the
+ * class that cost three computed-value investigations. */
+const WIDE_PROPS: Array<[css: string, jsx: string]> = [
+  ['background',    'background'],
+  ['border',        'border'],
+  ['border-radius', 'borderRadius'],
+  ['color',         'color'],
+  ['display',       'display'],
+  ['margin',        'margin'],
+  ['padding',       'padding'],
+];
+
+const WIDE_BASELINE = [
+  'app/correlation/page.tsx: .card — inline background kills the terminal rule\'s background',
+  'app/correlation/page.tsx: .card — inline border kills the terminal rule\'s border',
+  'app/dashboard/page.tsx: .edge-card-signal — inline color kills the terminal rule\'s color',
+  'app/dashboard/page.tsx: .edge-card-value — inline color kills the terminal rule\'s color',
+  'app/funding/page.tsx: .card — inline padding kills the terminal rule\'s padding',
+  'app/liq/page.tsx: .card — inline padding kills the terminal rule\'s padding',
+  'components/BriefingTerminal.tsx: .mb-cvd-chip — inline borderRadius kills the terminal rule\'s border-radius',
+  'components/BriefingTerminal.tsx: .mb-event-tag — inline borderRadius kills the terminal rule\'s border-radius',
+  'components/CoinMarketSnapshot.tsx: .edge-card-signal — inline color kills the terminal rule\'s color',
+  'components/CoinMarketSnapshot.tsx: .edge-card-value — inline color kills the terminal rule\'s color',
+  'components/CorrelationTerminal.tsx: .corr-cell — inline borderRadius kills the terminal rule\'s border-radius',
+  'components/CorrelationTerminal.tsx: .corr-pair-bar — inline borderRadius kills the terminal rule\'s border-radius',
+  'components/CorrelationTerminal.tsx: .corr-pair-bar-wrap — inline borderRadius kills the terminal rule\'s border-radius',
+  'components/DashboardTerminal.tsx: .edge-card-signal — inline color kills the terminal rule\'s color',
+  'components/DashboardTerminal.tsx: .edge-card-value — inline color kills the terminal rule\'s color',
+  'components/FundingTerminal.tsx: .frh-signal — inline borderRadius kills the terminal rule\'s border-radius',
+  'components/LandingTerminal.tsx: .card — inline background kills the terminal rule\'s background',
+  'components/LandingTerminal.tsx: .card — inline padding kills the terminal rule\'s padding',
+  'components/SetupScanner.tsx: .card — inline background kills the terminal rule\'s background',
+  'components/Skeleton.tsx: .card — inline padding kills the terminal rule\'s padding',
+  'components/Skeleton.tsx: .skel-bar — the terminal rule\'s border-radius !important kills inline borderRadius',
+  'components/UpgradeGateModal.tsx: .card — inline background kills the terminal rule\'s background',
+  'components/UpgradeGateModal.tsx: .card — inline border kills the terminal rule\'s border',
+  'components/UpgradeGateModal.tsx: .card — inline padding kills the terminal rule\'s padding',
+  'components/UpgradeGateModal.tsx: .locked-card-term-wrap — the terminal rule\'s border-radius !important kills inline borderRadius',
+].sort();
+
+const WIDE_RULES = terminalRules(WIDE_PROPS);
+
+test('the wide check is armed', () => {
+  assert.ok(WIDE_RULES.length > 20,
+    'only ' + WIDE_RULES.length + ' terminal rules parsed for the wide property set; the CSS walk probably broke');
+  assert.ok(WIDE_RULES.some(r => r.important.size > 0),
+    'no terminal rule parsed as carrying !important - the direction half of this check is measuring nothing');
+});
+
+test('no NEW declaration collision, in either direction', () => {
+  const files = [...tsxFiles(path.join(ROOT, 'components')), ...tsxFiles(path.join(ROOT, 'app'))];
+  const found: string[] = [];
+  for (const f of files) {
+    for (const hit of collisions(readFileSync(f, 'utf8'), WIDE_RULES, WIDE_PROPS)) {
+      found.push(path.relative(ROOT, f).split(path.sep).join('/') + ': ' + hit);
+    }
+  }
+  found.sort();
+
+  const added = found.filter(x => !WIDE_BASELINE.includes(x));
+  const fixed = WIDE_BASELINE.filter(x => !found.includes(x));
+
+  assert.deepEqual(added, [],
+    added.length + ' NEW collision(s). One of the two declarations does nothing - ' +
+    'the message says which. Move the value to the side that should own it, or ' +
+    'delete the one that loses.');
+  assert.deepEqual(fixed, [],
+    fixed.length + ' baseline entr(y/ies) no longer collide - good. Delete them from ' +
+    'WIDE_BASELINE so the ratchet keeps its new position.');
 });
