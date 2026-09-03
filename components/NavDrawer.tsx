@@ -518,6 +518,16 @@ export default function NavDrawer() {
       <div
         id="nav-drawer"
         className={`nav-drawer${drawerOpen ? ' open' : ''}`}
+        /* inert while closed - the same fix as GrokChat. The drawer is hidden
+           with a transform and pointer-events:none, so its 23 focusable
+           controls otherwise stayed in the tab order behind an invisible panel.
+           STILL LOAD-BEARING, on mobile. The render gate above removes those
+           controls from the document entirely on desktop, which solves it there
+           outright - but below 768 the drawer exists and spends most of its
+           life closed, so this is what keeps it out of the tab order. Restored
+           after QA noticed I had dropped the explanation with the comment block
+           the #731 note replaced; a future reader seeing a bare `inert` and the
+           new gate could reasonably conclude the gate had made it redundant. */
         inert={!drawerOpen}
         aria-hidden={!drawerOpen}
       >
