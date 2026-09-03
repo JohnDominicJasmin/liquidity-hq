@@ -173,7 +173,27 @@ const PAGE_EVAL = ({ tokens, radiusExempt }) => {
 
   return {
     scanned,
-    overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    /* PROVEN scrollable, not merely wider. `html { overflow-x: hidden }` in
+       app/globals.css clips the closed nav drawer while scrollWidth still
+       reports its extents, so the subtraction alone reports an overflow
+       nobody can reach. It did: /dashboard and /liq each showed a non-zero
+       `ovf` here on 2026-09-03 while qa/mobile-audit.mjs - which tries to
+       scroll and checks the offset sticks - reported horizontalOverflow
+       false for both. Four of sixty mobile loads were flagged and none of
+       them scrolled. mobile-audit learned this on #641; this file had not.
+       Report both: the honest boolean drives the count, and the raw extents
+       stay for whoever wants to know something is wider than the viewport
+       even though nobody can reach it. */
+    overflow: (() => {
+      const de = document.documentElement;
+      if (de.scrollWidth <= de.clientWidth) return 0;
+      const before = de.scrollLeft;
+      de.scrollLeft = 99999; window.scrollTo(99999, window.scrollY);
+      const moved = de.scrollLeft > 1 || window.scrollX > 1;
+      de.scrollLeft = before; window.scrollTo(0, window.scrollY);
+      return moved ? de.scrollWidth - de.clientWidth : 0;
+    })(),
+    widerThanViewport: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     offDistinct: Object.keys(off).length,
     offTop: Object.entries(off).sort((a,b)=>b[1]-a[1]).slice(0,4),
     radiusTotal: Object.values(radius).reduce((a,c)=>a+c,0),
@@ -213,7 +233,7 @@ for (const vp of VIEWPORTS) {
       rows.push(rec);
       if (!JSON_OUT) {
         const f = rec.error ? `ERROR ${rec.error}` :
-          `ovf ${String(rec.overflow).padStart(4)}  off ${String(rec.offDistinct).padStart(3)}  rad ${String(rec.radiusTotal).padStart(3)}  contrast ${String(rec.contrastFails).padStart(3)}  <24px ${String(rec.subMin).padStart(2)}  empty ${String(rec.empties).padStart(2)}`;
+          `ovf ${String(rec.overflow).padStart(4)}${rec.overflow === 0 && rec.widerThanViewport > 0 ? '(w' + rec.widerThanViewport + ')' : ''}  off ${String(rec.offDistinct).padStart(3)}  rad ${String(rec.radiusTotal).padStart(3)}  contrast ${String(rec.contrastFails).padStart(3)}  <24px ${String(rec.subMin).padStart(2)}  empty ${String(rec.empties).padStart(2)}`;
         console.log(`${vp.padEnd(7)} ${theme.padEnd(5)} ${route.padEnd(18)} ${f}`);
         /* Name the empties. A bare count cannot be acted on - which field is
            blank is the whole question - and the labels are what turn an audit
