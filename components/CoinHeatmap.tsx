@@ -21,11 +21,11 @@ const CAT: Record<Cat, readonly CoinId[]> = {
 };
 
 function changeColor(chg: number | null): { bg: string; text: string } {
-  if (chg == null) return { bg: 'rgba(255,255,255,0.04)', text: 'var(--txt-dim)' };
-  if (chg >=  10) return { bg: 'rgba(52,211,153,0.30)',  text: 'var(--green-2)' };
-  if (chg >=   5) return { bg: 'rgba(52,211,153,0.22)',  text: 'var(--green-soft)' };
-  if (chg >=   2) return { bg: 'rgba(52,211,153,0.13)',  text: 'var(--green-soft)' };
-  if (chg >=   0) return { bg: 'rgba(52,211,153,0.07)',  text: 'var(--green)' };
+  if (chg == null) return { bg: 'color-mix(in srgb, var(--txt) 4%, transparent)', text: 'var(--txt-dim)' };
+  if (chg >=  10) return { bg: 'color-mix(in srgb, var(--green-2) 30%, transparent)',  text: 'var(--green-2)' };
+  if (chg >=   5) return { bg: 'color-mix(in srgb, var(--green-2) 22%, transparent)',  text: 'var(--green-soft)' };
+  if (chg >=   2) return { bg: 'color-mix(in srgb, var(--green-2) 13%, transparent)',  text: 'var(--green-soft)' };
+  if (chg >=   0) return { bg: 'color-mix(in srgb, var(--green-2) 7%, transparent)',  text: 'var(--green)' };
   /* The red ramp used to darken the text (#fca5a5 -> #f87171 -> #ef4444 ->
      #dc2626) at the same time as it made the tile background a more opaque red
      (0.07 -> 0.38). Both moving together collapses the contrast exactly where
@@ -37,10 +37,10 @@ function changeColor(chg: number | null): { bg: string; text: string } {
      The green side has the same shape but does not fail (its worst bucket is
      5.71:1) because green is inherently light; left as-is rather than churning
      a passing palette, but the same rule applies if that ramp is ever extended. */
-  if (chg >= -2)  return { bg: 'rgba(248,113,113,0.07)', text: 'var(--red-soft)' };
-  if (chg >= -5)  return { bg: 'rgba(248,113,113,0.15)', text: 'var(--red-soft)' };
-  if (chg >= -10) return { bg: 'rgba(248,113,113,0.25)', text: 'var(--red-soft)' };
-  return              { bg: 'rgba(248,113,113,0.38)',     text: '#fee2e2' };
+  if (chg >= -2)  return { bg: 'color-mix(in srgb, var(--red) 7%, transparent)', text: 'var(--red-soft)' };
+  if (chg >= -5)  return { bg: 'color-mix(in srgb, var(--red) 15%, transparent)', text: 'var(--red-soft)' };
+  if (chg >= -10) return { bg: 'color-mix(in srgb, var(--red) 25%, transparent)', text: 'var(--red-soft)' };
+  return              { bg: 'color-mix(in srgb, var(--red) 38%, transparent)',     text: '#fee2e2' };
 }
 
 function fmtPrice(p: number): string {
@@ -149,12 +149,12 @@ export default function CoinHeatmap() {
           <Tip text={t('COIN_HEATMAP_TOOLTIP')}>{t('COIN_HEATMAP_TITLE')}</Tip>
         </span>
         {positiveCount > 0 && (
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--green-2)', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--green-2)', background: 'color-mix(in srgb, var(--green-2) 10%, transparent)', border: '0.5px solid color-mix(in srgb, var(--green-2) 25%, transparent)' }}>
             ↑ {positiveCount}
           </span>
         )}
         {negativeCount > 0 && (
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--red)', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--red)', background: 'color-mix(in srgb, var(--red) 10%, transparent)', border: '0.5px solid color-mix(in srgb, var(--red) 25%, transparent)' }}>
             ↓ {negativeCount}
           </span>
         )}
@@ -203,17 +203,20 @@ export default function CoinHeatmap() {
           return (
             <div
               key={c}
+              className="chm-tile"
               style={{
                 background: bg,
                 borderRadius: 8,
                 padding: '10px 8px',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                 border: `0.5px solid ${withAlpha(text, '22')}`,
+                /* #698: terminal overrides --heat-fg to --txt; the current design
+                   leaves it unset so each span falls back to its ramp colour. */
                 transition: 'background .2s',
                 cursor: 'default',
               }}
             >
-              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: text, letterSpacing: '.04em' }}>
+              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: `var(--heat-fg, ${text})`, letterSpacing: '.04em' }}>
                 {c.toUpperCase()}
               </span>
               {/* Always rendered, even with no price yet. Conditionally
@@ -226,11 +229,11 @@ export default function CoinHeatmap() {
                   as little as 2.43:1 on the redder tiles. It is a live price,
                   not decoration. The caption size already sets it apart from
                   the percentage above it, so it takes the tile colour flat. */}
-              <span style={{ fontSize: 'var(--fs-caption)', color: text, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 'var(--fs-caption)', color: `var(--heat-fg, ${text})`, fontVariantNumeric: 'tabular-nums' }}>
                 {coin?.price != null ? `$${fmtPrice(coin.price)}` : '-'}
               </span>
               <span style={{
-                fontSize: 'var(--fs-label)', fontWeight: 700, color: text,
+                fontSize: 'var(--fs-label)', fontWeight: 700, color: `var(--heat-fg, ${text})`,
                 fontVariantNumeric: 'tabular-nums', lineHeight: 1,
               }}>
                 {chg != null ? `${sign}${chg.toFixed(1)}%` : '-'}
