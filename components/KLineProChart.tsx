@@ -265,6 +265,59 @@ const LIGHT: Record<string, unknown> = {
   },
 };
 
+/* ── OVERLAY INK - the colours the custom overlays DRAW with (#752) ────────
+ *
+ * The three palettes above are handed to klinecharts' setStyles and cover
+ * candles, axes, grid and crosshair. They do NOT cover the overlays this file
+ * draws itself, and those carried raw literals outside all three:
+ *
+ *     price-alert line   #f59e0b   9.78 on the dark ground, 1.78 on the light
+ *     entry-marker ring  #f59e0b   same
+ *     chevron            #fde68a   16.86 dark, 1.03 light
+ *
+ * The alert line is not decoration - it is the control the user DRAGS to move
+ * a price alert, and it is the only indication of where that alert sits. At
+ * 1.78 against a 3:1 bar it is close to invisible on a light chart.
+ *
+ * The canvas is transparent, so the ground is .klc-wrap's own `var(--bg)`:
+ * #000000 in both dark themes, #E8EAED in both light ones. That is why this
+ * switches on THEME and not on design - unlike setStyles above.
+ *
+ * The centre diamond was worse than a contrast failure: it was
+ * `color: 'var(--amber-2)'`, and a canvas fillStyle cannot resolve a CSS
+ * custom property at all. That value has never drawn anything. The comment on
+ * TERMINAL.overlay.line says exactly this about its own colour, ten lines up
+ * from a call site doing the thing it warns against.
+ *
+ * Light values are the palette's own light amber (--amber #8F4508,
+ * --amber-2 #92400E) rather than newly invented hues. */
+const OVERLAY_INK = {
+  dark: {
+    alertLine:   '#f59e0b',   // 9.78 on #000000
+    markerRing:  '#f59e0b',   // 9.78
+    markerGlow:  'rgba(251,191,36,0.15)',
+    markerFill:  'rgba(245,158,11,0.1)',
+    markerCore:  '#fcd34d',   // --amber-2, dark
+    chevron:     '#fde68a',   // 16.86
+  },
+  light: {
+    alertLine:   '#8F4508',   // 5.76 on #E8EAED
+    markerRing:  '#8F4508',   // 5.76
+    markerGlow:  'rgba(146,64,14,0.18)',
+    markerFill:  'rgba(124,45,18,0.10)',
+    markerCore:  '#92400E',   // --amber-2, light
+    chevron:     '#7c2d12',   // 7.77
+  },
+} as const;
+
+/* Module scope rather than a ref, because the overlay draw functions below are
+   plain callbacks registered with klinecharts and have no access to component
+   state. Written by the theme-sync effect, read at draw time - so the marker
+   picks up a theme change on its next frame with nothing to re-create. The
+   alert line is different: its colour is baked in at createOverlay, so that
+   effect re-runs on the same signal. */
+let overlayInk: typeof OVERLAY_INK.dark | typeof OVERLAY_INK.light = OVERLAY_INK.dark;
+
 // ── Component ─────────────────────────────────────────────────────────────
 
 export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '1d';
@@ -493,6 +546,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   const [fullscreen,   setFullscreen]  = useState(false);
   const [chartReady,   setChartReady]  = useState(false);
+  /* Which ink the overlays are drawn with. Only the price-alert line needs it
+     as state - its colour is fixed when the overlay is created, so the effect
+     that creates them has to re-run when the theme flips (#752). */
+  const [themeInk,     setThemeInk]    = useState<'dark' | 'light'>('dark');
   const [countdown,    setCountdown]   = useState('-');
   const [priceLabelY,  setPriceLabelY] = useState<number | null>(null);
   const lastCloseRef   = useRef<number>(0);
@@ -654,6 +711,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chartRef.current?.setStyles((mode === 'terminal' ? TERMINAL_DARK : dark ? DARK : LIGHT) as any);
+      /* Overlay ink follows the THEME only - the overlays are drawn on a
+         transparent canvas over .klc-wrap's var(--bg), which is #000000 in
+         both dark themes and #E8EAED in both light ones (#752). Bumping
+         themeInk re-runs the price-alert effect, whose colour is fixed at
+         createOverlay time; the marker reads overlayInk at draw time and
+         needs no re-creation. */
+      overlayInk = dark ? OVERLAY_INK.dark : OVERLAY_INK.light;
+      setThemeInk(dark ? 'dark' : 'light');
     };
     apply();
     // Theme (not design mode) can still change without a re-render of this
@@ -1011,16 +1076,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               : [{ x: cx - 3.5, y: cy + 2.5 }, { x: cx, y: cy - 2.5 }, { x: cx + 3.5, y: cy + 2.5 }];
             return [
               // Outer glow ring
-              { type: 'polygon', attrs: { coordinates: ring(12) }, styles: { style: 'stroke', borderColor: 'rgba(251,191,36,0.15)', borderSize: 5 } },
+              { type: 'polygon', attrs: { coordinates: ring(12) }, styles: { style: 'stroke', borderColor: overlayInk.markerGlow, borderSize: 5 } },
               // Translucent amber fill
-              { type: 'polygon', attrs: { coordinates: ring(9) }, styles: { style: 'fill', color: 'rgba(245,158,11,0.1)' } },
+              { type: 'polygon', attrs: { coordinates: ring(9) }, styles: { style: 'fill', color: overlayInk.markerFill } },
               // Crisp amber ring
-              { type: 'polygon', attrs: { coordinates: ring(9) }, styles: { style: 'stroke', borderColor: '#f59e0b', borderSize: 1.5 } },
-              // Center diamond accent
-              { type: 'polygon', attrs: { coordinates: [{ x: cx, y: cy - 3 }, { x: cx + 3, y: cy }, { x: cx, y: cy + 3 }, { x: cx - 3, y: cy }] }, styles: { style: 'fill', color: 'var(--amber-2)' } },
+              { type: 'polygon', attrs: { coordinates: ring(9) }, styles: { style: 'stroke', borderColor: overlayInk.markerRing, borderSize: 1.5 } },
+              // Center diamond accent. Was 'var(--amber-2)', which a canvas
+              // fillStyle cannot resolve - it never drew (#752).
+              { type: 'polygon', attrs: { coordinates: [{ x: cx, y: cy - 3 }, { x: cx + 3, y: cy }, { x: cx, y: cy + 3 }, { x: cx - 3, y: cy }] }, styles: { style: 'fill', color: overlayInk.markerCore } },
               // Directional chevron (two line segments)
-              { type: 'line', attrs: { coordinates: [v[0], v[1]] }, styles: { color: '#fde68a', size: 1.5 } },
-              { type: 'line', attrs: { coordinates: [v[1], v[2]] }, styles: { color: '#fde68a', size: 1.5 } },
+              { type: 'line', attrs: { coordinates: [v[0], v[1]] }, styles: { color: overlayInk.chevron, size: 1.5 } },
+              { type: 'line', attrs: { coordinates: [v[1], v[2]] }, styles: { color: overlayInk.chevron, size: 1.5 } },
             ];
           },
         });
@@ -1736,7 +1802,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         lock: false,
         points: [{ value: alert.target_price }],
         styles: {
-          line: { style: 'dashed', color: '#f59e0b', size: 1, dashedValue: [5, 3] },
+          // Baked in at creation, which is why themeInk is in this effect's
+          // deps - the line is the control the user drags, and at 1.78:1 on a
+          // light chart it was close to invisible (#752).
+          line: { style: 'dashed', color: overlayInk.alertLine, size: 1, dashedValue: [5, 3] },
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onPressedMoveEnd: ({ overlay }: { overlay: { points: Array<{ value?: number }> } }) => {
@@ -1746,7 +1815,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       } as OverlayCreate);
       if (typeof id === 'string') alertOverlayMap.current.set(alert.id, id);
     });
-  }, [chartAlerts, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chartAlerts, chartReady, themeInk]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Draw / redraw S/R level lines ───────────────────────────────────
   useEffect(() => {
