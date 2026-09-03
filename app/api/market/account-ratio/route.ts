@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { data, ok, total } = await bybitFanout(
+    const { data, ok, total, stopped } = await bybitFanout(
       `bybit:account-ratio:${period}`,
       120_000,
       (sym) => `https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=${period}&limit=1`,
@@ -43,10 +43,17 @@ export async function GET(req: NextRequest) {
       },
     );
 
-    reportHealth('bybit:account-ratio', 'market', true, `${ok}/${total}`, ok);
+    reportHealth('bybit:account-ratio', 'market', !stopped, stopped ? `${ok}/${total} then rate-limited` : `${ok}/${total}`, ok);
     /* `ok`/`total` are in the body on purpose: a caller and a probe can both see
        a partial fan-out. An empty one cannot reach here - bybitFanout throws. */
-    return NextResponse.json({ data, ok, total, ts: Date.now() }, {
+    /* `stopped` distinguishes a rate-limit abort from symbols failing one at a
+       time (#665). `ok: 12, total: 49` reads identically for both, and they call
+       for opposite responses - back off for the TTL, versus investigate a patchy
+       upstream. Omitted when false so the healthy response is unchanged and
+       `'stopped' in body` is a valid check, the same convention
+       /api/market/snapshot uses for `partial`. Reported unhealthy too: a run cut
+       short by a ban is not a success with fewer rows. */
+    return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: Date.now() }, {
       headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' },
     });
   } catch (e) {
