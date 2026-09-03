@@ -60,7 +60,13 @@ export default function DesignModeProvider({ children }: { children: React.React
 
   const snapshot = useSyncExternalStore(noopSubscribe, readSnapshot, () => SERVER_SNAPSHOT);
   const [search, stored] = JSON.parse(snapshot) as [string, string | null];
-  const mode = resolveDesignMode(search, stored);
+  /* `pathname` comes from usePathname(), which is correct on the server too -
+     so `/` resolves to terminal in the SSR markup rather than only after
+     hydration. The query param and stored value still arrive client-only via
+     the snapshot above, which is why the server snapshot is ['', null]: on the
+     server we know the route and nothing else, and that is exactly the input
+     the route default needs. */
+  const mode = resolveDesignMode(search, stored, pathname);
 
   useEffect(() => {
     /* PERSIST ONLY WHAT THE QUERY PARAM ASKED FOR.
