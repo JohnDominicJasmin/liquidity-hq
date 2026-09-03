@@ -1488,12 +1488,52 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       setChartSymbolPeriod(chart, coin, tf);
 
       if (!disposed) {
-        setTimeout(() => {
+        /* #712: settle-poll the container instead of a single fixed-delay
+           resize. The one-shot `setTimeout(resize, 100)` this replaces
+           assumed the surrounding layout - the rail, the macro cards, #656's
+           own oversized panels next to this one - finishes reflowing within
+           100ms of chart creation. On a real page with real network-fetched
+           data it does not always: QA measured a live container 800px tall
+           holding a canvas drawn at 614px, on `staging`, not a synthetic
+           timing.
+
+           A `ResizeObserver` already watches this container further down and
+           calls resize() on every change it sees - that is correct and
+           stays. This poll is the backstop for the case the observer cannot
+           cover: the FIRST chart creation is a one-time mount effect
+           (`[]` below), so if the container's height is still climbing
+           when `kc.init()` first measures it, klinecharts' resize() needs to
+           be told again once things stop moving, not just when they change -
+           and "stopped moving" is a state the observer alone does not signal.
+
+           Same shape as #697's contrast settle-gate earlier tonight: poll a
+           cheap proxy (height, not a full relayout) until two consecutive
+           reads agree, rather than guess a duration long enough for every
+           page and network condition. Bounded at 3s so a container that
+           genuinely never stops resizing (unlikely, but not provable from
+           here) cannot poll forever. */
+        let lastH = -1;
+        let stableReads = 0;
+        const settleStart = Date.now();
+        const pollSettle = () => {
+          if (disposed || !containerRef.current) return;
+          const h = containerRef.current.getBoundingClientRect().height;
           chartRef.current?.resize();
-          if (chartRef.current && containerRef.current) {
-            applyProportionalPaneHeights(chartRef.current, containerRef.current.getBoundingClientRect().height);
+          if (chartRef.current) applyProportionalPaneHeights(chartRef.current, h);
+          if (h === lastH) {
+            stableReads++;
+            // Two consecutive matching reads, 150ms apart: not a coincidence
+            // of the container being unchanged for one frame - genuinely
+            // settled, so stop spending timers on it.
+            if (stableReads >= 2) return;
+          } else {
+            stableReads = 0;
+            lastH = h;
           }
-        }, 100);
+          if (Date.now() - settleStart > 3000) return; // bounded, see comment above
+          setTimeout(pollSettle, 150);
+        };
+        setTimeout(pollSettle, 100); // first read at the same delay the old single-shot used
         setChartReady(true);
       }
     })();
