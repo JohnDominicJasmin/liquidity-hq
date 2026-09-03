@@ -583,16 +583,16 @@ export default function LiqTerminal() {
                     border: '0.5px solid rgba(245,158,11,0.3)',
                     display: 'flex', gap: 8, alignItems: 'flex-start',
                   }}>
-                    <span style={{ color: '#f59e0b', flexShrink: 0, lineHeight: 0 }}><Warn size={13} /></span>
+                    <span style={{ color: 'var(--amber)', flexShrink: 0, lineHeight: 0 }}><Warn size={13} /></span>
                     <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.6 }}>
                       {longSqueezeRisk ? (
                         <>
-                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>{t('LIQ_WHALE_LONG_SQUEEZE_TITLE')}</span>
+                          <span style={{ color: 'var(--amber)', fontWeight: 700 }}>{t('LIQ_WHALE_LONG_SQUEEZE_TITLE')}</span>
                           {' '}{t('LIQ_WHALE_LONG_SQUEEZE_BODY', { retailPct: (retailLong * 100).toFixed(0), whalePct: (whaleShort * 100).toFixed(0) })}
                         </>
                       ) : (
                         <>
-                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>{t('LIQ_WHALE_SHORT_SQUEEZE_TITLE')}</span>
+                          <span style={{ color: 'var(--amber)', fontWeight: 700 }}>{t('LIQ_WHALE_SHORT_SQUEEZE_TITLE')}</span>
                           {' '}{t('LIQ_WHALE_SHORT_SQUEEZE_BODY', { retailPct: ((1 - retailLong) * 100).toFixed(0), whalePct: (whaleLong * 100).toFixed(0) })}
                         </>
                       )}

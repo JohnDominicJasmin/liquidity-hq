@@ -194,10 +194,10 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
                 background: 'rgba(245,158,11,0.07)',
                 border: '0.5px solid rgba(245,158,11,0.22)',
               }}>
-                <span style={{ color: '#f59e0b', flexShrink: 0, lineHeight: 0 }}><Warn size={12} /></span>
+                <span style={{ color: 'var(--amber)', flexShrink: 0, lineHeight: 0 }}><Warn size={12} /></span>
                 <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5 }}>
                   {t('STOP_LOSS_ZONE_CONFLICT_PREFIX')}{' '}
-                  <span style={{ color: '#f59e0b', fontWeight: 700 }}>{grokSignal}</span>
+                  <span style={{ color: 'var(--amber)', fontWeight: 700 }}>{grokSignal}</span>
                   {' '}{t('STOP_LOSS_ZONE_CONFLICT_SUFFIX')}
                 </span>
               </div>
