@@ -156,6 +156,35 @@ show('LIVE', liveWalk);
 if (!canvasWalk.error && !liveWalk.error) {
   const cb = canvasWalk.bands.filter(b => b.full), lb = liveWalk.bands.filter(b => b.full);
   console.log(`\n### Band count — canvas ${cb.length}, live ${lb.length}`);
+
+  /* REFUSE to compare two walks that started at different levels.
+     The canvas walk begins at the 1440 frame, which contains the nav and the
+     ticker. The live walk deliberately begins at the CONTENT root, because
+     including the shell's drawer, FAB, chat panel and consent bar made the
+     live side report bands the canvas frame does not contain.
+     Each choice is right alone and wrong together: on /dashboard the canvas
+     template collapses everything but its chrome, so the canvas side was two
+     chrome bands and the live side two content bands, and the diff printed
+     "MISSING" against the nav and ticker of a page that plainly has both.
+     A structural mismatch rendered as a finding.
+     Zero shared band heights with both sides non-empty is the signature. */
+  const heightOverlap = cb.filter(c => lb.some(l => l.h === c.h)).length;
+  /* Two signatures, both meaning the roots disagree:
+     - the live walk found bands but NONE full-width, so there is nothing to
+       line up against the canvas's full-width chrome (this is /dashboard);
+     - both sides have full-width bands and not one height is shared. */
+  const liveHasNoFullBands = lb.length === 0 && liveWalk.bands.length > 0;
+  if (cb.length && (liveHasNoFullBands || (lb.length && heightOverlap === 0))) {
+    console.log('');
+    console.log('NOT COMPARABLE - the two walks did not start at the same level.');
+    console.log('  canvas root: the 1440 frame, including nav and ticker chrome');
+    console.log('  live root:   the content root, which excludes that chrome');
+    console.log('No band height appears on both sides, so any per-row diff would be an');
+    console.log('artefact of where each walk began, not a difference between designs.');
+    console.log('');
+    console.log('Use qa/canvas-diff.mjs for this route until the roots are reconciled.');
+    process.exit(0);
+  }
   const n = Math.max(cb.length, lb.length);
   for (let i = 0; i < n; i++) {
     const c = cb[i], l = lb[i];
