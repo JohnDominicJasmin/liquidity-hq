@@ -549,6 +549,35 @@ because every cell on that row had already moved to `--txt-dash`, but the row
 went from a dark-only hazard to an all-theme one. **A tokenisation can move a
 number in the direction nobody was watching.**
 
+### A literal from the other palette is invisible from both sides
+
+**Three instances on 2026-09-03**, and they share one signature: **a composited
+ground that corresponds to no token in the palette being audited.**
+
+| where | the literal | what it actually was |
+|---|---|---|
+| `/econ-calendar` impact badge | `rgba(248,113,113,…)` | current design's `--red` |
+| `/scanner` heatmap tiles | `rgba(52,211,153,…)`, `rgba(248,113,113,…)` | current design's `--green-2`, `--red` |
+| `qa/platform-audit.mjs` | five hard-coded hexes | superseded light values |
+
+The failure is symmetric and that is what makes it hard to see. **Reading the
+terminal stylesheet, the value is not there. Reading the current design's, it is
+correct.** Only a composited measurement shows it, and then only as a ground
+that matches nothing — on `/scanner` the measured grounds were `rgb(30,78,62)`
+and `rgb(77,44,46)`, neither of which is any tint of terminal's `--green` or
+`--red`. **QA recorded both as observed values and moved on; the mismatch was
+the finding.**
+
+It also skews the contrast in a way that hides its own size: terminal was
+painting a *lighter* ground than its own palette would, so `/econ-calendar`'s
+badge measured 4.04 where its own colour gives 4.49 — the literal made the
+defect look worse than the token error it was, and tokenising alone closed most
+of the gap.
+
+**The check that catches it is compositing, not reading.** `color-mix(in srgb,
+var(--token) N%, transparent)` cannot cross palettes; an `rgba()` literal always
+can, and no source read on either side will say so.
+
 ### Opacity is not a fade tool here
 
 Minimum opacity each token needs to hold 4.5:1 against `--bg1`:
