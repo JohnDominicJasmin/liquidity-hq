@@ -157,8 +157,27 @@ export default function BestHours() {
                   background: seg.bg,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
+                  {/* --txt, not '#fff' (#707). The band is pastel in light
+                      theme - rgb(156,224,181), rgb(240,206,119) - while the
+                      label stayed pure white, giving 1.46-1.78:1. The label
+                      colour never changed with the theme; only the band did.
+
+                      --txt is near-white in dark and near-black in light, so
+                      one token covers both: dark keeps the appearance it had,
+                      light becomes legible. Same answer /correlation (#570)
+                      and the scanner heatmap (#701) landed on - let the tint
+                      carry the meaning, put the text in the theme's own
+                      foreground - rather than saturating the bands, which
+                      would change the screen's whole character to keep a
+                      colour nothing requires.
+
+                      opacity 0.9 is KEPT and measured rather than assumed:
+                      --txt at 0.9 gives 9.39 PRIME, 9.44 ASIA, 7.93 DEAD,
+                      7.82 NY, 8.53 LONDON. Every band clears 4.5 with the
+                      existing fade, so removing it would have been a second
+                      change with nothing behind it. */}
                   {width > 7 && (
-                    <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#fff', letterSpacing: '.04em', opacity: 0.9 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.04em', opacity: 0.9 }}>
                       {t(seg.labelKey)}
                     </span>
                   )}
