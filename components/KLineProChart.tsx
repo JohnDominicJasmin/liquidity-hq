@@ -1989,7 +1989,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               <span
                 key={alert.id}
                 className="klc-price-chip"
-                style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
+                style={{ color: 'var(--amber)', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
                 title={`Alert: ${alert.direction} $${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
               >
                 {alert.direction === 'above' ? '↑' : '↓'} ${fmtPx(alert.target_price)}
@@ -2127,7 +2127,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             textTransform: 'none',
             letterSpacing: 'normal',
           }}>
-            <span style={{ color: '#f59e0b', marginRight: 5, lineHeight: 0 }}><Warn size={13} /></span>
+            <span style={{ color: 'var(--amber)', marginRight: 5, lineHeight: 0 }}><Warn size={13} /></span>
             {rwTooltip.dir === 'bearish'
               ? 'Trend reversal - RSI divergence detected'
               : 'Potential bottom - RSI divergence detected'}

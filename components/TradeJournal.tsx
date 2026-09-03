@@ -989,11 +989,11 @@ function Inner() {
               background: 'rgba(217,119,6,0.08)', border: '0.5px solid rgba(217,119,6,0.3)',
               borderRadius: 8, padding: '10px 12px', marginBottom: 12,
             }}>
-              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#f59e0b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--amber)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <Warn /> {t('TRADE_JOURNAL_LOG_LEVEL_WARNINGS_TITLE')}
               </div>
               {levelWarnings.map((w, i) => (
-                <div key={i} style={{ fontSize: 'var(--fs-caption)', color: '#f59e0b', opacity: 0.85, lineHeight: 1.5 }}>
+                <div key={i} style={{ fontSize: 'var(--fs-caption)', color: 'var(--amber)', opacity: 0.85, lineHeight: 1.5 }}>
                   · {w}
                 </div>
               ))}

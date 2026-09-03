@@ -96,7 +96,7 @@ export default function MarketsTerminal() {
   const GRADE_STYLE: Record<string, { bg: string; col: string }> = {
     A: { bg: 'rgba(52,211,153,0.15)',  col: 'var(--green-2)' },
     B: { bg: 'rgba(96,165,250,0.15)',  col: 'var(--accent-2)' },
-    C: { bg: 'rgba(245,158,11,0.15)',  col: '#f59e0b' },
+    C: { bg: 'rgba(245,158,11,0.15)',  col: 'var(--amber)' },
     D: { bg: 'rgba(248,113,113,0.15)', col: 'var(--red)' },
     F: { bg: 'rgba(239,68,68,0.15)',   col: 'var(--red)' },
   };
