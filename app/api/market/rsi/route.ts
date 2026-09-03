@@ -38,6 +38,7 @@ import { apiError } from '@/lib/apiError';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
+import { runPool, HttpStatusError } from '@/lib/pool';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { computeRSI14 } from '@/lib/rsi';
 
@@ -140,9 +141,19 @@ function buildJobs(fast: boolean): Job[] {
   return jobs;
 }
 
-/* Raised when Binance answers 418 (IP banned) or 429 (rate limited). Carries
-   no data - its only job is to stop the pool, see runPool. */
-class BinanceBackoff extends Error {}
+/* 418 (IP banned) or 429 (rate limited) - neither is about the symbol asked
+   for, so both stop the pool rather than skipping one job.
+
+   This was a local error class until #665, and snapshot/route.ts defined an
+   identical one. Two copies of the same stop condition, each hard-coded into
+   its own pool, is what kept either pool from being shared - and the four
+   routes on lib/bybitFanout.ts got no pool at all as a result.
+
+   Deliberately NOT lib/pool.ts's isRateLimitStatus, which also treats 403 as
+   fatal on Bybit's behalf. Binance does not rate-limit with 403, so adopting it
+   here would convert an ordinary per-symbol miss into a whole-batch abort. */
+const isBinanceBackoff = (e: unknown): boolean =>
+  e instanceof HttpStatusError && (e.status === 418 || e.status === 429);
 
 /* Closes, newest last, from whichever exchange shape came back. Returns null
    rather than throwing so one dead symbol cannot take down the batch - the
@@ -162,7 +173,7 @@ async function fetchCloses(job: Job, ep: Endpoint): Promise<number[] | null> {
        ban is measured in minutes to days. Distinguish from an ordinary miss
        so runPool can stop rather than continue. */
     if (res.status === 418 || res.status === 429) {
-      throw new BinanceBackoff(`Binance ${res.status}`);
+      throw new HttpStatusError(res.status, `Binance ${res.status}`);
     }
     if (!res.ok) return null;
     const body = await res.json();
@@ -175,7 +186,7 @@ async function fetchCloses(job: Job, ep: Endpoint): Promise<number[] | null> {
     if (!Array.isArray(body)) return null;
     return body.map((k: string[]) => parseFloat(k[4]));
   } catch (e) {
-    if (e instanceof BinanceBackoff) throw e;
+    if (e instanceof HttpStatusError) throw e;
     return null;
   } finally {
     clearTimeout(tid);
@@ -191,40 +202,23 @@ async function fetchCloses(job: Job, ep: Endpoint): Promise<number[] | null> {
  * requests into an active ban only extends it, so the pool stops and the
  * partial result is cached - backing off for the TTL is the correct response
  * to a ban, not something to retry around. */
-async function runPool(
+async function runRsiPool(
   jobs: Job[], ep: Endpoint, out: RsiMap,
 ): Promise<{ ok: number; banned: boolean }> {
-  let next = 0;
-  let ok   = 0;
-  let banned = false;
+  let ok = 0;
 
-  async function worker() {
-    for (;;) {
-      if (banned) return;
-      const i = next++;
-      if (i >= jobs.length) return;
-      const job = jobs[i];
+  const banned = await runPool(jobs, CONCURRENCY, async (job) => {
+    const closes = await fetchCloses(job, ep);
+    /* Same guard the client applied: fewer than 15 closes cannot produce a
+       14-period RSI, and a partially-listed coin returns a short array rather
+       than an error. */
+    if (!closes || closes.length < 15) return;
+    const rsi = computeRSI14(closes);
+    if (rsi === null) return;
+    (out[job.coin] ??= {})[job.field] = rsi;
+    ok++;
+  }, isBinanceBackoff);
 
-      let closes: number[] | null;
-      try {
-        closes = await fetchCloses(job, ep);
-      } catch (e) {
-        if (e instanceof BinanceBackoff) { banned = true; return; }
-        continue;
-      }
-
-      /* Same guard the client applied: fewer than 15 closes cannot produce a
-         14-period RSI, and a partially-listed coin returns a short array
-         rather than an error. */
-      if (!closes || closes.length < 15) continue;
-      const rsi = computeRSI14(closes);
-      if (rsi === null) continue;
-      (out[job.coin] ??= {})[job.field] = rsi;
-      ok++;
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, jobs.length) }, worker));
   return { ok, banned };
 }
 
@@ -260,7 +254,7 @@ async function buildGroup(fast: boolean): Promise<RsiMap> {
   const allJobs = buildJobs(fast);
   const jobs = ep ? allJobs : allJobs.filter(j => j.bybit);
 
-  const { ok, banned } = await runPool(jobs, ep ?? BN_ENDPOINTS[0], out);
+  const { ok, banned } = await runRsiPool(jobs, ep ?? BN_ENDPOINTS[0], out);
 
   /* Reported per group so a partial outage is visible: the slow group failing
      while the fast one succeeds means Binance is rate-limiting the heavier
