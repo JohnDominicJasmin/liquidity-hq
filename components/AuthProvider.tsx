@@ -94,13 +94,27 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
      *
      * NOT the opposite bug. #377 was a stuck `loading` that GRANTED Pro; this
      * resolves to signed-out, which grants nothing. */
-    const withTimeout = <T,>(p: PromiseLike<T>, ms: number): Promise<T | null> =>
+    /* ONE DEADLINE FOR THE WHOLE CHAIN, not one per call.
+     *
+     * Both awaits were bounded at SESSION_RESOLVE_MS each, which QA flagged as
+     * stacking: they cannot both time out (a timed-out read yields no user, so
+     * the sign-out branch is not entered), but a read that SUCCEEDS slowly and
+     * is then followed by a hanging forceSignOut adds up to ~16s. Narrow - it
+     * needs a session idle past the 7-day window - and still finite, but 16s of
+     * spinner is not meaningfully better than 25s to the person looking at it.
+     *
+     * The deadline is taken once, so `loading` resolves within
+     * SESSION_RESOLVE_MS of the effect starting no matter how the time is split
+     * between the two calls. */
+    const deadline = Date.now() + SESSION_RESOLVE_MS;
+    const withTimeout = <T,>(p: PromiseLike<T>): Promise<T | null> =>
       Promise.race([
         Promise.resolve(p),
-        new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+        new Promise<null>(resolve =>
+          setTimeout(() => resolve(null), Math.max(0, deadline - Date.now()))),
       ]);
 
-    withTimeout(sb.auth.getSession(), SESSION_RESOLVE_MS).then(async (res) => {
+    withTimeout(sb.auth.getSession()).then(async (res) => {
       const data = res?.data;
       const sessionUser = data?.session?.user ?? null;
       if (sessionUser && isSessionExpired()) {
@@ -111,7 +125,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // forceSignOut, not sb.auth.signOut: this path exists to END a session
         // that has outlived its window, so it failing quietly would keep the
         // user signed in past the expiry it is enforcing (#304).
-        await withTimeout(forceSignOut(sb), SESSION_RESOLVE_MS);
+        await withTimeout(forceSignOut(sb));
         localStorage.removeItem(LAST_ACTIVE_KEY);
         setUser(null);
       } else {
