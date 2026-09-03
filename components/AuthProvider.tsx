@@ -33,6 +33,14 @@ export function useAuth() {
 }
 
 const INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/* How long the initial session read may take before the app gives up and
+   renders as signed-out (#727). Generous enough that a slow-but-working
+   network still resolves to the real session - Render's free plan can be slow
+   and QA measured the healthy anonymous path at 2-3s on staging - and short
+   enough that a hang does not read as a broken page. The value is a ceiling on
+   a failure, not a target: the normal path settles long before it. */
+const SESSION_RESOLVE_MS = 8000;
 const LAST_ACTIVE_KEY = 'lhq_last_active';
 // Read by AuthGate - shared here so both sides reference the same literal.
 export const BAN_NOTICE_KEY = 'lhq_ban_notice';
@@ -62,14 +70,48 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const sb = getSupabase();
     if (!sb) { setLoading(false); return; }
 
-    // Seed initial session, force sign-out if inactive >7 days
-    sb.auth.getSession().then(async ({ data }) => {
-      const sessionUser = data.session?.user ?? null;
+    /* Seed initial session, force sign-out if inactive >7 days.
+     *
+     * BOUNDED, because `loading` staying true is a page-blocking failure and
+     * this promise does not always settle (#727).
+     *
+     * A browser holding an EXPIRED session made `getSession()` hang: supabase-js
+     * tries to refresh the token on read, and when that refresh neither resolves
+     * nor rejects the `.finally` below never runs, so `loading` stays true
+     * forever. `/upgrade` is the one screen that gates its whole render on
+     * `loading` (page.tsx:105), so it sat on "Loading…" indefinitely while the
+     * rest of the app looked fine - QA measured /dashboard settling in 1ms and
+     * /upgrade stuck past 25s in the same browser, same commit.
+     *
+     * That is the ordinary state of a returning user's browser, since tokens
+     * expire by design, and the wall is exactly where they try to pay.
+     *
+     * The timeout treats "no answer" as "no session" rather than guessing at a
+     * user. That is the safe direction: a real session that merely arrives late
+     * is still delivered by the onAuthStateChange subscription below, which
+     * fires on TOKEN_REFRESHED and SIGNED_IN and sets the user then. The
+     * failure this replaces had no recovery path at all.
+     *
+     * NOT the opposite bug. #377 was a stuck `loading` that GRANTED Pro; this
+     * resolves to signed-out, which grants nothing. */
+    const withTimeout = <T,>(p: PromiseLike<T>, ms: number): Promise<T | null> =>
+      Promise.race([
+        Promise.resolve(p),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+      ]);
+
+    withTimeout(sb.auth.getSession(), SESSION_RESOLVE_MS).then(async (res) => {
+      const data = res?.data;
+      const sessionUser = data?.session?.user ?? null;
       if (sessionUser && isSessionExpired()) {
+        /* Bounded for the same reason as the read above: signOut() is a network
+           call and this branch awaits it, so a hang here would keep `loading`
+           true just as effectively. forceSignOut already clears local storage
+           when the call errors; a timeout is the third case it did not have. */
         // forceSignOut, not sb.auth.signOut: this path exists to END a session
         // that has outlived its window, so it failing quietly would keep the
         // user signed in past the expiry it is enforcing (#304).
-        await forceSignOut(sb);
+        await withTimeout(forceSignOut(sb), SESSION_RESOLVE_MS);
         localStorage.removeItem(LAST_ACTIVE_KEY);
         setUser(null);
       } else {

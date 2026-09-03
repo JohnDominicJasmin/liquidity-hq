@@ -94,7 +94,7 @@ export interface EntitledOptions {
    *  thing being sold. Found by running it: my first #243 check used 'pro',
    *  got redirected, and reported a config disagreement that was really my
    *  own wrong session state. */
-  as?: 'pro' | 'trial' | 'free';
+  as?: 'pro' | 'trial' | 'free' | 'expired';
   supabaseUrl?: string;
 }
 
@@ -130,7 +130,13 @@ export async function useEntitledSession(page: Page, opts: EntitledOptions = {})
   const userId = '00000000-0000-4000-8000-000000000001';
   const email = 'qa-entitled@example.invalid'; // .invalid is reserved (RFC 2606)
   const nowSec = Math.floor(Date.now() / 1000);
-  const accessToken = unsignedJwt(userId, email, nowSec + 3600);
+  /* 'expired' puts the expiry an hour in the PAST. Everything else about the
+     session is identical - this is the state a returning user's browser is in
+     between visits, which is the normal case rather than an edge one, since
+     tokens expire by design. #727. */
+  const expired = as === 'expired';
+  const expSec = expired ? nowSec - 3600 : nowSec + 3600;
+  const accessToken = unsignedJwt(userId, email, expSec);
 
   const user = {
     id: userId, aud: 'authenticated', role: 'authenticated', email,
@@ -143,7 +149,7 @@ export async function useEntitledSession(page: Page, opts: EntitledOptions = {})
     refresh_token: 'test-refresh-token-not-valid',
     token_type: 'bearer',
     expires_in: 3600,
-    expires_at: nowSec + 3600,
+    expires_at: expSec,
     user,
   };
 
@@ -193,6 +199,14 @@ export async function useEntitledSession(page: Page, opts: EntitledOptions = {})
   /* supabase-js calls these when it refreshes or re-validates. Unhandled they
      would hit the real project with an invalid token, and its 401 would sign
      the fixture out mid-test. */
+  /* DELIBERATELY NOT INTERCEPTED FOR 'expired'. The whole point of that state
+     is what supabase-js does when it tries to refresh a dead token and the
+     refresh does not come back - fulfilling /auth/v1/token here with a valid
+     session would paper over exactly the condition under test and the fixture
+     would prove the opposite of what it claims. Left to reach the real
+     endpoint, which rejects the bogus refresh token. */
+  if (expired) return;
+
   await page.route(`${supabaseUrl}/auth/v1/**`, async route => {
     const url = route.request().url();
     if (/\/user\b/.test(url)) {
