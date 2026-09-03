@@ -79,7 +79,11 @@ function cellColors(sig: TFSignal): { bg: string; text: string; border: string }
      #693 already answered on other screens.
 
      Measured, ground = the cell's own tint over --bg1, at the three alphas
-     this ramp uses:
+     this ramp uses. THE ALPHAS ARE HEX BYTES, NOT PERCENTAGES - 0x28 is 15.7%,
+     0x16 is 8.6%, 0x0c is 4.7%. Read as percent they give ratios about a factor
+     of two out, turning a passing colour into a failing one; QA hit exactly that
+     reviewing this and was one step from reporting dark green as broken. The
+     unit belongs beside the number, like the ground beside a ratio:
 
                      dark                      light
          a   base -> -fg            base -> -fg
