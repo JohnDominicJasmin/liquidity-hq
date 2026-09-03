@@ -5965,12 +5965,29 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    only the element type moved. background/padding/font are resets: a button
    does not inherit them the way the span did. */
 [data-design="terminal"] .tnav-avatar {
+  /* #714: 22x22 painted, 24x24 tappable. QA measured 22x22 against SC 2.5.8's
+     24px minimum - 2px short on each axis, correctly labelled so this is size
+     only. The frame draws this box at 22px deliberately (it matches
+     .tnav-session-dot's row and the kbd chip's proportions), so growing the
+     visible box would be a design change this fix has no standing to make.
+
+     Same padded-hit-area shape as #652's liq-heat-swatch, and box-sizing:
+     content-box is why it will not repeat that fix's first miss: this project
+     sets `* { box-sizing: border-box }` globally (globals.css:213), so height
+     ALREADY includes padding under the default box model - the swatch's first
+     version added padding under border-box and the hit area never grew. Set
+     explicitly here rather than relying on it being noticed again. */
+  box-sizing: content-box;
   width: 22px; height: 22px;
+  padding: 1px;
+  margin: -1px;
+  background: none;
+  background-clip: content-box;
   border: 1px solid var(--border-input);
   display: flex; align-items: center; justify-content: center;
   color: var(--txt2); font-size: 10px; font-weight: 700;
   flex-shrink: 0;
-  background: none; padding: 0; cursor: pointer;
+  cursor: pointer;
   font-family: var(--font-mono), monospace;
 }
 [data-design="terminal"] .tnav-avatar:hover { color: var(--txt); }
