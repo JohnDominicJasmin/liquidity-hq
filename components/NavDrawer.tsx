@@ -22,6 +22,7 @@ import {
 } from './icons';
 import type { ComponentType } from 'react';
 import { useLabels } from '@/lib/labels';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 /* Shared with TerminalNav so both designs reach the same routes (#714). */
 import { PRIMARY, SCANNERS, TOOLS, TAIL } from '@/lib/navRoutes';
 import type { LabelKey } from '@/lib/labelKeys';
@@ -228,6 +229,8 @@ export default function NavDrawer() {
   const [authOpen, setAuthOpen]         = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const { theme, toggleTheme }          = useTheme();
+  /* 768px, the same breakpoint .hamburger and .tnav-mmore already use (#731). */
+  const isDesktop = useIsDesktop();
   const pathname = usePathname();
   const dot      = useStatusDot();
   const mode     = useDesignMode();
@@ -485,9 +488,33 @@ export default function NavDrawer() {
       </nav>
       )}
 
-      {/* inert while closed - see the same fix in GrokChat. The drawer is
-          hidden with a transform and pointer-events:none, so its 23 focusable
-          controls stayed in the tab order behind an invisible panel. */}
+      {/* MOBILE AND TABLET ONLY (#731). Owner: "the side menu on the right
+          side, it should be only available on mobile view or tablet."
+
+          `.nav-menu` is 360px wide and slid off-canvas by a transform that
+          left 8px of its near-black ground inside the right edge on desktop -
+          a visible strip on every route, in BOTH designs, scaling with the
+          window (14px at 2818px). `pointer-events: none` is why it intercepted
+          nothing and every click test passed, and why platform-audit reported
+          `overflow 0`: 8px of a fixed element INSIDE the viewport is neither an
+          overflow nor a page wider than the screen. Nothing in the suite asked
+          whether an off-canvas panel is actually off canvas.
+
+          A RENDER GATE, NOT `display: none`, per #728 - a CSS hide applied
+          after hydration paints first.
+
+          768px because that is the breakpoint the drawer's own openers already
+          use: `.hamburger` is hidden at `min-width: 768px` (globals.css:1022)
+          and `.tnav-mmore` lives in `@media (max-width: 767px)`. So on desktop
+          the drawer already had no opener in either design - it was unreachable
+          chrome bleeding 8px. No new number invented.
+
+          SAFE ONLY BECAUSE #732 LANDED FIRST. Until then `.tnav-avatar` was
+          terminal's DESKTOP drawer opener and the sole path to ~15 routes;
+          gating here would have stranded them. The bar now reaches those routes
+          directly, which is what makes this a removal rather than a
+          regression. */}
+      {!isDesktop && (
       <div
         id="nav-drawer"
         className={`nav-drawer${drawerOpen ? ' open' : ''}`}
@@ -595,6 +622,7 @@ export default function NavDrawer() {
           )}
         </div>
       </div>
+      )}
     </>
   );
 }
