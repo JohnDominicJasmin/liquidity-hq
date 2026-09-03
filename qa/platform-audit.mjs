@@ -126,6 +126,17 @@ const PAGE_EVAL = ({ tokens, radiusExempt, emptySource }) => {
   const isChrome = el => !!el.closest('.nav-menu, .gchat-panel, .app-bar, .nav-drawer, .pf-footer, .mobile-tab-bar');
 
   const off = {}, radius = {}, emptyLabels = []; let contrastFails = 0, subMin = 0, empties = 0, scanned = 0;
+  /* Every failing element, not the worst four. A count cannot be acted on -
+     #684 needed to know WHICH 23 cells failed on /econ-calendar, and the
+     answer turned out to be 20 impact badges nobody had considered plus 4
+     cells from the one row that had been guessed at. Two candidate mechanisms
+     were proposed from source reading and neither was the main cause.
+     Capped at 30: enough to characterise a page, few enough that a badly
+     broken screen does not bury the report. Each entry carries the foreground,
+     the COMPOSITED ground, the opacity and the element's own and parent's
+     selector - opacity because a 0.45 fade is invisible in a colour pair, and
+     the composited ground because the failing surface is usually a translucent
+     overlay that appears in no stylesheet. */
   const worstContrast = [];
   const BAD = new RegExp(emptySource);
 
@@ -157,7 +168,7 @@ const PAGE_EVAL = ({ tokens, radiusExempt, emptySource }) => {
         const need = (px>=24 || (px>=18.66&&bold)) ? 3 : 4.5;
         const fg = parse(s.color);
         if (fg) { const bg = bgOf(el); const ratio = cr(over(fg,bg), bg);
-          if (ratio < need) { contrastFails++; if (worstContrast.length < 4) worstContrast.push({ t: t.slice(0,20), ratio:+ratio.toFixed(2), px:s.fontSize }); } }
+          if (ratio < need) { contrastFails++; if (worstContrast.length < 30) worstContrast.push({ t: t.slice(0,20), ratio:+ratio.toFixed(2), px:s.fontSize, fg: s.color, sel: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).join('.') : ''), par: el.parentElement ? (el.parentElement.tagName.toLowerCase() + (el.parentElement.className && typeof el.parentElement.className === 'string' && el.parentElement.className.trim() ? '.' + el.parentElement.className.trim().split(/\s+/).join('.') : '')) : '', op: s.opacity, ground: 'rgb(' + Math.round(bg.r) + ',' + Math.round(bg.g) + ',' + Math.round(bg.b) + ')' }); } }
         if (BAD.test(t)) {
           empties++;
           /* A count with no identity is not actionable - "72 empty fields" says
