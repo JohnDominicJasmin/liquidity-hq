@@ -97,22 +97,33 @@ test('the ramp is monotonic away from zero', () => {
   }
 });
 
-test('the null cell is --txt3, not --txt, and its margin is thin (#679)', () => {
-  /* NOT an assertion that it passes - it does not, on two of three dark
-     grounds. Recorded here so the numbers live next to the ones above rather
-     than in a comment, and so this file stops implying it covered them.
+test('the null cell clears 4.5:1 too, on --txt-dash (#679)', () => {
+  /* The null cell paints rgba(255,255,255,0.03) over the card. That overlay
+     lightens the ground toward the text, and --txt3 landed at 4.40 / 4.46 in
+     dark - so it takes --txt-dash instead, the value #559 created for exactly
+     this composited shape.
 
-         dark   --bg0 4.90  --bg1 4.40  --bg2 4.46
-         light  --bg0 5.70  --bg1 5.10  --bg2 4.74
+     --txt3 itself is NOT the problem and did not move: it passes on every bare
+     palette ground in both themes (dark 5.14 / 4.71 / 4.77). An earlier version
+     of this comment said it "clears by about 0.1 on --bg0 and spends that
+     margin on any raised surface" - both halves wrong, and the table above is
+     why. Fixing the token would have degraded three passing surfaces to rescue
+     one composited one, which qa/TERMINAL_REDESIGN_STATE.md already rejected. */
+  for (const { name, T } of THEMES) {
+    for (const ground of GROUNDS) {
+      const overlay = name === 'dark' ? '#ffffff' : '#000000';
+      const alpha   = name === 'dark' ? 3 : 4;
+      const c = ratio(hex(T['--txt-dash']), over(overlay, T[ground], alpha));
+      assert.ok(c >= 4.5, `${name} null cell on ${ground}: ${c.toFixed(2)}`);
+    }
+  }
+});
 
-     This is #679: --txt3 clears AA by about 0.1 on --bg0 and spends that margin
-     on any raised surface. QA measured the same 4.46 on /liq's "current price"
-     label - different screen, live browser, different method, same token. It is
-     a palette question, not a correlation one, and spot-fixing it here would
-     make the token look healthier than it is. */
+test('--txt3 would still fail there, so the swap is doing the work', () => {
+  /* Positive control for the fix itself. If --txt3 ever passes on this ground,
+     the reason for --txt-dash is gone and this should be revisited rather than
+     left as cargo. */
   const T = TERMINAL_COLORS as Record<string, string>;
-  const nullCell = over('#ffffff', T['--bg1'], 3);
-  const c = ratio(hex(T['--txt3']), nullCell);
-  assert.ok(c < 4.5, `expected the known #679 shortfall on --bg1, measured ${c.toFixed(2)}`);
-  assert.ok(c > 4.0, 'if this drops below 4.0 the token moved and #679 needs re-measuring');
+  const c = ratio(hex(T['--txt3']), over('#ffffff', T['--bg1'], 3));
+  assert.ok(c < 4.5, `--txt3 now measures ${c.toFixed(2)} on the null ground; --txt-dash may be unnecessary`);
 });

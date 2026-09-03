@@ -112,7 +112,13 @@ function cellColor(r: number | null, diag: boolean): string {
      same as the numeric cells below. 10.99:1 light, comfortable margin
      over dark's prior 5.43:1 too. */
   if (diag) return 'var(--txt)';
-  if (r == null) return 'var(--txt3)';
+  /* #679: --txt-dash, not --txt3. The null cell paints
+     rgba(255,255,255,0.03) over the card, and that overlay lightens the ground
+     toward --txt3 - 4.40 on --bg1, 4.46 on --bg2, dark. Same composited shape
+     as /liq's "<- current price" marker and as #559's empty-cell placeholder,
+     which is the token this was made for. 4.90 / 4.97 here. --txt3 is not the
+     problem and does not move: it passes on every bare ground. */
+  if (r == null) return 'var(--txt-dash)';
   return 'var(--txt)';
 }
 
