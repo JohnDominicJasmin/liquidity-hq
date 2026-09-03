@@ -1464,6 +1464,8 @@
   "SIGNAL_ACCURACY_TIP_COUNT": "How many times this signal fired in the backtested window - low counts mean less statistical confidence.",
   "SIGNAL_ACCURACY_AVG_RETURN": "avg {sign}{value}% at 24h",
   "SIGNAL_ACCURACY_FOOTER_NOTE": "Win Rate = % of signals where price moved in the expected direction after 12h or 24h",
+  "SCORE_INPUTS_PARTIAL": "{present} of {total} inputs",
+  "SCORE_INPUTS_PARTIAL_TIP": "This score was built from {present} of its {total} inputs. The rest were unavailable, so the score is a floor - the missing inputs could only have raised it.",
   "ACCUMULATION_TRACKER_TITLE": "Accumulation Tracker",
   "ACCUMULATION_TRACKER_TOOLTIP": "Scores every coin for stealth accumulation: price still flat while CVD shows absorption, taker buys dominate, open interest builds, whale positioning leans long, and funding stays calm (crowd not in yet). High score = smart money loading before the move.",
   "ACCUMULATION_TRACKER_SUBTITLE": "quiet coins being loaded - before the pump",

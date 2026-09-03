@@ -19,6 +19,10 @@ interface DistRow {
   price: number;
   change: number;
   reasons: string[];
+  /** #661: what the score was built from. Threaded through from
+   *  computeDistributionScore so the row can disclose an incomplete one. */
+  inputsPresent: number;
+  inputsTotal: number;
 }
 
 function inputsFromCoin(d: CoinData): DistributionInputs {
@@ -38,7 +42,10 @@ function scoreCoin(id: CoinId, d: CoinData | undefined): DistRow | null {
   if (!d?.price) return null;
   const res = computeDistributionScore(inputsFromCoin(d));
   if (!res) return null;
-  return { id, score: res.score, price: d.price, change: d.change ?? 0, reasons: res.reasons };
+  return {
+    id, score: res.score, price: d.price, change: d.change ?? 0, reasons: res.reasons,
+    inputsPresent: res.inputsPresent, inputsTotal: res.inputsTotal,
+  };
 }
 
 const MIN_SCORE = 45;
@@ -120,6 +127,27 @@ export default function DistributionTracker() {
                     {reason}
                   </span>
                 ))}
+                {/* #661: disclose, do not withhold. This card matters more
+                    than the accumulation one because its output is a LABEL -
+                    Distribution / Early distribution / Quiet at 70 and 45 -
+                    and 55 of 100 points sit behind `!= null` guards. A large
+                    enough gap does not weaken the claim, it inverts it: a
+                    genuine Distribution presents as Quiet.
+                    Shown only when incomplete, and the score is a floor -
+                    every branch is `score += N`, so a missing input could only
+                    have raised it. */}
+                {r.inputsPresent < r.inputsTotal && (
+                  <Tip width={250} text={t('SCORE_INPUTS_PARTIAL_TIP', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}>
+                    <span style={{
+                      fontFamily: 'var(--font-mono), monospace',
+                      fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt3)',
+                      background: 'transparent', border: '0.5px dashed var(--bdr)',
+                      borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap',
+                    }}>
+                      {t('SCORE_INPUTS_PARTIAL', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}
+                    </span>
+                  </Tip>
+                )}
               </span>
               <span style={{
                 fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-caption)', color: 'var(--txt2)',

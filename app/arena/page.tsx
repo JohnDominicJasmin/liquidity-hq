@@ -979,7 +979,15 @@ function ArenaContent() {
         if (!coin?.price) return '-';
         const res = computeDistributionScore(distInputsFromCoin(coin));
         if (!res) return 'Not applicable - no 24h run-up (profit-taking needs prior strength)';
-        return `${res.score}/100 - ${res.label}${res.reasons.length ? ' · ' + res.reasons.join(', ') : ''}`;
+        /* #661: a partial score says so here too. This string is read as a
+           conclusion - "62/100 - Distribution" - and 55 of those 100 points sit
+           behind `!= null` guards, so a gap can turn a genuine Distribution
+           into Quiet. Appended only when incomplete, and the score is a floor:
+           every branch is `score += N`, so the missing inputs could only have
+           raised it. */
+        const gap = res.inputsPresent < res.inputsTotal
+          ? ` (from ${res.inputsPresent} of ${res.inputsTotal} inputs)` : '';
+        return `${res.score}/100 - ${res.label}${gap}${res.reasons.length ? ' · ' + res.reasons.join(', ') : ''}`;
       })(),
       setupScan: (() => {
         const sq = computeSqueezeScore(coin);
@@ -2720,6 +2728,14 @@ function ArenaContent() {
               <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, marginBottom: 2 }}>
                 {res.score >= 70 ? t('ARENA_DIST_WARN_PULLBACK') : t('ARENA_DIST_WARN_EARLY_WEAKNESS')}
                 <span style={{ fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>({res.score}/100)</span>
+                {/* #661: same disclosure as the tracker cards. Absent when the
+                    score used every input, so the note means something when it
+                    does appear. */}
+                {res.inputsPresent < res.inputsTotal && (
+                  <span style={{ fontWeight: 400, color: 'var(--txt3)', marginLeft: 6, fontFamily: 'var(--font-mono), monospace' }}>
+                    {t('SCORE_INPUTS_PARTIAL', { present: String(res.inputsPresent), total: String(res.inputsTotal) })}
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.4 }}>
                 {res.reasons.join(' · ')}
