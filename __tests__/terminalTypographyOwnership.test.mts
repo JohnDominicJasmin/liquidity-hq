@@ -17,11 +17,38 @@
  * flagging those would bury the real case, which is the mistake #666's first
  * version made in the other direction by flagging `button, input`.
  *
- * The reverse collision - a CSS `!important` beating a component's inline value,
- * which is #633's shape - is NOT covered here. 53 terminal rules use
- * `!important` across background, border, border-radius, color, display, margin
- * and padding. That is a live exposure with no detector, and it is recorded on
- * #663 rather than silently implied to be handled.
+ * The reverse collision - a CSS `!important` beating a component's inline
+ * value, which is #633's shape - IS covered, by the second assertion at the
+ * foot of this file. It was not, when the paragraph above was first written;
+ * that gap is what #663 called "a live exposure with no detector".
+ *
+ * ── THE CONVENTION THIS ENFORCES ──────────────────────────────────────────
+ *
+ * Ruled on #663 by QA on 2026-09-04, after dev declined to pick it. Written
+ * here rather than left in an issue comment, because the rule has to be
+ * findable from the code it governs:
+ *
+ *   1. A TERMINAL-ONLY component puts all typography and constant colour in
+ *      CSS. There is no second design to serve, so a constant has no reason
+ *      to be inline. `DashboardTerminal` and the `.csb2-*` rules are the
+ *      pattern; #660 already did this.
+ *
+ *   2. In a DUAL-DESIGN component, inline is for COMPUTED values only - a
+ *      colour derived from data, a width from a percentage, a transform from
+ *      a measurement. Anything constant belongs in CSS. The test to apply:
+ *      could this value have been written in a stylesheet? Then it should be.
+ *
+ * A third rule - banning `!important` under `[data-design="terminal"]`
+ * outright - was DECLINED on sequencing, not on merit. Converting 53
+ * declarations to higher-specificity selectors is a large mechanical change
+ * across shared chrome, and #748 is about to make terminal the default on
+ * every route; the risk lands exactly where the blast radius widens. It is
+ * the right end state and gets its own issue once terminal-default has been
+ * live long enough for a regression to be attributable.
+ *
+ * Both adopted rules describe which side SHOULD own a declaration. This file
+ * detects only that both sides claim one - which is what makes it valid under
+ * either rule, and why it does not try to auto-decide the fix.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
