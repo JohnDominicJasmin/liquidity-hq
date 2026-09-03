@@ -180,7 +180,7 @@ check (structural correctness, colour-as-data rules, states).
 | `/learn` | 3/5 — 60% | `feature/learn-canvas-mirror` | untouched |
 | **`/`** (landing) | ~~25/49 — 51%~~ | `feature/landing-canvas-mirror` | **built, deployed** — open: #639 (two `--txt4` flags needing a design ruling), #641 (footer column links). |
 | `/econ-calendar` | 10/21 — 48% | `feature/econ-calendar-canvas-mirror` | untouched |
-| `/liq` | 9/20 — 45% | `feature/liq-canvas-mirror` | untouched — has a spec (`liquidation-map.md`) |
+| **`/liq`** | ~~9/20 — 45%~~ **wrong, see below** | `feature/liq-canvas-mirror` | **in progress** — a 657-line `LiqTerminal` already existed and was wired at `app/liq/page.tsx:350`; the row said "untouched". Regions 2-4 built (#655), mobile chrome + colour pass (#659). Open: region 5's ladder shape, `.gex-net-chip` 4.48 (owner), a duplicate `liq_events` load. See #652. |
 | `/calc` | 4/9 — 44% | `feature/calc-canvas-mirror` | untouched |
 | `/news` | 3/8 — 38% | `feature/news-canvas-mirror` | untouched |
 | `/about` | 5/15 — 33% | `feature/about-canvas-mirror` | untouched |
@@ -258,6 +258,48 @@ has not been chased.
 
 So dialogs are covered for the three built screens, and the modal surface of the
 other 14 routes remains entirely unmeasured.
+
+### The `/liq` row was wrong in the harder direction — 2026-09-03
+
+It read **"untouched — 9/20, 45%"**. Both halves were false:
+
+- `components/LiqTerminal.tsx` is **657 lines** and wired at `app/liq/page.tsx:350`.
+  The screen had a terminal build the whole time.
+- The 45% was almost certainly measured against `app/liq/page.tsx` — the
+  **non-terminal branch**. That is the same error that started this entire
+  effort, when the original dashboard audit measured `app/dashboard/page.tsx`
+  while the terminal render lived in `DashboardTerminal.tsx`.
+
+**The corrected reading is worse than 45%, not better.** A region-by-region
+read against the canvas found three of five regions absent — the title bar,
+the controls row, and the **density heatmap the page is named after** — with
+the fourth a different shape. A 657-line component that renders a different
+screen scores well on label presence and mirrors nothing.
+
+**Lesson for the remaining rows:** a percentage here is only meaningful if it
+was measured against **the component the route actually renders in terminal**.
+Before trusting any row, find that component by following the terminal branch:
+
+```
+grep -n "mode === 'terminal'" app/<route>/page.tsx
+```
+
+then read what that branch returns. It may be a dedicated component, an inline
+block, or a component reached through an intermediate file.
+
+**Do not use "does a `*Terminal` component exist" as the test.** That was the
+first version of this note and it is a proxy, which is the same mistake the
+45% itself was — measuring a stand-in instead of the thing. It misclassifies
+at least three routes:
+
+- **`/arena`** builds its terminal branch **inline in `page.tsx`** and has no
+  component at all
+- **`/`** reaches `LandingTerminal` through `LandingContent.tsx:11`, so a
+  page-level search misses it
+- **`/briefing`** has a component, and #620 established it draws a different
+  product — so the component existing says nothing about whether it mirrors
+
+A filename is not evidence about what renders. The branch is.
 
 ### How to read these numbers
 
