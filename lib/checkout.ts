@@ -14,15 +14,54 @@
  *  Exported so /api/version can report `configured.checkout` from the SAME read
  *  the app gates on (#282). A boolean computed differently from the thing it
  *  describes is worse than no boolean. */
-export function checkoutBase(env: Record<string, string | undefined> = process.env): string | null {
-  const base = env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL;
+
+/* THE VALUES ARE READ HERE, AS LITERAL `process.env.NEXT_PUBLIC_*` MEMBER
+ * ACCESSES AT MODULE SCOPE, AND THAT IS THE WHOLE FIX (#243).
+ *
+ * These functions took `env: Record<…> = process.env` and read
+ * `env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` off it. Next.js inlines ONLY the
+ * literal `process.env.NEXT_PUBLIC_X` form into the client bundle; reading a
+ * property off a `process.env` object passed in as a whole resolves to nothing
+ * in the browser. So `isCheckoutConfigured()` - called with no argument at
+ * module scope in app/upgrade/page.tsx:13 - was permanently false on the
+ * client, and the upgrade page rendered its "no store yet" branch with NO
+ * CHECKOUT BUTTON regardless of how the environment was configured.
+ *
+ * Measured before changing anything: with the variable set in .env.local AND
+ * present at runtime, `/api/version` reported `configured.checkout: true`
+ * (server-side, live process.env - that path always worked) while the built
+ * client chunks contained the URL nowhere, the served HTML contained no CTA,
+ * and the rendered page showed no checkout button. Pro was not buyable through
+ * the UI in any environment.
+ *
+ * lib/analytics.ts:26 already documents this exact hazard, in these words:
+ *
+ *     "Next.js inlines only that literal form into the client bundle, so
+ *      reading properties off a `process.env` object passed in as a whole
+ *      resolves to nothing in the browser ... A default parameter here made
+ *      that mistake easy and invisible, so it is gone."
+ *
+ * That lesson was learned, written down, and applied to analytics - and left
+ * in place on the payment path, where the failure is silent in exactly the same
+ * way and costs money instead of telemetry.
+ *
+ * The optional `env` parameter STAYS, because /api/version and lib/email.ts
+ * legitimately read server-side values, and #282 requires them to use the same
+ * predicate the UI gates on. What changed is the default: an explicit argument
+ * still wins, and omitting it now falls back to a value that was inlined at
+ * build time rather than to an object that is empty in the browser. */
+const INLINED_MONTHLY = process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL;
+const INLINED_ANNUAL  = process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL_ANNUAL;
+
+export function checkoutBase(env?: Record<string, string | undefined>): string | null {
+  const base = env ? env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL : INLINED_MONTHLY;
   return base && base !== '#' ? base : null;
 }
 
 /** Boolean form of the same read. Returns the URL rather than a boolean above so
  *  callers that need the value get type narrowing from the one check, instead of
  *  testing a helper and then re-testing the variable to satisfy the compiler. */
-export function isCheckoutConfigured(env: Record<string, string | undefined> = process.env): boolean {
+export function isCheckoutConfigured(env?: Record<string, string | undefined>): boolean {
   return checkoutBase(env) !== null;
 }
 
@@ -41,12 +80,14 @@ export function getCheckoutUrl(user: { id: string; email?: string } | null): str
   }
 }
 
-export function checkoutBaseAnnual(env: Record<string, string | undefined> = process.env): string | null {
-  const base = env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL_ANNUAL;
+/* Same fix as checkoutBase above - see its header for why the default is a
+   build-time constant rather than `= process.env`. */
+export function checkoutBaseAnnual(env?: Record<string, string | undefined>): string | null {
+  const base = env ? env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL_ANNUAL : INLINED_ANNUAL;
   return base && base !== '#' ? base : null;
 }
 
-export function isCheckoutConfiguredAnnual(env: Record<string, string | undefined> = process.env): boolean {
+export function isCheckoutConfiguredAnnual(env?: Record<string, string | undefined>): boolean {
   return checkoutBaseAnnual(env) !== null;
 }
 
