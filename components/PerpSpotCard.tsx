@@ -66,18 +66,53 @@ export default function PerpSpotCard() {
         Perps vs Spot · {coin.toUpperCase()}
       </div>
 
-      {/* #656 item 4: verdict pill and number share one row instead of two
-          stacked blocks. Owner's ruling was "keep the content, restyle to
-          fit" - not a trim, so the verdict text and the number are both
-          still here, unchanged. What moved is the LAYOUT: the canvas draws
-          this as "one 11.5px line and a 1.4x value", i.e. the verdict and
-          the number read as one unit, not two. Two stacked blocks each
-          carrying their own marginBottom (8 + 8 = 16px) is what the canvas
-          does not have; one flex row with a single marginBottom removes
-          that duplicated spacing without cutting either piece of content. */}
+      {/* The verdict pill and the number share one row (#656 item 4), and that
+          row now fits at every verdict string (#723).
+       *
+       * WHAT WENT WRONG THE FIRST TIME. This row was `flexWrap: 'wrap'` with
+       * both children sized to their content, so whether it rendered as one
+       * line depended on how long the verdict happened to be:
+       *
+       *     NORMAL            79 + 10 + 182 = 271   fits in the 330px rail
+       *     CANNOT MEASURE   140 + 10 + 182 = 332   wraps back to a stack
+       *
+       * FUTURES LEADING and SPOT LEADING sit between those, so it was about
+       * half the value set, not an edge case - and it is data-driven, so the
+       * card silently changed shape as the market moved.
+       *
+       * THE FIX IS TO LET THE NUMBER BLOCK SHRINK, not to forbid wrapping.
+       * `flex: 1 1 0` + `minWidth: 0` lets its LABEL wrap inside the row
+       * instead of the whole block dropping below the pill. The value itself
+       * (`1.4x`) is short and never wraps, and it is the part a user actually
+       * reads - forcing one line by squeezing the number would have traded a
+       * cosmetic inconsistency for a legibility one.
+       *
+       * Measured at 330px, all four verdicts on one row:
+       *
+       *     NORMAL           pill  79   row 48
+       *     SPOT LEADING     pill 116   row 48
+       *     FUTURES LEADING  pill 139   row 64   <- label wraps to two lines
+       *     CANNOT MEASURE   pill 142   row 64
+       *
+       * So the long verdicts cost 16px, and the pre-#717 stacked layout was 82
+       * (26 pill + 8 margin + 48 block). Worst case here still beats it by 18px
+       * and the best case by 34. What actually matters is that the row no
+       * longer changes shape with the data - deterministic beats
+       * occasionally-shorter on a card whose job is to be read at a glance.
+       *
+       * NOT restored to the pre-#717 stack, though that was on the table.
+       * #717's justification was canvas conformance, and #718 stopped that
+       * while #656 was closed as superseded - so the original reason for this
+       * layout is gone. It stays because a shorter card is still better on a
+       * crowded rail, which is true independently of the canvas. Recorded
+       * because "the canvas said so" is no longer an argument anyone can
+       * lean on here. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
         <div className="psc-verdict-pill" style={{
           display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px',
+          /* The verdict must not shrink - it is a fixed set of short strings and
+             hyphenating FUTURES LEADING would be worse than any wrap. */
+          flexShrink: 0,
           background: `color-mix(in srgb, ${tone} 12%, transparent)`,
           border: `0.5px solid color-mix(in srgb, ${tone} 40%, transparent)`,
         }}>
@@ -94,7 +129,14 @@ export default function PerpSpotCard() {
         {/* The number. A dash when it could not be measured - never a 1.0x,
             which would read as "an ordinary day" and be indistinguishable
             from having checked. */}
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          /* Shrink to whatever the pill leaves. minWidth: 0 is the load-bearing
+             half - a flex item's default min-width is `auto`, which floors it at
+             its longest unbreakable content and would keep this block at its
+             full width no matter what `flex` says. */
+          flex: '1 1 0', minWidth: 0,
+        }}>
           <span style={{
             fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase',
             letterSpacing: '0.05em', marginBottom: 1,
