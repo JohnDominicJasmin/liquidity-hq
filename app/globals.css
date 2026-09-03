@@ -7257,6 +7257,114 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .liq-term-wrap,
 [data-design="terminal"] .liq-term-wrap * { border-radius: 0 !important; }
 
+/* ══ Liquidation map, canvas regions 2-4 (#652) ═══════════════════════════
+   Values measured off Liquidation Map.dc.html: title row 46, tabs row 40,
+   heat rails 46 and 58, time axis 20. The surface's own ground is the
+   canvas's #0a0710 - the darkest stop of ramp 0, so the unlit part of the
+   field reads as the ramp's floor rather than as the page showing through.
+   It is deliberately NOT a token: it is the bottom of a continuous colour
+   scale, the same reason the ramps themselves are not palette members. */
+[data-design="terminal"] .liq-heat-head {
+  height: 46px; flex-shrink: 0; display: flex; align-items: center;
+  padding: 0 16px; gap: 14px; border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .liq-heat-title {
+  font-family: var(--font-mono), monospace;
+  font-size: 14px; font-weight: 700; letter-spacing: .1em; color: var(--txt);
+}
+[data-design="terminal"] .liq-heat-source {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .14em; color: var(--txt3);
+}
+[data-design="terminal"] .liq-heat-tfs {
+  display: flex; gap: 2px; border: 1px solid var(--bdr);
+  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .1em;
+}
+[data-design="terminal"] .liq-heat-tf {
+  padding: 5px 10px; color: var(--txt3); background: none; border: 0; cursor: pointer;
+  font-family: inherit; font-size: inherit; letter-spacing: inherit;
+}
+[data-design="terminal"] .liq-heat-tf.on { color: var(--bg0); background: var(--accent); }
+[data-design="terminal"] .liq-heat-refresh {
+  border: 1px solid var(--border-input); width: 30px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; cursor: pointer; color: var(--txt2); flex-shrink: 0;
+}
+[data-design="terminal"] .liq-heat-refresh:hover { border-color: var(--accent); }
+
+[data-design="terminal"] .liq-heat-controls {
+  height: 40px; flex-shrink: 0; display: flex; align-items: center;
+  padding: 0 16px; gap: 12px; border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .liq-heat-tabs {
+  display: flex; gap: 2px;
+  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .12em;
+}
+[data-design="terminal"] .liq-heat-tab {
+  padding: 6px 12px; border: 1px solid var(--bdr); background: none;
+  color: var(--txt3); cursor: pointer; font-family: inherit;
+  font-size: inherit; letter-spacing: inherit;
+}
+[data-design="terminal"] .liq-heat-tab.on { color: var(--bg0); background: var(--accent); }
+[data-design="terminal"] .liq-heat-swatches { display: flex; gap: 4px; }
+[data-design="terminal"] .liq-heat-swatch {
+  width: 26px; height: 16px; border: 1px solid var(--bdr); cursor: pointer; padding: 0;
+}
+[data-design="terminal"] .liq-heat-swatch.on { border-color: var(--accent); }
+[data-design="terminal"] .liq-heat-thr-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .12em; color: var(--txt2);
+}
+[data-design="terminal"] .liq-heat-thr { width: 150px; accent-color: var(--accent); cursor: pointer; }
+
+[data-design="terminal"] .liq-heat-wrap {
+  flex: 1; min-height: 0; display: flex; padding: 14px 16px 8px; gap: 12px;
+}
+[data-design="terminal"] .liq-heat-scale {
+  width: 46px; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start;
+  font-family: var(--font-mono), monospace; font-size: 9.5px;
+}
+[data-design="terminal"] .liq-heat-scale-max { color: var(--txt2); }
+[data-design="terminal"] .liq-heat-scale-min { color: var(--txt4); margin-top: 6px; }
+[data-design="terminal"] .liq-heat-scale-bar {
+  flex: 1; width: 16px; margin-top: 6px; border: 1px solid var(--bdr);
+}
+[data-design="terminal"] .liq-heat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+[data-design="terminal"] .liq-heat-surface {
+  flex: 1; min-height: 0; position: relative; overflow: hidden; background: #0a0710;
+}
+[data-design="terminal"] .liq-heat-row { position: absolute; left: 0; right: 0; }
+[data-design="terminal"] .liq-heat-spot {
+  position: absolute; left: 0; right: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--txt) 50%, transparent);
+}
+[data-design="terminal"] .liq-heat-spot-label {
+  position: absolute; right: 6px; margin-top: -8px;
+  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700;
+  color: var(--bg0); background: var(--txt); padding: 1px 4px;
+}
+[data-design="terminal"] .liq-heat-time {
+  height: 20px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: .08em; color: var(--txt4);
+}
+[data-design="terminal"] .liq-heat-axis {
+  width: 58px; flex-shrink: 0; display: flex; flex-direction: column;
+  justify-content: space-between; padding-bottom: 20px;
+  font-family: var(--font-mono), monospace; font-size: 9.5px; color: var(--txt3); text-align: right;
+}
+[data-design="terminal"] .liq-heat-tz { color: var(--txt3); letter-spacing: .12em; }
+[data-design="terminal"] .liq-heat-cap {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .12em; color: var(--amber);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+  padding: 3px 8px;
+}
+[data-design="terminal"] .liq-heat-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 2rem; color: var(--txt3);
+  font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .08em;
+}
+
 /* ── #559 platform radius sweep: circular-glyph carve-out ──────────────────
    specs/radius-ruling.md: "border-radius: 0 applies to rectangular surfaces
    ... It does not apply to elements that are inherently circular in the

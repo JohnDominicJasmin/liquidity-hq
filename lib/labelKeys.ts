@@ -334,6 +334,12 @@ export const LABEL_KEYS = [
   // frame's "Bybit perp": wrong exchange, and "perp" would be wrong too on
   // the normal path, since the snapshot route defaults to spot. See the
   // component for the full reasoning.
+  // Liquidation map heatmap (#652). LIQ_HEAT_SOURCE says OBSERVED because
+  // liq_events has no server-side writer - see LiqHeatmap's header.
+  'LIQ_HEAT_TITLE', 'LIQ_HEAT_SOURCE', 'LIQ_HEAT_SOURCE_TIP',
+  'LIQ_HEAT_TZ', 'LIQ_HEAT_CAP_NOTE',
+  'LIQ_HEAT_NO_EVENTS', 'LIQ_HEAT_THRESHOLD', 'LIQ_HEAT_REFRESH_TITLE',
+  'LIQ_HEAT_TAB_HEATMAP', 'LIQ_HEAT_TAB_LADDER', 'LIQ_HEAT_PALETTE_TITLE',
   'ARENA_SNAP_VOL_LABEL', 'ARENA_SNAP_VOL_NOTE',
   'ARENA_SNAP_OI_LABEL', 'ARENA_SNAP_OI_NOTE',
   'ARENA_SNAP_FUNDING_LABEL',
