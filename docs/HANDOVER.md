@@ -276,7 +276,16 @@ android/      Capacitor Android shell
 | `origin/dev` | `06c647e` | PR #720 merged — the canvas-mirror revert (#718) |
 | `origin/qa` | `06c647e` | promoted and **deployed** — `/api/version` confirmed `06c647e` |
 | `origin/staging` | `06c647e` | promoted and **deployed** — `/api/version` confirmed `06c647e` |
-| `origin/main` | `1ee554e` | production — **64 commits behind `staging`**, no release PR open. Shipping is the owner's call and they have not given it. |
+| `origin/main` | `1ee554e` | production — **91 commits behind `staging`** (54 excluding merges), no release PR open. Shipping is the owner's call and they have not given it. |
+
+**`main` is not an ancestor of `staging`, and that is topology rather than risk — check this before a release rather than re-deriving it.** Seven commits sit on `main` and not on `staging`, so `staging` → `main` cannot fast-forward and needs a merge commit. All seven are release merge commits from previous ships: `git diff origin/staging...origin/main` is **empty**, meaning `main`'s tree is identical to the merge-base (`bb24e374`). So `main` carries no unique content, and shipping `staging` reverts nothing that is live.
+
+Stated explicitly because "not an ancestor" is normally the shape of an unmerged hotfix — the case CLAUDE.md warns about, where a fix went straight to prod and the next release quietly undoes it. Here it is not that, and confirming it takes one command:
+
+```
+git diff --stat origin/staging...origin/main     # empty  -> main adds nothing
+git rev-list --count origin/main..origin/staging # 91     -> the release size
+```
 
 **READ THIS BEFORE ANY DESIGN WORK — the redesign direction reversed on 2026-09-03.**
 
