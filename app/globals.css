@@ -2603,7 +2603,23 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --glow-amber:  0 0 16px rgba(180,83,9,0.12);
 }
 
-[data-theme="light"] html { background: #E8EAED; }
+/* #706: `html`, not ` html`. This read `[data-theme="light"] html`, which asks
+   for an <html> that is a DESCENDANT of an element carrying data-theme - and
+   data-theme is set on <html> itself (app/layout.tsx:190 writes it to
+   document.documentElement). A document has one <html> and it is the root, so
+   the selector could never match anything, on any route, in any theme.
+
+   The light root has therefore always rendered :255's `html { background:
+   #06070a }` - the dark pin. It hid because <body> paints over <html> almost
+   everywhere, and the body rules just below are correctly scoped and do match.
+   It shows wherever body does not paint: /learn's headings measured 2.76:1,
+   light --accent on a near-black ground.
+
+   Split the same way as the body rules directly below, and for the same reason
+   given in their comment: --bg0 is not declared in the current design's own
+   light block, so terminal takes it and the current design keeps its literal. */
+html[data-theme="light"]:not([data-design="terminal"]) { background: #E8EAED; }
+html[data-design="terminal"][data-theme="light"] { background: var(--bg0); }
 /* #557 investigation (QA, terminal-light audit): unscoped, so terminal+light
    pages rendered the current design's #E8EAED canvas instead of terminal's
    own --bg0 (#f7f6f3) - close enough in hue that it went unnoticed visually,
