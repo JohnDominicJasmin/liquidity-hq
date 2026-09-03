@@ -36,6 +36,7 @@
  * Run with MSYS_NO_PATHCONV=1 in Git Bash or /liq becomes a Windows path.
  */
 
+import { readFileSync } from 'node:fs';
 import { chromium, devices } from '@playwright/test';
 
 const arg = (name, dflt) => {
@@ -60,23 +61,34 @@ const ROUTES = arg('--routes', '') ? arg('--routes', '').split(',') : DEFAULT_RO
 
 /* Token name -> value, per theme. Values track globals.css, not the spec file:
    the spec is what we are checking, so it cannot also be the reference. */
+/* Token name -> value, per theme, DERIVED from lib/terminalTokens.ts.
+   It used to be written out by hand here, and by 2026-09-03 it had drifted:
+   light --accent #8a5c00, --red #cf222e, --amber #9a6a00 and --txt-dash
+   #5e6267 were all superseded values, and --fr-slight-long and (in dark)
+   --txt-dash were absent entirely.
+   That matters more here than in most places because of the rule below: an
+   unrecognised foreground is SKIPPED, not counted. A stale entry does not
+   produce a wrong number, it produces a MISSING one - and the tokens it
+   silently omits are precisely the ones most recently changed, which are the
+   ones a run is usually checking. The comment below already recorded that
+   happening once; deriving the values is the version that cannot happen
+   again. */
+const tokenSrc = readFileSync(new URL('../lib/terminalTokens.ts', import.meta.url), 'utf8');
+const paletteOf = (name) => {
+  const open = tokenSrc.indexOf('export const ' + name + ' = {');
+  if (open === -1) throw new Error('token-surfaces: no ' + name + ' in lib/terminalTokens.ts');
+  const close = tokenSrc.indexOf('\n} as const;', open);
+  if (close === -1) throw new Error('token-surfaces: ' + name + ' has no closing "} as const;"');
+  const out = {};
+  const re = /'(--[a-z0-9-]+)':\s*'(#[0-9a-fA-F]{6})'/g;
+  let m;
+  while ((m = re.exec(tokenSrc.slice(open, close))) !== null) out[m[1]] = m[2].toLowerCase();
+  if (Object.keys(out).length < 10) throw new Error('token-surfaces: ' + name + ' yielded ' + Object.keys(out).length + ' tokens, expected >= 10');
+  return out;
+};
 const PALETTE = {
-  dark: {
-    '--bg0': '#08090a', '--bg1': '#141517', '--bg2': '#111416',
-    '--bdr': '#1f2225', '--bdr2': '#131618', '--bdr3': '#16191b',
-    '--txt': '#e8e9ea', '--txt2': '#8b8f94', '--txt3': '#7c828a',
-    '--txt4': '#3a3f45', '--accent': '#d9a626', '--green': '#3fb950',
-    '--red': '#f0524d', '--mark-idle': '#22262a', '--border-input': '#5e646b',
-    '--amber': '#fbbf24',
-  },
-  light: {
-    '--bg0': '#f7f6f3', '--bg1': '#ebe9e6', '--bg2': '#e3e1dd',
-    '--bdr': '#d5d2cd', '--bdr2': '#dfdcd7', '--bdr3': '#e2dfda',
-    '--txt': '#15181b', '--txt2': '#585c61', '--txt3': '#5e6267',
-    '--txt4': '#aeaaa4', '--accent': '#8a5c00', '--green': '#14702c',
-    '--red': '#cf222e', '--amber': '#9a6a00', '--mark-idle': '#d1cec9',
-    '--border-input': '#75797e', '--txt-dash': '#5e6267',
-  },
+  dark:  paletteOf('TERMINAL_COLORS'),
+  light: paletteOf('TERMINAL_COLORS_LIGHT'),
 };
 
 /* An unrecognised foreground is SKIPPED, not counted — so a stale palette here

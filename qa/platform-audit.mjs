@@ -14,6 +14,7 @@
  * time triples the wall clock for no isolation benefit here.
  */
 
+import { readFileSync } from 'node:fs';
 import { chromium, devices } from '@playwright/test';
 
 const arg = (name, dflt) => {
@@ -38,17 +39,55 @@ const DEFAULT_ROUTES = [
 ];
 const ROUTES = arg('--routes', '') ? arg('--routes', '').split(',') : DEFAULT_ROUTES;
 
-/* Dark terminal palette: the 15 documented tokens plus --amber (#542). */
-const DARK = ['#08090a','#141517','#111416','#1f2225','#131618','#16191b',
-  '#e8e9ea','#8b8f94','#7c828a','#3a3f45','#d9a626','#3fb950','#f0524d',
-  '#22262a','#5e646b','#fbbf24'];
-/* Light terminal palette, transcribed from specs/light-theme-tokens.md.
- * Three of these are NOT the dark value and were wrong in the first version of
- * this file: --amber #9a6a00, --mark-idle #d1cec9, --border-input #75797e.
- * Scoring light against dark values inflates every off-palette count. */
-const LIGHT = ['#f7f6f3','#ebe9e6','#e3e1dd','#d5d2cd','#dfdcd7','#e2dfda',
-  '#15181b','#585c61','#6a6e73','#aeaaa4','#8a5c00','#1a7f37','#cf222e',
-  '#9a6a00','#d1cec9','#75797e'];
+/* The governed palette is DERIVED from lib/terminalTokens.ts, not copied.
+ *
+ * It used to be two hand-written arrays, and by 2026-09-03 both had drifted
+ * from the source of truth - the light one badly enough to INVERT the check:
+ *
+ *   still allowed, but no longer tokens   #6a6e73 #8a5c00 #1a7f37 #cf222e #9a6a00
+ *   real tokens, reported as violations   --txt3 #5e6267  --accent #754e00
+ *                                         --green #14702c --red #9d1a23
+ *                                         --amber #755100 --fr-slight-long #7c5e2e
+ *                                         --txt-dash #4f5257
+ *
+ * The first two of those stale values are the ones design REPLACED because
+ * they failed AA - `--txt3` light #6a6e73 measured 3.93:1 on --bg2 and
+ * `--green` light #1a7f37 measured 3.89:1. So the audit was passing the values
+ * that fail and flagging the values that fixed them. A check that points the
+ * wrong way is worse than no check: acting on its output means reverting a
+ * correctness fix. The dark list had drifted less - two missing tokens
+ * (--fr-slight-long, --txt-dash) and no stale extras - but by the same
+ * mechanism.
+ *
+ * qa/mobile-audit.mjs already derives its palette for exactly this reason
+ * (#641); this file was not updated with it. Same approach, same guards: a
+ * copied list drifts, and a stale hex is invisible among live ones.
+ *
+ * terminalTokens.ts is a .ts module and this is a plain .mjs script with no
+ * loader, so read and extract rather than import. The shapes below are pinned
+ * to that file's actual declarations and throw loudly if it is restructured,
+ * rather than silently yielding an empty palette and reporting every screen as
+ * perfectly on-token. */
+const tokenSrc = readFileSync(new URL('../lib/terminalTokens.ts', import.meta.url), 'utf8');
+
+const mapOf = (name) => {
+  const open = tokenSrc.indexOf('export const ' + name + ' = {');
+  if (open === -1) throw new Error('platform-audit: no ' + name + ' in lib/terminalTokens.ts');
+  const close = tokenSrc.indexOf('\n} as const;', open);
+  if (close === -1) throw new Error('platform-audit: ' + name + ' has no closing "} as const;"');
+  const hexes = tokenSrc.slice(open, close).match(/'(#[0-9a-fA-F]{6})'/g) || [];
+  if (hexes.length < 10) throw new Error('platform-audit: ' + name + ' yielded ' + hexes.length + ' colours, expected >= 10');
+  return hexes.map((h) => h.slice(1, -1).toLowerCase());
+};
+const rampHexes = (tokenSrc.match(/color:\s*'(#[0-9a-fA-F]{6})'/g) || [])
+  .map((m) => m.slice(m.indexOf('#'), m.indexOf('#') + 7).toLowerCase());
+const flatCell = (/export const TERMINAL_FLAT_CELL = '(#[0-9a-fA-F]{6})'/.exec(tokenSrc) || [])[1];
+
+/* Mirrors TERMINAL_ALLOWED / TERMINAL_ALLOWED_LIGHT, same as mobile-audit:
+   the magma ramp is shared because the liquidation map is dark-only by design,
+   and TERMINAL_FLAT_CELL has no light value anywhere. */
+const DARK = [...mapOf('TERMINAL_COLORS'), flatCell, ...rampHexes].filter(Boolean);
+const LIGHT = [...mapOf('TERMINAL_COLORS_LIGHT'), ...rampHexes];
 
 const VIEWPORT_CFG = {
   desktop: { viewport: { width: 1440, height: 900 } },
@@ -171,14 +210,38 @@ await browser.close();
 
 if (JSON_OUT) { console.log(JSON.stringify(rows, null, 2)); process.exit(0); }
 
-const bad = rows.filter(r => !r.error);
-const sum = k => bad.reduce((a, r) => a + (r[k] || 0), 0);
+/* `measured`, not `bad` - these are the loads that produced a reading. Every
+   count below is over THESE, not over every attempted load, so a route that
+   failed to navigate contributes nothing and silently shrinks the denominator.
+   The old name said the opposite of what the filter does, which is how this
+   report came to look clean while measuring nothing. */
+const measured = rows.filter(r => !r.error);
+const errored  = rows.filter(r => r.error);
+const sum = k => measured.reduce((a, r) => a + (r[k] || 0), 0);
 console.log('\n' + '='.repeat(78));
 console.log(`routes ${ROUTES.length} x viewports ${VIEWPORTS.length} x themes ${THEMES.length} = ${rows.length} page loads`);
-console.log(`errors ${rows.filter(r => r.error).length}`);
-console.log(`overflowing            ${bad.filter(r => r.overflow > 0).length} of ${bad.length}`);
-console.log(`with contrast failures ${bad.filter(r => r.contrastFails > 0).length}   (total ${sum('contrastFails')})`);
-console.log(`with off-palette       ${bad.filter(r => r.offDistinct > 0).length}   (total distinct-instances ${sum('offDistinct')})`);
-console.log(`with radius violations ${bad.filter(r => r.radiusTotal > 0).length}   (total ${sum('radiusTotal')}, circular <=24px exempt per radius-ruling.md)`);
-console.log(`with sub-24px targets  ${bad.filter(r => r.subMin > 0).length}   (total ${sum('subMin')})`);
-console.log(`with empty fields      ${bad.filter(r => r.empties > 0).length}   (total ${sum('empties')})`);
+console.log(`measured ${measured.length} of ${rows.length}   errors ${errored.length}`);
+
+/* A run where nothing loaded prints six zeros and reads as a pass. That is
+   this project's most-repeated failure - a broken probe is indistinguishable
+   from a clean result - so say so, and exit non-zero so nothing downstream
+   can mistake it for a green run. */
+if (measured.length === 0) {
+  console.log('\nNOTHING WAS MEASURED. Every page load errored, so the counts below');
+  console.log('would all read zero for that reason alone. This is not a clean run.');
+  for (const r of errored.slice(0, 5)) console.log(`  ${r.route} ${r.viewport} ${r.theme}: ${String(r.error).slice(0, 100)}`);
+  process.exit(1);
+}
+
+console.log(`overflowing            ${measured.filter(r => r.overflow > 0).length} of ${measured.length}`);
+console.log(`with contrast failures ${measured.filter(r => r.contrastFails > 0).length}   (total ${sum('contrastFails')})`);
+console.log(`with off-palette       ${measured.filter(r => r.offDistinct > 0).length}   (total distinct-instances ${sum('offDistinct')})`);
+console.log(`with radius violations ${measured.filter(r => r.radiusTotal > 0).length}   (total ${sum('radiusTotal')}, circular <=24px exempt per radius-ruling.md)`);
+console.log(`with sub-24px targets  ${measured.filter(r => r.subMin > 0).length}   (total ${sum('subMin')})`);
+console.log(`with empty fields      ${measured.filter(r => r.empties > 0).length}   (total ${sum('empties')})`);
+
+if (errored.length) {
+  console.log(`\n${errored.length} of ${rows.length} loads errored and are EXCLUDED from every count above:`);
+  for (const r of errored.slice(0, 8)) console.log(`  ${r.route} ${r.viewport} ${r.theme}: ${String(r.error).slice(0, 100)}`);
+  process.exit(1);
+}
