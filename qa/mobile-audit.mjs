@@ -294,6 +294,47 @@ const result = await page.evaluate(TOKENS => {
             inline: inline.slice(0, 40),
             computed: before.slice(0, 40),
             el: (el.className || el.tagName).toString().slice(0, 40),
+            /* WHICH rule won, and whether it is design-scoped.
+
+               This check runs in ONE design, so a declaration that terminal
+               deliberately overrides looks identical to one that is simply
+               dead. #703 was filed as dead code on exactly that confusion:
+               /arena's 32px coin icon carries `border-radius: 50%` inline, which
+               APPLIES in the current design and which terminal overrides on
+               purpose because 32px is over the ruling's threshold.
+
+               Without this label every deliberate terminal override reads as a
+               defect, and there are hundreds - globals.css carries 45
+               `border-radius: 0 !important` declarations alone. A check that
+               reports intent as error is worse than no check.
+
+               So name the winning selectors and flag the ones scoped to a
+               design. It does not decide - a design-scoped override can still
+               be wrong, as #709 showed when 16px marks were being squared
+               against the ruling - but the reader can now tell the two apart
+               without opening the stylesheet. */
+            ...(() => {
+              const winners = [];
+              for (const sheet of document.styleSheets) {
+                let rules;
+                try { rules = sheet.cssRules; } catch { continue; }
+                const walk = (list) => {
+                  for (const r of list) {
+                    if (r.selectorText && r.style && r.style.getPropertyPriority(p) === 'important') {
+                      let hit = false;
+                      try { hit = el.matches(r.selectorText); } catch { hit = false; }
+                      if (hit) winners.push(r.selectorText);
+                    }
+                    if (r.cssRules && r.cssRules.length) walk(r.cssRules);
+                  }
+                };
+                walk(rules);
+              }
+              return {
+                wonBy: winners.slice(-2).map((w) => w.slice(0, 60)),
+                designScoped: winners.length > 0 && winners.every((w) => w.includes('[data-design=')),
+              };
+            })(),
           });
         }
       }
