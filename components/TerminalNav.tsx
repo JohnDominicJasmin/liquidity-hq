@@ -40,8 +40,16 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import BrandMark from './BrandMark';
 import { useAuth } from './AuthProvider';
+import { useTheme } from '@/lib/theme';
+import { IconSun, IconMoon } from './icons';
+import LanguageNavSwitcher from './LanguageNavSwitcher';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+/* The SAME arrays the current design's nav renders, imported rather than
+   copied (#714). The owner's complaint was that this bar reaches less than the
+   nav it replaced; two lists that must agree and nothing making them agree is
+   how that gap reappears a month from now. */
+import { SCANNERS, TOOLS, PRIMARY, TAIL } from '@/lib/navRoutes';
 import { getCurrentWindow, getLocalNow } from '@/lib/session';
 
 /* Icon paths transcribed from the frames' own ICON map (Dashboard
@@ -117,6 +125,21 @@ function screenNameFor(pathname: string, t: (k: LabelKey) => string): string {
   return seg ? seg.replace(/-/g, ' ') : '';
 }
 
+/* The two groups the current design's nav discloses, same names and same
+   contents (#714). NAV_* label keys, not TNAV_*: these are the words the other
+   nav already uses for these destinations, and inventing terminal-specific
+   ones would let the two drift into calling the same page different things.
+
+   `as const`, NOT `as LabelKey`. My first version cast to LabelKey and tsc
+   passed while both keys - NAV_SECTION_SCANNERS, NAV_SECTION_TOOLS - did not
+   exist anywhere: the cast asserts the type instead of checking it, so the
+   labels would have rendered as raw key strings in the bar. A cast that
+   silences the compiler is not a type. */
+const DROPDOWNS = [
+  { key: 'scanners' as const, labelKey: 'NAV_DROPDOWN_SCANNERS' as const, items: SCANNERS },
+  { key: 'tools'    as const, labelKey: 'NAV_DROPDOWN_TOOLS'    as const, items: TOOLS },
+];
+
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + '/');
 }
@@ -130,8 +153,28 @@ interface TerminalNavProps {
 export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
   const pathname = usePathname();
   const { t } = useLabels();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [session, setSession] = useState<{ name: string; left: number | null } | null>(null);
+
+  /* #714. The owner reported this bar twice: "the top navigation bar. It got
+     down. I need you to put it back." It carried five tabs against the current
+     design's eight items and two dropdowns, so everything else was reachable
+     only through the drawer - and on desktop that is one unlabelled avatar.
+     Same grouping, same route lists, same disclosure shape as the nav it
+     replaced; the labels stay TNAV_* because renaming the five is the owner's
+     call and not part of this. */
+  const [openDrop, setOpenDrop] = useState<'scanners' | 'tools' | null>(null);
+  useEffect(() => {
+    if (!openDrop) return;
+    /* Close on any click that is not inside the open menu. The current
+       design's nav does this with the same listener and a stopPropagation on
+       the wrapper - matched deliberately rather than reinvented, so the two
+       behave identically for someone moving between designs. */
+    const close = () => setOpenDrop(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openDrop]);
 
   /* Resolved after mount, never during render: getLocalNow() reads the
      viewer's clock, so computing this on the server and again on the client
@@ -193,16 +236,82 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
         </Link>
 
         <nav className="tnav-items" aria-label={t('TNAV_ARIA_LABEL')}>
-          {ITEMS.map(item => {
-            const on = isActive(pathname, item.href);
+          {/* THE CURRENT DESIGN'S ITEM SET, rendered in terminal (#714).
+              Owner: "the layout should be like the current design, but the
+              design is on terminal theme."
+
+              This bar used to carry five flat destinations - Overview, Scan,
+              Flow, Book - where .app-bar carries three destinations and two
+              groups. Those are not different LABELS for the same items, they
+              are a different arrangement, so there is no coherent "same
+              layout, terminal names": the names belong to the layout being
+              replaced. Same items, same order, same grouping as .app-bar.
+
+              What does NOT carry over is the visual language - no blue active
+              pill, no radius, no shadow. That is the "but on terminal theme"
+              half, and it lives in the CSS rather than here.
+
+              ITEMS still exists and still drives the MOBILE tab bar above:
+              the current design has a tab bar on small screens too, so the
+              five-tab arrangement is correct there and only the desktop bar
+              was wrong. */}
+          {PRIMARY.map(item => {
+            const on = isActive(pathname, item.path);
             return (
               <Link
-                key={item.key}
-                href={item.href}
+                key={item.path}
+                href={item.path}
                 className={`tnav-item${on ? ' on' : ''}`}
                 aria-current={on ? 'page' : undefined}
               >
                 {t(item.labelKey)}
+              </Link>
+            );
+          })}
+
+          {DROPDOWNS.map(d => {
+            const open = openDrop === d.key;
+            const groupActive = d.items.some(i => isActive(pathname, i.path));
+            return (
+              <div key={d.key} className="tnav-drop-wrap" onClick={e => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className={`tnav-item tnav-drop-btn${open || groupActive ? ' on' : ''}`}
+                  onClick={() => setOpenDrop(v => (v === d.key ? null : d.key))}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                >
+                  {t(d.labelKey)} {open ? '▴' : '▾'}
+                </button>
+                {open && (
+                  <div className="tnav-dropdown" role="menu">
+                    {d.items.map(i => (
+                      <Link
+                        key={i.path}
+                        href={i.path}
+                        role="menuitem"
+                        className={`tnav-drop-item${isActive(pathname, i.path) ? ' on' : ''}`}
+                        onClick={() => setOpenDrop(null)}
+                      >
+                        {t(i.labelKey)}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {TAIL.map(l => {
+            const on = isActive(pathname, l.path);
+            return (
+              <Link
+                key={l.path}
+                href={l.path}
+                className={`tnav-item${on ? ' on' : ''}`}
+                aria-current={on ? 'page' : undefined}
+              >
+                {t(l.labelKey)}
               </Link>
             );
           })}
@@ -223,6 +332,35 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
             </span>
           )}
           {/* No ⌘K chip - see the file header. */}
+
+          {/* THEME TOGGLE (#714). The owner asked for it by name and it is the
+              most consequential of the three: terminal has a full light palette
+              - [data-design="terminal"][data-theme="light"], shipped in #563 -
+              and until now NOTHING in the terminal UI could reach it. The
+              palette existed and was unreachable without hand-editing
+              localStorage. Same hook and same icons as the current bar, so the
+              two cannot disagree about which way the switch points. */}
+          <button
+            type="button"
+            className="tnav-icon-btn"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? t('NAV_THEME_TO_LIGHT') : t('NAV_THEME_TO_DARK')}
+            aria-label={theme === 'dark' ? t('NAV_THEME_TO_LIGHT') : t('NAV_THEME_TO_DARK')}
+          >
+            {theme === 'dark' ? <IconSun /> : <IconMoon />}
+          </button>
+
+          <LanguageNavSwitcher />
+
+          {/* Sign In. Absent until now, so a signed-out visitor on a terminal
+              app screen had no way to authenticate from the bar - the avatar
+              opens the drawer, which is navigation, not auth. Gated on
+              authLoading for the reason the current bar is: rendering "Sign In"
+              to someone already signed in, for the frame before auth resolves,
+              is worse than rendering nothing. */}
+          {!authLoading && !user && (
+            <Link href="/login" className="tnav-signin">{t('NAV_SIGN_IN')}</Link>
+          )}
           {/* The avatar is the DESKTOP drawer opener. Hiding .app-bar for
               terminal takes the hamburger with it, and with it every route
               outside the five plus sign-out - so the bar needs an opener the

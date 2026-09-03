@@ -69,6 +69,10 @@ export const LABEL_KEYS = [
   'NAV_NEWS', 'NAV_GLOSSARY', 'NAV_SETTINGS_LABEL', 'NAV_ABOUT', 'NAV_HOME', 'NAV_MORE',
   'NAV_DROPDOWN_SCANNERS', 'NAV_DROPDOWN_TOOLS', 'NAV_SECTION_MAIN', 'NAV_SECTION_ANALYSIS',
   'NAV_SECTION_RESEARCH', 'NAV_SECTION_MY_TOOLS', 'NAV_SECTION_ACCOUNT', 'NAV_SIGN_IN',
+  /* Theme-toggle tooltips (#714). The current design's app bar hardcodes these
+     two strings in English; the terminal bar takes keys instead rather than
+     copying that gap into a second place. */
+  'NAV_THEME_TO_LIGHT', 'NAV_THEME_TO_DARK',
   'NAV_SIGN_OUT_MENU', 'NAV_SIGN_OUT_DRAWER', 'NAV_SEARCH_PLACEHOLDER', 'NAV_NO_MATCHES',
   'NAV_VIEW_USAGE', 'USAGE_MODAL_TITLE', 'ALERTS_PRICE_LOCKED_DESC', 'SETTINGS_TF_PRO_ONLY',
 
