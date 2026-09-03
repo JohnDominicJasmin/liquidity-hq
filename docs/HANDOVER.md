@@ -719,8 +719,9 @@ Declare the field separately and assign in the body.
 **A CSS rule an inline style outranks is dead, not overridden.** It can never
 apply, and no source read shows that — `globals.css` said the rail badge was
 9.5px mono for as long as the rule existed while it rendered 12px sans. Three
-defects shipped this way (#629, #633, #660). `qa/mobile-audit.mjs` now reports
-`deadRules` for exactly this.
+defects shipped this way (#629, #633, #660). This is what `qa/mobile-audit.mjs`'s
+`deadRules` check is for (#666) — written after the third, because no source
+read finds them.
 
 **An empty result from a broken detector looks like a clean page.** The first
 version of that check returned `[]` against the real site *and* against a page
@@ -750,8 +751,11 @@ answer. **Variation confirms; stability inside a cache window proves nothing.**
 
 **The correct pattern already existing in-repo does not mean it travelled.**
 Four times in one session the right handling was present and documented at the
-place that got it right — `--border-input`, `marketStore`'s `>= 2` signal floor,
-`pool()` — and absent everywhere else. `pool()` existed **twice**, hand-copied,
+place that got it right, and absent everywhere else: `--border-input`, a governed
+neutral nobody reached for; `marketStore`'s `>= 2` signal floor, which two other
+scorers lacked; `pool()`; and terminal typography, where `globals.css:6976`
+documents one inline-vs-stylesheet collision at the rule itself and reaches
+nobody writing the next component. `pool()` existed **twice**, hand-copied,
 each copy explaining why it was needed. Copying is what stopped it spreading: a
 comment only reaches someone already reading that function. Prefer a check over a
 convention, because a convention has to be recalled at the moment of writing.
