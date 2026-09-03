@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { TERMINAL_COLORS, TERMINAL_FLAT_CELL } from '../lib/terminalTokens.ts';
+import { TERMINAL_ALIASES, TERMINAL_COLORS, TERMINAL_FLAT_CELL } from '../lib/terminalTokens.ts';
 
 /* Makes lib/terminalTokens.ts's claim true: that it is the single source of
    truth both app/globals.css and this test read from, and that the two
@@ -86,6 +86,79 @@ test('terminal design tokens', async (t) => {
     assert.deepEqual(undocumented, [],
       'hex-valued custom properties in the terminal block not listed in TERMINAL_COLORS - ' +
       'add them there (or to the radius/other exception if they are not a colour)');
+  });
+
+  await t.test('the CSS terminal blocks declare exactly the documented tokens plus the named aliases (#736)', () => {
+    /* THE TWO-SOURCES BUG, GUARDED.
+     *
+     * The terminal CSS blocks declare 48 properties; this file's TERMINAL_COLORS
+     * documents 18. Nothing recorded that the other 28 existed, so "is
+     * --green-2 terminal-aware?" had two answers depending on which file you
+     * opened - and on #734 two of us independently grepped the SAME file,
+     * agreed, and were both wrong. Agreement between two readings of one half
+     * is not corroboration.
+     *
+     * This asserts in both directions, so neither source can gain a token the
+     * other does not know about. */
+    const declared = new Set(
+      [...block.matchAll(/^\s*(--[a-z][a-z0-9-]*)\s*:/gm)].map(m => m[1])
+    );
+    const known = new Set<string>([
+      ...Object.keys(TERMINAL_COLORS),
+      ...TERMINAL_ALIASES,
+      '--flat-cell',   // documented above; dark-only and currently unreferenced
+    ]);
+
+    const undocumented = [...declared].filter(n => !known.has(n)).sort();
+    assert.deepEqual(undocumented, [],
+      `declared in the terminal CSS block but named in neither TERMINAL_COLORS nor ` +
+      `TERMINAL_ALIASES: ${undocumented.join(', ')}. Add it to TERMINAL_ALIASES ` +
+      `(names only - the value stays in globals.css) or to TERMINAL_COLORS if it is a palette token.`);
+
+    const orphaned = [...TERMINAL_ALIASES].filter(n => !declared.has(n)).sort();
+    assert.deepEqual(orphaned, [],
+      `named in TERMINAL_ALIASES but no longer declared in the terminal CSS block: ` +
+      `${orphaned.join(', ')}. Remove it here, or it claims governance that does not exist.`);
+  });
+
+  await t.test('the terminal dark and light blocks declare the SAME token set (#561)', () => {
+    /* One palette gaining a token the other lacks is how #561's light
+     * fall-through happened: the dark block was updated, light was not, and
+     * terminal+light silently resolved to the app-root value. The values
+     * differ by design - the NAMES must not. */
+    /* Anchored to a line start. A bare indexOf matches
+       `html[data-design="terminal"][data-theme="light"] {` at globals.css:2625
+       first - a different, single-declaration rule - and the block comes back
+       empty, which reports every dark token as missing from light. The test
+       failed that way on its first run, which is the correct behaviour for a
+       guard whose block extraction has gone wrong, but the message pointed at
+       the palette rather than at itself. */
+    const lightSel = CSS.match(/^\[data-design="terminal"\]\[data-theme="light"\] \{/m);
+    assert.ok(lightSel?.index !== undefined, 'terminal light token block not found in globals.css');
+    const lightStart = lightSel!.index!;
+    let depth = 0, lightEnd = lightStart;
+    for (let i = lightStart; i < CSS.length; i++) {
+      if (CSS[i] === '{') depth++;
+      else if (CSS[i] === '}') { depth--; if (depth === 0) { lightEnd = i; break; } }
+    }
+    const lightBlock = CSS.slice(lightStart, lightEnd);
+
+    const namesIn = (b: string) =>
+      new Set([...b.matchAll(/^\s*(--[a-z][a-z0-9-]*)\s*:/gm)].map(m => m[1]));
+    const dark = namesIn(block);
+    const light = namesIn(lightBlock);
+
+    /* --flat-cell is the one known asymmetry and it is documented in
+       lib/terminalTokens.ts with its reason - absent from light deliberately,
+       raised on #602 for design, and currently referenced nowhere. Listed
+       rather than silently filtered so removing it from dark fails here. */
+    const KNOWN_DARK_ONLY = new Set(['--flat-cell']);
+
+    const darkOnly = [...dark].filter(n => !light.has(n) && !KNOWN_DARK_ONLY.has(n)).sort();
+    const lightOnly = [...light].filter(n => !dark.has(n)).sort();
+
+    assert.deepEqual(darkOnly, [], `declared in terminal DARK but not LIGHT: ${darkOnly.join(', ')} - terminal light will fall through to the app-root value`);
+    assert.deepEqual(lightOnly, [], `declared in terminal LIGHT but not DARK: ${lightOnly.join(', ')}`);
   });
 
   await t.test('every custom property USED under [data-design="terminal"] is DECLARED in the terminal block', () => {
