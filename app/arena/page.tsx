@@ -779,7 +779,11 @@ function ArenaContent() {
     const exchangeNetFlow = store.btcExchangeNetFlow != null
       ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M'
         + (store.btcExchangeNetFlow > 50 ? ' (inflow - sell pressure)' : store.btcExchangeNetFlow < -50 ? ' (outflow - accumulation)' : ' (neutral)')
-      : 'AI will search';
+      /* Same dead fallback as liqLevels below, and beyond #637's literal
+         scope - fixed anyway because leaving one of two identical instances
+         in the same function is how the anti-chop toggle ended up with its
+         background converted and its own boxShadow not. */
+      : 'Not available';
 
     /* Stablecoin flow */
     const stablecoinFlow = store.stablecoinSupply != null
@@ -790,9 +794,17 @@ function ArenaContent() {
       : '-';
 
     /* Liquidation levels */
+    /* "Not available" rather than 'AI will search' (#637). The fallback was a
+       standing instruction to go and look, and Quick mode has no tools to
+       look with - so it spent tokens telling the model to do something it
+       cannot do, and in Deep mode invited a web-searched number to stand in
+       for our own missing data. That is the same reasoning that deleted the
+       retail-sentiment block on 2026-07-31; its removal comment sits eight
+       lines above the LIQUIDATION CLUSTERS header in lib/grok.ts and the
+       pattern survived directly beneath it. */
     const liqLevels = store.btcLiqLevels && store.btcLiqLevels.length > 0
       ? store.btcLiqLevels.slice(0, 4).map(l => '$' + l.price.toLocaleString() + ' ' + l.side).join(' | ')
-      : 'AI will search';
+      : 'Not available';
 
     /* BTC dom trend */
     const btcDomTrend = store.btcDomHistory && store.btcDomHistory.length >= 3
@@ -1383,6 +1395,77 @@ function ArenaContent() {
     // whichever tree is actually rendered, so there is exactly one
     // <KLineProChart> and one candle subscription regardless of viewport -
     // arena.md's own requirement (§Absent vs hidden, criterion 25).
+    /* The four AI-read rows the restyle had no home for (#594). arena.md
+       promises "nothing dropped" in its panel inventory but never names the
+       override notice, wait-for line, liquidity-raid block or catalysts -
+       production's AI-read card carries all four and the verdict band
+       visually replaces that card. QA's ruling: append them below the verdict
+       band in the current design's own order, restyled to terminal tokens.
+       Not folded into a named panel (that puts AI-read output in a slot with
+       a different job - the mistake #606 was raised against) and not dropped.
+
+       Same conditionals and same fields as the current-design blocks, so
+       nothing renders here that would not render there. Terminal treatment
+       is hairline + no radius + token colours instead of the rounded/tinted
+       card; the raid block keeps its red/green semantic because that IS the
+       setup's direction, which §"Colour is data" allows. */
+    const prevQuickSignal = quickSignals[selectedCoin];
+    const showOverride = !!(
+      cacheEntry?.mode === 'deep' && prevQuickSignal && prevQuickSignal !== result?.signal
+    );
+    const raidGreen = result?.raidSetup === 'SHORT SQUEEZE';
+
+    const aiReadRows = result && (
+      <>
+        {showOverride && (
+          <div className="at-airow at-airow-override">
+            {t('ARENA_OVERRIDE_NOTICE_PRE')}{' '}
+            <strong>{prevQuickSignal}</strong> {t('ARENA_OVERRIDE_NOTICE_TO')}{' '}
+            <strong>{result.signal}</strong>{t('ARENA_OVERRIDE_NOTICE_POST')}
+          </div>
+        )}
+
+        {result.waitFor && (
+          <div className="at-airow at-airow-waitfor">
+            <span className="at-airow-label">
+              {result.signal === 'LEAN BEARISH' ? t('ARENA_CONFIRMS_TO_SHORT')
+                : result.signal === 'LEAN BULLISH' ? t('ARENA_CONFIRMS_TO_LONG')
+                : t('ARENA_WAIT_FOR')}
+            </span>
+            <span className="at-airow-body">{result.waitFor}</span>
+          </div>
+        )}
+
+        {result.raidSetup && (
+          <div className="at-airow at-airow-raid">
+            <div className="at-airow-label" style={{ color: raidGreen ? 'var(--green)' : 'var(--red)' }}>
+              {t('ARENA_RAID_HEADER', { setup: result.raidSetup })}
+            </div>
+            {result.raidTarget && (
+              <div className="at-airow-kv">
+                <span className="at-micro">{t('ARENA_RAID_TARGET_LABEL')}</span>
+                <span className="at-airow-val">{result.raidTarget}</span>
+              </div>
+            )}
+            {result.raidTrigger && (
+              <div className="at-airow-kv">
+                <span className="at-micro">{t('ARENA_RAID_TRIGGER_LABEL')}</span>
+                <span className="at-airow-body">{result.raidTrigger}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {result.catalysts && result.catalysts.length > 0 && (
+          <div className="at-airow at-airow-catalysts">
+            <ul>
+              {result.catalysts.slice(0, 3).map((c, i) => <li key={i}>{c}</li>)}
+            </ul>
+          </div>
+        )}
+      </>
+    );
+
     const timeframeRow = (
       <div className="at-tfrow">
         {TIMEFRAMES.map(tf => {
@@ -1441,7 +1524,14 @@ function ArenaContent() {
           <div className="at-panelbody"><MultiTFAlignment coin={selectedCoin} /></div>
         </div>
         <div className="at-bodypanel">
-          <div className="at-phead"><span className="at-ptitle">{t('MARKET_STRUCTURE_TITLE')}</span></div>
+          {/* ARENA_MS_PANEL_TITLE, not MARKET_STRUCTURE_TITLE: that label
+              ships "Market Structure · 4H" and the arena canvas draws the
+              panel header as just "Market structure". The "· 4H" I saw
+              during the #598 build and could not explain was never a
+              rendering artefact - it is in the label string. The shared
+              label keeps its own value for the current design's three call
+              sites in MarketStructure.tsx. */}
+          <div className="at-phead"><span className="at-ptitle">{t('ARENA_MS_PANEL_TITLE')}</span></div>
           <div className="at-panelbody"><MarketStructure coin={selectedCoin} onData={handleMsData} /></div>
         </div>
       </div>
@@ -1531,6 +1621,8 @@ function ArenaContent() {
               </button>
             </div>
           </div>
+
+          {aiReadRows}
 
           {timeframeRow}
 
@@ -1644,6 +1736,8 @@ function ArenaContent() {
             </button>
           </div>
         </div>
+
+        {aiReadRows}
 
         {timeframeRow}
 
@@ -1813,23 +1907,23 @@ function ArenaContent() {
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent-2)',
-            background: 'rgba(90,163,255,0.1)', padding: '2px 9px 2px 5px',
-            borderRadius: 20, border: '0.5px solid rgba(90,163,255,0.2)',
+            background: 'color-mix(in srgb, var(--accent-2) 10%, transparent)', padding: '2px 9px 2px 5px',
+            borderRadius: 20, border: '0.5px solid color-mix(in srgb, var(--accent-2) 20%, transparent)',
             flexShrink: 0,
           }}>
-            <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="rgba(90,163,255,0.15)" />
+            <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="color-mix(in srgb, var(--accent-2) 15%, transparent)" />
             {selectedCoin.toUpperCase()}
           </span>
           {/* Spacer */}
           <span style={{ flex: 1 }} />
           {/* Active signal chips */}
           {sqzCount > 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)', background: 'rgba(52,211,153,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.2)' }}>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)', background: 'color-mix(in srgb, var(--green-2) 10%, transparent)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid color-mix(in srgb, var(--green-2) 20%, transparent)' }}>
               ↑ {sqzCount}
             </span>
           )}
           {flushCount > 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)', background: 'rgba(248,113,113,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(248,113,113,0.2)' }}>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)', background: 'color-mix(in srgb, var(--red) 10%, transparent)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid color-mix(in srgb, var(--red) 20%, transparent)' }}>
               ↓ {flushCount}
             </span>
           )}
@@ -1962,7 +2056,7 @@ function ArenaContent() {
                     width: '100%', display: 'grid',
                     gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
                     alignItems: 'center', padding: '7px 12px',
-                    background: isSelected ? 'rgba(90,163,255,0.08)' : 'transparent',
+                    background: isSelected ? 'color-mix(in srgb, var(--accent-2) 8%, transparent)' : 'transparent',
                     border: 'none',
                     borderBottom: '0.5px solid var(--bdr)',
                     cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',
@@ -2395,8 +2489,8 @@ function ArenaContent() {
               <div className="arena-raid-block" style={{
                 marginTop: 8,
                 borderRadius: 10,
-                border: `0.5px solid ${result.raidSetup === 'SHORT SQUEEZE' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
-                background: result.raidSetup === 'SHORT SQUEEZE' ? 'rgba(52,211,153,0.06)' : 'rgba(248,113,113,0.06)',
+                border: `0.5px solid ${result.raidSetup === 'SHORT SQUEEZE' ? 'color-mix(in srgb, var(--green-2) 30%, transparent)' : 'color-mix(in srgb, var(--red) 30%, transparent)'}`,
+                background: result.raidSetup === 'SHORT SQUEEZE' ? 'color-mix(in srgb, var(--green-2) 6%, transparent)' : 'color-mix(in srgb, var(--red) 6%, transparent)',
                 overflow: 'hidden',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px 6px', borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
@@ -2470,8 +2564,8 @@ function ArenaContent() {
                   const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
                   const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
                   const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
-                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
-                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
+                  const bg  = isBull ? 'color-mix(in srgb, var(--green-2) 8%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 8%, transparent)' : 'rgba(26,122,255,0.08)';
+                  const bdr = isBull ? 'color-mix(in srgb, var(--green-2) 25%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 25%, transparent)' : 'rgba(26,122,255,0.25)';
                   return (
                     <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
                   );
@@ -2510,9 +2604,9 @@ function ArenaContent() {
             width: 32,
             height: 18,
             borderRadius: 9,
-            background: antiChopEnabled ? '#34d399' : 'rgba(255,255,255,0.14)',
+            background: antiChopEnabled ? 'var(--green-2)' : 'rgba(255,255,255,0.14)',
             boxShadow: antiChopEnabled
-              ? '0 0 0 1px rgba(52,211,153,0.35), 0 0 8px rgba(52,211,153,0.45)'
+              ? '0 0 0 1px color-mix(in srgb, var(--green-2) 35%, transparent), 0 0 8px color-mix(in srgb, var(--green-2) 45%, transparent)'
               : 'inset 0 1px 3px rgba(0,0,0,0.45)',
             position: 'relative',
             flexShrink: 0,

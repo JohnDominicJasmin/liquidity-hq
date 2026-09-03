@@ -8,6 +8,24 @@
      the banner rendering underneath them. 0px when no banner is showing. */
   --banner-h: 0px;
 
+  /* Height of whichever top bar is rendering (#599). The shell's fixed stack
+     - .app-content's top padding, .nav-drawer's top, .news-ticker's top,
+     .breaking-alert's two offsets - was keyed to the literal 52px in five
+     separate calc()s, so the app-bar's height was a magic number repeated
+     rather than a value anything could read.
+
+     Terminal replaces that bar with .tnav at 44px (38px below 768), which is
+     the canvas's height and not negotiable, so the five offsets have to
+     follow it. They now derive from this instead. The current design's
+     numbers are unchanged by construction: 52px here reproduces every
+     literal that was there before. */
+  --appbar-h: 52px;
+
+  /* Height of the terminal price ticker strip (#628). 0 outside terminal,
+     where no such strip is rendered at all, so every offset below that adds
+     it is unchanged for the current design. */
+  --strip-h: 0px;
+
   /* Terminal charcoal-black - no blue tint */
   --bg0: #030405;
   --bg:  #000000;
@@ -292,7 +310,7 @@ body::after {
 }
 .app-logo { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
 .app-logo span { color: var(--accent-2); }
-.app-content { max-width: 700px; margin: 0 auto; padding: calc(84px + var(--banner-h)) 1rem 2rem; }
+.app-content { max-width: 700px; margin: 0 auto; padding: calc(var(--appbar-h) + var(--strip-h) + 32px + var(--banner-h)) 1rem 2rem; }
 /* 84px = navbar(52) + ticker(22) + 10px gap - safe at all times, plus --banner-h
    on top when the announcement banner is showing (see components/AnnouncementBanner.tsx) */
 
@@ -461,50 +479,90 @@ body::after {
 .csb2-sig       { font-size: var(--fs-caption); font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.02); }
 .csb2-bar-track { height: 3px; background: rgba(255,255,255,0.06); border-radius: 0 0 var(--radius-data) var(--radius-data); margin: 0 -10px; }
 .csb2-bar-fill  { height: 100%; border-radius: 0 0 var(--radius-data) var(--radius-data); transition: width 0.8s ease, background 0.3s; }
-/* #559 Bug 2, "the tint recipe": the health-grade badge backgrounds
-   color-mix the grade's own token toward transparent at 13.3%, composited
-   over the card behind it. On dark that pulls the surface toward black
-   while the text stays light, so text and background diverge and
-   contrast holds - same shape as .csb2-sig above. On light, the same mix
-   pulls the surface toward the TEXT colour instead of away from it,
-   shrinking the gap the badge needs. Originally scoped to grades C/F
-   (--txt2/--txt3) on the assumption A/B/D already cleared the floor.
+/* #614 removed four terminal-scoped .csb2-health-badge overrides that used to
+   sit here: grade-b and grade-c background reductions (light), grade-f's
+   `color: var(--txt)` (both themes) and grade-f's background reduction
+   (light). They are gone rather than adjusted because the thing they were
+   patching is gone FOR THOSE THREE STATES - one comes back below, changed.
 
-   QA's full grade x card-state sweep (matrix, not the single earlier
-   reading) found the confirmed live defect is narrower than that: one
-   badge, grade F, ONLY on the selected card (.csb2-sel) in light -
-   4.316:1. Unselected clears at 4.649. Selected renders --bg3, which in
-   terminal light aliases to --bg2 - one step darker than unselected's
-   --bg1 - and that single step is what puts it under. (The earlier "grade
-   B measured 3.98" reading was a mismeasurement of a grade-F badge, not
-   evidence for grade B - see the PR/issue thread. --green-2's own ceiling
-   math below is independently derived, not resting on that number.)
+   They existed to rescue a self-tint: the badge painted its text in a token
+   and its background in a 13.3% mix of THAT SAME token, so on light the
+   surface moved toward the text instead of away, and grade F on a selected
+   card measured 4.316:1. Under the canvas's rule C, D and F escape that
+   entirely - Dashboard 2a.dc.html:377 paints their text --txt but tints with
+   --txt2, two different tokens - and they now measure 11.2:1 to 12.5:1 across
+   both themes and both card states. Nothing left to patch there.
 
-   --txt3 on --bg2 caps at 4.703:1 with NO tint at all - same shape as
-   --green-2's 4.752 ceiling - so alpha alone can't reliably clear 4.5 on
-   the selected card with real margin. Grade F's text is already the
-   muted, no-strong-signal colour (--txt3, not a "bad" red or a "good"
-   green), so there's little semantic loss in the same move already used
-   on the correlation diagonal: text -> --txt, which has no ceiling
-   problem on any card state. Background tint stays reduced too, belt and
-   suspenders. Grades A/D (amber/orange) still untouched - amber's base
-   VALUE is design's #559 Bug 1, not this alpha issue, and orange isn't
-   governed in terminal at all yet (a separate, older gap). */
+   A and B do NOT escape it. The canvas tints green with green, so the self-
+   tint is still exactly what it was, only in a different token: --green
+   rather than --green-2. Measured at the canvas's own 15%:
+
+     dark  unselected 5.679   dark  selected 5.765   (both clear)
+     light unselected 4.171   light selected 3.886   (both FAIL AA)
+
+   Dark is fine because the mix pulls toward black, away from the text. Light
+   fails, and alpha barely rescues it: --green on light --bg2 with NO tint at
+   all caps near 4.66:1, so 3% is the largest value that clears 4.5 on the
+   selected card (4.585) and every value from 4% up fails. That is the same
+   ceiling shape --green-2 had, which is why the rule this replaces also
+   landed on 3% - the old value was right, for a reason that outlived the
+   token it was written for.
+
+   So the light green tint keeps its reduction and the comparison to the
+   canvas is a knowing one: at 15% the canvas's own light variant does not
+   meet AA here, and its lighter GREEN (#1a7f37 vs our #14702c) would measure
+   worse still. Mirroring the canvas everywhere except this alpha.
+
+   Kept as history rather than deleted outright, because the measurements
+   below are still the record of what was wrong and someone will otherwise
+   re-derive them:
+
+     "#559 Bug 2, the tint recipe": badge backgrounds color-mix the grade's
+     own token toward transparent at 13.3%, composited over the card. On dark
+     that pulls the surface toward black while the text stays light, so they
+     diverge and contrast holds. On light the same mix pulls the surface
+     toward the TEXT colour, shrinking the gap. QA's full grade x card-state
+     sweep found the confirmed live defect was one badge - grade F, only on
+     the selected card (.csb2-sel) in light, 4.316:1; unselected cleared at
+     4.649. Selected renders --bg3, which in terminal light aliases to --bg2,
+     one step darker than unselected's --bg1, and that step is what put it
+     under. --txt3 on --bg2 caps at 4.703:1 with NO tint at all, the same
+     shape as --green-2's 4.752 ceiling, so alpha alone could not clear 4.5
+     with margin - hence text -> --txt for grade F.
+
+   __tests__/contrastTokens.test.mts pins the --txt2/--txt3 pair for the
+   .csb2-sig overlay, which is a different element and is untouched. */
+[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-a,
 [data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-b {
-  background: color-mix(in srgb, var(--green-2) 3%, transparent) !important;
+  background: color-mix(in srgb, var(--green) 3%, transparent) !important;
 }
-[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-c {
-  background: color-mix(in srgb, var(--txt2) 4%, transparent) !important;
+
+/* Rail row typography, measured off Dashboard 2a.dc.html (#656). The build
+   inherited the current design's sizes, which run 12-15px against the
+   canvas's 9.5-11.5, and TWO of the five rendered in Plex Sans where the
+   canvas specifies mono - the grade badge and the change. On a column of
+   aligned numerals that is the difference between a column and a ragged
+   edge, which is what the owner is seeing as "needs more alignment".
+   Terminal only: .csb2-* is shared, and the current design's rail keeps its
+   own scale. */
+[data-design="terminal"] .csb2-name {
+  font-size: 11.5px; font-weight: 600; letter-spacing: .05em;
 }
-/* Base rule, not theme-scoped: dark had the identical self-tint problem
-   (--txt3 text on a 13% tint of --txt3, 4.11:1) and was simply never fixed
-   when light was. DashboardTerminal.tsx no longer sets an inline `color`
-   for grade F, so this needs no !important to win. */
-[data-design="terminal"] .csb2-health-badge.grade-f {
-  color: var(--txt);
+[data-design="terminal"] .csb2-price { font-size: 11.5px; }
+[data-design="terminal"] .csb2-chg {
+  font-family: var(--font-mono), monospace; font-size: 10.5px;
 }
-[data-design="terminal"][data-theme="light"] .csb2-health-badge.grade-f {
-  background: color-mix(in srgb, var(--txt3) 4%, transparent) !important;
+[data-design="terminal"] .csb2-sig { font-size: 10.5px; }
+[data-design="terminal"] .csb2-health-badge {
+  font-family: var(--font-mono), monospace; font-size: 9.5px;
+}
+
+/* Canvas footer: "+21 MORE COINS", mono 10.5, centred, no glyph. The build
+   carried a sans 12px "▼ +43 more coins" - the count differs correctly (it
+   is data) but the case, size and the added caret do not. */
+[data-design="terminal"] .csb2-more {
+  font-family: var(--font-mono), monospace;
+  font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
 }
 
 /* ── MARKET EVENTS STRIP ── */
@@ -559,7 +617,7 @@ body::after {
    scrollable overflow. The actual fix is overflow-x:hidden on <html> (audit
    P2-6). Kept here anyway as correct hygiene for a fixed container with an
    off-canvas child - harmless, changes nothing visually. */
-.nav-drawer { position: fixed; top: calc(52px + var(--banner-h)); left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; overflow: hidden; }
+.nav-drawer { position: fixed; top: calc(var(--appbar-h) + var(--strip-h) + var(--banner-h)); left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; overflow: hidden; }
 .nav-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); opacity: 0; transition: opacity 0.25s; pointer-events: none; }
 .nav-menu {
   position: absolute; top: 0; right: 0; width: min(90vw, 360px); height: 100%;
@@ -1002,7 +1060,7 @@ body[data-rpm-level="high"]::before {
 .nf-headline { font-size: var(--fs-caption); font-weight: 500; color: var(--txt); line-height: 1.5; }
 
 /* ── BREAKING ALERT ── */
-.breaking-alert { position: fixed; top: calc(62px + var(--banner-h)); right: 12px; width: min(340px, calc(100vw - 24px)); z-index: 9000; pointer-events: none; }
+.breaking-alert { position: fixed; top: calc(var(--appbar-h) + var(--strip-h) + 10px + var(--banner-h)); right: 12px; width: min(340px, calc(100vw - 24px)); z-index: 9000; pointer-events: none; }
 
 /* ── ANNOUNCEMENT BANNER ──
    Fixed at the very top, above .app-bar (z-index 1000) - its real rendered
@@ -1032,7 +1090,7 @@ body[data-rpm-level="high"]::before {
 
 /* ── NEWS TICKER ── */
 .news-ticker {
-  position: fixed; top: calc(52px + var(--banner-h)); left: 0; right: 0; z-index: 999;
+  position: fixed; top: calc(var(--appbar-h) + var(--strip-h) + var(--banner-h)); left: 0; right: 0; z-index: 999;
   height: 22px; display: flex; align-items: center; gap: 0;
   background: #0a090e;                   /* fully opaque - no bleed-through */
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
@@ -1122,7 +1180,7 @@ body[data-rpm-level="high"]::before {
 
 /* body.ticker-on no longer needed for app-content - base padding covers both states */
 /* Keep for breaking alerts positioning */
-body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
+body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32px + var(--banner-h)); }
 
 /* ── INDICATORS ── */
 .ind-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
@@ -2255,7 +2313,19 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-section-hdr-long  { color: var(--red); background: rgba(248,113,113,0.06); border-top: 0.5px solid rgba(248,113,113,0.12); border-bottom: 0.5px solid rgba(248,113,113,0.12); }
 .liq-section-sub { font-size: var(--fs-caption); font-weight: 500; opacity: 0.75; text-transform: none; letter-spacing: 0; }
 
-.liq-current-bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: rgba(26,122,255,0.09); border-top: 1px solid rgba(26,122,255,0.28); border-bottom: 1px solid rgba(26,122,255,0.28); border-left: 3px solid var(--purple); margin: 2px 0; }
+/* Derived from --accent-2, was rgba(26,122,255,...) (#652). Those literals
+   are the current design's dark --accent-2, and the [data-theme="light"]
+   override below is its light one - neither carries a design qualifier, so
+   both painted under TERMINAL light too. That tint over --bg2 composited to
+   rgb(213,216,220), the bluish grey QA measured under .liq-current-oi and
+   neither of us could name: the ground was the defect, not the text on it.
+   Recolouring --txt3 to clear 4.5 against it would have compensated for a
+   leak and then been wrong once the leak was fixed.
+   Terminal aliases --accent-2 to var(--accent), so the bar now takes the
+   design's own emphasis colour; --accent-2 IS #1a7aff at :root and #0052CC
+   in the current design's light block, so both current-design renders are
+   byte-identical. */
+.liq-current-bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: color-mix(in srgb, var(--accent-2) 9%, transparent); border-top: 1px solid color-mix(in srgb, var(--accent-2) 28%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--accent-2) 28%, transparent); border-left: 3px solid var(--accent-2); margin: 2px 0; }
 .liq-current-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); flex-shrink: 0; animation: liq-pulse 2s infinite; }
 @keyframes liq-pulse { 0%,100%{box-shadow:0 0 6px var(--purple)} 50%{box-shadow:0 0 16px var(--purple),0 0 4px #fff4} }
 .liq-current-price { font-size: var(--fs-data); font-weight: 700; color: #fff; font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
@@ -2597,7 +2667,10 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 [data-theme="light"] .gex-hdr    { color: var(--txt3); }
 
 /* Current price bar in liq map */
-[data-theme="light"] .liq-current-bar   { background: rgba(0,82,204,0.06); }
+/* Kept as a light-theme step-down, now derived: the base rule's 9% is heavy
+   on a pale ground. Same value it always resolved to in the current design,
+   since --accent-2 is #0052CC there. */
+[data-theme="light"] .liq-current-bar   { background: color-mix(in srgb, var(--accent-2) 6%, transparent); }
 [data-theme="light"] .liq-current-price { color: var(--txt); }
 [data-theme="light"] .liq-current-tag   { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
 
@@ -5539,8 +5612,18 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      by coincidence, not by decision, same shape this whole file has been
      closing all session. Declaring explicitly so light's move doesn't
      silently break this the way it did for red. */
-  --amber-bg:  rgba(251,191,36,0.07);
-  --amber-bdr: rgba(251,191,36,0.22);
+  /* #647: derived from var(--amber) rather than restating its dark hex.
+     The comment above set out to stop light's move breaking these, and then
+     declared the DARK literal in a block both themes inherit - so terminal
+     light kept painting rgba(251,191,36,...) while its --amber had moved to
+     #755100. The intent was right and the mechanism reproduced the bug it
+     was written to prevent, one level up: a literal cannot follow a token.
+     color-mix keeps both alphas and re-derives per theme, so the light block
+     below needs no amber-tint override at all - it inherits these and
+     resolves them against its own --amber. Same fix shape as #642's inline
+     tints. */
+  --amber-bg:  color-mix(in srgb, var(--amber) 7%, transparent);
+  --amber-bdr: color-mix(in srgb, var(--amber) 22%, transparent);
   /* #559/#561: found missing here while adding the light terminal block below
      and diffing declared tokens between the two - same shape as --amber
      directly below: undeclared, so falls through to root's dark value by
@@ -5737,14 +5820,70 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    is untouched until the flag is on. Radius is 0 throughout - the design has no
    rounded corners anywhere, so these rules set none rather than overriding. */
 
+/* Terminal's bar is 44px, and 38px once .tnav-mhead takes over below 768.
+   --appbar-h is what carries that into .app-content's top padding and the
+   .nav-drawer / .news-ticker / .breaking-alert offsets - see its definition
+   at the top of this file. Without it those five stay pinned to the
+   current design's 52px and terminal renders an 8px dead band under a bar
+   that is not there. */
+[data-design="terminal"] { --appbar-h: 44px; --strip-h: 34px; }
+@media (max-width: 767px) {
+  /* Mobile drops the strip entirely - arena.md's region table line 51 lists
+     it absent below 768, replaced by a 44px symbol row that is a separate
+     component and not built yet (#628). --strip-h back to 0 so the offsets
+     do not reserve space for something that is not there. */
+  [data-design="terminal"] { --appbar-h: 38px; --strip-h: 0px; }
+}
+
+/* #628: the strip was `position: static` at top 0, so it laid out UNDERNEATH
+   the fixed bar and was never once visible - measured 0 -> 34 under a 44px
+   bar, and under the 52px .app-bar before that, so it had been invisible for
+   the whole life of the terminal design. It leaves no gap and no overlap
+   artefact, which is why it read as ordinary spacing for so long.
+
+   Pinned below the bar, and every offset below it now adds --strip-h.
+   Dashboard 2a.dc.html:57 draws it immediately after the 44px nav at
+   height:34, and arena.md's region table line 25 names it `| 2 | Ticker | 34
+   | shell |` - shell, which is where AppShell already renders it.
+
+   The background is the one value not transcribed: the canvas sets none,
+   because there it sits in a column-flex frame over the frame's own ground.
+   Pinned, it needs an opaque fill or page content scrolls through it, and
+   --bg0 IS that ground. */
+[data-design="terminal"] .price-ticker-strip {
+  position: fixed; left: 0; right: 0;
+  top: calc(var(--appbar-h) + var(--banner-h));
+  z-index: 999;
+  background: var(--bg0);
+}
+/* No `display: none` companion rule below 768. There was one, and it did
+   nothing: PriceTickerStrip sets `display: 'flex'` as an inline style, which
+   beats a stylesheet rule without !important, so the strip stayed on screen
+   at 375 pinned over content that --strip-h: 0px had told nothing to reserve.
+   The component returns null below 768 instead (useIsDesktop, breakpoint
+   768). Not re-added as !important - a rule that has to shout to beat the
+   component it styles is a sign the component should own the decision. */
+
+/* Fixed, matching .app-bar, because the whole shell stack above assumes the
+   top bar is out of flow. The frames put a static header at the top of a
+   column-flex app frame, which is the same result in a layout that owns the
+   full viewport - this one does not. */
 [data-design="terminal"] .tnav {
   display: none;
-  height: 44px; align-items: center; gap: 18px;
+  position: fixed; top: var(--banner-h); left: 0; right: 0; z-index: 1000;
+  /* gap 28, not 18 (#599): Dashboard 2a.dc.html:39 draws the nav at
+     gap:28px. Height, padding and the bottom hairline all matched already;
+     this one value did not, and nothing recorded why. */
+  height: 44px; align-items: center; gap: 28px;
   padding: 0 16px;
   background: var(--bg0);
   border-bottom: 1px solid var(--bdr);
 }
-[data-design="terminal"] .tnav-brand { text-decoration: none; display: inline-flex; align-items: center; }
+/* gap 9 (#599): the canvas wraps the logo and wordmark in gap:9px. The rule
+   set no gap at all, so they would have rendered flush. */
+[data-design="terminal"] .tnav-brand {
+  text-decoration: none; display: inline-flex; align-items: center; gap: 9px;
+}
 [data-design="terminal"] .tnav-wordmark {
   font-family: var(--font-mono), monospace;
   font-size: 12px; font-weight: 700; letter-spacing: .14em;
@@ -5758,6 +5897,44 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   transition: color .12s;
 }
 [data-design="terminal"] .tnav-item:hover { color: var(--txt2); }
+
+/* The nav's right-hand cluster (#599). Dashboard 2a.dc.html:49-53 draws
+   three elements after a flex spacer at gap:14px - a session indicator, a
+   ⌘K hint and an avatar. None of them had ANY rule before this: wiring the
+   scaffold as it stood would have produced a nav with a brand, nav items
+   and nothing on the right, which is roughly a third of the canvas's nav.
+   Values transcribed from the frame, not chosen here. */
+[data-design="terminal"] .tnav-right {
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .08em;
+}
+[data-design="terminal"] .tnav-session {
+  display: flex; align-items: center; gap: 6px; color: var(--txt2);
+}
+[data-design="terminal"] .tnav-session-dot {
+  width: 5px; height: 5px; background: var(--green); flex-shrink: 0;
+}
+[data-design="terminal"] .tnav-kbd {
+  color: var(--txt3);
+  border: 1px solid var(--bdr);
+  padding: 4px 8px;
+}
+/* A <button> since #599 - it is the desktop drawer opener, because hiding
+   .app-bar for terminal takes the hamburger with it. The frames draw this
+   box and give it no behaviour, so the appearance below is unchanged and
+   only the element type moved. background/padding/font are resets: a button
+   does not inherit them the way the span did. */
+[data-design="terminal"] .tnav-avatar {
+  width: 22px; height: 22px;
+  border: 1px solid var(--border-input);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--txt2); font-size: 10px; font-weight: 700;
+  flex-shrink: 0;
+  background: none; padding: 0; cursor: pointer;
+  font-family: var(--font-mono), monospace;
+}
+[data-design="terminal"] .tnav-avatar:hover { color: var(--txt); }
 /* The design's one inversion: active nav is amber-filled with #08090a text.
    --bg0 IS #08090a, so this is the token rather than the literal. */
 [data-design="terminal"] .tnav-item.on { background: var(--accent); color: var(--bg0); font-weight: 700; }
@@ -5765,26 +5942,70 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 /* Mobile bottom tab bar - 60px, five items, active in --accent. */
 [data-design="terminal"] .tnav-tabs { display: none; }
 
-@media (min-width: 900px) {
+/* 768, not 900 (#599). 900 appeared nowhere else in this codebase with any
+   stated reasoning, while landing.md and arena.md both explicitly reason to
+   768 for their own tree splits, and the CURRENT design's shell nav already
+   swaps at 768 (globals.css:949) - so the new terminal nav did not even
+   match the shell convention it replaces. Left at 900 there is a real bug,
+   not just a mismatch: 768-899px would get every terminal route's MOBILE
+   content tree underneath DESKTOP nav chrome. */
+@media (min-width: 768px) {
   [data-design="terminal"] .tnav { display: flex; }
 }
-@media (max-width: 899px) {
+@media (max-width: 767px) {
   [data-design="terminal"] .tnav-tabs {
     display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997;
     height: 60px; background: var(--bg0); border-top: 1px solid var(--bdr);
   }
   [data-design="terminal"] .tnav-tab {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px; color: var(--txt3); text-decoration: none;
+    /* gap 6, not 3: Dashboard 2a.dc.html:301 sets gap:6px between the 19px
+       icon and its 9px label. Third value in this block that did not match
+       the frame it claims to mirror, after the 899 breakpoint and the
+       header's padding. */
+    gap: 6px; color: var(--txt3); text-decoration: none;
     /* 60px tall and a fifth of the viewport wide - comfortably past the 24x24
        WCAG 2.2 AA minimum without needing an overlay like #388's control. */
+  }
+  /* Reserve the band the tab bar sits over, the same reservation #173 added
+     for .mobile-tab-bar - that one is scoped to max-width 640 and to 56px,
+     and neither number applies here. Without this the last 60px of every
+     terminal page on a phone sits under the bar, which #173 found was
+     landing on real controls, not just footer links. */
+  [data-design="terminal"] .app-content {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 1rem);
   }
   [data-design="terminal"] .tnav-tab.on { color: var(--accent); }
   [data-design="terminal"] .tnav-tab-label {
     font-family: var(--font-mono), monospace;
+    /* text-transform, added with the component (#599): the frames' tab
+       labels are uppercase strings ('DESK'), but the label VALUES are
+       stored in natural case so .tnav-item can uppercase them in CSS the
+       way the frames' desktop bar does. Uppercasing here means one stored
+       string feeds both bars instead of two that can drift apart. */
     font-size: 9px; letter-spacing: .1em; font-weight: 500;
+    text-transform: uppercase;
   }
-  /* The old drawer's tab bar must not stack with the new one. */
+  /* Drawer opener, mobile. Not in the frames - they draw no opener at all,
+     and the tab bar they DO specify is repeat(5,1fr), so a sixth MORE tab
+     would contradict a value they state outright. This sits in the header's
+     empty spacer instead, where they are silent. 32px box around a 16px
+     glyph for the tap target. */
+  [data-design="terminal"] .tnav-mmore {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; margin-right: -8px;
+    background: none; border: 0; padding: 0; cursor: pointer;
+    color: var(--txt2); flex-shrink: 0;
+  }
+  /* The old drawer's tab bar must not stack with the new one.
+     Already retired for terminal, so #599 changes nothing here - but the
+     consequence is worth stating rather than leaving implicit: .tnav-tabs
+     above is NOT wired to any component (grep .tnav- across *.tsx returns
+     nothing), so between this rule and that, terminal mobile currently has
+     NO bottom nav at all. The hamburger is separately hidden below 640
+     (globals.css:5363), so there is no drawer opener either. Fixing the
+     rules in this file does not fix that - it needs the .tnav-* component
+     built. Tracked on #599. */
   [data-design="terminal"] .mobile-tab-bar { display: none !important; }
 }
 
@@ -5908,10 +6129,20 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 }
 /* Mobile 38px header (README:82) - logo, screen name, status. */
 [data-design="terminal"] .tnav-mhead { display: none; }
-@media (max-width: 899px) {
+/* 767, not 899. #616 moved .tnav to min-width:768 and .tnav-tabs to
+   max-width:767 but left this one at 899, so 768-899px matched BOTH the
+   desktop bar and the mobile header and would have rendered two navs stacked
+   the moment a component wired these classes. Latent rather than live only
+   because nothing renders .tnav-mhead yet (#599). The three rules now share
+   one boundary, which is the point of having one. */
+@media (max-width: 767px) {
   [data-design="terminal"] .tnav-mhead {
     display: flex; align-items: center; gap: 10px;
-    height: 38px; padding: 0 12px;
+    position: fixed; top: var(--banner-h); left: 0; right: 0; z-index: 1000;
+    /* padding 0 14px, not 12: Dashboard 2a.dc.html:235. Height, gap and the
+       bottom hairline all matched already; this one value did not. Same
+       shape of miss as the desktop bar's gap in #616. */
+    height: 38px; padding: 0 14px;
     background: var(--bg0); border-bottom: 1px solid var(--bdr);
   }
   [data-design="terminal"] .tnav-mbrand {
@@ -6211,6 +6442,45 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 [data-design="terminal"] .lt-plan-cta-pro { background: var(--accent); color: var(--bg0); border-color: var(--accent); font-weight: 700; }
 
 /* ── 8. footer ── */
+/* #641: the "~3d 8h ago" stamp. QA reproduced the 4.02 and the ground turned
+   out to be DATA-dependent, which is why no stylesheet contains it and I
+   could not find it: .ms-last-event takes an inline `background: evBg(le)`
+   (MarketStructure.tsx:227), a 10% tint of the latest event's own colour -
+   --accent, --red or --green-2 depending on what the market last did. Gold
+   at 10% over --bg1 is rgb(40,36,25), exactly what the audit measured.
+
+   --txt3 fails on EVERY state once composited, not just the gold one:
+
+     dark  accent 4.02  red 4.25  green 4.08
+     light accent 4.39  red 4.29  green 4.42
+
+   --txt2 clears all six - 4.78 / 5.07 / 4.87 dark, 4.82 / 4.70 / 4.85 light.
+
+   BOTH classes, because they are different elements: .ms-ev-ago sits inside
+   the tinted .ms-last-event and is the one that fails; .ms-hist-ago sits in
+   .ms-hist-row, which has no background of its own and composites on plain
+   --bg1 at 4.71 - passing. Only the BADGE in a history row is tinted, not
+   the row. The first version of this rule targeted the passing element. */
+[data-design="terminal"] .ms-ev-ago,
+[data-design="terminal"] .ms-hist-ago { color: var(--txt2); }
+
+/* Footer column links: a 25px hit area with ZERO layout change (#641).
+   Measured at 166x19, and SC 2.5.8's Inline exception does not reach them -
+   they are a flex column of sibling links, not prose. The disclaimer
+   sentence's links further down that file ARE prose and are left alone.
+
+   padding grows the box 19 -> 25 and the equal negative margin pulls the
+   flow back, so nothing moves - which is what landing.md:512 asks for,
+   "a padded hit area without changing their painted box". Column gap is 7
+   mobile / 9 desktop, so the 3px each side leaves adjacent hit areas 1-3px
+   apart rather than overlapping.
+   Not min-height on a flex item: that would grow each link by 5px and add
+   ~40px to the mobile footer, which is a layout change dressed as a fix. */
+[data-design="terminal"] .lt-foot-link {
+  display: inline-block;
+  padding: 3px 0;
+  margin: -3px 0;
+}
 [data-design="terminal"] .lt-footer { padding: 52px 40px 0; }
 [data-design="terminal"] .lt-footer-top { display: flex; gap: 48px; }
 [data-design="terminal"] .lt-footer-brand { flex: 0 0 290px; }
@@ -6443,6 +6713,42 @@ main.app-content[data-chrome="none"] {
 }
 
 /* ── region 6: timeframe row, 42 ── */
+/* AI-read rows (#594) - the override notice, wait-for line, liquidity-raid
+   block and catalysts, which arena.md's inventory never named despite its own
+   "nothing dropped" promise. They sit between the verdict band and the
+   timeframe row, in the current design's order, as bands rather than the
+   rounded/tinted cards production draws: hairline bottom, no radius, token
+   colours. Same geometry language as every other band on this route. */
+[data-design="terminal"] .at-airow {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--bdr);
+  font-size: 12.5px; line-height: 1.5; color: var(--txt2);
+}
+[data-design="terminal"] .at-airow-label {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt3);
+  margin-right: 8px;
+}
+[data-design="terminal"] .at-airow-waitfor .at-airow-label { color: var(--accent); }
+[data-design="terminal"] .at-airow-val {
+  font-family: var(--font-mono); font-weight: 600; color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+[data-design="terminal"] .at-airow-kv {
+  display: flex; gap: 8px; align-items: baseline; margin-top: 5px;
+}
+/* The raid header keeps a directional colour because that IS the setup's
+   direction (short squeeze vs long flush) - §"Colour is data" permits it,
+   and it is set per-instance in the JSX rather than here. */
+[data-design="terminal"] .at-airow-raid .at-airow-label { margin-right: 0; display: block; }
+[data-design="terminal"] .at-airow-catalysts ul {
+  margin: 0; padding-left: 16px; list-style: disc;
+}
+[data-design="terminal"] .at-airow-catalysts li { margin-top: 3px; }
+@media (max-width: 767px) {
+  [data-design="terminal"] .at-airow { padding: 10px 14px; }
+}
+
 [data-design="terminal"] .at-tfrow {
   display: flex; align-items: center; gap: 2px; height: 42px; padding: 0 16px;
   border-bottom: 1px solid var(--bdr); overflow: hidden;
@@ -6581,8 +6887,17 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .at-h-verdict {
   font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--txt);
 }
+/* --txt3, not --txt4 (#639). --txt4 measures 1.88:1 dark and 2.14:1 light,
+   which is correct for what that token IS - disabled controls and axis
+   labels - and wrong for an empty state. "No cluster data" / "No history
+   yet" is the one message a reader MUST get to understand why a panel is
+   blank; in the disabled colour the panel just looks broken.
+   The design's own rule is narrower than the failure: landing.md:506 says
+   "--txt4 is used only for the excluded-feature ✕ and the route string in
+   card footers". An arena empty state is neither, so this use was outside
+   the token's stated scope before it was a contrast problem. */
 [data-design="terminal"] .at-empty {
-  font-family: var(--font-sans); font-size: 12px; color: var(--txt4); padding: 10px 16px;
+  font-family: var(--font-sans); font-size: 12px; color: var(--txt3); padding: 10px 16px;
 }
 [data-design="terminal"] .at-rail-spacer { flex: 1; }
 
@@ -6724,6 +7039,44 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .dash-main > .dash-conditions-row > * + * {
   border-left: 1px solid var(--bdr);
 }
+
+/* #630: the RAIL is banded too. #607 did this for .dash-main and stopped
+   there, so the main column read as one continuous surface while the rail
+   beside it still read as a stack of boxes - which is why the page looked
+   nearly right rather than right.
+
+   Dashboard 2a.dc.html:171 draws each rail row as
+   `padding:9px 14px; border-bottom:1px solid #131618; background:{{ c.selBg }}`
+   with selBg from :381 - `transparent`, or `rgba(217,166,38,.05)` when
+   selected. #131618 IS --bdr2 and #d9a626 IS --accent, both exactly, so this
+   is tokens rather than transcribed literals.
+
+   `border: 0` first because the base rule sets border-left-width: 2px, which
+   a border-bottom shorthand alone would leave standing. */
+[data-design="terminal"] .csb2-card {
+  padding: 9px 14px;
+  background: transparent;
+  border: 0; border-bottom: 1px solid var(--bdr2);
+}
+[data-design="terminal"] .csb2-card.csb2-sel {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  /* The base rule raises the selected card with --nm-raise. A neumorphic
+     shadow is the opposite of this design - flat, hairlines only. */
+  box-shadow: none;
+}
+/* Hover is the one state the frames cannot specify - they are static, and
+   this row is clickable, so it needs an affordance. A faint neutral tint
+   rather than a second accent state, so it never reads as "selected": the
+   same 4% --txt2 mix the badge overlays already use. */
+[data-design="terminal"] .csb2-card:hover {
+  background: color-mix(in srgb, var(--txt2) 4%, transparent);
+}
+[data-design="terminal"] .csb2-card.csb2-sel:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* #630: 12px 20px, per the canvas's selected-coin row. */
+[data-design="terminal"] .dash-main > .scc-card { padding: 12px 20px; }
 [data-design="terminal"] .dash-conditions-row .av-rail-panel { background: transparent; }
 /* Kept as the radius floor for .scc-card. Under terminal the only .scc-card
    that renders is the one inside .dash-main above (app/dashboard/page.tsx's
@@ -6947,6 +7300,171 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .liq-term-wrap,
 [data-design="terminal"] .liq-term-wrap * { border-radius: 0 !important; }
 
+/* ══ Liquidation map, canvas regions 2-4 (#652) ═══════════════════════════
+   Values measured off Liquidation Map.dc.html: title row 46, tabs row 40,
+   heat rails 46 and 58, time axis 20. The surface's own ground is the
+   canvas's #0a0710 - the darkest stop of ramp 0, so the unlit part of the
+   field reads as the ramp's floor rather than as the page showing through.
+   It is deliberately NOT a token: it is the bottom of a continuous colour
+   scale, the same reason the ramps themselves are not palette members. */
+[data-design="terminal"] .liq-heat-head {
+  height: 46px; flex-shrink: 0; display: flex; align-items: center;
+  padding: 0 16px; gap: 14px; border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .liq-heat-title {
+  font-family: var(--font-mono), monospace;
+  font-size: 14px; font-weight: 700; letter-spacing: .1em; color: var(--txt);
+}
+[data-design="terminal"] .liq-heat-source {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .14em; color: var(--txt3);
+}
+[data-design="terminal"] .liq-heat-tfs {
+  display: flex; gap: 2px; border: 1px solid var(--bdr);
+  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .1em;
+}
+[data-design="terminal"] .liq-heat-tf {
+  padding: 5px 10px; color: var(--txt3); background: none; border: 0; cursor: pointer;
+  font-family: inherit; font-size: inherit; letter-spacing: inherit;
+}
+[data-design="terminal"] .liq-heat-tf.on { color: var(--bg0); background: var(--accent); }
+[data-design="terminal"] .liq-heat-refresh {
+  border: 1px solid var(--border-input); width: 30px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; cursor: pointer; color: var(--txt2); flex-shrink: 0;
+}
+[data-design="terminal"] .liq-heat-refresh:hover { border-color: var(--accent); }
+
+[data-design="terminal"] .liq-heat-controls {
+  height: 40px; flex-shrink: 0; display: flex; align-items: center;
+  padding: 0 16px; gap: 12px; border-bottom: 1px solid var(--bdr);
+}
+[data-design="terminal"] .liq-heat-tabs {
+  display: flex; gap: 2px;
+  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .12em;
+}
+[data-design="terminal"] .liq-heat-tab {
+  padding: 6px 12px; border: 1px solid var(--bdr); background: none;
+  color: var(--txt3); cursor: pointer; font-family: inherit;
+  font-size: inherit; letter-spacing: inherit;
+}
+[data-design="terminal"] .liq-heat-tab.on { color: var(--bg0); background: var(--accent); }
+[data-design="terminal"] .liq-heat-swatches { display: flex; gap: 4px; }
+/* 26x16 painted, 26x24 tappable (#652). The canvas specifies width:26px;
+   height:16px and this is built exactly to it - so the CANVAS asks for a
+   control that fails SC 2.5.8's 24px minimum. Resolved the way landing.md:512
+   already prescribes for its own two undersized controls, "a padded hit area
+   without changing their painted box", and the way #642 built it for the
+   footer links: padding grows the box, an equal negative margin pulls the
+   flow back, nothing moves. Only the height failed - 26 already clears 24. */
+[data-design="terminal"] .liq-heat-swatch {
+  width: 26px; height: 16px; border: 1px solid var(--bdr); cursor: pointer;
+  padding: 4px 0; margin: -4px 0; background-clip: content-box;
+}
+[data-design="terminal"] .liq-heat-swatch.on { border-color: var(--accent); }
+[data-design="terminal"] .liq-heat-thr-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .12em; color: var(--txt2);
+}
+[data-design="terminal"] .liq-heat-thr { width: 150px; accent-color: var(--accent); cursor: pointer; }
+
+[data-design="terminal"] .liq-heat-wrap {
+  flex: 1; min-height: 0; display: flex; padding: 14px 16px 8px; gap: 12px;
+}
+[data-design="terminal"] .liq-heat-scale {
+  width: 46px; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start;
+  font-family: var(--font-mono), monospace; font-size: 9.5px;
+}
+[data-design="terminal"] .liq-heat-scale-max { color: var(--txt2); }
+[data-design="terminal"] .liq-heat-scale-min { color: var(--txt4); margin-top: 6px; }
+[data-design="terminal"] .liq-heat-scale-bar {
+  flex: 1; width: 16px; margin-top: 6px; border: 1px solid var(--bdr);
+}
+[data-design="terminal"] .liq-heat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+[data-design="terminal"] .liq-heat-surface {
+  flex: 1; min-height: 0; position: relative; overflow: hidden; background: #0a0710;
+}
+[data-design="terminal"] .liq-heat-row { position: absolute; left: 0; right: 0; }
+[data-design="terminal"] .liq-heat-spot {
+  position: absolute; left: 0; right: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--txt) 50%, transparent);
+}
+[data-design="terminal"] .liq-heat-spot-label {
+  position: absolute; right: 6px; margin-top: -8px;
+  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700;
+  color: var(--bg0); background: var(--txt); padding: 1px 4px;
+}
+[data-design="terminal"] .liq-heat-time {
+  height: 20px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: .08em; color: var(--txt4);
+}
+[data-design="terminal"] .liq-heat-axis {
+  width: 58px; flex-shrink: 0; display: flex; flex-direction: column;
+  justify-content: space-between; padding-bottom: 20px;
+  font-family: var(--font-mono), monospace; font-size: 9.5px; color: var(--txt3); text-align: right;
+}
+[data-design="terminal"] .liq-heat-tz { color: var(--txt3); letter-spacing: .12em; }
+[data-design="terminal"] .liq-heat-cap {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px; letter-spacing: .12em; color: var(--amber);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+  padding: 3px 8px;
+}
+/* #652: --txt2 on the current-price bar, not --txt3.
+   Fixing the bar's colour leak (above) corrected the PALETTE but not the
+   CONTRAST - the two were separate defects on one element. Measured against
+   the corrected ground, --txt3 reads 4.16 dark / 4.33 light, and only clears
+   4.5 once the tint drops to 3%, which is close enough to no tint that the
+   bar stops marking the current-price row at all. That is the highlight's
+   whole job.
+   --txt2 clears at every alpha the bar could reasonably use - 4.95 dark and
+   4.55 light at the current 9%/6% - so the tint keeps doing its work and the
+   label becomes readable. Same resolution as .ms-ev-ago: when text sits on a
+   deliberate tint, the text moves up a step rather than the tint being
+   flattened out of existence. Terminal only; the current design's bar is a
+   different ground and was not measured. */
+[data-design="terminal"] .liq-current-oi { color: var(--txt2); }
+
+/* Mobile chrome, measured off Liquidation Map.dc.html's 390x844 frame
+   (#652). The desktop rows were rendering unchanged at 390 - correct
+   heights, no mobile variant. Row heights 46->36 and 40->34, rails 46->26
+   and 58->46, axis type 9.5->8.5.
+
+   The fixed 330 surface is the one that matters most. On desktop flex:1 is
+   right; at 390 the canvas deliberately BANDS the surface at 330 rather than
+   letting it take the remainder, so the ladder and feeds below stay reachable
+   without scrolling past a full-height heatmap. */
+@media (max-width: 767px) {
+  [data-design="terminal"] .liq-heat-head {
+    height: 36px; padding: 0 14px; gap: 10px;
+  }
+  [data-design="terminal"] .liq-heat-title { font-size: 11.5px; }
+  [data-design="terminal"] .liq-heat-source { font-size: 9.5px; }
+  [data-design="terminal"] .liq-heat-controls {
+    height: 34px; padding: 0 14px; gap: 10px;
+  }
+  [data-design="terminal"] .liq-heat-tab { padding: 5px 11px; }
+  [data-design="terminal"] .liq-heat-wrap {
+    flex: 0 0 330px; height: 330px; padding: 10px 12px 6px; gap: 8px;
+  }
+  [data-design="terminal"] .liq-heat-scale { width: 26px; font-size: 8.5px; }
+  [data-design="terminal"] .liq-heat-scale-bar { width: 12px; }
+  [data-design="terminal"] .liq-heat-axis { width: 46px; font-size: 8.5px; }
+  [data-design="terminal"] .liq-heat-time { font-size: 8.5px; }
+  /* The threshold slider and its label are the first things to lose at 390 -
+     the canvas's mobile controls row carries the view tabs and swatches only.
+     Hidden rather than shrunk: a 150px range input inside a 366px row would
+     crowd out the tabs that select what is being shown. */
+  [data-design="terminal"] .liq-heat-thr,
+  [data-design="terminal"] .liq-heat-thr-label { display: none; }
+}
+
+[data-design="terminal"] .liq-heat-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 2rem; color: var(--txt3);
+  font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .08em;
+}
+
 /* ── #559 platform radius sweep: circular-glyph carve-out ──────────────────
    specs/radius-ruling.md: "border-radius: 0 applies to rectangular surfaces
    ... It does not apply to elements that are inherently circular in the
@@ -6990,7 +7508,13 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .ps-coin-trigger-dot,
 [data-design="terminal"] .ps-coin-opt-dot,
 [data-design="terminal"] .auth-avatar-btn,
-[data-design="terminal"] .coin-icon,
+/* .coin-icon removed (#630/#631). CoinIcon sets border-radius inline on
+   every render path - `square ? 0 : '50%'` - so its default already keeps
+   the rail's 16px marks round without a rule, and this entry's !important
+   was overruling the component's own square request on the 26px mark.
+   The list is also too blunt for the ruling it enforces: 50% is permitted
+   on inherently circular glyphs at 24px or under, and a selector cannot
+   tell a 16px icon from a 26px one. The component can. */
 [data-design="terminal"] .tj-lev-slider::-webkit-slider-thumb,
 [data-design="terminal"] .tj-lev-slider::-moz-range-thumb {
   border-radius: 50% !important;

@@ -20,6 +20,7 @@
  */
 
 import { chromium, devices } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 const url = process.argv[2];
 if (!url) { console.error('usage: node qa/mobile-audit.mjs <url> [--theme dark|light]'); process.exit(1); }
@@ -27,11 +28,50 @@ const theme = (process.argv.includes('--theme') ? process.argv[process.argv.inde
 const width = Number(process.argv.includes('--width') ? process.argv[process.argv.indexOf('--width') + 1] : 390);
 
 /* The 16 governed terminal tokens (15 documented + --amber, confirmed on #542). */
-const TOKENS = [
-  '#08090a', '#141517', '#111416', '#1f2225', '#131618', '#16191b',
-  '#e8e9ea', '#8b8f94', '#7c828a', '#3a3f45',
-  '#d9a626', '#3fb950', '#f0524d', '#22262a', '#5e646b', '#fbbf24',
-];
+/* The governed palette is DERIVED from lib/terminalTokens.ts, not copied.
+   #641 exposed why this matters twice over. First the list here held only
+   the dark 16, so every light-theme run counted legitimate light tokens as
+   off-palette - about a thousand false entries per route, which is worse
+   than no check because it looked like a measurement. Then the fix for that
+   hand-copied the light values out of app/globals.css and got three of them
+   wrong: the stylesheet documents its own history in place, so a hex-grep
+   over that block picks up #8a5c00 and #5e6266 from comments explaining the
+   values that REPLACED them, plus #d6cab3 which is the /correlation diagonal
+   and not a token at all.
+   A copied list drifts and a stale hex is invisible among live ones - the
+   whole failure is "a plausible hex in a list of hexes". So parse the source
+   of truth instead. terminalTokens.ts is a .ts module and this is a plain
+   .mjs script with no loader, so read and extract rather than import; the
+   shapes below are pinned to that file's actual declarations and throw
+   loudly if it is restructured, rather than silently yielding an empty
+   palette and reporting a screen as perfectly on-token. */
+const tokenSrc = readFileSync(new URL('../lib/terminalTokens.ts', import.meta.url), 'utf8');
+
+/* indexOf/slice rather than a RegExp for the block boundaries: the first
+   version of this used a template-literal regex and the backslashes
+   collapsed, so [\s\S] compiled as [sS] and every lookup silently returned
+   no match. Caught only because the guard below throws instead of returning
+   an empty palette - which would have reported every screen as perfectly
+   on-token. Keep the guard even if the parsing is simplified again. */
+const mapOf = (name) => {
+  const open = tokenSrc.indexOf('export const ' + name + ' = {');
+  if (open === -1) throw new Error('mobile-audit: no ' + name + ' in lib/terminalTokens.ts');
+  const close = tokenSrc.indexOf('\n} as const;', open);
+  if (close === -1) throw new Error('mobile-audit: ' + name + ' has no closing "} as const;"');
+  const hexes = tokenSrc.slice(open, close).match(/'(#[0-9a-fA-F]{6})'/g) || [];
+  if (hexes.length < 10) throw new Error('mobile-audit: ' + name + ' yielded ' + hexes.length + ' colours, expected >= 10');
+  return hexes.map((h) => h.slice(1, -1).toLowerCase());
+};
+const rampHexes = (tokenSrc.match(/color:\s*'(#[0-9a-fA-F]{6})'/g) || [])
+  .map((m) => m.slice(m.indexOf('#'), m.indexOf('#') + 7).toLowerCase());
+const flatCell = (/export const TERMINAL_FLAT_CELL = '(#[0-9a-fA-F]{6})'/.exec(tokenSrc) || [])[1];
+
+/* Mirrors TERMINAL_ALLOWED / TERMINAL_ALLOWED_LIGHT exactly: the magma ramp is
+   shared because the liquidation map is dark-only by design, and
+   TERMINAL_FLAT_CELL has no light value anywhere. */
+const TOKENS = theme === 'light'
+  ? [...mapOf('TERMINAL_COLORS_LIGHT'), ...rampHexes]
+  : [...mapOf('TERMINAL_COLORS'), flatCell, ...rampHexes].filter(Boolean);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width, height: 844 } });
@@ -56,13 +96,20 @@ await page.waitForTimeout(6000);
 
 const result = await page.evaluate(TOKENS => {
   const TOK = Object.fromEntries(TOKENS.map(t => [t, 1]));
+  /* Same 0-1 vs 0-255 scaling as parse(): a `color(srgb ...)` declaration
+     hexes to near-black without it, which is how 50 correctly-coloured
+     ticker cells were reported as 1.04:1 failures. */
   const hex = c => {
     const m = (c.match(/[\d.]+/g) || []).map(Number);
     if (m.length < 3) return null;
     if (m.length > 3 && m[3] === 0) return null;
-    return '#' + m.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+    const k = /^color\(/.test(c.trim()) ? 255 : 1;
+    return '#' + m.slice(0, 3).map(v => Math.round(v * k).toString(16).padStart(2, '0')).join('');
   };
-  const parse = c => { const m = (c.match(/[\d.]+/g) || []).map(Number); return m.length ? { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 } : null; };
+  /* `color(srgb r g b / a)` channels are 0-1; `rgb()`/`rgba()` are 0-255. Scaling by prefix, not by value range - a real rgb(0 1 2) must not be rescaled. Without this every translucent modern-syntax colour composites to near-black: it read the landing ticker's 80%-alpha change values as 1.04:1 when they are 3.96:1. */
+  const parse = c => { const m = (c.match(/[\d.]+/g) || []).map(Number); if (m.length < 3) return null;
+    const k = /^color\(/.test(c.trim()) ? 255 : 1;
+    return { r: m[0]*k, g: m[1]*k, b: m[2]*k, a: m.length > 3 ? m[3] : 1 }; };
   const over = (f, b) => ({ r: f.r * f.a + b.r * (1 - f.a), g: f.g * f.a + b.g * (1 - f.a), b: f.b * f.a + b.b * (1 - f.a), a: 1 });
   const lum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
   const cr = (a, b) => { const l1 = lum(a), l2 = lum(b); return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05); };
@@ -119,7 +166,23 @@ const result = await page.evaluate(TOKENS => {
     viewport: innerWidth + 'x' + innerHeight,
     theme: document.documentElement.getAttribute('data-theme'),
     design: document.documentElement.getAttribute('data-design'),
-    horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    /* scrollWidth > clientWidth does NOT mean the page scrolls: `overflow-x:
+       hidden` on <html> (app/globals.css) clips the closed nav drawer while
+       scrollWidth still reports its extents. That comparison alone produced a
+       phantom "334px overflow" on /dashboard in #641. The only proof is trying
+       to scroll and seeing the offset stick, so report both: the honest
+       boolean, and the raw extents for whoever wants to know something is
+       wider than the viewport even though nobody can reach it. */
+    horizontalOverflow: (() => {
+      const de = document.documentElement;
+      if (de.scrollWidth <= de.clientWidth) return false;
+      const before = de.scrollLeft;
+      de.scrollLeft = 99999; window.scrollTo(99999, window.scrollY);
+      const moved = de.scrollLeft > 1 || window.scrollX > 1;
+      de.scrollLeft = before; window.scrollTo(0, window.scrollY);
+      return moved;
+    })(),
+    contentWiderThanViewport: document.documentElement.scrollWidth > document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
     offPalette: Object.entries(off).sort((a, b) => b[1] - a[1]).slice(0, 10),

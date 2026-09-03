@@ -325,7 +325,39 @@ export const LABEL_KEYS = [
   'DASH_EDGE_CB_TIP', 'DASH_EDGE_CB_LABEL',
   'DASH_EDGE_OI1H_TIP', 'DASH_EDGE_OI1H_LABEL',
   // Dashboard - misc headers
-  'DASH_COIN_SIGNALS_HEADER', 'DASH_BEST_SETUP_TODAY_HEADER', 'DASH_SELECTED_COIN_OPEN_ARENA',
+  // Terminal shell nav (#599). TNAV_DESK_LABEL and TNAV_DESK_TAB_LABEL are
+  // both needed because the frames draw that one key differently in the two
+  // bars - OVERVIEW in the desktop nav, DESK in the mobile tab bar. The other
+  // four use one label in both places.
+  // Arena terminal snapshot band, the canvas's five cells (#631).
+  // Arena 1a.dc.html:721-726. ARENA_SNAP_VOL_NOTE is "Binance", not the
+  // frame's "Bybit perp": wrong exchange, and "perp" would be wrong too on
+  // the normal path, since the snapshot route defaults to spot. See the
+  // component for the full reasoning.
+  // Liquidation map heatmap (#652). LIQ_HEAT_SOURCE says OBSERVED because
+  // liq_events has no server-side writer - see LiqHeatmap's header.
+  'LIQ_HEAT_TITLE', 'LIQ_HEAT_SOURCE', 'LIQ_HEAT_SOURCE_TIP',
+  'LIQ_HEAT_TZ', 'LIQ_HEAT_CAP_NOTE',
+  // Terminal drops the caret: the canvas footer reads "+21 MORE COINS"
+  // and the link goes to /markets rather than expanding in place, so a
+  // ▼ promises an interaction that does not happen (#656).
+  'DASH_SIDEBAR_MORE_COINS_TERMINAL',
+  'LIQ_HEAT_NO_EVENTS', 'LIQ_HEAT_THRESHOLD', 'LIQ_HEAT_REFRESH_TITLE',
+  'LIQ_HEAT_TAB_HEATMAP', 'LIQ_HEAT_TAB_LADDER', 'LIQ_HEAT_PALETTE_TITLE',
+  'ARENA_SNAP_VOL_LABEL', 'ARENA_SNAP_VOL_NOTE',
+  'ARENA_SNAP_OI_LABEL', 'ARENA_SNAP_OI_NOTE',
+  'ARENA_SNAP_FUNDING_LABEL',
+  'ARENA_SNAP_NEXT_FUNDING_LABEL', 'ARENA_SNAP_NEXT_FUNDING_NOTE',
+  'ARENA_SNAP_RANGE_LABEL', 'ARENA_SNAP_RANGE_NOTE',
+  'TNAV_WORDMARK', 'TNAV_ARIA_LABEL', 'TNAV_MORE_ARIA',
+  'TNAV_DESK_LABEL', 'TNAV_DESK_TAB_LABEL', 'TNAV_ARENA_LABEL',
+  'TNAV_SCAN_LABEL', 'TNAV_FLOW_LABEL', 'TNAV_BOOK_LABEL',
+  // Market Conditions substituted slots (#635). The canvas labels these
+  // "Trend strength" and "Liquidity"; we have neither metric, so real
+  // data goes in the slots under its own name - see TMarketConditions.
+  'DASH_COND_RSI_BIAS_LABEL', 'DASH_COND_TAKER_FLOW_LABEL',
+  'DASH_COIN_SIGNALS_HEADER', 'DASH_BEST_SETUP_TODAY_HEADER', 'DASH_PLAYBOOK_HEADER',
+  'DASH_SELECTED_COIN_OPEN_ARENA',
   'DASH_SELECTED_COIN_ARENA_CTA', 'DASH_COND_VOLATILITY_LABEL', 'DASH_COND_BREADTH_LABEL',
   'DASH_NEXT_EVENTS_HEADER', 'DASH_CASCADE_DISMISS', 'DASH_MACRO_BACKDROP_HEADER',
 
@@ -384,7 +416,7 @@ export const LABEL_KEYS = [
   'ARENA_ANTICHOP_TIP', 'ARENA_ANTICHOP_LABEL', 'ARENA_ANTICHOP_ON_HINT', 'ARENA_ANTICHOP_OFF_HINT',
   'ARENA_MARKET_SNAPSHOT_HEADER', 'ARENA_CONFLUENCE_GATE_TITLE', 'ARENA_CONFLUENCE_GATE_DESC', 'ARENA_CONFLUENCE_GATE_FEATURE_LABEL',
   'ARENA_NEED_PRO_LABEL', 'ARENA_MTF_PANEL_TITLE', 'ARENA_USAGE_HEADER', 'ARENA_EVIDENCE_HEADER', 'ARENA_EMA_PANEL_TITLE',
-  'ARENA_HINT_TERMINAL_LABEL', 'ARENA_CLUSTERS_HEADER', 'ARENA_WHY_HEADER', 'ARENA_WHY_EMPTY', 'ARENA_ABSORPTION_PANEL_TITLE',
+  'ARENA_MS_PANEL_TITLE', 'ARENA_HINT_TERMINAL_LABEL', 'ARENA_CLUSTERS_HEADER', 'ARENA_WHY_HEADER', 'ARENA_WHY_EMPTY', 'ARENA_ABSORPTION_PANEL_TITLE',
   // Arena - evidence/advanced + session history
   'ARENA_DIST_WARN_PULLBACK', 'ARENA_DIST_WARN_EARLY_WEAKNESS',
   'ARENA_REASONING_CHART_TITLE', 'ARENA_REASONING_PATTERNS_TITLE', 'ARENA_REASONING_TITLE',

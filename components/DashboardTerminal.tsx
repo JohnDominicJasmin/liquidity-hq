@@ -29,6 +29,7 @@ import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import PerpSpotCard from '@/components/PerpSpotCard';
@@ -144,6 +145,11 @@ const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: s
 };
 
 const SIDEBAR_DEFAULT = 7;
+/* The canvas shortens the rail on mobile: Dashboard 2a.dc.html:288 renders
+   sidebarCoinsM, defined at :391 as sidebarCoins.slice(0, 5), where desktop
+   uses sidebarCoinsShown at 7 (#656). Five rows on a 390 viewport leaves the
+   sections below it reachable without scrolling past a full list. */
+const SIDEBAR_DEFAULT_MOBILE = 5;
 
 interface VolRegimeState { regime: 'low' | 'neutral' | 'high'; percentile: number }
 
@@ -278,7 +284,9 @@ function TCoinSidebar() {
   const watchlist = settings.watchlist ?? [];
   const pinned = watchlist.filter((id): id is CoinId => (COINS as string[]).includes(id));
   const rest    = COINS.filter(id => !watchlist.includes(id));
-  const visibleCoins = [...pinned, ...rest].slice(0, SIDEBAR_DEFAULT);
+  const isDesktop = useIsDesktop();
+  const shown = isDesktop ? SIDEBAR_DEFAULT : SIDEBAR_DEFAULT_MOBILE;
+  const visibleCoins = [...pinned, ...rest].slice(0, shown);
   const firingCount = COINS.filter(cid => sidebarSignalFor(store.coins[cid], t) !== null).length;
 
   return (
@@ -295,7 +303,18 @@ function TCoinSidebar() {
           {t('DASH_SIDEBAR_HEADER_FIRING', { count: firingCount })}
         </span>
         <span style={{ flex: 1 }} />
-        <Link href="/markets" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+        {/* alignSelf stretch, not padding (#641): measured 31x15, and only
+            the height failed SC 2.5.8 - 31 already clears 24. The header
+            above is a fixed height:28 flex row, so stretching the link to
+            fill it gives a 28px target and moves nothing. Padding would have
+            grown the row instead, and this row's 28px is the canvas's. */}
+        <Link
+          href="/markets"
+          style={{
+            color: 'var(--accent)', textDecoration: 'none',
+            alignSelf: 'stretch', display: 'inline-flex', alignItems: 'center',
+          }}
+        >
           {t('DASH_SIDEBAR_HEADER_VIEW_ALL', { count: COINS.length })}
         </Link>
       </div>
@@ -308,6 +327,17 @@ function TCoinSidebar() {
         const sel    = store.selectedCoin === id;
         const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
         const health = computeCoinHealth(d);
+        /* #614: the canvas paints this badge in TWO states, not the five
+           computeCoinHealth() returns. Dashboard 2a.dc.html:377 is
+           `gradeCol: r[4][0] <= 'B' ? GREEN : TXT` - A and B green, C/D/F
+           plain text - and 2a-light-theme.dc.html:366 is the same rule.
+           So there is no amber for A, no --green-2 for B and no --orange
+           for D. #614 asked what value terminal's --orange should take;
+           the answer is that the badge has no orange state to give one to.
+           This is terminal-only: DashboardTerminal renders solely under
+           mode === 'terminal' (app/dashboard/page.tsx:519), so
+           health.color still drives the current design untouched. */
+        const gradeStrong = health.grade <= 'B';
         const badgeCol = coinBadgeColor(id);
         const sig    = sidebarSignalFor(d, t);
 
@@ -324,16 +354,33 @@ function TCoinSidebar() {
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
                 <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
-                  fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
+                  /* No inline font-size. globals.css:556 sets mono 9.5px for
+                     this badge and an inline declaration outranks any selector,
+                     so var(--fs-caption)'s 12px was silently winning and the
+                     rule was dead. Third time this shape has bitten: #629, #633
+                     (where !important beat OUR inline border-radius: 0), now
+                     here. This component only ever renders under
+                     mode === 'terminal', so there is no second design to keep
+                     at 12px - the stylesheet is the right home for the size. */
+                  fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 0,
-                  // Grade F's own colour is --txt3 - text painted in the same
-                  // token as its own tint reads 4.11:1 in dark by construction
-                  // (the self-tint pattern design ruled on for PerpSpotCard).
-                  // Left unset here so the .grade-f CSS rule below can set it
-                  // to --txt without needing !important to beat this inline
-                  // style, the way the light-only fix at globals.css had to.
-                  ...(health.grade !== 'F' && { color: health.color }),
-                  background: withAlpha(health.color, '22'),
+                  color: gradeStrong ? 'var(--green)' : 'var(--txt)',
+                  /* 15%, the canvas's own alpha, not withAlpha('22')'s 13.3%.
+                     For C/D/F the tint token is NOT the text token - the
+                     canvas tints with --txt2 (rgba(139,143,148,.15)) and
+                     paints the text --txt - so those three measure 11.2:1 or
+                     better everywhere and need no override. A/B is still a
+                     self-tint (green on green) and light still fails AA at
+                     15%; globals.css reduces that one case to 3% and carries
+                     the measurements. Dark keeps 15% in both states.
+                     One knowing divergence: the light canvas leaves the
+                     neutral literal at the DARK --txt2 (#8b8f94) while it
+                     does swap GREEN's rgba for the light one - so it is
+                     either a deliberate theme-invariant tint or a missed
+                     line. var(--txt2) is used here because it is governed
+                     and follows the theme; flagged on the PR for QA to rule
+                     on rather than settled silently. */
+                  background: `color-mix(in srgb, ${gradeStrong ? 'var(--green)' : 'var(--txt2)'} 15%, transparent)`,
                   border: `1px solid var(--bdr)`,
                   letterSpacing: '.04em', flexShrink: 0,
                 }}>
@@ -349,7 +396,7 @@ function TCoinSidebar() {
               <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
                 {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
               </span>
-              <Sparkline24h coin={id} width={SPARK_W} height={14} />
+              <Sparkline24h coin={id} width={SPARK_W} height={12} bars />
               {sig && (
                 <span className="csb2-sig" style={{ color: sig.col }}>
                   {sig.text}
@@ -366,15 +413,21 @@ function TCoinSidebar() {
 
       <Link
         href="/markets"
+        className="csb2-more"
         style={{
           display: 'block', width: '100%', background: 'none', border: 'none',
           borderTop: '1px solid var(--bdr)', padding: '7px 0',
-          fontSize: 'var(--fs-caption)', color: 'var(--txt3)', cursor: 'pointer',
-          letterSpacing: '0.04em', textAlign: 'center', textDecoration: 'none',
-          textTransform: 'uppercase',
+          /* Same dead-rule cause as the grade badge above. globals.css:563
+             sets mono 10.5px / .06em / uppercase; all three were being
+             outranked inline - the size by --fs-caption's 12px and the
+             tracking by 0.04em. text-transform agreed, which is why the
+             footer READ correct while measuring wrong, and why QA's
+             textContent-vs-innerText check mattered here. */
+          color: 'var(--txt3)', cursor: 'pointer',
+          textAlign: 'center', textDecoration: 'none',
         }}
       >
-        {t('DASH_SIDEBAR_MORE_COINS', { count: COINS.length - SIDEBAR_DEFAULT })}
+        {t('DASH_SIDEBAR_MORE_COINS_TERMINAL', { count: COINS.length - shown })}
       </Link>
       </div>
     </>
@@ -406,8 +459,8 @@ function TCascadeAlertBanner() {
   const col = alert.side === 'LONG' ? 'var(--red)'
             : alert.side === 'SHORT' ? 'var(--green)'
             : 'var(--amber)';
-  const bdr = alert.side === 'LONG' ? 'rgba(248,113,113,0.35)'
-            : alert.side === 'SHORT' ? 'rgba(52,211,153,0.35)'
+  const bdr = alert.side === 'LONG' ? 'color-mix(in srgb, var(--red) 35%, transparent)'
+            : alert.side === 'SHORT' ? 'color-mix(in srgb, var(--green-2) 35%, transparent)'
             : 'rgba(251,191,36,0.35)';
 
   return (
@@ -459,7 +512,7 @@ function TContrarianBanner() {
   if (!c || dismissed === id) return null;
 
   const col = c.dir === 'bear' ? 'var(--red)' : 'var(--green)';
-  const bdr = c.dir === 'bear' ? 'rgba(248,113,113,0.35)' : 'rgba(52,211,153,0.35)';
+  const bdr = c.dir === 'bear' ? 'color-mix(in srgb, var(--red) 35%, transparent)' : 'color-mix(in srgb, var(--green-2) 35%, transparent)';
 
   return (
     <div className="cascade-alert" style={{ borderColor: bdr }}>
@@ -638,17 +691,46 @@ function TCoinSignalsHeader() {
  * a different metric set) only in terminal mode - the non-terminal branch
  * keeps that widget untouched.
  *
- * Two of the four bars ship here on real, already-available data:
- *   Volatility - BTC's 30-day HV percentile (useBtcVolRegime, above -
+ * All four slots now carry real data (#635):
+ *   BTC volatility - BTC's 30-day HV percentile (useBtcVolRegime, above -
  *                same fixed cache read as the pulse strip's VOL chip).
+ *                RENAMED from "Volatility" by the scope sweep below: the
+ *                hook reads parsed.btcData and nothing else, so a bar
+ *                labelled "Volatility" in a market-wide panel was showing
+ *                one coin's. The pulse strip's VOL chip already disclosed
+ *                this in its note ("BTC regime"); this bar did not. No
+ *                aggregate exists to build instead - the cache stores only
+ *                btcData - so the honest fix is the scope in the name.
+ *   RSI bias   - mean rsi14 across COINS that have it. Fills the slot the
+ *                canvas labels "Trend strength".
  *   Breadth    - % of all COINS with a positive 24h change right now.
  *                Standard definition of market breadth; data already in
  *                store.coins[*].change.
- * Trend strength and Liquidity are left out. Neither has a real source in
- * this codebase today (no ADX/trend-strength calc, no orderbook/depth
- * fetch anywhere) - inventing one to fill a bar would be fabricating a
- * financial signal, not restyling an existing one. Confirmed with QA/design
- * before building; see the PR body. */
+ *   Taker flow - mean takerBuyRatio across COINS that have it. Fills the
+ *                slot the canvas labels "Liquidity".
+ *
+ * TWO OF THE FOUR ARE RENAMED, AND THAT IS THE POINT. The owner's ruling on
+ * #632 is "make it work, or put different real data in the slot" - so the
+ * canvas's four bars are a layout the frame designed, not four contracts for
+ * four specific metrics. Where the named metric has no source, a different
+ * real one goes in the slot and CARRIES ITS OWN NAME:
+ *
+ *   "Trend strength" means an ADX-shaped computation. There is none here,
+ *   and mean RSI is momentum, not trend strength - a market can sit at RSI
+ *   70 in a choppy range. So the bar says RSI bias.
+ *
+ *   "Liquidity" means depth and spread. We have neither - takerBuyRatio is
+ *   aggressive-order flow, which is a different thing that happens to live
+ *   nearby. So the bar says Taker flow.
+ *
+ * Renaming rather than relabelling is the whole distinction: substituting a
+ * real measurement is allowed, putting a canvas label on data that is not
+ * what the label says is the #589 mislabel and stays forbidden. Decided on
+ * #635, where two other candidates were killed outright for scope.
+ *
+ * Both new bars are aggregated across COINS, the way breadth already is,
+ * because this panel is MARKET-WIDE. Per-coin sources in a market-wide slot
+ * was the error that killed CB prem and Liq 15m on the same issue. */
 function TMarketConditions() {
   const { store } = useMarket();
   const { t } = useLabels();
@@ -657,6 +739,29 @@ function TMarketConditions() {
   const positive = COINS.filter(id => (store.coins[id]?.change ?? 0) > 0).length;
   const breadthPct = COINS.length > 0 ? Math.round((positive / COINS.length) * 100) : 0;
   const breadthCol = breadthPct >= 60 ? 'var(--green)' : breadthPct <= 40 ? 'var(--red)' : 'var(--txt2)';
+
+  /* Averaged over the coins that actually HAVE the field, not over COINS.
+     Dividing by COINS.length would drag the mean toward zero every time a
+     feed is partial, and read as a bearish market rather than a thin one -
+     a data gap rendered as a signal. Null until at least one coin reports,
+     so the bar shows an em dash instead of a confident 0. */
+  const mean = (vals: number[]): number | null =>
+    vals.length === 0 ? null : vals.reduce((a, b) => a + b, 0) / vals.length;
+
+  // rsi14 is already 0-100, so it maps to the bar's width with no rescaling.
+  const rsiMean = mean(
+    COINS.map(id => store.coins[id]?.rsi14).filter((v): v is number => v != null),
+  );
+  const rsiCol = rsiMean == null ? 'var(--txt3)'
+    : rsiMean >= 55 ? 'var(--green)' : rsiMean <= 45 ? 'var(--red)' : 'var(--txt2)';
+
+  // takerBuyRatio is 0-1 (buy volume / total), so x100 for both bar and value.
+  const takerMean = mean(
+    COINS.map(id => store.coins[id]?.takerBuyRatio).filter((v): v is number => v != null),
+  );
+  const takerPct = takerMean == null ? null : takerMean * 100;
+  const takerCol = takerPct == null ? 'var(--txt3)'
+    : takerPct >= 55 ? 'var(--green)' : takerPct <= 45 ? 'var(--red)' : 'var(--txt2)';
 
   const volLabelKey: LabelKey | null = vol == null ? null
     : vol.regime === 'low' ? 'VOLATILITY_REGIME_LABEL_LOW'
@@ -669,7 +774,11 @@ function TMarketConditions() {
 
   const rows: { key: string; label: string; pct: number; value: string; col: string }[] = [
     { key: 'vol', label: t('DASH_COND_VOLATILITY_LABEL'), pct: vol?.percentile ?? 0, value: vol && volLabelKey ? t(volLabelKey) : '-', col: volCol },
+    // Canvas order: Volatility, [Trend strength], Breadth, [Liquidity] - the
+    // two substituted slots keep their positions and take their own names.
+    { key: 'rsi', label: t('DASH_COND_RSI_BIAS_LABEL'), pct: rsiMean ?? 0, value: rsiMean != null ? rsiMean.toFixed(0) : '-', col: rsiCol },
     { key: 'breadth', label: t('DASH_COND_BREADTH_LABEL'), pct: breadthPct, value: breadthPct + '%', col: breadthCol },
+    { key: 'taker', label: t('DASH_COND_TAKER_FLOW_LABEL'), pct: takerPct ?? 0, value: takerPct != null ? takerPct.toFixed(0) + '%' : '-', col: takerCol },
   ];
 
   return (
@@ -712,7 +821,12 @@ function TSelectedCoinCard() {
       className="scc-card"
       title={t('DASH_SELECTED_COIN_OPEN_ARENA', { coin: id.toUpperCase() })}
     >
-      <CoinIcon coin={id} size={26} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
+      {/* square (#630): the canvas draws this one at 26x26 with a 1px border
+          and NO border-radius, and the project's radius ruling allows 50%
+          only on inherently circular glyphs at 24px or under. The rail's
+          16px marks stay round - the frames draw those with
+          border-radius:50% - so this is the single 26px mark, not a sweep. */}
+      <CoinIcon coin={id} size={26} color={badgeCol} bg={withAlpha(badgeCol, '24')} square />
       <div className="scc-id">
         <span className="scc-ticker">{id.toUpperCase()}</span>
         <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>

@@ -1,0 +1,66 @@
+
+## /arena vs specs/arena.md — dark
+
+PASS  C1  7 top-level regions — 7 (div, div, div, div, div.arena-below-chart, div.arena-ws, div.arena-below-chart)
+FAIL  C2  rail offsetWidth 352 — 320
+UNVERIFIED  C3  main column 5 panels in order — needs the panel class hooks; add once the build names them
+UNVERIFIED  C4  rail 5 panels in order — same
+UNVERIFIED  C5  all 15 modules render for an entitled user — needs an entitled session
+FAIL  C6  radius 0 (circular <=24px exempt per radius-ruling.md) — 1 violations, 2 exempt
+      gchat-fab 16px 64x64
+FAIL  C7  nav 44 — 34   [band heights: 80, 62, 36, 40, 90, 1227, 435]
+FAIL  C8  chart panel 430 — 1227
+CHECK C9  verdict font 34px — not found
+      (C9's COLOUR half is fixture-gated — --green only under a bullish read)
+CHECK C10 panel headers 30 body / 28 rail — 0 found, heights 
+PASS  C11 verdict band full width, no fixed px — 1300 of 1300, fixedPx=false
+UNVERIFIED  C12 2 of 8 evidence rows fire — needs a stubbed read
+UNVERIFIED  C13 FUNDING 8H red while positive — needs a stubbed read
+UNVERIFIED  C14 bearish verdict keeps 34px and its box — needs a bearish fixture
+UNVERIFIED  C15 null evidence row em-dashes in --txt2 — needs a fixture
+PASS  C16 the string "Liq 24h" appears nowhere — absent
+      (C16's "CB PREM em-dashes under every fixture" half is fixture-gated)
+UNVERIFIED  C17 cleared penalties compute --txt3 and read CLEAR — needs a fixture
+UNVERIFIED  C18 MTF neutral band 43<=rsi<=57 — needs a fixture
+FAIL  C19 palette only — 6 off-palette
+      #111416x70  #141517x27  #c8891ex18  #131618x4  #fbbf24x3  #ffffffx2
+      (skipped, translucent — judged by composited surface, not raw RGB: #ffffffx38  #d9a626x20  #34d399x8  #f87171x7)
+FAIL  C20 exactly 3 padlocked chips, labels 1m/5m/15m — 0: 
+PASS  C21 exactly 1 chip on --accent — 1: 1h
+UNVERIFIED  C22 clicking a gated chip opens the modal and does not switch — interaction, run separately
+FAIL  C23 the row contains "NEED PRO" — absent
+PASS  C24 no [data-layout="mobile"] nodes at 1440 — 0
+FAIL  C25 exactly 1 chart instance — 0
+      (C25's "one candle subscription" half needs a network check, not the DOM)
+PASS  C24b no [data-layout="desktop"] nodes at 390 — 0
+FAIL  C26 rail absent at 390 (not hidden) — 1 aside, 3 rail-ish
+FAIL  C32 mobile nav 38 — 92   [tab bar -1, want 60]
+CHECK C33 mobile verdict 26px — not found
+      (26 is arena.md's own soft number — "ratio argument only, do not cite as measured")
+UNVERIFIED  C34 levels render as 3 cells in one row — needs the cell hook
+PASS  C35 controls >=24x24 — 0 non-inline undersized of 4 total
+
+UNVERIFIED is not a pass. Criteria 12-18 describe a stubbed read and cannot be
+scored from a live page: a market shows one arbitrary state, so "no violation
+observed" is not "the rule holds". 27-30 need a signed-out free session — use
+qa/gating-audit.mjs --free. 31 is a source lint. See #594 for the three
+evidence rows that are permanently em-dashed by design.
+
+---
+BASELINE, NOT A SCORE. Captured on the deployed qa build at 267f612, BEFORE any
+terminal arena existed. Every figure above describes the CURRENT design.
+
+Three "passes" here are coincidence and will mean something different once the
+screen is built — do not read them as progress:
+
+  C1  7 regions    the current layout happens to have 7 children; the tags
+                   (arena-ws, arena-below-chart) are current-design classes
+  C11 full width   measured on a generic div, not on a verdict band that does
+                   not exist yet
+  C24 0 mobile     no [data-layout] attribute exists on the route at all, so
+                   the count is trivially 0 in both directions
+
+The real gap list is the FAILs: rail 320 not 352, nav 34 not 44, no chart panel
+at 430, no verdict text at 34px, no panel headers at 30/28, 0 padlocked chips,
+no "NEED PRO", rail present at 390, mobile nav 92 not 38, and 6 off-palette
+colours led by #111416 x70 and #c8891e x18.

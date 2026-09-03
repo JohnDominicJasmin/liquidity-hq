@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { data, ok, total } = await symbolFanout(
+    const { data, ok, total, stopped } = await symbolFanout(
       SYMBOLS,
       `binance:funding-rate:${limit}`,
       900_000,
@@ -44,8 +44,15 @@ export async function GET(req: NextRequest) {
       (body) => (Array.isArray(body) ? body : null),
     );
 
-    reportHealth('binance:funding-rate', 'market', true, `${ok}/${total}`, ok);
-    return NextResponse.json({ data, ok, total, ts: Date.now() }, {
+    reportHealth('binance:funding-rate', 'market', !stopped, stopped ? `${ok}/${total} then rate-limited` : `${ok}/${total}`, ok);
+    /* `stopped` distinguishes a rate-limit abort from symbols failing one at a
+       time (#665). `ok: 12, total: 49` reads identically for both, and they call
+       for opposite responses - back off for the TTL, versus investigate a patchy
+       upstream. Omitted when false so the healthy response is unchanged and
+       `'stopped' in body` is a valid check, the same convention
+       /api/market/snapshot uses for `partial`. Reported unhealthy too: a run cut
+       short by a ban is not a success with fewer rows. */
+    return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: Date.now() }, {
       headers: { 'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800' },
     });
   } catch (e) {

@@ -76,12 +76,19 @@ export const CONVERTED_ROUTES: string[] = [
 export const TERMINAL_CRITERIA = {
   /** <html> must carry data-design="terminal" when ?design=terminal is set */
   dataDesignAttr: 'terminal',
-  /** All card-like elements must have 0px border-radius */
+  /** All card-like elements must have 0px border-radius.
+   *  `.mr` removed (#587/#608): MarketRead no longer renders on any
+   *  terminal route (TMarketReadBanner replaced it in the dashboard's
+   *  first main-column slot), so the selector matches zero elements on
+   *  every route in CONVERTED_ROUTES now. Note for whoever wires this
+   *  list up: `flatRadiusSelectors` has no consumer anywhere in the repo
+   *  today (checked with a full-repo grep) - this array isn't run by
+   *  any spec yet, so removing a stale entry costs nothing now but
+   *  matters the day someone connects it. */
   flatRadiusSelectors: [
     '.edge-card',
     '.scc-card',
     '.macro-rail-card',
-    '.mr',
   ],
   /** Body font must resolve to IBM Plex Sans, not Figtree */
   fontFamily: 'plexSans',

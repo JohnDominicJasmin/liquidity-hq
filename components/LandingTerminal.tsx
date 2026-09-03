@@ -431,7 +431,17 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             <ul style={{ listStyle: 'none', margin: '22px 0 0', padding: 0 }}>
               {dict.pricing.free.features.map((f, i) => (
                 <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--bdr2)' }}>
-                  <span style={{ width: 12, fontSize: 12, fontFamily: 'var(--font-mono), monospace', color: f.included ? 'var(--green)' : 'var(--txt4)' }}>{f.included ? '✓' : '✕'}</span>
+                  <span style={{ width: 12, fontSize: 12, fontFamily: 'var(--font-mono), monospace', /* --txt3, not --txt4 (#639, owner ruled). landing.md:506 exempts
+                       this ✕ from 4.5:1 as "non-essential decoration paired
+                       with a text label" - but the clause revokes itself if
+                       the glyph "ever becomes the only carrier of meaning",
+                       and it has: f.text below names the FEATURE and never
+                       its inclusion, so the ✕ plus a colour shift are the
+                       only signals, and colour alone is not a carrier. The
+                       exemption's own condition, not an override of it.
+                       The route strings in the card footers keep --txt4 -
+                       same clause, and their pairing genuinely holds. */
+                    color: f.included ? 'var(--green)' : 'var(--txt3)' }}>{f.included ? '✓' : '✕'}</span>
                   <span style={{ fontSize: 13.5, color: f.included ? 'var(--txt)' : 'var(--txt3)' }}>{f.text}</span>
                 </li>
               ))}
@@ -543,7 +553,11 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? 9 : 7, marginTop: 14 }}>
                   {col.links.map(([href, label]) => (
-                    <Link key={href} href={href} style={{ fontSize: isDesktop ? 13 : 12.5, color: 'var(--txt3)', textDecoration: 'none' }}>{label}</Link>
+                    /* lt-foot-link carries the 24px hit area (#641). These are
+                       column links in a flex stack, not prose - SC 2.5.8's
+                       Inline exception does NOT cover them, unlike the
+                       disclaimer sentence's links further down this file. */
+                    <Link key={href} href={href} className="lt-foot-link" style={{ fontSize: isDesktop ? 13 : 12.5, color: 'var(--txt3)', textDecoration: 'none' }}>{label}</Link>
                   ))}
                 </div>
               </div>

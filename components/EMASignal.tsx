@@ -6,10 +6,10 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
-  LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.25)'  },
-  SHORT_SETUP:    { label: '▼ SHORT SETUP',    color: 'var(--red)', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)' },
-  TRENDING_LONG:  { label: '↗ TRENDING LONG',  color: 'var(--green-soft)', bg: 'rgba(134,239,172,0.06)', border: 'rgba(134,239,172,0.2)'  },
-  TRENDING_SHORT: { label: '↘ TRENDING SHORT', color: 'var(--red-soft)', bg: 'rgba(252,165,165,0.06)', border: 'rgba(252,165,165,0.2)'  },
+  LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
+  SHORT_SETUP:    { label: '▼ SHORT SETUP',    color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 8%, transparent)', border: 'color-mix(in srgb, var(--red) 25%, transparent)' },
+  TRENDING_LONG:  { label: '↗ TRENDING LONG',  color: 'var(--green-soft)', bg: 'color-mix(in srgb, var(--green-soft) 6%, transparent)', border: 'color-mix(in srgb, var(--green-soft) 20%, transparent)'  },
+  TRENDING_SHORT: { label: '↘ TRENDING SHORT', color: 'var(--red-soft)', bg: 'color-mix(in srgb, var(--red-soft) 6%, transparent)', border: 'color-mix(in srgb, var(--red-soft) 20%, transparent)'  },
   /* #6b7280 was 4.01:1 - the same grey-500 the econ calendar used for its
      (never-reachable) LOW bucket. FREEZE is a live signal state, not a
      placeholder, so it takes the AA-safe neutral. */
@@ -170,7 +170,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           {signal.conditions.map((c, i) => {
             const pass = c.pass;
             const col  = pass === true ? 'var(--green-2)' : pass === false ? 'var(--red)' : 'var(--txt-dim)';
-            const bg   = pass === true ? 'rgba(52,211,153,0.07)' : pass === false ? 'rgba(248,113,113,0.07)' : 'rgba(255,255,255,0.02)';
+            const bg   = pass === true ? 'color-mix(in srgb, var(--green-2) 7%, transparent)' : pass === false ? 'color-mix(in srgb, var(--red) 7%, transparent)' : 'rgba(255,255,255,0.02)';
             const icon = pass === true ? '✓' : pass === false ? '✗' : '-';
             return (
               <div
@@ -231,7 +231,19 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         }}>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>${fmt(signal.ema9_4h)}</b></span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
+          {/* --txt2, not #f97316 (#638). This was the only literal in a row
+              whose three siblings all use tokens, and a literal chosen against
+              a dark ground: it measures 2.59:1 on terminal light and fails in
+              the current design's light theme too - older than the redesign,
+              which makes it older rather than acceptable.
+              --txt2 clears AA in all four combinations - current dark 5.03,
+              current light 9.15, terminal dark 5.62, terminal light 5.56.
+              Not the EMA-50 line's colour on purpose: terminal already paints
+              that line #5e646b (KLineProChart's TERMINAL_EMA_COLOR), a
+              border-weight grey that fails as text on dark, and there is no
+              governed orange in the terminal palette at all - #614 established
+              that. */}
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
         </div>
       )}
@@ -262,8 +274,16 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             marginTop: 10,
             width: '100%',
             padding: '7px 0',
-            background: 'rgba(90,163,255,0.06)',
-            border: '0.5px solid rgba(90,163,255,0.2)',
+            /* Derived from --accent-2, was rgba(90,163,255,...) (#647/#648).
+               Written as an rgb() triplet, so a `5aa3ff` grep misses it -
+               the same disguise as the rgba(248,113,113,...) tints in #641,
+               and the reason QA's selectors were worth more than the hex
+               list both times. Terminal aliases --accent-2 to var(--accent)
+               in both themes, so token users already followed a theme change
+               and this literal did not. --accent-2 IS #5aa3ff at :root, so
+               the current design is byte-identical. */
+            background: 'color-mix(in srgb, var(--accent-2) 6%, transparent)',
+            border: '0.5px solid color-mix(in srgb, var(--accent-2) 20%, transparent)',
             borderRadius: 7,
             fontSize: 'var(--fs-caption)',
             fontWeight: 600,
@@ -272,8 +292,8 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             letterSpacing: '.02em',
             transition: 'background 0.15s',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(90,163,255,0.12)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(90,163,255,0.06)'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--accent-2) 12%, transparent)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--accent-2) 6%, transparent)'; }}
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>

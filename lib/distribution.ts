@@ -26,6 +26,10 @@ export interface DistributionScore {
   score:   number;    // 0–100
   reasons: string[];
   label:   'Distribution' | 'Early distribution' | 'Quiet';
+  /** #661: how many of the eight inputs had data. Carried, not yet displayed -
+   *  a partial score must be distinguishable from a complete one. */
+  inputsPresent: number;
+  inputsTotal:   number;
 }
 
 /* Gate: profit-taking is only meaningful after strength. Coins that haven't run
@@ -79,7 +83,23 @@ export function computeDistributionScore(d: DistributionInputs): DistributionSco
   const label: DistributionScore['label'] =
     capped >= 70 ? 'Distribution' : capped >= 45 ? 'Early distribution' : 'Quiet';
 
-  return { score: capped, reasons, label };
+  /* Input completeness (#661). 55 of the 100 points sit behind `!= null`
+     guards here - takerBuyRatio 15, whaleLongRatio 15, fundingRatePct 15, and
+     the volRatio/takerBuyRatio pair 10 - against labels at 70 and 45.
+     That matters more here than in the accumulation tracker, because the
+     output is a LABEL. Dropping 55 moves a genuine 'Distribution' to 'Quiet',
+     which is not a weakened claim but the opposite one.
+     `!= null` rather than truthiness: priceBelowVwap === false is data, and
+     a funding rate of exactly 0 is a reading, not an absence.
+     NOT RENDERED YET - the presentation of a partial score is the owner's
+     ruling. See components/AccumulationTracker.tsx for the twin. */
+  const INPUTS = [
+    d.change24hPct, d.cvdDivergence, d.takerBuyRatio, d.oiTrend,
+    d.whaleLongRatio, d.fundingRatePct, d.volRatio, d.priceBelowVwap,
+  ];
+  const inputsPresent = INPUTS.filter(v => v != null).length;
+
+  return { score: capped, reasons, label, inputsPresent, inputsTotal: INPUTS.length };
 }
 
 export function distributionColor(score: number): string {

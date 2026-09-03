@@ -20,8 +20,8 @@ export default function GexTable() {
   const isLongGamma = (btcNetGex ?? 0) >= 0;
 
   const gexCol     = isLongGamma ? 'var(--green-2)' : 'var(--red)';
-  const gexBg      = isLongGamma ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)';
-  const gexBorder  = isLongGamma ? 'rgba(52,211,153,0.3)'  : 'rgba(248,113,113,0.3)';
+  const gexBg      = isLongGamma ? 'color-mix(in srgb, var(--green-2) 12%, transparent)' : 'color-mix(in srgb, var(--red) 12%, transparent)';
+  const gexBorder  = isLongGamma ? 'color-mix(in srgb, var(--green-2) 30%, transparent)'  : 'color-mix(in srgb, var(--red) 30%, transparent)';
 
   const maxAbsGex = btcGexLevels.length
     ? Math.max(...btcGexLevels.map(l => Math.abs(l.gex)))
@@ -148,7 +148,7 @@ export default function GexTable() {
           </div>
           {btcGexLevels.map(({ strike, gex }) => {
             const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
-            const col   = gex >= 0 ? 'rgba(52,211,153,0.65)' : 'rgba(248,113,113,0.65)';
+            const col   = gex >= 0 ? 'var(--green-2)' : 'var(--red)';
             const vcol  = gex >= 0 ? 'var(--green-2)' : 'var(--red)';
             const isAtm = spotPrice > 0 && Math.abs(strike - spotPrice) / spotPrice < 0.005;
             return (
