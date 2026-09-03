@@ -89,12 +89,19 @@ const flatCell = (/export const TERMINAL_FLAT_CELL = '(#[0-9a-fA-F]{6})'/.exec(t
 const DARK = [...mapOf('TERMINAL_COLORS'), flatCell, ...rampHexes].filter(Boolean);
 const LIGHT = [...mapOf('TERMINAL_COLORS_LIGHT'), ...rampHexes];
 
+/* The one definition of "this field has no value". Lives here, not inside
+   PAGE_EVAL and not duplicated in the settle poll below - two copies of a
+   pattern is the exact drift that put five superseded hexes in this file's
+   palette (#682). Passed into the browser as a source string because
+   PAGE_EVAL is serialised across the boundary. */
+const EMPTY_SOURCE = '^(—|-|–|N/A|--|NaN|null|undefined|CANNOT MEASURE)$';
+
 const VIEWPORT_CFG = {
   desktop: { viewport: { width: 1440, height: 900 } },
   mobile: { ...devices['iPhone 13'], viewport: { width: 390, height: 844 } },
 };
 
-const PAGE_EVAL = ({ tokens, radiusExempt }) => {
+const PAGE_EVAL = ({ tokens, radiusExempt, emptySource }) => {
   const TOK = Object.fromEntries(tokens.map(t => [t, 1]));
   /* Same 0-1 vs 0-255 scaling as parse(): a `color(srgb ...)` declaration
      hexes to near-black without it, which is how 50 correctly-coloured
@@ -120,7 +127,7 @@ const PAGE_EVAL = ({ tokens, radiusExempt }) => {
 
   const off = {}, radius = {}, emptyLabels = []; let contrastFails = 0, subMin = 0, empties = 0, scanned = 0;
   const worstContrast = [];
-  const BAD = /^(—|-|–|N\/A|--|NaN|null|undefined|CANNOT MEASURE)$/;
+  const BAD = new RegExp(emptySource);
 
   document.querySelectorAll('body *').forEach(el => {
     const r = el.getBoundingClientRect();
@@ -224,8 +231,53 @@ for (const vp of VIEWPORTS) {
           if (!g.length) return true;
           return g.filter(x => x.getBoundingClientRect().width > 0).length === 1;
         }, { timeout: 60000 }).catch(() => {});
-        await page.waitForTimeout(4500);
-        const data = await page.evaluate(PAGE_EVAL, { tokens: theme === 'light' ? LIGHT : DARK, radiusExempt: 24 });
+        /* Settle-poll, not a fixed wait. 4500ms sat exactly on the knee of
+           /scanner's loading curve, which made its empty-field count a coin
+           flip. Measured on qa 52b335f, one page load, counting placeholders
+           at intervals:
+
+             desktop  2s=466  5s=66  10s=66 … 90s=66
+             mobile   2s=388  5s=335  10s=66 … 90s=66
+
+           A 4.5s sample lands between 466 and 66 on desktop depending on the
+           network, and that is why the same route reported 15, 66 and 482 on
+           one build - readings that looked like a viewport difference and a
+           regression and were neither.
+
+           Poll until the count stops changing rather than guessing a duration:
+           two identical consecutive reads, checked every 1.5s, capped at 30s.
+           The cap is the honest part - a page that never settles is reported
+           at whatever it reached, not waited on forever. */
+        {
+          const countEmpties = () => page.evaluate((src) => {
+            const re = new RegExp(src);
+            let c = 0;
+            for (const e of document.querySelectorAll('*')) {
+              if (e.children.length) continue;
+              const t = (e.textContent || '').trim();
+              if (t && t.length < 60 && re.test(t)) c++;
+            }
+            return c;
+          }, EMPTY_SOURCE).catch(() => -1);
+          /* Two equal reads is NOT settled. /scanner sits on a plateau of 466
+             for the first ~4s, so reads at 1.5s and 3.0s agree while the page
+             is still loading - the first version of this poll accepted 268 for
+             exactly that reason. Require three consecutive equal reads AND a
+             6s floor, which clears both measured curves (desktop drops at 5s,
+             mobile at 10s) with room. Costs ~10-14s per load against the old
+             fixed 4500ms; a full 120-load run grows by roughly 15 minutes,
+             which is the price of the number meaning something. */
+          const MIN_MS = 6000, NEED_STABLE = 3, STEP = 1500;
+          let prev = -2, stable = 0, waited = 0;
+          for (; waited < 30000; waited += STEP) {
+            await page.waitForTimeout(STEP);
+            const n = await countEmpties();
+            if (n === prev) stable++; else stable = 0;
+            prev = n;
+            if (stable >= NEED_STABLE - 1 && waited + STEP >= MIN_MS) break;
+          }
+        }
+        const data = await page.evaluate(PAGE_EVAL, { tokens: theme === 'light' ? LIGHT : DARK, radiusExempt: 24, emptySource: EMPTY_SOURCE });
         rec = { ...rec, ...data };
       } catch (e) {
         rec.error = String(e.message || e).slice(0, 70);
