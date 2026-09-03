@@ -1,11 +1,9 @@
 'use client';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useMarket, CoinId, COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
-import LiqFeed, { Bucket, LiqEvent } from '@/components/LiqFeed';
-import LiqDensityMap, { rampCss, RAMP_COUNT } from '@/components/LiqDensityMap';
+import LiqFeed, { Bucket } from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 import GexTable from '@/components/GexTable';
-import Tip from '@/components/Tip';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -52,22 +50,13 @@ const RANGE_TO_BYBIT_PERIOD: Record<TimeRange, string> = {
   '1w':  '1d',
 };
 
-const RANGES: { key: TimeRange; labelKey: LabelKey; maxDist: number; hintKey: LabelKey; ms: number }[] = [
-  { key: '12h', labelKey: 'LIQ_RANGE_LABEL_12H', maxDist: 0.05,  hintKey: 'LIQ_RANGE_HINT_12H', ms: 12 * 3_600_000 },
-  { key: '24h', labelKey: 'LIQ_RANGE_LABEL_24H', maxDist: 0.10,  hintKey: 'LIQ_RANGE_HINT_24H', ms: 24 * 3_600_000 },
-  { key: '48h', labelKey: 'LIQ_RANGE_LABEL_48H', maxDist: 0.13,  hintKey: 'LIQ_RANGE_HINT_48H', ms: 48 * 3_600_000 },
-  { key: '3d',  labelKey: 'LIQ_RANGE_LABEL_3D',  maxDist: 0.25,  hintKey: 'LIQ_RANGE_HINT_3D',  ms: 3 * 24 * 3_600_000 },
-  { key: '1w',  labelKey: 'LIQ_RANGE_LABEL_1W',  maxDist: 0.50,  hintKey: 'LIQ_RANGE_HINT_1W',  ms: 7 * 24 * 3_600_000 },
+const RANGES: { key: TimeRange; labelKey: LabelKey; maxDist: number; hintKey: LabelKey }[] = [
+  { key: '12h', labelKey: 'LIQ_RANGE_LABEL_12H', maxDist: 0.05,  hintKey: 'LIQ_RANGE_HINT_12H' },
+  { key: '24h', labelKey: 'LIQ_RANGE_LABEL_24H', maxDist: 0.10,  hintKey: 'LIQ_RANGE_HINT_24H' },
+  { key: '48h', labelKey: 'LIQ_RANGE_LABEL_48H', maxDist: 0.13,  hintKey: 'LIQ_RANGE_HINT_48H' },
+  { key: '3d',  labelKey: 'LIQ_RANGE_LABEL_3D',  maxDist: 0.25,  hintKey: 'LIQ_RANGE_HINT_3D' },
+  { key: '1w',  labelKey: 'LIQ_RANGE_LABEL_1W',  maxDist: 0.50,  hintKey: 'LIQ_RANGE_HINT_1W' },
 ];
-
-/* LiqFeed loads 24h from Supabase (SB_WIN_MS), so the heatmap cannot fill a
-   longer window however far the range chips reach. Capped rather than left to
-   render 6 empty days as though nothing had been liquidated in them - an
-   empty bucket here means "not observed", and stretching the axis past the
-   data manufactures six days of that claim. Recorded as a line item on #652:
-   the range chips above 24h widen the ladder's distance band, not the
-   heatmap's time span. */
-const HEAT_MAX_MS = 24 * 3_600_000;
 
 interface Band {
   price: number; distPct: number; usdM: number;
@@ -154,7 +143,7 @@ function BandRow({ b }: { b: Band }) {
       <div className="liq-row-bar-wrap">
         <div className="liq-row-bar" style={{
           width: Math.max(b.barPct, 2) + '%',
-          background: `linear-gradient(90deg, ${isLong ? 'color-mix(in srgb, var(--red) 10%, transparent)' : 'color-mix(in srgb, var(--green-2) 10%, transparent)'}, ${isLong ? 'color-mix(in srgb, var(--red) 60%, transparent)' : 'color-mix(in srgb, var(--green-2) 60%, transparent)'})`,
+          background: `linear-gradient(90deg, ${isLong ? 'rgba(248,113,113,0.10)' : 'rgba(52,211,153,0.10)'}, ${isLong ? 'rgba(248,113,113,0.60)' : 'rgba(52,211,153,0.60)'})`,
           boxShadow: b.isMagnet ? `0 0 10px ${withAlpha(accent, '44')}` : 'none',
         }} />
       </div>
@@ -179,14 +168,13 @@ export function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; c
   if (clusters.length === 0) {
     return (
       <div style={{
-        padding: '12px 14px', marginBottom: 12,
-        background: 'color-mix(in srgb, var(--txt) 2%, transparent)',
-        border: '0.5px solid var(--bdr)',
+        padding: '12px 14px', borderRadius: 0, marginBottom: 12,
+        background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)',
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
         <span style={{
           width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-          background: 'var(--amber)', boxShadow: '0 0 6px color-mix(in srgb, var(--amber) 40%, transparent)',
+          background: '#fbbf24', boxShadow: '0 0 6px #fbbf2466',
         }} />
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
           {t('LIQ_CLUSTERS_BUILDING')}
@@ -195,69 +183,91 @@ export function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; c
     );
   }
 
-  /* Canvas order is by LEVEL, high to low - a ladder, so the rows read as a
-     price axis. The previous build sorted above-spot ascending then below-spot
-     descending, which put the two nearest levels adjacent in the middle and
-     broke the axis. Sorting descending puts spot where it actually sits. */
-  const sorted = [...clusters].sort((a, b) => b.price - a.price);
   const maxTotal = Math.max(...clusters.map(c => c.total));
-  const stacked  = clusters.reduce((sum, c) => sum + c.total, 0);
+  const above = clusters.filter(c => c.price > currentPrice).sort((a, b) => a.price - b.price);
+  const below = clusters.filter(c => c.price <= currentPrice).sort((a, b) => b.price - a.price);
+  const sorted = [...above, ...below];
 
   return (
-    <div className="liq-lad">
-      <div className="liq-lad-head">
-        <span className="liq-lad-title">{t('LIQ_LADDER_TITLE')}</span>
-        <span className="liq-lad-meta">
-          {t('LIQ_LADDER_META', { levels: String(clusters.length), usd: fmtUsd(stacked) })}
-        </span>
-        <span className="liq-lad-legend">
-          <span><i className="liq-lad-key" style={{ background: 'var(--green-2)' }} />{t('LIQ_LADDER_LEGEND_SHORT')}</span>
-          <span><i className="liq-lad-key" style={{ background: 'var(--red)' }} />{t('LIQ_LADDER_LEGEND_LONG')}</span>
-        </span>
+    <div style={{
+      borderRadius: 0, overflow: 'hidden',
+      border: '0.5px solid rgba(52,211,153,0.2)',
+      background: 'rgba(52,211,153,0.03)',
+      marginBottom: 12,
+    }}>
+      <div style={{
+        padding: '10px 14px 8px',
+        borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+            background: 'var(--green-2)', boxShadow: '0 0 6px color-mix(in srgb, var(--green-2) 40%, transparent)',
+          }} />
+          <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
+            {t('LIQ_CLUSTERS_TITLE')}
+          </span>
+          <span style={{
+            fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.06em',
+            padding: '2px 7px', borderRadius: 0,
+            background: 'rgba(52,211,153,0.12)', color: 'var(--green-2)',
+            border: '0.5px solid rgba(52,211,153,0.25)',
+          }}>{t('LIQ_CLUSTERS_LIVE_BADGE')}</span>
+        </div>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_CLUSTERS_WINDOW_LABEL')}</span>
       </div>
 
-      <div className="liq-lad-cols">
-        <span>{t('LIQ_LADDER_COL_LEVEL')}</span>
-        <span>{t('LIQ_LADDER_COL_SIDE')}</span>
-        <span>{t('LIQ_LADDER_COL_SIZE')}</span>
-        <span style={{ textAlign: 'right' }}>{t('LIQ_LADDER_COL_USD')}</span>
-        <span style={{ textAlign: 'right' }}>
-          <Tip width={260} text={t('LIQ_LADDER_EVENTS_TIP')}>{t('LIQ_LADDER_COL_EVENTS')}</Tip>
-        </span>
-        <span style={{ textAlign: 'right' }}>{t('LIQ_LADDER_COL_DISTANCE')}</span>
+      <div style={{
+        display: 'grid', gridTemplateColumns: '80px 1fr 60px 24px',
+        padding: '6px 14px 4px',
+        gap: 8,
+      }}>
+        {([[t('LIQ_CLUSTERS_COL_PRICE'), 'left'], [t('LIQ_CLUSTERS_COL_VOLUME'), 'left'], [t('LIQ_CLUSTERS_COL_TOTAL'), 'right'], ['', 'right']] as [string, string][]).map(([h, a]) => (
+          <span key={h} style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', textAlign: a as 'left' | 'right' }}>{h}</span>
+        ))}
       </div>
 
-      {sorted.map(c => {
-        /* Both shares render even when one is small - the spec is explicit that
-           this is a stacked two-colour fill, not a single dominant colour, so a
-           level that is 90/10 still shows the 10. */
-        const longPct  = maxTotal > 0 ? (c.longUsd  / maxTotal) * 100 : 0;
-        const shortPct = maxTotal > 0 ? (c.shortUsd / maxTotal) * 100 : 0;
-        const domLong  = c.longUsd > c.shortUsd;
-        const domCol   = domLong ? 'var(--red)' : 'var(--green-2)';
-        /* Percent from spot, not dollars: the canvas reads "-1.6%", and a
-           percentage is comparable across coins where a dollar gap is not. */
-        const distPct  = currentPrice > 0 ? ((c.price - currentPrice) / currentPrice) * 100 : 0;
-        return (
-          <div className="liq-lad-row" key={`${c.coin}-${c.price}`}>
-            <span className="liq-lad-lvl">{c.label}</span>
-            <span className="liq-lad-side" style={{ color: domCol }}>
-              {domLong ? t('LIQ_LADDER_SIDE_LONG') : t('LIQ_LADDER_SIDE_SHORT')}
-            </span>
-            <span className="liq-lad-bar-cell">
-              <span className="liq-lad-bar">
-                <i style={{ width: `${longPct}%`,  background: 'var(--red)',     transition: 'width .4s' }} />
-                <i style={{ width: `${shortPct}%`, background: 'var(--green-2)', transition: 'width .4s' }} />
-              </span>
-            </span>
-            <span className="liq-lad-usd">{fmtUsd(c.total)}</span>
-            <span className="liq-lad-ev">{c.count}</span>
-            <span className="liq-lad-dist">
-              {currentPrice > 0 ? `${distPct >= 0 ? '+' : ''}${distPct.toFixed(1)}%` : '-'}
-            </span>
-          </div>
-        );
-      })}
+      <div style={{ padding: '0 14px 10px' }}>
+        {sorted.map(c => {
+          const longPct  = maxTotal > 0 ? (c.longUsd  / maxTotal) * 100 : 0;
+          const shortPct = maxTotal > 0 ? (c.shortUsd / maxTotal) * 100 : 0;
+          const isAbove  = c.price > currentPrice;
+          const domCol   = c.longUsd > c.shortUsd ? 'var(--red)' : 'var(--green-2)';
+          const distUsd  = currentPrice > 0 ? Math.abs(c.price - currentPrice) : 0;
+          return (
+            <div key={c.price} style={{
+              display: 'grid', gridTemplateColumns: '80px 1fr 60px 24px',
+              alignItems: 'center', gap: 8,
+              padding: '5px 0',
+              borderBottom: '0.5px solid rgba(255,255,255,0.04)',
+            }}>
+              <div>
+                <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
+                  {c.label}
+                </div>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+                  {fmtP(distUsd)} {isAbove ? t('LIQ_CLUSTERS_ABOVE') : t('LIQ_CLUSTERS_BELOW')}
+                </div>
+              </div>
+              <div style={{ height: 10, borderRadius: 0, background: 'rgba(255,255,255,0.04)', overflow: 'hidden', display: 'flex' }}>
+                <div style={{ width: `${longPct}%`,  height: '100%', background: 'rgba(248,113,113,0.65)', transition: 'width 0.4s' }} />
+                <div style={{ width: `${shortPct}%`, height: '100%', background: 'rgba(52,211,153,0.65)',  transition: 'width 0.4s' }} />
+              </div>
+              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: domCol, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {fmtUsd(c.total)}
+              </div>
+              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: domCol, textAlign: 'right' }}>
+                {c.longUsd > c.shortUsd ? t('LIQ_CLUSTERS_DOM_LONG') : t('LIQ_CLUSTERS_DOM_SHORT')}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
+        {t('LIQ_CLUSTERS_FOOTER_LEGEND')}
+      </div>
     </div>
   );
 }
@@ -267,13 +277,6 @@ export default function LiqTerminal() {
   const { store }  = useMarket();
   const [coin, setCoin]   = useState<CoinId>('btc');
   const [range, setRange] = useState<TimeRange>('24h');
-  /* Heatmap state (#652). threshold and palette are the canvas's own
-     controls; heatSeq forces a remount on refresh. */
-  const [heatEvents, setHeatEvents] = useState<LiqEvent[]>([]);
-  const [heatView,   setHeatView]   = useState<'heatmap' | 'ladder'>('heatmap');
-  const [palette,    setPalette]    = useState(0);
-  const [threshold,  setThreshold]  = useState(0.75);
-  const [heatSeq,    setHeatSeq]    = useState(0);
   const [realClusters, setRealClusters] = useState<Bucket[]>([]);
   const handleClusters = useCallback((c: Bucket[]) => setRealClusters(c), []);
   const [whalePos, setWhalePos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
@@ -390,95 +393,6 @@ export default function LiqTerminal() {
           {t('LIQ_COIN_COUNT', { count: COINS.length })}
         </span>
       </div>
-
-      {/* ── Canvas regions 2-4 (#652) ────────────────────────────────────
-          Added ABOVE the existing page rather than replacing it: the owner
-          ruled that LiqFeed, WhaleTradesFeed and GexTable stay, same as
-          briefing's six panels. The page is longer than the canvas by
-          design, not by omission. */}
-      <div className="liq-heat-head">
-        <div className="liq-heat-title">{t('LIQ_HEAT_TITLE', { coin: coin.toUpperCase() })}</div>
-        {/* Not the canvas's "AGGREGATED · 5 VENUES". We aggregate two, and we
-            see only what our own sockets saw - so the string says OBSERVED
-            and names the two. Substitute the metric, never the label. */}
-        <div className="liq-heat-source" title={t('LIQ_HEAT_SOURCE_TIP')}>{t('LIQ_HEAT_SOURCE')}</div>
-        {/* The cap has to be VISIBLE, not just documented (#655 review).
-            Selecting 1w while the surface draws 24h is a chip asserting a
-            window the surface is not showing - the same defect class as a
-            label claiming data it does not have. Shown only when the
-            selected range actually exceeds what LiqFeed can load. */}
-        {rangeConf.ms > HEAT_MAX_MS && (
-          <div className="liq-heat-cap">{t('LIQ_HEAT_CAP_NOTE')}</div>
-        )}
-        <div style={{ flex: 1 }} />
-        <div className="liq-heat-tfs">
-          {RANGES.map(r => (
-            <button
-              key={r.key}
-              className={`liq-heat-tf${range === r.key ? ' on' : ''}`}
-              onClick={() => setRange(r.key)}
-            >
-              {t(r.labelKey)}
-            </button>
-          ))}
-        </div>
-        <button
-          className="liq-heat-refresh"
-          onClick={() => setHeatSeq(n => n + 1)}
-          title={t('LIQ_HEAT_REFRESH_TITLE')}
-          aria-label={t('LIQ_HEAT_REFRESH_TITLE')}
-        >
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6M16.8 3.2v3.4h-3.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="liq-heat-controls">
-        <div className="liq-heat-tabs">
-          <button className={`liq-heat-tab${heatView === 'heatmap' ? ' on' : ''}`} onClick={() => setHeatView('heatmap')}>
-            {t('LIQ_HEAT_TAB_HEATMAP')}
-          </button>
-          <button className={`liq-heat-tab${heatView === 'ladder' ? ' on' : ''}`} onClick={() => setHeatView('ladder')}>
-            {t('LIQ_HEAT_TAB_LADDER')}
-          </button>
-        </div>
-        <div style={{ flex: 1 }} />
-        <div className="liq-heat-swatches">
-          {Array.from({ length: RAMP_COUNT }, (_, i) => (
-            <button
-              key={i}
-              className={`liq-heat-swatch${palette === i ? ' on' : ''}`}
-              style={{ background: rampCss(i) }}
-              onClick={() => setPalette(i)}
-              title={t('LIQ_HEAT_PALETTE_TITLE', { n: String(i + 1) })}
-              aria-label={t('LIQ_HEAT_PALETTE_TITLE', { n: String(i + 1) })}
-            />
-          ))}
-        </div>
-        <div className="liq-heat-thr-label">
-          {t('LIQ_HEAT_THRESHOLD', { value: threshold.toFixed(2) })}
-        </div>
-        <input
-          className="liq-heat-thr"
-          type="range" min="0" max="1" step="0.01"
-          value={threshold}
-          onChange={e => setThreshold(Number(e.target.value))}
-          aria-label={t('LIQ_HEAT_THRESHOLD', { value: threshold.toFixed(2) })}
-        />
-      </div>
-
-      {heatView === 'heatmap' && (
-        <LiqDensityMap
-          key={heatSeq}
-          events={heatEvents}
-          spot={cd?.price ?? null}
-          coin={coin.toUpperCase()}
-          threshold={threshold}
-          palette={palette}
-          windowMs={Math.min(rangeConf.ms, HEAT_MAX_MS)}
-        />
-      )}
 
       <div className="liq-range-row">
         {RANGES.map(r => (
@@ -746,7 +660,7 @@ export default function LiqTerminal() {
         </>
       )}
 
-      <LiqFeed onClusters={handleClusters} onEvents={setHeatEvents} coinFilter={coin.toUpperCase()} />
+      <LiqFeed onClusters={handleClusters} coinFilter={coin.toUpperCase()} />
       <WhaleTradesFeed />
       <GexTable />
     </div>

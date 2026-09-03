@@ -175,14 +175,13 @@ function TCoinSidebar() {
             <div className="csb2-top">
               <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
               <span className="csb2-name">{id.toUpperCase()}</span>
+              {/* No fontSize here - it lives in globals.css (#718 revert). The
+                  pre-canvas markup set it inline, which outranks the terminal
+                  rule's 9.5px and left that rule dead: the shape #660 and #681
+                  fixed, now ratcheted by terminalTypographyOwnership.test.mts.
+                  A base .csb2-health-badge rule carries the current design's
+                  size, so only ownership moved, not the rendering. */}
               {d?.price && (
-                {/* fontSize lives in globals.css, not here (#718 revert). The
-                    pre-canvas markup set it inline, which outranks the terminal
-                    rule's 9.5px and left that rule dead - the exact shape #660
-                    and #681 fixed and terminalTypographyOwnership.test.mts now
-                    ratchets against. A base .csb2-health-badge rule carries the
-                    current design's size so only ownership moved, not the
-                    rendering. */}
                 <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
                   fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 0,

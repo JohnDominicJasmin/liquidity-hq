@@ -9,11 +9,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 
 /* ── Types ── */
-/* Exported for the heatmap (#652). LiqFeed owns ingestion - two websockets
-   plus the Supabase 24h load - and nothing else should open a second one, so
-   consumers that need the raw stream take it from here rather than querying
-   liq_events themselves. */
-export interface LiqEvent {
+interface LiqEvent {
   id:     number;
   symbol: string;
   coin:   string;
@@ -26,13 +22,7 @@ export interface LiqEvent {
 
 interface Stats  { longUsd: number; shortUsd: number; count: number; }
 interface Cascade { ts: number; totalUsd: number; side: 'LONG' | 'SHORT' | 'MIXED'; coins: string[]; }
-/* `count` added for the cluster ladder (#652 region 5). The canvas's ladder has
-   a LEVERAGE column and liq_events carries no leverage - side, usd, price, ts and
-   source only, and a liquidation price cannot yield leverage without an entry
-   price. Under the owner's substitution ruling the column shows how many
-   liquidations built the level instead, which is real and answers a question
-   leverage was standing in for: whether a cluster is one whale or a crowd. */
-export interface Bucket  { label: string; price: number; longUsd: number; shortUsd: number; total: number; count: number; coin: string; }
+export interface Bucket  { label: string; price: number; longUsd: number; shortUsd: number; total: number; coin: string; }
 
 /* ── Constants ── */
 const FEED_SIZE          = 30;
@@ -93,14 +83,7 @@ function fmtEventPrice(price: number): string {
   return '$' + price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 3 : 2 });
 }
 
-export default function LiqFeed({ onClusters, onEvents, coinFilter }: {
-  onClusters?: (clusters: Bucket[]) => void;
-  /* Raw events, for consumers that need a TIME axis. onClusters aggregates
-     the whole 24h window into price buckets and throws the timestamps away,
-     which is exactly what a density-over-time surface needs (#652). */
-  onEvents?: (events: LiqEvent[]) => void;
-  coinFilter: string;
-}) {
+export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string }) {
   const { t } = useLabels();
   const [feed,     setFeed]     = useState<LiqEvent[]>([]);
   const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
@@ -148,39 +131,23 @@ export default function LiqFeed({ onClusters, onEvents, coinFilter }: {
 
     // Price clusters keyed per-coin so callers can filter by selected coin
     const cWin = history.filter(e => now - e.ts < CLUSTER_WIN);
-    const map  = new Map<string, { longUsd: number; shortUsd: number; count: number; coin: string; price: number }>();
+    const map  = new Map<string, { longUsd: number; shortUsd: number; coin: string; price: number }>();
     cWin.forEach(e => {
       const bp  = snapBucket(e.price);
       const key = `${e.coin}::${bp}`;
-      const cur = map.get(key) ?? { longUsd: 0, shortUsd: 0, count: 0, coin: e.coin, price: bp };
+      const cur = map.get(key) ?? { longUsd: 0, shortUsd: 0, coin: e.coin, price: bp };
       if (e.side === 'LONG') cur.longUsd += e.usd; else cur.shortUsd += e.usd;
-      cur.count += 1;
       map.set(key, cur);
     });
     const buckets: Bucket[] = Array.from(map.values())
-      .map(({ longUsd, shortUsd, count, coin, price }) => ({
-        label: fmtBucket(price), price, longUsd, shortUsd, total: longUsd + shortUsd, count, coin,
+      .map(({ longUsd, shortUsd, coin, price }) => ({
+        label: fmtBucket(price), price, longUsd, shortUsd, total: longUsd + shortUsd, coin,
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 100);
     setClusters(buckets);
     onClusters?.(buckets);
-
-    /* Throttled, unlike onClusters (#652 review). rebuild() runs on every
-       websocket liquidation, and the first version of this emitted the whole
-       history each time - so a busy minute pushed a new array into the
-       parent's state hundreds of times, re-rendering the page per event for
-       a surface that buckets into 34 columns and cannot show the difference.
-       onClusters can afford it: it emits a small aggregate the parent renders
-       directly. This emits up to 5000 events for a density grid.
-       Leading edge, so the first data paints immediately and the empty state
-       does not linger. */
-    const now2 = Date.now();
-    if (onEvents && now2 - lastEmitRef.current >= EVENTS_EMIT_MS) {
-      lastEmitRef.current = now2;
-      onEvents(history);
-    }
-  }, [onClusters, onEvents]);
+  }, [onClusters]);
 
   /* ── Sync coinFilter prop → ref and re-derive stats/clusters ── */
   useEffect(() => {
