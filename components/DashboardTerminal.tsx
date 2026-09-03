@@ -354,7 +354,15 @@ function TCoinSidebar() {
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
                 <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
-                  fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
+                  /* No inline font-size. globals.css:556 sets mono 9.5px for
+                     this badge and an inline declaration outranks any selector,
+                     so var(--fs-caption)'s 12px was silently winning and the
+                     rule was dead. Third time this shape has bitten: #629, #633
+                     (where !important beat OUR inline border-radius: 0), now
+                     here. This component only ever renders under
+                     mode === 'terminal', so there is no second design to keep
+                     at 12px - the stylesheet is the right home for the size. */
+                  fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 0,
                   color: gradeStrong ? 'var(--green)' : 'var(--txt)',
                   /* 15%, the canvas's own alpha, not withAlpha('22')'s 13.3%.
@@ -409,9 +417,14 @@ function TCoinSidebar() {
         style={{
           display: 'block', width: '100%', background: 'none', border: 'none',
           borderTop: '1px solid var(--bdr)', padding: '7px 0',
-          fontSize: 'var(--fs-caption)', color: 'var(--txt3)', cursor: 'pointer',
-          letterSpacing: '0.04em', textAlign: 'center', textDecoration: 'none',
-          textTransform: 'uppercase',
+          /* Same dead-rule cause as the grade badge above. globals.css:563
+             sets mono 10.5px / .06em / uppercase; all three were being
+             outranked inline - the size by --fs-caption's 12px and the
+             tracking by 0.04em. text-transform agreed, which is why the
+             footer READ correct while measuring wrong, and why QA's
+             textContent-vs-innerText check mattered here. */
+          color: 'var(--txt3)', cursor: 'pointer',
+          textAlign: 'center', textDecoration: 'none',
         }}
       >
         {t('DASH_SIDEBAR_MORE_COINS_TERMINAL', { count: COINS.length - shown })}
