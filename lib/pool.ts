@@ -1,7 +1,7 @@
 /* Fixed-size worker pool, shared (#665).
  *
  * This existed TWICE before this file did - app/api/market/snapshot/route.ts
- * and app/api/market/rsi/route.ts each define their own worker pool AND their
+ * and app/api/market/rsi/route.ts each defined their own worker pool AND their
  * own `class BinanceBackoff`, each with a comment explaining why the pool is
  * necessary. It was copied rather than extracted, and copying is exactly what
  * stopped it travelling: four routes going through lib/bybitFanout.ts fanned
@@ -10,6 +10,10 @@
  *
  * A second copy proves the idea was understood twice and still did not reach
  * the callers that needed it. So this is the extraction, not a third copy.
+ *
+ * Both originals now import from here and their duplicate classes are gone, so
+ * there is exactly one worker pool in the codebase. If you are adding a fifth
+ * caller, the thing to bring is a PREDICATE, not another pool.
  *
  * The stop condition is a PREDICATE rather than an exception class, because
  * the two existing copies both hard-code `instanceof BinanceBackoff` and that
