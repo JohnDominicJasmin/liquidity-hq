@@ -16,11 +16,28 @@ interface AccumRow {
   price: number;
   change: number;
   reasons: string[];
+  /** #661: how many of the score's inputs had data, and how many there are.
+   *  Carried so a partial score is distinguishable from a complete one.
+   *  Not yet displayed - see the note at the return in scoreCoin. */
+  inputsPresent: number;
+  inputsTotal: number;
 }
 
 function scoreCoin(id: CoinId, d: CoinData | undefined): AccumRow | null {
   if (!d?.price) return null;
-  const chg = Math.abs(d.change ?? 0);
+
+  /* Refuse to score without a price change, rather than defaulting it (#661).
+     This was `Math.abs(d.change ?? 0)`, and 0 is the one value that is not a
+     neutral default here - it sits in the centre of the "flat" band. A coin
+     with no change data therefore did three wrong things at once: it survived
+     the > 3.5 filter that exists to exclude it, it took the MAXIMUM 20 of
+     section 1, and it pushed the literal string 'Price flat' into the reasons
+     the card renders. Missing data did not weaken the claim, it manufactured
+     the strongest one.
+     Same handling as lib/distribution.ts:36, which returns null when its own
+     gating input is absent instead of substituting a value. */
+  if (d.change == null) return null;
+  const chg = Math.abs(d.change);
   // Already moving hard - the accumulation window is over
   if (chg > 3.5) return null;
 
@@ -59,7 +76,28 @@ function scoreCoin(id: CoinId, d: CoinData | undefined): AccumRow | null {
   // Bonus - volume waking up without a price move yet
   if (d.volRatio != null && d.volRatio >= 1.3) { score += 5; reasons.push(`Vol ${d.volRatio.toFixed(1)}x`); }
 
-  return { id, score: Math.min(100, score), price: d.price, change: d.change ?? 0, reasons };
+  /* How many of the score's independent inputs actually had data (#661).
+     47 of the 100 points sit behind `!= null` guards - takerBuyRatio 12,
+     fundingRate 15, bnWhaleLongRatio 15, volRatio 5 - against a MIN_SCORE of
+     45, so more than the display threshold can drop out with nothing in the
+     output to say it did.
+     Counted from the inputs rather than incremented inside the branches on
+     purpose: this measures how much was KNOWN, not how much FIRED. A funding
+     rate that was read and scored nothing is complete data; an absent one is
+     not, and the two are indistinguishable from the score alone.
+     Modelled on lib/marketStore.ts:290, which already refuses to label unless
+     >= 2 independent signals agree - the correct handling already exists in
+     this repo, one file over from the two scorers that lack it.
+     NOT RENDERED YET. How a partial score presents itself is the owner's
+     ruling; this is the measurement that ruling needs, carried so the decision
+     can be made against real numbers instead of estimates. */
+  const INPUTS = [d.change, d.cvdDivergence, d.takerBuyRatio, d.oiTrend, d.fundingRate, d.bnWhaleLongRatio, d.volRatio];
+  const inputsPresent = INPUTS.filter(v => v != null).length;
+
+  return {
+    id, score: Math.min(100, score), price: d.price, change: d.change, reasons,
+    inputsPresent, inputsTotal: INPUTS.length,
+  };
 }
 
 const MIN_SCORE = 45;
