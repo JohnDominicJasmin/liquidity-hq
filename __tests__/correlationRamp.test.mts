@@ -105,11 +105,29 @@ test('the null cell is --txt3, not --txt, and its margin is thin (#679)', () => 
          dark   --bg0 4.90  --bg1 4.40  --bg2 4.46
          light  --bg0 5.70  --bg1 5.10  --bg2 4.74
 
-     This is #679: --txt3 clears AA by about 0.1 on --bg0 and spends that margin
-     on any raised surface. QA measured the same 4.46 on /liq's "current price"
-     label - different screen, live browser, different method, same token. It is
-     a palette question, not a correlation one, and spot-fixing it here would
-     make the token look healthier than it is. */
+     This is #679, and its cause is COMPOSITING, not the token. --txt3 passes on
+     every bare palette ground in both themes:
+
+         dark   --bg0 5.14  --bg1 4.71  --bg2 4.77
+         light  --bg0 5.68  --bg1 5.07  --bg2 4.70
+
+     What fails is --txt3 over a 3% WHITE OVERLAY on a card - a surface that is
+     not a palette member at all. The overlay lightens the ground toward --txt3
+     and eats the margin, in dark only.
+
+     An earlier version of this comment said --txt3 "clears AA by about 0.1 on
+     --bg0 and spends that margin on any raised surface". Both halves are wrong,
+     and the table above is why: bg0 is 5.14, and the raised surfaces pass. That
+     framing came from generalising two composited samples to the whole palette;
+     QA retracted it and I verified the retraction rather than swapping one
+     unchecked claim for another.
+
+     It matters because the wrong framing pointed at changing the token, which
+     qa/TERMINAL_REDESIGN_STATE.md already rejected: moving a value that passes
+     on three of four surfaces to fix one composited case degrades what works.
+     The precedent is the empty-cell dash taking its own #848a92 - a local
+     value for a local ground. QA measured the same 4.46 on /liq's current-price
+     label, which is the second instance of that same composited shape. */
   const T = TERMINAL_COLORS as Record<string, string>;
   const nullCell = over('#ffffff', T['--bg1'], 3);
   const c = ratio(hex(T['--txt3']), nullCell);
