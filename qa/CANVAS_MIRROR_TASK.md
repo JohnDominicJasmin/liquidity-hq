@@ -276,13 +276,30 @@ the controls row, and the **density heatmap the page is named after** — with
 the fourth a different shape. A 657-line component that renders a different
 screen scores well on label presence and mirrors nothing.
 
-**Lesson for the remaining rows:** a percentage in this table is only
-meaningful if it was measured against the component the route actually
-renders in terminal. Before trusting any row, check whether the route has a
-dedicated `*Terminal` component. Six do — `/liq`, `/markets`, `/funding`,
-`/briefing`, `/correlation`, `/scanner`. Six more have only a
-`*-term-wrap` CSS class over identical markup, which is a restyle, not a
-build: `/hours`, `/journal`, `/econ-calendar`, `/news`, `/calc`, `/alerts`.
+**Lesson for the remaining rows:** a percentage here is only meaningful if it
+was measured against **the component the route actually renders in terminal**.
+Before trusting any row, find that component by following the terminal branch:
+
+```
+grep -n "mode === 'terminal'" app/<route>/page.tsx
+```
+
+then read what that branch returns. It may be a dedicated component, an inline
+block, or a component reached through an intermediate file.
+
+**Do not use "does a `*Terminal` component exist" as the test.** That was the
+first version of this note and it is a proxy, which is the same mistake the
+45% itself was — measuring a stand-in instead of the thing. It misclassifies
+at least three routes:
+
+- **`/arena`** builds its terminal branch **inline in `page.tsx`** and has no
+  component at all
+- **`/`** reaches `LandingTerminal` through `LandingContent.tsx:11`, so a
+  page-level search misses it
+- **`/briefing`** has a component, and #620 established it draws a different
+  product — so the component existing says nothing about whether it mirrors
+
+A filename is not evidence about what renders. The branch is.
 
 ### How to read these numbers
 
