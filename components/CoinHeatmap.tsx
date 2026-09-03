@@ -203,7 +203,15 @@ export default function CoinHeatmap() {
           return (
             <div
               key={c}
-              className="chm-tile"
+              /* Only tiles WITH a value take the terminal override. QA's review
+                 of #701: --heat-fg: var(--txt) applied to every tile would
+                 override the no-data branch's --txt-dim too, so an empty
+                 tile would read as prominently as one carrying a price.
+                 That is #692's loss pointed the other way - contrast up,
+                 meaning down - and --txt-dim was the signal that a tile has
+                 nothing to say. It was never in the failing set, so it keeps
+                 its own colour by simply not getting the class. */
+              className={chg == null ? undefined : "chm-tile"}
               style={{
                 background: bg,
                 borderRadius: 8,
