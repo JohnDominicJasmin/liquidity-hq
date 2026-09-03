@@ -6,6 +6,7 @@ import Tip from '@/components/Tip';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
+import { tintPct } from '@/lib/correlationRamp';
 import type { LabelKey } from '@/lib/labelKeys';
 
 const RANGES = [
@@ -73,23 +74,33 @@ function pearson(a: number[], b: number[]): number | null {
    enough (worst measured 1.66:1) that not even --txt could save it - the
    ramp had to stop short, not just change which token painted it.
    var(--green)/var(--red) fixes theme-awareness for free (each already has
-   its own dark/light value). The 50%/65% caps are hand-verified against
-   the WCAG contrast formula: dark theme's --green crosses 4.5:1 against
-   --txt at ~60% alpha, light's at ~74% - 50% clears both with margin.
-   Red's two thresholds sit close together (~72-73% either theme) so 65%
-   covers both. Text is always --txt now; at the low end that's compositing
-   against a nearly-untinted card (4% alpha), which --txt already passes
-   everywhere else in the app. */
+   its own dark/light value). Text is always --txt now; at the low end that's
+   compositing against a nearly-untinted card (4% alpha), which --txt already
+   passes everywhere else in the app.
+
+   CAPS, re-measured. The first pass said "red's two thresholds sit close
+   together (~72-73% either theme) so 65% covers both". That was wrong: it
+   measured dark and assumed light matched. Swept alpha 0-100 against --txt
+   over --bg0/--bg1/--bg2 in both themes, first failure of 4.5:1:
+
+                     dark            light
+       --green    61-64%          74-78%
+       --red      74-76%          61-66%     <- light red is the binding case
+
+   The two colours have OPPOSITE worst themes, which is why one assumed pair
+   of thresholds could not hold for both. Light red at the old 65% cap
+   measured 4.09:1 on --bg2 - a residual AA failure on strongly negative
+   correlations that survived the first fix.
+
+   Green 50% against a 61% floor, red 56% against a 61% floor. 60% is red's
+   true crossing (4.52:1, passing by 0.02), so 56% carries real margin rather
+   than sitting on the line. */
 function cellBg(r: number | null, diag: boolean): string {
   if (diag)     return 'var(--accent-bdr)';
   if (r == null) return 'rgba(255,255,255,0.03)';
-  if (r > 0) {
-    const t = Math.max(0, (r - 0.35) / 0.65);
-    const pct = 4 + Math.pow(t, 2.2) * 46;
-    return `color-mix(in srgb, var(--green) ${pct.toFixed(1)}%, transparent)`;
-  }
-  const pct = 6 + Math.pow(Math.abs(r), 1.5) * 59;
-  return `color-mix(in srgb, var(--red) ${pct.toFixed(1)}%, transparent)`;
+  const pct = tintPct(r);
+  const tok = r > 0 ? '--green' : '--red';
+  return `color-mix(in srgb, var(${tok}) ${pct.toFixed(1)}%, transparent)`;
 }
 
 function cellColor(r: number | null, diag: boolean): string {
