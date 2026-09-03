@@ -5963,6 +5963,122 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 }
 [data-design="terminal"] .tnav-item:hover { color: var(--txt2); }
 
+/* ── Terminal nav dropdowns (#714) ──────────────────────────────────────
+   The owner reported this bar twice: it carried five tabs where the nav it
+   replaced carried eight items and two grouping dropdowns, so everything
+   else was reachable only through the drawer.
+
+   Shaped from .tnav-item rather than from the current design's
+   .nav-more-dropdown: that shell is 12px-radius on --bg2 with a soft shadow,
+   which is the other design's language. Terminal is square, hairline, flat -
+   reusing the current-design shell here would have put a rounded card under a
+   monochrome bar. Same STRUCTURE and same disclosure behaviour, terminal's
+   surface treatment.
+
+   The button inherits .tnav-item, so it is one declaration for type and
+   colour and cannot drift from the tabs beside it - a nav where one item is
+   half a pixel off the rest is exactly what "it got down" describes. */
+[data-design="terminal"] .tnav-drop-wrap { position: relative; }
+[data-design="terminal"] .tnav-drop-btn {
+  background: none; border: 0; cursor: pointer;
+  /* Matches the Link siblings: a <button> inherits none of this. */
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+}
+[data-design="terminal"] .tnav-item.on,
+[data-design="terminal"] .tnav-drop-btn.on { color: var(--txt); }
+
+[data-design="terminal"] .tnav-dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 300;
+  min-width: 180px; padding: 4px;
+  background: var(--bg1);
+  border: 1px solid var(--bdr2);
+  border-radius: 0;                     /* C17: no radius anywhere in terminal */
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+[data-design="terminal"] .tnav-drop-item {
+  display: block; padding: 7px 10px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--txt3); text-decoration: none; white-space: nowrap;
+  transition: color .12s, background .12s;
+}
+[data-design="terminal"] .tnav-drop-item:hover {
+  color: var(--txt);
+  /* color-mix on a token, not an rgba() literal - a hardcoded white wash is
+     the cross-palette bug that kept reappearing through the redesign work. */
+  background: color-mix(in srgb, var(--txt) 8%, transparent);
+}
+[data-design="terminal"] .tnav-drop-item.on { color: var(--txt); }
+
+/* Below 768 the drawer is the navigation and these would compete with it -
+   the same breakpoint .hamburger and .tnav-mmore already use, not a new one. */
+@media (max-width: 767px) {
+  [data-design="terminal"] .tnav-drop-wrap { display: none; }
+}
+
+/* Theme toggle, language and Sign In (#714). The owner asked for these by
+   name: "on terminal top app bar There are missing buttons. like switching
+   dark theme and light theme and sign in".
+
+   The theme button is the one that mattered most. Terminal ships a full light
+   palette ([data-design="terminal"][data-theme="light"], #563) and nothing in
+   the terminal UI could reach it - the palette existed and was unreachable
+   without editing localStorage by hand.
+
+   Terminal's treatment, not the current design's: no radius, no accent fill,
+   monochrome, and sized against .tnav-item's 11px so the right cluster reads
+   as one bar rather than two. 28px box for a 16px glyph clears SC 2.5.8's
+   24px minimum without the padded-hit-area trick .tnav-avatar needed. */
+[data-design="terminal"] .tnav-icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex-shrink: 0;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--txt3);
+  transition: color .12s;
+}
+[data-design="terminal"] .tnav-icon-btn:hover { color: var(--txt); }
+
+[data-design="terminal"] .tnav-signin {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+  padding: 6px 12px; white-space: nowrap; text-decoration: none;
+  color: var(--txt);
+  border: 1px solid var(--bdr2);
+  border-radius: 0;
+  transition: border-color .12s, color .12s;
+}
+[data-design="terminal"] .tnav-signin:hover { border-color: var(--txt3); }
+
+/* The language switcher is a shared component carrying the current design's
+   own classes. Only its surface is restated here - structure, dropdown
+   behaviour and the switching itself are untouched. */
+[data-design="terminal"] .lang-nav-btn {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .08em;
+  border-radius: 0; color: var(--txt3);
+}
+[data-design="terminal"] .lang-nav-btn:hover { color: var(--txt); }
+/* Its panel too - verified against the component's own class names rather than
+   assumed. Left rounded it would be the one curved surface in the bar, which
+   is the "two design languages on one screen" failure the redesign notes warn
+   about repeatedly. */
+[data-design="terminal"] .lang-nav-dropdown {
+  background: var(--bg1);
+  border: 1px solid var(--bdr2);
+  border-radius: 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+[data-design="terminal"] .lang-nav-item {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .08em; border-radius: 0; color: var(--txt3);
+}
+[data-design="terminal"] .lang-nav-item:hover {
+  color: var(--txt);
+  background: color-mix(in srgb, var(--txt) 8%, transparent);
+}
+[data-design="terminal"] .lang-nav-item.on { color: var(--txt); }
+
 /* The nav's right-hand cluster (#599). Dashboard 2a.dc.html:49-53 draws
    three elements after a flex spacer at gap:14px - a session indicator, a
    ⌘K hint and an avatar. None of them had ANY rule before this: wiring the

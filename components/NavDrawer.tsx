@@ -22,6 +22,8 @@ import {
 } from './icons';
 import type { ComponentType } from 'react';
 import { useLabels } from '@/lib/labels';
+/* Shared with TerminalNav so both designs reach the same routes (#714). */
+import { PRIMARY, SCANNERS, TOOLS, TAIL } from '@/lib/navRoutes';
 import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── Mobile tab bar icons - plain SVGs, not emoji. Emoji glyphs like ⚡ render
@@ -122,33 +124,6 @@ function SessionPill() {
 }
 
 /* ── Nav data ──────────────────────────────────────────────────────────────── */
-const PRIMARY = [
-  { path: '/dashboard', labelKey: 'NAV_DASHBOARD' as const },
-  { path: '/arena',     labelKey: 'NAV_ARENA'     as const },
-  { path: '/briefing',  labelKey: 'NAV_BRIEFING'  as const },
-];
-
-const SCANNERS = [
-  { path: '/markets',       labelKey: 'NAV_MARKETS'        as const },
-  { path: '/scanner',       labelKey: 'NAV_SETUP_SCANNER'  as const },
-  { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP' as const },
-  { path: '/funding',       labelKey: 'NAV_FR_HISTORY'     as const },
-  { path: '/correlation',   labelKey: 'NAV_CORRELATION'    as const },
-];
-
-const TOOLS = [
-  { path: '/journal',       labelKey: 'NAV_JOURNAL'       as const },
-  { path: '/research',      labelKey: 'NAV_RESEARCH'      as const },
-  { path: '/calc',          labelKey: 'NAV_CALCULATORS'   as const },
-  { path: '/econ-calendar', labelKey: 'NAV_ECON_CALENDAR' as const },
-  { path: '/alerts',        labelKey: 'NAV_ALERTS'        as const },
-  { path: '/hours',         labelKey: 'NAV_BEST_HOURS'    as const },
-  { path: '/playbook',      labelKey: 'NAV_PLAYBOOK'      as const },
-];
-
-const TAIL = [
-  { path: '/news', labelKey: 'NAV_NEWS' as const },
-];
 
 type NavIcon = ComponentType<{ size?: number }>;
 type NavDest = { path: string; labelKey: LabelKey; Icon: NavIcon };
