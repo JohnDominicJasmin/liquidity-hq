@@ -121,6 +121,9 @@
      Worth collapsing into --green deliberately at some point. Two greens for
      one meaning is the reason this got missed in the first place. */
   --green-2:   #34d399;
+  /* #652: green foreground on a composited tint. Aliases --green-2 everywhere
+     except terminal light, where the composited grounds pull it under 4.5. */
+  --green-fg:  var(--green-2);
   /* Weaker-signal tier (e.g. "slightly high funding" vs "very high") - a
      paler version of --green/--red so the two tiers stay visually distinct. */
   --green-soft: #86efac;
@@ -5622,6 +5625,9 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      - terminal's --txt3 is the identical #7c828a literal, so the same
      composited-surface failure applies here too. */
   --txt-dash: #848a92;
+  /* #652: matches lib/terminalTokens.ts. Dark's green passes on every ground
+     it meets, so this is --green; terminal light takes its own darker value. */
+  --green-fg: #3fb950;
   /* #546 C9: derived tints for --green/--red, same pattern as the already-
      existing --accent-bg/--accent-bdr. Undeclared here, .chg-up/.chg-dn's
      background/border (app/globals.css:786-787) fell through to the current
@@ -5794,6 +5800,7 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --bg3: var(--bg2);
   --bg4: var(--bg1);
   --green-2:    var(--green);
+  --green-fg:   #0f5a22;
   --green-soft: var(--green);
   --red-soft:   var(--red);
   --txt-dim:    var(--txt2);
