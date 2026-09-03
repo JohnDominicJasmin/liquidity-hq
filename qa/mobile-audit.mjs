@@ -233,9 +233,19 @@ const result = await page.evaluate(TOKENS => {
       }
       const out = [];
       for (const el of document.querySelectorAll('[style]')) {
-        const inline = el.getAttribute('style') || '';
         for (const p of PROPS) {
-          if (!new RegExp('(^|;)\s*' + p + '\s*:').test(inline)) continue;
+          /* el.style, not a regex over the style attribute. The regex here was
+             `new RegExp('(^|;)\s*' + p + '\s*:')` written with single
+             backslashes, so `\s` collapsed to a literal `s` and the pattern
+             became `(^|;)s*font-sizes*:` - matching only when the property is
+             FIRST in the attribute or follows a `;` with no space. The browser
+             serialises `style` with `; `, so it silently detected the first
+             declaration and skipped every other one, and would have missed one
+             of the two defects in #660.
+             CSSStyleDeclaration answers the question exactly: a non-empty
+             value means the property is set inline. No escaping to get wrong,
+             and no dependence on how the attribute is serialised. */
+          if (!el.style.getPropertyValue(p)) continue;
           for (const sel of byProp[p]) {
             let hit = false;
             try { hit = el.matches(sel); } catch { continue; }
