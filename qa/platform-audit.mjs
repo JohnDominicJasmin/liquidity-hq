@@ -259,6 +259,34 @@ for (const vp of VIEWPORTS) {
            two identical consecutive reads, checked every 1.5s, capped at 30s.
            The cap is the honest part - a page that never settles is reported
            at whatever it reached, not waited on forever. */
+        /* Settle the DESIGN AND THEME before anything else. The empties poll
+           below waits for content; this waits for the page to stop being two
+           designs at once.
+
+           qa/mobile-audit.mjs returned 263 contrast failures on / in light on
+           qa 2ef168c and 0 on an immediate re-run of the identical command.
+           Nothing in that build touches the landing page: it was sampled
+           mid-transition, one design's colours applied and the other's not.
+           This file has the same exposure and had no such gate - the exact
+           'two tools measuring the same thing, only one corrected' shape that
+           left a retracted overflow finding publishing here for weeks (#686).
+
+           Watches the inputs, not the output: a full walk is too expensive to
+           sample twice, but a transition necessarily moves the design
+           attribute, the theme attribute or the body background. The theme
+           assertion is separate - a run that never applied the requested theme
+           is perfectly stable and measuring the wrong thing. */
+        const settled = await page.waitForFunction((want) => {
+          const de = document.documentElement;
+          const key = de.getAttribute('data-design') + '|' + de.getAttribute('data-theme') +
+                      '|' + getComputedStyle(document.body).backgroundColor;
+          const s = (window.__paSettle ||= { last: null, n: 0 });
+          s.n = key === s.last ? s.n + 1 : 0;
+          s.last = key;
+          return s.n >= 2 && de.getAttribute('data-theme') === want;
+        }, theme, { timeout: 45000, polling: 1000 }).then(() => true).catch(() => false);
+        if (!settled) rec.unsettled = true;
+
         {
           const countEmpties = () => page.evaluate((src) => {
             const re = new RegExp(src);
@@ -296,7 +324,7 @@ for (const vp of VIEWPORTS) {
       rows.push(rec);
       if (!JSON_OUT) {
         const f = rec.error ? `ERROR ${rec.error}` :
-          `ovf ${String(rec.overflow).padStart(4)}${rec.overflow === 0 && rec.widerThanViewport > 0 ? '(w' + rec.widerThanViewport + ')' : ''}  off ${String(rec.offDistinct).padStart(3)}  rad ${String(rec.radiusTotal).padStart(3)}  contrast ${String(rec.contrastFails).padStart(3)}  <24px ${String(rec.subMin).padStart(2)}  empty ${String(rec.empties).padStart(2)}`;
+          `ovf ${String(rec.overflow).padStart(4)}${rec.overflow === 0 && rec.widerThanViewport > 0 ? '(w' + rec.widerThanViewport + ')' : ''}  off ${String(rec.offDistinct).padStart(3)}  rad ${String(rec.radiusTotal).padStart(3)}  contrast ${String(rec.contrastFails).padStart(3)}  <24px ${String(rec.subMin).padStart(2)}  empty ${String(rec.empties).padStart(2)}` + (rec.unsettled ? '  UNSETTLED' : '');
         console.log(`${vp.padEnd(7)} ${theme.padEnd(5)} ${route.padEnd(18)} ${f}`);
         /* Name the empties. A bare count cannot be acted on - which field is
            blank is the whole question - and the labels are what turn an audit
@@ -342,6 +370,16 @@ console.log(`with off-palette       ${measured.filter(r => r.offDistinct > 0).le
 console.log(`with radius violations ${measured.filter(r => r.radiusTotal > 0).length}   (total ${sum('radiusTotal')}, circular <=24px exempt per radius-ruling.md)`);
 console.log(`with sub-24px targets  ${measured.filter(r => r.subMin > 0).length}   (total ${sum('subMin')})`);
 console.log(`with empty fields      ${measured.filter(r => r.empties > 0).length}   (total ${sum('empties')})`);
+
+/* A run that never settled is not a clean run, and a flag nobody prints is
+   the same defect one level up. */
+const unsettled = measured.filter(r => r.unsettled);
+if (unsettled.length) {
+  console.log('');
+  console.log(unsettled.length + ' of ' + measured.length + ' loads NEVER SETTLED within 45s -');
+  console.log('their design or theme was still changing when measured. Treat these rows as suspect:');
+  for (const r of unsettled.slice(0, 8)) console.log('  ' + r.route + ' ' + r.viewport + ' ' + r.theme);
+}
 
 if (errored.length) {
   console.log(`\n${errored.length} of ${rows.length} loads errored and are EXCLUDED from every count above:`);
