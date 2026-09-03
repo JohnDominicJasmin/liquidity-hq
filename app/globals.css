@@ -7443,13 +7443,27 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .liq-lad-title {
   font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700;
   letter-spacing: .16em; text-transform: uppercase; color: var(--txt2);
+  flex-shrink: 0; white-space: nowrap;
 }
+/* The meta is the one that gives way. Three items compete for a fixed 28px row
+   whose width varies with the viewport, and the meta is the only one whose
+   content grows - "8 LEVELS - $327M STACKED" on the canvas, but the level count
+   and the stacked total both come from live data and neither has a bound.
+
+   So it shrinks and ellipsises while the title and legend hold their size.
+   Without this the row either wraps out of a 28px box or pushes the legend off
+   the end, and which one happens depends on data nobody has seen yet - QA
+   flagged the fit as the most likely thing to be wrong on #674 and neither of
+   us can render it, since liq_events is empty in both environments. Removing
+   the failure mode is cheaper than measuring it. */
 [data-design="terminal"] .liq-lad-meta {
   font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .1em; color: var(--txt3);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 [data-design="terminal"] .liq-lad-legend {
   margin-left: auto; display: flex; align-items: center; gap: 14px;
   font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: .1em; color: var(--txt3);
+  flex-shrink: 0; white-space: nowrap;
 }
 [data-design="terminal"] .liq-lad-legend > span { display: flex; align-items: center; gap: 6px; }
 [data-design="terminal"] .liq-lad-key { width: 14px; height: 6px; flex-shrink: 0; }
