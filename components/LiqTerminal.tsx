@@ -163,7 +163,18 @@ function BandRow({ b }: { b: Band }) {
   );
 }
 
-function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentPrice: number }) {
+/* Exported so a fixture harness can render the ladder with seed buckets.
+   liq_events is empty in BOTH environments - QA measured production showing the
+   same "building" state as staging - so neither of us has seen this component
+   draw a row, and its layout is unverified for that reason rather than because
+   nobody looked.
+
+   Exported rather than adding a fixture mode to the page: a `?fixture=` flag
+   would put fabricated liquidation levels on a real route, which is the thing
+   #635 and #661 both ruled against. The component takes plain props, so a
+   harness can mount it with whatever rows it likes and nothing synthetic ever
+   reaches a visitor. */
+export function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentPrice: number }) {
   const { t } = useLabels();
   if (clusters.length === 0) {
     return (
