@@ -2313,7 +2313,19 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-section-hdr-long  { color: var(--red); background: rgba(248,113,113,0.06); border-top: 0.5px solid rgba(248,113,113,0.12); border-bottom: 0.5px solid rgba(248,113,113,0.12); }
 .liq-section-sub { font-size: var(--fs-caption); font-weight: 500; opacity: 0.75; text-transform: none; letter-spacing: 0; }
 
-.liq-current-bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: rgba(26,122,255,0.09); border-top: 1px solid rgba(26,122,255,0.28); border-bottom: 1px solid rgba(26,122,255,0.28); border-left: 3px solid var(--purple); margin: 2px 0; }
+/* Derived from --accent-2, was rgba(26,122,255,...) (#652). Those literals
+   are the current design's dark --accent-2, and the [data-theme="light"]
+   override below is its light one - neither carries a design qualifier, so
+   both painted under TERMINAL light too. That tint over --bg2 composited to
+   rgb(213,216,220), the bluish grey QA measured under .liq-current-oi and
+   neither of us could name: the ground was the defect, not the text on it.
+   Recolouring --txt3 to clear 4.5 against it would have compensated for a
+   leak and then been wrong once the leak was fixed.
+   Terminal aliases --accent-2 to var(--accent), so the bar now takes the
+   design's own emphasis colour; --accent-2 IS #1a7aff at :root and #0052CC
+   in the current design's light block, so both current-design renders are
+   byte-identical. */
+.liq-current-bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: color-mix(in srgb, var(--accent-2) 9%, transparent); border-top: 1px solid color-mix(in srgb, var(--accent-2) 28%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--accent-2) 28%, transparent); border-left: 3px solid var(--accent-2); margin: 2px 0; }
 .liq-current-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); flex-shrink: 0; animation: liq-pulse 2s infinite; }
 @keyframes liq-pulse { 0%,100%{box-shadow:0 0 6px var(--purple)} 50%{box-shadow:0 0 16px var(--purple),0 0 4px #fff4} }
 .liq-current-price { font-size: var(--fs-data); font-weight: 700; color: #fff; font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
@@ -2655,7 +2667,10 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 [data-theme="light"] .gex-hdr    { color: var(--txt3); }
 
 /* Current price bar in liq map */
-[data-theme="light"] .liq-current-bar   { background: rgba(0,82,204,0.06); }
+/* Kept as a light-theme step-down, now derived: the base rule's 9% is heavy
+   on a pale ground. Same value it always resolved to in the current design,
+   since --accent-2 is #0052CC there. */
+[data-theme="light"] .liq-current-bar   { background: color-mix(in srgb, var(--accent-2) 6%, transparent); }
 [data-theme="light"] .liq-current-price { color: var(--txt); }
 [data-theme="light"] .liq-current-tag   { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
 
@@ -7395,6 +7410,21 @@ main.app-content[data-chrome="none"] {
   border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
   padding: 3px 8px;
 }
+/* #652: --txt2 on the current-price bar, not --txt3.
+   Fixing the bar's colour leak (above) corrected the PALETTE but not the
+   CONTRAST - the two were separate defects on one element. Measured against
+   the corrected ground, --txt3 reads 4.16 dark / 4.33 light, and only clears
+   4.5 once the tint drops to 3%, which is close enough to no tint that the
+   bar stops marking the current-price row at all. That is the highlight's
+   whole job.
+   --txt2 clears at every alpha the bar could reasonably use - 4.95 dark and
+   4.55 light at the current 9%/6% - so the tint keeps doing its work and the
+   label becomes readable. Same resolution as .ms-ev-ago: when text sits on a
+   deliberate tint, the text moves up a step rather than the tint being
+   flattened out of existence. Terminal only; the current design's bar is a
+   different ground and was not measured. */
+[data-design="terminal"] .liq-current-oi { color: var(--txt2); }
+
 /* Mobile chrome, measured off Liquidation Map.dc.html's 390x844 frame
    (#652). The desktop rows were rendering unchanged at 390 - correct
    heights, no mobile variant. Row heights 46->36 and 40->34, rails 46->26
