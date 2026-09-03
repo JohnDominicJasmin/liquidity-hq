@@ -2378,6 +2378,14 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    and at 15px that ellipsises. This keeps the rail aligned in every state
    without forcing a word to compete with a number for width. */
 .edge-card-value { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: calc(var(--fs-data) * 1.1); display: flex; align-items: center; }
+/* #663: the deliberately-smaller variant, as a class rather than an inline
+   font-size. Two cells in CoinMarketSnapshot carry words ("Rising", "Falling")
+   instead of a number and want --fs-label, and they were setting it inline -
+   which outranks every selector, so [data-design="terminal"] .at-snapcells
+   .edge-card-value's 14px could never apply to them. Lower specificity than
+   that terminal rule on purpose: the current design keeps 13px here, terminal
+   still gets its 14px. */
+.edge-card-value.is-label { font-size: var(--fs-label); }
 .edge-card-sub   { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; line-height: 1.4; }
 .edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 2px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

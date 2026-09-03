@@ -590,7 +590,7 @@ function TEdgeSignals() {
           <div className="edge-card-label">
             <Tip text={t('DASH_EDGE_VWAP_TIP')}>{t('DASH_EDGE_VWAP_LABEL', { coin: coin.toUpperCase() })}</Tip>
           </div>
-          <div className="edge-card-value" style={{ color: vwapCol, fontSize: 'var(--fs-data)' }}>
+          <div className="edge-card-value" style={{ color: vwapCol }}>
             {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
           </div>
           {vwap != null && (
@@ -611,7 +611,7 @@ function TEdgeSignals() {
           </div>
           {oiMeta ? (
             <>
-              <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-data)' }}>{t(oiMeta.txtKey)}</div>
+              <div className="edge-card-value" style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
               <div className="edge-card-signal" style={{ color: oiMeta.col }}>{t(oiMeta.subKey)}</div>
             </>
           ) : (
@@ -637,7 +637,7 @@ function TEdgeSignals() {
           <div className="edge-card-label">
             <Tip width={260} text={t('DASH_EDGE_SETUP_TIP')}>{t('DASH_EDGE_SETUP_LABEL', { coin: coin.toUpperCase() })}</Tip>
           </div>
-          <div className="edge-card-value" style={{ color: sqCol, fontSize: 'var(--fs-data)' }}>
+          <div className="edge-card-value" style={{ color: sqCol }}>
             {sq.score}
             <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{sq.label}</span>
           </div>
@@ -652,7 +652,7 @@ function TEdgeSignals() {
           <div className="edge-card-label">
             <Tip text={t('DASH_EDGE_CB_TIP')}>{t('DASH_EDGE_CB_LABEL')}</Tip>
           </div>
-          <div className="edge-card-value" style={{ color: cbCol, fontSize: 'var(--fs-data)' }}>
+          <div className="edge-card-value" style={{ color: cbCol }}>
             {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-'}
           </div>
           <div className="edge-card-signal" style={{ color: cbCol }}>
