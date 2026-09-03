@@ -1,11 +1,17 @@
 'use client';
-/* Landing's price ticker (#413 canvas mirror, landing.md). Deliberately a
- * separate component from dashboard's PriceTickerStrip, not a shared one:
+/* Landing's price ticker (#413 canvas mirror, landing.md).
+ *
+ * It was deliberately a separate component from dashboard's
+ * PriceTickerStrip rather than a shared one. That component no longer exists
+ * - #718 deleted it with the dashboard canvas rebuild that created it - so
+ * the comparison below is history, kept because it is the reason THIS
+ * component owns its own geometry instead of taking props.
+ *
  * landing.md is explicit that ALL tracked coins render here ("Frame shows 8
  * coins. We have 50... EXTEND... Do NOT truncate to 8"), single overflow-
  * hidden row, and its mobile geometry (height 30 not 34, cell padding 0 12px
- * not 16, gap 6 not 8, price omitted, mask-image edge fade) has no
- * dashboard equivalent - dashboard's ticker has never had a mobile spec.
+ * not 16, gap 6 not 8, price omitted, mask-image edge fade) had no
+ * dashboard equivalent - dashboard's ticker never had a mobile spec.
  * Whether dashboard's own curated-8 was ever correct is a separate, open
  * question (flagged to QA, not resolved here) - this file only answers it
  * for landing, where the spec is explicit. */

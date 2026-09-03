@@ -312,7 +312,6 @@ export const LABEL_KEYS = [
   'DASH_SIDEBAR_SIG_FUNDING_VERY_LOW', 'DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_LOW',
   'DASH_SIDEBAR_SIG_FUNDING_NEUTRAL', 'DASH_SIDEBAR_MORE_COINS',
   'DASH_SIDEBAR_STATUS_BACKUP', 'DASH_SIDEBAR_STATUS_LIVE', 'DASH_SIDEBAR_STATUS_CONNECTING',
-  'DASH_SIDEBAR_HEADER_TITLE', 'DASH_SIDEBAR_HEADER_FIRING', 'DASH_SIDEBAR_HEADER_VIEW_ALL',
   // Dashboard - Edge Signals
   'DASH_EDGE_CB_LOADING', 'DASH_EDGE_CB_FOMO', 'DASH_EDGE_CB_MILD_BUY',
   'DASH_EDGE_CB_RETAIL_SELLING', 'DASH_EDGE_CB_MILD_SELL', 'DASH_EDGE_CB_NEUTRAL',
@@ -329,37 +328,14 @@ export const LABEL_KEYS = [
   // both needed because the frames draw that one key differently in the two
   // bars - OVERVIEW in the desktop nav, DESK in the mobile tab bar. The other
   // four use one label in both places.
-  // Arena terminal snapshot band, the canvas's five cells (#631).
-  // Arena 1a.dc.html:721-726. ARENA_SNAP_VOL_NOTE is "Binance", not the
-  // frame's "Bybit perp": wrong exchange, and "perp" would be wrong too on
-  // the normal path, since the snapshot route defaults to spot. See the
-  // component for the full reasoning.
-  // Liquidation map heatmap (#652). LIQ_HEAT_SOURCE says OBSERVED because
-  // liq_events has no server-side writer - see LiqHeatmap's header.
-  'LIQ_HEAT_TITLE', 'LIQ_HEAT_SOURCE', 'LIQ_HEAT_SOURCE_TIP',
-  'LIQ_HEAT_TZ', 'LIQ_HEAT_CAP_NOTE',
-  // Terminal drops the caret: the canvas footer reads "+21 MORE COINS"
-  // and the link goes to /markets rather than expanding in place, so a
-  // ▼ promises an interaction that does not happen (#656).
-  'DASH_SIDEBAR_MORE_COINS_TERMINAL',
-  'LIQ_HEAT_NO_EVENTS', 'LIQ_HEAT_THRESHOLD', 'LIQ_HEAT_REFRESH_TITLE',
-  'LIQ_HEAT_TAB_HEATMAP', 'LIQ_HEAT_TAB_LADDER', 'LIQ_HEAT_PALETTE_TITLE',
-  'ARENA_SNAP_VOL_LABEL', 'ARENA_SNAP_VOL_NOTE',
-  'ARENA_SNAP_OI_LABEL', 'ARENA_SNAP_OI_NOTE',
-  'ARENA_SNAP_FUNDING_LABEL',
-  'ARENA_SNAP_NEXT_FUNDING_LABEL', 'ARENA_SNAP_NEXT_FUNDING_NOTE',
-  'ARENA_SNAP_RANGE_LABEL', 'ARENA_SNAP_RANGE_NOTE',
   'TNAV_WORDMARK', 'TNAV_ARIA_LABEL', 'TNAV_MORE_ARIA',
   'TNAV_DESK_LABEL', 'TNAV_DESK_TAB_LABEL', 'TNAV_ARENA_LABEL',
   'TNAV_SCAN_LABEL', 'TNAV_FLOW_LABEL', 'TNAV_BOOK_LABEL',
-  // Market Conditions substituted slots (#635). The canvas labels these
-  // "Trend strength" and "Liquidity"; we have neither metric, so real
-  // data goes in the slots under its own name - see TMarketConditions.
-  'DASH_COND_RSI_BIAS_LABEL', 'DASH_COND_TAKER_FLOW_LABEL',
-  'DASH_COIN_SIGNALS_HEADER', 'DASH_BEST_SETUP_TODAY_HEADER', 'DASH_PLAYBOOK_HEADER',
-  'DASH_SELECTED_COIN_OPEN_ARENA',
-  'DASH_SELECTED_COIN_ARENA_CTA', 'DASH_COND_VOLATILITY_LABEL', 'DASH_COND_BREADTH_LABEL',
-  'DASH_NEXT_EVENTS_HEADER', 'DASH_CASCADE_DISMISS', 'DASH_MACRO_BACKDROP_HEADER',
+  'DASH_COIN_SIGNALS_HEADER', 'DASH_BEST_SETUP_TODAY_HEADER', 'DASH_SELECTED_COIN_OPEN_ARENA',
+  /* Used by app/dashboard/page.tsx - the CURRENT-design dashboard, which this
+     revert does not touch. It sat in the same block as the canvas-era keys and
+     came out with them; a used-key sweep caught it. */
+  'DASH_PLAYBOOK_HEADER',
 
   // Arena - timeframe gate + browser notifications
   'ARENA_TF_LABEL_1M', 'ARENA_TF_LABEL_5M', 'ARENA_TF_LABEL_15M', 'ARENA_TF_LABEL_FALLBACK',
@@ -415,8 +391,6 @@ export const LABEL_KEYS = [
   // Arena - workspace section
   'ARENA_ANTICHOP_TIP', 'ARENA_ANTICHOP_LABEL', 'ARENA_ANTICHOP_ON_HINT', 'ARENA_ANTICHOP_OFF_HINT',
   'ARENA_MARKET_SNAPSHOT_HEADER', 'ARENA_CONFLUENCE_GATE_TITLE', 'ARENA_CONFLUENCE_GATE_DESC', 'ARENA_CONFLUENCE_GATE_FEATURE_LABEL',
-  'ARENA_NEED_PRO_LABEL', 'ARENA_MTF_PANEL_TITLE', 'ARENA_USAGE_HEADER', 'ARENA_EVIDENCE_HEADER', 'ARENA_EMA_PANEL_TITLE',
-  'ARENA_MS_PANEL_TITLE', 'ARENA_HINT_TERMINAL_LABEL', 'ARENA_CLUSTERS_HEADER', 'ARENA_WHY_HEADER', 'ARENA_WHY_EMPTY', 'ARENA_ABSORPTION_PANEL_TITLE',
   // Arena - evidence/advanced + session history
   'ARENA_DIST_WARN_PULLBACK', 'ARENA_DIST_WARN_EARLY_WEAKNESS',
   'ARENA_REASONING_CHART_TITLE', 'ARENA_REASONING_PATTERNS_TITLE', 'ARENA_REASONING_TITLE',
@@ -469,10 +443,6 @@ export const LABEL_KEYS = [
   'LIQ_WHALE_SHORT_SQUEEZE_TITLE', 'LIQ_WHALE_SHORT_SQUEEZE_BODY',
   'LIQ_HEATMAP_SHORT_HEADER', 'LIQ_HEATMAP_SHORT_SUB', 'LIQ_HEATMAP_SHORT_ARIA',
   'LIQ_HEATMAP_COL_PRICE', 'LIQ_HEATMAP_COL_PCT_AWAY', 'LIQ_HEATMAP_COL_LEV_TITLE', 'LIQ_HEATMAP_COL_LEV_ABBR',
-  /* #652 region 5: the canvas's cluster ladder. EVENTS replaces the canvas's
-     LEVERAGE column - liq_events carries side, usd, price, ts and source, and
-     no entry price, so leverage is not derivable from it. */
-  'LIQ_LADDER_TITLE', 'LIQ_LADDER_META', 'LIQ_LADDER_COL_LEVEL', 'LIQ_LADDER_COL_SIDE', 'LIQ_LADDER_COL_SIZE', 'LIQ_LADDER_COL_USD', 'LIQ_LADDER_COL_EVENTS', 'LIQ_LADDER_COL_DISTANCE', 'LIQ_LADDER_LEGEND_SHORT', 'LIQ_LADDER_LEGEND_LONG', 'LIQ_LADDER_SIDE_LONG', 'LIQ_LADDER_SIDE_SHORT', 'LIQ_LADDER_EVENTS_TIP',
   'LIQ_HEATMAP_COL_DENSITY', 'LIQ_HEATMAP_COL_EST_USD', 'LIQ_HEATMAP_LIVE_TAG', 'LIQ_HEATMAP_OI_LABEL',
   'LIQ_HEATMAP_LONG_HEADER', 'LIQ_HEATMAP_LONG_SUB', 'LIQ_HEATMAP_LONG_ARIA',
   'LIQ_LEGEND_TITLE', 'LIQ_LEGEND_SHORT_BOLD', 'LIQ_LEGEND_SHORT_TEXT',

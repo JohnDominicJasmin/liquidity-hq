@@ -557,6 +557,10 @@ body::after {
   font-family: var(--font-mono), monospace; font-size: 10.5px;
 }
 [data-design="terminal"] .csb2-sig { font-size: 10.5px; }
+/* Current design's size, moved out of the component's inline style (#718).
+   It has to live here or the terminal rule below is dead - an inline value
+   outranks every selector. */
+.csb2-health-badge { font-size: var(--fs-caption); }
 [data-design="terminal"] .csb2-health-badge {
   font-family: var(--font-mono), monospace; font-size: 9.5px;
 }
@@ -893,8 +897,7 @@ body::after {
 .scc-up { color: var(--green); } .scc-dn { color: var(--red); }
 .scc-sig { font-size: var(--fs-caption); font-weight: 600; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 190px; }
-.scc-cta { flex-shrink: 0; font-family: var(--font-mono), monospace; font-size: var(--fs-caption);
-  font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.scc-arrow { flex-shrink: 0; font-size: 1.1rem; color: var(--txt3); line-height: 1; }
 
 /* Macro Context rail wrapper - GlobalMacroContext has its own inner padding,
    this just gives it the flat-card frame the other rail items carry. */
@@ -6749,7 +6752,7 @@ main.app-content[data-chrome="none"] {
   border-bottom: 1px solid var(--bdr); background: var(--bg1);
 }
 [data-design="terminal"] .at-vmain {
-  flex: 0 0 330px; padding: 20px; display: flex; flex-direction: column; gap: 10px;
+  flex: 0 0 330px; padding: 16px; display: flex; flex-direction: column; gap: 6px;
   border-right: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .at-vlabel {
@@ -6776,7 +6779,7 @@ main.app-content[data-chrome="none"] {
 }
 [data-design="terminal"] .at-vlevels { display: flex; flex: 1; }
 [data-design="terminal"] .at-vlevel {
-  flex: 1; padding: 20px 22px; display: flex; flex-direction: column; gap: 7px;
+  flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 5px;
   border-right: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .at-vlevelval {
@@ -6848,15 +6851,7 @@ main.app-content[data-chrome="none"] {
   flex: 1; min-width: 0; border-right: 1px solid var(--bdr);
 }
 [data-design="terminal"] .at-rail { flex: 0 0 352px; display: flex; flex-direction: column; }
-/* overflow/position: KLineProChart is restyled by tokens, not rebuilt
-   (arena.md, out of scope) - it sizes its own internal canvas/overlay price
-   tags from assumptions that predate this 430px box. Without a clip
-   boundary here, anything it renders taller than 430px spills into
-   MultiTF/MarketStructure below instead of being cropped by its own panel. */
-[data-design="terminal"] .at-chart {
-  height: 430px; padding: 16px 62px 24px 16px;
-  position: relative; overflow: hidden;
-}
+[data-design="terminal"] .at-chart { height: 430px; padding: 16px 62px 24px 16px; }
 /* The two paired rows: each half flex:1, divided by one structural hairline. */
 [data-design="terminal"] .at-pair { display: flex; align-items: stretch; border-bottom: 1px solid var(--bdr); }
 [data-design="terminal"] .at-pair > * { flex: 1; min-width: 0; }
@@ -6908,22 +6903,6 @@ main.app-content[data-chrome="none"] {
   [data-design="terminal"] .at-chart { height: 210px; }
   [data-design="terminal"] .at-ev { padding: 10px 14px; }
   [data-design="terminal"] .at-root { padding-bottom: 60px; }
-  /* .at-pair (MTF+Structure, EMA+Absorption) stacks instead of sitting
-     side-by-side - two ~170px-wide halves at 390px isn't enough room for
-     either panel's own content. */
-  [data-design="terminal"] .at-pair { flex-direction: column; }
-  [data-design="terminal"] .at-pair > * + * { border-left: 0; border-top: 1px solid var(--bdr); }
-  /* Structure row: type + price + ago, direction glyph absent (arena.md
-     mobile region table). MarketStructure is shared, so the glyph itself
-     stays - restyled off, not deleted, same as the KLineProChart toolbar
-     buttons above. */
-  [data-design="terminal"] .at-panelbody .ms-dir-glyph { display: none; }
-  /* C32: nav 38. Nav itself is shell chrome (out of scope this branch,
-     matches every other terminal route tonight) - this only sets the height
-     so the mobile tree matches the spec's number; it does not restyle nav
-     content. The tab bar (60, five destinations) is the app shell's own
-     .mobile-tab-bar below, not a second arena-only bar. */
-  [data-design="terminal"] .at-nav-mobile { height: 38px; }
 }
 
 /* Rail panels — clusters, Why, session history. Rows use --bdr3 (list
@@ -6975,11 +6954,11 @@ main.app-content[data-chrome="none"] {
 
 /* Region 4, snapshot band: 330 coin cell | stat cells | 230 badge cell. */
 [data-design="terminal"] .at-coincell {
-  flex: 0 0 330px; display: flex; align-items: center; gap: 13px;
-  padding: 0 20px; border-right: 1px solid var(--bdr3);
+  flex: 0 0 330px; display: flex; align-items: center; gap: 12px;
+  padding: 0 18px; border-right: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .at-coinsym {
-  font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: var(--txt);
+  font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--txt);
 }
 [data-design="terminal"] .at-snapcells { flex: 1; min-width: 0; display: flex; align-items: center; }
 [data-design="terminal"] .at-badgecell {
@@ -7036,35 +7015,14 @@ main.app-content[data-chrome="none"] {
 
 /* Body panels wear the spec's header (§Panel header: "every panel in the body
    uses it"). The passed-in components draw their own, so theirs is suppressed
-   here and .at-phead (app/arena/page.tsx's terminal branch - no separate
-   ArenaTerminal.tsx, see #413 architecture note there) supplies the pattern -
-   height 30, 0 16px, 10px mono/700 .16em, optional PRO chip.
+   here and ArenaTerminal's BodyPanel supplies the pattern - height 30, 0 16px,
+   10px mono/700 .16em, optional PRO chip.
    Suppressed rather than deleted: these components render on other screens
    where their headers are correct. */
 [data-design="terminal"] .at-bodypanel .sms-header,
 [data-design="terminal"] .at-bodypanel .ms-header,
-[data-design="terminal"] .at-bodypanel .abs-header,
-[data-design="terminal"] .at-bodypanel .ema-header {
-  /* !important: ema-header carries an inline display:'flex' - same
-     "inline beats a non-important class rule" shape as #559's radius
-     fixes tonight, just for display instead of border-radius. The other
-     three (sms/ms/abs-header) have no competing inline style, so this is
-     harmless for them. */
-  display: none !important;
-}
+[data-design="terminal"] .at-bodypanel .abs-header { display: none; }
 [data-design="terminal"] .at-panelbody { padding: 0; }
-/* MultiTFAlignment's own title is an .edge-card-label, the same class its
-   repeated row-cells use elsewhere (dashboard's signal grid) - safe to
-   suppress wholesale here because .at-panelbody never hosts that repeated
-   pattern, only this one title use. */
-[data-design="terminal"] .at-panelbody .edge-card-label { display: none; }
-/* EMASignal ships its own card chrome (bg/border/radius) with no class to
-   flatten via the .card/.edge-card hook above - same shape as the "class
-   exists only for a terminal selector" pattern used throughout this file. */
-[data-design="terminal"] .at-panelbody .ema-card {
-  background: transparent !important; border: 0 !important; border-radius: 0 !important;
-  padding: 0 !important; margin: 0 !important;
-}
 /* The cards these components ship lose their frames inside a panel that
    already has one - otherwise every row reads as its own region. */
 [data-design="terminal"] .at-panelbody .card,
@@ -7210,86 +7168,33 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .mcw-rsi-fill,
 [data-design="terminal"] .mcw-ls-bar,
 [data-design="terminal"] .mcw-ls-bar > *   { border-radius: 0; }
+/* #698: the coin-heatmap tile's text in terminal.
+   The tile's colour ramp was built for the CURRENT design - text lightens as
+   the tile saturates (#86efac, #fee2e2), so severity is carried by the tile
+   while the number stays readable, 8.6:1 to 9.6:1 across the ramp. In terminal
+   --green-soft and --red-soft alias flat to --green/--red, so that lightening
+   does not happen and the strongest tiles put a mid-tone signal colour on a
+   saturated tint of itself: 3.51 worst, 26 failures on /scanner (#698).
 
-/* Rail width, canvas-exact (qa/reports/dashboard-2a-canvas-geometry.md: aside
-   width 352px). Was 360px, close but not what the canvas draws. */
-@media (min-width: 1100px) {
-  [data-design="terminal"] .dashboard-grid { grid-template-columns: minmax(0, 1fr) 352px; }
-}
+   Terminal takes --txt and lets the tint carry direction, which is what
+   /correlation already shipped on #570 - 2368 failing cells fixed exactly that
+   way, now measuring 2450 with zero failures on production. It clears every
+   ground on this ramp by 7.8:1 or better and, unlike a stronger foreground,
+   cannot be reopened by a stronger tint - the tint strength here is
+   data-driven, so there is no value that is safe by construction.
 
-/* ── Dashboard canvas mirror (feature/dashboard-canvas-mirror, #587) ──
-   Dashboard 2a.dc.html draws the six coin-signal cards as ONE 3x2 table -
-   hairline-separated cells, no per-card background or gap - not two
-   auto-fit card grids with a gap between them. TEdgeSignals now renders
-   all six as siblings of a single .edge-grid; this makes that grid lay
-   out and look like the canvas's table instead of the base .edge-card's
-   free-standing rounded cards. Scoped to .dash-main so Arena's own
-   .at-snapcells/.at-panelbody overrides (different geometry, same base
-   classes) are untouched.
-   Geometry from qa/reports/dashboard-2a-canvas-geometry.md: cell padding
-   12px 16px, label/value/sig 10.5/15/10.5, hairline #16191b (--bdr3). */
-[data-design="terminal"] .dash-main .edge-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  margin-bottom: 0;
-}
-[data-design="terminal"] .dash-main .edge-card {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  border-right: 1px solid var(--bdr3);
-  border-bottom: 1px solid var(--bdr3);
-  padding: 12px 16px;
-}
-[data-design="terminal"] .dash-main .edge-card:nth-child(3n) { border-right: 0; }
-[data-design="terminal"] .dash-main .edge-card:nth-last-child(-n+3) { border-bottom: 0; }
-[data-design="terminal"] .dash-main .edge-card-label  { font-size: 10.5px; }
-[data-design="terminal"] .dash-main .edge-card-value  { font-size: 15px; }
-[data-design="terminal"] .dash-main .edge-card-signal { font-size: 10.5px; }
+   Direction is not lost with the colour: the tile tint and the +/- sign both
+   still carry it, which is also what keeps this clear of WCAG 1.4.1.
 
-/* Market read banner - the canvas's first main-column panel (#587).
-   Desktop geometry, Dashboard 2a.dc.html:79-83: background #141517, padding
-   15px 20px, bottom hairline #1f2225 (--bdr); eyebrow 10px mono .16em
-   uppercase --txt3; verdict 24px mono 700 line-height 1 at 8px above; sub
-   12.5px/1.5 --txt2 at 8px above, capped 680px so the sentence wraps at a
-   readable measure rather than the full column width.
+   The current design is untouched - --heat-fg is unset there, so each span
+   falls back to its own ramp colour.
 
-   #141517 is --bg1, NOT --bg2. This shipped as --bg2 (#111416) with a
-   comment claiming it was #141517, so the wrong value read as verified:
-   the banner painted DARKER than the TPanel siblings below it, inverting
-   the canvas relationship where the band is a lifted surface on the
-   column ground. Light theme had the same inversion (canvas #ebe9e6 is
-   terminal-light --bg1; --bg2 there is #e3e1dd). */
-[data-design="terminal"] .dash-market-read-banner {
-  background: var(--bg1);
-  border-bottom: 1px solid var(--bdr);
-  padding: 15px 20px;
-}
-[data-design="terminal"] .dmrb-eyebrow {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--txt3);
-}
-[data-design="terminal"] .dmrb-verdict {
-  font-family: var(--font-mono), monospace;
-  font-size: 24px; font-weight: 700; line-height: 1; margin-top: 8px;
-}
-[data-design="terminal"] .dmrb-sub {
-  font-size: 12.5px; line-height: 1.5; color: var(--txt2);
-  margin-top: 8px; max-width: 680px;
-}
-/* Mobile band, Dashboard 2a.dc.html:236-239 - a distinct geometry, not the
-   desktop one reflowed: padding 14, verdict 21px at line-height 1.1, sub
-   12px. The canvas hand-breaks its verdict string ("RISK-ON,<br>CAUTIOUS")
-   precisely because 24px at line-height 1 does not survive a narrow column -
-   production strings are longer still ("Decent conditions - be selective" is
-   32 characters), so without this they wrap and the lines touch. */
-@media (max-width: 640px) {
-  [data-design="terminal"] .dash-market-read-banner { padding: 14px; }
-  [data-design="terminal"] .dmrb-verdict { font-size: 21px; line-height: 1.1; }
-  [data-design="terminal"] .dmrb-sub { font-size: 12px; }
-}
+   RESTORED (#720 review). This rule sat directly above the cluster-ladder
+   block on `dev` and went out with it in ed47abe - the commit whose own
+   message claims to have kept it. It belongs to /scanner, which #718 does not
+   revert. Placed here, away from any liq-scoped block, so the next revert in
+   this file cannot sweep it up the same way. */
+[data-design="terminal"] .chm-tile { --heat-fg: var(--txt); }
 
 /* briefing */
 [data-design="terminal"] .mb-macro-item { border-radius: 0; }
@@ -7371,301 +7276,6 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .briefing-term-wrap * { border-radius: 0 !important; }
 [data-design="terminal"] .liq-term-wrap,
 [data-design="terminal"] .liq-term-wrap * { border-radius: 0 !important; }
-
-/* ══ Liquidation map, canvas regions 2-4 (#652) ═══════════════════════════
-   Values measured off Liquidation Map.dc.html: title row 46, tabs row 40,
-   heat rails 46 and 58, time axis 20. The surface's own ground is the
-   canvas's #0a0710 - the darkest stop of ramp 0, so the unlit part of the
-   field reads as the ramp's floor rather than as the page showing through.
-   It is deliberately NOT a token: it is the bottom of a continuous colour
-   scale, the same reason the ramps themselves are not palette members. */
-[data-design="terminal"] .liq-heat-head {
-  height: 46px; flex-shrink: 0; display: flex; align-items: center;
-  padding: 0 16px; gap: 14px; border-bottom: 1px solid var(--bdr);
-}
-[data-design="terminal"] .liq-heat-title {
-  font-family: var(--font-mono), monospace;
-  font-size: 14px; font-weight: 700; letter-spacing: .1em; color: var(--txt);
-}
-[data-design="terminal"] .liq-heat-source {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .14em; color: var(--txt3);
-}
-[data-design="terminal"] .liq-heat-tfs {
-  display: flex; gap: 2px; border: 1px solid var(--bdr);
-  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .1em;
-}
-[data-design="terminal"] .liq-heat-tf {
-  padding: 5px 10px; color: var(--txt3); background: none; border: 0; cursor: pointer;
-  font-family: inherit; font-size: inherit; letter-spacing: inherit;
-}
-[data-design="terminal"] .liq-heat-tf.on { color: var(--bg0); background: var(--accent); }
-[data-design="terminal"] .liq-heat-refresh {
-  border: 1px solid var(--border-input); width: 30px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  background: none; cursor: pointer; color: var(--txt2); flex-shrink: 0;
-}
-[data-design="terminal"] .liq-heat-refresh:hover { border-color: var(--accent); }
-
-[data-design="terminal"] .liq-heat-controls {
-  height: 40px; flex-shrink: 0; display: flex; align-items: center;
-  padding: 0 16px; gap: 12px; border-bottom: 1px solid var(--bdr);
-}
-[data-design="terminal"] .liq-heat-tabs {
-  display: flex; gap: 2px;
-  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .12em;
-}
-[data-design="terminal"] .liq-heat-tab {
-  padding: 6px 12px; border: 1px solid var(--bdr); background: none;
-  color: var(--txt3); cursor: pointer; font-family: inherit;
-  font-size: inherit; letter-spacing: inherit;
-}
-[data-design="terminal"] .liq-heat-tab.on { color: var(--bg0); background: var(--accent); }
-[data-design="terminal"] .liq-heat-swatches { display: flex; gap: 4px; }
-/* 26x16 painted, 26x24 tappable (#652). The canvas specifies width:26px;
-   height:16px and this is built exactly to it - so the CANVAS asks for a
-   control that fails SC 2.5.8's 24px minimum. Resolved the way landing.md:512
-   already prescribes for its own two undersized controls, "a padded hit area
-   without changing their painted box", and the way #642 built it for the
-   footer links: padding grows the box, an equal negative margin pulls the
-   flow back, nothing moves. Only the height failed - 26 already clears 24.
-   The first version of this omitted box-sizing and therefore grew nothing;
-   see the note on the rule itself. */
-[data-design="terminal"] .liq-heat-swatch {
-  /* box-sizing: content-box is what makes the padding above actually DO
-     anything. globals.css:213 sets `* { box-sizing: border-box }` globally, and
-     under border-box a height of 16px INCLUDES the 4px padding - so the hit area
-     stayed 26x16 and the padding bought nothing. QA measured exactly that.
-
-     The rule was written correctly for content-box and silently did nothing
-     under the box model this project actually uses: it looked like the #642
-     footer-link fix and behaved like no fix at all. With content-box the box is
-     16 + 4 + 4 = 24 tall, the negative margin pulls the layout back so nothing
-     moves, and background-clip keeps the paint on the 16px content box. */
-  box-sizing: content-box;
-  width: 26px; height: 16px; border: 1px solid var(--bdr); cursor: pointer;
-  padding: 4px 0; margin: -4px 0; background-clip: content-box;
-}
-[data-design="terminal"] .liq-heat-swatch.on { border-color: var(--accent); }
-[data-design="terminal"] .liq-heat-thr-label {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .12em; color: var(--txt2);
-}
-[data-design="terminal"] .liq-heat-thr { width: 150px; accent-color: var(--accent); cursor: pointer; }
-
-[data-design="terminal"] .liq-heat-wrap {
-  flex: 1; min-height: 0; display: flex; padding: 14px 16px 8px; gap: 12px;
-}
-[data-design="terminal"] .liq-heat-scale {
-  width: 46px; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start;
-  font-family: var(--font-mono), monospace; font-size: 9.5px;
-}
-[data-design="terminal"] .liq-heat-scale-max { color: var(--txt2); }
-[data-design="terminal"] .liq-heat-scale-min { color: var(--txt4); margin-top: 6px; }
-[data-design="terminal"] .liq-heat-scale-bar {
-  flex: 1; width: 16px; margin-top: 6px; border: 1px solid var(--bdr);
-}
-[data-design="terminal"] .liq-heat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-[data-design="terminal"] .liq-heat-surface {
-  flex: 1; min-height: 0; position: relative; overflow: hidden; background: #0a0710;
-}
-[data-design="terminal"] .liq-heat-row { position: absolute; left: 0; right: 0; }
-[data-design="terminal"] .liq-heat-spot {
-  position: absolute; left: 0; right: 0;
-  border-top: 1px dashed color-mix(in srgb, var(--txt) 50%, transparent);
-}
-[data-design="terminal"] .liq-heat-spot-label {
-  position: absolute; right: 6px; margin-top: -8px;
-  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700;
-  color: var(--bg0); background: var(--txt); padding: 1px 4px;
-}
-[data-design="terminal"] .liq-heat-time {
-  height: 20px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
-  font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: .08em; color: var(--txt4);
-}
-[data-design="terminal"] .liq-heat-axis {
-  width: 58px; flex-shrink: 0; display: flex; flex-direction: column;
-  justify-content: space-between; padding-bottom: 20px;
-  font-family: var(--font-mono), monospace; font-size: 9.5px; color: var(--txt3); text-align: right;
-}
-[data-design="terminal"] .liq-heat-tz { color: var(--txt3); letter-spacing: .12em; }
-[data-design="terminal"] .liq-heat-cap {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .12em; color: var(--amber);
-  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
-  padding: 3px 8px;
-}
-/* #652: --txt2 on the current-price bar, not --txt3.
-   Fixing the bar's colour leak (above) corrected the PALETTE but not the
-   CONTRAST - the two were separate defects on one element. Measured against
-   the corrected ground, --txt3 reads 4.16 dark / 4.33 light, and only clears
-   4.5 once the tint drops to 3%, which is close enough to no tint that the
-   bar stops marking the current-price row at all. That is the highlight's
-   whole job.
-   --txt2 clears at every alpha the bar could reasonably use - 4.95 dark and
-   4.55 light at the current 9%/6% - so the tint keeps doing its work and the
-   label becomes readable. Same resolution as .ms-ev-ago: when text sits on a
-   deliberate tint, the text moves up a step rather than the tint being
-   flattened out of existence. Terminal only; the current design's bar is a
-   different ground and was not measured. */
-[data-design="terminal"] .liq-current-oi { color: var(--txt2); }
-
-/* #698: the coin-heatmap tile's text in terminal.
-   The tile's colour ramp was built for the CURRENT design - text lightens as
-   the tile saturates (#86efac, #fee2e2), so severity is carried by the tile
-   while the number stays readable, 8.6:1 to 9.6:1 across the ramp. In terminal
-   --green-soft and --red-soft alias flat to --green/--red, so that lightening
-   does not happen and the strongest tiles put a mid-tone signal colour on a
-   saturated tint of itself: 3.51 worst, 26 failures on /scanner (#698).
-
-   Terminal takes --txt and lets the tint carry direction, which is what
-   /correlation already shipped on #570 - 2368 failing cells fixed exactly that
-   way, now measuring 2450 with zero failures on production. It clears every
-   ground on this ramp by 7.8:1 or better and, unlike a stronger foreground,
-   cannot be reopened by a stronger tint - the tint strength here is
-   data-driven, so there is no value that is safe by construction.
-
-   Direction is not lost with the colour: the tile tint and the +/- sign both
-   still carry it, which is also what keeps this clear of WCAG 1.4.1.
-
-   The current design is untouched - --heat-fg is unset there, so each span
-   falls back to its own ramp colour. */
-[data-design="terminal"] .chm-tile { --heat-fg: var(--txt); }
-
-/* ── CLUSTER LADDER (region 5) ──────────────────────────────────────────
-   Measured off Liquidation Map.dc.html:119-149. The canvas grid is
-   100px 62px 1fr 72px 72px 78px with a 28px head and 1px hairlines.
-
-   Typography lives here, not inline. LiqTerminal renders only under
-   mode === 'terminal', so there is no second design to keep at another size -
-   and an inline font-size outranks every selector, which is how #629, #633 and
-   #660 each shipped a rule that could never apply (#663). */
-[data-design="terminal"] .liq-lad {
-  border: 1px solid var(--bdr); border-bottom: 0; background: var(--bg0); margin-bottom: 12px;
-}
-[data-design="terminal"] .liq-lad-head {
-  height: 28px; border-bottom: 1px solid var(--bdr); display: flex; align-items: center;
-  padding: 0 16px; gap: 10px;
-}
-[data-design="terminal"] .liq-lad-title {
-  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700;
-  letter-spacing: .16em; text-transform: uppercase; color: var(--txt2);
-  flex-shrink: 0; white-space: nowrap;
-}
-/* The meta is the one that gives way. Three items compete for a fixed 28px row
-   whose width varies with the viewport, and the meta is the only one whose
-   content grows - "8 LEVELS - $327M STACKED" on the canvas, but the level count
-   and the stacked total both come from live data and neither has a bound.
-
-   So it shrinks and ellipsises while the title and legend hold their size.
-   Without this the row either wraps out of a 28px box or pushes the legend off
-   the end, and which one happens depends on data nobody has seen yet - QA
-   flagged the fit as the most likely thing to be wrong on #674 and neither of
-   us can render it, since liq_events is empty in both environments. Removing
-   the failure mode is cheaper than measuring it. */
-[data-design="terminal"] .liq-lad-meta {
-  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .1em; color: var(--txt3);
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-[data-design="terminal"] .liq-lad-legend {
-  margin-left: auto; display: flex; align-items: center; gap: 14px;
-  font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: .1em; color: var(--txt3);
-  flex-shrink: 0; white-space: nowrap;
-}
-[data-design="terminal"] .liq-lad-legend > span { display: flex; align-items: center; gap: 6px; }
-[data-design="terminal"] .liq-lad-key { width: 14px; height: 6px; flex-shrink: 0; }
-[data-design="terminal"] .liq-lad-cols,
-[data-design="terminal"] .liq-lad-row {
-  display: grid; grid-template-columns: 100px 62px 1fr 72px 72px 78px; align-items: center;
-}
-[data-design="terminal"] .liq-lad-cols { border-bottom: 1px solid var(--bdr); }
-[data-design="terminal"] .liq-lad-row  { border-bottom: 1px solid var(--bdr2); }
-[data-design="terminal"] .liq-lad-cols > span {
-  padding: 6px 12px; font-family: var(--font-mono), monospace; font-size: 9px;
-  letter-spacing: .16em; color: var(--txt3);
-}
-[data-design="terminal"] .liq-lad-cols > span:first-child { padding-left: 16px; }
-[data-design="terminal"] .liq-lad-cols > span:last-child  { padding-right: 16px; }
-[data-design="terminal"] .liq-lad-lvl {
-  padding: 7px 16px; font-family: var(--font-mono), monospace; font-size: 12px;
-  color: var(--txt); font-variant-numeric: tabular-nums;
-}
-[data-design="terminal"] .liq-lad-side {
-  padding: 7px 12px; font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .1em;
-}
-[data-design="terminal"] .liq-lad-bar-cell { padding: 7px 12px; }
-[data-design="terminal"] .liq-lad-bar { height: 8px; background: var(--bg2); display: flex; overflow: hidden; }
-[data-design="terminal"] .liq-lad-usd {
-  padding: 7px 12px; font-family: var(--font-mono), monospace; font-size: 11.5px;
-  color: var(--txt); text-align: right; font-variant-numeric: tabular-nums;
-}
-[data-design="terminal"] .liq-lad-ev {
-  padding: 7px 12px; font-family: var(--font-mono), monospace; font-size: 11px;
-  color: var(--txt2); text-align: right; font-variant-numeric: tabular-nums;
-}
-[data-design="terminal"] .liq-lad-dist {
-  padding: 7px 16px; font-family: var(--font-mono), monospace; font-size: 11px;
-  color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums;
-}
-
-/* 390 frame: five columns, not six. EVENTS is the one dropped - it is the
-   substituted column rather than one the canvas asked for, and the size bar
-   carries the long/short split that would otherwise be unreadable at this
-   width. DISTANCE stays: "1.6% below spot" is the reason to look at a level.
-   Both the header cell and the row cell have to go, or the two grids stop
-   agreeing and every row below the head shifts one column left. */
-@media (max-width: 767px) {
-  [data-design="terminal"] .liq-lad-cols,
-  [data-design="terminal"] .liq-lad-row { grid-template-columns: 70px 44px 1fr 58px 62px; }
-  [data-design="terminal"] .liq-lad-ev,
-  [data-design="terminal"] .liq-lad-cols > span:nth-child(5) { display: none; }
-  [data-design="terminal"] .liq-lad-head { padding: 0 12px; }
-  [data-design="terminal"] .liq-lad-legend { display: none; }
-  [data-design="terminal"] .liq-lad-lvl  { padding-left: 12px; font-size: 11px; }
-  [data-design="terminal"] .liq-lad-dist { padding-right: 12px; }
-  [data-design="terminal"] .liq-lad-cols > span:first-child { padding-left: 12px; }
-  [data-design="terminal"] .liq-lad-cols > span:last-child  { padding-right: 12px; }
-}
-
-/* Mobile chrome, measured off Liquidation Map.dc.html's 390x844 frame
-   (#652). The desktop rows were rendering unchanged at 390 - correct
-   heights, no mobile variant. Row heights 46->36 and 40->34, rails 46->26
-   and 58->46, axis type 9.5->8.5.
-
-   The fixed 330 surface is the one that matters most. On desktop flex:1 is
-   right; at 390 the canvas deliberately BANDS the surface at 330 rather than
-   letting it take the remainder, so the ladder and feeds below stay reachable
-   without scrolling past a full-height heatmap. */
-@media (max-width: 767px) {
-  [data-design="terminal"] .liq-heat-head {
-    height: 36px; padding: 0 14px; gap: 10px;
-  }
-  [data-design="terminal"] .liq-heat-title { font-size: 11.5px; }
-  [data-design="terminal"] .liq-heat-source { font-size: 9.5px; }
-  [data-design="terminal"] .liq-heat-controls {
-    height: 34px; padding: 0 14px; gap: 10px;
-  }
-  [data-design="terminal"] .liq-heat-tab { padding: 5px 11px; }
-  [data-design="terminal"] .liq-heat-wrap {
-    flex: 0 0 330px; height: 330px; padding: 10px 12px 6px; gap: 8px;
-  }
-  [data-design="terminal"] .liq-heat-scale { width: 26px; font-size: 8.5px; }
-  [data-design="terminal"] .liq-heat-scale-bar { width: 12px; }
-  [data-design="terminal"] .liq-heat-axis { width: 46px; font-size: 8.5px; }
-  [data-design="terminal"] .liq-heat-time { font-size: 8.5px; }
-  /* The threshold slider and its label are the first things to lose at 390 -
-     the canvas's mobile controls row carries the view tabs and swatches only.
-     Hidden rather than shrunk: a 150px range input inside a 366px row would
-     crowd out the tabs that select what is being shown. */
-  [data-design="terminal"] .liq-heat-thr,
-  [data-design="terminal"] .liq-heat-thr-label { display: none; }
-}
-
-[data-design="terminal"] .liq-heat-empty {
-  flex: 1; display: flex; align-items: center; justify-content: center;
-  padding: 2rem; color: var(--txt3);
-  font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .08em;
-}
 
 /* ── #559 platform radius sweep: circular-glyph carve-out ──────────────────
    specs/radius-ruling.md: "border-radius: 0 applies to rectangular surfaces

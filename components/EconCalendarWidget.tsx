@@ -7,7 +7,6 @@ import type { LabelKey } from '@/lib/labelKeys';
 import { getAuthToken } from '@/lib/supabase';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
 import { withAlpha } from '@/lib/color';
-import { useDesignMode } from '@/components/DesignModeProvider';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -45,7 +44,6 @@ function fmtDateHeader(iso: string, t: TFn, now: number): string {
    data source, just a compact preview of the next few high-impact events. ── */
 export default function EconCalendarWidget() {
   const { t } = useLabels();
-  const mode = useDesignMode();
   const [events, setEvents]   = useState<CalEvent[] | null>(null);
   const [error, setError]     = useState(false);
 
@@ -91,7 +89,7 @@ export default function EconCalendarWidget() {
   return (
     <div className="av-rail-panel">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div className="av-rail-panel-h" style={{ marginBottom: 0 }}>{mode === 'terminal' ? t('DASH_NEXT_EVENTS_HEADER') : t('ECON_CALENDAR_WIDGET_TITLE')}</div>
+        <div className="av-rail-panel-h" style={{ marginBottom: 0 }}>{t('ECON_CALENDAR_WIDGET_TITLE')}</div>
         <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.04em' }}>
           {t('ECON_CALENDAR_WIDGET_UPCOMING')}
         </span>
