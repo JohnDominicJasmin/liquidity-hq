@@ -328,16 +328,6 @@ export const LABEL_KEYS = [
   // both needed because the frames draw that one key differently in the two
   // bars - OVERVIEW in the desktop nav, DESK in the mobile tab bar. The other
   // four use one label in both places.
-  // Arena terminal snapshot band, the canvas's five cells (#631).
-  // Arena 1a.dc.html:721-726. ARENA_SNAP_VOL_NOTE is "Binance", not the
-  // frame's "Bybit perp": wrong exchange, and "perp" would be wrong too on
-  // the normal path, since the snapshot route defaults to spot. See the
-  // component for the full reasoning.
-  'ARENA_SNAP_VOL_LABEL', 'ARENA_SNAP_VOL_NOTE',
-  'ARENA_SNAP_OI_LABEL', 'ARENA_SNAP_OI_NOTE',
-  'ARENA_SNAP_FUNDING_LABEL',
-  'ARENA_SNAP_NEXT_FUNDING_LABEL', 'ARENA_SNAP_NEXT_FUNDING_NOTE',
-  'ARENA_SNAP_RANGE_LABEL', 'ARENA_SNAP_RANGE_NOTE',
   'TNAV_WORDMARK', 'TNAV_ARIA_LABEL', 'TNAV_MORE_ARIA',
   'TNAV_DESK_LABEL', 'TNAV_DESK_TAB_LABEL', 'TNAV_ARENA_LABEL',
   'TNAV_SCAN_LABEL', 'TNAV_FLOW_LABEL', 'TNAV_BOOK_LABEL',
@@ -401,8 +391,6 @@ export const LABEL_KEYS = [
   // Arena - workspace section
   'ARENA_ANTICHOP_TIP', 'ARENA_ANTICHOP_LABEL', 'ARENA_ANTICHOP_ON_HINT', 'ARENA_ANTICHOP_OFF_HINT',
   'ARENA_MARKET_SNAPSHOT_HEADER', 'ARENA_CONFLUENCE_GATE_TITLE', 'ARENA_CONFLUENCE_GATE_DESC', 'ARENA_CONFLUENCE_GATE_FEATURE_LABEL',
-  'ARENA_NEED_PRO_LABEL', 'ARENA_MTF_PANEL_TITLE', 'ARENA_USAGE_HEADER', 'ARENA_EVIDENCE_HEADER', 'ARENA_EMA_PANEL_TITLE',
-  'ARENA_MS_PANEL_TITLE', 'ARENA_HINT_TERMINAL_LABEL', 'ARENA_CLUSTERS_HEADER', 'ARENA_WHY_HEADER', 'ARENA_WHY_EMPTY', 'ARENA_ABSORPTION_PANEL_TITLE',
   // Arena - evidence/advanced + session history
   'ARENA_DIST_WARN_PULLBACK', 'ARENA_DIST_WARN_EARLY_WEAKNESS',
   'ARENA_REASONING_CHART_TITLE', 'ARENA_REASONING_PATTERNS_TITLE', 'ARENA_REASONING_TITLE',

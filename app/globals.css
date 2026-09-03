@@ -6752,7 +6752,7 @@ main.app-content[data-chrome="none"] {
   border-bottom: 1px solid var(--bdr); background: var(--bg1);
 }
 [data-design="terminal"] .at-vmain {
-  flex: 0 0 330px; padding: 20px; display: flex; flex-direction: column; gap: 10px;
+  flex: 0 0 330px; padding: 16px; display: flex; flex-direction: column; gap: 6px;
   border-right: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .at-vlabel {
@@ -6779,7 +6779,7 @@ main.app-content[data-chrome="none"] {
 }
 [data-design="terminal"] .at-vlevels { display: flex; flex: 1; }
 [data-design="terminal"] .at-vlevel {
-  flex: 1; padding: 20px 22px; display: flex; flex-direction: column; gap: 7px;
+  flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 5px;
   border-right: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .at-vlevelval {
@@ -6851,15 +6851,7 @@ main.app-content[data-chrome="none"] {
   flex: 1; min-width: 0; border-right: 1px solid var(--bdr);
 }
 [data-design="terminal"] .at-rail { flex: 0 0 352px; display: flex; flex-direction: column; }
-/* overflow/position: KLineProChart is restyled by tokens, not rebuilt
-   (arena.md, out of scope) - it sizes its own internal canvas/overlay price
-   tags from assumptions that predate this 430px box. Without a clip
-   boundary here, anything it renders taller than 430px spills into
-   MultiTF/MarketStructure below instead of being cropped by its own panel. */
-[data-design="terminal"] .at-chart {
-  height: 430px; padding: 16px 62px 24px 16px;
-  position: relative; overflow: hidden;
-}
+[data-design="terminal"] .at-chart { height: 430px; padding: 16px 62px 24px 16px; }
 /* The two paired rows: each half flex:1, divided by one structural hairline. */
 [data-design="terminal"] .at-pair { display: flex; align-items: stretch; border-bottom: 1px solid var(--bdr); }
 [data-design="terminal"] .at-pair > * { flex: 1; min-width: 0; }
@@ -6911,22 +6903,6 @@ main.app-content[data-chrome="none"] {
   [data-design="terminal"] .at-chart { height: 210px; }
   [data-design="terminal"] .at-ev { padding: 10px 14px; }
   [data-design="terminal"] .at-root { padding-bottom: 60px; }
-  /* .at-pair (MTF+Structure, EMA+Absorption) stacks instead of sitting
-     side-by-side - two ~170px-wide halves at 390px isn't enough room for
-     either panel's own content. */
-  [data-design="terminal"] .at-pair { flex-direction: column; }
-  [data-design="terminal"] .at-pair > * + * { border-left: 0; border-top: 1px solid var(--bdr); }
-  /* Structure row: type + price + ago, direction glyph absent (arena.md
-     mobile region table). MarketStructure is shared, so the glyph itself
-     stays - restyled off, not deleted, same as the KLineProChart toolbar
-     buttons above. */
-  [data-design="terminal"] .at-panelbody .ms-dir-glyph { display: none; }
-  /* C32: nav 38. Nav itself is shell chrome (out of scope this branch,
-     matches every other terminal route tonight) - this only sets the height
-     so the mobile tree matches the spec's number; it does not restyle nav
-     content. The tab bar (60, five destinations) is the app shell's own
-     .mobile-tab-bar below, not a second arena-only bar. */
-  [data-design="terminal"] .at-nav-mobile { height: 38px; }
 }
 
 /* Rail panels — clusters, Why, session history. Rows use --bdr3 (list
@@ -6978,11 +6954,11 @@ main.app-content[data-chrome="none"] {
 
 /* Region 4, snapshot band: 330 coin cell | stat cells | 230 badge cell. */
 [data-design="terminal"] .at-coincell {
-  flex: 0 0 330px; display: flex; align-items: center; gap: 13px;
-  padding: 0 20px; border-right: 1px solid var(--bdr3);
+  flex: 0 0 330px; display: flex; align-items: center; gap: 12px;
+  padding: 0 18px; border-right: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .at-coinsym {
-  font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: var(--txt);
+  font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--txt);
 }
 [data-design="terminal"] .at-snapcells { flex: 1; min-width: 0; display: flex; align-items: center; }
 [data-design="terminal"] .at-badgecell {
@@ -7039,35 +7015,14 @@ main.app-content[data-chrome="none"] {
 
 /* Body panels wear the spec's header (§Panel header: "every panel in the body
    uses it"). The passed-in components draw their own, so theirs is suppressed
-   here and .at-phead (app/arena/page.tsx's terminal branch - no separate
-   ArenaTerminal.tsx, see #413 architecture note there) supplies the pattern -
-   height 30, 0 16px, 10px mono/700 .16em, optional PRO chip.
+   here and ArenaTerminal's BodyPanel supplies the pattern - height 30, 0 16px,
+   10px mono/700 .16em, optional PRO chip.
    Suppressed rather than deleted: these components render on other screens
    where their headers are correct. */
 [data-design="terminal"] .at-bodypanel .sms-header,
 [data-design="terminal"] .at-bodypanel .ms-header,
-[data-design="terminal"] .at-bodypanel .abs-header,
-[data-design="terminal"] .at-bodypanel .ema-header {
-  /* !important: ema-header carries an inline display:'flex' - same
-     "inline beats a non-important class rule" shape as #559's radius
-     fixes tonight, just for display instead of border-radius. The other
-     three (sms/ms/abs-header) have no competing inline style, so this is
-     harmless for them. */
-  display: none !important;
-}
+[data-design="terminal"] .at-bodypanel .abs-header { display: none; }
 [data-design="terminal"] .at-panelbody { padding: 0; }
-/* MultiTFAlignment's own title is an .edge-card-label, the same class its
-   repeated row-cells use elsewhere (dashboard's signal grid) - safe to
-   suppress wholesale here because .at-panelbody never hosts that repeated
-   pattern, only this one title use. */
-[data-design="terminal"] .at-panelbody .edge-card-label { display: none; }
-/* EMASignal ships its own card chrome (bg/border/radius) with no class to
-   flatten via the .card/.edge-card hook above - same shape as the "class
-   exists only for a terminal selector" pattern used throughout this file. */
-[data-design="terminal"] .at-panelbody .ema-card {
-  background: transparent !important; border: 0 !important; border-radius: 0 !important;
-  padding: 0 !important; margin: 0 !important;
-}
 /* The cards these components ship lose their frames inside a panel that
    already has one - otherwise every row reads as its own region. */
 [data-design="terminal"] .at-panelbody .card,
