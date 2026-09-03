@@ -41,7 +41,13 @@ const THEMES = [
    is what has to pass. */
 const GROUNDS = ['--bg0', '--bg1', '--bg2'];
 
-test('every reachable cell clears 4.5:1 in both themes, on any card ground', () => {
+test('every TINTED cell clears 4.5:1 in both themes, on any card ground', () => {
+  /* Tinted only, and the name says so. QA's review of #678 caught that this
+     read "every reachable cell" while sweeping only cells that carry a tint and
+     take --txt. The null cell is a different pair - --txt3 on
+     rgba(255,255,255,0.03) - and is covered by the test below rather than by
+     this one. An overstated coverage claim is exactly what this file exists to
+     prevent, so the name had to narrow. */
   const failures: string[] = [];
   for (const { name, T } of THEMES) {
     for (const ground of GROUNDS) {
@@ -89,4 +95,24 @@ test('the ramp is monotonic away from zero', () => {
     assert.ok(tintPct(i / 100) >= tintPct((i - 1) / 100), `positive ramp dipped at r=${i / 100}`);
     assert.ok(tintPct(-i / 100) >= tintPct(-(i - 1) / 100), `negative ramp dipped at r=${-i / 100}`);
   }
+});
+
+test('the null cell is --txt3, not --txt, and its margin is thin (#679)', () => {
+  /* NOT an assertion that it passes - it does not, on two of three dark
+     grounds. Recorded here so the numbers live next to the ones above rather
+     than in a comment, and so this file stops implying it covered them.
+
+         dark   --bg0 4.90  --bg1 4.40  --bg2 4.46
+         light  --bg0 5.70  --bg1 5.10  --bg2 4.74
+
+     This is #679: --txt3 clears AA by about 0.1 on --bg0 and spends that margin
+     on any raised surface. QA measured the same 4.46 on /liq's "current price"
+     label - different screen, live browser, different method, same token. It is
+     a palette question, not a correlation one, and spot-fixing it here would
+     make the token look healthier than it is. */
+  const T = TERMINAL_COLORS as Record<string, string>;
+  const nullCell = over('#ffffff', T['--bg1'], 3);
+  const c = ratio(hex(T['--txt3']), nullCell);
+  assert.ok(c < 4.5, `expected the known #679 shortfall on --bg1, measured ${c.toFixed(2)}`);
+  assert.ok(c > 4.0, 'if this drops below 4.0 the token moved and #679 needs re-measuring');
 });
