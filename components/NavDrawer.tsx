@@ -302,9 +302,38 @@ export default function NavDrawer() {
      a prop instead of a window event threaded through the shell. */
   const terminal = mode === 'terminal';
 
+  /* NOT ON THE LANDING PAGE (#714).
+   *
+   * LandingTerminal renders its own nav - `Sign In` and `Get Started Free` -
+   * and this one was rendering underneath it, so `/` served two stacked navs.
+   * The app nav is the wrong one to show there: its five items (Overview,
+   * Arena, Scan, Flow, Book) are all GATED routes, so a logged-out visitor
+   * clicking any of them lands somewhere they cannot use, on the page whose
+   * only job is to convert them.
+   *
+   * Latent until #719. `.tnav` renders only in terminal mode, and before
+   * terminal became the default on `/`, anyone seeing it had typed
+   * ?design=terminal and was already a signed-in operator reading an app nav
+   * as normal. Making it the default turned a duplicate nobody met into the
+   * first thing every visitor sees.
+   *
+   * A RENDER GATE, NOT `body.landing { display: none }`. That block hides the
+   * rest of the app chrome and I tried it first - but `body.landing` is added
+   * by an effect in LandingContent, so the CSS cannot apply until after
+   * hydration and the nav FLASHES on every landing visit. Measured: the
+   * regression test failed on exactly that, asserting immediately after
+   * navigation. #719 established that a flash on the acquisition surface is
+   * the thing to avoid, so the nav must never be in the tree here rather than
+   * be painted and then hidden.
+   *
+   * Route-based rather than a `body.landing` read because the pathname is
+   * known synchronously on the first render, server and client. Same shape as
+   * AppShell's own isChromeless()/isAuthRoute() gates. */
+  const onLanding = pathname === '/';
+
   return (
     <>
-      {terminal && <TerminalNav onOpenDrawer={() => setDrawerOpen(true)} />}
+      {terminal && !onLanding && <TerminalNav onOpenDrawer={() => setDrawerOpen(true)} />}
       {!terminal && (
       <div className="app-bar">
         <div className="app-bar-inner">

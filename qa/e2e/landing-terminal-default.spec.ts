@@ -124,6 +124,51 @@ test.describe('#719 terminal on landing only', () => {
     ).toBe('terminal');
   });
 
+  test('#714: / shows landing\'s own nav and NOT the app nav', async ({ page }) => {
+    /* `/` was rendering two stacked navs: LandingTerminal's own (Sign In,
+       Get Started Free) and AppShell's `.tnav` (Overview, Arena, Scan, Flow,
+       Book). The second is worse than redundant - every one of its five items
+       is a GATED app route, so a logged-out visitor clicking any of them lands
+       somewhere unusable, on the page meant to convert them.
+     *
+     * Latent until #719. `.tnav` only renders in terminal, and before terminal
+     * became the default on `/` anyone seeing it had typed ?design=terminal and
+     * was already a signed-in operator. Same shape as the duplicate ticker
+     * #592 fixed, and fixed the same way - one line in the `body.landing`
+     * hide block.
+     *
+     * Asserts the app nav is not VISIBLE rather than not present: the fix is a
+     * `display: none`, so the element still exists in the tree. */
+    await page.goto('/');
+
+    /* WAIT FOR THE PAGE TO LEAVE ITS LOADING BRANCH FIRST. LandingContent
+       returns `lp-loading` while the Supabase session resolves, so asserting
+       straight after goto() measures a page that has not rendered its nav yet.
+       My first two versions of this test did exactly that and failed on both
+       halves in turn - the second failure ("no sign-in link") was the test
+       being early, not the fix being wrong. Anchoring on landing's own sign-in
+       link is the signal that the real content has arrived. */
+    await page.locator('a[href^="/login"]').first().waitFor({ state: 'attached', timeout: 20_000 });
+
+    const appNavVisible = await page.evaluate(() => {
+      const el = document.querySelector('.tnav');
+      if (!el) return false;
+      const s = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return s.display !== 'none' && s.visibility !== 'hidden' && r.height > 0;
+    });
+    expect(appNavVisible, 'the terminal APP nav is rendering on the landing page - its five items are gated routes a logged-out visitor cannot use').toBe(false);
+
+    /* And landing's own nav is still there - the fix must not have hidden the
+       one a visitor actually needs. Matched on the routes rather than the copy,
+       since the labels are dictionary-driven. */
+    const landingNavHrefs = await page.evaluate(() =>
+      [...document.querySelectorAll('a')]
+        .map(a => a.getAttribute('href') ?? '')
+        .filter(h => h.startsWith('/login') || h.startsWith('/signup')));
+    expect(landingNavHrefs.length, 'landing has no sign-in or sign-up link left').toBeGreaterThan(0);
+  });
+
   test('the boundary: / to an app route swaps the design, and says so', async ({ page }) => {
     /* #719 asks what the user sees crossing from landing into the app. It is a
        real design change mid-session and there is no hiding it - the owner's

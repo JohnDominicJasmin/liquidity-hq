@@ -4631,6 +4631,13 @@ body.landing .news-ticker,
    also render underneath it. Same hide-on-landing mechanism as the rest of
    this block, not new logic. */
 body.landing .price-ticker-strip,
+/* NO `body.landing .tnav` HERE, deliberately (#714). The terminal app nav also
+   had to go from `/`, and this block is where it belongs by symmetry - but
+   `body.landing` is added by an effect, so a CSS hide cannot apply until after
+   hydration and the nav flashed on every landing visit. It is gated at the
+   render instead, in components/NavDrawer.tsx, which has the pathname
+   synchronously. Noted here so the next person does not add the line and
+   assume it is doing the work. */
 body.landing .gchat-fab,
 body.landing .gchat-panel,
 body.landing .ob-checklist { display: none !important; }
