@@ -58,6 +58,13 @@ export const TERMINAL_COLORS = {
      placeholder actually renders on. Design's ruling: a dedicated value
      for this one use, not a change to --txt3 itself. */
   '--txt-dash': '#848a92',
+  /* #652: green FOREGROUND on a composited tint. Dark's --green passes on
+     every ground it meets, so this is simply --green there; terminal light's
+     #14702c does not - 4.35 on its own 12% chip tint, 4.19 on the
+     current-price bar's accent wash. Dedicated value for the composited case,
+     exactly as --txt-dash above, rather than moving --green and shifting every
+     green in the light theme to fix three elements on one screen. */
+  '--green-fg': '#3fb950',
 } as const;
 
 /** The same 18 tokens under `[data-design="terminal"][data-theme="light"]`
@@ -104,6 +111,7 @@ export const TERMINAL_COLORS_LIGHT = {
   '--border-input': '#75797e',  // Input and secondary-button border
   '--fr-slight-long': '#7C5E2E',
   '--txt-dash':     '#4f5257',
+  '--green-fg':     '#0f5a22',   // see the dark entry - 5.87 / 5.66 on the two tints
 } as const;
 
 /* The seventeenth value: the FLAT cell in the hours expectancy grid.

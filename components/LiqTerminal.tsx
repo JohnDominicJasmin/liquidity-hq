@@ -708,7 +708,7 @@ export default function LiqTerminal() {
             <div className="liq-current-bar">
               <span className="liq-current-dot" />
               <span className="liq-current-price">{fmtP(cd.price)}</span>
-              <span className="liq-current-chg" style={{ color: (cd.change ?? 0) >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
+              <span className="liq-current-chg" style={{ color: (cd.change ?? 0) >= 0 ? 'var(--green-fg)' : 'var(--red)' }}>
                 {(cd.change ?? 0) >= 0 ? '▲' : '▼'}{Math.abs(cd.change ?? 0).toFixed(2)}%
               </span>
               <span className="liq-current-tag">{t('LIQ_HEATMAP_LIVE_TAG')}</span>

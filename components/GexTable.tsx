@@ -19,7 +19,7 @@ export default function GexTable() {
   const gexLoaded = btcNetGex !== null && btcGexLevels.length > 0;
   const isLongGamma = (btcNetGex ?? 0) >= 0;
 
-  const gexCol     = isLongGamma ? 'var(--green-2)' : 'var(--red)';
+  const gexCol     = isLongGamma ? 'var(--green-fg)' : 'var(--red)';
   const gexBg      = isLongGamma ? 'color-mix(in srgb, var(--green-2) 12%, transparent)' : 'color-mix(in srgb, var(--red) 12%, transparent)';
   const gexBorder  = isLongGamma ? 'color-mix(in srgb, var(--green-2) 30%, transparent)'  : 'color-mix(in srgb, var(--red) 30%, transparent)';
 
@@ -149,7 +149,7 @@ export default function GexTable() {
           {btcGexLevels.map(({ strike, gex }) => {
             const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
             const col   = gex >= 0 ? 'var(--green-2)' : 'var(--red)';
-            const vcol  = gex >= 0 ? 'var(--green-2)' : 'var(--red)';
+            const vcol  = gex >= 0 ? 'var(--green-fg)' : 'var(--red)';
             const isAtm = spotPrice > 0 && Math.abs(strike - spotPrice) / spotPrice < 0.005;
             return (
               <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
