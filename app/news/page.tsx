@@ -155,7 +155,24 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
             letterSpacing: '.03em', whiteSpace: 'nowrap', flexShrink: 0,
           }}>
             {m.symbol}
-            <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, fontSize: '0.625rem' }}>·</span>
+            {/* Inherits the chip's own signal colour (#752). It was
+                rgba(255,255,255,0.3), which measured 1.09-2.64 against the
+                chip in every theme - worst 1.09 in light, so the divider
+                simply was not there and the chip read "BTC 12".
+
+                Measured three ways before picking. The chip is its signal
+                colour at 8% over the page ground, and against that:
+
+                  rgba(255,255,255,0.3)   1.09 - 2.64   fails all four
+                  var(--txt3)             4.46          fails terminal light
+                  var(--txt2)             4.81 - 6.68   passes
+                  inherited (no colour)   4.62 - 10.02  passes
+
+                Inheriting wins on being a deletion rather than a new
+                declaration, and the symbol beside it already proves that
+                colour is legible on this chip - it is the same measurement.
+                fontWeight 400 against the symbol's 700 still separates them. */}
+            <span style={{ fontWeight: 400, fontSize: '0.625rem' }}>·</span>
             <span style={{ fontWeight: 500, fontSize: 'var(--fs-caption)' }}>{m.total}{arrow}</span>
           </span>
         );
