@@ -7,6 +7,7 @@ import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useDesignMode } from '@/components/DesignModeProvider';
+import { readableOn } from '@/lib/readableOn';
 
 /* Typical-weekday session blocks, as UTC hour ranges - the same windows
    lib/session.ts enforces. These used to be PHT hours on a fixed PHT axis
@@ -76,6 +77,47 @@ export default function BestHours() {
     setMounted(true);
     const timer = setInterval(() => setTick(v => v + 1), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  /* THE GROUND THE BANDS SIT ON, READ FROM THE LIVE STYLESHEET (#707).
+     The band colours are translucent, so what the label has to contrast
+     against is the band flattened onto the strip's own background - which is
+     `--bg3`, and which has four different values across theme x design.
+
+     Read rather than restated. Hardcoding those four values here would put the
+     same fact in globals.css and in this file, and the two would part company
+     the first time a palette moved - which is #736 and #663, both of which
+     cost a public retraction this week. getComputedStyle sees whatever the
+     cascade actually resolved, including any design mode added later.
+
+     WATCHED, NOT SAMPLED ONCE. The first version read on mount and re-ran on
+     `mode`, and it was WRONG in terminal - measured live, ASIA rendered white
+     where the palette says black. React runs child effects before parent
+     effects, so this page's effect fires BEFORE DesignModeProvider has put
+     `data-design` on <html>: the read happens while the document is still
+     current-design and returns #0f1115 instead of #111416. Close enough that
+     it renders plausibly, wrong enough to pick the other colour on a band
+     that is a 0.12 tie.
+
+     So watch the attributes rather than guess when they settle - the same
+     MutationObserver pattern GrokSignalChart uses, plus the `theme-change`
+     event lib/theme.ts dispatches on an explicit toggle or a system change. */
+  const [ground, setGround] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--bg3').trim();
+      setGround(prev => (v && v !== prev ? v : prev));
+    };
+    read();
+    const observer = new MutationObserver(read);
+    observer.observe(document.documentElement, {
+      attributes: true, attributeFilter: ['data-theme', 'data-design'],
+    });
+    window.addEventListener('theme-change', read);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('theme-change', read);
+    };
   }, []);
 
   const now = new Date();
@@ -150,6 +192,12 @@ export default function BestHours() {
             {mounted && localSegments(-new Date().getTimezoneOffset() / 60).map((seg, i) => {
               const left  = (seg.start / 24) * 100;
               const width = ((seg.end - seg.start) / 24) * 100;
+              /* Derived, never tabulated - see lib/readableOn.ts. `ground` is
+                 null only on the first client frame, before the effect has
+                 read it; --txt for that one frame is the pre-#707 behaviour,
+                 which is legible in light and imperfect in dark rather than
+                 wrong in both. */
+              const pick = ground ? readableOn(seg.bg, ground) : null;
               return (
                 <div key={i} style={{
                   position: 'absolute', top: 0, bottom: 0,
@@ -157,27 +205,44 @@ export default function BestHours() {
                   background: seg.bg,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  {/* --txt, not '#fff' (#707). The band is pastel in light
-                      theme - rgb(156,224,181), rgb(240,206,119) - while the
-                      label stayed pure white, giving 1.46-1.78:1. The label
-                      colour never changed with the theme; only the band did.
+                  {/* PER BAND, DERIVED (#707, owner ruling). Two single-colour
+                      answers were tried here and both failed on one theme:
 
-                      --txt is near-white in dark and near-black in light, so
-                      one token covers both: dark keeps the appearance it had,
-                      light becomes legible. Same answer /correlation (#570)
-                      and the scanner heatmap (#701) landed on - let the tint
-                      carry the meaning, put the text in the theme's own
-                      foreground - rather than saturating the bands, which
-                      would change the screen's whole character to keep a
-                      colour nothing requires.
+                        '#fff'      fails all six bands in light  1.43 - 1.78
+                        var(--txt)  fails three bands in dark     2.33 - 4.42
 
-                      opacity 0.9 is KEPT and measured rather than assumed:
-                      --txt at 0.9 gives 9.39 PRIME, 9.44 ASIA, 7.93 DEAD,
-                      7.82 NY, 8.53 LONDON. Every band clears 4.5 with the
-                      existing fade, so removing it would have been a second
-                      change with nothing behind it. */}
+                      My own note in this spot claimed --txt was "measured" -
+                      the five numbers it quoted were light theme only, and it
+                      read as covering both. That is what shipped the dark
+                      regression, so the numbers below name their ground.
+
+                      Black or white, whichever wins on the flattened band.
+                      Every band clears 4.5 in all four theme x design
+                      combinations:
+
+                        band     cur dark      cur light   term dark     term light
+                        DEAD     white 8.34    black 11.57 white 8.17    black 11.28
+                        LONDON   white 5.42    black 12.66 white 5.33    black 12.37
+                        PRE_NY   white 7.81    black 12.43 white 7.63    black 12.10
+                        NY       white 6.23    black 11.43 white 6.12    black 11.15
+                        PRIME    black 6.89    black 13.97 black 6.96    black 13.77
+                        ASIA     white 4.60    black 14.10 black 4.64    black 13.84
+
+                      ASIA is a near-tie in dark - 4.57 black against 4.60
+                      white in the current design, and the other way round in
+                      terminal - so the derived answer differs by design on
+                      that one band. Both clear, and forcing agreement would
+                      mean a tiebreak rule that is a table by another name.
+
+                      THE 0.9 FADE IS GONE, and that is required rather than
+                      tidying: with it, ASIA in dark fails BOTH ways (black
+                      4.27, white 4.07). No colour clears that band through
+                      the fade, so the fade had to be the thing that moved. */}
                   {width > 7 && (
-                    <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.04em', opacity: 0.9 }}>
+                    <span style={{
+                      fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
+                      color: pick ? pick.color : 'var(--txt)',
+                    }}>
                       {t(seg.labelKey)}
                     </span>
                   )}
