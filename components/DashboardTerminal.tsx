@@ -29,6 +29,7 @@ import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import PerpSpotCard from '@/components/PerpSpotCard';
@@ -144,6 +145,11 @@ const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: s
 };
 
 const SIDEBAR_DEFAULT = 7;
+/* The canvas shortens the rail on mobile: Dashboard 2a.dc.html:288 renders
+   sidebarCoinsM, defined at :391 as sidebarCoins.slice(0, 5), where desktop
+   uses sidebarCoinsShown at 7 (#656). Five rows on a 390 viewport leaves the
+   sections below it reachable without scrolling past a full list. */
+const SIDEBAR_DEFAULT_MOBILE = 5;
 
 interface VolRegimeState { regime: 'low' | 'neutral' | 'high'; percentile: number }
 
@@ -278,7 +284,9 @@ function TCoinSidebar() {
   const watchlist = settings.watchlist ?? [];
   const pinned = watchlist.filter((id): id is CoinId => (COINS as string[]).includes(id));
   const rest    = COINS.filter(id => !watchlist.includes(id));
-  const visibleCoins = [...pinned, ...rest].slice(0, SIDEBAR_DEFAULT);
+  const isDesktop = useIsDesktop();
+  const shown = isDesktop ? SIDEBAR_DEFAULT : SIDEBAR_DEFAULT_MOBILE;
+  const visibleCoins = [...pinned, ...rest].slice(0, shown);
   const firingCount = COINS.filter(cid => sidebarSignalFor(store.coins[cid], t) !== null).length;
 
   return (
@@ -380,7 +388,7 @@ function TCoinSidebar() {
               <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
                 {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
               </span>
-              <Sparkline24h coin={id} width={SPARK_W} height={14} />
+              <Sparkline24h coin={id} width={SPARK_W} height={12} bars />
               {sig && (
                 <span className="csb2-sig" style={{ color: sig.col }}>
                   {sig.text}
@@ -397,6 +405,7 @@ function TCoinSidebar() {
 
       <Link
         href="/markets"
+        className="csb2-more"
         style={{
           display: 'block', width: '100%', background: 'none', border: 'none',
           borderTop: '1px solid var(--bdr)', padding: '7px 0',
@@ -405,7 +414,7 @@ function TCoinSidebar() {
           textTransform: 'uppercase',
         }}
       >
-        {t('DASH_SIDEBAR_MORE_COINS', { count: COINS.length - SIDEBAR_DEFAULT })}
+        {t('DASH_SIDEBAR_MORE_COINS_TERMINAL', { count: COINS.length - shown })}
       </Link>
       </div>
     </>

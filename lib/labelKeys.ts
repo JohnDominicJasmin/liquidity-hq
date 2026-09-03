@@ -338,6 +338,10 @@ export const LABEL_KEYS = [
   // liq_events has no server-side writer - see LiqHeatmap's header.
   'LIQ_HEAT_TITLE', 'LIQ_HEAT_SOURCE', 'LIQ_HEAT_SOURCE_TIP',
   'LIQ_HEAT_TZ', 'LIQ_HEAT_CAP_NOTE',
+  // Terminal drops the caret: the canvas footer reads "+21 MORE COINS"
+  // and the link goes to /markets rather than expanding in place, so a
+  // ▼ promises an interaction that does not happen (#656).
+  'DASH_SIDEBAR_MORE_COINS_TERMINAL',
   'LIQ_HEAT_NO_EVENTS', 'LIQ_HEAT_THRESHOLD', 'LIQ_HEAT_REFRESH_TITLE',
   'LIQ_HEAT_TAB_HEATMAP', 'LIQ_HEAT_TAB_LADDER', 'LIQ_HEAT_PALETTE_TITLE',
   'ARENA_SNAP_VOL_LABEL', 'ARENA_SNAP_VOL_NOTE',

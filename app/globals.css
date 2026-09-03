@@ -537,6 +537,34 @@ body::after {
   background: color-mix(in srgb, var(--green) 3%, transparent) !important;
 }
 
+/* Rail row typography, measured off Dashboard 2a.dc.html (#656). The build
+   inherited the current design's sizes, which run 12-15px against the
+   canvas's 9.5-11.5, and TWO of the five rendered in Plex Sans where the
+   canvas specifies mono - the grade badge and the change. On a column of
+   aligned numerals that is the difference between a column and a ragged
+   edge, which is what the owner is seeing as "needs more alignment".
+   Terminal only: .csb2-* is shared, and the current design's rail keeps its
+   own scale. */
+[data-design="terminal"] .csb2-name {
+  font-size: 11.5px; font-weight: 600; letter-spacing: .05em;
+}
+[data-design="terminal"] .csb2-price { font-size: 11.5px; }
+[data-design="terminal"] .csb2-chg {
+  font-family: var(--font-mono), monospace; font-size: 10.5px;
+}
+[data-design="terminal"] .csb2-sig { font-size: 10.5px; }
+[data-design="terminal"] .csb2-health-badge {
+  font-family: var(--font-mono), monospace; font-size: 9.5px;
+}
+
+/* Canvas footer: "+21 MORE COINS", mono 10.5, centred, no glyph. The build
+   carried a sans 12px "▼ +43 more coins" - the count differs correctly (it
+   is data) but the case, size and the added caret do not. */
+[data-design="terminal"] .csb2-more {
+  font-family: var(--font-mono), monospace;
+  font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+}
+
 /* ── MARKET EVENTS STRIP ── */
 
 /* ── CASCADE ALERT ── */

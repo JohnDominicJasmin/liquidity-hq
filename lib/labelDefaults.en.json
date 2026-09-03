@@ -503,6 +503,7 @@
   "DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_LOW": "Funding slightly low",
   "DASH_SIDEBAR_SIG_FUNDING_NEUTRAL": "Funding neutral",
   "DASH_SIDEBAR_MORE_COINS": "▼ +{count} more coins",
+  "DASH_SIDEBAR_MORE_COINS_TERMINAL": "+{count} more coins",
   "DASH_SIDEBAR_STATUS_BACKUP": "Backup",
   "DASH_SIDEBAR_STATUS_LIVE": "Live",
   "DASH_SIDEBAR_STATUS_CONNECTING": "Connecting",
