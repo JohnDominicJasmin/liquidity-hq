@@ -460,7 +460,14 @@ export default function FundingHistory() {
             <div style={{ maxHeight: 220, overflowY: 'auto' }}>
               {liveCoins.map(({ id, fr, sig, carryArb, contraShort, contraLong }) => (
                 <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderTop: '0.5px solid var(--bdr)' }}>
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: coinBadgeColor(id), minWidth: 32, flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>
+                  {/* PLAIN TEXT, NOT THE BADGE COLOUR (#734, owner ruling).
+                      coinBadgeColor returns a per-coin identity hue written
+                      for a DOT - a 16-18px filled circle on a tint of itself,
+                      where the 3:1 graphics bar applies. Used as 12px text it
+                      was measured at 1.38:1 at worst. The ruling: keep the
+                      coloured dot, make the ticker plain. The dot is the
+                      CoinIcon further down this file and is untouched. */}
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: 'var(--txt)', minWidth: 32, flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>
                     {id.toUpperCase()}
                   </span>
                   <span style={{ fontSize: 'var(--fs-caption)', color: frColor(fr), fontFamily: 'var(--font-mono), monospace', minWidth: 64, flexShrink: 0 }}>
