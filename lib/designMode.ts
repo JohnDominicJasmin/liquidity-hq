@@ -69,6 +69,26 @@ export function isTerminalByDefault(pathname: string | null | undefined): boolea
  * `pathname` is optional so existing callers keep compiling, but omitting it
  * means "no route default" - not "default to terminal".
  *
+ * A KNOWN COST, ACCEPTED DELIBERATELY (QA, on #724). The server knows the route
+ * and nothing else - DesignModeProvider's server snapshot is ['', null], since
+ * the query param and localStorage are both client-only. So on `/` the SSR pass
+ * renders from the route default:
+ *
+ *     /?design=current            SSR terminal  -> hydrates to current
+ *     /dashboard?design=terminal  SSR current   -> hydrates to terminal
+ *
+ * The second line was already true before #719. The FIRST is new: `/` used to
+ * server-render current for everyone, and now someone opting out sees one
+ * terminal frame before the client corrects. The palette itself does not flash
+ * either way - the inline script in app/layout.tsx sets data-design before
+ * paint - it is the component tree that arrives from the route.
+ *
+ * Not fixed, and the reason is a trade rather than difficulty: reading the
+ * param server-side means `searchParams`, which opts `/` out of static
+ * rendering. That charges every visitor on the default path to tidy up the rare
+ * opt-out path. Recorded here so the next person finds it as a decision rather
+ * than as a bug.
+ *
  * Pure so it can be tested without a DOM; the provider does the effects.
  */
 export function resolveDesignMode(
