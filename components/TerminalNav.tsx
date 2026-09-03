@@ -361,22 +361,18 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
           {!authLoading && !user && (
             <Link href="/login" className="tnav-signin">{t('NAV_SIGN_IN')}</Link>
           )}
-          {/* The avatar is the DESKTOP drawer opener. Hiding .app-bar for
-              terminal takes the hamburger with it, and with it every route
-              outside the five plus sign-out - so the bar needs an opener the
-              same way the mobile header does. The frames draw this box but
-              give it no behaviour at all, so attaching one adds nothing they
-              specify and removes nothing either. */}
-          <button
-            type="button"
-            className="tnav-avatar"
-            onClick={onOpenDrawer}
-            aria-haspopup="menu"
-            aria-controls="nav-drawer"
-            aria-label={t('TNAV_MORE_ARIA')}
-          >
-            {initials}
-          </button>
+          {/* The avatar carries no behaviour again (#731).
+              It was wired to open the drawer because hiding .app-bar for
+              terminal took the hamburger with it, leaving no desktop route to
+              anything outside the five tabs. #732 gave the bar those routes
+              directly and #731 gates the drawer to mobile, so on desktop this
+              click would now open nothing - a dead control on the most-used
+              chrome in the app.
+              Back to what the frames draw: an identity box with no behaviour.
+              A <span>, not a disabled <button>, because a button that does
+              nothing still takes focus and still announces itself as
+              actionable. Mobile keeps .tnav-mmore as its opener. */}
+          <span className="tnav-avatar" aria-hidden="true">{initials}</span>
         </div>
       </header>
 
