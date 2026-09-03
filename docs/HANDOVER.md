@@ -771,8 +771,19 @@ new RegExp(`…\b${cls}\b`)              // \b in a template literal is BACKSPAC
 
 The first was `qa/mobile-audit.mjs`'s dead-rule detector under-reporting; the
 other two were `__tests__/terminalTypographyOwnership`'s sweep **matching
-nothing at all** and therefore declaring the codebase clean. A regex literal is
-safe; the moment a pattern is built from a string — because it interpolates a
+nothing at all** and therefore declaring the codebase clean.
+
+**The distinction between those two matters more than the bug.** Under-reporting
+means some cases were missed; the third instance meant the rule map came back
+near-empty, so the sweep **reported on an empty set** — it did not miss some
+collisions, it compared the codebase against nothing and called it clean. A run
+that examines zero things and a codebase with zero defects produce byte-identical
+output. That is why every sweep in this repo now carries an arming assertion (`the
+rule map has > 20 entries`, `the file walk found > 50 files`) alongside its
+positive control: the control proves the check *can* fail, the arming assertion
+proves it had something to look at.
+
+A regex literal is safe; the moment a pattern is built from a string — because it interpolates a
 variable — every backslash needs doubling, and nothing warns you. **Build
 patterns from plain strings with explicit `\\`, never from template
 literals**, and assume any new string-built matcher is broken until a positive
