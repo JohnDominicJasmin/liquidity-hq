@@ -118,7 +118,7 @@ const PAGE_EVAL = ({ tokens, radiusExempt }) => {
      it attributes shell-wide colours to whichever route is being measured. */
   const isChrome = el => !!el.closest('.nav-menu, .gchat-panel, .app-bar, .nav-drawer, .pf-footer, .mobile-tab-bar');
 
-  const off = {}, radius = {}; let contrastFails = 0, subMin = 0, empties = 0, scanned = 0;
+  const off = {}, radius = {}, emptyLabels = []; let contrastFails = 0, subMin = 0, empties = 0, scanned = 0;
   const worstContrast = [];
   const BAD = /^(—|-|–|N\/A|--|NaN|null|undefined|CANNOT MEASURE)$/;
 
@@ -151,7 +151,21 @@ const PAGE_EVAL = ({ tokens, radiusExempt }) => {
         const fg = parse(s.color);
         if (fg) { const bg = bgOf(el); const ratio = cr(over(fg,bg), bg);
           if (ratio < need) { contrastFails++; if (worstContrast.length < 4) worstContrast.push({ t: t.slice(0,20), ratio:+ratio.toFixed(2), px:s.fontSize }); } }
-        if (BAD.test(t)) empties++;
+        if (BAD.test(t)) {
+          empties++;
+          /* A count with no identity is not actionable - "72 empty fields" says
+             nothing about which. Record the nearest preceding label so the
+             report names the field, capped so a page of placeholders does not
+             dominate the output. */
+          if (emptyLabels.length < 12) {
+            let lab = '';
+            for (let n = el.parentElement, i = 0; n && i < 3 && !lab; n = n.parentElement, i++) {
+              const first = (n.innerText || '').split('\n').map(x => x.trim()).filter(x => x && x !== t)[0];
+              if (first) lab = first.slice(0, 24);
+            }
+            emptyLabels.push((lab || el.className || el.tagName.toLowerCase()) + ' => "' + t + '"');
+          }
+        }
       }
     }
     if (/^(BUTTON|A|INPUT|SELECT)$/.test(el.tagName) && (r.width < 24 || r.height < 24)) subMin++;
@@ -164,7 +178,7 @@ const PAGE_EVAL = ({ tokens, radiusExempt }) => {
     offTop: Object.entries(off).sort((a,b)=>b[1]-a[1]).slice(0,4),
     radiusTotal: Object.values(radius).reduce((a,c)=>a+c,0),
     radiusTop: Object.entries(radius).sort((a,b)=>b[1]-a[1]).slice(0,3),
-    contrastFails, worstContrast, subMin, empties,
+    contrastFails, worstContrast, subMin, empties, emptyLabels: [...new Set(emptyLabels)],
   };
 };
 
@@ -201,6 +215,12 @@ for (const vp of VIEWPORTS) {
         const f = rec.error ? `ERROR ${rec.error}` :
           `ovf ${String(rec.overflow).padStart(4)}  off ${String(rec.offDistinct).padStart(3)}  rad ${String(rec.radiusTotal).padStart(3)}  contrast ${String(rec.contrastFails).padStart(3)}  <24px ${String(rec.subMin).padStart(2)}  empty ${String(rec.empties).padStart(2)}`;
         console.log(`${vp.padEnd(7)} ${theme.padEnd(5)} ${route.padEnd(18)} ${f}`);
+        /* Name the empties. A bare count cannot be acted on - which field is
+           blank is the whole question - and the labels are what turn an audit
+           row into a bug report. */
+        if (rec.emptyLabels && rec.emptyLabels.length) {
+          console.log('              empty: ' + rec.emptyLabels.join(' | '));
+        }
       }
     }
     await ctx.close();
