@@ -74,10 +74,31 @@ function cellColors(sig: TFSignal): { bg: string; text: string; border: string }
   if (sig.dir === 'NEUTRAL') return { bg: 'transparent', text: 'var(--txt-dim)', border: 'transparent' };
   const isFlush = sig.dir === 'FLUSH';
   const base    = isFlush ? 'var(--red)' : 'var(--green-2)';
+  /* #698: the TEXT takes the -fg variant, the tint keeps the base. Both used to
+     be `base`, which is signal colour on a wash of itself - the shape #688 and
+     #693 already answered on other screens.
+
+     Measured, ground = the cell's own tint over --bg1, at the three alphas
+     this ramp uses:
+
+                     dark                      light
+         a   base -> -fg            base -> -fg
+        0c   5.01    7.69           6.15    8.21     red
+        16   4.80    7.36           5.76    7.68
+        28   4.39    6.73           5.09    6.79     <- dark red failed here
+        0c   6.77    6.77           4.81    6.49     green
+        16   6.37    6.37           4.55    6.15
+        28   5.63    5.63           4.12    5.57     <- light green fails here
+
+     Dark green already passes and --green-fg aliases --green-2 there, so it is
+     unchanged. LIGHT GREEN AT THE STRONGEST TINT IS 4.12 AND FAILS - that is
+     not in QA's reopened count, which is dark only, so this fixes a failure
+     nobody has measured yet rather than waiting for it to be reported. */
+  const fg      = isFlush ? 'var(--red-fg)' : 'var(--green-fg)';
   const alpha   = sig.strength >= 70 ? '28' : sig.strength >= 40 ? '16' : '0c';
   return {
     bg:     withAlpha(base, alpha),
-    text:   base,
+    text:   fg,
     border: withAlpha(base, '33'),
   };
 }
