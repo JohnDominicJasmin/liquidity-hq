@@ -1402,6 +1402,21 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .wp-prime  { background: var(--green-bg);  color: var(--green);  border: 0.5px solid var(--green-bdr);  box-shadow: var(--glow-green); }
 .wp-london { background: var(--blue-bg);   color: var(--blue);   border: 0.5px solid var(--blue-bdr); }
 .wp-dead   { background: var(--red-bg);    color: var(--red);    border: 0.5px solid var(--red-bdr); }
+/* .wp-prime's text takes --green-fg under terminal (#707). --green on
+   rgb(210,216,207) - the pill's own green tint over the light ground -
+   measures 4.28, short of 4.5 by 0.22. --green-fg is 5.6 there and is the
+   treatment already shipped for this exact shape on #688 and #693.
+
+   TERMINAL-SCOPED RATHER THAN CHANGING THE BASE RULE, deliberately. At :root
+   --green-fg aliases --green-2, which is a different colour from --green - so
+   editing the base rule would repaint the pill on the CURRENT design, where
+   nothing has been measured failing. The defect was measured in terminal
+   light; the fix goes where the measurement was.
+
+   The other three pills are untouched: only .wp-prime was measured short, and
+   applying the -fg treatment to all four for symmetry would be four changes
+   with one defect behind them. */
+[data-design="terminal"] .wp-prime { color: var(--green-fg); }
 .wp-other  { background: var(--bg2);       color: var(--txt2);   border: 0.5px solid var(--bdr); }
 .nw-row       { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: var(--bg2); border: 0.5px solid var(--bdr); }
 .nw-name      { font-size: var(--fs-label); font-weight: 600; }
