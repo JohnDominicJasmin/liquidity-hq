@@ -40,6 +40,11 @@ const CASCADE_HIDE_MS    = 12_000;                 // show cascade badge 12s
 const STORAGE_KEY        = 'liq-events-v2';        // localStorage key
 const STORAGE_MAX        = 2000;                   // max events to persist locally
 const SB_SAVE_MS         = 5 * 60 * 1000;          // save to Supabase every 5 min
+/* How often the raw stream is handed to onEvents consumers. Not a render
+   cadence - the heatmap buckets 24h into 34 columns, so ~42 minutes per
+   column, and emitting faster than the grid can express changes nothing on
+   screen while re-rendering the page. */
+const EVENTS_EMIT_MS     = 15 * 1000;
 const SB_WIN_MS          = 24 * 60 * 60 * 1000;    // load last 24h from Supabase
 const SB_RETAIN_MS       = 7 * 24 * 60 * 60 * 1000; // purge events older than 7 days
 const SB_SAVE_TS_KEY     = 'liq-sb-ts';            // localStorage: last Supabase save timestamp
@@ -103,6 +108,7 @@ export default function LiqFeed({ onClusters, onEvents, coinFilter }: {
   const bnWsRef         = useRef<WebSocket | null>(null);
   const bbWsRef         = useRef<WebSocket | null>(null);
   const historyRef      = useRef<LiqEvent[]>([]);
+  const lastEmitRef     = useRef(0);
   const msgRef          = useRef(0);
   const cascadeTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,7 +158,21 @@ export default function LiqFeed({ onClusters, onEvents, coinFilter }: {
       .slice(0, 100);
     setClusters(buckets);
     onClusters?.(buckets);
-    onEvents?.(history);
+
+    /* Throttled, unlike onClusters (#652 review). rebuild() runs on every
+       websocket liquidation, and the first version of this emitted the whole
+       history each time - so a busy minute pushed a new array into the
+       parent's state hundreds of times, re-rendering the page per event for
+       a surface that buckets into 34 columns and cannot show the difference.
+       onClusters can afford it: it emits a small aggregate the parent renders
+       directly. This emits up to 5000 events for a density grid.
+       Leading edge, so the first data paints immediately and the empty state
+       does not linger. */
+    const now2 = Date.now();
+    if (onEvents && now2 - lastEmitRef.current >= EVENTS_EMIT_MS) {
+      lastEmitRef.current = now2;
+      onEvents(history);
+    }
   }, [onClusters, onEvents]);
 
   /* ── Sync coinFilter prop → ref and re-derive stats/clusters ── */
