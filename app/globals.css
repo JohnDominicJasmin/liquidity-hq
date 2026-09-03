@@ -7335,8 +7335,16 @@ main.app-content[data-chrome="none"] {
 }
 [data-design="terminal"] .liq-heat-tab.on { color: var(--bg0); background: var(--accent); }
 [data-design="terminal"] .liq-heat-swatches { display: flex; gap: 4px; }
+/* 26x16 painted, 26x24 tappable (#652). The canvas specifies width:26px;
+   height:16px and this is built exactly to it - so the CANVAS asks for a
+   control that fails SC 2.5.8's 24px minimum. Resolved the way landing.md:512
+   already prescribes for its own two undersized controls, "a padded hit area
+   without changing their painted box", and the way #642 built it for the
+   footer links: padding grows the box, an equal negative margin pulls the
+   flow back, nothing moves. Only the height failed - 26 already clears 24. */
 [data-design="terminal"] .liq-heat-swatch {
-  width: 26px; height: 16px; border: 1px solid var(--bdr); cursor: pointer; padding: 0;
+  width: 26px; height: 16px; border: 1px solid var(--bdr); cursor: pointer;
+  padding: 4px 0; margin: -4px 0; background-clip: content-box;
 }
 [data-design="terminal"] .liq-heat-swatch.on { border-color: var(--accent); }
 [data-design="terminal"] .liq-heat-thr-label {
@@ -7387,6 +7395,40 @@ main.app-content[data-chrome="none"] {
   border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
   padding: 3px 8px;
 }
+/* Mobile chrome, measured off Liquidation Map.dc.html's 390x844 frame
+   (#652). The desktop rows were rendering unchanged at 390 - correct
+   heights, no mobile variant. Row heights 46->36 and 40->34, rails 46->26
+   and 58->46, axis type 9.5->8.5.
+
+   The fixed 330 surface is the one that matters most. On desktop flex:1 is
+   right; at 390 the canvas deliberately BANDS the surface at 330 rather than
+   letting it take the remainder, so the ladder and feeds below stay reachable
+   without scrolling past a full-height heatmap. */
+@media (max-width: 767px) {
+  [data-design="terminal"] .liq-heat-head {
+    height: 36px; padding: 0 14px; gap: 10px;
+  }
+  [data-design="terminal"] .liq-heat-title { font-size: 11.5px; }
+  [data-design="terminal"] .liq-heat-source { font-size: 9.5px; }
+  [data-design="terminal"] .liq-heat-controls {
+    height: 34px; padding: 0 14px; gap: 10px;
+  }
+  [data-design="terminal"] .liq-heat-tab { padding: 5px 11px; }
+  [data-design="terminal"] .liq-heat-wrap {
+    flex: 0 0 330px; height: 330px; padding: 10px 12px 6px; gap: 8px;
+  }
+  [data-design="terminal"] .liq-heat-scale { width: 26px; font-size: 8.5px; }
+  [data-design="terminal"] .liq-heat-scale-bar { width: 12px; }
+  [data-design="terminal"] .liq-heat-axis { width: 46px; font-size: 8.5px; }
+  [data-design="terminal"] .liq-heat-time { font-size: 8.5px; }
+  /* The threshold slider and its label are the first things to lose at 390 -
+     the canvas's mobile controls row carries the view tabs and swatches only.
+     Hidden rather than shrunk: a 150px range input inside a 366px row would
+     crowd out the tabs that select what is being shown. */
+  [data-design="terminal"] .liq-heat-thr,
+  [data-design="terminal"] .liq-heat-thr-label { display: none; }
+}
+
 [data-design="terminal"] .liq-heat-empty {
   flex: 1; display: flex; align-items: center; justify-content: center;
   padding: 2rem; color: var(--txt3);

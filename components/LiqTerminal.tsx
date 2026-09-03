@@ -202,7 +202,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{
             width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-            background: '#34d399', boxShadow: '0 0 6px #34d39966',
+            background: 'var(--green-2)', boxShadow: '0 0 6px color-mix(in srgb, var(--green-2) 40%, transparent)',
           }} />
           <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
             {t('LIQ_CLUSTERS_TITLE')}
@@ -540,7 +540,7 @@ export default function LiqTerminal() {
                 </div>
                 {(retailPos?.longRatio ?? cd.bnLongRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'color-mix(in srgb, var(--red) 65%, transparent)', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.longRatio ?? cd.bnLongRatio!) * 100).toFixed(0)}%
                     </span>
                     <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '5m' })}</span>
@@ -573,7 +573,7 @@ export default function LiqTerminal() {
                 {(retailPos?.shortRatio ?? cd.bnShortRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '5m' })}</span>
-                    <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'color-mix(in srgb, var(--green-2) 65%, transparent)', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--green-2)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.shortRatio ?? cd.bnShortRatio!) * 100).toFixed(0)}%
                     </span>
                   </div>
@@ -651,8 +651,8 @@ export default function LiqTerminal() {
 
                 <div style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', height: 8, borderRadius: 0, overflow: 'hidden', marginBottom: 10 }}>
-                    <div style={{ flex: whaleLong,  background: '#f87171', opacity: 0.7 }} />
-                    <div style={{ flex: whaleShort, background: '#34d399', opacity: 0.7 }} />
+                    <div style={{ flex: whaleLong,  background: 'var(--red)', opacity: 0.7 }} />
+                    <div style={{ flex: whaleShort, background: 'var(--green-2)', opacity: 0.7 }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <div>
@@ -736,11 +736,11 @@ export default function LiqTerminal() {
           <div className="liq-howto">
             <div className="liq-howto-title">{t('LIQ_LEGEND_TITLE')}</div>
             <div className="liq-howto-row">
-              <span className="liq-howto-dot" style={{ background: '#34d399' }} />
+              <span className="liq-howto-dot" style={{ background: 'var(--green-2)' }} />
               <span><strong style={{ color: 'var(--green-2)' }}>{t('LIQ_LEGEND_SHORT_BOLD')}</strong> - {t('LIQ_LEGEND_SHORT_TEXT')}</span>
             </div>
             <div className="liq-howto-row">
-              <span className="liq-howto-dot" style={{ background: '#f87171' }} />
+              <span className="liq-howto-dot" style={{ background: 'var(--red)' }} />
               <span><strong style={{ color: 'var(--red)' }}>{t('LIQ_LEGEND_LONG_BOLD')}</strong> - {t('LIQ_LEGEND_LONG_TEXT')}</span>
             </div>
             <div className="liq-howto-row">
