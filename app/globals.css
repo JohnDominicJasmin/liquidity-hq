@@ -7168,6 +7168,34 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .mcw-rsi-fill,
 [data-design="terminal"] .mcw-ls-bar,
 [data-design="terminal"] .mcw-ls-bar > *   { border-radius: 0; }
+/* #698: the coin-heatmap tile's text in terminal.
+   The tile's colour ramp was built for the CURRENT design - text lightens as
+   the tile saturates (#86efac, #fee2e2), so severity is carried by the tile
+   while the number stays readable, 8.6:1 to 9.6:1 across the ramp. In terminal
+   --green-soft and --red-soft alias flat to --green/--red, so that lightening
+   does not happen and the strongest tiles put a mid-tone signal colour on a
+   saturated tint of itself: 3.51 worst, 26 failures on /scanner (#698).
+
+   Terminal takes --txt and lets the tint carry direction, which is what
+   /correlation already shipped on #570 - 2368 failing cells fixed exactly that
+   way, now measuring 2450 with zero failures on production. It clears every
+   ground on this ramp by 7.8:1 or better and, unlike a stronger foreground,
+   cannot be reopened by a stronger tint - the tint strength here is
+   data-driven, so there is no value that is safe by construction.
+
+   Direction is not lost with the colour: the tile tint and the +/- sign both
+   still carry it, which is also what keeps this clear of WCAG 1.4.1.
+
+   The current design is untouched - --heat-fg is unset there, so each span
+   falls back to its own ramp colour.
+
+   RESTORED (#720 review). This rule sat directly above the cluster-ladder
+   block on `dev` and went out with it in ed47abe - the commit whose own
+   message claims to have kept it. It belongs to /scanner, which #718 does not
+   revert. Placed here, away from any liq-scoped block, so the next revert in
+   this file cannot sweep it up the same way. */
+[data-design="terminal"] .chm-tile { --heat-fg: var(--txt); }
+
 /* briefing */
 [data-design="terminal"] .mb-macro-item { border-radius: 0; }
 [data-design="terminal"] .mb-event-tag  { border-radius: 0; }
