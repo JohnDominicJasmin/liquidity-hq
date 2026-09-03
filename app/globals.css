@@ -7181,9 +7181,28 @@ main.app-content[data-chrome="none"] {
    per-band fill. Terminal only - the current design's dashboard keeps its
    spaced cards, and .scc-card/.dash-conditions-row both render there too. */
 [data-design="terminal"] .dash-main { gap: 0; }
+/* The coin row keeps a surface (#744). Owner: "the coin item. Why does it have
+   no background even in dark theme."
+
+   THIS PARTLY REVERSES #607, WHICH IS WHY IT IS SPELLED OUT. That decision made
+   the whole main column banded rather than carded - no per-band fill, hairline
+   separators, column ground throughout - and `background: transparent` here was
+   part of it, not an oversight. The owner is asking for the opposite for this
+   one element, so this is a ruling overriding a ruling rather than a bug fix.
+
+   --bg1, not the base rule's card treatment: it lifts the row off --bg0 enough
+   to read as a surface while staying inside terminal's palette, and the
+   hairline separator and zero radius from #607 are kept. So the row gains a
+   ground without becoming a floating card again, which is the half of #607
+   the owner did not object to.
+
+   The sibling bands (.dash-conditions-row below) are deliberately NOT given a
+   fill - the owner named this element specifically, and changing the others to
+   match would be me deciding how far the reversal goes. If the column should
+   be carded again throughout, that is a bigger call and theirs. */
 [data-design="terminal"] .dash-main > .scc-card {
   border: 0; border-bottom: 1px solid var(--bdr);
-  background: transparent; border-radius: 0;
+  background: var(--bg1); border-radius: 0;
 }
 [data-design="terminal"] .dash-main > .dash-conditions-row {
   gap: 0; border-bottom: 1px solid var(--bdr);

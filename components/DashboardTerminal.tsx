@@ -512,7 +512,15 @@ export default function DashboardTerminal() {
         <MarketRead />
 
         <TPanel id="tour-best-setup">
-          <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>{t('DASH_BEST_SETUP_TODAY_HEADER')}</div>
+          {/* No marginTop override (#743). Owner: "I want to add spacing
+              between the market read and best setup today."
+              .dash-section already declares `margin: 20px 0 10px`; this inline
+              `marginTop: 0` outranked it and closed the gap, so the panel
+              above and this label sat flush. Deleting the override restores
+              the 20px the rule already intended - same shape as #681 and #660,
+              where an inline value silently owned a property the stylesheet
+              was written to own. */}
+          <div className="dash-section dash-section-hot">{t('DASH_BEST_SETUP_TODAY_HEADER')}</div>
           <SOTD />
         </TPanel>
 
