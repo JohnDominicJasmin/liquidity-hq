@@ -2087,9 +2087,23 @@ function ArenaContent() {
             constraint that component carries: Tip must never be rendered inside
             a <button>, <a>, or anything with an interactive role.
             The label stays inside the button so clicking it still toggles. */}
+        {/* No iconColor override (#734). This passed
+            `rgba(255,255,255,0.6)` - white at 60% alpha, a dark-theme literal
+            that cannot work on a light ground. QA measured the glyph at 1.05:1
+            in terminal light: effectively invisible, and the worst ratio in
+            the whole light audit.
+
+            Tip already defaults to `var(--txt3)` (Tip.tsx:18), which is what
+            the literal was approximating by hand - a muted foreground - except
+            the token flips with the theme and the literal could not. Every
+            other Tip in the codebase passes a token or nothing; this was the
+            only caller hand-rolling a colour.
+
+            So the fix is to delete the prop rather than replace the value.
+            Dark keeps the muted appearance it already had, light gets a
+            readable one, and there is no new number to govern. */}
         <Tip
           width={260}
-          iconColor="rgba(255,255,255,0.6)"
           text={t('ARENA_ANTICHOP_TIP')}
         />
         {/* opacity 0.35 computed to #55565b = 2.75:1. This hint explains what
