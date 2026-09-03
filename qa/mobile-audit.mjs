@@ -194,6 +194,70 @@ const result = await page.evaluate(TOKENS => {
     subMinTargets: small.slice(0, 8),
     subMinCount: small.length,
     emptyFields: [...new Set(empty)].slice(0, 8),
+    deadRules: (() => {
+      /* A CSS declaration an inline style outranks is DEAD, not overridden -
+         it can never apply, and source reads cannot see that. Three defects
+         shipped this way (#629, #633, #660): globals.css said 9.5px for weeks
+         while the badge rendered 12, because an inline font-size won every
+         time. The rule looked correct in the file and had no effect.
+
+         Detection: collect every selector in our own stylesheets that sets a
+         property, then find elements matching one of those selectors that ALSO
+         carry that property inline. The intersection is exactly the dead set.
+         Cross-origin sheets throw on .cssRules and are skipped - we only own
+         same-origin ones anyway. */
+      const PROPS = ['font-size', 'font-family', 'letter-spacing', 'color', 'background-color'];
+      const byProp = {};
+      for (const p of PROPS) byProp[p] = [];
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules; } catch { continue; }
+        /* Collect BEFORE recursing, and recurse only into a non-empty list.
+           Modern Chrome gives every CSSStyleRule a `cssRules` property for
+           nested-CSS support - an empty CSSRuleList, which is truthy. A
+           `if (r.cssRules) recurse; else collect;` shape therefore treats
+           every plain rule as a group, walks an empty list, and collects
+           nothing. That version returned [] on a synthetic page built to
+           contain exactly one dead rule, which is the only reason it was
+           caught: an empty result from a detector and an empty result from a
+           clean page are indistinguishable. */
+        const walk = (list) => {
+          for (const r of list) {
+            if (r.selectorText && r.style) {
+              for (const p of PROPS) if (r.style.getPropertyValue(p)) byProp[p].push(r.selectorText);
+            }
+            if (r.cssRules && r.cssRules.length) walk(r.cssRules);
+          }
+        };
+        walk(rules);
+      }
+      const out = [];
+      for (const el of document.querySelectorAll('[style]')) {
+        const inline = el.getAttribute('style') || '';
+        for (const p of PROPS) {
+          if (!new RegExp('(^|;)\s*' + p + '\s*:').test(inline)) continue;
+          for (const sel of byProp[p]) {
+            let hit = false;
+            try { hit = el.matches(sel); } catch { continue; }
+            if (!hit) continue;
+            /* Only class/id-scoped rules. A base rule like `button, input`
+               or `a` being overridden inline is ordinary cascade use, not a
+               dead rule - reporting those buries the real case in noise.
+               The defects that shipped (#629, #633, #660) were all a
+               COMPONENT rule silently losing to an inline declaration, and
+               those selectors always carry a class. */
+            if (!/[.#]/.test(sel)) continue;
+            out.push({ prop: p, selector: sel.slice(0, 70),
+                       el: (el.className || el.tagName).toString().slice(0, 30),
+                       computed: getComputedStyle(el).getPropertyValue(p) });
+            break;
+          }
+        }
+      }
+      const seen = new Set();
+      return out.filter(x => { const k = x.prop + x.selector + x.el;
+        if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 12);
+    })(),
   };
 }, TOKENS);
 
