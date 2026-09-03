@@ -41,22 +41,39 @@ const PROPS: Array<[css: string, jsx: string]> = [
   ['text-transform', 'textTransform'],
 ];
 
-/** class -> set of css properties a terminal rule sets on it. */
-function terminalRules(): Map<string, Set<string>> {
+/** A terminal rule's LAST compound selector, as the set of classes an element
+ *  must carry for that rule to apply, plus the typography properties it sets.
+ *
+ *  Compound selectors have to stay compound. `[data-design="terminal"]
+ *  .tnav-item.on` applies only to an element with BOTH classes - flattening it
+ *  to `.tnav-item` and `.on` separately credits `.on` with a font-weight it
+ *  does not own, and then every `className={`ps-preset${x ? ' on' : ''}`}` in
+ *  the codebase looks like a collision. That produced 8 false positives out of
+ *  31 on the first honest run, and a check that cries wolf gets switched off.
+ *
+ *  Only the last sequence matters: ancestors restrict WHICH elements match, so
+ *  ignoring them can over-report but never under-report, and over-reporting on
+ *  an ancestor is rare enough to accept against parsing full descendant paths. */
+interface Owned { need: string[]; props: Set<string> }
+
+function terminalRules(): Owned[] {
   const css = readFileSync(path.join(ROOT, 'app', 'globals.css'), 'utf8');
-  const out = new Map<string, Set<string>>();
+  const out: Owned[] = [];
   const rule = /\[data-design="terminal"\][^{}]*\{([^{}]*)\}/g;
   let m: RegExpExecArray | null;
   while ((m = rule.exec(css)) !== null) {
     const selector = css.slice(m.index, m.index + m[0].indexOf('{'));
     const body = m[1];
-    const classes = [...selector.matchAll(/\.([A-Za-z0-9_-]+)/g)].map(c => c[1]);
+    const props = new Set<string>();
     for (const [cssProp] of PROPS) {
-      if (!new RegExp(`(^|;|\\s)${cssProp}\\s*:`).test(body)) continue;
-      for (const cls of classes) {
-        if (!out.has(cls)) out.set(cls, new Set());
-        out.get(cls)!.add(cssProp);
-      }
+      if (new RegExp('(^|;|\\s)' + cssProp + '\\s*:').test(body)) props.add(cssProp);
+    }
+    if (props.size === 0) continue;
+    /* Each comma-separated selector contributes its own last compound group. */
+    for (const one of selector.split(',')) {
+      const last = one.trim().split(/\s+|>/).filter(Boolean).pop() ?? '';
+      const need = [...last.matchAll(/\.([A-Za-z0-9_-]+)/g)].map(c => c[1]);
+      if (need.length) out.push({ need, props });
     }
   }
   return out;
@@ -71,22 +88,64 @@ function tsxFiles(dir: string): string[] {
   });
 }
 
-/** Find `<tag className="… cls …" … style={{ … prop: … }}>` in either order. */
-function collisions(source: string, rules: Map<string, Set<string>>): string[] {
+/** Extract a whole `style={{ … }}` object by BRACE DEPTH, not by regex.
+ *
+ *  QA's review of #681 planted five shapes; the regex version, which captured
+ *  with `[^}]{0,600}`, missed two:
+ *
+ *      DETECTED  style={{ fontSize: 12 }}
+ *      DETECTED  style={{ color: up ? 'a' : 'b', fontSize: 12 }}
+ *      MISSED    style={{ transform: `translate(${x}px)`, fontSize: 12 }}
+ *      MISSED    style={{ ...(up ? { a: 1 } : { b: 2 }), fontSize: 12 }}
+ *
+ *  `[^}]` stops at the FIRST `}` whatever the nesting, so a template literal or
+ *  a nested object ends the capture before the property is reached. The ternary
+ *  survived only because it contains no braces - so the shapes that slipped
+ *  through were the ones that look most like the real code in this repo.
+ *
+ *  Depth counting handles both for free: `${` opens a brace its own `}` closes,
+ *  so the walk stays inside the object.
+ *
+ *  Known limit, stated rather than left to be found: a brace inside a string
+ *  literal is counted. That can only make a capture too LONG - a false positive
+ *  someone will look at, never a silent miss. */
+function styleObjectAt(src: string, styleIdx: number): string {
+  const open = src.indexOf('{', styleIdx);
+  if (open < 0) return '';
+  let depth = 0;
+  for (let i = open; i < src.length && i < open + 4000; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') { depth--; if (depth === 0) return src.slice(open, i + 1); }
+  }
+  return '';
+}
+
+const STYLE_AT = /style=\{\{/g;
+
+/** Collisions between a terminal-owned property and an inline style on the
+ *  same element, in either attribute order. */
+function collisions(source: string, rules: Owned[]): string[] {
   const hits: string[] = [];
-  for (const [cls, props] of rules) {
-    const patterns = [
-      new RegExp(`className=\\{?["\`][^"\`]*\\b${cls}\\b[^"\`]*["\`][^>]{0,600}?style=\\{\\{([^}]{0,600})`, 'gs'),
-      new RegExp(`style=\\{\\{([^}]{0,600}?)\\}\\}[^>]{0,600}?className=\\{?["\`][^"\`]*\\b${cls}\\b`, 'gs'),
-    ];
-    for (const re of patterns) {
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(source)) !== null) {
-        for (const [cssProp, jsxProp] of PROPS) {
-          if (!props.has(cssProp)) continue;
-          if (new RegExp(`\\b${jsxProp}\\s*:`).test(m[1])) {
-            hits.push(`.${cls} — inline ${jsxProp} kills the terminal rule's ${cssProp}`);
-          }
+  const styles: Array<{ idx: number; obj: string }> = [];
+  let m: RegExpExecArray | null;
+  STYLE_AT.lastIndex = 0;
+  while ((m = STYLE_AT.exec(source)) !== null) {
+    styles.push({ idx: m.index, obj: styleObjectAt(source, m.index) });
+  }
+
+  for (const { need, props } of rules) {
+    /* EVERY class in the compound must be present, not any. */
+    const res = need.map(c => new RegExp('\\b' + c + '\\b'));
+    for (const { idx, obj } of styles) {
+      const before = source.slice(Math.max(0, idx - 600), idx);
+      const after  = source.slice(idx + obj.length, idx + obj.length + 600);
+      const attr = (before.match(/className=[^>]*$/) ?? [''])[0] + ' ' +
+                   (after.match(/^[^>]*className=[^>]*/) ?? [''])[0];
+      if (!res.every(r => r.test(attr))) continue;
+      for (const [cssProp, jsxProp] of PROPS) {
+        if (props.has(cssProp) && new RegExp('\\b' + jsxProp + '\\s*:').test(obj)) {
+          hits.push('.' + need.join('.') + ' — inline ' + jsxProp +
+                    " kills the terminal rule's " + cssProp);
         }
       }
     }
@@ -97,35 +156,57 @@ function collisions(source: string, rules: Map<string, Set<string>>): string[] {
 const RULES = terminalRules();
 
 test('the check is armed', () => {
-  /* A rule map that came back empty would make every file below pass while
-     testing nothing - the failure this whole class of defect is made of. */
-  assert.ok(RULES.size > 20, `only ${RULES.size} terminal classes set typography; the CSS parse probably broke`);
+  /* An empty rule list would make every file below pass while testing nothing
+     - the failure this whole class of defect is made of. */
+  assert.ok(RULES.length > 20, 'only ' + RULES.length + ' terminal typography rules parsed; the CSS walk probably broke');
 });
 
-test('it detects a planted collision', () => {
-  /* Positive control. A clean sweep proves only that it ran unless the sweep
-     is known to be able to fail. Built from a real class in the map, so this
-     stays valid if class names change. */
-  const [cls, props] = [...RULES.entries()].find(([, p]) => p.has('font-size'))!;
-  assert.ok(props.has('font-size'));
-  const planted = `<span className="${cls}" style={{ fontSize: 'var(--fs-caption)' }}>x</span>`;
-  assert.equal(collisions(planted, RULES).length, 1, `failed to detect a planted inline font-size on .${cls}`);
-  const reversed = `<span style={{ fontSize: '12px' }} className="${cls}">x</span>`;
-  assert.equal(collisions(reversed, RULES).length, 1, 'failed to detect the reversed attribute order');
+test('it detects a planted collision, in both attribute orders', () => {
+  /* Positive control, built from a real rule so it stays valid as classes
+     change. Without it, a clean sweep proves only that the sweep ran - and
+     twice already on this file it was running and matching nothing. */
+  const r = RULES.find(x => x.props.has('font-size') && x.need.length === 1)!;
+  const cls = r.need[0];
+  const fwd = '<span className="' + cls + '" style={{ fontSize: 12 }}>x</span>';
+  const rev = '<span style={{ fontSize: 12 }} className="' + cls + '">x</span>';
+  assert.equal(collisions(fwd, RULES).length, 1, 'missed the forward order on .' + cls);
+  assert.equal(collisions(rev, RULES).length, 1, 'missed the reversed order on .' + cls);
+});
+
+test('a nested object or template literal does not hide the property', () => {
+  /* QA's #681 review: the old regex captured with [^}] and stopped at the
+     first closing brace, so these two shapes - the ones that look most like
+     real code here - slipped through silently. */
+  const r = RULES.find(x => x.props.has('font-size') && x.need.length === 1)!;
+  const cls = r.need[0];
+  const tpl = '<span className="' + cls + '" style={{ transform: `translate(${x}px)`, fontSize: 12 }}>x</span>';
+  const spread = '<span className="' + cls + '" style={{ ...(up ? { a: 1 } : { b: 2 }), fontSize: 12 }}>x</span>';
+  assert.equal(collisions(tpl, RULES).length, 1, 'a template literal hid the property');
+  assert.equal(collisions(spread, RULES).length, 1, 'a nested object hid the property');
+});
+
+test('a compound rule does not accuse an element carrying only one of its classes', () => {
+  /* [data-design="terminal"] .tnav-item.on owns font-weight, but an element that
+     is merely .on does not match it. Flattening compounds produced 8 false
+     positives out of 31, and a check that cries wolf gets switched off. */
+  const compound = RULES.find(x => x.need.length > 1);
+  assert.ok(compound, 'no compound rule found; this guard is not testing anything');
+  const only = '<button className="ps-preset ' + compound!.need[compound!.need.length - 1] + '" style={{ fontWeight: 700 }}>x</button>';
+  assert.equal(collisions(only, RULES).length, 0, 'accused an element carrying only part of a compound selector');
 });
 
 test('no component sets a property inline that a terminal rule already owns', () => {
   const files = [...tsxFiles(path.join(ROOT, 'components')), ...tsxFiles(path.join(ROOT, 'app'))];
-  assert.ok(files.length > 50, `found only ${files.length} tsx files; the walk probably broke`);
+  assert.ok(files.length > 50, 'found only ' + files.length + ' tsx files; the walk probably broke');
 
   const found: string[] = [];
   for (const f of files) {
     for (const hit of collisions(readFileSync(f, 'utf8'), RULES)) {
-      found.push(`${path.relative(ROOT, f).replace(/\\/g, '/')}: ${hit}`);
+      found.push(path.relative(ROOT, f).replace(/\\/g, '/') + ': ' + hit);
     }
   }
   assert.deepEqual(found, [],
-    `${found.length} dead terminal rule(s). An inline style outranks every selector, so the CSS ` +
-    `rule can never apply - see #629, #633, #660. Move the value to globals.css, or if the ` +
-    `component genuinely needs it inline, delete the CSS rule so nothing claims to own it.`);
+    found.length + ' dead terminal rule(s). An inline style outranks every selector, so the ' +
+    'CSS rule can never apply - see #629, #633, #660. Move the value to globals.css, or if ' +
+    'the component genuinely needs it inline, delete the CSS rule so nothing claims to own it.');
 });
