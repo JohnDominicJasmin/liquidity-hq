@@ -61,10 +61,22 @@ this rule instead. Dev merges its own feature branches into `dev` and promotes
 
 **Who DEPLOYS — dev runs the non-prod deploys. Changed 2026-08-10.**
 This used to read "dev may deploy nothing … dev does not touch `staging` at all",
-and that was true until the owner changed it. The reason is practical: **Render
-MCP access sits in the dev session and not in QA's**, so QA physically cannot
-trigger a deploy. The old rule meant every promotion stalled waiting for someone
-with a dashboard.
+and that was true until the owner changed it. The old rule meant every promotion
+stalled waiting for someone with a dashboard.
+
+**The stated reason for the change was wrong, and the correction is recorded
+rather than quietly deleted.** This paragraph read: *"Render MCP access sits in
+the dev session and not in QA's, so QA physically cannot trigger a deploy."*
+**QA has the Render MCP tools.** On 2026-09-03 the QA session triggered both the
+`liquidity-hq-qa` and `liquidity-hq-staging` deploys itself and verified each
+against `/api/version`. So the premise this table rests on does not hold.
+
+**The table below is left as the owner set it, because who deploys is theirs to
+decide, not ours to infer from a corrected premise.** Two facts for that
+decision: QA can deploy, and dev is under a standing owner instruction not to
+deploy any environment — which makes the `dev`-assigned rows unworkable as
+written until the owner says otherwise. Until then, whoever moves a branch is
+still responsible for the deploy following it, and for saying so.
 
 | Deploy | Who | Notes |
 |---|---|---|
