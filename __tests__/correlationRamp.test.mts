@@ -97,40 +97,33 @@ test('the ramp is monotonic away from zero', () => {
   }
 });
 
-test('the null cell is --txt3, not --txt, and its margin is thin (#679)', () => {
-  /* NOT an assertion that it passes - it does not, on two of three dark
-     grounds. Recorded here so the numbers live next to the ones above rather
-     than in a comment, and so this file stops implying it covered them.
+test('the null cell clears 4.5:1 too, on --txt-dash (#679)', () => {
+  /* The null cell paints rgba(255,255,255,0.03) over the card. That overlay
+     lightens the ground toward the text, and --txt3 landed at 4.40 / 4.46 in
+     dark - so it takes --txt-dash instead, the value #559 created for exactly
+     this composited shape.
 
-         dark   --bg0 4.90  --bg1 4.40  --bg2 4.46
-         light  --bg0 5.70  --bg1 5.10  --bg2 4.74
+     --txt3 itself is NOT the problem and did not move: it passes on every bare
+     palette ground in both themes (dark 5.14 / 4.71 / 4.77). An earlier version
+     of this comment said it "clears by about 0.1 on --bg0 and spends that
+     margin on any raised surface" - both halves wrong, and the table above is
+     why. Fixing the token would have degraded three passing surfaces to rescue
+     one composited one, which qa/TERMINAL_REDESIGN_STATE.md already rejected. */
+  for (const { name, T } of THEMES) {
+    for (const ground of GROUNDS) {
+      const overlay = name === 'dark' ? '#ffffff' : '#000000';
+      const alpha   = name === 'dark' ? 3 : 4;
+      const c = ratio(hex(T['--txt-dash']), over(overlay, T[ground], alpha));
+      assert.ok(c >= 4.5, `${name} null cell on ${ground}: ${c.toFixed(2)}`);
+    }
+  }
+});
 
-     This is #679, and its cause is COMPOSITING, not the token. --txt3 passes on
-     every bare palette ground in both themes:
-
-         dark   --bg0 5.14  --bg1 4.71  --bg2 4.77
-         light  --bg0 5.68  --bg1 5.07  --bg2 4.70
-
-     What fails is --txt3 over a 3% WHITE OVERLAY on a card - a surface that is
-     not a palette member at all. The overlay lightens the ground toward --txt3
-     and eats the margin, in dark only.
-
-     An earlier version of this comment said --txt3 "clears AA by about 0.1 on
-     --bg0 and spends that margin on any raised surface". Both halves are wrong,
-     and the table above is why: bg0 is 5.14, and the raised surfaces pass. That
-     framing came from generalising two composited samples to the whole palette;
-     QA retracted it and I verified the retraction rather than swapping one
-     unchecked claim for another.
-
-     It matters because the wrong framing pointed at changing the token, which
-     qa/TERMINAL_REDESIGN_STATE.md already rejected: moving a value that passes
-     on three of four surfaces to fix one composited case degrades what works.
-     The precedent is the empty-cell dash taking its own #848a92 - a local
-     value for a local ground. QA measured the same 4.46 on /liq's current-price
-     label, which is the second instance of that same composited shape. */
+test('--txt3 would still fail there, so the swap is doing the work', () => {
+  /* Positive control for the fix itself. If --txt3 ever passes on this ground,
+     the reason for --txt-dash is gone and this should be revisited rather than
+     left as cargo. */
   const T = TERMINAL_COLORS as Record<string, string>;
-  const nullCell = over('#ffffff', T['--bg1'], 3);
-  const c = ratio(hex(T['--txt3']), nullCell);
-  assert.ok(c < 4.5, `expected the known #679 shortfall on --bg1, measured ${c.toFixed(2)}`);
-  assert.ok(c > 4.0, 'if this drops below 4.0 the token moved and #679 needs re-measuring');
+  const c = ratio(hex(T['--txt3']), over('#ffffff', T['--bg1'], 3));
+  assert.ok(c < 4.5, `--txt3 now measures ${c.toFixed(2)} on the null ground; --txt-dash may be unnecessary`);
 });

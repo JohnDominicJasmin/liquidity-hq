@@ -155,7 +155,7 @@ export default function GexTable() {
               <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
                 <div className="gex-strike" style={isAtm ? { color: 'var(--txt)' } : {}}>
                   ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
-                  {isAtm && <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 4 }}>{t('GEX_TABLE_CURRENT_PRICE_MARKER')}</span>}
+                  {isAtm && <span className="gex-atm-marker">{t('GEX_TABLE_CURRENT_PRICE_MARKER')}</span>}
                 </div>
                 <div className="gex-bar-wrap">
                   <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />
