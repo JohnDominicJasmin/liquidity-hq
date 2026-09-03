@@ -67,8 +67,18 @@ export async function runPool<T>(
  *  a message string. The two older copies encoded this as a bespoke Error
  *  subclass per route, which is what made them un-shareable. */
 export class HttpStatusError extends Error {
-  constructor(public readonly status: number, message: string) {
+  /* Declared and assigned rather than a `constructor(public readonly status)`
+     parameter property. That shorthand EMITS code rather than only annotating,
+     so Node's type-stripping refuses it - `node --test` fails the whole file
+     with ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX before a single test runs. Next's
+     SWC build handles it either way, so the shorthand would have worked in
+     production and been untestable, which is the wrong trade for the one
+     module here whose failure branch needs tests most. */
+  readonly status: number;
+
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
     this.name = 'HttpStatusError';
   }
 }

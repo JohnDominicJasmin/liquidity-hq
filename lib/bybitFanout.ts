@@ -37,6 +37,17 @@ export interface FanoutResult {
    *  empty result must never look like a successful one. */
   ok: number;
   total: number;
+  /** True when the run was cut short by a rate-limit stop (418/429/403) rather
+   *  than by individual symbols failing (#665, QA's review of #667).
+   *
+   *  Without this, `ok: 12, total: 49` is ambiguous: it reads identically for
+   *  "we were banned on the 13th request and stopped deliberately" and "37
+   *  symbols each failed on their own". Those call for opposite responses -
+   *  back off for the TTL, versus look at why the upstream is patchy.
+   *
+   *  Same reason /api/market/snapshot reports `banned` separately from a short
+   *  map, and the same reason `partial` exists on its response at all. */
+  stopped: boolean;
 }
 
 /**
@@ -104,7 +115,7 @@ export async function symbolFanout(
      * already banned this IP once (#228). */
     const data: Record<string, unknown> = {};
 
-    await runPool(symbols, DEFAULT_CONCURRENCY, async (sym) => {
+    const stopped = await runPool(symbols, DEFAULT_CONCURRENCY, async (sym) => {
       const r = await fetch(buildUrl(sym), { cache: 'no-store' });
       if (!r.ok) throw new HttpStatusError(r.status, `${sym} ${r.status}`);
       const v = pick(await r.json());
@@ -119,6 +130,6 @@ export async function symbolFanout(
       throw new Error(`fan-out returned nothing for all ${symbols.length} symbols`);
     }
 
-    return { data, ok: Object.keys(data).length, total: symbols.length };
+    return { data, ok: Object.keys(data).length, total: symbols.length, stopped };
   });
 }
