@@ -269,7 +269,31 @@ android/      Capacitor Android shell
   body explaining the real cause and why the fix is shaped that way. Look at recent commits
   before writing one. Trailer: `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
 
-### Branch & deploy state as of 2026-09-02
+### Branch & deploy state as of 2026-09-03
+
+| Branch | Commit | Note |
+|---|---|---|
+| `origin/dev` | `06c647e` | PR #720 merged — the canvas-mirror revert (#718) |
+| `origin/qa` | `06c647e` | promoted and **deployed** — `/api/version` confirmed `06c647e` |
+| `origin/staging` | `06c647e` | promoted and **deployed** — `/api/version` confirmed `06c647e` |
+| `origin/main` | `1ee554e` | production — **64 commits behind `staging`**, no release PR open. Shipping is the owner's call and they have not given it. |
+
+**READ THIS BEFORE ANY DESIGN WORK — the redesign direction reversed on 2026-09-03.**
+
+The owner stopped the canvas-mirror initiative. Their words: *"we are repackaging the platform without users feedback... we are wasting time, money, and resources, and also tokens."* Two decisions came out of it, and both are now the standing rule:
+
+1. **Terminal styling goes over the existing production layout.** Same button positions, same text positions, same structure. Do **not** restructure a screen to match a `design-handoff-dir/design_files/*.dc.html` canvas. The `#413` batch — closed by `895f116` — is the reference state for what "right" looks like; `/scanner`, `/hours`, `/funding` and `/journal` are still in it.
+2. **Terminal ships on the landing page only** (#719, not yet built). `/` renders terminal by default; every app screen stays on the current design. Until this ships, `lib/designMode.ts` defaults everyone to `current` and **no user has ever seen any of the terminal work.**
+
+The sorting rule that follows from #2, and it governs triage: **after #719, a terminal-mode defect on any route except `/` is invisible to users and does not earn dev time.** A defect on the current design, or on landing, is real. #707, #698 and #663 were parked under exactly this rule with their measurements intact; #656 and #652 were closed as superseded; #620, #622 and #712 are parked.
+
+**The one exception is landing.** The owner likes the canvas-mirrored landing (`ad6b08c`, #592) and it was deliberately excluded from the revert. Never revert it, and treat "landing renders identically" as a hard gate on any work touching `app/globals.css`, `lib/labelKeys.ts`, `lib/labelDefaults.en.json` or `components/AppShell.tsx` — all four are shared between landing and the reverted screens, and `AppShell.tsx` is the one that bit us (it rendered `PriceTickerStrip` on `/` gated on design mode rather than pathname).
+
+**Known and deliberately not filed**, so nobody re-derives them: `/dashboard` shows 10 terminal radius violations, all `MarketRead` (`.mr`, `.mr-factor`, `.mr-track`, unscoped in `app/globals.css` around lines 776-812, outside `.dashboard-term-wrap` so the blanket radius rule misses them). That is `#413`-era, restored correctly by the revert, and invisible after #719. Landing also fails 3 of 21 `specs/landing.md` criteria (C10 hero-glow, C11 nav 44 vs 56, C18 mobile nav 38 vs 52) — pre-existing, and the owner has stopped aligning to the handoff specs.
+
+**Superseded history below.** The 2026-09-02 entry that follows described the redesign as "back and active" and drove the canvas-mirror work. It is kept because the token-governance work in it is still live and correct — only the direction changed.
+
+#### Superseded: branch state as of 2026-09-02
 
 | Branch | Commit | Note |
 |---|---|---|
@@ -278,7 +302,7 @@ android/      Capacitor Android shell
 | `origin/staging` | `507c080` | not yet re-promoted with the terminal work below — check `/api/version` on `liquidity-hq-staging` before assuming |
 | `origin/main` | `b9795ee` | production — not yet touched by the terminal redesign batch |
 
-**Monochrome Terminal redesign (#413) is back and active, unlike the 2026-08-27 revert noted below.** Session 2026-09-01/02 shipped, in order: #558 (Dashboard C8 radius), #560 (platform conformance batch — terminal token governance for `--accent-solid`/`--accent-dim`/`--blue` family/`--bg3`/`--bg4`/`--on-accent`, `/funding`+`/correlation` light-theme contrast, a platform-wide radius carve-out for circular markers, footer link touch targets), #562 (QA's `qa/contrast-diff.mjs` + `qa/platform-audit.mjs` tooling), #563 (the terminal design now has an actual `[data-design="terminal"][data-theme="light"]` token block — it didn't before, terminal+light silently fell back to the current design and QA's #559 audit's light-theme rows were measuring two unrelated systems against each other; see issue #561). A new conformance test direction was added in `__tests__/terminalTokens.test.mts` (2026-09-01): asserts every `var()` a terminal-scoped selector references is actually declared in the terminal token block, not just that the block declares nothing undocumented — the asymmetry that let five different tokens (`--amber`, `--accent-2`, `--accent-bg`/`--accent-bdr`, `--fr-slight-long`, `--on-accent`) fall through ungoverned over the course of the session before being caught by manual sweep or QA's audit.
+**(SUPERSEDED 2026-09-03 — see the reversal above. Token-governance content still accurate.)** Monochrome Terminal redesign (#413) is back and active, unlike the 2026-08-27 revert noted below. Session 2026-09-01/02 shipped, in order: #558 (Dashboard C8 radius), #560 (platform conformance batch — terminal token governance for `--accent-solid`/`--accent-dim`/`--blue` family/`--bg3`/`--bg4`/`--on-accent`, `/funding`+`/correlation` light-theme contrast, a platform-wide radius carve-out for circular markers, footer link touch targets), #562 (QA's `qa/contrast-diff.mjs` + `qa/platform-audit.mjs` tooling), #563 (the terminal design now has an actual `[data-design="terminal"][data-theme="light"]` token block — it didn't before, terminal+light silently fell back to the current design and QA's #559 audit's light-theme rows were measuring two unrelated systems against each other; see issue #561). A new conformance test direction was added in `__tests__/terminalTokens.test.mts` (2026-09-01): asserts every `var()` a terminal-scoped selector references is actually declared in the terminal token block, not just that the block declares nothing undocumented — the asymmetry that let five different tokens (`--amber`, `--accent-2`, `--accent-bg`/`--accent-bdr`, `--fr-slight-long`, `--on-accent`) fall through ungoverned over the course of the session before being caught by manual sweep or QA's audit.
 
 **What changed since 2026-08-01 (older entries, still accurate):**
 - #481: Monochrome Terminal redesign reverted from qa/staging. Preserved on `feature/monochrome-terminal`. `CONVERTED_ROUTES = []` — palette specs paused.
