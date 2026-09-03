@@ -21,6 +21,7 @@
  */
 import { cached } from './apiCache';
 import { BYBIT_SYMS } from './coins';
+import { runPool, DEFAULT_CONCURRENCY, HttpStatusError, isRateLimitStatus } from './pool';
 
 /** Every symbol this app tracks on Bybit. A closed set, which is what keeps the
  *  cache key space finite - see the note in app/api/market/klines/route.ts. */
@@ -44,10 +45,15 @@ export interface FanoutResult {
  * @param buildUrl given a symbol, the upstream URL to call
  * @param pick     extract the bit worth keeping from one symbol's response
  *
- * `allSettled`, not `all`: one symbol failing must not lose the other 49. That
- * is the same reasoning as /api/market/snapshot's three-way split, and the same
- * trap - so the caller is told how many succeeded rather than being handed a
- * quietly short map.
+ * One symbol failing must not lose the other 49 - the same reasoning as
+ * /api/market/snapshot's three-way split, and the same trap, so the caller is
+ * told how many succeeded rather than being handed a quietly short map.
+ *
+ * This said "`allSettled`, not `all`" until #665. The tolerance it describes is
+ * unchanged; runPool swallows an ordinary per-item failure exactly as
+ * `allSettled` did. What changed is that the requests are now BOUNDED - the old
+ * shape opened all ~45 at once, which is what produced the missing symbols this
+ * text promised the caller would be told about.
  */
 export async function bybitFanout(
   key: string,
@@ -77,18 +83,33 @@ export async function symbolFanout(
   pick: (body: unknown) => unknown,
 ): Promise<FanoutResult> {
   return cached(key, ttlMs, async () => {
-    const settled = await Promise.allSettled(
-      symbols.map(async (sym) => {
-        const r = await fetch(buildUrl(sym), { cache: 'no-store' });
-        if (!r.ok) throw new Error(`${sym} ${r.status}`);
-        return [sym, pick(await r.json())] as const;
-      }),
-    );
-
+    /* Bounded, not `symbols.map` inside allSettled (#665).
+     *
+     * That fired every symbol simultaneously - ~45 requests from one server IP
+     * in one burst, at hosts that rate-limit per IP. Losers threw and landed
+     * ABSENT from `data`, which the pages render as a blank cell, so the
+     * symptom was an arbitrary few symbols missing and a DIFFERENT few on the
+     * next run. A mapping bug or an upstream gap would have blanked the same
+     * ones every time; that non-determinism is what identified this.
+     *
+     * `allSettled` was never the problem and the reasoning in the doc comment
+     * above still holds - one symbol failing must not lose the other 49. The
+     * defect was the WIDTH of the burst. runPool keeps that tolerance and adds
+     * the bound,
+     * plus the 418/429/403 stop that the two hand-rolled pools in
+     * snapshot/route.ts and rsi/route.ts already had and this path did not.
+     *
+     * Two of the four callers point at Binance - funding-rate at fapi and
+     * agg-trades at api.binance.com on a 60s TTL - which is the host that
+     * already banned this IP once (#228). */
     const data: Record<string, unknown> = {};
-    for (const s of settled) {
-      if (s.status === 'fulfilled' && s.value[1] != null) data[s.value[0]] = s.value[1];
-    }
+
+    await runPool(symbols, DEFAULT_CONCURRENCY, async (sym) => {
+      const r = await fetch(buildUrl(sym), { cache: 'no-store' });
+      if (!r.ok) throw new HttpStatusError(r.status, `${sym} ${r.status}`);
+      const v = pick(await r.json());
+      if (v != null) data[sym] = v;
+    }, isRateLimitStatus);
 
     /* Throwing on a total wipeout rather than caching an empty map. `cached()`
        does not store a rejection, so a refused upstream is retried by the next
