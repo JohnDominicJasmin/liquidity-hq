@@ -7385,8 +7385,21 @@ main.app-content[data-chrome="none"] {
    already prescribes for its own two undersized controls, "a padded hit area
    without changing their painted box", and the way #642 built it for the
    footer links: padding grows the box, an equal negative margin pulls the
-   flow back, nothing moves. Only the height failed - 26 already clears 24. */
+   flow back, nothing moves. Only the height failed - 26 already clears 24.
+   The first version of this omitted box-sizing and therefore grew nothing;
+   see the note on the rule itself. */
 [data-design="terminal"] .liq-heat-swatch {
+  /* box-sizing: content-box is what makes the padding above actually DO
+     anything. globals.css:213 sets `* { box-sizing: border-box }` globally, and
+     under border-box a height of 16px INCLUDES the 4px padding - so the hit area
+     stayed 26x16 and the padding bought nothing. QA measured exactly that.
+
+     The rule was written correctly for content-box and silently did nothing
+     under the box model this project actually uses: it looked like the #642
+     footer-link fix and behaved like no fix at all. With content-box the box is
+     16 + 4 + 4 = 24 tall, the negative margin pulls the layout back so nothing
+     moves, and background-clip keeps the paint on the 16px content box. */
+  box-sizing: content-box;
   width: 26px; height: 16px; border: 1px solid var(--bdr); cursor: pointer;
   padding: 4px 0; margin: -4px 0; background-clip: content-box;
 }
