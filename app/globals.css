@@ -7685,7 +7685,26 @@ main.app-content[data-chrome="none"] {
    on inherently circular glyphs at 24px or under, and a selector cannot
    tell a 16px icon from a 26px one. The component can. */
 [data-design="terminal"] .tj-lev-slider::-webkit-slider-thumb,
-[data-design="terminal"] .tj-lev-slider::-moz-range-thumb {
+[data-design="terminal"] .tj-lev-slider::-moz-range-thumb,
+/* #703: back on the list, but as .coin-icon-round - a class CoinIcon only emits
+   at 24px or under, which is the ruling's own threshold. The note above is right
+   that a selector cannot tell a 16px icon from a 32px one; the component can, so
+   it decides and the class carries that decision somewhere that outranks the
+   blanket `* { border-radius: 0 !important }` shells. The inline radius alone
+   never could.
+
+   BOTH CLASSES IN THE SELECTOR, deliberately. `.coin-icon-round` alone is
+   (0,2,0) with the attribute - exactly equal to `[data-design="terminal"]
+   .at-root *` - so it would win only by sitting later in the file. That holds
+   against the thirteen page-root blankets at :6219-:7340, and fails against the
+   twenty `!important` radius rules after it at :7742 (`.app-bar *`,
+   `.nav-menu *`, `.mobile-tab-bar *` and friends): a coin icon rendered inside
+   any of those would go square again.
+
+   Adding `.coin-icon` makes it (0,3,0), which beats every `.<x> *` blanket on
+   SPECIFICITY rather than position - so it survives a future rule being appended
+   below, which source order does not. QA caught this on the #709 review. */
+[data-design="terminal"] .coin-icon.coin-icon-round {
   border-radius: 50% !important;
 }
 

@@ -16,7 +16,24 @@ import { withAlpha } from '@/lib/color';
  * only that call site is being corrected here. The frames keep their 16px
  * rail marks round, so this is not "squares everywhere". */
 export default function CoinIcon({ coin, size = 22, color, bg, square = false }: { coin: CoinId; size?: number; color?: string; bg?: string; square?: boolean }) {
+  /* #703: a CLASS, not just the inline radius. The inline value cannot win -
+     terminal's shells carry blanket `.<page>-root * { border-radius: 0
+     !important }` rules, and no inline declaration beats !important. Removing
+     .coin-icon from the 50%-exemption list in #630/#631 was done on the
+     reasoning that "CoinIcon sets border-radius inline on every render path, so
+     its default already keeps the rail's 16px marks round without a rule". That
+     reasoning is wrong in exactly the way #633 was: it holds against ordinary
+     rules and not against !important, so the 16px marks went square everywhere a
+     blanket rule applies. Nobody saw it because the icons are small and the
+     inline declaration still reads `50%` in source.
+
+     The size test lives here because the ruling is about size and a selector
+     cannot measure one - which is what that same comment correctly said. The
+     class carries the component's decision to a place that can outrank the
+     blanket. */
   const radius = square ? 0 : '50%';
+  const round = !square && size <= 24;   // radius-ruling.md: 50% only at 24px or under
+  const cls = round ? 'coin-icon coin-icon-round' : 'coin-icon';
   const [failed, setFailed] = useState(false);
   const src = `/coin-icons/${coin}.png`;
   // Every supported coin has a bundled icon file, so this should never trigger. If a file is
@@ -24,7 +41,7 @@ export default function CoinIcon({ coin, size = 22, color, bg, square = false }:
   // the icon it replaces - never a letter/text abbreviation.
   if (failed) {
     return (
-      <span className="coin-icon" style={{
+      <span className={cls} style={{
         width: size, height: size, borderRadius: radius, flexShrink: 0,
         background: bg ?? 'rgba(255,255,255,0.07)',
         border: `0.5px solid ${color ? withAlpha(color, '44') : 'rgba(255,255,255,0.1)'}`,
@@ -40,7 +57,7 @@ export default function CoinIcon({ coin, size = 22, color, bg, square = false }:
     // arguing about a cost this particular image does not have.
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      className="coin-icon"
+      className={cls}
       src={src}
       alt={coin}
       width={size}
