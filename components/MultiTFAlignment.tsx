@@ -37,7 +37,31 @@ function BiasBadge({ bias }: { bias: Bias }) {
   const { t } = useLabels();
   const icon = bias === 'bullish' ? '▲' : bias === 'bearish' ? '▼' : '→';
   const label = bias === 'bullish' ? t('MULTI_TF_ALIGNMENT_BIAS_BULLISH') : bias === 'bearish' ? t('MULTI_TF_ALIGNMENT_BIAS_BEARISH') : t('MULTI_TF_ALIGNMENT_BIAS_NEUTRAL');
-  const color = bias === 'bullish' ? 'var(--green-2)' : bias === 'bearish' ? 'var(--red)' : 'var(--txt3)';
+  /* Bullish TEXT takes --green-fg, not --green-2 (#738).
+   *
+   * The badge puts its label on a 12% tint of its own signal colour - the
+   * "signal colour on its own tint" shape --green-fg was created for (#652).
+   * --green-2 aliases to --green under terminal, and terminal-light's --green
+   * was chosen against FLAT grounds: its own comment names 4.752:1 on --bg2 as
+   * the binding figure. On a tint of itself it does not hold.
+   *
+   * Measured on terminal light, --green on a 12% tint of itself:
+   *
+   *     --bg0  4.84      --bg1  4.35      --bg2  4.05
+   *     --green-fg       6.53             5.87        5.47
+   *
+   * 4.35 is exactly what QA measured on /arena, so this is the mechanism
+   * rather than a lookalike.
+   *
+   * BEARISH IS DELIBERATELY UNCHANGED. The symmetric edit would be --red-fg,
+   * and the established pattern uses both - but --red on its own 12% tint
+   * measures 6.06 / 5.43 / 5.06 and passes on every ground. Applying the
+   * pattern for consistency would be a change with no defect behind it, and
+   * it would spend --red-fg's meaning on a case that does not need it.
+   *
+   * bg and border keep the base token: the tint carries state, the foreground
+   * carries legibility. Same split as MultiTFSqueezeView (#708). */
+  const color = bias === 'bullish' ? 'var(--green-fg)' : bias === 'bearish' ? 'var(--red)' : 'var(--txt3)';
   const border = bias === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : bias === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : 'var(--border-input)';
   const bg = bias === 'bullish' ? 'color-mix(in srgb, var(--green-2) 12%, transparent)' : bias === 'bearish' ? 'color-mix(in srgb, var(--red) 12%, transparent)' : 'transparent';
   return (
