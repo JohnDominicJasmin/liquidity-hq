@@ -8,19 +8,21 @@
  * handle the class-level radii (--radius-card → 0, --radius-data → 0, plus
  * targeted rules for hardcoded px values like .edge-card and .scc-card). */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useOnboarding } from '@/components/OnboardingProvider';
 import {
   useMarket, COINS, COIN_DEC, fmtPrice,
   computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY,
 } from '@/lib/marketStore';
-import type { CoinId, CoinData } from '@/lib/marketStore';
+import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
-import { computeMarketRead, computeContrarian } from '@/lib/marketRead';
+import SOTD from '@/components/SOTD';
+import MarketRead from '@/components/MarketRead';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
 import EconCalendarWidget from '@/components/EconCalendarWidget';
+import MarketConditionsWidget from '@/components/MarketConditionsWidget';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
@@ -29,113 +31,11 @@ import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
-import { useIsDesktop } from '@/lib/useIsDesktop';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import PerpSpotCard from '@/components/PerpSpotCard';
 
 const SPARK_W = 36;
-
-/* "14 Aug 11:42 UTC" - the canvas eyebrow's stamp. UTC, not local: every
- * other time-derived value on this route (session windows, day-of-week
- * scoring in computeMarketRead) is anchored to UTC, and a local stamp beside
- * a UTC-derived read would disagree either side of the viewer's midnight. */
-function formatUtcStamp(d: Date, locale?: string): string {
-  const day   = d.getUTCDate();
-  // The app's own selected locale, not the browser's: the label beside this
-  // stamp resolves through t(), so passing undefined here spliced a
-  // navigator.language month into an otherwise app-locale line.
-  const month = d.toLocaleString(locale, { month: 'short', timeZone: 'UTC' });
-  const hh    = String(d.getUTCHours()).padStart(2, '0');
-  const mm    = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${day} ${month} ${hh}:${mm} UTC`;
-}
-
-/* Market read banner - Dashboard 2a.dc.html's first main-column panel (#587).
- *
- * This slot used to render <MarketRead />, the production conditions gauge
- * (58/100 bar + Order Wall / Fear & Greed / Day / Funding / Smart Money
- * boxes + a funding override control). None of that is in the canvas or in
- * specs/dashboard-2a.md: the frame draws one eyebrow line, one 24px verdict
- * string, one sentence. The gauge stayed because this branch restyled the
- * existing component rather than checking what the canvas wanted in the
- * position - the owner caught it by comparing the live page to the frame.
- *
- * Same computeMarketRead() the gauge used, so the words are the production
- * read, not a second opinion - only the presentation changes here.
- *
- * COLOUR, and the one place this deliberately departs from criterion 5:
- * the spec asks the verdict to take the READ'S DIRECTION (bullish --green /
- * bearish --red / neutral --txt2), and the canvas fixture shows a
- * directional string ("RISK-ON, CAUTIOUS"). computeMarketRead does not
- * produce a direction - its band is trade-CONDITIONS QUALITY (good / mid /
- * weak, "Good time to trade" ... "Weak setup - better to wait"), and no
- * market-wide directional read exists anywhere in the codebase (confluence
- * and Grok are both per-coin). Painting "weak conditions" --red would tell
- * the reader the market is falling when it means the setup is poor - the
- * exact substitution §"Colour is data" forbids. So the band maps on its own
- * axis: favourable --green, everything else quiet. Flagged for design on
- * #587 - either this mapping is confirmed, or a market-wide directional
- * read is a data question to answer before the colour can mean direction. */
-function TMarketReadBanner() {
-  const { t, locale } = useLabels();
-  const { store } = useMarket();
-  const [tick, setTick] = useState(0);
-
-  // Re-derive every 60s so the stamp and the time-of-day factor inside
-  // computeMarketRead stay current without a reload - same cadence the
-  // gauge used.
-  useEffect(() => {
-    const id = setInterval(() => setTick(n => n + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  const coin = store.coins[store.selectedCoin];
-
-  /* Memoised on the same inputs computeMarketRead actually reads. useMarket()
-     is a context, so without this the whole read - wallProximity's reduce over
-     the wall arrays, computeSmartMoney, computeContrarian - re-ran on every
-     websocket price tick, tens of times a second, for a string that changes
-     once a minute. `tick` is a dependency on purpose: it is what makes the
-     time-of-day and day-of-week factors re-derive on the 60s interval. */
-  const read = useMemo(
-    () => computeMarketRead(store),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [store.fng, store.selectedCoin, store.cbPremiumPct, store.btcExchangeNetFlow, coin, tick],
-  );
-
-  const verdictCol = read.band === 'good' ? 'var(--green)' : 'var(--txt2)';
-
-  /* No market data yet - render the band's shape without its conclusion.
-     computeMarketRead has no "unknown" state: with an empty store it still
-     scores time-of-day and day-of-week, lands around 40, and returns "Weak
-     setup - better to wait" - a confident market call derived from no market
-     data, in the largest text on the route. The gauge this replaced at least
-     showed a 0/100 track and five blank factor cells beside that string;
-     the banner shows only the conclusion, so it needs the guard the gauge
-     did not. Same SkeletonBar every other card in this file falls back to. */
-  const hasData = coin?.price != null;
-
-  return (
-    <section className="dash-market-read-banner" aria-label={t('MARKET_READ_TITLE')}>
-      <div className="dmrb-eyebrow">
-        <Tip width={280} text={t('MARKET_READ_TIP')}>{t('MARKET_READ_TITLE')}</Tip>
-        {hasData && <span suppressHydrationWarning> · {formatUtcStamp(new Date(), locale)}</span>}
-      </div>
-      {hasData ? (
-        <>
-          <h2 className="dmrb-verdict" style={{ color: verdictCol }}>{read.verdict}</h2>
-          <div className="dmrb-sub">{read.sub}</div>
-        </>
-      ) : (
-        <>
-          <div className="dmrb-verdict"><SkeletonBar width={260} height={24} radius={0} /></div>
-          <div className="dmrb-sub"><SkeletonBar width={420} height={12} radius={0} /></div>
-        </>
-      )}
-    </section>
-  );
-}
 
 const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: string }> = {
   strong_up:   { txtKey: 'OI_TREND_STRONG_UP_TXT',   subKey: 'OI_TREND_STRONG_UP_SUB',   col: 'var(--green)' },
@@ -145,44 +45,23 @@ const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: s
 };
 
 const SIDEBAR_DEFAULT = 7;
-/* The canvas shortens the rail on mobile: Dashboard 2a.dc.html:288 renders
-   sidebarCoinsM, defined at :391 as sidebarCoins.slice(0, 5), where desktop
-   uses sidebarCoinsShown at 7 (#656). Five rows on a 390 viewport leaves the
-   sections below it reachable without scrolling past a full list. */
-const SIDEBAR_DEFAULT_MOBILE = 5;
-
-interface VolRegimeState { regime: 'low' | 'neutral' | 'high'; percentile: number }
-
-/* Shared by the pulse strip's VOL chip and the market-conditions Volatility
- * bar (#413 canvas mirror). Was reading parsed.data?.btc?.label -
- * VolatilityRegime.tsx (the only writer of this key) has never written that
- * shape. It writes {ts, btcData, ethData} where btcData is {hv30,
- * percentile, regime}, no "data"/"btc"/"label" path anywhere - so the VOL
- * chip has never populated in production, on either design. Fixed to read
- * the shape that actually gets written; the same pre-existing bug also
- * lives in app/dashboard/page.tsx's non-terminal copy of this effect, out
- * of scope for this branch, flagged separately. */
-function useBtcVolRegime(): VolRegimeState | null {
-  const [state, setState] = useState<VolRegimeState | null>(null);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('lhq_vol_regime');
-      if (raw) {
-        const parsed = JSON.parse(raw) as { ts: number; btcData?: VolRegimeState };
-        if (Date.now() - parsed.ts < 4 * 60 * 60 * 1000 && parsed.btcData?.regime != null) {
-          setState(parsed.btcData);
-        }
-      }
-    } catch {}
-  }, []);
-  return state;
-}
 
 function TMarketPulseStrip() {
   const { store } = useMarket();
   const { t } = useLabels();
-  const vol = useBtcVolRegime();
-  const volRegime = vol?.regime ?? null;
+  const [volLabel, setVolLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('lhq_vol_regime');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Date.now() - parsed.ts < 4 * 60 * 60 * 1000 && parsed.data?.btc?.label) {
+          setVolLabel(parsed.data.btc.label);
+        }
+      }
+    } catch {}
+  }, []);
 
   const dom = store.btcDom;
   const alt = store.altSeasonScore;
@@ -194,12 +73,8 @@ function TMarketPulseStrip() {
     : alt >= 25 ? 'var(--red)'
     : 'var(--red)';
 
-  const volLabelKey: LabelKey | null = volRegime === 'low' ? 'VOLATILITY_REGIME_LABEL_LOW'
-    : volRegime === 'high' ? 'VOLATILITY_REGIME_LABEL_HIGH'
-    : volRegime === 'neutral' ? 'VOLATILITY_REGIME_LABEL_NEUTRAL'
-    : null;
-  const volColor = volRegime === 'low' ? 'var(--green)'
-    : volRegime === 'high' ? 'var(--red)'
+  const volColor = volLabel === 'Low Vol' ? 'var(--green)'
+    : volLabel === 'High Vol' ? 'var(--red)'
     : 'var(--txt2)';
 
   const domNote = dom == null ? '' : dom >= 60 ? t('DASH_PULSE_NOTE_BTC_LEADS') : dom >= 55 ? t('DASH_PULSE_NOTE_ELEVATED') : dom >= 48 ? t('DASH_PULSE_NOTE_NORMAL') : t('DASH_PULSE_NOTE_ALT_SEASON');
@@ -209,7 +84,7 @@ function TMarketPulseStrip() {
   const chips: Chip[] = [
     { label: t('DASH_PULSE_BTC_DOM_LABEL'), value: dom != null ? dom.toFixed(1) + '%' : '-', note: domNote, color: 'var(--txt)' },
     { label: t('DASH_PULSE_ALT_LABEL'), value: alt != null ? String(alt) : '-', note: altNote, color: altColor },
-    ...(volLabelKey ? [{ label: t('DASH_PULSE_VOL_LABEL'), value: t(volLabelKey), note: t('DASH_PULSE_VOL_NOTE'), color: volColor }] : []),
+    ...(volLabel ? [{ label: t('DASH_PULSE_VOL_LABEL'), value: volLabel.replace(' Vol', ''), note: t('DASH_PULSE_VOL_NOTE'), color: volColor }] : []),
   ];
 
   return (
@@ -239,15 +114,29 @@ function TMarketPulseStrip() {
   );
 }
 
-type SidebarSignal = { text: string; col: string } | null;
+function TCoinSidebar() {
+  const { store, selectCoin } = useMarket();
+  const { t } = useLabels();
+  const { settings } = useSettings();
+  const watchlist = settings.watchlist ?? [];
+  const pinned = watchlist.filter((id): id is CoinId => (COINS as string[]).includes(id));
+  const rest    = COINS.filter(id => !watchlist.includes(id));
+  const visibleCoins = [...pinned, ...rest].slice(0, SIDEBAR_DEFAULT);
 
-/* Priority cascade for the sidebar's one-signal-per-coin tag. Pulled out of
- * TCoinSidebar's row renderer so the rail header's "N FIRING" count (#413
- * canvas mirror) can run the same cascade over ALL coins, not just the
- * visible slice, without duplicating the seven branches. */
-function sidebarSignalFor(d: CoinData | undefined, t: (key: LabelKey) => string): SidebarSignal {
-  let sig: SidebarSignal = null;
-  if (d?.fundingRate != null) {
+  return (
+    <div className="csb2-container">
+      {visibleCoins.map(id => {
+        const d      = store.coins[id];
+        const dec    = COIN_DEC[id];
+        const chg    = d?.change ?? 0;
+        const up     = chg >= 0;
+        const sel    = store.selectedCoin === id;
+        const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
+        const health = computeCoinHealth(d);
+        const badgeCol = coinBadgeColor(id);
+
+        let sig: { text: string; col: string } | null = null;
+        if (d?.fundingRate != null) {
           const fr = d.fundingRate * 100;
           if (fr >= 0.04)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED'), col: 'var(--red)' };
           else if (fr <= -0.02) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED'),   col: 'var(--green)' };
@@ -273,73 +162,7 @@ function sidebarSignalFor(d: CoinData | undefined, t: (key: LabelKey) => string)
           else if (fr <= -0.03)  sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_LOW'),      col: 'var(--green)' };
           else if (fr <= -0.005) sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_LOW'),  col: 'var(--green)' };
           else                   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_NEUTRAL'),        col: 'var(--txt3)' };
-  }
-  return sig;
-}
-
-function TCoinSidebar() {
-  const { store, selectCoin } = useMarket();
-  const { t } = useLabels();
-  const { settings } = useSettings();
-  const watchlist = settings.watchlist ?? [];
-  const pinned = watchlist.filter((id): id is CoinId => (COINS as string[]).includes(id));
-  const rest    = COINS.filter(id => !watchlist.includes(id));
-  const isDesktop = useIsDesktop();
-  const shown = isDesktop ? SIDEBAR_DEFAULT : SIDEBAR_DEFAULT_MOBILE;
-  const visibleCoins = [...pinned, ...rest].slice(0, shown);
-  const firingCount = COINS.filter(cid => sidebarSignalFor(store.coins[cid], t) !== null).length;
-
-  return (
-    <>
-      <div style={{
-        height: 28, flexShrink: 0, display: 'flex', alignItems: 'center',
-        padding: '0 14px', gap: 10, borderBottom: '1px solid var(--bdr)',
-        fontFamily: 'var(--font-mono), monospace', fontSize: 10,
-      }}>
-        <span style={{ fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--txt2)' }}>
-          {t('DASH_SIDEBAR_HEADER_TITLE')}
-        </span>
-        <span style={{ color: 'var(--txt3)', textTransform: 'uppercase' }}>
-          {t('DASH_SIDEBAR_HEADER_FIRING', { count: firingCount })}
-        </span>
-        <span style={{ flex: 1 }} />
-        {/* alignSelf stretch, not padding (#641): measured 31x15, and only
-            the height failed SC 2.5.8 - 31 already clears 24. The header
-            above is a fixed height:28 flex row, so stretching the link to
-            fill it gives a 28px target and moves nothing. Padding would have
-            grown the row instead, and this row's 28px is the canvas's. */}
-        <Link
-          href="/markets"
-          style={{
-            color: 'var(--accent)', textDecoration: 'none',
-            alignSelf: 'stretch', display: 'inline-flex', alignItems: 'center',
-          }}
-        >
-          {t('DASH_SIDEBAR_HEADER_VIEW_ALL', { count: COINS.length })}
-        </Link>
-      </div>
-      <div className="csb2-container">
-      {visibleCoins.map(id => {
-        const d      = store.coins[id];
-        const dec    = COIN_DEC[id];
-        const chg    = d?.change ?? 0;
-        const up     = chg >= 0;
-        const sel    = store.selectedCoin === id;
-        const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
-        const health = computeCoinHealth(d);
-        /* #614: the canvas paints this badge in TWO states, not the five
-           computeCoinHealth() returns. Dashboard 2a.dc.html:377 is
-           `gradeCol: r[4][0] <= 'B' ? GREEN : TXT` - A and B green, C/D/F
-           plain text - and 2a-light-theme.dc.html:366 is the same rule.
-           So there is no amber for A, no --green-2 for B and no --orange
-           for D. #614 asked what value terminal's --orange should take;
-           the answer is that the badge has no orange state to give one to.
-           This is terminal-only: DashboardTerminal renders solely under
-           mode === 'terminal' (app/dashboard/page.tsx:519), so
-           health.color still drives the current design untouched. */
-        const gradeStrong = health.grade <= 'B';
-        const badgeCol = coinBadgeColor(id);
-        const sig    = sidebarSignalFor(d, t);
+        }
 
         const barCol = tbp >= 60 ? 'var(--green)' : tbp <= 40 ? 'var(--red)' : 'var(--txt3)';
 
@@ -350,37 +173,21 @@ function TCoinSidebar() {
             onClick={() => selectCoin(id)}
           >
             <div className="csb2-top">
-              <CoinIcon coin={id} size={16} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
+              <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
+                {/* fontSize lives in globals.css, not here (#718 revert). The
+                    pre-canvas markup set it inline, which outranks the terminal
+                    rule's 9.5px and left that rule dead - the exact shape #660
+                    and #681 fixed and terminalTypographyOwnership.test.mts now
+                    ratchets against. A base .csb2-health-badge rule carries the
+                    current design's size so only ownership moved, not the
+                    rendering. */}
                 <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
-                  /* No inline font-size. globals.css:556 sets mono 9.5px for
-                     this badge and an inline declaration outranks any selector,
-                     so var(--fs-caption)'s 12px was silently winning and the
-                     rule was dead. Third time this shape has bitten: #629, #633
-                     (where !important beat OUR inline border-radius: 0), now
-                     here. This component only ever renders under
-                     mode === 'terminal', so there is no second design to keep
-                     at 12px - the stylesheet is the right home for the size. */
                   fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 0,
-                  color: gradeStrong ? 'var(--green)' : 'var(--txt)',
-                  /* 15%, the canvas's own alpha, not withAlpha('22')'s 13.3%.
-                     For C/D/F the tint token is NOT the text token - the
-                     canvas tints with --txt2 (rgba(139,143,148,.15)) and
-                     paints the text --txt - so those three measure 11.2:1 or
-                     better everywhere and need no override. A/B is still a
-                     self-tint (green on green) and light still fails AA at
-                     15%; globals.css reduces that one case to 3% and carries
-                     the measurements. Dark keeps 15% in both states.
-                     One knowing divergence: the light canvas leaves the
-                     neutral literal at the DARK --txt2 (#8b8f94) while it
-                     does swap GREEN's rgba for the light one - so it is
-                     either a deliberate theme-invariant tint or a missed
-                     line. var(--txt2) is used here because it is governed
-                     and follows the theme; flagged on the PR for QA to rule
-                     on rather than settled silently. */
-                  background: `color-mix(in srgb, ${gradeStrong ? 'var(--green)' : 'var(--txt2)'} 15%, transparent)`,
+                  color: health.color,
+                  background: withAlpha(health.color, '22'),
                   border: `1px solid var(--bdr)`,
                   letterSpacing: '.04em', flexShrink: 0,
                 }}>
@@ -396,7 +203,7 @@ function TCoinSidebar() {
               <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
                 {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
               </span>
-              <Sparkline24h coin={id} width={SPARK_W} height={12} bars />
+              <Sparkline24h coin={id} width={SPARK_W} height={14} />
               {sig && (
                 <span className="csb2-sig" style={{ color: sig.col }}>
                   {sig.text}
@@ -413,24 +220,16 @@ function TCoinSidebar() {
 
       <Link
         href="/markets"
-        className="csb2-more"
         style={{
           display: 'block', width: '100%', background: 'none', border: 'none',
           borderTop: '1px solid var(--bdr)', padding: '7px 0',
-          /* Same dead-rule cause as the grade badge above. globals.css:563
-             sets mono 10.5px / .06em / uppercase; all three were being
-             outranked inline - the size by --fs-caption's 12px and the
-             tracking by 0.04em. text-transform agreed, which is why the
-             footer READ correct while measuring wrong, and why QA's
-             textContent-vs-innerText check mattered here. */
-          color: 'var(--txt3)', cursor: 'pointer',
-          textAlign: 'center', textDecoration: 'none',
+          fontSize: 'var(--fs-caption)', color: 'var(--txt3)', cursor: 'pointer',
+          letterSpacing: '0.04em', textAlign: 'center', textDecoration: 'none',
         }}
       >
-        {t('DASH_SIDEBAR_MORE_COINS_TERMINAL', { count: COINS.length - shown })}
+        {t('DASH_SIDEBAR_MORE_COINS', { count: COINS.length - SIDEBAR_DEFAULT })}
       </Link>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -459,8 +258,8 @@ function TCascadeAlertBanner() {
   const col = alert.side === 'LONG' ? 'var(--red)'
             : alert.side === 'SHORT' ? 'var(--green)'
             : 'var(--amber)';
-  const bdr = alert.side === 'LONG' ? 'color-mix(in srgb, var(--red) 35%, transparent)'
-            : alert.side === 'SHORT' ? 'color-mix(in srgb, var(--green-2) 35%, transparent)'
+  const bdr = alert.side === 'LONG' ? 'rgba(248,113,113,0.35)'
+            : alert.side === 'SHORT' ? 'rgba(52,211,153,0.35)'
             : 'rgba(251,191,36,0.35)';
 
   return (
@@ -474,60 +273,8 @@ function TCascadeAlertBanner() {
       </div>
       <button
         className="cascade-dismiss"
-        style={{ textTransform: 'uppercase', letterSpacing: '.1em', fontSize: 10 }}
         onClick={() => setStore(s => ({ ...s, cascadeAlert: null }))}
-      >{t('DASH_CASCADE_DISMISS')} ✕</button>
-    </div>
-  );
-}
-
-/* Contrarian crowd warning (#606). computeContrarian fires at 2-of-3 crowd
- * extremes and the old <MarketRead /> surfaced it as .mr-flag; when the
- * terminal dashboard moved to TMarketReadBanner (#587) the value was still
- * computed and then discarded, so a real risk-facing string disappeared from
- * the route with nothing else showing it.
- *
- * Reuses TCascadeAlertBanner's .cascade-alert pattern rather than inventing
- * geometry the canvas doesn't draw: same conditional/dismissible/colour-coded
- * shape, same slot above the main column, and the two never both fire on the
- * same input (one reads liquidation cascades, the other crowd positioning).
- *
- * Colour follows the cascade banner's own semantics - the direction that is
- * BAD for the reader is red. Longs overcrowded is flush risk (--red); shorts
- * overcrowded is squeeze risk against shorts, which favours a long (--green).
- *
- * label/desc are English literals from lib/marketRead.ts, not label keys -
- * they predate this component and are shared with the current design's
- * MarketRead. Rendering them as-is rather than forking the strings; the i18n
- * gap is marketRead.ts's and is the same one TMarketReadBanner's verdict has. */
-function TContrarianBanner() {
-  const { store } = useMarket();
-  const { t } = useLabels();
-  const c = computeContrarian(store);
-  const [dismissed, setDismissed] = useState<string | null>(null);
-
-  // Identity, not a boolean: dismissing "Longs overcrowded 2/3" should not
-  // also suppress a later escalation to 3/3, or a flip to the other side.
-  const id = c ? `${c.dir}-${c.count}` : null;
-  if (!c || dismissed === id) return null;
-
-  const col = c.dir === 'bear' ? 'var(--red)' : 'var(--green)';
-  const bdr = c.dir === 'bear' ? 'color-mix(in srgb, var(--red) 35%, transparent)' : 'color-mix(in srgb, var(--green-2) 35%, transparent)';
-
-  return (
-    <div className="cascade-alert" style={{ borderColor: bdr }}>
-      <div className="cascade-dot" style={{ background: col }} />
-      <div className="cascade-body">
-        <div className="cascade-title" style={{ color: col }}>
-          {c.label} · {c.count}/3
-        </div>
-        <div className="cascade-sub">{c.desc}</div>
-      </div>
-      <button
-        className="cascade-dismiss"
-        style={{ textTransform: 'uppercase', letterSpacing: '.1em', fontSize: 10 }}
-        onClick={() => setDismissed(id)}
-      >{t('DASH_CASCADE_DISMISS')} ✕</button>
+      >✕</button>
     </div>
   );
 }
@@ -585,6 +332,7 @@ function TEdgeSignals() {
   const sqCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
 
   return (
+    <>
       <div className="edge-grid">
         <div className="edge-card">
           <div className="edge-card-label">
@@ -611,7 +359,7 @@ function TEdgeSignals() {
           </div>
           {oiMeta ? (
             <>
-              <div className="edge-card-value" style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
+              <div className="edge-card-value is-label" style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
               <div className="edge-card-signal" style={{ color: oiMeta.col }}>{t(oiMeta.subKey)}</div>
             </>
           ) : (
@@ -647,7 +395,9 @@ function TEdgeSignals() {
              : t('DASH_EDGE_SETUP_BALANCED')}
           </div>
         </div>
+      </div>
 
+      <div className="edge-grid" style={{ marginTop: 8 }}>
         <div className="edge-card">
           <div className="edge-card-label">
             <Tip text={t('DASH_EDGE_CB_TIP')}>{t('DASH_EDGE_CB_LABEL')}</Tip>
@@ -672,6 +422,7 @@ function TEdgeSignals() {
           </div>
         </div>
       </div>
+    </>
   );
 }
 
@@ -681,122 +432,6 @@ function TCoinSignalsHeader() {
   return (
     <div className="dash-section dash-section-hot">
       {t('DASH_COIN_SIGNALS_HEADER', { coin: store.selectedCoin.toUpperCase() })}
-    </div>
-  );
-}
-
-/* Market conditions (#413 canvas mirror, #587). Canvas draws four labelled
- * bars: Volatility / Trend strength / Breadth / Liquidity. Replaces
- * MarketConditionsWidget (Fear&Greed gauge + BTC RSI + long/short ratio,
- * a different metric set) only in terminal mode - the non-terminal branch
- * keeps that widget untouched.
- *
- * All four slots now carry real data (#635):
- *   BTC volatility - BTC's 30-day HV percentile (useBtcVolRegime, above -
- *                same fixed cache read as the pulse strip's VOL chip).
- *                RENAMED from "Volatility" by the scope sweep below: the
- *                hook reads parsed.btcData and nothing else, so a bar
- *                labelled "Volatility" in a market-wide panel was showing
- *                one coin's. The pulse strip's VOL chip already disclosed
- *                this in its note ("BTC regime"); this bar did not. No
- *                aggregate exists to build instead - the cache stores only
- *                btcData - so the honest fix is the scope in the name.
- *   RSI bias   - mean rsi14 across COINS that have it. Fills the slot the
- *                canvas labels "Trend strength".
- *   Breadth    - % of all COINS with a positive 24h change right now.
- *                Standard definition of market breadth; data already in
- *                store.coins[*].change.
- *   Taker flow - mean takerBuyRatio across COINS that have it. Fills the
- *                slot the canvas labels "Liquidity".
- *
- * TWO OF THE FOUR ARE RENAMED, AND THAT IS THE POINT. The owner's ruling on
- * #632 is "make it work, or put different real data in the slot" - so the
- * canvas's four bars are a layout the frame designed, not four contracts for
- * four specific metrics. Where the named metric has no source, a different
- * real one goes in the slot and CARRIES ITS OWN NAME:
- *
- *   "Trend strength" means an ADX-shaped computation. There is none here,
- *   and mean RSI is momentum, not trend strength - a market can sit at RSI
- *   70 in a choppy range. So the bar says RSI bias.
- *
- *   "Liquidity" means depth and spread. We have neither - takerBuyRatio is
- *   aggressive-order flow, which is a different thing that happens to live
- *   nearby. So the bar says Taker flow.
- *
- * Renaming rather than relabelling is the whole distinction: substituting a
- * real measurement is allowed, putting a canvas label on data that is not
- * what the label says is the #589 mislabel and stays forbidden. Decided on
- * #635, where two other candidates were killed outright for scope.
- *
- * Both new bars are aggregated across COINS, the way breadth already is,
- * because this panel is MARKET-WIDE. Per-coin sources in a market-wide slot
- * was the error that killed CB prem and Liq 15m on the same issue. */
-function TMarketConditions() {
-  const { store } = useMarket();
-  const { t } = useLabels();
-  const vol = useBtcVolRegime();
-
-  const positive = COINS.filter(id => (store.coins[id]?.change ?? 0) > 0).length;
-  const breadthPct = COINS.length > 0 ? Math.round((positive / COINS.length) * 100) : 0;
-  const breadthCol = breadthPct >= 60 ? 'var(--green)' : breadthPct <= 40 ? 'var(--red)' : 'var(--txt2)';
-
-  /* Averaged over the coins that actually HAVE the field, not over COINS.
-     Dividing by COINS.length would drag the mean toward zero every time a
-     feed is partial, and read as a bearish market rather than a thin one -
-     a data gap rendered as a signal. Null until at least one coin reports,
-     so the bar shows an em dash instead of a confident 0. */
-  const mean = (vals: number[]): number | null =>
-    vals.length === 0 ? null : vals.reduce((a, b) => a + b, 0) / vals.length;
-
-  // rsi14 is already 0-100, so it maps to the bar's width with no rescaling.
-  const rsiMean = mean(
-    COINS.map(id => store.coins[id]?.rsi14).filter((v): v is number => v != null),
-  );
-  const rsiCol = rsiMean == null ? 'var(--txt3)'
-    : rsiMean >= 55 ? 'var(--green)' : rsiMean <= 45 ? 'var(--red)' : 'var(--txt2)';
-
-  // takerBuyRatio is 0-1 (buy volume / total), so x100 for both bar and value.
-  const takerMean = mean(
-    COINS.map(id => store.coins[id]?.takerBuyRatio).filter((v): v is number => v != null),
-  );
-  const takerPct = takerMean == null ? null : takerMean * 100;
-  const takerCol = takerPct == null ? 'var(--txt3)'
-    : takerPct >= 55 ? 'var(--green)' : takerPct <= 45 ? 'var(--red)' : 'var(--txt2)';
-
-  const volLabelKey: LabelKey | null = vol == null ? null
-    : vol.regime === 'low' ? 'VOLATILITY_REGIME_LABEL_LOW'
-    : vol.regime === 'high' ? 'VOLATILITY_REGIME_LABEL_HIGH'
-    : 'VOLATILITY_REGIME_LABEL_NEUTRAL';
-  const volCol = vol == null ? 'var(--txt3)'
-    : vol.regime === 'low' ? 'var(--green)'
-    : vol.regime === 'high' ? 'var(--red)'
-    : 'var(--txt2)';
-
-  const rows: { key: string; label: string; pct: number; value: string; col: string }[] = [
-    { key: 'vol', label: t('DASH_COND_VOLATILITY_LABEL'), pct: vol?.percentile ?? 0, value: vol && volLabelKey ? t(volLabelKey) : '-', col: volCol },
-    // Canvas order: Volatility, [Trend strength], Breadth, [Liquidity] - the
-    // two substituted slots keep their positions and take their own names.
-    { key: 'rsi', label: t('DASH_COND_RSI_BIAS_LABEL'), pct: rsiMean ?? 0, value: rsiMean != null ? rsiMean.toFixed(0) : '-', col: rsiCol },
-    { key: 'breadth', label: t('DASH_COND_BREADTH_LABEL'), pct: breadthPct, value: breadthPct + '%', col: breadthCol },
-    { key: 'taker', label: t('DASH_COND_TAKER_FLOW_LABEL'), pct: takerPct ?? 0, value: takerPct != null ? takerPct.toFixed(0) + '%' : '-', col: takerCol },
-  ];
-
-  return (
-    <div className="av-rail-panel">
-      <div className="av-rail-panel-h">{t('MARKET_CONDITIONS_WIDGET_TITLE')}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {rows.map(r => (
-          <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 11, color: 'var(--txt3)', width: 90, flexShrink: 0 }}>{r.label}</div>
-            <div style={{ flex: 1, height: 5, background: 'var(--bg3)' }}>
-              <div style={{ width: `${r.pct}%`, height: 5, background: r.col }} />
-            </div>
-            <div style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 11, color: r.col, width: 60, textAlign: 'right', flexShrink: 0 }}>
-              {r.value}
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -821,12 +456,7 @@ function TSelectedCoinCard() {
       className="scc-card"
       title={t('DASH_SELECTED_COIN_OPEN_ARENA', { coin: id.toUpperCase() })}
     >
-      {/* square (#630): the canvas draws this one at 26x26 with a 1px border
-          and NO border-radius, and the project's radius ruling allows 50%
-          only on inherently circular glyphs at 24px or under. The rail's
-          16px marks stay round - the frames draw those with
-          border-radius:50% - so this is the single 26px mark, not a sweep. */}
-      <CoinIcon coin={id} size={26} color={badgeCol} bg={withAlpha(badgeCol, '24')} square />
+      <CoinIcon coin={id} size={30} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
       <div className="scc-id">
         <span className="scc-ticker">{id.toUpperCase()}</span>
         <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>
@@ -835,80 +465,19 @@ function TSelectedCoinCard() {
         <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}>{up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%</span>
         <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
-      <span className="scc-cta" aria-hidden="true">{t('DASH_SELECTED_COIN_ARENA_CTA')}</span>
+      <span className="scc-arrow" aria-hidden="true">›</span>
     </Link>
   );
 }
 
-/* Best-setup headline (#413 canvas mirror, #587). Replaces SOTD ("Secret of
- * the Day", a static playbook-tips list unrelated to market data - present
- * under this same header in BOTH designs today, a pre-existing mismatch this
- * branch does not touch outside terminal mode). Reuses computeSqueezeScore,
- * the same real number TEdgeSignals already shows as its "Setup score" card
- * - not a new metric, a more prominent read of the existing one.
- *
- * Canvas also draws Entry/Stop/Target levels here. No local computation
- * produces them - the only place this app generates E/S/T is Arena's
- * per-request AI call, and its result lives in sessionStorage keyed to
- * whatever coin the user last ran there, not to whatever coin is selected
- * on the dashboard right now, with no re-validation against current price
- * (Arena's own UI has to re-check "stopped"/"target hit" against live price
- * before showing a cached E/S/T at all - reusing the stored value here
- * without that check would show a trader a level that may have already
- * been invalidated). Omitted rather than guessed - see PR body. */
-function TBestSetupToday() {
-  const { store } = useMarket();
-  const { t } = useLabels();
-  const id = store.selectedCoin;
-  const d  = store.coins[id];
-  const sq = computeSqueezeScore(d);
-
-  // "LEAN" below 70 mirrors the shape of this same file's grade bands
-  // (computeSqueezeScore's A/B/C/D/F cutoffs) rather than inventing a new
-  // threshold - flagged for design to confirm or move the line.
-  const biasText = sq.dir === 'SHORT_SQ'
-    ? (sq.score >= 70 ? t('ARENA_VERDICT_LONG') : t('ARENA_VERDICT_LEAN_LONG'))
-    : sq.dir === 'LONG_LIQ'
-    ? (sq.score >= 70 ? t('ARENA_VERDICT_SHORT') : t('ARENA_VERDICT_LEAN_SHORT'))
-    : t('ARENA_VERDICT_WAIT');
-  const biasCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '10px 20px 14px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexShrink: 0 }}>
-        <span style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 12, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.06em' }}>
-          {id.toUpperCase()}
-        </span>
-        <span style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 16, fontWeight: 700, color: biasCol }}>
-          {biasText}
-        </span>
-      </div>
-      <div style={{ flex: 1, height: 3, background: 'var(--bdr)' }}>
-        <div style={{ width: `${sq.score}%`, height: 3, background: biasCol }} />
-      </div>
-      <span style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 12, fontWeight: 700, color: 'var(--txt)', flexShrink: 0 }}>
-        {sq.score}
-      </span>
-    </div>
-  );
-}
-
 /* Flat terminal panel replacing mb-glow-card. No shadow, no glow, no radius. */
-/* A main-column BAND, not a card (#607). The canvas's main column is a flex
-   column with no gap, where each band carries only a bottom hairline and sits
-   on the column's own ground - Dashboard 2a.dc.html:77-86. This used to be a
-   free-standing bordered card on --bg1, which with .dash-main's 14px gap read
-   as a stack of floating boxes rather than the canvas's continuous banded
-   column: every band drew four borders, and the 14px of page ground between
-   them turned each hairline into a stray underline instead of a divider.
-   Background left to the column so the market-read banner stays the one
-   lifted surface, which is how the canvas distinguishes it. */
 function TPanel({ children, id }: { children: React.ReactNode; id?: string }) {
   return (
     <div
       id={id}
       style={{
-        borderBottom: '1px solid var(--bdr)',
+        background: 'var(--bg1)',
+        border: '1px solid var(--bdr)',
         borderRadius: 0,
       }}
     >
@@ -936,17 +505,16 @@ export default function DashboardTerminal() {
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
       <TCascadeAlertBanner />
-      <TContrarianBanner />
 
       {/* No GlobalSpotlight in terminal mode — cursor glow effects don't fit
           the flat monochrome aesthetic. */}
 
       <div className="dash-main">
-        <TMarketReadBanner />
+        <MarketRead />
 
         <TPanel id="tour-best-setup">
           <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>{t('DASH_BEST_SETUP_TODAY_HEADER')}</div>
-          <TBestSetupToday />
+          <SOTD />
         </TPanel>
 
         <TSelectedCoinCard />
@@ -958,7 +526,7 @@ export default function DashboardTerminal() {
 
         <div className="dash-conditions-row">
           <EconCalendarWidget />
-          <TMarketConditions />
+          <MarketConditionsWidget />
         </div>
       </div>
 

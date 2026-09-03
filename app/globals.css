@@ -557,6 +557,10 @@ body::after {
   font-family: var(--font-mono), monospace; font-size: 10.5px;
 }
 [data-design="terminal"] .csb2-sig { font-size: 10.5px; }
+/* Current design's size, moved out of the component's inline style (#718).
+   It has to live here or the terminal rule below is dead - an inline value
+   outranks every selector. */
+.csb2-health-badge { font-size: var(--fs-caption); }
 [data-design="terminal"] .csb2-health-badge {
   font-family: var(--font-mono), monospace; font-size: 9.5px;
 }
@@ -893,8 +897,7 @@ body::after {
 .scc-up { color: var(--green); } .scc-dn { color: var(--red); }
 .scc-sig { font-size: var(--fs-caption); font-weight: 600; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 190px; }
-.scc-cta { flex-shrink: 0; font-family: var(--font-mono), monospace; font-size: var(--fs-caption);
-  font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.scc-arrow { flex-shrink: 0; font-size: 1.1rem; color: var(--txt3); line-height: 1; }
 
 /* Macro Context rail wrapper - GlobalMacroContext has its own inner padding,
    this just gives it the flat-card frame the other rail items carry. */
@@ -7210,87 +7213,6 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .mcw-rsi-fill,
 [data-design="terminal"] .mcw-ls-bar,
 [data-design="terminal"] .mcw-ls-bar > *   { border-radius: 0; }
-
-/* Rail width, canvas-exact (qa/reports/dashboard-2a-canvas-geometry.md: aside
-   width 352px). Was 360px, close but not what the canvas draws. */
-@media (min-width: 1100px) {
-  [data-design="terminal"] .dashboard-grid { grid-template-columns: minmax(0, 1fr) 352px; }
-}
-
-/* ── Dashboard canvas mirror (feature/dashboard-canvas-mirror, #587) ──
-   Dashboard 2a.dc.html draws the six coin-signal cards as ONE 3x2 table -
-   hairline-separated cells, no per-card background or gap - not two
-   auto-fit card grids with a gap between them. TEdgeSignals now renders
-   all six as siblings of a single .edge-grid; this makes that grid lay
-   out and look like the canvas's table instead of the base .edge-card's
-   free-standing rounded cards. Scoped to .dash-main so Arena's own
-   .at-snapcells/.at-panelbody overrides (different geometry, same base
-   classes) are untouched.
-   Geometry from qa/reports/dashboard-2a-canvas-geometry.md: cell padding
-   12px 16px, label/value/sig 10.5/15/10.5, hairline #16191b (--bdr3). */
-[data-design="terminal"] .dash-main .edge-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  margin-bottom: 0;
-}
-[data-design="terminal"] .dash-main .edge-card {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  border-right: 1px solid var(--bdr3);
-  border-bottom: 1px solid var(--bdr3);
-  padding: 12px 16px;
-}
-[data-design="terminal"] .dash-main .edge-card:nth-child(3n) { border-right: 0; }
-[data-design="terminal"] .dash-main .edge-card:nth-last-child(-n+3) { border-bottom: 0; }
-[data-design="terminal"] .dash-main .edge-card-label  { font-size: 10.5px; }
-[data-design="terminal"] .dash-main .edge-card-value  { font-size: 15px; }
-[data-design="terminal"] .dash-main .edge-card-signal { font-size: 10.5px; }
-
-/* Market read banner - the canvas's first main-column panel (#587).
-   Desktop geometry, Dashboard 2a.dc.html:79-83: background #141517, padding
-   15px 20px, bottom hairline #1f2225 (--bdr); eyebrow 10px mono .16em
-   uppercase --txt3; verdict 24px mono 700 line-height 1 at 8px above; sub
-   12.5px/1.5 --txt2 at 8px above, capped 680px so the sentence wraps at a
-   readable measure rather than the full column width.
-
-   #141517 is --bg1, NOT --bg2. This shipped as --bg2 (#111416) with a
-   comment claiming it was #141517, so the wrong value read as verified:
-   the banner painted DARKER than the TPanel siblings below it, inverting
-   the canvas relationship where the band is a lifted surface on the
-   column ground. Light theme had the same inversion (canvas #ebe9e6 is
-   terminal-light --bg1; --bg2 there is #e3e1dd). */
-[data-design="terminal"] .dash-market-read-banner {
-  background: var(--bg1);
-  border-bottom: 1px solid var(--bdr);
-  padding: 15px 20px;
-}
-[data-design="terminal"] .dmrb-eyebrow {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--txt3);
-}
-[data-design="terminal"] .dmrb-verdict {
-  font-family: var(--font-mono), monospace;
-  font-size: 24px; font-weight: 700; line-height: 1; margin-top: 8px;
-}
-[data-design="terminal"] .dmrb-sub {
-  font-size: 12.5px; line-height: 1.5; color: var(--txt2);
-  margin-top: 8px; max-width: 680px;
-}
-/* Mobile band, Dashboard 2a.dc.html:236-239 - a distinct geometry, not the
-   desktop one reflowed: padding 14, verdict 21px at line-height 1.1, sub
-   12px. The canvas hand-breaks its verdict string ("RISK-ON,<br>CAUTIOUS")
-   precisely because 24px at line-height 1 does not survive a narrow column -
-   production strings are longer still ("Decent conditions - be selective" is
-   32 characters), so without this they wrap and the lines touch. */
-@media (max-width: 640px) {
-  [data-design="terminal"] .dash-market-read-banner { padding: 14px; }
-  [data-design="terminal"] .dmrb-verdict { font-size: 21px; line-height: 1.1; }
-  [data-design="terminal"] .dmrb-sub { font-size: 12px; }
-}
-
 /* briefing */
 [data-design="terminal"] .mb-macro-item { border-radius: 0; }
 [data-design="terminal"] .mb-event-tag  { border-radius: 0; }

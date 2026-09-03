@@ -8,7 +8,6 @@ import Tip from './Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-import { useDesignMode } from './DesignModeProvider';
 
 interface MacroData {
   dxy: number;  dxyChg: number;
@@ -52,7 +51,6 @@ function chgStr(chg: number) {
 
 export default function GlobalMacroContext() {
   const { t } = useLabels();
-  const mode = useDesignMode();
   const router = useRouter();
   const { entitled, loading: authLoading } = useAuth();
   const [state,  setState]  = useState<LoadState>('loading');
@@ -121,13 +119,9 @@ export default function GlobalMacroContext() {
   return (
     <div>
       <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4 }}>
-        {mode === 'terminal' ? (
-          t('DASH_MACRO_BACKDROP_HEADER')
-        ) : (
-          <Tip width={320} text={t('GLOBAL_MACRO_CONTEXT_TOOLTIP')}>
-            {t('GLOBAL_MACRO_CONTEXT_TITLE')}
-          </Tip>
-        )}
+        <Tip width={320} text={t('GLOBAL_MACRO_CONTEXT_TOOLTIP')}>
+          {t('GLOBAL_MACRO_CONTEXT_TITLE')}
+        </Tip>
       </div>
 
       {!authLoading && !entitled ? (
