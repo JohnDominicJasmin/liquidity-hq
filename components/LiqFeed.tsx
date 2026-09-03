@@ -26,7 +26,13 @@ export interface LiqEvent {
 
 interface Stats  { longUsd: number; shortUsd: number; count: number; }
 interface Cascade { ts: number; totalUsd: number; side: 'LONG' | 'SHORT' | 'MIXED'; coins: string[]; }
-export interface Bucket  { label: string; price: number; longUsd: number; shortUsd: number; total: number; coin: string; }
+/* `count` added for the cluster ladder (#652 region 5). The canvas's ladder has
+   a LEVERAGE column and liq_events carries no leverage - side, usd, price, ts and
+   source only, and a liquidation price cannot yield leverage without an entry
+   price. Under the owner's substitution ruling the column shows how many
+   liquidations built the level instead, which is real and answers a question
+   leverage was standing in for: whether a cluster is one whale or a crowd. */
+export interface Bucket  { label: string; price: number; longUsd: number; shortUsd: number; total: number; count: number; coin: string; }
 
 /* ── Constants ── */
 const FEED_SIZE          = 30;
@@ -142,17 +148,18 @@ export default function LiqFeed({ onClusters, onEvents, coinFilter }: {
 
     // Price clusters keyed per-coin so callers can filter by selected coin
     const cWin = history.filter(e => now - e.ts < CLUSTER_WIN);
-    const map  = new Map<string, { longUsd: number; shortUsd: number; coin: string; price: number }>();
+    const map  = new Map<string, { longUsd: number; shortUsd: number; count: number; coin: string; price: number }>();
     cWin.forEach(e => {
       const bp  = snapBucket(e.price);
       const key = `${e.coin}::${bp}`;
-      const cur = map.get(key) ?? { longUsd: 0, shortUsd: 0, coin: e.coin, price: bp };
+      const cur = map.get(key) ?? { longUsd: 0, shortUsd: 0, count: 0, coin: e.coin, price: bp };
       if (e.side === 'LONG') cur.longUsd += e.usd; else cur.shortUsd += e.usd;
+      cur.count += 1;
       map.set(key, cur);
     });
     const buckets: Bucket[] = Array.from(map.values())
-      .map(({ longUsd, shortUsd, coin, price }) => ({
-        label: fmtBucket(price), price, longUsd, shortUsd, total: longUsd + shortUsd, coin,
+      .map(({ longUsd, shortUsd, count, coin, price }) => ({
+        label: fmtBucket(price), price, longUsd, shortUsd, total: longUsd + shortUsd, count, coin,
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 100);
