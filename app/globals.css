@@ -7685,7 +7685,14 @@ main.app-content[data-chrome="none"] {
    on inherently circular glyphs at 24px or under, and a selector cannot
    tell a 16px icon from a 26px one. The component can. */
 [data-design="terminal"] .tj-lev-slider::-webkit-slider-thumb,
-[data-design="terminal"] .tj-lev-slider::-moz-range-thumb {
+[data-design="terminal"] .tj-lev-slider::-moz-range-thumb,
+/* #703: back on the list, but as .coin-icon-round - a class CoinIcon only emits
+   at 24px or under, which is the ruling's own threshold. The note above is right
+   that a selector cannot tell a 16px icon from a 32px one; the component can, so
+   it decides and the class carries that decision somewhere that outranks the
+   blanket `* { border-radius: 0 !important }` shells. The inline radius alone
+   never could. */
+[data-design="terminal"] .coin-icon-round {
   border-radius: 50% !important;
 }
 
