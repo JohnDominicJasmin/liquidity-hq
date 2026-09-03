@@ -5,6 +5,7 @@ import LiqFeed, { Bucket, LiqEvent } from '@/components/LiqFeed';
 import LiqDensityMap, { rampCss, RAMP_COUNT } from '@/components/LiqDensityMap';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 import GexTable from '@/components/GexTable';
+import Tip from '@/components/Tip';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -167,8 +168,9 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
   if (clusters.length === 0) {
     return (
       <div style={{
-        padding: '12px 14px', borderRadius: 0, marginBottom: 12,
-        background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)',
+        padding: '12px 14px', marginBottom: 12,
+        background: 'color-mix(in srgb, var(--txt) 2%, transparent)',
+        border: '0.5px solid var(--bdr)',
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
         <span style={{
@@ -182,91 +184,69 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
     );
   }
 
+  /* Canvas order is by LEVEL, high to low - a ladder, so the rows read as a
+     price axis. The previous build sorted above-spot ascending then below-spot
+     descending, which put the two nearest levels adjacent in the middle and
+     broke the axis. Sorting descending puts spot where it actually sits. */
+  const sorted = [...clusters].sort((a, b) => b.price - a.price);
   const maxTotal = Math.max(...clusters.map(c => c.total));
-  const above = clusters.filter(c => c.price > currentPrice).sort((a, b) => a.price - b.price);
-  const below = clusters.filter(c => c.price <= currentPrice).sort((a, b) => b.price - a.price);
-  const sorted = [...above, ...below];
+  const stacked  = clusters.reduce((sum, c) => sum + c.total, 0);
 
   return (
-    <div style={{
-      borderRadius: 0, overflow: 'hidden',
-      border: '0.5px solid color-mix(in srgb, var(--green-2) 20%, transparent)',
-      background: 'color-mix(in srgb, var(--green-2) 3%, transparent)',
-      marginBottom: 12,
-    }}>
-      <div style={{
-        padding: '10px 14px 8px',
-        borderBottom: '0.5px solid rgba(255,255,255,0.06)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-            background: 'var(--green-2)', boxShadow: '0 0 6px color-mix(in srgb, var(--green-2) 40%, transparent)',
-          }} />
-          <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
-            {t('LIQ_CLUSTERS_TITLE')}
-          </span>
-          <span style={{
-            fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.06em',
-            padding: '2px 7px', borderRadius: 0,
-            background: 'color-mix(in srgb, var(--green-2) 12%, transparent)', color: 'var(--green-2)',
-            border: '0.5px solid color-mix(in srgb, var(--green-2) 25%, transparent)',
-          }}>{t('LIQ_CLUSTERS_LIVE_BADGE')}</span>
-        </div>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_CLUSTERS_WINDOW_LABEL')}</span>
+    <div className="liq-lad">
+      <div className="liq-lad-head">
+        <span className="liq-lad-title">{t('LIQ_LADDER_TITLE')}</span>
+        <span className="liq-lad-meta">
+          {t('LIQ_LADDER_META', { levels: String(clusters.length), usd: fmtUsd(stacked) })}
+        </span>
+        <span className="liq-lad-legend">
+          <span><i className="liq-lad-key" style={{ background: 'var(--green-2)' }} />{t('LIQ_LADDER_LEGEND_SHORT')}</span>
+          <span><i className="liq-lad-key" style={{ background: 'var(--red)' }} />{t('LIQ_LADDER_LEGEND_LONG')}</span>
+        </span>
       </div>
 
-      <div style={{
-        display: 'grid', gridTemplateColumns: '80px 1fr 60px 24px',
-        padding: '6px 14px 4px',
-        gap: 8,
-      }}>
-        {([[t('LIQ_CLUSTERS_COL_PRICE'), 'left'], [t('LIQ_CLUSTERS_COL_VOLUME'), 'left'], [t('LIQ_CLUSTERS_COL_TOTAL'), 'right'], ['', 'right']] as [string, string][]).map(([h, a]) => (
-          <span key={h} style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', textAlign: a as 'left' | 'right' }}>{h}</span>
-        ))}
+      <div className="liq-lad-cols">
+        <span>{t('LIQ_LADDER_COL_LEVEL')}</span>
+        <span>{t('LIQ_LADDER_COL_SIDE')}</span>
+        <span>{t('LIQ_LADDER_COL_SIZE')}</span>
+        <span style={{ textAlign: 'right' }}>{t('LIQ_LADDER_COL_USD')}</span>
+        <span style={{ textAlign: 'right' }}>
+          <Tip width={260} text={t('LIQ_LADDER_EVENTS_TIP')}>{t('LIQ_LADDER_COL_EVENTS')}</Tip>
+        </span>
+        <span style={{ textAlign: 'right' }}>{t('LIQ_LADDER_COL_DISTANCE')}</span>
       </div>
 
-      <div style={{ padding: '0 14px 10px' }}>
-        {sorted.map(c => {
-          const longPct  = maxTotal > 0 ? (c.longUsd  / maxTotal) * 100 : 0;
-          const shortPct = maxTotal > 0 ? (c.shortUsd / maxTotal) * 100 : 0;
-          const isAbove  = c.price > currentPrice;
-          const domCol   = c.longUsd > c.shortUsd ? 'var(--red)' : 'var(--green-2)';
-          const distUsd  = currentPrice > 0 ? Math.abs(c.price - currentPrice) : 0;
-          return (
-            <div key={c.price} style={{
-              display: 'grid', gridTemplateColumns: '80px 1fr 60px 24px',
-              alignItems: 'center', gap: 8,
-              padding: '5px 0',
-              borderBottom: '0.5px solid rgba(255,255,255,0.04)',
-            }}>
-              <div>
-                <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
-                  {c.label}
-                </div>
-                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-                  {fmtP(distUsd)} {isAbove ? t('LIQ_CLUSTERS_ABOVE') : t('LIQ_CLUSTERS_BELOW')}
-                </div>
-              </div>
-              <div style={{ height: 10, borderRadius: 0, background: 'rgba(255,255,255,0.04)', overflow: 'hidden', display: 'flex' }}>
-                <div style={{ width: `${longPct}%`,  height: '100%', background: 'color-mix(in srgb, var(--red) 65%, transparent)', transition: 'width 0.4s' }} />
-                <div style={{ width: `${shortPct}%`, height: '100%', background: 'color-mix(in srgb, var(--green-2) 65%, transparent)',  transition: 'width 0.4s' }} />
-              </div>
-              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: domCol, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                {fmtUsd(c.total)}
-              </div>
-              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: domCol, textAlign: 'right' }}>
-                {c.longUsd > c.shortUsd ? t('LIQ_CLUSTERS_DOM_LONG') : t('LIQ_CLUSTERS_DOM_SHORT')}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
-        {t('LIQ_CLUSTERS_FOOTER_LEGEND')}
-      </div>
+      {sorted.map(c => {
+        /* Both shares render even when one is small - the spec is explicit that
+           this is a stacked two-colour fill, not a single dominant colour, so a
+           level that is 90/10 still shows the 10. */
+        const longPct  = maxTotal > 0 ? (c.longUsd  / maxTotal) * 100 : 0;
+        const shortPct = maxTotal > 0 ? (c.shortUsd / maxTotal) * 100 : 0;
+        const domLong  = c.longUsd > c.shortUsd;
+        const domCol   = domLong ? 'var(--red)' : 'var(--green-2)';
+        /* Percent from spot, not dollars: the canvas reads "-1.6%", and a
+           percentage is comparable across coins where a dollar gap is not. */
+        const distPct  = currentPrice > 0 ? ((c.price - currentPrice) / currentPrice) * 100 : 0;
+        return (
+          <div className="liq-lad-row" key={`${c.coin}-${c.price}`}>
+            <span className="liq-lad-lvl">{c.label}</span>
+            <span className="liq-lad-side" style={{ color: domCol }}>
+              {domLong ? t('LIQ_LADDER_SIDE_LONG') : t('LIQ_LADDER_SIDE_SHORT')}
+            </span>
+            <span className="liq-lad-bar-cell">
+              <span className="liq-lad-bar">
+                <i style={{ width: `${longPct}%`,  background: 'var(--red)',     transition: 'width .4s' }} />
+                <i style={{ width: `${shortPct}%`, background: 'var(--green-2)', transition: 'width .4s' }} />
+              </span>
+            </span>
+            <span className="liq-lad-usd">{fmtUsd(c.total)}</span>
+            <span className="liq-lad-ev">{c.count}</span>
+            <span className="liq-lad-dist">
+              {currentPrice > 0 ? `${distPct >= 0 ? '+' : ''}${distPct.toFixed(1)}%` : '-'}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
