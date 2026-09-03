@@ -245,6 +245,24 @@ export default function EconCalendarPage() {
                          predicted 4.45 against QA's measured 4.46. The cells
                          below take --txt-dash on this row for the same reason
                          /liq's marker and /correlation's null cell did. */
+                      /* HAZARD, recorded because it is currently masked. Making
+                         this overlay theme-aware is right - a white literal was
+                         painting a light card the same as a dark one - but
+                         var(--txt) at 2.5% DARKENS a light card where white
+                         lightened it, and that flips which themes are at risk:
+
+                             --txt3 on this row      OLD         NEW
+                               dark  --bg1           4.45 fail   4.48 fail
+                               light --bg1           5.09        4.83
+                               light --bg2           4.74        4.48 fail
+
+                         Nothing fails today - every cell here reads --ec-muted,
+                         which is --txt-dash on this row at 5.73, and --amber,
+                         --red and --green-fg all clear too, worst 4.98. But this
+                         row used to be a DARK-ONLY trap and is now an all-theme
+                         one. Every other finding on this screen was dark-only,
+                         so the next person adding a --txt3 cell here will expect
+                         light to be safe. It is not. Use --ec-muted. */
                       background: isNext ? 'color-mix(in srgb, var(--txt) 2.5%, transparent)' : 'transparent',
                       /* The cells below read --ec-muted rather than --txt3 directly.
                          A CSS rule could not reach them - they set colour inline, which
