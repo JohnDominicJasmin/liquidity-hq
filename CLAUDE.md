@@ -75,8 +75,16 @@ against `/api/version`. So the premise this table rests on does not hold.
 decide, not ours to infer from a corrected premise.** Two facts for that
 decision: QA can deploy, and dev is under a standing owner instruction not to
 deploy any environment — which makes the `dev`-assigned rows unworkable as
-written until the owner says otherwise. Until then, whoever moves a branch is
-still responsible for the deploy following it, and for saying so.
+written until the owner says otherwise.
+
+**Until then: whoever moves a branch says so immediately, and whoever can run
+the deploy runs it.** A branch that has moved while its service has not is the
+failure this whole section exists to prevent — it does not matter which session
+closes the gap, only that neither waits for the other. The earlier wording made
+the mover responsible for the deploy, which assigned dev a duty the paragraph
+above says dev may not perform; a rule that resolves to "responsible for a thing
+you may not do" gets ignored rather than followed. Dev caught it on the PR that
+introduced it.
 
 | Deploy | Who | Notes |
 |---|---|---|
