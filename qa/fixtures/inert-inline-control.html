@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>inertInline positive control</title>
+<!--
+  A known-positive page for qa/mobile-audit.mjs's inertInline check.
+
+  A detector that returns nothing against a real site and a detector that is
+  broken produce identical output. This project has shipped that mistake three
+  times - the deadRules walk that collected nothing, the ownership sweep whose
+  matcher never matched, and the platform audit whose summary read clean while
+  measuring zero loads. So every check gets a page it is KNOWN to fail on.
+
+  Run:  node qa/mobile-audit.mjs "file:///<abs path>/qa/fixtures/inert-inline-control.html"
+  Expect inertInline to contain BOTH .control-important and .control-redundant,
+  and NOT .control-effective.
+-->
+<style>
+  html { background: #06070a; }
+  body { color: #e8e9ea; font-family: monospace; padding: 20px; }
+
+  /* 1. !important beats the inline value - the #633 shape this exists for. */
+  .control-important { font-size: 30px !important; }
+
+  /* 2. the rule and the inline value agree, so the inline one changes nothing.
+        Different cause, same observable: a declaration doing no work. */
+  .control-redundant { letter-spacing: 4px; }
+
+  /* 3. a normal rule the inline value correctly outranks - MUST NOT be flagged,
+        or the check reports ordinary cascade use as a defect. */
+  .control-effective { color: #ff0000; }
+</style>
+
+<p class="control-important" style="font-size: 11px">
+  inline 11px, rule 30px !important - inline is inert
+</p>
+
+<p class="control-redundant" style="letter-spacing: 4px">
+  inline and rule both 4px - inline is redundant
+</p>
+
+<p class="control-effective" style="color: #3fb950">
+  inline green beats the rule's red - inline IS doing the work
+</p>

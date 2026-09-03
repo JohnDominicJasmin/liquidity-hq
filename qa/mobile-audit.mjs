@@ -227,6 +227,58 @@ const result = await page.evaluate(TOKENS => {
     subMinTargets: small.slice(0, 8),
     subMinCount: small.length,
     emptyFields: [...new Set(empty)].slice(0, 8),
+    /* The REVERSE of deadRules: a CSS `!important` beating a component's
+       inline value. #633's shape, and #663 records it as a live exposure with
+       no detector - 53 terminal rules use `!important` across seven
+       properties, and nothing checks whether any of them is silently winning.
+
+       A string compare cannot answer this. An inline `font-size: var(--fs-data)`
+       computes to `15px`, so inline-versus-computed differs textually on almost
+       every element even when the inline value won. Every naive version of this
+       check is one long false positive.
+
+       So ASK THE PAGE instead: read the computed value, remove the inline
+       declaration, read it again, put it back. If nothing changed, the inline
+       declaration had NO EFFECT - either a rule outranked it or the two values
+       coincide. Both are worth knowing and neither is visible from source.
+
+       Mutating and restoring is already the pattern horizontalOverflow uses
+       above, for the same reason: some questions only the layout engine can
+       answer. Capped at 400 elements so a large page cannot make the audit
+       quadratic. */
+    inertInline: (() => {
+      const PROPS = ['font-size', 'font-family', 'font-weight', 'letter-spacing',
+                     'color', 'background-color', 'padding', 'margin', 'border-radius', 'display'];
+      const out = [];
+      let scanned = 0;
+      for (const el of document.querySelectorAll('[style]')) {
+        if (scanned++ > 400) break;
+        for (const p of PROPS) {
+          const inline = el.style.getPropertyValue(p);
+          if (!inline) continue;
+          const prio = el.style.getPropertyPriority(p);
+          const before = getComputedStyle(el).getPropertyValue(p);
+          el.style.removeProperty(p);
+          const after = getComputedStyle(el).getPropertyValue(p);
+          el.style.setProperty(p, inline, prio);
+          if (before !== after) continue;            // the inline value is doing the work
+          out.push({
+            prop: p,
+            inline: inline.slice(0, 40),
+            computed: before.slice(0, 40),
+            el: (el.className || el.tagName).toString().slice(0, 40),
+          });
+        }
+      }
+      /* Dedupe by element+property: one row per silently-inert declaration. */
+      const seen = new Set();
+      return out.filter((r) => {
+        const k = r.el + '|' + r.prop;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      }).slice(0, 12);
+    })(),
     deadRules: (() => {
       /* A CSS declaration an inline style outranks is DEAD, not overridden -
          it can never apply, and source reads cannot see that. Three defects
