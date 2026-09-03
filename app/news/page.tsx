@@ -166,29 +166,54 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
   );
 }
 
-/* ── Source color map ── */
-const SOURCE_COLORS: Record<string, string> = {
-  'Reuters':          '#f59e0b',
-  'Reuters World':    '#f59e0b',
-  'Reuters Business': '#f59e0b',
-  'AP News':          'var(--accent-2)',
-  'AP Business':      'var(--accent-2)',
-  'BBC World':        '#e11d48',
-  'BBC Business':     '#e11d48',
-  'CoinDesk':         '#1a7aff',
-  'CoinTelegraph':    'var(--green-2)',
-  'Decrypt':          'var(--orange)',
-  'The Block':        '#38bdf8',
-  'CryptoSlate':      '#818cf8',
-  'Bitcoin Magazine': 'var(--amber)',
-  'Finnhub':          'var(--txt-dim)',
-};
+/* THE SOURCE COLOUR MAP IS GONE (#752). It was fourteen brand colours used as
+   TEXT at --fs-micro, and six of them failed:
+
+     source            value       cur dark  cur light  term dark  term light
+     Reuters (x3)      #f59e0b       7.68      2.00       7.08       1.68
+     The Block         #38bdf8       7.70      1.99       7.10       1.68
+     CryptoSlate       #818cf8       5.61      2.64       5.18       2.23
+     CoinDesk          #1a7aff       4.26      3.47       3.93       2.94
+     BBC (x2)          #e11d48       3.62      4.26       3.33       3.60
+     (unmapped)        --txt3        4.43      6.43       4.05       4.14
+
+   QA confirmed three of these on liquidity-hq.com by rendering - The Block
+   1.99, Reuters 2.00, BBC Business 4.26 - matching the arithmetic above to two
+   decimal places. `#e11d48` and `#1a7aff` fail in ALL FOUR contexts, so this
+   was never only a light-theme problem.
+
+   The three Reuters entries are the same `#f59e0b` #739 was opened for and
+   #742 was supposed to remove; that sweep matched on a hex string and missed
+   the ones held in this map.
+
+   WHY PLAIN TEXT AND NOT A COLOURED DOT. The owner ruled the identical
+   question on #734 - keep the coloured dot, make the text plain - and the
+   obvious move was to apply it here. Measured first: as a DOT these same
+   colours sit at 1.68-2.94 against the light grounds, so half of them would
+   be decoration nobody can see. A dot is worth keeping where one already
+   exists and is visible; inventing one at 1.68 is not. The source NAME is
+   spelled out either way, so the colour was redundant encoding, not
+   information.
+
+   --txt2 clears everywhere: 5.03 / 9.15 / 5.62 / 5.56 across the four
+   contexts. The `opacity: 0.9` had to go with it - at 0.9 the same token
+   measures 4.24 and 4.48 in current dark and terminal light, below the bar.
+   That is the second time today a decorative fade was the thing standing
+   between a correct colour and a passing measurement (#707 was the first). */
 
 /* ── Card type config ── */
 const TYPE_CFG: Record<'red' | 'amber' | 'purple', { dot: string; labelKey: LabelKey; accentBg: string }> = {
   red:    { dot: 'var(--red)', labelKey: 'NEWS_TYPE_BADGE_BREAKING', accentBg: 'rgba(248,113,113,0.08)'  },
   amber:  { dot: 'var(--amber)', labelKey: 'NEWS_TYPE_BADGE_MACRO',    accentBg: 'rgba(251,191,36,0.07)'  },
-  purple: { dot: '#1a7aff', labelKey: 'NEWS_TYPE_BADGE_CRYPTO',   accentBg: 'rgba(26,122,255,0.07)' },
+  /* `dot` is a misnomer inherited from an earlier design - all three are used
+     as `color:` on .ncard-type-badge, which is TEXT. Found while sweeping
+     #752 rather than by looking at the badge, because the field name says
+     otherwise. --red and --amber clear everywhere (5.24-12.07). The blue did
+     not: `#1a7aff` measured 3.98 in current light and 3.29 in terminal light
+     on --bg1, and the card's own 7% tint sits under it, which moves it down
+     rather than up. --accent-2 is the palette's blue and clears all four
+     contexts at 6.09-8.21. */
+  purple: { dot: 'var(--accent-2)', labelKey: 'NEWS_TYPE_BADGE_CRYPTO',   accentBg: 'rgba(26,122,255,0.07)' },
 };
 
 /* ── Market impact chip - first 6 words of note ── */
@@ -211,11 +236,10 @@ function ImpactChip({ note, color }: { note: string; color: string }) {
 
 /* ── Source pill ── */
 function SourcePill({ source }: { source: string }) {
-  const col = SOURCE_COLORS[source] ?? 'var(--txt3)';
   return (
     <span style={{
       fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
-      color: col, textTransform: 'uppercase', opacity: 0.9,
+      color: 'var(--txt2)', textTransform: 'uppercase',
     }}>{source}</span>
   );
 }
