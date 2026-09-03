@@ -697,6 +697,69 @@ Context for the move off the desktop GUI.
   cause and deploying to dev does not help. Any change to `/news` reaches production
   unverified; say so in the PR rather than letting the reader assume it was checked.
 
+### The failure that looks like success — 2026-09-03
+
+Six defects in one session shared a shape: **the symptom is indistinguishable from
+the healthy state**, so the thing you check to find them returns the same answer
+either way. Each is cheap to avoid once named.
+
+**A TypeScript parameter property makes a `lib/` module permanently untestable.**
+
+```ts
+constructor(public readonly status: number, message: string) {}
+```
+
+SWC compiles this, so it works in production. Node's type-stripping **refuses the
+whole file** — the shorthand emits code rather than only annotating — so any
+`__tests__/*.test.mts` importing that module dies with
+`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` before a single test runs. **Lint, `tsc` and
+`npm run build` all pass.** The only symptom is a test file that will not load.
+Declare the field separately and assign in the body.
+
+**A CSS rule an inline style outranks is dead, not overridden.** It can never
+apply, and no source read shows that — `globals.css` said the rail badge was
+9.5px mono for as long as the rule existed while it rendered 12px sans. Three
+defects shipped this way (#629, #633, #660). This is what `qa/mobile-audit.mjs`'s
+`deadRules` check is for (#666) — written after the third, because no source
+read finds them.
+
+**An empty result from a broken detector looks like a clean page.** The first
+version of that check returned `[]` against the real site *and* against a page
+built to contain one known dead rule — modern Chrome gives every `CSSStyleRule` a
+truthy empty `cssRules`, so a `if (r.cssRules) recurse` walk collects nothing.
+**Validate any new check against a known positive before trusting a clean run.**
+
+**A number computed from a subset of its inputs renders as a complete number.**
+`AccumulationTracker` could drop 47 points against a display threshold of 45;
+`lib/distribution.ts` can drop 55 against labels at 70 and 45, which turns a
+genuine `Distribution` into `Quiet` — the opposite claim, not a weaker one.
+`?? 0` on a missing price change was worse still: the coin survived a filter meant
+to exclude it, took the maximum of its section, and asserted `'Price flat'` in
+rendered text. **A neutral-looking default is often the strongest possible claim.**
+
+**A loading state and a missing source render identically.** A 15-second wait on
+`/liq` caught `LIQ_NO_OI_DATA` and produced a report that the page was broken in
+production. Polling to 60s showed 154 rows. **Poll until the page settles; never
+conclude absence from one sample.** The same confusion made "not applicable" and
+"not tested" identical in the dialog audit, and made a null `.liq-heat-wrap` look
+like a defect when it was the empty-state path.
+
+**Three identical measurements can be one measurement.** Three scanner runs
+returned the same five blank symbols, which looked like proof it was not a race —
+but `s-maxage=120, stale-while-revalidate=600` meant all three read one cached
+answer. **Variation confirms; stability inside a cache window proves nothing.**
+
+**The correct pattern already existing in-repo does not mean it travelled.**
+Four times in one session the right handling was present and documented at the
+place that got it right, and absent everywhere else: `--border-input`, a governed
+neutral nobody reached for; `marketStore`'s `>= 2` signal floor, which two other
+scorers lacked; `pool()`; and terminal typography, where `globals.css:6976`
+documents one inline-vs-stylesheet collision at the rule itself and reaches
+nobody writing the next component. `pool()` existed **twice**, hand-copied,
+each copy explaining why it was needed. Copying is what stopped it spreading: a
+comment only reaches someone already reading that function. Prefer a check over a
+convention, because a convention has to be recalled at the moment of writing.
+
 ---
 
 ## 15. How we work — the two-session model
