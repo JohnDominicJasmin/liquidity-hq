@@ -719,6 +719,11 @@ export const LABEL_KEYS = [
   'SIGNAL_ACCURACY_TIP_WIN_RATE_12H', 'SIGNAL_ACCURACY_TIP_WIN_RATE_24H', 'SIGNAL_ACCURACY_TIP_COUNT',
   'SIGNAL_ACCURACY_AVG_RETURN', 'SIGNAL_ACCURACY_FOOTER_NOTE',
   // AccumulationTracker
+  /* #661: shown only when a score was computed from fewer inputs than it has.
+     Absent when complete - a card that always says "7 of 7" trains people to
+     stop reading it, the same reason `partial` and data-spark are omitted when
+     there is nothing to report. */
+  'SCORE_INPUTS_PARTIAL', 'SCORE_INPUTS_PARTIAL_TIP',
   'ACCUMULATION_TRACKER_TITLE', 'ACCUMULATION_TRACKER_TOOLTIP', 'ACCUMULATION_TRACKER_SUBTITLE',
   'ACCUMULATION_TRACKER_EMPTY',
   // DistributionTracker
