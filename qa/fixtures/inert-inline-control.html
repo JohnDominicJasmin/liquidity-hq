@@ -15,7 +15,13 @@
   Expect inertInline to contain ONLY .control-important.
 
   All three cases below are exercised and each must land differently:
-    .control-important  reported     a rule outranks inline unconditionally
+    .control-important  reported     a rule outranks inline unconditionally,
+                                     and designScoped is FALSE
+    .control-scoped     reported     same, but the winning rule is scoped to a
+                                     design - designScoped is TRUE. That is the
+                                     difference between a dead declaration and a
+                                     deliberate override, and #703 was filed as
+                                     the former when it was the latter.
     .control-redundant  NOT reported inline matches the rule, so it changes
                                      nothing - but it would win if it differed
     .control-effective  NOT reported inline correctly beats an ordinary rule
@@ -39,6 +45,11 @@
   /* 3. a normal rule the inline value correctly outranks - MUST NOT be flagged,
         or the check reports ordinary cascade use as a defect. */
   .control-effective { color: #ff0000; }
+
+  /* 4. inert for a DESIGN-SCOPED reason. Reported like case 1, but the label
+        must say designScoped so a reader can tell a deliberate override from a
+        dead declaration without opening the stylesheet. */
+  [data-design="terminal"] .control-scoped { letter-spacing: 9px !important; }
 </style>
 
 <p class="control-important" style="font-size: 11px">
@@ -52,3 +63,9 @@
 <p class="control-effective" style="color: #3fb950">
   inline green beats the rule's red - inline IS doing the work
 </p>
+
+<div data-design="terminal">
+  <p class="control-scoped" style="letter-spacing: 2px">
+    inline 2px, design-scoped rule 9px !important - inert, but deliberately
+  </p>
+</div>
