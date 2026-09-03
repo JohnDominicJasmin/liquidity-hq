@@ -94,6 +94,39 @@ await page.waitForFunction(() => {
 }, { timeout: 180000 }).catch(() => {});
 await page.waitForTimeout(6000);
 
+/* Then wait for the DESIGN AND THEME to stop moving, because 6000ms is a
+   guess and a guess is what produced the number below.
+
+   Measuring /?design=terminal in light on qa 2ef168c returned 263 contrast
+   failures. A re-run of the identical command returned 0. Nothing in that
+   build touches the landing page - it carried an econ-calendar change and two
+   QA scripts - so 263 was the page sampled mid-transition, with one design's
+   colours already applied and the other's not yet. Reported as-is it would
+   have read as a catastrophic regression on a screen that had been signed
+   off minutes earlier.
+
+   The stable proxy is cheap: the two root attributes plus the body's
+   composited background. A transition moves at least one of them, and a
+   settled page moves none. Full contrast is far too expensive to sample
+   twice, which is why this watches the inputs rather than the output. */
+const settled = await page.waitForFunction((want) => {
+  const de = document.documentElement;
+  const key = de.getAttribute('data-design') + '|' + de.getAttribute('data-theme') +
+              '|' + getComputedStyle(document.body).backgroundColor;
+  const s = (window.__maSettle ||= { last: null, n: 0 });
+  s.n = key === s.last ? s.n + 1 : 0;
+  s.last = key;
+  /* The requested theme must actually be on the root as well: a run that
+     never applied it is stable and wrong, which is the same failure one
+     level down. */
+  return s.n >= 2 && de.getAttribute('data-theme') === want;
+}, theme, { timeout: 45000, polling: 1000 }).then(() => true).catch(() => false);
+
+if (!settled) {
+  console.error('mobile-audit: design/theme never settled within 45s on ' + url +
+                ' (theme=' + theme + '). Measuring anyway - treat this run as suspect.');
+}
+
 const result = await page.evaluate(TOKENS => {
   const TOK = Object.fromEntries(TOKENS.map(t => [t, 1]));
   /* Same 0-1 vs 0-255 scaling as parse(): a `color(srgb ...)` declaration
