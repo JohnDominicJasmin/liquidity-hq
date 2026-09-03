@@ -760,6 +760,53 @@ each copy explaining why it was needed. Copying is what stopped it spreading: a
 comment only reaches someone already reading that function. Prefer a check over a
 convention, because a convention has to be recalled at the moment of writing.
 
+**A backslash dies inside a quoted string, and the detector goes silent.** Three
+instances in one session, all in checks whose failure mode is *finding nothing*:
+
+```js
+if (!/[.#]/.test(sel)) …            // fine - a regex literal
+new RegExp('(^|;|\s)' + prop)       // '\s' is just the letter s
+new RegExp(`…\b${cls}\b`)              // \b in a template literal is BACKSPACE
+```
+
+The first was `qa/mobile-audit.mjs`'s dead-rule detector under-reporting; the
+other two were `__tests__/terminalTypographyOwnership`'s sweep **matching
+nothing at all** and therefore declaring the codebase clean. A regex literal is
+safe; the moment a pattern is built from a string — because it interpolates a
+variable — every backslash needs doubling, and nothing warns you. **Build
+patterns from plain strings with explicit `\\`, never from template
+literals**, and assume any new string-built matcher is broken until a positive
+control says otherwise.
+
+**A measurement over the wrong field gives a confident wrong answer, not an
+obviously broken one.** Investigating `/econ-calendar`'s 72 blank cells, a probe
+read `e.date || e.time || e.datetime`. The field is `isoDate`. Every event fell
+back to epoch and read as *past*, so the run reported "19 past, 19 missing
+actual" — a fabricated defect that pointed at the **opposite** conclusion from
+the truth, which is that all 19 events are in the future and their blank
+`actual` is correct. It was caught only because a printed sample row showed a
+September 4 date under a "past" heading. **Print a sample of what you measured,
+not just the aggregate** — the aggregate cannot show you that you read the wrong
+key. The same shape produced `rsi symbols=2` from counting the two top-level
+keys `{rsi, ts}` instead of the 46 inside `rsi`.
+
+**A hex grep reads prose.** Sweeping `qa/` for stale palettes, a grep for
+`#6a6e73` and `#1a7f37` matched `qa/token-surfaces.mjs` — in a *comment*
+documenting the previous stale-palette incident. The real drift there was four
+different values, found only by parsing the object literal by brace depth.
+Files in this repo deliberately record their own history in place, which makes
+grep-for-a-value structurally unreliable on them. `app/globals.css` has the same
+property and it has caused this before (#641).
+
+**Two tools measuring the same thing must be reconciled, or the weaker one keeps
+publishing.** `qa/mobile-audit.mjs` proves horizontal overflow by scrolling and
+checking the offset sticks; `qa/platform-audit.mjs` computed
+`scrollWidth - clientWidth`. `html { overflow-x: hidden }` clips the closed nav
+drawer while `scrollWidth` still reports its extents, so the second tool flagged
+four mobile loads that cannot scroll — reproducing a phantom overflow QA had
+already reported and retracted on #641, on every run for weeks afterward.
+**When a check is corrected, grep for every other copy of the same comparison.**
+
 ---
 
 ## 15. How we work — the two-session model
