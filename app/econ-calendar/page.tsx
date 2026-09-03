@@ -269,8 +269,34 @@ export default function EconCalendarPage() {
                          outranks every selector (#663) - but an inline value that READS a
                          custom property still inherits, so the row can move all four at
                          once without a class toggle per cell. */
-                      ['--ec-muted' as string]: isNext ? 'var(--txt-dash)' : 'var(--txt3)',
-                      opacity: isPast && !e.actual ? 0.45 : 1,
+                      /* #692: NO opacity fade. It was 0.45, which put every
+                         cell in a stale row at ~1.9:1 in BOTH themes - the
+                         worst contrast on the screen, on rows that render real
+                         values.
+
+                         Opacity cannot be tuned out of this. Minimum opacity
+                         each token needs to hold 4.5:1, worst of --bg1/--bg2:
+
+                             --txt   50% dark  62% light
+                             --txt2  87%       94%
+                             --txt3  97%       98%
+                             --txt-dash 91%    87%
+
+                         Only --txt survives a fade anyone would notice; every
+                         muted token needs ~90%+, which is not a fade. So the
+                         mechanism is wrong rather than the value.
+
+                         Staleness now reads from --ec-muted instead: the row's
+                         muted text takes --txt-dash, which passes on every
+                         ground here, and the "-" placeholders already say the
+                         data never arrived. That is a WEAKER visual signal than
+                         a 45% fade and it is deliberate - #635's ruling was that
+                         an honest placeholder beats a confident wrong one, and
+                         an unreadable row is worse than a quiet one. If design
+                         wants the staleness louder, a background tint or a left
+                         border moves no text contrast at all. */
+                      ['--ec-muted' as string]: isNext || (isPast && !e.actual)
+                        ? 'var(--txt-dash)' : 'var(--txt3)',
                       minWidth: 680,
                     }}
                   >
