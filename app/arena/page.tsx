@@ -26,7 +26,7 @@ import EMASignal from '@/components/EMASignal';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import Tip from '@/components/Tip';
 import LiqFeed, { type Bucket } from '@/components/LiqFeed';
-import { topClustersForCoin, acceptClusterEmission } from '@/lib/liqClusters';
+import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
@@ -831,9 +831,22 @@ function ArenaContent() {
        retail-sentiment block on 2026-07-31; its removal comment sits eight
        lines above the LIQUIDATION CLUSTERS header in lib/grok.ts and the
        pattern survived directly beneath it. */
-    const liqLevels = store.btcLiqLevels && store.btcLiqLevels.length > 0
-      ? store.btcLiqLevels.slice(0, 4).map(l => '$' + l.price.toLocaleString() + ' ' + l.side).join(' | ')
-      : 'Not available';
+    /* Sourced from LiqFeed since #814, not from store.btcLiqLevels. That array
+       is permanently empty - Coinglass retired the v2 endpoints this called and
+       the v4 migration is deferred until revenue (MarketProvider.tsx:927-946,
+       pendings/PENDING.md:18) - so this line resolved to 'Not available' on
+       EVERY Quick and Deep run, for every coin, since the API went away. The
+       prompt has been carrying a section header with nothing under it.
+
+       Two things this changes beyond filling it in: the clusters are the
+       ANALYSED coin's rather than BTC's, which is what let the #637 caveat come
+       out of the header in lib/grok.ts, and they are REALIZED rather than the
+       predicted levels the old vendor sold.
+
+       'Not available' still has to be reachable and it is - a fresh session has
+       watched no liquidations, so it has no 24h window, and a stated absence is
+       the honest answer rather than a bug to design away. */
+    const liqLevels = formatClustersForPrompt(liqClusters, selectedCoin);
 
     /* BTC dom trend */
     const btcDomTrend = store.btcDomHistory && store.btcDomHistory.length >= 3
@@ -1284,7 +1297,13 @@ function ArenaContent() {
         return next;
       });
     }
-  }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache]);
+    /* liqClusters is a real dependency, not a lint appeasement (#814). Without
+       it this callback closes over the empty array it had at mount and every
+       Quick and Deep run sends "Not available" - which is precisely the bug
+       #814 exists to fix, reproduced silently and indistinguishable from a
+       browser that has genuinely watched no liquidations. It changes at most
+       once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
+  }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache, liqClusters]);
 
   /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
