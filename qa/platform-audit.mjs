@@ -369,7 +369,19 @@ if (JSON_OUT) { console.log(JSON.stringify(rows, null, 2)); process.exit(0); }
    report came to look clean while measuring nothing. */
 const measured = rows.filter(r => !r.error);
 const errored  = rows.filter(r => r.error);
-const sum = k => measured.reduce((a, r) => a + (r[k] || 0), 0);
+/* Scoped to a design when more than one was swept (#776 review, dev's finding).
+   A `--design terminal,current` run used to total BOTH designs into one number,
+   and the per-row `design` column was the only thing saying otherwise. A reader
+   who scrolls to the summary - which is what a summary is for - got a figure
+   belonging to neither design.
+
+   That is the same shape as the finding this flag was built to catch: on
+   2026-09-04 `current desktop-dark contrast 1330` was 1322 of /correlation and
+   8 of everything else, and the fix was looking at what the total contained.
+   An aggregate that spans the axis under test cannot be read, and this one was
+   latent in precisely the capability the flag adds. */
+const sumOf = (rowset, k) => rowset.reduce((a, r) => a + (r[k] || 0), 0);
+const sum = k => sumOf(measured, k);
 console.log('\n' + '='.repeat(78));
 console.log(`designs ${DESIGNS.join('+')} x routes ${ROUTES.length} x viewports ${VIEWPORTS.length} x themes ${THEMES.length} = ${rows.length} page loads`);
 console.log(`measured ${measured.length} of ${rows.length}   errors ${errored.length}`);
@@ -390,7 +402,23 @@ console.log(`with contrast failures ${measured.filter(r => r.contrastFails > 0).
 console.log(`with off-palette       ${measured.filter(r => r.offDistinct > 0).length}   (total distinct-instances ${sum('offDistinct')})`);
 console.log(`with radius violations ${measured.filter(r => r.radiusTotal > 0).length}   (total ${sum('radiusTotal')}, circular <=24px exempt per radius-ruling.md)`);
 console.log(`with sub-24px targets  ${measured.filter(r => r.subMin > 0).length}   (total ${sum('subMin')})`);
+
 console.log(`with empty fields      ${measured.filter(r => r.empties > 0).length}   (total ${sum('empties')})`);
+
+/* The per-design split. Printed only for a multi-design run, because for a
+   single design it would restate the block above verbatim. */
+if (DESIGNS.length > 1) {
+  console.log('\nBY DESIGN - the totals above span both and belong to neither:');
+  for (const d of DESIGNS) {
+    const rs = measured.filter(r => r.design === d);
+    if (!rs.length) { console.log(`  ${d.padEnd(9)} nothing measured`); continue; }
+    console.log(`  ${d.padEnd(9)} loads ${String(rs.length).padStart(3)}` +
+      `  contrast ${String(sumOf(rs, 'contrastFails')).padStart(5)}` +
+      `  off-palette ${String(sumOf(rs, 'offDistinct')).padStart(4)}` +
+      `  radius ${String(sumOf(rs, 'radiusTotal')).padStart(5)}` +
+      `  <24px ${String(sumOf(rs, 'subMin')).padStart(4)}`);
+  }
+}
 
 /* A run that never settled is not a clean run, and a flag nobody prints is
    the same defect one level up. */
