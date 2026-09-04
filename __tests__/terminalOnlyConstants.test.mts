@@ -38,7 +38,21 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Terminal-only components, by the naming convention the codebase already
- *  uses: a `*Terminal.tsx` renders only under [data-design="terminal"]. */
+ *  uses: a `*Terminal.tsx` renders only under [data-design="terminal"].
+ *
+ *  THE SUFFIX IS LOAD-BEARING. A terminal-only component named anything else
+ *  is not in this sweep and never will be - the file-set test below catches a
+ *  component renamed OUT of the pattern, but nothing can catch one that never
+ *  matched it. So naming a new terminal component `FooPanel.tsx` silently
+ *  exempts it from rule 1.
+ *
+ *  Worth knowing that the convention is doing real work rather than describing
+ *  what someone remembered: asked to list the terminal-only components from
+ *  memory, QA would have missed CorrelationTerminal, LiqTerminal and
+ *  MarketsTerminal. The suffix found them.
+ *
+ *  If a terminal-only component ever lands under another name, add it to
+ *  BASELINE by hand at its current count. */
 function terminalOnlyFiles(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const full = path.join(dir, name);
