@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { contrastRatio, parseCssColor } from '../lib/readableOn.ts';
+import { compositeOver, contrastRatio, parseCssColor } from '../lib/readableOn.ts';
 import { CONTEXTS, resolve } from './_cssContexts.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,22 +69,60 @@ test('a scheduled row gets no marker - silence is the signal for the accurate ca
     'the marker renders something for the scheduled case too');
 });
 
-test('the marker clears 4.5:1 as text in all four contexts', () => {
-  /* It is text on the row, and the row is transparent over --bg1's card. Read
-     from globals.css through the cascade rather than restated here, so a token
-     change moves the assertion with it. */
+/** The ground the marker is actually painted on.
+ *
+ *  NOT `--bg1`, and the difference is the whole point of this helper. The row
+ *  sets `background: color-mix(in srgb, var(--txt) 2.5%, transparent)` when it
+ *  is the next event and transparent otherwise, so the next row composites a
+ *  2.5% veil of `--txt` over the card. Trap 2: a background is not the first
+ *  non-transparent ancestor.
+ *
+ *  This test measured `--bg1` until QA caught it on the deployed build (#696).
+ *  Every ratio the PR published was right about the tokens and wrong about the
+ *  pixels. Recomputed here independently, and it reproduces their reading of the
+ *  rendered page exactly:
+ *
+ *    current dark    #06070a -> #0c0d10    12.07 -> 11.64
+ *    current light   #FFFFFF -> #f9f9f9     6.95 ->  6.60
+ *    terminal dark   #141517 -> #191a1c    10.94 -> 10.43
+ *    terminal light  #ebe9e6 -> #e6e4e1     5.91 ->  5.64
+ *
+ *  The composited ground is the WORSE case in all four - it lightens under light
+ *  text and darkens under dark - so asserting against it is strictly stricter
+ *  than `--bg1` as well as being the ground a real row paints on. */
+function rowGround(map: Record<string, string>): string {
+  const bg1 = resolve(map, 'var(--bg1)');
+  const txt = resolve(map, 'var(--txt)');
+  assert.ok(bg1 && txt, 'could not resolve --bg1 or --txt');
+  const rgb = compositeOver(parseCssColor(txt)!.rgb, parseCssColor(bg1)!.rgb, 0.025);
+  return '#' + rgb.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+}
+
+test('the marker clears 4.5:1 as text in all four contexts, on the ground it is painted on', () => {
   const colour = /color:\s*'var\((--[a-z0-9-]+)\)'/.exec(rowMarker()!);
   assert.ok(colour, 'the marker colour is no longer a token - a literal cannot follow the theme');
   const failures: string[] = [];
   for (const [name, map] of CONTEXTS) {
     const fg = resolve(map, `var(${colour[1]})`);
-    const bg = resolve(map, 'var(--bg1)');
-    assert.ok(fg && bg, `${name}: could not resolve ${colour[1]} or --bg1`);
+    assert.ok(fg, `${name}: could not resolve ${colour[1]}`);
+    const bg = rowGround(map);
     const r = ratio(fg, bg);
     if (r < TEXT_MIN) failures.push(`${name}: ${fg} on ${bg} = ${r.toFixed(2)}:1`);
   }
   assert.deepEqual(failures, [],
     `the estimated marker is unreadable in ${failures.length} context(s):\n  ${failures.join('\n  ')}`);
+});
+
+test('the composited ground is not the card colour - if it ever is, this test lost its point', () => {
+  /* A guard on the guard. If the row's 2.5% veil is removed, rowGround() starts
+     returning --bg1 and the assertion above quietly reverts to measuring the
+     thing QA corrected, while still passing. */
+  const differs = CONTEXTS.filter(([, map]) =>
+    rowGround(map).toLowerCase() !== resolve(map, 'var(--bg1)')!.toLowerCase());
+  assert.equal(differs.length, CONTEXTS.length,
+    'the row background no longer composites over --bg1 in every context - if the veil ' +
+    'was deliberately removed then --bg1 is correct again, and this test should say so ' +
+    'rather than keep compositing a layer that is not there');
 });
 
 test('the marker is a word, so colour is not the only channel', () => {
