@@ -148,8 +148,26 @@ export default function CoinHeatmap() {
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
           <Tip text={t('COIN_HEATMAP_TOOLTIP')}>{t('COIN_HEATMAP_TITLE')}</Tip>
         </span>
+        {/* --green-fg on the TEXT, --green-2 still on the tint and border
+            (#738). This is the pattern the token exists for: a signal colour
+            printed on a wash of itself. In terminal light --green is #14702c,
+            and on its own 10% wash that measures 4.47 by token arithmetic and
+            4.11 rendered - QA's number, three runs, same ratio each time.
+            --green-fg is 6.03 there and is ALIASED to --green everywhere else,
+            so the other three contexts are byte-identical. The tint keeps
+            --green-2 deliberately: changing the wash would move the ground
+            this was just measured against.
+
+            The comment sits ABOVE the conditional, not inside it. A
+            short-circuit render takes exactly one child, and a JSX comment in
+            that slot is a second one - it compiles to an object where JSX
+            expects an element. Third time in this session; tests pass every
+            time, because nothing typechecks a .tsx, and only tsc says so.
+            Braces are spelled out in words here for the same reason: this
+            comment lives inside a JSX expression container, so a stray brace
+            in the prose closes it early. */}
         {positiveCount > 0 && (
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--green-2)', background: 'color-mix(in srgb, var(--green-2) 10%, transparent)', border: '0.5px solid color-mix(in srgb, var(--green-2) 25%, transparent)' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--green-fg)', background: 'color-mix(in srgb, var(--green-2) 10%, transparent)', border: '0.5px solid color-mix(in srgb, var(--green-2) 25%, transparent)' }}>
             ↑ {positiveCount}
           </span>
         )}
