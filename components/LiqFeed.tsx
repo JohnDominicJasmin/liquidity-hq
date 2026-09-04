@@ -83,7 +83,22 @@ function fmtEventPrice(price: number): string {
   return '$' + price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 3 : 2 });
 }
 
-export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string }) {
+/** `headless` runs the feed and renders nothing (#811).
+ *
+ *  Arena needs what this component COLLECTS - the 24h cluster accumulation off
+ *  the Binance and Bybit sockets, handed up through onClusters - and not what
+ *  it DRAWS: the chart already draws those same eight clusters as lines, so the
+ *  card was 844px repeating them. Unmounting it would take the chart's data
+ *  with it, which is why this is a render flag and not a conditional mount.
+ *
+ *  Deliberately NOT `display: none`: that keeps the whole subtree in the DOM
+ *  and in the accessibility tree, so a screen reader still walks a live-region
+ *  feed the owner asked to remove. Returning null is the honest version.
+ *
+ *  The live event ticker goes with it. The owner was offered "keep the ticker,
+ *  drop the duplicated bars" and chose to hide the card - recorded here so it
+ *  does not come back as an oversight. */
+export default function LiqFeed({ onClusters, coinFilter, headless = false }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string; headless?: boolean }) {
   const { t } = useLabels();
   const [feed,     setFeed]     = useState<LiqEvent[]>([]);
   const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
@@ -369,6 +384,13 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
   const longDom   = stats.longUsd  > stats.shortUsd * 1.2;
   const shortDom  = stats.shortUsd > stats.longUsd  * 1.2;
   const anyLive   = bnStatus === 'live' || bbStatus === 'live';
+
+  /* AFTER every hook, and that placement is the whole correctness argument.
+     Returning early above them would break the rules-of-hooks order and, worse,
+     skip the effects that open the sockets, seed from localStorage and emit
+     onClusters - the exact work headless mode exists to keep running. The
+     cleanup at the bottom of the mount effect has to stay reachable too. */
+  if (headless) return null;
 
   return (
     <div className="liqfeed-wrap">
