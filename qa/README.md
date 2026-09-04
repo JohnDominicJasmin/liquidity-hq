@@ -21,26 +21,35 @@ The tools in this folder encode traps that a fresh script re-hits. They are
 written *inside* those tools, which is exactly where nobody looks while writing
 a replacement for them. So they are repeated here.
 
-**Ten of the thirteen below are one shape: an instrument answering a question
-ADJACENT to the one asked, and returning something well-formed.** Not an error
-and not a crash — a well-formed result, correctly computed, about the wrong
-thing. Sometimes a plausible number; **sometimes a clean zero, which is worse,
-because a zero reads as good news.** Only 7 (a substring match), 8 (prose citing
-deleted code) and 13 (a probe that broke the page it was measuring) sit outside
-it.
+**Nearly all of them are one shape: an instrument answering a question ADJACENT
+to the one asked, and returning something well-formed.** Not an error and not a
+crash — a well-formed result, correctly computed, about the wrong thing.
+Sometimes a plausible number; **sometimes a clean zero, which is worse, because a
+zero reads as good news.**
 
-That sentence read *"not an error, not a zero"* until 2026-09-04, and it had
-excluded two of its own members from the day it was written: **trap 3 is titled
-"Zero elements is not zero failures"**, and both its examples return clean zeros.
-Trap 12 doubled the exposure. Corrected here rather than deleted, because how the
-definition drifted from the list is the same failure the list is about — a
-sentence that sounds right and describes something adjacent to what it names.
+The exceptions announce themselves in their own first line. Everything else is
+in the family, and no entry needs a preamble to say which.
 
-That is the durable part. A reader who internalises **"well-formed output is not
-evidence of the right question"** has ten of these already; the numbered
-incidents below are just the ways it has actually happened here.
+**This paragraph used to assert a count, and it was wrong both times it was
+checked.** It said *"nine of eleven, only 7 and 8 sit outside"*, then *"ten of
+thirteen, only 7, 8 and 13"*. Trap 3 is titled "Zero elements is not zero
+failures" and returns clean zeros, so *"not a zero"* excluded a member from the
+day it was written. Trap 7's own last line reads *"Trap 3b again, in the check
+rather than the page"* — naming itself a member while the preamble listed it as
+an exception. Trap 12 was added on top of both.
 
-Four of them form a sequence, and each passes the previous check:
+Recorded rather than quietly fixed, because **the paragraph describing this list
+kept making exactly the error the list is about** — a claim that sounds right and
+is about something adjacent to what it names. Twice, on a page written by people
+watching for it.
+
+The count is gone rather than corrected. **A claim that has to be re-derived by
+hand on every edit is a claim that will be wrong**, and neither of the two people
+who edited this paragraph re-derived it. That is the durable lesson and it cost
+three passes to find; the numbered incidents below are just the ways the shape
+has actually shown up here.
+
+These form a sequence, and each passes the previous check:
 
 ```
 13   is the page still working after whatever I installed on it?
@@ -49,7 +58,7 @@ Four of them form a sequence, and each passes the previous check:
 11   do the things I matched carry the property I am claiming about?
 ```
 
-**12 sits across all four**, because it is the one where every check above
+**12 sits across the whole sequence**, because it is the one where every check above
 passes and the answer is still wrong: the page works, the selector matches, the
 component is right, and the FIXTURE was outside the range that could have
 produced a visible result.
@@ -252,7 +261,10 @@ Applied here it produces the second failure at exactly the speed it prevented
 the first. What separates them is one question asked before either verdict:
 **could this input have produced a visible result at all?**
 
-**13. A probe can break the page it is measuring, and this one did.** Same run:
+**13. A probe can break the page it is measuring, and this one did.** *Outside
+the family — every other entry is epistemic, where the measurement is fine and
+the question is wrong. This one is causal: it changed the subject before
+measuring it.* Same run:
 capturing the research prompt meant wrapping `window.fetch` to intercept
 `/api/grok` before it could reach a paid API. The shim forwarded everything else
 with `orig.apply(this, arguments)`.
@@ -270,13 +282,16 @@ probe — the numbers were about the right page, the right selectors and the rig
 colours, and every one of them was produced by a page the probe itself had
 disabled.
 
-**This is the trap that sits outside the family the others belong to.** The rest
-are instruments answering an adjacent question; this one changes the subject
-before measuring it. So the guard is different: after installing any shim,
-override or route, assert the page still WORKS — one element that only exists if
-the app got its data — before trusting a single number that comes back. `canvases
-= 0` was that assertion available for free, and it was in the output all along,
-one line above the zeros.
+**Being causal rather than epistemic is what makes its guard different.** Every
+other guard here runs on the output — did I match anything, was it the right
+thing, does it carry the property. This one has to run before the measurement:
+after installing any shim, override or route, assert the page still WORKS — one
+element that only exists if the app got its data — before trusting a single
+number that comes back.
+
+`canvases = 0` was that assertion available for free, it ran, it printed the
+answer, and I read past it. **That is a different failure from not having a
+check**, and the only guard on offer for it is knowing it is possible.
 
 ## Where QA tests
 
