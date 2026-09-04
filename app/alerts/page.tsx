@@ -651,8 +651,26 @@ export default function AlertsPage() {
                       rel="noreferrer"
                       style={{
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        /* TELEGRAM'S BRAND BLUE, DARKENED UNTIL WHITE READS
+                           ON IT (#786). The brand pair #0088cc -> #229ed9
+                           measures 3.89 and 3.02 against white, and
+                           --fs-caption at 700 is small text, so the bar is
+                           4.5. WCAG 1.4.3 exempts logotypes; it does not
+                           exempt a text button that borrows a brand's palette.
+
+                           These are the same two hues scaled to 90% and 78%
+                           lightness - the least darkening that clears the bar,
+                           so the button still reads as Telegram rather than as
+                           a generic blue.
+
+                           SWEPT ALONG THE WHOLE GRADIENT, not just the stops.
+                           QA's recommendation of #0077b3 -> #1b86b8 clears at
+                           the dark end and measures 4.08 at the light one; a
+                           gradient's worst point is wherever it is lightest,
+                           and checking two endpoints is not checking a
+                           gradient. This pair's worst is 4.69, at 0%. */
                         fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#fff',
-                        background: 'linear-gradient(135deg, #0088cc 0%, #229ed9 100%)',
+                        background: 'linear-gradient(135deg, #007ab8 0%, #1b7ba9 100%)',
                         padding: '10px 18px', borderRadius: 8, textDecoration: 'none',
                       }}
                     >
