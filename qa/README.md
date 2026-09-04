@@ -119,6 +119,43 @@ one command separates "genuinely undeclared" from "declared where you did not
 look" — `/news` has no such declarations and its `--border` really is missing;
 `/econ-calendar` has one and its `--ec-muted` was never broken.
 
+**10. A fixed `waitForTimeout` LOOKS like it handled the timing.** That is what
+makes it worse than no wait at all — an unhandled race is visibly unhandled,
+while `await p.waitForTimeout(14000)` reads as deliberate and reports whatever
+state it happened to land in.
+
+On 2026-09-04 a probe requesting terminal **light** reported `--badge-0` as the
+`:root` dark value and found **0** `.coin-icon` elements. Neither was a finding:
+the theme had not applied and the data had not loaded. The same script with a
+longer sleep would have "passed" and the numbers would have been quoted.
+
+**Assert the preconditions instead of waiting for them.** Poll for the state the
+test requires, then say so in the output:
+
+```js
+for (let i = 0; i < 40; i++) {
+  ok = await p.evaluate(t => document.documentElement.getAttribute('data-theme') === t
+    && document.querySelectorAll('.coin-icon').length > 0, theme);
+  if (ok) break;
+  await p.waitForTimeout(1000);
+}
+if (!ok) { console.log('PRECONDITION NOT MET — not reporting from this state'); continue; }
+```
+
+Print the **actual** `data-theme`, `data-design` and element count beside every
+result. A run that cannot say what state it measured has not measured anything.
+
+**11. A passing check on the wrong elements is the decoy trap at its purest.**
+#756 was closed after measuring 20 `.coin-icon` borders at 16.49 and 16.57 —
+comfortably clear, 20 real elements, correctly measured, and **not one of them
+carried the hue under test**. The badge palette renders on dots behind sign-in;
+the borders on that page are neutral.
+
+The check passed *because* it was looking at the wrong thing. Before believing a
+clean result, confirm the elements you matched are the ones the claim is about —
+not merely that they exist and pass. Trap 3 counts them; this one asks whether
+they are the right ones.
+
 ## Where QA tests
 
 **Four branches, four services, one each.** Nothing auto-deploys — moving a
