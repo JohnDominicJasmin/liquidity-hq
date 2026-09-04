@@ -373,7 +373,28 @@ export default function BriefingTerminal() {
         ) : (
           top3Setups.map(({ id, c, sq }, i) => {
             const isLong   = sq.dir === 'SHORT_SQ';
-            const dirColor = isLong ? 'var(--green-2)' : 'var(--red)';
+            /* --red-fg for SHORT, --green-2 for LONG, and the asymmetry is
+               the measurement rather than an oversight (#775 cause 3).
+               The badge is a signal colour on a FIXED literal wash - the two
+               rgba() values below are the current design's red and green and
+               do not move with the theme - so the ground changes only with
+               --bg1 while the text changes with the palette. Measured on that
+               ground, all four contexts:
+
+                 SHORT  --red     6.43 / 5.76 / 4.45 / 6.01   terminal dark FAILS
+                        --red-fg  6.43 / 5.76 / 6.82 / 8.02
+                 LONG   --green-2 8.87 / 6.00 / 5.80 / 4.80   passes everywhere
+                        --green-fg                     6.48
+
+               So red takes the -fg token and green does not. On #738 it was the
+               other way round - green needed it, red passed - which is the
+               point: the -fg pattern belongs to a GROUND, not to a colour, and
+               applying it by symmetry is what took .scan-badge from 4.85 to
+               4.47. Green at 4.80 is thin but passing, and changing a passing
+               colour to tidy the expression is the same mistake.
+               The washes are left alone deliberately: tokenising them would
+               move the ground these numbers were measured against. */
+            const dirColor = isLong ? 'var(--green-2)' : 'var(--red-fg)';
             const dirLabel = isLong ? t('BRIEFING_DIR_LONG') : t('BRIEFING_DIR_SHORT');
             const tags     = c ? getSignalTags(c, sq.dir as 'LONG_LIQ' | 'SHORT_SQ', t) : [];
             const isLast   = i === top3Setups.length - 1;
