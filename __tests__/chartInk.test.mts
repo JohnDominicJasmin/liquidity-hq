@@ -204,10 +204,19 @@ test('no two lines in a ramp collapse into each other', () => {
 
      A single instrument for both is how this goes wrong in either direction.
 
-     THE FLOORS ARE THE SHIPPING MINIMUM, not an aspiration. The tightest pair
-     anywhere in the app today is the current-dark ribbon's EMA20 vs EMA200 at
-     1.57, which has been in production throughout. 1.4 sits below that on
-     purpose: this is a ratchet against collapse, not a redesign trigger. */
+     THE FLOOR IS BELOW THE SHIPPING MINIMUM, not an aspiration. 1.4 sits under
+     the tightest SAME-HUE pair that ships - the only kind the floor applies to
+     - so this ratchets against collapse rather than triggering a redesign.
+
+     That pair is TERMINAL DARK EMA9 vs EMA20 at 1.50. This comment said
+     current-dark EMA20/EMA200 at 1.57 until QA rechecked it on #822; the 1.57
+     pair is real but fourth-tightest, and quoting it overstates the headroom by
+     70%. Anyone adjusting a terminal grey has 0.10 to spend, not 0.17.
+
+     RE-DERIVE IT RATHER THAN TRUSTING THIS SENTENCE. It has been wrong once,
+     for the same reason the trap preamble in qa/README.md was wrong twice: a
+     number in prose that has to be recomputed by hand on every edit. The ramps
+     are three lines above; the test below computes every pair. */
   const HUE_APART = 25;   // degrees; below this, treat the pair as same-hue
   const RATIO_MIN = 1.4;  // for same-hue pairs only
 
