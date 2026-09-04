@@ -953,8 +953,17 @@ looks.
 
 Before opening a PR, dev has:
 
-- **Run the gates.** `npm run lint` (0 errors), `npx tsc --noEmit`, `npm test`,
-  `npm run build`. All four, not the fast one.
+- **Run the gates.** `npm run verify` runs all four in order — lint (0 errors),
+  typecheck, test, build — and stops at the first failure. Individually they are
+  `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+
+  **All four, not the fast one.** `npm test` is `node --test __tests__/*.test.mts`:
+  it typechecks nothing outside `__tests__`, so a `.tsx` can be syntactically
+  broken while all 583 tests pass. That happened three times in one session
+  before `typecheck` existed as a named script — the output was not wrong, it
+  answered a narrower question than the one being asked. CI has always run all
+  four (`.github/workflows/ci.yml:191-209`), so this is about the local loop,
+  not about what can reach `main`.
 - **Exercised the change**, not reasoned about it. Load the page. Call the
   route. If it is a fix, reproduce the original failure first and then confirm
   it is gone — a fix that was never seen failing is a guess.
