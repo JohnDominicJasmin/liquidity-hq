@@ -390,6 +390,32 @@ admins (`sendSpikeAlertEmail`, `sendHealthAlertEmail`, `sendAdminAddedEmail`, an
 users — and on dev, qa and staging those tables are the **dev** Supabase project,
 so the recipients are test accounts rather than real customers.
 
+### `SPIKE_ALERT_RECIPIENTS` — a second way to send nothing and look fine
+
+Added 2026-09-05 (#824). The AI-spend spike alert used to hold its two recipient
+addresses in `lib/email.ts`; this repo is public, so they moved to an env var:
+**comma-separated, server-only, NOT `NEXT_PUBLIC_`** — that prefix inlines the
+value into the browser bundle and would publish them again by a longer route.
+
+| Service | Needs it | Why |
+|---|---|---|
+| `liquidity-hq-prod` | **Yes** | The only service that runs the alert. n8n triggers `LHQ - AI Spike Alert` against the prod host — see §3. |
+| dev / qa / staging | No | They do not run it. Setting it is harmless and buys nothing. |
+
+**Unset means the alert is built and sent to an empty list.** It does not throw
+and it does not warn: `sendSpikeAlertEmail` returns the same way it would if the
+send had worked.
+
+That is deliberate — an alert going nowhere beats one hardcoded to a person's
+inbox in a public repo — but read it against the paragraphs above, because it is
+**the same failure shape as a missing `BREVO_API_KEY`, one layer in.** Brevo
+missing means no environment can send; this missing means one environment sends
+to nobody. Both are indistinguishable from "nobody was due", and the spike alert
+is the one that only fires when something has already gone wrong with spend.
+
+If the alert is what you are relying on to notice a runaway xAI bill, **check the
+variable is set rather than inferring it from silence.**
+
 ### Telegram on QA — currently dev's bot, safe only by accident
 
 **`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` and `TELEGRAM_WEBHOOK_SECRET` on the
