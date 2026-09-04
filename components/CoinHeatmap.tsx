@@ -261,7 +261,23 @@ export default function CoinHeatmap() {
           { label: '>+10%', c: 'var(--green-2)' }, { label: '+5%', c: 'var(--green-soft)' },
           { label: '+2%', c: 'var(--green-soft)' },   { label: '0', c: 'var(--txt-dim)' },
           { label: '-2%', c: 'var(--red-soft)' },   { label: '-5%', c: 'var(--red-soft)' },
-          { label: '<-10%', c: '#fee2e2' },
+          /* NOT '#fee2e2' (#761). That is the TILE's text colour, and it is
+             correct there - the worst bucket's tile is var(--red) at 38%, and
+             pale text on a saturated tile measures 8.6-9.6, which is the rule
+             the comment at the top of this file sets out.
+
+             The legend has no tile. It is text on the panel, var(--bg1), and
+             the same value measures 1.22 in current light and 1.01 in terminal
+             light. Dark hid it completely (16.49 / 14.96) because there the
+             panel is dark and pale text is exactly right.
+
+             Same fact, two grounds, and the copy took the value without the
+             surface it depended on. var(--red) clears all four (7.28 / 6.47 /
+             5.24 / 6.65) and reads as the strongest step of the ramp, which is
+             what the legend is for. In terminal dark it coincides with
+             --red-soft, so the last two steps look identical there; that is
+             the palette's own doing, not this substitution's. */
+          { label: '<-10%', c: 'var(--red)' },
         ].map(({ label, c }) => (
           <span key={label} style={{ fontSize: 'var(--fs-caption)', color: c, fontWeight: 600 }}>{label}</span>
         ))}
