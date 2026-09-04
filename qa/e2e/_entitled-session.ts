@@ -28,6 +28,30 @@ import type { Page } from '@playwright/test';
  * It is a local test double for a client library that reads its session from
  * localStorage, not a key to anything.
  *
+ * IT DOES NOT WORK OUTSIDE PLAYWRIGHT, AND THAT IS NOT A BUG TO FIX (#767)
+ *
+ * The interception is not a convenience wrapped around the fixture — it IS the
+ * fixture. Seeding the same localStorage key by hand in an ordinary browser
+ * does not produce a signed-in app: supabase-js attempts a refresh with the
+ * deliberately-invalid refresh token, the request actually reaches Supabase,
+ * the refresh fails, and the client DISCARDS the session. The page renders
+ * signed out, with no error to explain why.
+ *
+ * That was tried on 2026-09-04 and reported as "the fixture is broken". It is
+ * not: the invalid signature is what makes it safe, and answering its requests
+ * locally is what makes it work. Both halves are load-bearing and neither can
+ * be dropped to make it portable.
+ *
+ * THE CONSEQUENCE IS THE PART TO KNOW. Nothing behind sign-in can be verified
+ * by rendering a deployed environment. On one day that left four findings
+ * source-only: the terminal nav's signed-in avatar (#747), the chart's
+ * price-alert line (#759), the journal's badge dots (#756) and the /alerts
+ * Telegram button (#786). Any of those needs either a Playwright run — which
+ * is owner-gated, it costs real money — or a human signed in at a keyboard.
+ *
+ * So when a QA report says "unverified, behind sign-in", this file is why, and
+ * the fix is not in this file.
+ *
  * HOW IT WORKS
  *
  * `AuthProvider` resolves the user from `sb.auth.getSession()`
