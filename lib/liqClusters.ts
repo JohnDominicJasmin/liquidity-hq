@@ -23,6 +23,38 @@
 
 export const LIQ_CLUSTER_LINES = 8;
 
+/** The same clusters as one prompt line, for Quick and Deep Research (#814).
+ *
+ *  RETURNS 'Not available' ON PURPOSE when there is nothing, and that string is
+ *  load-bearing rather than a placeholder. A fresh session has watched no
+ *  liquidations, so it genuinely has no 24h window - and the alternative is
+ *  handing the model an empty section under a header promising data, which is
+ *  how it starts inventing levels. #637 settled this for the old dead source:
+ *  a stated absence beats a blank, and beats "AI will search" even harder,
+ *  since Quick mode has no tools to search with.
+ *
+ *  SIDE, NOT DIRECTION. Each cluster says which side was liquidated, because
+ *  "longs blew up here" and "shorts blew up here" are different facts about the
+ *  same price. What it must never say or imply is that price will return - see
+ *  the header wording in lib/grok.ts. These are realized. */
+export function formatClustersForPrompt<T extends { coin: string; price: number; total: number; longUsd: number; shortUsd: number }>(
+  buckets: readonly T[] | null | undefined,
+  coin: string,
+  limit: number = LIQ_CLUSTER_LINES,
+): string {
+  const top = topClustersForCoin(buckets, coin, limit);
+  if (top.length === 0) return 'Not available';
+  return top
+    .map(b => {
+      const usd = b.total >= 1_000_000 ? `$${(b.total / 1_000_000).toFixed(1)}M`
+                : b.total >= 1_000     ? `$${Math.round(b.total / 1_000)}K`
+                : `$${Math.round(b.total)}`;
+      const side = b.longUsd > b.shortUsd ? 'longs' : b.shortUsd > b.longUsd ? 'shorts' : 'mixed';
+      return `$${b.price.toLocaleString('en-US')} ${usd} ${side}`;
+    })
+    .join(' | ');
+}
+
 /** Whether a consumer should commit this `onClusters` emission, given when it
  *  last committed one.
  *

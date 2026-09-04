@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { topClustersForCoin, acceptClusterEmission, LIQ_CLUSTER_LINES } from '../lib/liqClusters.ts';
+import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt, LIQ_CLUSTER_LINES } from '../lib/liqClusters.ts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -133,6 +133,62 @@ test('CONTROL: the throttle actually throttles', () => {
      nothing here would notice. */
   assert.equal(accept(true, 8, T0 + 14_999, T0), false);
   assert.equal(accept(true, 0, T0 + 1, T0), false);
+});
+
+/* The prompt line (#814). The old source was permanently empty, so both AI
+ * prompts have been sending a section header followed by "Not available" on
+ * every run since the Coinglass v2 API was retired. */
+const money = (coin: string, price: number, longUsd: number, shortUsd: number) =>
+  ({ coin, price, longUsd, shortUsd, total: longUsd + shortUsd });
+
+test('the prompt line carries price, size and which side was liquidated', () => {
+  const line = formatClustersForPrompt([
+    money('BTC', 109_000, 4_000_000, 200_000),
+    money('BTC', 108_000, 100_000, 2_500_000),
+  ], 'btc');
+  assert.equal(line, '$109,000 $4.2M longs | $108,000 $2.6M shorts');
+});
+
+test('"Not available" survives, because a fresh session genuinely has none', () => {
+  /* #637 settled this for the old dead source and it still holds: a stated
+     absence beats an empty section under a header promising data, which is how
+     a model starts inventing levels. */
+  assert.equal(formatClustersForPrompt([], 'btc'), 'Not available');
+  assert.equal(formatClustersForPrompt(null, 'btc'), 'Not available');
+  assert.equal(formatClustersForPrompt([money('ETH', 4_100, 9e7, 0)], 'btc'), 'Not available',
+    'another coin\'s clusters must not stand in for the analysed one');
+});
+
+test('the prompt line is the analysed coin only - the whole of the #637 fix', () => {
+  /* The old header had to say "BTC-wide, not the analysed coin" because the
+     data was BTC's whatever was being analysed. That caveat comes out of
+     lib/grok.ts only if this filtering is real. */
+  const mixed = [money('ETH', 4_100, 9e7, 0), money('BTC', 109_000, 1e6, 0), money('SOL', 210, 5e6, 0)];
+  assert.equal(formatClustersForPrompt(mixed, 'eth'), '$4,100 $90.0M longs');
+  assert.equal(formatClustersForPrompt(mixed, 'sol'), '$210 $5.0M longs');
+});
+
+test('the prompt header names the coin and says REALIZED', () => {
+  /* Asserted against the source, because nothing in a prompt is visible to
+     check afterwards. A model handed "liquidation clusters" with no qualifier
+     reasons about them as forward levels - the Coinglass product - and will do
+     it confidently. */
+  const grok = readFileSync(path.join(ROOT, 'lib', 'grok.ts'), 'utf8');
+  const header = grok.match(/`=== REALIZED LIQUIDATION CLUSTERS \([^`]*`/);
+  assert.ok(header, 'the prompt header no longer starts with REALIZED LIQUIDATION CLUSTERS');
+  assert.match(header[0], /\$\{ctx\.coin\}/, 'the header no longer names the analysed coin');
+  assert.match(header[0], /ALREADY happened/, 'the header no longer says these are not predicted levels');
+  assert.equal(/BTC-wide, not the analysed coin/.test(grok), false,
+    'the #637 caveat is back in the header - if the data really is BTC-wide again, that is the bug');
+});
+
+test('the prompt is fed from LiqFeed, not from the dead Coinglass array', () => {
+  const arena = readFileSync(path.join(ROOT, 'app', 'arena', 'page.tsx'), 'utf8');
+  const line = arena.match(/const liqLevels = [^;]+;/);
+  assert.ok(line, 'the liqLevels prompt field is gone');
+  assert.match(line[0], /formatClustersForPrompt\(liqClusters, selectedCoin\)/);
+  assert.equal(/const liqLevels =[\s\S]{0,120}btcLiqLevels/.test(arena), false,
+    'liqLevels reads store.btcLiqLevels again, which is permanently empty');
 });
 
 test('CONTROL: the helper returns something, so the assertions above can fail', () => {
