@@ -78,6 +78,26 @@ answer is "the same", it is not measuring. A control that asserts a wrong
 implementation disagrees with the real one stops proving anything the moment
 the real one adopts that answer.
 
+**7. A substring match is not an identifier match.** `grep "\.gchat-coin"`
+reports a hit on `.gchat-coinbar`, so a check written to confirm a class was
+deleted found its own replacement and reported the class still present. Anchor
+on a word boundary — `\.gchat-coin([^a-z-]|$)` — or you are asking a question
+about one name and being answered about another. Trap 3b again, in the check
+rather than the page.
+
+**8. Deleting code is not finished until the prose pointing at it is checked.**
+Not a probe trap — a review one, and this codebase is unusually exposed to it.
+Comments here carry measured ratios, rejected alternatives and owner rulings,
+so they are load-bearing. On 2026-09-04 `.gchat-coin` was deleted and two live
+rules were left describing themselves as *"borrows the .gchat-coin affordance"*
+and *"follows the theme the way .gchat-coin does"* — explanations pointing at
+nothing.
+
+A reader who finds one dangling reference either hunts for a class that does
+not exist or concludes the file is stale. **The second is worse**: the next
+comment they discount might be the one recording that a colour was verified at
+6.42:1 in dark. `grep` for the identifier before deleting it costs seconds.
+
 ## Where QA tests
 
 **Four branches, four services, one each.** Nothing auto-deploys — moving a
