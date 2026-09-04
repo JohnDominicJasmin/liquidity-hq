@@ -709,8 +709,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (!chartReady) return;
     const apply = () => {
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+      /* LIGHT WINS OVER TERMINAL (#758, owner ruling). This read
+         `mode === 'terminal' ? TERMINAL_DARK : dark ? DARK : LIGHT` - `dark`
+         was computed on the line above and then discarded on the terminal
+         branch, so terminal + light theme painted the DARK chart onto a light
+         page. The canvas is transparent, so the ground is .klc-wrap's
+         var(--bg) = #E8EAED there, and against it:
+
+           last-price text  #e8e9ea   1.01     the number the chart exists for
+           candle up        #3fb950   2.11
+           priceMark hi/lo  #8b8f94   2.70
+           axis tickText    #7c828a   3.22
+
+         There is no terminal-light palette. The owner chose this fallback over
+         building one, accepting that in light mode the chart will not match
+         the terminal shell around it - a chart that looks slightly out of
+         place beats one whose price readout is at 1.01. That is the end state,
+         not a stopgap: no fourth palette is booked. */
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chartRef.current?.setStyles((mode === 'terminal' ? TERMINAL_DARK : dark ? DARK : LIGHT) as any);
+      chartRef.current?.setStyles((!dark ? LIGHT : mode === 'terminal' ? TERMINAL_DARK : DARK) as any);
       /* Overlay ink follows the THEME only - the overlays are drawn on a
          transparent canvas over .klc-wrap's var(--bg), which is #000000 in
          both dark themes and #E8EAED in both light ones (#752). Bumping
@@ -725,7 +742,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     // component - 'theme-change' covers that; `mode` in the dependency
     // array below covers design mode resolving or changing.
     window.addEventListener('theme-change', apply);
-    return () => window.removeEventListener('theme-change', apply);
+    /* And an observer, because this effect READS an attribute rather than
+       being told about it. On #707 that exact shape was wrong: a page effect
+       read --bg3 before DesignModeProvider had set data-design, and the answer
+       was plausible and stale. 'theme-change' only fires from lib/theme.ts's
+       own paths, so a theme set any other way - and the initial resolve
+       ordering - reaches this only by watching the attribute. Cheap, and it
+       removes the assumption rather than betting on it. */
+    const observer = new MutationObserver(apply);
+    observer.observe(document.documentElement, {
+      attributes: true, attributeFilter: ['data-theme', 'data-design'],
+    });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('theme-change', apply);
+    };
   }, [chartReady, mode]);
 
   // Keep coinRef fresh for the DataLoader closure
