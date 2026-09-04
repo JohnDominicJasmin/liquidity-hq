@@ -214,7 +214,13 @@ const ACCENT_TOKENS = /var\(--accent(-solid)?\)/;
  *  Funnier and worse: a scanner that reads comments can be silenced by
  *  deleting one. The code is the subject; the prose about it is not. */
 function stripComments(src: string): string {
-  return src.replace(/\/\*[\s\S]*?\*\//g, m => ' '.repeat(m.length));
+  /* Newlines survive. `' '.repeat(m.length)` preserves the character count but
+     flattens a multi-line comment onto one line, so any offset-to-line mapping
+     computed afterwards is silently wrong - I hit that comparing this scan's
+     output against QA's and got line numbers 100+ short. Offsets are unaffected
+     either way; line numbers are not, and the next person to make this report
+     lines rather than offsets should not have to rediscover it. */
+  return src.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
 }
 
 /** A style object literal, captured by brace depth from a starting index. */
