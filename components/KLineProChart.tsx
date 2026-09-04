@@ -418,7 +418,18 @@ const LIQ_CLUSTER_COLOR = '#db2777';
    depends on what else is on the chart is not being read from this file at all.
    Resolved per paint rather than once at overlay creation - the ribbon is not
    recreated on a theme switch, only on a coin or timeframe change - and cached
-   per token + theme + design so a repaint is not four getComputedStyle calls. */
+   per token + theme + design so a repaint is not four getComputedStyle calls.
+
+   ONE LIMIT, AND IT IS THE SAME FAILURE ONE LAYER UP. getComputedStyle on the
+   root element sees stylesheet and :root declarations - it does NOT see a
+   custom property set inline on some other element. Every token this chart
+   draws with lives in a design block, so the read is correct here. Reused
+   somewhere element-scoped it would return the ROOT value: a plausible wrong
+   colour rather than nothing, which is precisely the class of bug this helper
+   was written to fix. #798 is the worked example - a defect filed against
+   --ec-muted on the strength of a root-scope read, when the property was set
+   inline per row at app/econ-calendar/page.tsx:298 and the root read was
+   answering a different question. */
 const cssColorCache = new Map<string, string>();
 function resolveCssColor(color: string): string {
   const m = /^var\(\s*(--[A-Za-z0-9_-]+)\s*\)$/.exec(color.trim());
