@@ -26,7 +26,7 @@ import EMASignal from '@/components/EMASignal';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import Tip from '@/components/Tip';
 import LiqFeed, { type Bucket } from '@/components/LiqFeed';
-import { topClustersForCoin } from '@/lib/liqClusters';
+import { topClustersForCoin, acceptClusterEmission } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
@@ -209,11 +209,25 @@ function ArenaContent() {
      which is exactly when the user is looking at the chart. LiqFeed throttles
      its other consumer callback for the same reason (EVENTS_EMIT_MS, 15s), and
      the underlying window is a 24-hour accumulation - being up to 15 seconds
-     behind it is not observable. /liq is unaffected: it keeps every emission. */
+     behind it is not observable. /liq is unaffected: it keeps every emission.
+
+     The first emission that carries anything bypasses the window, and that is
+     not a nicety - LiqFeed's mount order emits an EMPTY array before it emits
+     the seeded one, so a plain throttle commits the empty and drops the real
+     batch. See acceptClusterEmission in lib/liqClusters.ts for the mechanism;
+     it cost a "the feature does not work on staging" report to find. */
   const liqEmitRef = useRef(0);
+  const liqFilledRef = useRef(false);
   const handleLiqClusters = useCallback((c: Bucket[]) => {
     const now = Date.now();
-    if (now - liqEmitRef.current < LIQ_CLUSTER_REFRESH_MS) return;
+    if (!acceptClusterEmission({
+      hasFilled: liqFilledRef.current,
+      incoming: c.length,
+      now,
+      lastCommitAt: liqEmitRef.current,
+      minGapMs: LIQ_CLUSTER_REFRESH_MS,
+    })) return;
+    if (c.length > 0) liqFilledRef.current = true;
     liqEmitRef.current = now;
     setLiqClusters(c);
   }, []);
