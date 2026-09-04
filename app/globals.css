@@ -205,6 +205,12 @@
   --red-bg:  rgba(248,113,113,0.08);
   --red-bdr: rgba(248,113,113,0.22);
   --red-soft: #fca5a5;
+  /* CoinHeatmap's red ramp text (#835). PER CONTEXT, because the tile is a
+     tint of --red over that context's ground: light text works on a dark
+     tint and fails on a light one. Reusing --red-soft made both light
+     themes paint the tint's own colour onto itself. */
+  --heat-red-fg: #fca5a5;
+  --heat-red-deep-fg: #fee2e2;
 
   --amber:     #fbbf24;
   --amber-2:   #fcd34d;
@@ -2764,6 +2770,12 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --red-bg:  rgba(185,28,28,0.07);
   --red-bdr: rgba(185,28,28,0.20);
   --red-soft: var(--red);
+  /* CoinHeatmap's red ramp text (#835). PER CONTEXT, because the tile is a
+     tint of --red over that context's ground: light text works on a dark
+     tint and fails on a light one. Reusing --red-soft made both light
+     themes paint the tint's own colour onto itself. */
+  --heat-red-fg: #6b1414;
+  --heat-red-deep-fg: #6b1414;
   /* was #B45309 - 3.59:1 on --bg4 and the amber-tinted panel #f3eee0. */
   --amber:     #8F4508;
   --amber-2:   #92400E;

@@ -37,10 +37,10 @@ function changeColor(chg: number | null): { bg: string; text: string } {
      The green side has the same shape but does not fail (its worst bucket is
      5.71:1) because green is inherently light; left as-is rather than churning
      a passing palette, but the same rule applies if that ramp is ever extended. */
-  if (chg >= -2)  return { bg: 'color-mix(in srgb, var(--red) 7%, transparent)', text: 'var(--red-soft)' };
-  if (chg >= -5)  return { bg: 'color-mix(in srgb, var(--red) 15%, transparent)', text: 'var(--red-soft)' };
-  if (chg >= -10) return { bg: 'color-mix(in srgb, var(--red) 25%, transparent)', text: 'var(--red-soft)' };
-  return              { bg: 'color-mix(in srgb, var(--red) 38%, transparent)',     text: '#fee2e2' };
+  if (chg >= -2)  return { bg: 'color-mix(in srgb, var(--red) 7%, transparent)', text: 'var(--heat-red-fg)' };
+  if (chg >= -5)  return { bg: 'color-mix(in srgb, var(--red) 15%, transparent)', text: 'var(--heat-red-fg)' };
+  if (chg >= -10) return { bg: 'color-mix(in srgb, var(--red) 25%, transparent)', text: 'var(--heat-red-fg)' };
+  return              { bg: 'color-mix(in srgb, var(--red) 38%, transparent)',     text: 'var(--heat-red-deep-fg)' };
 }
 
 function fmtPrice(p: number): string {
@@ -278,7 +278,7 @@ export default function CoinHeatmap() {
         {[
           { label: '>+10%', c: 'var(--green-2)' }, { label: '+5%', c: 'var(--green-soft)' },
           { label: '+2%', c: 'var(--green-soft)' },   { label: '0', c: 'var(--txt-dim)' },
-          { label: '-2%', c: 'var(--red-soft)' },   { label: '-5%', c: 'var(--red-soft)' },
+          { label: '-2%', c: 'var(--heat-red-fg)' },   { label: '-5%', c: 'var(--heat-red-fg)' },
           /* NOT '#fee2e2' (#761). That is the TILE's text colour, and it is
              correct there - the worst bucket's tile is var(--red) at 38%, and
              pale text on a saturated tile measures 8.6-9.6, which is the rule
