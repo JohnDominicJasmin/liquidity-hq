@@ -98,6 +98,27 @@ not exist or concludes the file is stale. **The second is worse**: the next
 comment they discount might be the one recording that a colour was verified at
 6.42:1 in dark. `grep` for the identifier before deleting it costs seconds.
 
+**9. A custom property's scope is not global, and both obvious ways to look for
+one assume it is.** A `--token` can live in three places: a stylesheet rule, a
+`:root` block, or an **element's inline `style`**. A grep of `globals.css` finds
+the first two. `getComputedStyle(document.documentElement).getPropertyValue()`
+finds the first two. Nothing finds the third.
+
+On 2026-09-04 both sessions independently reported `--ec-muted` as "declared
+nowhere" and filed it. It is set per row at `app/econ-calendar/page.tsx:298` as
+a deliberate switch — inline beats every selector, and an inline value that
+*reads* a custom property still inherits, so one declaration on the row moves
+four cells at once. The technique is documented thirty lines above the code both
+of us measured.
+
+**Two instruments scoped to global agreeing about a property that lives on an
+element is not corroboration**, and the second reading made the first look
+verified. To check: grep the **consuming file** for element-scope declarations
+(`['--x' as string]:` or `'--x':`) before concluding a token is missing. That
+one command separates "genuinely undeclared" from "declared where you did not
+look" — `/news` has no such declarations and its `--border` really is missing;
+`/econ-calendar` has one and its `--ec-muted` was never broken.
+
 ## Where QA tests
 
 **Four branches, four services, one each.** Nothing auto-deploys — moving a
