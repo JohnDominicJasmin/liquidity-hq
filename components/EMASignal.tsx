@@ -169,7 +169,23 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         }}>
           {signal.conditions.map((c, i) => {
             const pass = c.pass;
-            const col  = pass === true ? 'var(--green-2)' : pass === false ? 'var(--red)' : 'var(--txt-dim)';
+            /* --green-fg for the PASS text, not --green-2 (#738). The row is a
+               7% wash of its own signal colour, and in terminal light --green
+               (#14702c) on that wash measures 4.66 by token arithmetic, 4.41
+               rendered - QA's figure, seven of these on /arena. --green-fg is
+               6.29 there and aliases --green in the other three contexts, so
+               nothing else moves.
+               `col` also feeds the row's border via withAlpha(col,'22'), which
+               is a 13% line rather than text, so it is unaffected by the swap
+               in every practical sense.
+               RED IS LEFT ALONE, and measured rather than assumed: --red on
+               its 7% wash is 6.84 / 5.75 / 4.89 / 5.92 across the four
+               contexts. It passes. --red-fg would raise the worst to 7.50,
+               but tokenising a passing colour to match a pattern is exactly
+               what dropped .scan-badge from 4.85 to 4.47 on this issue's
+               sibling - so it needs its own measurement and its own decision,
+               not this commit. */
+            const col  = pass === true ? 'var(--green-fg)' : pass === false ? 'var(--red)' : 'var(--txt-dim)';
             const bg   = pass === true ? 'color-mix(in srgb, var(--green-2) 7%, transparent)' : pass === false ? 'color-mix(in srgb, var(--red) 7%, transparent)' : 'rgba(255,255,255,0.02)';
             const icon = pass === true ? '✓' : pass === false ? '✗' : '-';
             return (
