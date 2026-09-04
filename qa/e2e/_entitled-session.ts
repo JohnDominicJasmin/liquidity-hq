@@ -28,19 +28,35 @@ import type { Page } from '@playwright/test';
  * It is a local test double for a client library that reads its session from
  * localStorage, not a key to anything.
  *
- * IT DOES NOT WORK OUTSIDE PLAYWRIGHT, AND THAT IS NOT A BUG TO FIX (#767)
+ * THE WRAPPED SHAPE BELOW IS DELIBERATE. DO NOT "FIX" IT TO THE RAW SESSION.
  *
- * The interception is not a convenience wrapped around the fixture — it IS the
- * fixture. Seeding the same localStorage key by hand in an ordinary browser
- * does not produce a signed-in app: supabase-js attempts a refresh with the
- * deliberately-invalid refresh token, the request actually reaches Supabase,
- * the refresh fails, and the client DISCARDS the session. The page renders
- * signed out, with no error to explain why.
+ * `{ currentSession, expiresAt }` is the supabase-js v1 layout, and v2's
+ * `_isValidSession` does reject it — that part is true and was measured. On
+ * 2026-09-05 it was changed to store the session object directly (#831), on the
+ * evidence that the key then survives and `.auth-avatar-btn` renders.
  *
- * That was tried on 2026-09-04 and reported as "the fixture is broken". It is
- * not: the invalid signature is what makes it safe, and answering its requests
- * locally is what makes it work. Both halves are load-bearing and neither can
- * be dropped to make it portable.
+ * **That change was reverted the same day.** Run against the committed spec it
+ * took the suite from 5 passed in ~25s to 2 passed in 1.9m, and the three that
+ * broke were `as pro`, #717 and #723 — the ENTITLED-branch tests, which is the
+ * outcome this fixture exists to produce. Signed-in was measured; entitled was
+ * not, and they are different claims.
+ *
+ * So both of these are true at once and neither explains the other yet:
+ *
+ *   - supabase-js judges the wrapped value invalid and deletes the key.
+ *   - The app still renders entitled with it, and does not without it.
+ *
+ * Something reads this key other than supabase-js — most likely AuthProvider on
+ * its own fast path. **Nobody has chased that**, and until someone does, the
+ * shape below is load-bearing for reasons that are demonstrated rather than
+ * understood.
+ *
+ * THE OLD DIAGNOSIS HERE WAS ALSO WRONG, and is recorded rather than restored.
+ * This comment used to say the session dies because supabase-js refreshes with
+ * the invalid token, the request reaches Supabase, and the client discards the
+ * result. Measured on 2026-09-05: **no /auth/v1 traffic escapes interception at
+ * all.** The deletion is local and shape-driven. Right conclusion, wrong
+ * mechanism — which is how it survived long enough to be built on.
  *
  * THE CONSEQUENCE IS THE PART TO KNOW. Nothing behind sign-in can be verified
  * by rendering a deployed environment. On one day that left four findings
