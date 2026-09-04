@@ -74,6 +74,19 @@
      empty-cell dash only. Verified: 5.724/5.248/5.312/4.791 across
      --bg0/--bg1/--bg2/#1d1e20. */
   --txt-dash: #848a92;
+  /* --txt-stamp: the market-structure age stamp, and ONLY that (#771).
+     It sits on .ms-last-event, whose background is a 10% tint of whatever the
+     latest event was - gold, red or green - so its ground is DATA-DEPENDENT and
+     there are twelve of them: three tints x --bg1/--bg2 x two themes, in each
+     design. #641 fixed this with --txt2 scoped to terminal; the numbers in that
+     comment were terminal dark written as "dark", the current design never got
+     the rule at all, and --txt2 lands 4.22-4.78 on the worst grounds either way.
+     Target here is 5.0, not 4.5: the binding case was 4.49 and a hundredth of
+     margin on a ground that changes with the market is not a fix.
+     Dark value clears at 6.40 current / 5.90 terminal; the light value below at
+     5.99 / 5.10. Verified over all twelve grounds in
+     __tests__/marketStructureStamp.test.mts rather than asserted here. */
+  --txt-stamp: #9aa0a6;
 
   /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
@@ -2553,6 +2566,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
      only dark's composited /scanner tile background was. Alias rather
      than invent a second light value nobody measured a failure on. */
   --txt-dash: var(--txt3);
+  /* See --txt-stamp in :root. #4f5257 is the value terminal light already uses
+     for --txt-dash, reached independently for this ground. */
+  --txt-stamp: #4f5257;
   --bdr:  rgba(0,0,0,0.08);
   --bdr2: rgba(0,0,0,0.14);
 
@@ -4551,7 +4567,8 @@ body.consent-pending .gchat-fab { visibility: hidden; }
 }
 .ms-ev-ago {
   font-size: var(--fs-caption);
-  color: var(--txt3);
+  /* --txt-stamp, not --txt3 (#771). See the token's own note in :root. */
+  color: var(--txt-stamp);
   margin-left: auto;
 }
 .ms-levels {
@@ -6682,7 +6699,14 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    .ms-hist-row, which has no background of its own and composites on plain
    --bg1 at 4.71 - passing. Only the BADGE in a history row is tinted, not
    the row. The first version of this rule targeted the passing element. */
-[data-design="terminal"] .ms-ev-ago,
+/* .ms-ev-ago is NOT here any more (#771). It takes --txt-stamp from its base
+   rule, unscoped, because the defect was never terminal-specific: the current
+   design was left on --txt3 by this very rule's scoping and measures 4.41 on a
+   green last-event in dark. A token that both designs need does not belong
+   behind a design selector.
+   .ms-hist-ago stays: it sits in .ms-hist-row, which has no background of its
+   own, so it composites on plain --bg1 and measures 5.26-8.49 across the four
+   contexts. It passes, so it is not being changed to match a pattern. */
 [data-design="terminal"] .ms-hist-ago { color: var(--txt2); }
 
 /* Footer column links: a 25px hit area with ZERO layout change (#641).
