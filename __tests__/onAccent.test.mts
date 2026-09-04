@@ -14,7 +14,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseCssColor, contrastRatio } from '../lib/readableOn.ts';
@@ -58,6 +58,16 @@ const CONTEXTS: Array<[string, Record<string, string>]> = [
   ['terminal light', { ...root, ...light, ...termLight }],
 ];
 
+/** A white COLOUR VALUE anywhere in a style object. No `color:` prefix: in
+ *  JSX the declaration is comma-separated and the colour can sit either side
+ *  of the background it pairs with.
+ *
+ *  The first version of this line went through a heredoc and a python -c and
+ *  arrived with a literal BACKSPACE where each \\b was meant. It matched
+ *  nothing, the JSX sweep reported clean, and only the control below caught
+ *  it - a test that could never fail, which is the exact defect this suite
+ *  keeps finding elsewhere. */
+const WHITE_VALUE = /(#fff\b|#ffffff\b|'white'|"white")/i;
 const WHITE = /color:\s*(#fff\b|#ffffff\b|white\b|rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*1\s*\))/i;
 
 /** Declaration blocks that paint a background of var(--accent-solid). */
@@ -134,4 +144,152 @@ test('var(--accent) is NOT covered by this token, and nothing relies on it being
   assert.deepEqual(onAccentRules, [],
     `unscoped rule(s) paint var(--on-accent) on var(--accent): ${onAccentRules.join(', ')}. ` +
     'That pairing is 3.98 in the current design - measure it and give it its own token.');
+});
+
+/* ── AND THE SAME PAIRING IN JSX, WHICH THE STYLESHEET CHECK CANNOT SEE ────
+ *
+ * The assertion above reads globals.css and is TRUE. It stayed true while two
+ * inline `style={{ background: 'var(--accent-solid)', color: '#fff' }}` props
+ * on /upgrade kept failing at 2.23:1 - QA caught them on the post-deploy
+ * sweep, after the fix, after the approval, with the suite green.
+ *
+ * That is a coverage boundary rather than a broken test, and it is the
+ * sharpest instance of the day's pattern: THE TEST PASSING IS WHAT MADE THE
+ * GAP INVISIBLE. Eleven rules were converted, the assertion covered exactly
+ * those eleven, and nobody looked at the twelfth because the check that would
+ * have looked was already green.
+ *
+ * So the boundary moves to where the pattern can occur, not to where it
+ * happened to be found. */
+const SRC_DIRS = ['app', 'components'];
+
+/** Every .tsx under app/ and components/. */
+function tsxFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap(name => {
+    const full = path.join(dir, name);
+    if (name === 'node_modules' || name === '.next') return [];
+    return statSync(full).isDirectory()
+      ? tsxFiles(full)
+      : name.endsWith('.tsx') ? [full] : [];
+  });
+}
+
+/* THE ONE EXEMPTION, BY NAME. app/global-error.tsx renders when the root
+   layout has already failed, so no stylesheet is guaranteed. There
+   var(--accent-solid) may resolve to nothing and the button falls back to
+   transparent on that file's own #0d0d0d body - where white is the readable
+   answer and var(--on-accent) would resolve to nothing at all. The fallback
+   behaviour is the point, which is why eslint.config.mjs allow-lists the same
+   file. Listed rather than filtered by a rule, so removing the exemption is a
+   deliberate edit. */
+const JSX_EXEMPT = new Set(['app/global-error.tsx']);
+
+/* WHICH ACCENT TOKENS ARE IN SCOPE, AND WHY --accent IS ONE OF THEM.
+ *
+ * The first version of this scan looked only for `--accent-solid`, on the
+ * reasoning that `--accent` is a different colour and white passes on it. True
+ * in the CURRENT design - #1a7aff against #1668e3 - and false in terminal,
+ * where globals.css:5676 and :5875 alias `--accent-solid: var(--accent)`. So
+ * white on `var(--accent)` in terminal dark is white on #d9a626: 2.23:1, the
+ * identical defect, and the scan was scoped to walk past it.
+ *
+ * That is the one-ground family again, in a TEST's scope rather than in a
+ * stylesheet: a boundary measured in one design and applied in all four. #768
+ * turned the aliased design into the default, so the edge case became the
+ * normal path.
+ *
+ * The exclusion assertion below is kept - it is still true that --on-accent
+ * does not rescue --accent in the current design, which is exactly why a
+ * filled control belongs on --accent-solid. */
+const ACCENT_TOKENS = /var\(--accent(-solid)?\)/;
+
+/** Block comments blanked, length preserved so offsets still point at the
+ *  source a reader will open.
+ *
+ *  WITHOUT THIS THE SCAN READS ITS OWN EXPLANATIONS. The comments written for
+ *  #775 quote the value they replaced - "var(--on-accent), not '#fff'" beside
+ *  a `background: 'var(--accent-solid)'` - so the first widened run reported
+ *  three offenders that were the FIXES, not defects.
+ *
+ *  Funnier and worse: a scanner that reads comments can be silenced by
+ *  deleting one. The code is the subject; the prose about it is not. */
+function stripComments(src: string): string {
+  /* Newlines survive. `' '.repeat(m.length)` preserves the character count but
+     flattens a multi-line comment onto one line, so any offset-to-line mapping
+     computed afterwards is silently wrong - I hit that comparing this scan's
+     output against QA's and got line numbers 100+ short. Offsets are unaffected
+     either way; line numbers are not, and the next person to make this report
+     lines rather than offsets should not have to rediscover it. */
+  return src.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
+}
+
+/** A style object literal, captured by brace depth from a starting index. */
+function objectAt(src: string, from: number): string {
+  const open = src.indexOf('{', from);
+  if (open < 0) return '';
+  let depth = 0;
+  for (let i = open; i < src.length && i < open + 4000; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') { depth--; if (depth === 0) return src.slice(open, i + 1); }
+  }
+  return '';
+}
+
+test('no JSX style object pairs white with an accent token', () => {
+  /* TWO ENTRY POINTS, because QA found the second by reading the file after
+     this test passed on the first:
+
+       style={{ … }}                       a prop
+       const x: React.CSSProperties = { … } a named constant, spread later
+
+     The brace-depth capture is shared. A regex like `[^}]*` stops at the first
+     nested brace, so a ternary, template literal or nested object truncates the
+     object before the colour - the #681 lesson.
+
+     Widening from "where the defect was found" to "where the shape can occur"
+     is the whole point: three separate instruments have now missed an instance
+     each by being scoped to the last place one was seen. */
+  const offenders: string[] = [];
+  for (const dir of SRC_DIRS) {
+    for (const file of tsxFiles(path.join(ROOT, dir))) {
+      const rel = path.relative(ROOT, file).split(path.sep).join('/');
+      if (JSX_EXEMPT.has(rel)) continue;
+      const src = stripComments(readFileSync(file, 'utf8'));
+
+      const starts: number[] = [];
+      for (const m of src.matchAll(/style=\{\{/g)) starts.push(m.index! + 6);
+      for (const m of src.matchAll(/:\s*React\.CSSProperties\s*=\s*\{/g)) starts.push(m.index!);
+      /* Any object literal that sets a background at all. Catches the shapes
+         above and anything else assigned to a variable, at the cost of some
+         non-style objects - which cannot contain both an accent var and a
+         white literal, so they cost nothing. */
+      for (const m of src.matchAll(/\{[^{}]{0,80}background(Color)?:/g)) starts.push(m.index!);
+
+      for (const start of [...new Set(starts)]) {
+        const obj = objectAt(src, start);
+        if (ACCENT_TOKENS.test(obj) && WHITE_VALUE.test(obj)) {
+          offenders.push(`${rel} (offset ${start})`);
+        }
+      }
+    }
+  }
+  assert.deepEqual([...new Set(offenders)], [],
+    `${offenders.length} style object(s) pair white with an accent token: ${[...new Set(offenders)].join(', ')}. ` +
+    "On --accent-solid use 'var(--on-accent)'. On --accent, --on-accent is NOT enough - " +
+    'it is white in the current design and 3.98 there - so move a FILLED control to ' +
+    "'var(--accent-solid)' as well. " +
+    'If this is genuinely a no-stylesheet context, add the file to JSX_EXEMPT with the reason.');
+});
+
+test('CONTROL: the JSX scan can actually see the shape it looks for', () => {
+  /* The stylesheet assertion was true and useless for two lines of JSX. This
+     control exists so the JSX one cannot become the same thing: it feeds the
+     scanner the exact source that shipped the defect and requires a hit. */
+  const shipped = `<div style={{ position: 'absolute', top: -11, fontSize: 'var(--fs-micro)', fontWeight: 700, color: '#fff', background: 'var(--accent-solid)', padding: '3px 12px' }}>`;
+  assert.ok(/var\(--accent-solid\)/.test(shipped) && WHITE_VALUE.test(shipped),
+    'the scan predicate no longer matches the /upgrade "Recommended" badge as it was written');
+
+  /* And that a nested brace does not truncate the object before the colour. */
+  const nested = `<div style={{ transform: \`translate(\${x}px)\`, background: 'var(--accent-solid)', color: '#fff' }}>`;
+  assert.ok(WHITE_VALUE.test(nested), 'a template literal in the object breaks the predicate');
 });

@@ -341,8 +341,14 @@ export default function MarketsTerminal() {
                   style={{
                     width: 26, height: 26, fontSize: 'var(--fs-caption)', fontWeight: 700, borderRadius: 0,
                     border: `0.5px solid ${i === pageSafe ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
-                    background: i === pageSafe ? 'var(--accent)' : 'transparent',
-                    color: i === pageSafe ? '#fff' : 'var(--txt3)',
+                    /* --accent-solid and --on-accent, not --accent and '#fff' (#775).
+                         A filled control belongs on --accent-solid, and the
+                         pairing matters: --on-accent alone does not rescue
+                         --accent, because it IS white in the current design
+                         where --accent measures 3.98. Same change as
+                         TradeJournal's history pagination. */
+                      background: i === pageSafe ? 'var(--accent-solid)' : 'transparent',
+                    color: i === pageSafe ? 'var(--on-accent)' : 'var(--txt3)',
                     cursor: 'pointer',
                   }}
                 >

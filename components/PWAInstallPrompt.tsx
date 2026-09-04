@@ -97,7 +97,7 @@ export default function PWAInstallPrompt() {
             padding: '5px 11px',
             fontSize: 'var(--fs-caption)',
             fontWeight: 700,
-            color: '#fff',
+            color: 'var(--on-accent)',
             cursor: 'pointer',
             whiteSpace: 'nowrap',
           }}
