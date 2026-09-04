@@ -91,9 +91,33 @@ measurements — run three times and report only what is stable. The `↑ 47` in
 one report read 39, 40 and 41 across three runs an hour later, which is why
 grepping the codebase for `47` never found it.
 
-**5. A canvas `fillStyle` cannot resolve a CSS custom property.** It fails to
-invisible and never throws. Reading pixels back needs the alpha channel too —
-transparent pixels return `[0,0,0]` and look exactly like black.
+**5. A canvas `fillStyle`/`strokeStyle` cannot resolve a CSS custom property —
+and it does NOT fail to invisible. It silently KEEPS THE PREVIOUS COLOUR.**
+
+This entry said "fails to invisible" until 2026-09-04. That was wrong, and wrong
+in the direction that matters. Measured in Chromium:
+
+```
+initial fillStyle              #000000     spec default, not transparent
+= 'var(--amber)' on default    #000000     unchanged — black, not invisible
+= '#3fb950'                    #3fb950
+= 'var(--amber)' again         #3fb950     KEEPS THE GREEN
+strokeStyle, same              unchanged
+throws?                        no
+```
+
+Assigning an invalid colour to a canvas context is a **no-op**: the attribute
+keeps whatever it held. So a `var()` on canvas does not disappear — it paints in
+whatever the last overlay set, which **looks deliberate**. An invisible line
+gets noticed; a line in the wrong colour does not.
+
+Found in production code the same day: `KLineProChart`'s EMA9 and EMA200 had
+been painting green, borrowed from the S/R support line, and turned pink the
+moment a pink overlay drew ahead of them. The file had already recorded the
+suspicion and nobody had confirmed it.
+
+Reading pixels back needs the alpha channel too — transparent pixels return
+`[0,0,0]` and look exactly like black.
 
 **6. Ask what your instrument would say if the thing were broken.** If the
 answer is "the same", it is not measuring. A control that asserts a wrong
