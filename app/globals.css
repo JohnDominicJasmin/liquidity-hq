@@ -103,6 +103,34 @@
      all four contexts in __tests__/scoreMidBand.test.mts. */
   --score-mid: #a3e635;
 
+
+  /* --badge-0..11: the per-coin identity dots (#756).
+     lib/coinBadge.ts hashed a coin id onto twelve fixed hexes, so the dots did
+     not follow the theme. As GRAPHICS against the light cards they measured
+     1.28 to 3.46 - ten of twelve below the 3:1 bar, worst #fbbf24 at 1.28.
+     Not a 1.4.11 violation: the ticker is spelled out beside every dot, so the
+     colour is redundant encoding. But an invisible dot is pointless rather
+     than compliant, and #734's "keep the dot, plain text" ruling produced
+     decoration that does not decorate. BADGE_PALETTE's own comment asks for
+     "a stable, varied hue so each row gets a recognizable dot"; recognisable
+     is the requirement it was failing.
+     The light values are the SAME twelve hues scaled down in lightness - the
+     least darkening that clears 3:1 on the worst of four light grounds
+     (--bg1/--bg2 in each light design). Hue is preserved, so a coin keeps its
+     identity across themes. Verified in __tests__/coinBadge.test.mts. */
+  --badge-0: #f7931a;
+  --badge-1: #627eea;
+  --badge-2: #9945ff;
+  --badge-3: #00aae4;
+  --badge-4: #f3ba2f;
+  --badge-5: #00c08b;
+  --badge-6: #f87171;
+  --badge-7: #4ade80;
+  --badge-8: #fbbf24;
+  --badge-9: #60a5fa;
+  --badge-10: #f472b6;
+  --badge-11: #2dd4bf;
+
   /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
   --bdr2: rgba(255,255,255,0.14);
@@ -2665,6 +2693,22 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
      way --green and --amber already do, and #4d7c0f - the obvious one step
      lighter - measures 3.82 in terminal light. */
   --score-mid: #3f6212;
+
+  /* See --badge-0..11 in :root. Same hues, darkened until each clears 3:1 on
+     the lightest ground it can land on. */
+  --badge-0: #b76d13;
+  --badge-1: #5d78de;
+  --badge-2: #9945ff;
+  --badge-3: #0088b6;
+  --badge-4: #9e791f;
+  --badge-5: #009068;
+  --badge-6: #cb5d5d;
+  --badge-7: #309053;
+  --badge-8: #9e7817;
+  --badge-9: #4b81c3;
+  --badge-10: #c35b92;
+  --badge-11: #1e8e80;
+
   --bdr:  rgba(0,0,0,0.08);
   --bdr2: rgba(0,0,0,0.14);
 
