@@ -41,7 +41,7 @@ around; the AI analysis and alerting are behind an account.
 ## Architecture
 
 **Next.js 16 (App Router) with React 19 and TypeScript**, deployed on Render. There is
-no separate backend: roughly 90 API routes under `app/api/` do the server-side work,
+no separate backend: 74 API routes under `app/api/` do the server-side work,
 and Supabase provides Postgres, auth and Realtime.
 
 The interesting part is the data layer, which exists because the naive version got the
@@ -70,7 +70,7 @@ environment rather than a mock.
 |---|---|
 | Framework | Next.js 16 · React 19 · TypeScript 5 |
 | Styling | Tailwind CSS 4 |
-| Charts | KLineCharts 10 |
+| Charts | KLineCharts 10 (beta) |
 | Backend | Supabase (Postgres, auth, Realtime) |
 | AI | Grok (xAI) |
 | Market data | Binance · Bybit · Coinbase · CoinMarketCap · Finnhub |
