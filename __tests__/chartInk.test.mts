@@ -169,6 +169,89 @@ test('CONTROL: the values #816 replaced would still fail this', () => {
   assert.ok(ratio('#34d399', CHART_GROUND.light) < GRAPHIC_MIN, 'old support green should still measure as failing');
 });
 
+/** Hue angle, 0-360. Two colours far apart here are tellable apart whatever
+ *  their lightness does. */
+function hue(hex: string): number {
+  const [r, g, b] = parseCssColor(hex)!.rgb.map(v => v / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (d === 0) return 0;
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h *= 60; return h < 0 ? h + 360 : h;
+}
+/** Shortest angular distance, so 359° and 1° are 2° apart rather than 358°. */
+function hueGap(a: string, b: string): number {
+  const d = Math.abs(hue(a) - hue(b)) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+test('no two lines in a ramp collapse into each other', () => {
+  /* THE PROPERTY #806 WAS ACTUALLY ABOUT, and until now nothing asserted it.
+     The existing guards check each colour against its GROUND, and each light
+     value against its own dark twin's hue. Neither asks whether the four
+     members of a ramp are still tellable apart FROM EACH OTHER - which is the
+     complaint that opened #806 ("EMA9 and EMA200 are near-identical") and the
+     thing #816's darkening moved without measuring. QA caught the gap
+     reviewing #821 and measured it safe; this is the guard.
+
+     TWO INSTRUMENTS, PICKED PER PAIR, and that choice is the whole test:
+
+       different hue   ->  hue separation. A contrast ratio between a brown and
+                           a blue reports 1.02 for colours anyone can tell
+                           apart. #787 and #756 were both filed on exactly that.
+       same hue        ->  contrast ratio. Two blues differing only in lightness
+                           have no hue gap to measure, so lightness is the only
+                           separator there is.
+
+     A single instrument for both is how this goes wrong in either direction.
+
+     THE FLOORS ARE THE SHIPPING MINIMUM, not an aspiration. The tightest pair
+     anywhere in the app today is the current-dark ribbon's EMA20 vs EMA200 at
+     1.57, which has been in production throughout. 1.4 sits below that on
+     purpose: this is a ratchet against collapse, not a redesign trigger. */
+  const HUE_APART = 25;   // degrees; below this, treat the pair as same-hue
+  const RATIO_MIN = 1.4;  // for same-hue pairs only
+
+  const ramps: Array<[string, Record<number, string>]> = [
+    ['terminal dark ', TERMINAL_EMA_RAMP.dark],
+    ['terminal light', TERMINAL_EMA_RAMP.light],
+    ['current dark  ', CURRENT_EMA_RAMP.dark],
+    ['current light ', CURRENT_EMA_RAMP.light],
+  ];
+
+  const failures: string[] = [];
+  for (const [name, ramp] of ramps) {
+    for (let i = 0; i < EMA_RIBBON_PERIODS.length; i++) {
+      for (let j = i + 1; j < EMA_RIBBON_PERIODS.length; j++) {
+        const a = ramp[EMA_RIBBON_PERIODS[i]], b = ramp[EMA_RIBBON_PERIODS[j]];
+        const gap = hueGap(a, b);
+        if (gap >= HUE_APART) continue;          // different hues: distinguishable
+        const r = ratio(a, b);
+        if (r < RATIO_MIN) {
+          failures.push(`${name} EMA${EMA_RIBBON_PERIODS[i]} ${a} vs EMA${EMA_RIBBON_PERIODS[j]} ${b}: ` +
+                        `hue gap ${gap.toFixed(1)}deg, contrast ${r.toFixed(2)} - same hue and same lightness`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(failures, [],
+    `${failures.length} ribbon pair(s) have collapsed into each other:\n  ${failures.join('\n  ')}\n` +
+    'Two lines a user cannot tell apart are one line drawn twice.');
+});
+
+test('CONTROL: the separation check fails on the pair that opened #806', () => {
+  /* Terminal dark before #812: EMA9 read through --amber (#fbbf24) and EMA200
+     through --accent (#d9a626). Same hue family, 1.33 apart. If this passes,
+     the test above cannot catch the thing it exists for. */
+  const gap = hueGap('#fbbf24', '#d9a626');
+  assert.ok(gap < 25, `the two golds should read as one hue, measured ${gap.toFixed(1)} degrees apart`);
+  assert.ok(ratio('#fbbf24', '#d9a626') < 1.4, 'the two golds should still measure as collapsed');
+  // And the instrument-choice half: a brown and a blue are trivially
+  // distinguishable while their contrast ratio says 1.02.
+  assert.ok(hueGap('#8F4508', '#0052CC') >= 25);
+  assert.ok(ratio('#8F4508', '#0052CC') < 1.4,
+    'the brown/blue pair should still trip a ratio-only check, which is why hue is consulted first');
+});
+
 test('every ramp covers exactly the periods the ribbon draws', () => {
   for (const ramp of [TERMINAL_EMA_RAMP.dark, TERMINAL_EMA_RAMP.light, CURRENT_EMA_RAMP.dark, CURRENT_EMA_RAMP.light]) {
     assert.deepEqual(Object.keys(ramp).map(Number).sort((a, b) => a - b), [...EMA_RIBBON_PERIODS].sort((a, b) => a - b));
