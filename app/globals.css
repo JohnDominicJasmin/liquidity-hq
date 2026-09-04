@@ -3450,7 +3450,15 @@ html[data-design="terminal"][data-theme="light"] { background: var(--bg0); }
 .frh-summary-heading { font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.06em; margin-right: 2px; }
 .frh-summary-item    { font-size: var(--fs-caption); font-weight: 500; display: flex; align-items: center; gap: 4px; }
 .frh-summary-count   { font-size: var(--fs-data); font-weight: 800; font-variant-numeric: tabular-nums; }
-.frh-summary-sep     { color: var(--bdr2); font-size: var(--fs-caption); }
+/* --txt2, not --bdr2 (#761). A BORDER token as a text colour is a category
+   error: --bdr2 is a hairline, so it is defined to sit about a shade from its
+   own ground. Against .frh-summary-bar it measures 1.07 in terminal dark and
+   1.14 in terminal light - the separator was absent, not dim. It passed in
+   the current design (19.24 / 21.00) only because --bdr2 takes a wildly
+   different value there, which is what let it survive this long.
+   --txt2 clears all four (4.80 / 9.15 / 5.24 / 5.59) and stays subordinate to
+   the counts either side, which --txt at 14-18 would not. */
+.frh-summary-sep     { color: var(--txt2); font-size: var(--fs-caption); }
 
 .frh-chart-card     { overflow: hidden; }
 .frh-chart-header   { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
