@@ -15,55 +15,20 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CSS, CONTEXTS, resolve } from './_cssContexts.mts';
 import {
   readableOn, parseCssColor, compositeOver, contrastRatio, relativeLuminance,
   BLACK, WHITE, type Rgb,
 } from '../lib/readableOn.ts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CSS = readFileSync(path.join(ROOT, 'app', 'globals.css'), 'utf8');
 const PAGE = readFileSync(path.join(ROOT, 'app', 'hours', 'page.tsx'), 'utf8');
 
 const BAR = 4.5;
 
-/** Custom-property declarations inside one top-level rule. */
-function tokens(selector: string): Record<string, string> {
-  const lines = CSS.split('\n');
-  const idx = lines.findIndex(l => l.trim() === selector + ' {');
-  assert.ok(idx >= 0, `token block not found in globals.css: ${selector}`);
-  const from = lines.slice(0, idx).join('\n').length;
-  let i = CSS.indexOf('{', from), depth = 0, end = i;
-  for (; i < CSS.length; i++) {
-    if (CSS[i] === '{') depth++;
-    else if (CSS[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
-  }
-  const body = CSS.slice(CSS.indexOf('{', from) + 1, end);
-  const out: Record<string, string> = {};
-  for (const m of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) out[m[1]] = m[2].trim();
-  return out;
-}
-
-function resolve(map: Record<string, string>, value: string, depth = 0): string | null {
-  if (depth > 10) return null;
-  const m = /^var\((--[a-z0-9-]+)(?:\s*,\s*([^)]+))?\)$/.exec(value.trim());
-  if (!m) return value.trim();
-  const next = map[m[1]] ?? m[2];
-  return next === undefined ? null : resolve(map, next, depth + 1);
-}
-
-const root = tokens(':root');
-const light = tokens('[data-theme="light"]');
-const termDark = tokens('[data-design="terminal"]:not([data-theme="light"])');
-const termLight = tokens('[data-design="terminal"][data-theme="light"]');
-
-/* The four contexts the page can actually render in. Terminal light layers on
-   the light block because that is the cascade order in globals.css. */
-const CONTEXTS: Array<[string, Record<string, string>]> = [
-  ['current dark', { ...root }],
-  ['current light', { ...root, ...light }],
-  ['terminal dark', { ...root, ...termDark }],
-  ['terminal light', { ...root, ...light, ...termLight }],
-];
+/* tokens(), resolve() and CONTEXTS moved to ./_cssContexts.mts when a second
+   test needed them (#696). Two copies of a CSS parser drift quietly: a stale
+   one still returns well-formed colours, just not the page's. */
 
 /** The band colours, read out of the page rather than copied.
  *  `{ start: 4, end: 7, bg: 'rgba(248,113,113,0.45)', labelKey: 'HOURS_SEG_DEAD' … }` */

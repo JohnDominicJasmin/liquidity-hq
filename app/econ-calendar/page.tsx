@@ -306,6 +306,30 @@ export default function EconCalendarPage() {
                       style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}
                     >
                       {e.estimated ? '~' : ''}{fmtTime(e.isoDate)}
+                      {/* THE WORD, not only the tilde and the tooltip (#696).
+                          The hero banner above has said "estimated" in words
+                          since #245; the rows kept a `~` prefix and a title
+                          attribute, and a disclosure you have to hover to find
+                          is one nobody sees. The owner ruled label them, so the
+                          marker is visible text on every estimated row.
+
+                          It is TEXT rather than a colour or an icon, so it is
+                          not a colour-only distinction (1.4.1) and needs no
+                          aria: visible text is already the accessible name a
+                          screen reader reads, in document order, right after
+                          the time it qualifies.
+
+                          var(--amber) is the hero's colour and clears 4.5:1 as
+                          text on --bg1 in all four contexts - 12.07 current
+                          dark, 6.95 current light, 10.94 terminal dark, 5.91
+                          terminal light. A scheduled row gets nothing: silence
+                          is the correct signal for the accurate case. */}
+                      {e.estimated && (
+                        <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
+                                      textTransform: 'uppercase', color: 'var(--amber)', marginTop: 1 }}>
+                          estimated
+                        </div>
+                      )}
                       {!isPast && !ctObj.released && (
                         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--ec-muted)', marginTop: 1 }}>{t('ECON_CALENDAR_IN_COUNTDOWN', { countdown: ct })}</div>
                       )}
