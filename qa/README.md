@@ -52,6 +52,18 @@ returns a clean result, and so does a page whose data never loaded. Count what
 you matched and say so. `.frh-sig-hint` reported clean because it renders zero
 instances; `/news` reported clean on staging because it had no articles.
 
+**3b. Worse than zero elements: the WRONG element answering.** Trap 3 is an
+absence, which at least looks like one. A decoy looks like data. On 2026-09-04 a
+probe measured `.cms-trigger` on `/settings` and reported `inputType: radio` —
+but the LiquidityAI panel stays mounted across navigation, so the only
+`.cms-trigger` on that page was Grok's own. The reading was of a real element,
+correctly measured, on the wrong component; it was very nearly filed as
+"Settings multi-select is broken". The tell was domain knowledge, not the
+output: a multi-select cannot render radios.
+
+Assert what you matched — count, and check an identifying attribute — before
+believing what it says. A globally-mounted overlay is the usual culprit.
+
 **4. Live data is not a fixture.** Single samples of a moving value are not
 measurements — run three times and report only what is stable. The `↑ 47` in
 one report read 39, 40 and 41 across three runs an hour later, which is why
