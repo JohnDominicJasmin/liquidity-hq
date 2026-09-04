@@ -22,10 +22,19 @@ written *inside* those tools, which is exactly where nobody looks while writing
 a replacement for them. So they are repeated here.
 
 **Ten of the thirteen below are one shape: an instrument answering a question
-ADJACENT to the one asked, and returning something well-formed.** Not an error,
-not a zero — a plausible number, correctly computed, about the wrong thing. Only
-7 (a substring match), 8 (prose citing deleted code) and 13 (a probe that broke
-the page it was measuring) sit outside it.
+ADJACENT to the one asked, and returning something well-formed.** Not an error
+and not a crash — a well-formed result, correctly computed, about the wrong
+thing. Sometimes a plausible number; **sometimes a clean zero, which is worse,
+because a zero reads as good news.** Only 7 (a substring match), 8 (prose citing
+deleted code) and 13 (a probe that broke the page it was measuring) sit outside
+it.
+
+That sentence read *"not an error, not a zero"* until 2026-09-04, and it had
+excluded two of its own members from the day it was written: **trap 3 is titled
+"Zero elements is not zero failures"**, and both its examples return clean zeros.
+Trap 12 doubled the exposure. Corrected here rather than deleted, because how the
+definition drifted from the list is the same failure the list is about — a
+sentence that sounds right and describes something adjacent to what it names.
 
 That is the durable part. A reader who internalises **"well-formed output is not
 evidence of the right question"** has ten of these already; the numbered
@@ -228,12 +237,20 @@ could have produced a visible result at all. Derive the fixture from the live
 subject — the seed here now reads the chart's own klines and places bands inside
 that range — rather than choosing plausible-looking constants.
 
-The reason this is worth its own entry is what it nearly cost. #766 was filed as
-*"I could not get the lines to draw"* when the measurement was right and the
-defect was real; the lesson taken from it was *distrust the clean result*.
-Applied here, that lesson would have produced the opposite error at the same
-speed. **Neither "my instrument is wrong" nor "the code is wrong" is the default
-— the precondition check is what separates them, and it is cheap.**
+**Neither "my instrument is wrong" nor "the code is wrong" is the default — the
+precondition check is what separates them, and it is cheap.**
+
+That is the whole entry, and the pair of incidents behind it is why. #766 was
+filed as *"I could not get the lines to draw"* when the measurement was right
+and the defect was real. Trap 12 nearly reported a working component as broken
+when the fixture was the problem. **They are not opposite errors. They are the
+same error** — a verdict reached without the precondition check — and they only
+look opposite because the verdicts happened to point different ways.
+
+So the lesson taken from #766, *distrust the clean result*, is not the guard.
+Applied here it produces the second failure at exactly the speed it prevented
+the first. What separates them is one question asked before either verdict:
+**could this input have produced a visible result at all?**
 
 **13. A probe can break the page it is measuring, and this one did.** Same run:
 capturing the research prompt meant wrapping `window.fetch` to intercept
