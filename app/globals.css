@@ -1552,6 +1552,27 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   box-shadow: 0 4px 16px rgba(217, 119, 6, 0.12) !important;
   color: #e8a838 !important;
 }
+
+/* LIGHT NEEDS ITS OWN FOREGROUND (#769). The rule above is unscoped and
+   !important, so #c8891e - measured 6.44 against the DARK ground and correct
+   there - also lands on the light themes' cream. It measures 2.33 in current
+   light and 2.59 in terminal light, on a live control, on production.
+
+   The comment above closes off the obvious defence before anyone reaches for
+   it: this button is NOT disabled, it navigates to /login, so WCAG 1.4.3's
+   inactive-component carve-out does not apply. "Deliberately dimmed" is not
+   available.
+
+   Tokens rather than a new hex: --amber IS the light themes' amber, and it
+   clears both grounds - 5.44 on current light's rgb(231,227,223) and 6.22 on
+   terminal light's rgb(245,238,229). The hover takes --amber-2 for the same
+   reason: #e8a838 measures 1.63 and 1.81 there. Hover feedback survives
+   independently through the background and border, which both change.
+
+   Dark is untouched and stays at 6.44. Verified in
+   __tests__/arenaDeepLocked.test.mts against both light grounds. */
+[data-theme="light"] .arena-deep-locked { color: var(--amber) !important; }
+[data-theme="light"] .arena-deep-locked:not(:disabled):hover { color: var(--amber-2) !important; }
 /* Cache banner */
 
 /* Signal cards - flat, no colored border/glow. Matches this project's card
