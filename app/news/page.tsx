@@ -658,9 +658,27 @@ export default function NewsPage() {
             return groups.map((g, gi) => (
               <div key={gi} style={{ marginBottom: 20 }}>
                 {/* Date header */}
+                {/* var(--bdr), not var(--border) (#798). --border has NEVER been
+                    declared - `git log -S"--border:"` on globals.css returns
+                    nothing, so it is not a rename casualty, it is a typo. All
+                    three uses arrived in one commit, "Redesign Events tab as
+                    Economic Calendar with date-grouped rows", which modelled
+                    this block on /econ-calendar - and that screen writes the
+                    same divider as `0.5px solid var(--bdr)`.
+
+                    An unresolvable var() with no fallback invalidates the WHOLE
+                    declaration, and an invalid `border` shorthand does not
+                    degrade to a default: there was no divider here at all. That
+                    is why nothing measured it - a missing border leaves no
+                    element behind to measure.
+
+                    Widths left as written, 1px and 3px rather than
+                    /econ-calendar's 0.5px. Only the colour was broken, and
+                    changing the width would be a visual decision riding along
+                    with a defect fix. */}
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 8px',
-                  borderBottom: '1px solid var(--border)',
+                  borderBottom: '1px solid var(--bdr)',
                 }}>
                   <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: g.isToday ? 'var(--amber)' : 'var(--txt)' }}>
                     {g.isToday ? t('NEWS_EVENTS_TODAY_PREFIX', { date: g.dateLabel }) : g.dateLabel}
@@ -684,8 +702,8 @@ export default function NewsPage() {
                     <div key={ei} style={{
                       display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px',
                       gap: 4, padding: '10px 8px', minWidth: 370,
-                      borderLeft: `3px solid ${past && !urgent ? 'var(--border)' : borderColor}`,
-                      borderBottom: '1px solid var(--border)',
+                      borderLeft: `3px solid ${past && !urgent ? 'var(--bdr)' : borderColor}`,
+                      borderBottom: '1px solid var(--bdr)',
                       opacity: past && !urgent ? 0.55 : 1,
                       alignItems: 'start',
                     }}>
