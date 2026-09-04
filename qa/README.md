@@ -10,6 +10,62 @@ Testing and quality-assurance workspace for LiquidityHQ.
 > **Lost track of where things are? Read [`STATUS.md`](STATUS.md).** One page:
 > what is live, what is waiting, what is blocked and on whom.
 
+> **Writing a one-off probe instead of using a tool in this folder? Read
+> [Before you write a probe](#before-you-write-a-probe) first.** Every trap
+> listed there has already been hit by someone who was sure their ten-line
+> script was too simple to be wrong.
+
+## Before you write a probe
+
+The tools in this folder encode traps that a fresh script re-hits. They are
+written *inside* those tools, which is exactly where nobody looks while writing
+a replacement for them. So they are repeated here.
+
+**If a committed tool already answers your question, run it.** When an ad-hoc
+script and a purpose-built one disagree, the ad-hoc one is the hypothesis, not
+the finding. On 2026-09-04 a fresh probe reported `/correlation` terminal at
+1.05:1 with "no colour encoding" while `platform-audit.mjs` reported 0 failures
+on the same page. The audit was right. The probe's number reached a GitHub issue
+and a report to the owner before it was caught.
+
+**1. `color(srgb r g b / a)` channels are 0-1. `rgb()`/`rgba()` are 0-255.**
+A bare `match(/[\d.]+/g)` gives you both and tells you nothing about which.
+Scale by *prefix*, never by value range — a real `rgb(0 1 2)` must not be
+rescaled:
+
+```js
+const k = /^color\(/.test(c.trim()) ? 255 : 1;
+```
+
+Anything using `color-mix()` computes to `color(srgb ...)`. Without the scale
+every translucent modern-syntax colour composites to near-black, which reads as
+a catastrophic contrast failure that is not there. This has produced two false
+findings: the landing ticker at 1.04:1 when it was 3.96:1, and the one above.
+
+**2. A background is not the first non-transparent ancestor.** Composite the
+whole chain, alpha included, until alpha reaches 1. Stopping at the first
+non-zero-alpha background reads `rgba(117,78,0,0.07)` as opaque and returns
+1.0 ratios.
+
+**3. Zero elements is not zero failures.** A selector that matches nothing
+returns a clean result, and so does a page whose data never loaded. Count what
+you matched and say so. `.frh-sig-hint` reported clean because it renders zero
+instances; `/news` reported clean on staging because it had no articles.
+
+**4. Live data is not a fixture.** Single samples of a moving value are not
+measurements — run three times and report only what is stable. The `↑ 47` in
+one report read 39, 40 and 41 across three runs an hour later, which is why
+grepping the codebase for `47` never found it.
+
+**5. A canvas `fillStyle` cannot resolve a CSS custom property.** It fails to
+invisible and never throws. Reading pixels back needs the alpha channel too —
+transparent pixels return `[0,0,0]` and look exactly like black.
+
+**6. Ask what your instrument would say if the thing were broken.** If the
+answer is "the same", it is not measuring. A control that asserts a wrong
+implementation disagrees with the real one stops proving anything the moment
+the real one adopts that answer.
+
 ## Where QA tests
 
 **Four branches, four services, one each.** Nothing auto-deploys — moving a

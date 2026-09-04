@@ -26,6 +26,20 @@ const BASE = (arg('--base', 'https://liquidity-hq-qa.onrender.com')).replace(/\/
 const VIEWPORTS = arg('--viewports', 'desktop,mobile').split(',');
 const THEMES = arg('--themes', 'dark,light').split(',');
 const JSON_OUT = process.argv.includes('--json');
+/* WHICH DESIGN TO MEASURE (#741).
+ *
+ * Every sweep in this folder hardcoded `terminal`, so the design users actually
+ * get was never measured by anything. That was reasonable while terminal was
+ * the thing under construction; it inverted at #719, when terminal shipped on
+ * `/` only and every app screen went back to the current design. The cost was
+ * #739 - a 1.62:1 contrast failure live on liquidity-hq.com, invisible to 24
+ * page loads of auditing because all 24 forced terminal.
+ *
+ * DEFAULT STAYS `terminal`. Every figure quoted in the issues to date was
+ * measured that way, and silently moving the default would make them
+ * incomparable without saying so. The flag makes the choice explicit; the
+ * default keeps the existing record readable. */
+const DESIGNS = arg('--design', 'terminal').split(',');
 
 /* Kept in step with qa/e2e/_design-tokens.ts. /correlation is included even
    though it has no design frame yet — it is a converted route, so it is in
@@ -223,16 +237,21 @@ const PAGE_EVAL = ({ tokens, radiusExempt, emptySource }) => {
 const browser = await chromium.launch();
 const rows = [];
 
+for (const design of DESIGNS) {
 for (const vp of VIEWPORTS) {
   for (const theme of THEMES) {
     const ctx = await browser.newContext(VIEWPORT_CFG[vp]);
-    await ctx.addInitScript(t => { try { localStorage.setItem('theme', t); localStorage.setItem('lhq-design-mode','terminal'); } catch {} }, theme);
+    /* `current` REMOVES the attribute rather than setting data-design="current"
+       - lib/designMode.ts:49 is explicit that no [data-design="current"] block
+       exists and none should. Storing the string is still correct: it is what
+       resolveDesignMode reads, and it maps to "attribute absent". */
+    await ctx.addInitScript(([t, d]) => { try { localStorage.setItem('theme', t); localStorage.setItem('lhq-design-mode', d); } catch {} }, [theme, design]);
     const page = await ctx.newPage();
     page.on('pageerror', () => {});
 
     for (const route of ROUTES) {
-      const url = BASE + route + (route.includes('?') ? '&' : '?') + 'design=terminal';
-      let rec = { route, viewport: vp, theme, error: null };
+      const url = BASE + route + (route.includes('?') ? '&' : '?') + 'design=' + design;
+      let rec = { route, viewport: vp, theme, design, error: null };
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
         /* Dashboard double-mounts during the design-mode transition; wait for a
@@ -325,7 +344,8 @@ for (const vp of VIEWPORTS) {
       if (!JSON_OUT) {
         const f = rec.error ? `ERROR ${rec.error}` :
           `ovf ${String(rec.overflow).padStart(4)}${rec.overflow === 0 && rec.widerThanViewport > 0 ? '(w' + rec.widerThanViewport + ')' : ''}  off ${String(rec.offDistinct).padStart(3)}  rad ${String(rec.radiusTotal).padStart(3)}  contrast ${String(rec.contrastFails).padStart(3)}  <24px ${String(rec.subMin).padStart(2)}  empty ${String(rec.empties).padStart(2)}` + (rec.unsettled ? '  UNSETTLED' : '');
-        console.log(`${vp.padEnd(7)} ${theme.padEnd(5)} ${route.padEnd(18)} ${f}`);
+        const dcol = DESIGNS.length > 1 ? design.padEnd(9) + ' ' : '';
+        console.log(`${dcol}${vp.padEnd(7)} ${theme.padEnd(5)} ${route.padEnd(18)} ${f}`);
         /* Name the empties. A bare count cannot be acted on - which field is
            blank is the whole question - and the labels are what turn an audit
            row into a bug report. */
@@ -336,6 +356,7 @@ for (const vp of VIEWPORTS) {
     }
     await ctx.close();
   }
+}
 }
 await browser.close();
 
@@ -350,7 +371,7 @@ const measured = rows.filter(r => !r.error);
 const errored  = rows.filter(r => r.error);
 const sum = k => measured.reduce((a, r) => a + (r[k] || 0), 0);
 console.log('\n' + '='.repeat(78));
-console.log(`routes ${ROUTES.length} x viewports ${VIEWPORTS.length} x themes ${THEMES.length} = ${rows.length} page loads`);
+console.log(`designs ${DESIGNS.join('+')} x routes ${ROUTES.length} x viewports ${VIEWPORTS.length} x themes ${THEMES.length} = ${rows.length} page loads`);
 console.log(`measured ${measured.length} of ${rows.length}   errors ${errored.length}`);
 
 /* A run where nothing loaded prints six zeros and reads as a pass. That is
@@ -360,7 +381,7 @@ console.log(`measured ${measured.length} of ${rows.length}   errors ${errored.le
 if (measured.length === 0) {
   console.log('\nNOTHING WAS MEASURED. Every page load errored, so the counts below');
   console.log('would all read zero for that reason alone. This is not a clean run.');
-  for (const r of errored.slice(0, 5)) console.log(`  ${r.route} ${r.viewport} ${r.theme}: ${String(r.error).slice(0, 100)}`);
+  for (const r of errored.slice(0, 5)) console.log(`  ${r.route} ${r.design} ${r.viewport} ${r.theme}: ${String(r.error).slice(0, 100)}`);
   process.exit(1);
 }
 
