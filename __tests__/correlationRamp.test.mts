@@ -17,6 +17,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { tintPct, GREEN_CAP_PCT, RED_CAP_PCT } from '../lib/correlationRamp.ts';
 import { TERMINAL_COLORS, TERMINAL_COLORS_LIGHT } from '../lib/terminalTokens.ts';
@@ -126,4 +127,104 @@ test('--txt3 would still fail there, so the swap is doing the work', () => {
   const T = TERMINAL_COLORS as Record<string, string>;
   const c = ratio(hex(T['--txt3']), over('#ffffff', T['--bg1'], 3));
   assert.ok(c < 4.5, `--txt3 now measures ${c.toFixed(2)} on the null ground; --txt-dash may be unnecessary`);
+});
+
+/* ── THE CURRENT DESIGN USES THE SAME RAMP NOW (#774) ──────────────────────
+ *
+ * app/correlation/page.tsx carried its own copy of this curve - same rescale,
+ * same exponents, same floors, caps of 96% and 92% against this file's 50% and
+ * 56%. Only the caps differed, and that was 1332 failing cells on production,
+ * worst 1.79, concentrated in the strongly-correlated cells the screen exists
+ * to highlight.
+ *
+ * It now imports tintPct(). These assertions are what make that safe, because
+ * the caps above were derived against TERMINAL's tokens and the current design
+ * has different ones:
+ *
+ *     terminal --green  #3fb950        current  rgba(52,211,153)
+ *     terminal --red    (token)        current  rgba(248,113,113)
+ *
+ * The cell colours here are hardcoded literals rather than tokens, so they do
+ * NOT change with the theme - only the ground and the text do. That is why a
+ * cap verified in one theme cannot be assumed in the other, which is the
+ * mistake this whole file exists to prevent, and which #641, #750 and #769 all
+ * repeated on other surfaces the same day this was written.
+ *
+ * THE CAP WAS ONLY HALF THE DEFECT. The current design also used --txt3 for
+ * every cell below |r| = 0.8. Against its own green that fails from 9% alpha
+ * in dark, red from 12% - so most of the grid was failing as soon as it
+ * carried any tint. With the terminal caps and --txt3 it still measures 1.57
+ * at full strength: a smaller failure, not a fix. Text is --txt now, which is
+ * the conclusion CorrelationTerminal.tsx:77 reached in #570. */
+const CURRENT_GREEN = '#34d399';   // rgba(52,211,153,a)
+const CURRENT_RED   = '#f87171';   // rgba(248,113,113,a)
+
+/* Read from globals.css rather than restated: the current design has no
+   TERMINAL_COLORS equivalent, and a hand-copied palette in a test is the
+   two-sources bug this file's own header is about. */
+const GLOBALS = readFileSync('app/globals.css', 'utf8');
+function currentTokens(selector: string): Record<string, string> {
+  const lines = GLOBALS.split('\n');
+  const idx = lines.findIndex(l => l.trim() === selector + ' {');
+  assert.ok(idx >= 0, `token block not found: ${selector}`);
+  const from = lines.slice(0, idx).join('\n').length;
+  let i = GLOBALS.indexOf('{', from), depth = 0, end = i;
+  for (; i < GLOBALS.length; i++) {
+    if (GLOBALS[i] === '{') depth++;
+    else if (GLOBALS[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  const body = GLOBALS.slice(GLOBALS.indexOf('{', from) + 1, end);
+  const out: Record<string, string> = {};
+  for (const m of body.matchAll(/(--[a-z0-9-]+)\s*:\s*(#[0-9a-fA-F]{6})/g)) out[m[1]] = m[2];
+  return out;
+}
+const CURRENT_ROOT  = currentTokens(':root');
+const CURRENT_LIGHT = { ...CURRENT_ROOT, ...currentTokens('[data-theme="light"]') };
+
+/* .card's background is var(--bg2) (globals.css:728) and the grid renders
+   inside one. NOT a sweep of --bg0/--bg1/--bg2 like the terminal tests above:
+   --bg0 is undefined in the light block, so it falls through to :root's
+   near-black, and including it reports a 1.00 in light that no element on this
+   page ever renders. That wrong number appeared in my first run of this
+   measurement. */
+const CURRENT_THEMES = [
+  { name: 'current dark',  T: CURRENT_ROOT },
+  { name: 'current light', T: CURRENT_LIGHT },
+];
+
+test('the shared ramp clears 4.5:1 on the CURRENT design\'s cell colours too', () => {
+  const failures: string[] = [];
+  for (const { name, T } of CURRENT_THEMES) {
+    for (let i = -100; i <= 100; i++) {
+      const r = i / 100;
+      const pct = tintPct(r);
+      const tint = r > 0 ? CURRENT_GREEN : CURRENT_RED;
+      const c = ratio(hex(T['--txt']), over(tint, T['--bg2'], pct));
+      if (c < 4.5) failures.push(`${name} r=${r.toFixed(2)} alpha=${pct.toFixed(1)}% -> ${c.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual(failures.slice(0, 5), [],
+    `${failures.length} current-design cell states below 4.5:1. The caps in ` +
+    'lib/correlationRamp.ts were derived against the TERMINAL palette; if this ' +
+    'fails they no longer cover both designs and the binding one has to be re-derived.');
+});
+
+test('CONTROL: the caps this replaced really did fail, and --txt3 fails even with them', () => {
+  /* Two positive controls, because #774 had two halves and either alone would
+     have looked like a fix.
+
+     Without these, the assertion above passing proves only that it ran - and a
+     check that cannot fail is the defect this project hit five separate ways in
+     one session. */
+  const T = CURRENT_ROOT;
+
+  // 1. The old 96% green cap, which is what shipped.
+  const oldCap = ratio(hex(T['--txt']), over(CURRENT_GREEN, T['--bg2'], 96));
+  assert.ok(oldCap < 4.5, `expected the old 96% cap to fail, measured ${oldCap.toFixed(2)}`);
+
+  // 2. --txt3 at the NEW cap - the half a cap change alone would have missed.
+  const withTxt3 = ratio(hex(T['--txt3']), over(CURRENT_GREEN, T['--bg2'], GREEN_CAP_PCT));
+  assert.ok(withTxt3 < 4.5,
+    `--txt3 now measures ${withTxt3.toFixed(2)} at the capped alpha; if it passes, ` +
+    'the always---txt change is no longer load-bearing and this should be revisited.');
 });
