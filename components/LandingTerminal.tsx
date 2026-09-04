@@ -367,16 +367,29 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
                   <span style={{ fontSize: 10.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.12em', color: 'var(--accent)', textTransform: 'uppercase' }}>
                     {dict.features.openLabel} {stepArrow}
                   </span>
-                  {/* --txt4 is correct here and measured 1.88:1 on purpose:
-                      the design's accessibility section exempts it by name -
+                  {/* --txt3, not --txt4 (#775 cause 2, OWNER RULING).
+                      The design's accessibility section exempted this by name:
                       "--txt4 is used only for the excluded-feature ✕ and the
                       route string in card footers. Both are non-essential
                       decoration paired with a text label, so they are exempt
                       from 4.5:1 - but if either ever becomes the only carrier
-                      of meaning, it must be re-tokened." Checked on #593
-                      against the design project itself, not the repo's copy.
-                      Do not "fix" this without re-reading that clause. */}
-                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt4)' }}>{FEATURE_ROUTES[i]}</span>
+                      of meaning, it must be re-tokened."
+
+                      That clause is not being ignored, it is being overridden,
+                      and by the person whose screen this is: shown the 1.88:1
+                      figure they chose to fix it rather than keep the
+                      exemption. Recorded rather than deleted, so the next
+                      reader can see the exemption existed and who set it
+                      aside - #593 checked it against the design project and
+                      that check was correct at the time.
+
+                      Re-derived rather than trusted: --txt4 is 1.88 terminal
+                      dark and 2.14 terminal light on --bg0; --txt3 is 5.14 and
+                      5.68. The relayed figure was ~4.6, which was conservative
+                      by half a point - it predated #790 giving --bg0 a light
+                      value at all. --txt4 is a terminal-only token, so this
+                      element does not exist in the current design. */}
+                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>{FEATURE_ROUTES[i]}</span>
                 </div>
               )}
             </Link>
