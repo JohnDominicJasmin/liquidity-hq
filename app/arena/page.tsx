@@ -2205,8 +2205,19 @@ function ArenaContent() {
 
       {/* ── Evidence + advanced (full width, below the workspace) ── */}
       <div className="arena-below-chart">
-      {/* Live liquidations for the selected coin, and the source of the chart's
-          realized-cluster lines above (#766).
+      {/* The source of the chart's realized-cluster lines above (#766), running
+          headless since #811 — mounted and streaming, rendering nothing.
+
+          The owner looked at the deployed page and did not want the card: it
+          was 844px whose HOT PRICE LEVELS bars are the same eight clusters the
+          chart draws as lines directly above them. That reads as duplication
+          only once both are on screen together, which is one deploy after the
+          feature landed — not something the diff showed.
+
+          It cannot simply be unmounted. This component owns the Binance and
+          Bybit sockets and the 24h accumulation, and the chart's lines come
+          from its onClusters. Removing it removes the feature the owner asked
+          for.
 
           REPLACES the BTC Liquidation Heatmap that stood here. That card was
           unreachable code, not a working feature: it rendered only when
@@ -2220,7 +2231,7 @@ function ArenaContent() {
           What replaces it is not the same claim. The heatmap showed PREDICTED
           liquidation levels bought from a vendor; this shows REALIZED ones
           streamed from Binance and Bybit - keyless, free, and not BTC-only. */}
-      <LiqFeed onClusters={handleLiqClusters} coinFilter={selectedCoin.toUpperCase()} />
+      <LiqFeed onClusters={handleLiqClusters} coinFilter={selectedCoin.toUpperCase()} headless />
       {/* GEX / Options Market Pressure table removed here 2026-07-25
           (signal-overload pass): biggest single block on the page (~456px),
           BTC-only, and max-pain/net-gamma is background context rather than a
