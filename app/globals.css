@@ -88,6 +88,21 @@
      __tests__/marketStructureStamp.test.mts rather than asserted here. */
   --txt-stamp: #9aa0a6;
 
+  /* --score-mid: the middle band of the accumulation score ramp (#787).
+     AccumulationTracker prints 75+ in --green, under 60 in --amber, and 60-74
+     in this. The middle branch was the literal #a3e635 while its two
+     neighbours were tokens, so it alone did not follow the theme: 1.15:1
+     against terminal light's card, the worst text contrast measured on this
+     project. Correct where it was chosen - 12.98 in dark - and wrong
+     everywhere else, with no error and no failing test, which is the
+     one-ground family in its purest form.
+     Dark keeps #a3e635 (12.98 current / 12.12 terminal). The light value below
+     clears 6.37 / 5.42 and stays a distinct olive against --green's teal and
+     --amber's brown, because three bands that read alike stop carrying the
+     information the ramp exists for. Verified against both gradient stops in
+     all four contexts in __tests__/scoreMidBand.test.mts. */
+  --score-mid: #a3e635;
+
   /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
   --bdr2: rgba(255,255,255,0.14);
@@ -2585,6 +2600,11 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   /* See --txt-stamp in :root. #4f5257 is the value terminal light already uses
      for --txt-dash, reached independently for this ground. */
   --txt-stamp: #4f5257;
+
+  /* See --score-mid in :root. Lime-800: the ramp has to darken in light the
+     way --green and --amber already do, and #4d7c0f - the obvious one step
+     lighter - measures 3.82 in terminal light. */
+  --score-mid: #3f6212;
   --bdr:  rgba(0,0,0,0.08);
   --bdr2: rgba(0,0,0,0.14);
 
