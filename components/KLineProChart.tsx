@@ -404,9 +404,13 @@ let structureOverlayRegistered = false;
    and cyan are the GEX pair, gold/blue/orange are the EMA ribbon. A cluster line
    is neither directional nor a forward level, so it must not borrow any of
    those readings.
-   Measured, not assumed: white on #db2777 is 4.56:1, which clears 4.5:1. The
-   S/R labels next to it do not - white on #f87171 is 2.82:1 - so this is the
-   readable one rather than one matching the neighbours at their own level. */
+   The ratios live in lib/chartInk.ts beside the constants, and deliberately
+   only there. This comment used to restate them as 4.56 and 2.82 - values I
+   worked out by hand before sweeping them properly - while chartInk.ts said
+   4.60 and 2.77 for the same two pairs. Two numbers for one measurement, six
+   hundred lines apart in the same repo, is the shape #736 and #663 are both
+   about; QA caught it reviewing #812. Restating them here again is how it
+   comes back. */
 const LIQ_CLUSTER_COLOR = OVERLAY_LABEL_INK.liqCluster.bg;
 
 /* A canvas strokeStyle cannot resolve a CSS custom property. Passing
