@@ -28,49 +28,29 @@ import type { Page } from '@playwright/test';
  * It is a local test double for a client library that reads its session from
  * localStorage, not a key to anything.
  *
- * IT WAS BROKEN, AND THE DIAGNOSIS IN THIS COMMENT WAS WRONG (#767, 2026-09-05)
+ * IT DOES NOT WORK OUTSIDE PLAYWRIGHT, AND THAT IS NOT A BUG TO FIX (#767)
  *
- * This section used to read "IT DOES NOT WORK OUTSIDE PLAYWRIGHT, AND THAT IS
- * NOT A BUG TO FIX", explaining that seeding the key by hand fails because
- * supabase-js refreshes with the invalid refresh token, the request reaches
- * Supabase, and the client discards the session. That explanation was wrong,
- * and it made a real defect look like a design property.
+ * The interception is not a convenience wrapped around the fixture — it IS the
+ * fixture. Seeding the same localStorage key by hand in an ordinary browser
+ * does not produce a signed-in app: supabase-js attempts a refresh with the
+ * deliberately-invalid refresh token, the request actually reaches Supabase,
+ * the refresh fails, and the client DISCARDS the session. The page renders
+ * signed out, with no error to explain why.
  *
- * Measured by patching localStorage.removeItem before any app code ran and
- * recording a stack for every touch of the session key:
+ * That was tried on 2026-09-04 and reported as "the fixture is broken". It is
+ * not: the invalid signature is what makes it safe, and answering its requests
+ * locally is what makes it work. Both halves are load-bearing and neither can
+ * be dropped to make it portable.
  *
- *   3011ms  setItem     sb-<ref>-auth-token       written by this file
- *   4371ms  removeItem  sb-<ref>-auth-token       GoTrueClient._removeSession
- *   4371ms  removeItem  sb-<ref>-auth-token-user
- *   /auth/v1 traffic that escaped interception:   NONE
+ * THE CONSEQUENCE IS THE PART TO KNOW. Nothing behind sign-in can be verified
+ * by rendering a deployed environment. On one day that left four findings
+ * source-only: the terminal nav's signed-in avatar (#747), the chart's
+ * price-alert line (#759), the journal's badge dots (#756) and the /alerts
+ * Telegram button (#786). Any of those needs either a Playwright run — which
+ * is owner-gated, it costs real money — or a human signed in at a keyboard.
  *
- * The network was never involved. The session was rejected locally, on shape:
- * this file wrote `{ currentSession, expiresAt }` - the supabase-js v1 layout -
- * while v2's `GoTrueClient._isValidSession` requires `access_token`,
- * `refresh_token` and `expires_at` at the TOP level of the stored value
- * (auth-js 2.106.2, GoTrueClient.js:3788). A wrapped session has none of them
- * there, so `__loadSession` judged it invalid and deleted it.
- *
- * Storing the session object directly fixes it. Verified against the deployed
- * qa build: the key survives, and `.auth-avatar-btn` renders - a positive
- * signal rather than merely the absence of a "Sign in" link.
- *
- * THE PORTABILITY CLAIM WAS WRONG TOO. Seeding this key with NO page.route and
- * no interception at all now produces the same signed-in page. The interception
- * keeps the fixture's requests off the real project; it was never what made the
- * session survive.
- *
- * WHAT IS STILL NOT PROVEN: pro versus free. `as: 'pro'`, a control with
- * `as: 'free'`, and a bare localStorage seed all rendered the same zero locked
- * cards on /dashboard, so that probe did not discriminate. Signed-in is
- * measured; entitled is not. Do not read one as the other.
- *
- * HOW THE WRONG EXPLANATION SURVIVED. It was written after a failed attempt, it
- * was plausible, and it predicted the observed outcome - a signed-out page. It
- * was never tested, because it explained the failure well enough that nobody
- * looked further, and it named itself a design property so the next reader had
- * a reason not to. An explanation that tells you to stop looking should be held
- * to a higher standard than one that tells you where to look.
+ * So when a QA report says "unverified, behind sign-in", this file is why, and
+ * the fix is not in this file.
  *
  * HOW IT WORKS
  *
@@ -201,14 +181,9 @@ export async function useEntitledSession(page: Page, opts: EntitledOptions = {})
 
   await page.addInitScript(
     ({ key, session }) => {
-      /* THE SESSION OBJECT DIRECTLY, NOT WRAPPED. This wrote
-         `{ currentSession, expiresAt }` until 2026-09-05 - the supabase-js v1
-         shape. v2's GoTrueClient._isValidSession requires `access_token`,
-         `refresh_token` and `expires_at` at the TOP level of the stored value
-         (auth-js 2.106.2, GoTrueClient.js:3788); a wrapped session has none of
-         them there, so __loadSession judged it invalid and called
-         _removeSession(), deleting the key 1.4s after this wrote it. */
-      window.localStorage.setItem(key, JSON.stringify(session));
+      window.localStorage.setItem(key, JSON.stringify({
+        currentSession: session, expiresAt: session.expires_at,
+      }));
       /* AuthProvider force-signs-out a session idle more than 7 days
          (AuthProvider.tsx:49, #304). Without this the fixture would be
          torn down by the app's own expiry check and the test would see a
