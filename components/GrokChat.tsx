@@ -278,12 +278,6 @@ function buildSystemCtx(
 }
 
 /* ─────────────────────────────────────────────────────────────── */
-/* The coins that stay as one-click buttons (#746). Six is what fits the panel
-   without a horizontal scroll at its narrowest, and they are taken from COINS
-   in declared order rather than a second hand-kept list - so a change to the
-   app's coin ordering carries here instead of drifting from it. */
-const QUICK_COINS = COINS.slice(0, 6);
-
 export default function GrokChat() {
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
@@ -864,43 +858,32 @@ export default function GrokChat() {
         ) : (
           /* ════ CHAT VIEW ════ */
           <>
-            {/* Coin selector: quick buttons PLUS a searchable dropdown (#746).
-                Owner: "this coin selection it should be a searchable dropdown
-                not a horizontal list of coin selection", and on the follow-up
-                they kept the quick buttons - the dropdown sits alongside them
-                rather than replacing them, so the common coins stay one click
-                away and the long tail stops needing a horizontal scroll.
+            {/* DROPDOWN ONLY (#746). Owner: "this coin selection it should be
+                a searchable dropdown not a horizontal list of coin selection."
 
-                Fifty buttons in a strip inside a narrow panel is the shape
-                that failed: the row ran off the edge and everything past the
-                sixth coin was reachable only by dragging sideways. Six stay,
-                in the order the app declares them, and the rest live in the
-                dropdown.
+                An earlier version of this kept six quick buttons beside the
+                dropdown, on a relay that turned out to describe the ARENA
+                page's category tabs rather than this control - so the owner
+                had approved keeping buttons that were never at risk. The
+                governing sentence is the one above, and it rules the row out.
 
-                CoinMultiSelect in `single` mode rather than a second popover -
-                see the prop's own note. */}
+                It was also the wrong shape on its own evidence: six buttons
+                plus a ~100px trigger did not fit, .gchat-coins had
+                `overflow-x: auto; scrollbar-width: none`, and the owner's
+                screenshot showed BNB clipped and HYPE off-screen behind a
+                scroll with no scrollbar. That is #745's defect - content
+                reachable only by a scroll nobody knows exists - in the panel
+                filed to remove it. Deleting the row dissolves it rather than
+                patching it, and hands the trigger the full width. */}
             <div className="gchat-coinbar">
-              <div className="gchat-coins">
-                {QUICK_COINS.map(c => (
-                  <button
-                    key={c}
-                    className={`gchat-coin${c === coin ? ' on' : ''}`}
-                    onClick={() => { if (c !== coin) { newChat(); setCoin(c); } }}
-                  >
-                    {c.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-              <div className="gchat-coinpick">
-                <CoinMultiSelect
-                  single
-                  value={[coin]}
-                  onChange={next => {
-                    const c = next[0] as CoinId | undefined;
-                    if (c && c !== coin) { newChat(); setCoin(c); }
-                  }}
-                />
-              </div>
+              <CoinMultiSelect
+                single
+                value={[coin]}
+                onChange={next => {
+                  const c = next[0] as CoinId | undefined;
+                  if (c && c !== coin) { newChat(); setCoin(c); }
+                }}
+              />
             </div>
 
             {/* Rate-limit / error status bar - sits between coins and messages, not in chat stream */}

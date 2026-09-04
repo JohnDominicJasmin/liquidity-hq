@@ -3,7 +3,7 @@
 // 50 chip buttons with a compact trigger + popover. Uses position:fixed with computed
 // coordinates (same technique as Tip.tsx) so the panel isn't clipped when this sits
 // inside a scrollable container like SettingsModal's body.
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useId } from 'react';
 import { CoinId, COINS } from '@/lib/marketStore';
 import { useLabels } from '@/lib/labels';
 
@@ -40,6 +40,29 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
   // not on every toggle, or the list would reshuffle under the cursor while
   // checking off several coins in a row.
   const orderRef    = useRef<CoinId[]>(COINS);
+  const listRef     = useRef<HTMLDivElement>(null);
+  /** Stable id so aria-controls on the trigger points at the list. */
+  const listId = useId();
+
+  /* ARROW KEYS MOVE FOCUS, THEY DO NOT SELECT (#746 review).
+     Reaching coin 44 was 43 tabs. Native radio groups do support arrows, but
+     they SELECT as they move - and in single mode selecting closes the panel,
+     so a keyboard user would be ejected on the first ArrowDown. So the arrows
+     are handled here and preventDefault'd, and Enter or Space on the focused
+     row is what commits. */
+  const onListKey = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+    const items = Array.from(listRef.current?.querySelectorAll<HTMLInputElement>('input') ?? []);
+    if (items.length === 0) return;
+    e.preventDefault();
+    const at = items.indexOf(document.activeElement as HTMLInputElement);
+    const next =
+      e.key === 'Home' ? 0 :
+      e.key === 'End'  ? items.length - 1 :
+      e.key === 'ArrowDown' ? (at < 0 ? 0 : Math.min(at + 1, items.length - 1))
+                            : (at < 0 ? items.length - 1 : Math.max(at - 1, 0));
+    items[next]?.focus();
+  }, []);
 
   const positionPanel = useCallback(() => {
     if (!triggerRef.current) return;
@@ -58,16 +81,27 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
     setTimeout(() => searchRef.current?.focus(), 30);
   }, [positionPanel, value]);
 
+  /* CLOSE RETURNS FOCUS TO THE TRIGGER (WCAG 2.4.3, #746 review).
+     Escape used to drop the user on <body> - the focus-IN half was already
+     correct (openPanel focuses the search box), so this finishes a pattern
+     rather than starting one. `restore` is false for an outside click, where
+     the user has already chosen where to put focus and yanking it back is the
+     rude version of helpful. */
+  const closePanel = useCallback((restore = true) => {
+    setOpen(false);
+    setSearch('');
+    if (restore) triggerRef.current?.focus();
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (triggerRef.current?.contains(t) || panelRef.current?.contains(t)) return;
-      setOpen(false);
-      setSearch('');
+      closePanel(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setOpen(false); setSearch(''); }
+      if (e.key === 'Escape') closePanel();
     };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
@@ -79,7 +113,7 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
       window.removeEventListener('resize', positionPanel);
       window.removeEventListener('scroll', positionPanel, true);
     };
-  }, [open, positionPanel]);
+  }, [open, positionPanel, closePanel]);
 
   const toggleCoin = (c: CoinId) => {
     if (single) {
@@ -87,8 +121,7 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
          onChange, so a consumer that resets state on change - GrokChat starts
          a new conversation - does not throw work away on a no-op click. */
       if (!value.includes(c)) onChange([c]);
-      setOpen(false);
-      setSearch('');
+      closePanel();
       return;
     }
     onChange(value.includes(c) ? value.filter(x => x !== c) : [...value, c]);
@@ -106,11 +139,19 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
 
   return (
     <>
+      {/* COMBOBOX SEMANTICS (WCAG 4.1.2, #746 review). Without these a screen
+          reader announces "SUI, button" - nothing says it opens a list, and
+          nothing says whether it is open. The chevron below carries that state
+          to sighted users only. */}
       <button
         ref={triggerRef}
         type="button"
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-controls={open ? listId : undefined}
         className={`cms-trigger${open ? ' open' : ''}`}
-        onClick={() => (open ? setOpen(false) : openPanel())}
+        onClick={() => (open ? closePanel() : openPanel())}
       >
         <span className="cms-trigger-txt">{summary}</span>
         <span className="cms-trigger-right">
@@ -125,14 +166,19 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
           className="cms-panel"
           style={{ top: coords.top, left: coords.left, width: coords.width }}
         >
+          {/* aria-label as well as placeholder (WCAG 3.3.2). A placeholder is
+              not an accessible name: it disappears on the first keystroke and
+              several screen readers never announce it. */}
           <input
             ref={searchRef}
             className="cms-search"
+            aria-label={t('COIN_SELECT_SEARCH_PLACEHOLDER')}
             placeholder={t('COIN_SELECT_SEARCH_PLACEHOLDER')}
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onKeyDown={onListKey}
           />
-          <div className="cms-list">
+          <div className="cms-list" id={listId} ref={listRef} onKeyDown={onListKey}>
             {filtered.length === 0 ? (
               <div className="cms-empty">{t('COIN_SELECT_NO_MATCH', { search })}</div>
             ) : filtered.map(c => {
