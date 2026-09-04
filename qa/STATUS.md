@@ -2,7 +2,7 @@
 
 **One page. If you only read one thing, read this.**
 
-Kept current by QA. Last updated **2026-08-12**.
+Kept current by QA. Last updated **2026-09-04**.
 
 ## Read this before you trust anything below
 
@@ -71,6 +71,10 @@ morning and done by lunchtime. They live on the issue that needs them.
 | **"Closes #N" does NOT auto-close in this repo.** PRs merge into `dev`, and GitHub only auto-closes from the default branch. #376 sat open for hours after its fix shipped. **Close issues by hand, on evidence** | 2026-08-14 | #376, #377 |
 | **Ask once, then drop it.** A request repeated every message is pressure, and a yes obtained that way is not approval — it happened on 2026-08-12 and cost the owner money. Pending asks live on the relevant issue and are mentioned in chat once | 2026-08-12 | owner, in session |
 | **`CI Gate` is NO LONGER a required status check on `main`.** Removed 2026-08-13 with the owner, in the browser, after it deadlocked the release. It required E2E to pass on a GitHub runner, and **`fapi.binance.com` bans the shared egress IPs Render's free plan uses** - so the market-dependent half of the suite could never go green there. NOT "Binance blocks cloud egress": `api.binance.com` (spot) answers 200 from the same hosts, and prod's `starter` plan gets futures fine. Measured on three hosts, 18 requests, #368. A required check that cannot report is not a protection, it is a locked door with no key, and it teaches everyone to override red gates. **Still enforced on `main`:** no deletion, no force-push, PR required | 2026-08-13 | #374, where `gh pr merge --admin` was confirmed NOT to bypass a never-reported required check; the ruleset backup is in the session scratchpad |
+| **The canvas-mirror rebuild is STOPPED. Terminal is a SKIN over the production layout, not a re-layout.** Owner, 2026-09-03: *"we are repackaging the platform without users feedback... we are wasting time, money, and resources, and also tokens."* Dashboard, arena and liquidation-map were reverted off the rebuilt canvases and re-styled in place. **The landing page is the one exception** - the owner likes it and it keeps its canvas. Do not restructure a screen to match a design canvas | 2026-09-03 | owner, in session; the revert commits |
+| **TERMINAL IS THE DEFAULT ON EVERY ROUTE.** No query param needed; a visitor with nothing stored gets terminal everywhere. `TERMINAL_BY_DEFAULT_ROUTES` and `isTerminalByDefault` are deleted and `pathname` is no longer an input to `resolveDesignMode`. **This reverses the landing-only scope of #719** - any issue closed on "nobody reaches that screen in terminal" reasoning is void and should be re-checked | 2026-09-04 | #748, shipped in #768 |
+| **`?design=current` STAYS, and it is the rollback.** `?design=terminal` is now a no-op naming the default. `current` is retained deliberately: it is the only way back that does not need a deploy, it is how the two designs get compared, and it is what the audit sweeps use to measure the design a user is NOT getting. A rollback that requires shipping code is not a rollback on the day it is needed. The opt-out survives navigation - it is stored, not per-request | 2026-09-04 | #768; `lib/designMode.ts` |
+| **The audit sweeps take `--design`, and the default stays `terminal`.** Every sweep in `qa/` used to hardcode terminal, so the design users actually received was measured by nothing - which is how #739 shipped a 1.62:1 failure to production invisible to 24 page loads. The default is unchanged so figures quoted in older issues stay comparable. A multi-design run prints a `BY DESIGN` split, because the combined total belongs to neither | 2026-09-04 | #741, #776, #778 |
 
 ---
 
@@ -93,6 +97,50 @@ gh issue list --state open
   slow when nobody names which dashboard.
 
 ## Standing risks
+
+### A colour verified against one ground, shipped against another
+
+**Five instances in a single day, 2026-09-04: #641, #750, #769, #774 and #771.**
+Every one had a real measurement behind it. Every one was measured in one
+context and applied in another.
+
+```
+#750   fixed light, pushed two dark values under the bar
+#769   "#c8891e is 6.42:1" - true in dark, unscoped !important, 2.33 in light
+#641   "4.78 / 5.07 / 4.87 dark" - those were TERMINAL dark; the current
+       design's rule is [data-design="terminal"]-scoped and never got the fix
+#774   a tint ramp with tested caps and its untested twin; the twin failed
+       1332 cells on production while the tested one passed
+#771   a comment's figures computed and never rendered
+```
+
+**The tell is always a number that is correct.** Nobody guessed. The failure is
+in the scope of the claim, not its arithmetic, so re-checking the maths confirms
+it and changes nothing.
+
+Two things that actually catch it:
+
+1. **Resolve every context, not the one you are looking at.** For a token
+   change that is four: design x theme. Read them out of `globals.css` and
+   write them down - `--green-fg` on #770 was approved only after all four were
+   listed and three shown byte-identical.
+2. **Put the constants in a test, not a comment.** `lib/correlationRamp.ts`
+   exists because a comment claimed red's thresholds matched across themes and
+   they did not. Its header says it: *a comment cannot be run.* On 2026-09-04
+   the tested constants held and every set that stayed prose did not.
+
+### An instrument that answers a nearby question
+
+Four in one day between the two sessions, all producing a clean or confident
+result: an empty `/news` feed reported as passing, a transparent canvas read
+without alpha as `[0,0,0]`, `color(srgb)` channels composited as 0-255, and a
+control asserting a wrong resolver disagrees with the real one - which stopped
+proving anything the moment the real one adopted that answer.
+
+The traps and the general rule are in [`README.md`](README.md#before-you-write-a-probe).
+The rule worth repeating here: **when a committed tool and an ad-hoc script
+disagree, the ad-hoc script is the hypothesis, not the finding.**
+
 
 - **`reuseExistingServer` will serve you a build from before your `git checkout`,
   silently.** Measured 2026-08-14 while validating `text-under-control.spec.ts`
