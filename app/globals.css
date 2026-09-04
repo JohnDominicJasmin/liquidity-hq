@@ -2571,6 +2571,17 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 [data-theme="light"] {
   /* Clean neutral - white cards on light gray canvas */
   --bg:  #E8EAED;
+  /* --bg0 DECLARED HERE AT LAST (#783). It was the one background token the
+     current design's light block did not set, so `var(--bg0)` in a light,
+     non-terminal context fell through to :root's #030405 - near-black behind
+     light text, with no error and nothing failing.
+     Nothing rendered wrong, because the two places that reach for it were
+     already worked around: the html rule below was SPLIT into a literal and a
+     token specifically to dodge this, and its comment says so. The workaround
+     was correct and the hole it dodged was still there for the next caller.
+     #E8EAED is the literal that split rule already used, so this declares what
+     the design was already painting rather than choosing a new colour. */
+  --bg0: #E8EAED;
   --bg1: #FFFFFF;
   --bg2: #F2F3F5;
   --bg3: #E4E6E9;
@@ -2688,8 +2699,12 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    Split the same way as the body rules directly below, and for the same reason
    given in their comment: --bg0 is not declared in the current design's own
    light block, so terminal takes it and the current design keeps its literal. */
-html[data-theme="light"]:not([data-design="terminal"]) { background: #E8EAED; }
-html[data-design="terminal"][data-theme="light"] { background: var(--bg0); }
+/* ONE RULE AGAIN (#783). This was split in two because --bg0 was undeclared in
+   the current design's light block, so the token could not be used there. It is
+   declared now, and it resolves to the same #E8EAED this rule used to hardcode,
+   so the split has nothing left to protect against and a literal that has to
+   stay in step with a token is one more thing to keep in step. */
+html[data-theme="light"] { background: var(--bg0); }
 /* #557 investigation (QA, terminal-light audit): unscoped, so terminal+light
    pages rendered the current design's #E8EAED canvas instead of terminal's
    own --bg0 (#f7f6f3) - close enough in hue that it went unnoticed visually,
