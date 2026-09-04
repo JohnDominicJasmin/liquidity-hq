@@ -3,25 +3,15 @@ import crypto from 'crypto';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
-import { patchForEvent } from '@/lib/lemonsqueezy';
+import { patchForEvent, payerOwnsAccount, verifyWebhookSignature } from '@/lib/lemonsqueezy';
 
 const SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? '';
-
-function verifySignature(payload: string, signature: string): boolean {
-  if (!SECRET) return false;
-  const digest = crypto.createHmac('sha256', SECRET).update(payload).digest('hex');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(digest, 'hex'));
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(req: NextRequest) {
   const signature = req.headers.get('x-signature') ?? '';
   const payload = await req.text();
 
-  if (!verifySignature(payload, signature)) {
+  if (!verifyWebhookSignature(payload, signature, SECRET)) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
@@ -92,7 +82,7 @@ export async function POST(req: NextRequest) {
   const { data: acct } = await sb.auth.admin.getUserById(userId);
   const acctEmail = (acct?.user?.email ?? '').trim().toLowerCase();
 
-  if (!acctEmail || !payerEmail || acctEmail !== payerEmail) {
+  if (!payerOwnsAccount(payerEmail, acctEmail)) {
     apiError('lemonsqueezy/webhook', new Error(
       `Payer/account email mismatch - refusing to grant. event=${eventName} user_id=${userId} ` +
       `payer=${payerEmail || '(none)'} account=${acctEmail || '(unknown user)'}`,
