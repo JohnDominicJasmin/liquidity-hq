@@ -193,7 +193,11 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
     return () => clearInterval(id);
   }, []);
 
-  const initials = user?.email?.[0]?.toUpperCase() ?? '?';
+  /* null, not '?' (#747). The fallback was a placeholder for initials that do
+     not exist, and it rendered a bordered box containing a question mark next
+     to the real SIGN IN control. Returning null lets the render gate below
+     drop the element entirely rather than draw an empty identity. */
+  const initials = user?.email?.[0]?.toUpperCase() ?? null;
 
   const tabs = (
     <nav className="tnav-tabs" aria-label={t('TNAV_ARIA_LABEL')}>
@@ -371,8 +375,24 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
               Back to what the frames draw: an identity box with no behaviour.
               A <span>, not a disabled <button>, because a button that does
               nothing still takes focus and still announces itself as
-              actionable. Mobile keeps .tnav-mmore as its opener. */}
-          <span className="tnav-avatar" aria-hidden="true">{initials}</span>
+              actionable. Mobile keeps .tnav-mmore as its opener.
+
+              SIGNED OUT IT IS GONE ENTIRELY (#747). Owner: "wtf is this? pls
+              remove if not needed." A dead <span> was the right answer to the
+              question #731 asked - should this still be a control - but nobody
+              asked the wider one, whether it should be here at all. Signed out
+              there is no identity to show, SIGN IN is already beside it, and
+              aria-hidden means it was not even announced: a box with a
+              question mark in it.
+
+              Signed in it stays, because a real initial IS an identity
+              affordance and is presumably why the element exists. The gate is
+              on `initials` rather than on `user` alone, so a signed-in account
+              with no email address drops it too rather than reintroducing the
+              same empty box by another route. */}
+          {!authLoading && initials && (
+            <span className="tnav-avatar" aria-hidden="true">{initials}</span>
+          )}
         </div>
       </header>
 
