@@ -401,27 +401,43 @@ body::after {
      FAB even at that natural, un-stuck top (measured empirically, not
      derived from the 68px sticky offset - that offset only applies once
      stuck, and stuck is always a *smaller* top, so it's the safer case). */
+  /* THE RAIL NO LONGER SCROLLS INSIDE ITSELF (#745). Owner: "I don't want it
+     to be scrollable. So what I want you to do is show a fixed number of coins
+     and then show the data below."
+
+     It was `max-height: calc(100vh - 265px); overflow-y: auto`, and QA measured
+     548px of box around 1128px of content - roughly 580px of BTC.D, PERPS VS
+     SPOT and GLOBAL MACRO CONTEXT reachable only by scrolling inside a rail
+     most people never think to scroll.
+
+     Capping the coin list alone would not have fixed it: the list was already
+     capped at 7 and the 1128 is mostly the three panels, so the count is the
+     owner's framing of the layout and the scroll is a separate thing to
+     remove. Both are done here - eight coins, and the rail flows.
+
+     `position: sticky` goes with it. A sticky box taller than the viewport
+     pins its top and puts its bottom permanently out of reach, which is the
+     same defect wearing different clothes. The rail now scrolls with the page,
+     so everything in it is reachable by the scroll people already use. The
+     cost is real and deliberate: the rail no longer follows the viewport on a
+     long page. */
   .dash-right {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    position: sticky;
-    top: 68px;
-    max-height: calc(100vh - 265px);
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.05) transparent;
   }
-  .dash-right::-webkit-scrollbar { display: block; width: 3px; }
-  .dash-right::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
 
   /* Sticky left sidebar */
 
-  /* Sticky right rail */
-  .dash-right {
-    position: sticky;
-    top: 68px;
-  }
+  /* NOT sticky any more (#745). A sticky box taller than the viewport pins its
+     top and puts its bottom permanently out of reach - the same content being
+     unreachable that removing the rail's own overflow was meant to fix, just
+     achieved a different way. Measured after that removal: the rail is 1206px,
+     which exceeds every laptop viewport and most desktop ones.
+     Left in place as a comment rather than deleted, because "why is the rail
+     not sticky" is a question someone will ask, and the answer is that it
+     cannot be both taller than the screen and pinned to it. */
+  .dash-right { position: static; }
 
   /* Hide mobile-only elements on desktop */
 }
@@ -462,8 +478,7 @@ body::after {
   /* min-width:0 stops the 1fr track expanding to its widest child (news
      banner) and overflowing - same guard the >=1100 block uses. */
   .dash-main { min-width: 0; overflow-x: hidden; }
-  .dash-sidebar,
-  .dash-right {
+  .dash-sidebar {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -474,8 +489,15 @@ body::after {
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.05) transparent;
   }
-  /* Trimmed shorter than .dash-sidebar - see the >=1100 rule for why. */
-  .dash-right { max-height: calc(100vh - 265px); }
+  /* Split out of the rule above (#745). The left sidebar keeps its own scroll;
+     the right rail does not, for the reason given at the >=1100 rule. They
+     shared a declaration block only because they happened to want the same
+     thing, and they no longer do. */
+  .dash-right {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
   /* Don't render both the sidebar AND the mobile stacked coin block */
 }
 

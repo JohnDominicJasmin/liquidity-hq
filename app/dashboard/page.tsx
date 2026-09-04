@@ -112,7 +112,14 @@ function MarketPulseStrip() {
 
 
 /* ── Coin Sidebar v2 - signal cards ── */
-const SIDEBAR_DEFAULT = 7;
+/* EIGHT, on the owner's ruling for #745: "show a fixed number of coins and
+   then show the data below". Eight fills the rail to roughly its natural height
+   so the data panels start without a gap and no row is cut mid-way.
+   The count alone was never the scroll - the list was already capped at 7 while
+   the rail held 1128px in a 548px box - so globals.css removes the rail's own
+   overflow in the same change. This number is the owner's; that removal is what
+   makes it visible. */
+const SIDEBAR_DEFAULT = 8;
 
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
