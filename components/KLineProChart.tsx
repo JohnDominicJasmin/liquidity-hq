@@ -318,6 +318,29 @@ const OVERLAY_INK = {
    effect re-runs on the same signal. */
 let overlayInk: typeof OVERLAY_INK.dark | typeof OVERLAY_INK.light = OVERLAY_INK.dark;
 
+/** Which of the three palettes a given theme and design gets.
+ *
+ *  ONE EXPRESSION, TWO CALL SITES. It was two expressions: the theme-sync
+ *  effect knew about terminal and the init call did not
+ *  (`setStyles(dark ? DARK : LIGHT)`), so at creation terminal dark was painted
+ *  with DARK and corrected a moment later. QA raised it on #763 as "probably
+ *  one frame, your call".
+ *
+ *  It is not reliably one frame. The correcting effect depends on `mode` from
+ *  useDesignMode(), and #753's bug was exactly that value arriving LATE - a
+ *  read that fired before DesignModeProvider had set its attribute. If `mode`
+ *  resolves after the effect's first run, the wrong dark palette persists
+ *  until it does rather than flashing.
+ *
+ *  The deeper reason is the one this codebase keeps paying for: two
+ *  expressions encoding one rule is the two-sources shape from #736 and #663,
+ *  and here the two had already drifted - the init site never learned about
+ *  terminal at all. Light-wins-over-terminal (#758) now lives in one place. */
+function paletteFor(dark: boolean, terminal: boolean): Record<string, unknown> {
+  if (!dark) return LIGHT;
+  return terminal ? TERMINAL_DARK : DARK;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────
 
 export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '1d';
@@ -502,6 +525,14 @@ function computeSRLevels(
 
 export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, onStructure }: Props) {
   const mode = useDesignMode();
+  /* The init effect below runs once and must not re-run when the design mode
+     resolves - re-creating the chart would throw away its data. So it reads
+     the mode through a ref rather than closing over the value it happened to
+     have at mount. The theme-sync effect still corrects a late resolve; this
+     only means the FIRST paint is already right when the mode is known by
+     then, which it usually is. */
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -727,7 +758,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
          place beats one whose price readout is at 1.01. That is the end state,
          not a stopgap: no fourth palette is booked. */
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chartRef.current?.setStyles((!dark ? LIGHT : mode === 'terminal' ? TERMINAL_DARK : DARK) as any);
+      chartRef.current?.setStyles(paletteFor(dark, mode === 'terminal') as any);
       /* Overlay ink follows the THEME only - the overlays are drawn on a
          transparent canvas over .klc-wrap's var(--bg), which is #000000 in
          both dark themes and #E8EAED in both light ones (#752). Bumping
@@ -842,7 +873,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       // Apply current theme via setStyles (avoids DeepPartial type gymnastics)
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chart.setStyles((dark ? DARK : LIGHT) as any);
+      chart.setStyles(paletteFor(dark, modeRef.current === 'terminal') as any);
 
       // EMA 9/20/50/200 ribbon - drawn as 4 emaRibbonLine overlays (registered
       // below, synced via syncEmaRibbon), not a klinecharts built-in indicator.
