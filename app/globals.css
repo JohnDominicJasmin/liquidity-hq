@@ -2278,7 +2278,16 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 .gchat-mode-count.zero { color: var(--red-soft); }
 .gchat-mode-note { font-size: var(--fs-micro); color: var(--txt3); }
-.gchat-coins { display: flex; gap: 4px; padding: 8px 14px 6px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
+/* The coin bar is a row now: quick buttons on the left, the searchable
+   dropdown on the right (#746). The border moved from .gchat-coins to the
+   wrapper so the two halves sit under one line rather than each drawing their
+   own. */
+.gchat-coinbar { display: flex; align-items: center; gap: 8px; padding: 8px 14px 6px; flex-shrink: 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
+.gchat-coins { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
+/* The trigger does not shrink below something readable, and does not stretch
+   to swallow the row either - the quick buttons are the common path. */
+.gchat-coinpick { flex-shrink: 0; width: 108px; }
+.gchat-coinpick .cms-trigger { min-height: 44px; }
 .gchat-coins::-webkit-scrollbar { display: none; }
 .gchat-coin { font-size: var(--fs-caption); font-weight: 700; padding: 5px 10px; border-radius: 20px; border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt3); cursor: pointer; white-space: nowrap; transition: all 0.12s; flex-shrink: 0; min-height: 44px; display: inline-flex; align-items: center; }
 .gchat-coin:hover { color: var(--txt2); }
@@ -2835,6 +2844,7 @@ html[data-theme="light"] { background: var(--bg0); }
 }
 [data-theme="light"] .gchat-coin { background: var(--bg2); border-color: var(--bdr); }
 [data-theme="light"] .gchat-coin.on { background: var(--purple-bg); color: var(--purple); }
+[data-theme="light"] .gchat-coinbar,
 [data-theme="light"] .gchat-coins,
 [data-theme="light"] .gchat-quick-row,
 [data-theme="light"] .gchat-input-row { border-color: rgba(0,0,0,0.07); }

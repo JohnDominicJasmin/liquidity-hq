@@ -12,9 +12,23 @@ interface Props {
   onChange: (next: string[]) => void;
   /** How many selected coins the closed trigger previews before "+N more". Default 3. */
   previewCount?: number;
+  /** SINGLE-SELECT MODE (#746). Picking a coin replaces the selection and
+   *  closes the panel; there is no clear-all and the rows read as a choice
+   *  rather than a set.
+   *
+   *  A flag on this component rather than a second one. The popover, its
+   *  fixed-position maths, the outside-click and Escape handling and the
+   *  search filter are the whole component; only the row's semantics differ.
+   *  Two popovers would drift - one would gain a keyboard fix the other did
+   *  not - and this codebase already carries that lesson from two navs that
+   *  had to be re-merged in #714.
+   *
+   *  `value` stays string[] so every existing caller is untouched; a
+   *  single-select consumer passes [current] and receives [picked]. */
+  single?: boolean;
 }
 
-export default function CoinMultiSelect({ value, onChange, previewCount = 3 }: Props) {
+export default function CoinMultiSelect({ value, onChange, previewCount = 3, single = false }: Props) {
   const { t } = useLabels();
   const [open, setOpen]     = useState(false);
   const [search, setSearch] = useState('');
@@ -68,12 +82,23 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3 }: P
   }, [open, positionPanel]);
 
   const toggleCoin = (c: CoinId) => {
+    if (single) {
+      /* Replace and close. Re-picking the current coin closes without firing
+         onChange, so a consumer that resets state on change - GrokChat starts
+         a new conversation - does not throw work away on a no-op click. */
+      if (!value.includes(c)) onChange([c]);
+      setOpen(false);
+      setSearch('');
+      return;
+    }
     onChange(value.includes(c) ? value.filter(x => x !== c) : [...value, c]);
   };
 
   const filtered = orderRef.current.filter(c => c.toUpperCase().includes(search.toUpperCase()));
 
-  const summary = value.length === 0
+  const summary = single
+    ? (value[0]?.toUpperCase() ?? t('COIN_SELECT_PLACEHOLDER'))
+    : value.length === 0
     ? t('COIN_SELECT_PLACEHOLDER')
     : value.length <= previewCount
     ? value.map(c => c.toUpperCase()).join(', ')
@@ -89,7 +114,7 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3 }: P
       >
         <span className="cms-trigger-txt">{summary}</span>
         <span className="cms-trigger-right">
-          {value.length > 0 && <span className="cms-count">{value.length}</span>}
+          {!single && value.length > 0 && <span className="cms-count">{value.length}</span>}
           <span className="cms-chevron">{open ? '▴' : '▾'}</span>
         </span>
       </button>
@@ -114,14 +139,19 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3 }: P
               const checked = value.includes(c);
               return (
                 <label key={c} className={`cms-row${checked ? ' checked' : ''}`}>
-                  <input type="checkbox" checked={checked} onChange={() => toggleCoin(c)} />
+                  <input
+                    type={single ? 'radio' : 'checkbox'}
+                    name={single ? 'cms-single' : undefined}
+                    checked={checked}
+                    onChange={() => toggleCoin(c)}
+                  />
                   <span>{c.toUpperCase()}</span>
                   {checked && <span className="cms-check">✓</span>}
                 </label>
               );
             })}
           </div>
-          {value.length > 0 && (
+          {!single && value.length > 0 && (
             <button type="button" className="cms-clear" onClick={() => onChange([])}>
               {t('COIN_SELECT_CLEAR_ALL', { count: value.length })}
             </button>

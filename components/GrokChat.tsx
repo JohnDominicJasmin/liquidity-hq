@@ -15,6 +15,7 @@ import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
+import CoinMultiSelect from './CoinMultiSelect';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -277,6 +278,12 @@ function buildSystemCtx(
 }
 
 /* ─────────────────────────────────────────────────────────────── */
+/* The coins that stay as one-click buttons (#746). Six is what fits the panel
+   without a horizontal scroll at its narrowest, and they are taken from COINS
+   in declared order rather than a second hand-kept list - so a change to the
+   app's coin ordering carries here instead of drifting from it. */
+const QUICK_COINS = COINS.slice(0, 6);
+
 export default function GrokChat() {
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
@@ -857,10 +864,24 @@ export default function GrokChat() {
         ) : (
           /* ════ CHAT VIEW ════ */
           <>
-            {/* Coin selector */}
-            <div className="hscroll-fade-outer">
+            {/* Coin selector: quick buttons PLUS a searchable dropdown (#746).
+                Owner: "this coin selection it should be a searchable dropdown
+                not a horizontal list of coin selection", and on the follow-up
+                they kept the quick buttons - the dropdown sits alongside them
+                rather than replacing them, so the common coins stay one click
+                away and the long tail stops needing a horizontal scroll.
+
+                Fifty buttons in a strip inside a narrow panel is the shape
+                that failed: the row ran off the edge and everything past the
+                sixth coin was reachable only by dragging sideways. Six stay,
+                in the order the app declares them, and the rest live in the
+                dropdown.
+
+                CoinMultiSelect in `single` mode rather than a second popover -
+                see the prop's own note. */}
+            <div className="gchat-coinbar">
               <div className="gchat-coins">
-                {COINS.map(c => (
+                {QUICK_COINS.map(c => (
                   <button
                     key={c}
                     className={`gchat-coin${c === coin ? ' on' : ''}`}
@@ -870,7 +891,16 @@ export default function GrokChat() {
                   </button>
                 ))}
               </div>
-              <div className="hscroll-fade hscroll-fade-panel" />
+              <div className="gchat-coinpick">
+                <CoinMultiSelect
+                  single
+                  value={[coin]}
+                  onChange={next => {
+                    const c = next[0] as CoinId | undefined;
+                    if (c && c !== coin) { newChat(); setCoin(c); }
+                  }}
+                />
+              </div>
             </div>
 
             {/* Rate-limit / error status bar - sits between coins and messages, not in chat stream */}
