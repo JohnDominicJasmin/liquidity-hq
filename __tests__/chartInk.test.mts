@@ -17,8 +17,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { contrastRatio, parseCssColor } from '../lib/readableOn.ts';
 import {
-  CHART_GROUND, TERMINAL_EMA_RAMP, CURRENT_EMA_RAMP, OVERLAY_LABEL_INK,
-  EMA_RIBBON_PERIODS, emaInk, type EmaPeriod,
+  CHART_GROUND, TERMINAL_EMA_RAMP, CURRENT_EMA_RAMP, OVERLAY_LINE_INK,
+  EMA_RIBBON_PERIODS, emaInk, lineInk, type EmaPeriod, type OverlayKind,
 } from '../lib/chartInk.ts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,9 +29,11 @@ const TEXT_MIN    = 4.5;  // SC 1.4.3
 
 test('every overlay label clears 4.5:1, which no rendered sweep can check', () => {
   const failures: string[] = [];
-  for (const [name, { bg, text }] of Object.entries(OVERLAY_LABEL_INK)) {
-    const r = ratio(text, bg);
-    if (r < TEXT_MIN) failures.push(`${name}: ${text} on ${bg} = ${r.toFixed(2)}:1`);
+  for (const theme of ['dark', 'light'] as const) {
+    for (const [name, { bg, text }] of Object.entries(OVERLAY_LINE_INK[theme])) {
+      const r = ratio(text, bg);
+      if (r < TEXT_MIN) failures.push(`${theme} ${name}: ${text} on ${bg} = ${r.toFixed(2)}:1`);
+    }
   }
   assert.deepEqual(failures, [],
     `${failures.length} overlay label(s) below ${TEXT_MIN}:1:\n  ${failures.join('\n  ')}\n` +
@@ -45,7 +47,7 @@ test('the label fix was the text colour, not the palette', () => {
      chips where black wins by a mile; the cluster chip is the one real
      judgement call, and it is nearly a coin toss. */
   const measured = Object.fromEntries(
-    Object.entries(OVERLAY_LABEL_INK).map(([k, { bg, text }]) => [k, {
+    Object.entries(OVERLAY_LINE_INK.dark).map(([k, { bg, text }]) => [k, {
       chosen: Number(ratio(text, bg).toFixed(2)),
       white:  Number(ratio('#ffffff', bg).toFixed(2)),
       black:  Number(ratio('#000000', bg).toFixed(2)),
@@ -58,6 +60,53 @@ test('the label fix was the text colour, not the palette', () => {
     gexFlip:      { chosen: 11.62, white: 1.81, black: 11.62 },
     liqCluster:   { chosen: 4.60, white: 4.60, black: 4.57 },
   });
+});
+
+test('every overlay LINE clears 3:1 on its own ground - the whole of #816', () => {
+  /* The rule and the chip are one colour with two jobs. #808 fixed the text on
+     the chip; this is the rule against the page, which failed on the light
+     ground for six of the seven and passed on dark for all of them. */
+  const failures: string[] = [];
+  for (const theme of ['dark', 'light'] as const) {
+    for (const [name, { bg }] of Object.entries(OVERLAY_LINE_INK[theme])) {
+      const r = ratio(bg, CHART_GROUND[theme]);
+      if (r < GRAPHIC_MIN) failures.push(`${theme} ${name}: ${bg} on ${CHART_GROUND[theme]} = ${r.toFixed(2)}:1`);
+    }
+  }
+  assert.deepEqual(failures, [],
+    'An overlay rule below 3:1 on the ground it is drawn against is a price level ' +
+    'the user cannot see. SC 1.4.11 - these carry information, they are not decoration.');
+});
+
+test('the light values keep their hue - lightness is what moved', () => {
+  /* Hue is what makes these tellable apart from each other; a contrast ratio
+     between two of them is the wrong instrument for that (#787, #756). So the
+     fix had to darken rather than recolour, and this asserts it did. */
+  const hue = (hex: string) => {
+    const [r, g, b] = parseCssColor(hex)!.rgb.map(v => v / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    if (d === 0) return 0;
+    let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h *= 60; return h < 0 ? h + 360 : h;
+  };
+  for (const kind of Object.keys(OVERLAY_LINE_INK.dark) as OverlayKind[]) {
+    const drift = Math.abs(hue(OVERLAY_LINE_INK.light[kind].bg) - hue(OVERLAY_LINE_INK.dark[kind].bg));
+    assert.ok(drift <= 1, `${kind} shifted hue by ${drift.toFixed(1)} degrees - it should have been darkened, not recoloured`);
+  }
+});
+
+test('the realized-cluster pink is the one that did not move', () => {
+  /* It passes at 3.81 on the light ground, and its white label text beats black
+     by 0.03. Retuning it would force that coin-toss to be re-made for no gain. */
+  assert.equal(OVERLAY_LINE_INK.light.liqCluster.bg, OVERLAY_LINE_INK.dark.liqCluster.bg);
+  assert.equal(OVERLAY_LINE_INK.light.liqCluster.text, '#ffffff');
+  assert.ok(ratio('#db2777', CHART_GROUND.light) >= GRAPHIC_MIN);
+});
+
+test('lineInk hands back the table entry for the theme asked for', () => {
+  assert.deepEqual(lineInk('srResistance', true), OVERLAY_LINE_INK.dark.srResistance);
+  assert.deepEqual(lineInk('srResistance', false), OVERLAY_LINE_INK.light.srResistance);
+  assert.notDeepEqual(lineInk('gexFlip', true), lineInk('gexFlip', false));
 });
 
 test('each terminal ramp step clears 3:1 on its own ground', () => {
@@ -95,6 +144,29 @@ test('the terminal ramp stays distinct - which is the whole of #806', () => {
     const ends = ratio(ramp[9], ramp[200]);
     assert.ok(ends >= 3, `terminal ${theme}: EMA9 and EMA200 are ${ends.toFixed(2)} apart. They were 1.33 (dark) and 1.03 (light) before #806 - do not go back.`);
   }
+});
+
+test('every CURRENT ribbon line clears 3:1 too - the other half of #816', () => {
+  /* #806 left EMA20 at 2.11 and EMA50 at 2.33 on the light ground, flagged and
+     deliberately unfixed because changing four ribbon colours nobody asked
+     about was not that issue's ruling. #816 ruled them in. */
+  const failures: string[] = [];
+  for (const theme of ['dark', 'light'] as const) {
+    for (const p of EMA_RIBBON_PERIODS) {
+      const r = ratio(CURRENT_EMA_RAMP[theme][p], CHART_GROUND[theme]);
+      if (r < GRAPHIC_MIN) failures.push(`current ${theme} EMA${p}: ${CURRENT_EMA_RAMP[theme][p]} = ${r.toFixed(2)}:1`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+test('CONTROL: the values #816 replaced would still fail this', () => {
+  /* Otherwise the assertion above passes on any palette and proves nothing
+     about the change that was made. */
+  assert.ok(ratio('#60a5fa', CHART_GROUND.light) < GRAPHIC_MIN, 'old EMA20 should still measure as failing');
+  assert.ok(ratio('#f97316', CHART_GROUND.light) < GRAPHIC_MIN, 'old EMA50 should still measure as failing');
+  assert.ok(ratio('#22d3ee', CHART_GROUND.light) < GRAPHIC_MIN, 'old gamma-flip cyan should still measure as failing');
+  assert.ok(ratio('#34d399', CHART_GROUND.light) < GRAPHIC_MIN, 'old support green should still measure as failing');
 });
 
 test('every ramp covers exactly the periods the ribbon draws', () => {
