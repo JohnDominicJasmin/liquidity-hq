@@ -9,6 +9,7 @@ import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
+import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
@@ -352,6 +353,15 @@ export interface ChartAlert {
   label?:       string;
 }
 
+/* One realized-liquidation cluster. Structurally LiqFeed's `Bucket` minus the
+   fields this chart does not draw - declared here rather than imported so the
+   chart does not depend on the feed component, and so a future second source
+   of clusters needs no change on this side. */
+export interface LiqClusterLine {
+  price: number;
+  total: number;
+}
+
 interface Props {
   coin:          CoinId;
   tf:            ChartTf;
@@ -362,6 +372,12 @@ interface Props {
   onAlertMove?:  (id: string, newPrice: number) => void;
   // BTC options context lines (null for non-BTC or before data loads).
   gexLevels?:    { flip: number | null; maxPain: number | null } | null;
+  /* Realized liquidation clusters for the coin this chart is DISPLAYING,
+     heaviest first. Filtering by coin is the caller's job and is not optional -
+     LiqFeed emits every coin's buckets in one array, so passing them
+     unfiltered draws another coin's price levels on these candles. Use
+     lib/liqClusters.ts's topClustersForCoin rather than doing it by hand. */
+  liqClusters?:  LiqClusterLine[] | null;
   // Latest market-structure break on the CURRENTLY DISPLAYED timeframe, or null
   // when there is none. Emitted rather than recomputed by the consumer so the
   // Confluence Score votes on exactly the break the user can see marked on this
@@ -377,9 +393,45 @@ let emaSignalOverlayRegistered = false;
 let emaRibbonLineRegistered = false;
 let srLevelLineRegistered = false;
 let gexLevelLineRegistered = false;
+let liqClusterLineRegistered = false;
 let analysisLevelLineRegistered = false;
 let reversalOverlayRegistered = false;
 let structureOverlayRegistered = false;
+
+/* Realized-liquidation clusters get pink, and the choice is by elimination
+   rather than taste: red and green are S/R and long/short on this chart, violet
+   and cyan are the GEX pair, gold/blue/orange are the EMA ribbon. A cluster line
+   is neither directional nor a forward level, so it must not borrow any of
+   those readings.
+   Measured, not assumed: white on #db2777 is 4.56:1, which clears 4.5:1. The
+   S/R labels next to it do not - white on #f87171 is 2.82:1 - so this is the
+   readable one rather than one matching the neighbours at their own level. */
+const LIQ_CLUSTER_COLOR = '#db2777';
+
+/* A canvas strokeStyle cannot resolve a CSS custom property. Passing
+   'var(--amber)' neither throws nor paints amber - the context keeps whatever
+   colour was set last, so the line silently inherits the previous overlay's.
+   This file already suspected that (see the EMA_PERIODS note) and nothing had
+   confirmed it. Adding the liquidity cluster lines confirmed it by accident:
+   EMA9 and EMA200 were painting GREEN, borrowed from the S/R support line, and
+   turned PINK the moment a pink overlay drew before them. A colour that
+   depends on what else is on the chart is not being read from this file at all.
+   Resolved per paint rather than once at overlay creation - the ribbon is not
+   recreated on a theme switch, only on a coin or timeframe change - and cached
+   per token + theme + design so a repaint is not four getComputedStyle calls. */
+const cssColorCache = new Map<string, string>();
+function resolveCssColor(color: string): string {
+  const m = /^var\(\s*(--[A-Za-z0-9_-]+)\s*\)$/.exec(color.trim());
+  if (!m) return color;
+  const root = document.documentElement;
+  const key = `${m[1]}|${root.getAttribute('data-theme') ?? ''}|${root.getAttribute('data-design') ?? ''}`;
+  const hit = cssColorCache.get(key);
+  if (hit !== undefined) return hit;
+  const value = getComputedStyle(root).getPropertyValue(m[1]).trim();
+  const out = value || color;
+  cssColorCache.set(key, out);
+  return out;
+}
 
 /* One EMA period's ribbon line - drawn as a single continuous polyline overlay,
    not a klinecharts built-in indicator. The indicator system folds every
@@ -523,7 +575,7 @@ function computeSRLevels(
   return [...resistances, ...supports];
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, onStructure }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure }: Props) {
   const mode = useDesignMode();
   /* The init effect below runs once and must not re-run when the design mode
      resolves - re-creating the chart would throw away its data. So it reads
@@ -540,6 +592,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const wsRef          = useRef<{ close: () => void } | null>(null);
   const analysisIds    = useRef<string[]>([]);
   const gexLevelIds    = useRef<string[]>([]);
+  const liqClusterIds  = useRef<string[]>([]);
   // One overlay id per EMA_PERIODS entry, in the same order - null until the
   // overlay has actually been created (first sync after data loads).
   const emaRibbonIds   = useRef<Array<string | null>>(EMA_PERIODS.map(() => null));
@@ -599,6 +652,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   // default: the Arena signal-overload pass deliberately reduced what shows on
   // this chart, so a new marker family opts in rather than arriving unasked.
   const [showPA, setShowPA]       = useState(false);
+  /* Realized liquidation clusters. ON by default, unlike showPA above: the
+     owner asked for these to be displayed on the chart (#766) and a feature
+     that has to be discovered through a toolbar button is not displayed. The
+     toggle exists because eight extra horizontal lines is real ink on a chart
+     that had a deliberate signal-reduction pass - a user who wants the candles
+     alone gets one click, not a setting. */
+  const [showLiq, setShowLiq]     = useState(true);
   const [paSignals, setPaSignals] = useState<PASignal[]>([]);
   const paSetRef                  = useRef(setPaSignals);
   const [sqHover, setSqHover]     = useState(false);
@@ -1174,7 +1234,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             return [{
               type: 'line',
               attrs: { coordinates: pts },
-              styles: { style: 'solid', color, size },
+              styles: { style: 'solid', color: resolveCssColor(color), size },
             }];
           },
         });
@@ -1265,6 +1325,56 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   color: '#ffffff', size: 9, weight: '700',
                   paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
                   backgroundColor: color,
+                  borderRadius: document.documentElement.getAttribute('data-design') === 'terminal' ? 0 : 3,
+                },
+              },
+            ];
+          },
+        });
+      }
+
+      if (!liqClusterLineRegistered) {
+        liqClusterLineRegistered = true;
+        /* Realized liquidation clusters - the price levels where positions
+           actually blew up over the last 24h, streamed live from Binance
+           forceOrder and Bybit allLiquidation (components/LiqFeed.tsx).
+           THE LABEL IS THE SAFETY-CRITICAL PART, not the geometry. Coinglass
+           sold PREDICTED liquidation levels: where open positions WOULD blow
+           up, which traders read as a forward magnet. These are the opposite -
+           fuel already spent, price memory. Drawn on a chart the two are
+           indistinguishable, so the word REALIZED is in the label itself and
+           __tests__/liqClusters.test.mts asserts it stays there. A line that
+           silently changes tense is confidently wrong with nothing to reveal
+           it.
+           Dotted rather than dashed, and thinner than the GEX pair, because
+           eight of them share the plot with the candles they are context for. */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          name: 'liqClusterLine',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const { price, total, labelYOffset } = overlay.extendData as { price: number; total: number; labelYOffset?: number };
+            const y = coordinates[0]?.y;
+            if (y == null || !isFinite(y) || y < 0) return [];
+            const rightX = (bounding?.width ?? 9999);
+            const labelY = y - 3 - (labelYOffset ?? 0);
+            return [
+              {
+                type: 'line',
+                attrs: { coordinates: [{ x: 0, y }, { x: rightX, y }] },
+                styles: { style: 'dashed', color: LIQ_CLUSTER_COLOR, size: 1, dashedValue: [1, 4] },
+              },
+              {
+                type: 'text',
+                attrs: { x: 6, y: labelY, text: `REALIZED LIQ $${fmtPx(price)} · ${fmtLiqUsd(total)}`, align: 'left', baseline: 'bottom' },
+                styles: {
+                  color: '#ffffff', size: 9, weight: '700',
+                  paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
+                  backgroundColor: LIQ_CLUSTER_COLOR,
                   borderRadius: document.documentElement.getAttribute('data-design') === 'terminal' ? 0 : 3,
                 },
               },
@@ -1950,6 +2060,38 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     }
   }, [gexLevels, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Realized liquidation cluster lines (#766) ────────────────────────────
+  /* Deliberately NOT built on store.btcLiqLevels. That array is permanently
+     empty - Coinglass retired the v2 endpoints this app called, v4 answers
+     401 on this tier, and pendings/PENDING.md:18 defers it until revenue
+     (MarketProvider.tsx:927-946). An overlay fed from it would compile, pass
+     review and never draw a single line. The source here is LiqFeed's live
+     keyless streams, lifted through the page - see app/arena/page.tsx.
+     The slice is defensive: the caller already limits to LIQ_CLUSTER_LINES,
+     but this effect is what actually decides how much ink lands on the chart,
+     so it enforces the ruling itself rather than trusting its input. */
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    liqClusterIds.current.forEach(id => chart.removeOverlay({ id }));
+    liqClusterIds.current = [];
+    if (!showLiq || !liqClusters?.length) return;
+    const lines = liqClusters
+      .filter(l => Number.isFinite(l.price) && l.price > 0)
+      .slice(0, LIQ_CLUSTER_LINES);
+    const labelOffsets = computeLabelOffsets(lines);
+    for (const l of lines) {
+      const id = chart.createOverlay({
+        name: 'liqClusterLine',
+        groupId: 'liq_clusters',
+        lock: true,
+        extendData: { price: l.price, total: l.total, labelYOffset: labelOffsets.get(l.price) ?? 0 },
+        points: [{ value: l.price }],
+      } as OverlayCreate);
+      if (typeof id === 'string') liqClusterIds.current.push(id);
+    }
+  }, [liqClusters, showLiq, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Restore user-drawn lines for this coin, and swap them out on coin change ──
   useEffect(() => {
     const chart = chartRef.current;
@@ -2113,6 +2255,16 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         >
           Structure
         </button>
+
+        {liqClusters && liqClusters.length > 0 && (
+          <button
+            className={`klc-tool-btn${showLiq ? ' on' : ''}`}
+            onClick={() => setShowLiq(v => !v)}
+            title="Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels."
+          >
+            Liq
+          </button>
+        )}
 
         {chartAlerts && chartAlerts.length > 0 && (
           <div className="klc-legend">
@@ -2309,6 +2461,16 @@ function fmtPx(n: number): string {
   if (n >= 1)     return n.toFixed(3);
   if (n >= 0.01)  return n.toFixed(4);
   return n.toLocaleString('en-US', { maximumSignificantDigits: 4 });
+}
+
+/* Cluster size for the overlay label. Its own formatter rather than LiqFeed's
+   fmtUSD: this one shares a ~28-character label with a price, so it rounds
+   harder ($4.2M, $840K) than the feed's two-decimal version. */
+function fmtLiqUsd(n: number): string {
+  if (!Number.isFinite(n)) return '';
+  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000)     return '$' + Math.round(n / 1_000) + 'K';
+  return '$' + Math.round(n);
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────
