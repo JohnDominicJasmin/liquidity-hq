@@ -110,7 +110,23 @@
      terminal mode inherit white-on-gold (2.23:1) unnoticed - terminalTokens.ts
      documents --accent as "ALWAYS with #08090a text", a contract white text
      violates. Declared here too so var(--on-accent) resolves for every design
-     mode/theme, not just terminal's two. */
+     mode/theme, not just terminal's two.
+
+     #775: TEN RULES STILL HARDCODED #fff ON --accent-solid and they are now
+     all on this token. Terminal dark's accent-solid is #d9a626, where white
+     measures 2.23:1 and this token's #08090a measures 8.95. Six of the eight
+     routes in that issue were the same line: a primary CTA or an auth button.
+
+     The general shape, worth having once rather than ten times: an accent
+     chosen to be visible against a dark ground is BY CONSTRUCTION a light
+     colour, so "white on the accent" is the one pairing guaranteed to fail as
+     soon as the accent does its job. The convention is not wrong by accident -
+     it is wrong in exactly the case it was written for.
+
+     Not a blanket rule for var(--accent): white on the CURRENT design's
+     --accent (#1a7aff) is 3.98, so a rule that paints on THAT token needs its
+     own measurement rather than this token. Nothing in the stylesheet does
+     today; __tests__/onAccent.test.mts is what notices if one starts. */
   --on-accent:  #ffffff;
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(26,122,255,0.12);
@@ -1029,7 +1045,7 @@ body[data-rpm-level="high"]::before {
   border: 0.5px solid transparent; white-space: nowrap;
 }
 .desktop-nav-item:hover { color: var(--txt); background: rgba(90,150,255,0.07); }
-.desktop-nav-item.on { color: #ffffff; background: var(--accent-solid); font-weight: 600; }
+.desktop-nav-item.on { color: var(--on-accent); background: var(--accent-solid); font-weight: 600; }
 
 @media (min-width: 768px) {
   .hamburger   { display: none !important; }
@@ -1773,7 +1789,7 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   min-height: 30px; letter-spacing: 0; white-space: nowrap;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.ncard-ask-btn:hover { background: var(--accent-solid); border-color: var(--accent); color: #fff; box-shadow: none; }
+.ncard-ask-btn:hover { background: var(--accent-solid); border-color: var(--accent); color: var(--on-accent); box-shadow: none; }
 .ncard-ask-spark { font-size: 0.8em; line-height: 1; }
 /* Secondary action - neutral, not accent-colored, so it doesn't compete with
    Ask LiquidityAI for attention as the primary CTA. */
@@ -3560,7 +3576,7 @@ html[data-design="terminal"][data-theme="light"] { background: var(--bg0); }
    this block got rewritten rather than patched. */
 .auth-gate-btn {
   margin-top: 6px; padding: 9px 26px; border-radius: 10px;
-  background: var(--accent-solid); color: #fff;
+  background: var(--accent-solid); color: var(--on-accent);
   font-size: var(--fs-label); font-weight: 600; text-decoration: none; letter-spacing: -0.1px;
   transition: filter 0.15s; display: inline-block;
 }
@@ -3762,7 +3778,7 @@ html[data-design="terminal"][data-theme="light"] { background: var(--bg0); }
    fixing the one element issue #56 named: white text on --purple (= --accent,
    #1a7aff) is 3.98:1. Only on hover, so axe's resting-state sweep never saw it.
    --accent-solid is the filled-surface token: 5.09:1. */
-.st-save-btn:hover { background: var(--accent-solid); color: #fff; }
+.st-save-btn:hover { background: var(--accent-solid); color: var(--on-accent); }
 .st-save-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Sign out */
@@ -4140,7 +4156,11 @@ html[data-design="terminal"][data-theme="light"] { background: var(--bg0); }
 .login-email-btn {
   width: 100%; padding: 11px 16px; border-radius: 12px;
   background: var(--accent-solid); border: 0.5px solid var(--accent);
-  color: #fff; font-size: var(--fs-label); font-weight: 600; cursor: pointer;
+  /* var(--on-accent), not #fff (#775). This is /login's "Send Magic Link" -
+     2.23:1 in terminal dark, and a line-based sweep missed it because the
+     declaration sits on a different line from the background. The test found
+     it; the grep did not. */
+  color: var(--on-accent); font-size: var(--fs-label); font-weight: 600; cursor: pointer;
   transition: all 0.15s; font-family: inherit; letter-spacing: -0.1px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
@@ -4850,7 +4870,7 @@ body.landing {
 .lp-nav-actions { display: flex; align-items: center; gap: 10px; }
 .lp-btn-ghost  { font-size: var(--fs-label); font-weight: 500; color: var(--txt2); padding: 6px 14px; border-radius: var(--radius-chip); text-decoration: none; transition: color .15s, background .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-ghost:hover { color: var(--txt); background: rgba(255,255,255,.05); }
-.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: #fff; background: var(--accent-solid); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
+.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: var(--on-accent); background: var(--accent-solid); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-primary:hover { opacity: .85; }
 .lp-lang-short { display: none; }
 
@@ -4889,7 +4909,7 @@ body.landing {
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
 .lp-hero-ctas   { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: #fff; background: var(--accent-solid); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
+.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: var(--on-accent); background: var(--accent-solid); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
 .lp-cta-primary:hover { opacity: .88; }
 .lp-cta-ghost   { font-size: var(--fs-card-title); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.06); border: 1px solid var(--bdr); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: background .15s, color .15s; }
 .lp-cta-ghost:hover { background: rgba(255,255,255,.1); color: var(--txt); }
@@ -4930,7 +4950,7 @@ body.landing {
 .lp-step          { flex: 1; padding: 0 28px; text-align: center; }
 .lp-step:first-child { padding-left: 0; }
 .lp-step:last-child  { padding-right: 0; }
-.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-solid); color: #fff; font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-solid); color: var(--on-accent); font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
 .lp-step h3       { font-size: var(--fs-card-title); font-weight: 700; margin: 0 0 8px; }
 .lp-step p        { font-size: var(--fs-label); color: var(--txt2); line-height: 1.6; margin: 0; }
 .lp-step-arrow    { font-size: 1.25rem; color: var(--txt3); margin-top: 10px; flex-shrink: 0; align-self: center; }
@@ -4939,7 +4959,7 @@ body.landing {
 .lp-pricing         { display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
 .lp-plan            { flex: 1; min-width: 280px; max-width: 380px; border-radius: var(--radius-card); padding: 28px; border: 1px solid var(--bdr); background: var(--bg2); position: relative; }
 .lp-plan-pro        { border-color: rgba(26,122,255,.3); background: var(--bg2); }
-.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent-solid); color: #fff; padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
+.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent-solid); color: var(--on-accent); padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
 .lp-plan-header     { margin-bottom: 24px; }
 .lp-plan-name       { font-size: var(--fs-label); font-weight: 700; color: var(--txt2); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
 .lp-plan-price      { font-size: 3rem; font-weight: 900; letter-spacing: -.04em; line-height: 1; margin-bottom: 6px; }
@@ -4953,7 +4973,7 @@ body.landing {
 .lp-plan-cta        { display: block; text-align: center; padding: 12px; border-radius: var(--radius-card); font-size: var(--fs-label); font-weight: 700; text-decoration: none; transition: opacity .15s; }
 .lp-plan-cta-free   { background: rgba(255,255,255,.07); border: 0.5px solid var(--bdr); color: var(--txt); }
 .lp-plan-cta-free:hover { background: rgba(255,255,255,.12); }
-.lp-plan-cta-pro    { background: var(--accent-solid); color: #fff; }
+.lp-plan-cta-pro    { background: var(--accent-solid); color: var(--on-accent); }
 .lp-plan-cta-pro:hover { opacity: .85; }
 
 /* ── LP FINAL CTA ────────────────────────────────────────────────────── */
@@ -5354,7 +5374,7 @@ html[lang="ar"] .lp-h1-accent {
 }
 .obw-btn-back { flex-shrink: 0; background: transparent; border: 1px solid var(--bdr); color: var(--txt2); }
 .obw-btn-back:hover { border-color: var(--bdr2); color: var(--txt); }
-.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent-solid); color: #fff; }
+.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent-solid); color: var(--on-accent); }
 .obw-btn-next:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
 .obw-btn-next:disabled { background: var(--bg2); border-color: var(--bdr); color: var(--txt3); cursor: not-allowed; }
 .obw-skip {
