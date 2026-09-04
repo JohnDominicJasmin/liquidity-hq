@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { topClustersForCoin, LIQ_CLUSTER_LINES } from '../lib/liqClusters.ts';
+import { topClustersForCoin, acceptClusterEmission, LIQ_CLUSTER_LINES } from '../lib/liqClusters.ts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -88,6 +88,51 @@ test('the overlay label says REALIZED, and no drawing path can omit it', () => {
     'the Liq toggle tooltip no longer says these are not predicted levels');
   assert.ok(!/PREDICTED LIQ|predicted level[s]? at|liquidation magnet/i.test(drawText[0]),
     'the drawn label implies a forward prediction');
+});
+
+/* The throttle. These are regression tests for a defect that shipped: an empty
+ * first emission ate the window and the real batch was dropped for 15 seconds,
+ * which read as "the feature does not work on a deployed build" to two people.
+ * Every case fixes the clock rather than sleeping - a timing test that waits is
+ * a timing test that flakes. */
+const GAP = 15_000;
+/* A real page mount, not a toy clock. `lastCommitAt` starts at 0 meaning
+   "never committed", and Date.now() is an epoch millisecond - so on the very
+   first emission the window has trivially elapsed. Writing the first version of
+   these tests with now=1000 modelled a page mounting one second after 1970 and
+   failed for that reason, which is the same class of mistake as measuring the
+   wrong component: the arithmetic was right about a situation that never
+   happens. */
+const T0 = 1_757_000_000_000;
+const accept = (hasFilled: boolean, incoming: number, now: number, lastCommitAt: number) =>
+  acceptClusterEmission({ hasFilled, incoming, now, lastCommitAt, minGapMs: GAP });
+
+test('the first emission carrying clusters lands however recently one was committed', () => {
+  // LiqFeed's mount order: rebuild([]) at :153, then the seeded rebuild at :280
+  // a millisecond later. The second one is the whole feature.
+  assert.equal(accept(false, 0, T0, 0), true, 'the empty first emission commits and starts the window');
+  assert.equal(accept(false, 8, T0 + 1, T0), true, 'the seeded batch 1ms later must not be dropped');
+});
+
+test('once filled, the window applies', () => {
+  assert.equal(accept(true, 8, T0 + 5_000, T0), false, '5s after a commit is inside the 15s window');
+  assert.equal(accept(true, 8, T0 + 15_000, T0), true, 'exactly at the window boundary commits');
+  assert.equal(accept(true, 8, T0 + 20_000, T0), true, 'past the window commits');
+});
+
+test('an empty emission never counts as the first fill', () => {
+  /* Otherwise a page that legitimately has no clusters would consume the
+     bypass, and the first real batch would wait out the window after all -
+     the original bug with one extra step. */
+  assert.equal(accept(false, 0, T0, 0), true, 'it still commits, to clear a stale list');
+  assert.equal(accept(false, 8, T0 + 1, T0), true, 'and the bypass is still available to the real batch');
+});
+
+test('CONTROL: the throttle actually throttles', () => {
+  /* A predicate stuck on `true` would satisfy every "must land" case above and
+     nothing here would notice. */
+  assert.equal(accept(true, 8, T0 + 14_999, T0), false);
+  assert.equal(accept(true, 0, T0 + 1, T0), false);
 });
 
 test('CONTROL: the helper returns something, so the assertions above can fail', () => {
