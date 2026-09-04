@@ -1,5 +1,5 @@
 ﻿'use client';
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
 import { useSearchParams } from 'next/navigation';
@@ -25,7 +25,8 @@ import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetec
 import EMASignal from '@/components/EMASignal';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import Tip from '@/components/Tip';
-import LiqHeatmap from '@/components/LiqHeatmap';
+import LiqFeed, { type Bucket } from '@/components/LiqFeed';
+import { topClustersForCoin } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
@@ -39,6 +40,12 @@ import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_T
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
+
+/* Slowest rate at which realized liquidation clusters are handed to the chart.
+   Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
+   accumulate over 24 hours, so a faster refresh redraws overlays without
+   changing what they say. */
+const LIQ_CLUSTER_REFRESH_MS = 15_000;
 
 /* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -190,6 +197,33 @@ function ArenaContent() {
   // chart rather than recomputed here so the score votes on the same break the
   // chart marks, on whichever timeframe is being viewed.
   const [chartStructure, setChartStructure] = useState<PASignal | null>(null);
+  /* Realized liquidation clusters, lifted out of the LiqFeed card below the
+     chart so the chart overlay can draw them (#766). Every coin's buckets
+     arrive in this one array - LiqFeed does not apply its own coinFilter to
+     what it emits - so it is stored raw here and narrowed at the point of use. */
+  const [liqClusters, setLiqClusters] = useState<Bucket[]>([]);
+  /* Throttled, and this is not a micro-optimisation. LiqFeed calls onClusters
+     from `rebuild()`, which runs on EVERY liquidation event - not on a timer -
+     and each call is a fresh array. Committing all of them would clear and
+     recreate eight chart overlays several times a second during a cascade,
+     which is exactly when the user is looking at the chart. LiqFeed throttles
+     its other consumer callback for the same reason (EVENTS_EMIT_MS, 15s), and
+     the underlying window is a 24-hour accumulation - being up to 15 seconds
+     behind it is not observable. /liq is unaffected: it keeps every emission. */
+  const liqEmitRef = useRef(0);
+  const handleLiqClusters = useCallback((c: Bucket[]) => {
+    const now = Date.now();
+    if (now - liqEmitRef.current < LIQ_CLUSTER_REFRESH_MS) return;
+    liqEmitRef.current = now;
+    setLiqClusters(c);
+  }, []);
+  /* Narrowed to the displayed coin here, memoised so the chart's draw effect
+     re-runs when the clusters actually change rather than on every Arena
+     re-render - and this page re-renders on every market tick. */
+  const chartLiqClusters = useMemo(
+    () => topClustersForCoin(liqClusters, selectedCoin),
+    [liqClusters, selectedCoin],
+  );
   const absDataRef    = useRef<AbsorptionData | null>(null);
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
   const oi1h          = useOI1h(selectedCoin);
@@ -1992,7 +2026,7 @@ function ArenaContent() {
       <div className="arena-ws">
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} onStructure={setChartStructure} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} />
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -2157,13 +2191,22 @@ function ArenaContent() {
 
       {/* ── Evidence + advanced (full width, below the workspace) ── */}
       <div className="arena-below-chart">
-      {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
-      {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
-        <LiqHeatmap
-          levels={store.btcLiqLevels}
-          currentPrice={store.coins['btc']?.price ?? 0}
-        />
-      )}
+      {/* Live liquidations for the selected coin, and the source of the chart's
+          realized-cluster lines above (#766).
+
+          REPLACES the BTC Liquidation Heatmap that stood here. That card was
+          unreachable code, not a working feature: it rendered only when
+          `store.btcLiqLevels.length > 0`, and that array is permanently empty -
+          Coinglass retired the v2 endpoints, v4 answers 401 on this tier, and
+          pendings/PENDING.md:18 defers the upgrade until revenue. It had drawn
+          zero times, for every coin, in every theme. `LiqHeatmap.tsx` and its
+          labels are left in the repo untouched, so restoring it is one import
+          if the Coinglass tier is ever bought.
+
+          What replaces it is not the same claim. The heatmap showed PREDICTED
+          liquidation levels bought from a vendor; this shows REALIZED ones
+          streamed from Binance and Bybit - keyless, free, and not BTC-only. */}
+      <LiqFeed onClusters={handleLiqClusters} coinFilter={selectedCoin.toUpperCase()} />
       {/* GEX / Options Market Pressure table removed here 2026-07-25
           (signal-overload pass): biggest single block on the page (~456px),
           BTC-only, and max-pain/net-gamma is background context rather than a
