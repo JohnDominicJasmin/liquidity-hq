@@ -220,6 +220,17 @@
      a near-black canvas, ~2:1 on white. */
   --fr-slight-long: #d4b483;
 
+  /* --orange HAS NO TERMINAL VALUE, DELIBERATELY (#736). It is the last of the
+     four tokens that issue named; the other three - --green-2, --green-soft
+     and --txt-dim - were given terminal declarations by #737 and are listed in
+     TERMINAL_ALIASES.
+     This one falls through to the value below in terminal dark and to the
+     light block's #7C2D12 in terminal light, and both were measured on
+     terminal's own grounds rather than assumed: worst 8.07 dark and 7.18 light
+     across --bg0/--bg1/--bg2. A fallback that clears by four points is not
+     "fine by coincidence", so terminal owning a value would be ceremony.
+     Recorded because silence is what #736 objects to - a token the terminal
+     palette does not own reads identically to one nobody has looked at. */
   --orange:     #fb923c;
   --orange-bg:  rgba(251,146,60,0.08);
   --orange-bdr: rgba(251,146,60,0.22);
@@ -6436,6 +6447,16 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 [data-design="terminal"] .dterm-toc-item:hover { color: var(--txt2); }
 [data-design="terminal"] .dterm-toc-item.on { border-left-color: var(--accent); color: var(--txt); }
 [data-design="terminal"] .dterm-toc-num {
+  /* UNREACHABLE AS OF #794, and nobody could determine whether it is pending
+     or residue. No .tsx renders .dterm-toc or .dterm-toc-item, so this rule
+     never matches; --txt4's only live use was the landing route string, which
+     #794 moved to --txt3 on the owner's ruling.
+     Kept rather than deleted because .tnav-kbd sets the precedent for a rule
+     held against a screen that does not exist yet (#599) - but that one says
+     so, and the difference between "waiting" and "forgotten" is exactly that
+     sentence. This is the sentence. If the terminal docs screen lands, this is
+     ready; if it never does, this and the .at-snapcells rule below go
+     together. */
   font-family: var(--font-mono), monospace; font-size: 10px; color: var(--txt4); flex-shrink: 0;
 }
 
@@ -7325,6 +7346,8 @@ main.app-content[data-chrome="none"] {
   font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--txt);
   font-variant-numeric: tabular-nums;
 }
+/* Unreachable as of #794 - see the .dterm-toc-num note above. .edge-card-signal
+   IS rendered, but never inside .at-snapcells, which no .tsx produces. */
 [data-design="terminal"] .at-snapcells .edge-card-signal {
   font-family: var(--font-mono); font-size: 10px; color: var(--txt4);
 }
