@@ -115,7 +115,12 @@ export default function AccumulationTracker() {
       .slice(0, MAX_ROWS);
   }, [store.coins]);
 
-  const scoreCol = (s: number) => s >= 75 ? 'var(--green)' : s >= 60 ? '#a3e635' : 'var(--amber)';
+  /* All three bands are tokens now (#787). The middle one was the literal
+     #a3e635 between two tokens, so it alone did not follow the theme - 1.15:1
+     on this card in terminal light, against 12.98 in the dark it was picked
+     for. A ternary of three colours reads as one ramp; two of them adapted and
+     one did not, and nothing failed. */
+  const scoreCol = (s: number) => s >= 75 ? 'var(--green)' : s >= 60 ? 'var(--score-mid)' : 'var(--amber)';
 
   return (
     <div style={{
