@@ -127,6 +127,9 @@ See `CONTRIBUTING.md` and `docs/INFRASTRUCTURE.md` for the full process.
 
 ## License
 
-**No license is currently declared**, which means default copyright applies and the code
-is not yet reusable by others. If this repository is intended as an open-source
-showcase, a license needs to be chosen and added.
+**MIT** — see [`LICENSE`](LICENSE). Owner's decision, 2026-09-05.
+
+That is a permissive choice and worth stating plainly: anyone may use, modify and
+sell this code, including commercially, provided the copyright notice stays. The
+running service, its data and its API accounts are not covered — a licence grants
+rights to the source, not to the deployment.
