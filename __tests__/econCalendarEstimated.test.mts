@@ -87,9 +87,15 @@ test('a scheduled row gets no marker - silence is the signal for the accurate ca
  *    terminal dark   #141517 -> #191a1c    10.94 -> 10.43
  *    terminal light  #ebe9e6 -> #e6e4e1     5.91 ->  5.64
  *
- *  The composited ground is the WORSE case in all four - it lightens under light
- *  text and darkens under dark - so asserting against it is strictly stricter
- *  than `--bg1` as well as being the ground a real row paints on. */
+ *  ONLY THE NEXT-EVENT ROW COMPOSITES. The other fourteen estimated rows sit on
+ *  `--bg1` unveiled, so a reader checking this against the page will find one
+ *  row that matches the assertion and fourteen that do not. That is deliberate:
+ *  the composited ground is the WORSE case in all four contexts - each ratio
+ *  drops - so asserting against it covers the unveiled rows too. **Stricter on
+ *  purpose, not measuring the wrong row.**
+ *
+ *  It is also the row a user looks at first, and the one QA's deployed
+ *  measurement happened to sample. */
 function rowGround(map: Record<string, string>): string {
   const bg1 = resolve(map, 'var(--bg1)');
   const txt = resolve(map, 'var(--txt)');
