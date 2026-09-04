@@ -10,6 +10,7 @@ import { Warn } from '@/components/icons';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
 import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
+import { emaInk, OVERLAY_LABEL_INK, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
@@ -406,7 +407,7 @@ let structureOverlayRegistered = false;
    Measured, not assumed: white on #db2777 is 4.56:1, which clears 4.5:1. The
    S/R labels next to it do not - white on #f87171 is 2.82:1 - so this is the
    readable one rather than one matching the neighbours at their own level. */
-const LIQ_CLUSTER_COLOR = '#db2777';
+const LIQ_CLUSTER_COLOR = OVERLAY_LABEL_INK.liqCluster.bg;
 
 /* A canvas strokeStyle cannot resolve a CSS custom property. Passing
    'var(--amber)' neither throws nor paints amber - the context keeps whatever
@@ -444,6 +445,27 @@ function resolveCssColor(color: string): string {
   return out;
 }
 
+/* Same fix, applied to the styles klinecharts paints itself rather than to our
+   own overlays. `var(--accent-2)` reaches the canvas twice - the default
+   overlay line (the palettes above) and the RSI indicator - and both were
+   measured as unresolved for #806. Walking the palette rather than patching two
+   literals, because the palettes are hand-edited nested objects and the next
+   `var()` someone adds should not need to be found again.
+   The token values themselves are fine, which is the part worth stating: 8.12,
+   5.66, 9.43 and 6.12 against their grounds across the four contexts. They were
+   never the problem - never resolving was. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function resolveStyleVars<T>(styles: T): T {
+  if (typeof styles === 'string') return (styles.startsWith('var(') ? resolveCssColor(styles) : styles) as T;
+  if (Array.isArray(styles)) return styles.map(resolveStyleVars) as unknown as T;
+  if (styles && typeof styles === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(styles)) out[k] = resolveStyleVars(v);
+    return out as T;
+  }
+  return styles;
+}
+
 /* One EMA period's ribbon line - drawn as a single continuous polyline overlay,
    not a klinecharts built-in indicator. The indicator system folds every
    plotted value into the pane's Y-axis regardless of the overrideYAxis range
@@ -457,24 +479,18 @@ function resolveCssColor(color: string): string {
    the real, correct EMA200 value on screen without it dragging the axis on
    fast timeframes for volatile coins (PEPE/BONK 15m, where EMA200's 200-bar
    lookback still reaches a real multi-day-old price level). */
+/* Only the width lives here now. Every colour moved to lib/chartInk.ts, where
+   it can be imported by a test - the reason is #808: nothing painted on this
+   canvas is visible to the contrast sweep, so arithmetic over the constants is
+   the only guard that can catch a regression. The old table here read
+   `{ 20: '#8b8f94', 50: '#5e646b' }` and left 9 and 200 on `var(--amber)` /
+   `var(--accent)`, which never resolved (#806). */
 const EMA_PERIODS = [
-  { period: 9,   color: 'var(--amber)', size: 1   },  // gold
-  { period: 20,  color: '#60a5fa', size: 1.5 },  // blue
-  { period: 50,  color: '#f97316', size: 1.5 },  // orange
-  { period: 200, color: 'var(--accent)', size: 2   },  // blue (thicker)
+  { period:   9, size: 1   },
+  { period:  20, size: 1.5 },
+  { period:  50, size: 1.5 },
+  { period: 200, size: 2   },
 ] as const;
-
-// #598 D1: the canvas draws zero blue/orange anywhere on the chart. Only
-// these two hardcoded hex values need a terminal swap - period 9/200 above
-// already read through --amber/--accent tokens (a separate, pre-existing
-// "does a CSS var string resolve inside a canvas fillStyle" question that
-// applies to every 'var(--x)' color in this file, not something D1 asked
-// for). Picked from QA's confirmed canvas hex list, darker as the period
-// lengthens, same convention the ribbon already uses via size.
-const TERMINAL_EMA_COLOR: Partial<Record<number, string>> = {
-  20: '#8b8f94',
-  50: '#5e646b',
-};
 
 interface EmaPoint { timestamp: number; value: number; }
 
@@ -829,7 +845,20 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
          place beats one whose price readout is at 1.01. That is the end state,
          not a stopgap: no fourth palette is booked. */
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chartRef.current?.setStyles(paletteFor(dark, mode === 'terminal') as any);
+      chartRef.current?.setStyles(resolveStyleVars(paletteFor(dark, mode === 'terminal')) as any);
+      /* The RSI line has to be re-applied, not just re-styled with the palette.
+         Its colour is an indicator style, resolved from `var(--accent-2)` when
+         createIndicator runs, and createIndicator runs once. Fixing the
+         resolution alone moved the bug from "never resolves" to "resolves once":
+         measured on localhost, a chart opened in terminal dark and switched to
+         light kept painting RSI at #d9a626 while the live token read #754e00.
+         Caught by pixel-sampling the fix rather than by trusting it. */
+      chartRef.current?.overrideIndicator({
+        name: 'RSI',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        styles: { lines: [{ color: resolveCssColor('var(--accent-2)'), size: 1.5 }] } as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
       /* Overlay ink follows the THEME only - the overlays are drawn on a
          transparent canvas over .klc-wrap's var(--bg), which is #000000 in
          both dark themes and #E8EAED in both light ones (#752). Bumping
@@ -872,7 +901,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const chart = chartRef.current;
     const bars = emaBarsRef.current;
     if (!chart || !bars.length) return;
-    const terminal = document.documentElement.getAttribute('data-design') === 'terminal';
     EMA_PERIODS.forEach((cfg, idx) => {
       const series = computeEmaSeries(bars, cfg.period);
       if (!series.length) return;
@@ -903,7 +931,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           // _figureMouseDownEvent, plus the `!overlay.lock` guard on
           // onPressedMoving), so hover and tooltips are unaffected.
           lock: true,
-          extendData: { color: terminal ? (TERMINAL_EMA_COLOR[cfg.period] ?? cfg.color) : cfg.color, size: cfg.size },
+          /* The PERIOD travels, not the colour. An overlay is created once and
+             only its points are overridden afterwards, so a colour chosen here
+             would survive a theme switch and go stale; createPointFigures runs
+             per repaint and can read the context that is current. */
+          extendData: { period: cfg.period, size: cfg.size },
           // Higher zLevel paints on top. EMA_PERIODS is ordered fast-to-slow
           // (9, 20, 50, 200), so EMA200 (idx 3, thickest) ends up on top and
           // EMA9 (idx 0, thinnest) on the bottom - matches the original
@@ -944,7 +976,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       // Apply current theme via setStyles (avoids DeepPartial type gymnastics)
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chart.setStyles(paletteFor(dark, modeRef.current === 'terminal') as any);
+      chart.setStyles(resolveStyleVars(paletteFor(dark, modeRef.current === 'terminal')) as any);
 
       // EMA 9/20/50/200 ribbon - drawn as 4 emaRibbonLine overlays (registered
       // below, synced via syncEmaRibbon), not a klinecharts built-in indicator.
@@ -954,7 +986,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       // in the app (marketStore rsi14/rsi1h/rsi4h/rsiDaily), instead of the
       // built-in indicator's default 3-line [6,12,24] preset.
       chart.createIndicator(
-        { name: 'RSI', calcParams: [14], styles: { lines: [{ color: 'var(--accent-2)', size: 1.5 }] } },
+        { name: 'RSI', calcParams: [14], styles: { lines: [{ color: resolveCssColor('var(--accent-2)'), size: 1.5 }] } },
         { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
       );
 
@@ -1239,13 +1271,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { color, size } = overlay.extendData as { color: string; size: number };
+            const { period, size } = overlay.extendData as { period: EmaPeriod; size: number };
             const pts = coordinates.filter(c => c && isFinite(c.x) && isFinite(c.y));
             if (pts.length < 2) return [];
+            const root = document.documentElement;
             return [{
               type: 'line',
               attrs: { coordinates: pts },
-              styles: { style: 'solid', color: resolveCssColor(color), size },
+              styles: {
+                style: 'solid',
+                color: emaInk(period, {
+                  terminal: root.getAttribute('data-design') === 'terminal',
+                  dark: root.getAttribute('data-theme') !== 'light',
+                }),
+                size,
+              },
             }];
           },
         });
@@ -1265,7 +1305,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const { srType, price, labelYOffset } = overlay.extendData as { srType: 'support' | 'resistance'; price: number; labelYOffset?: number };
             const y = coordinates[0]?.y;
             if (y == null || !isFinite(y) || y < 0) return [];
-            const color = srType === 'resistance' ? '#f87171' : '#34d399';
+            const ink = srType === 'resistance' ? OVERLAY_LABEL_INK.srResistance : OVERLAY_LABEL_INK.srSupport;
+            const color = ink.bg;
             const rightX = (bounding?.width ?? 9999);
             const labelY = y - 3 - (labelYOffset ?? 0);
             return [
@@ -1283,7 +1324,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // same shape as the priceTag figure above, which already
                 // sets its own backgroundColor and never had the bug.
                 styles: {
-                  color: '#ffffff', size: 9, weight: '700',
+                  color: ink.text, size: 9, weight: '700',
                   paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
                   backgroundColor: color,
                   // registerOverlay is a one-time, module-level registration
@@ -1319,7 +1360,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const { gexType, price, labelYOffset } = overlay.extendData as { gexType: 'maxpain' | 'flip'; price: number; labelYOffset?: number };
             const y = coordinates[0]?.y;
             if (y == null || !isFinite(y) || y < 0) return [];
-            const color = gexType === 'maxpain' ? '#a78bfa' : '#22d3ee';
+            const ink = gexType === 'maxpain' ? OVERLAY_LABEL_INK.gexMaxPain : OVERLAY_LABEL_INK.gexFlip;
+            const color = ink.bg;
             const label = gexType === 'maxpain' ? 'MAX PAIN' : 'γ FLIP';
             const rightX = (bounding?.width ?? 9999);
             const labelY = y - 3 - (labelYOffset ?? 0);
@@ -1333,7 +1375,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 type: 'text',
                 attrs: { x: 6, y: labelY, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
                 styles: {
-                  color: '#ffffff', size: 9, weight: '700',
+                  color: ink.text, size: 9, weight: '700',
                   paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
                   backgroundColor: color,
                   borderRadius: document.documentElement.getAttribute('data-design') === 'terminal' ? 0 : 3,
@@ -1383,7 +1425,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 type: 'text',
                 attrs: { x: 6, y: labelY, text: `REALIZED LIQ $${fmtPx(price)} · ${fmtLiqUsd(total)}`, align: 'left', baseline: 'bottom' },
                 styles: {
-                  color: '#ffffff', size: 9, weight: '700',
+                  color: OVERLAY_LABEL_INK.liqCluster.text, size: 9, weight: '700',
                   paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
                   backgroundColor: LIQ_CLUSTER_COLOR,
                   borderRadius: document.documentElement.getAttribute('data-design') === 'terminal' ? 0 : 3,
