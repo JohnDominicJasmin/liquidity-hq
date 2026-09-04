@@ -15,6 +15,7 @@ import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
+import CoinMultiSelect from './CoinMultiSelect';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -857,20 +858,32 @@ export default function GrokChat() {
         ) : (
           /* ════ CHAT VIEW ════ */
           <>
-            {/* Coin selector */}
-            <div className="hscroll-fade-outer">
-              <div className="gchat-coins">
-                {COINS.map(c => (
-                  <button
-                    key={c}
-                    className={`gchat-coin${c === coin ? ' on' : ''}`}
-                    onClick={() => { if (c !== coin) { newChat(); setCoin(c); } }}
-                  >
-                    {c.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-              <div className="hscroll-fade hscroll-fade-panel" />
+            {/* DROPDOWN ONLY (#746). Owner: "this coin selection it should be
+                a searchable dropdown not a horizontal list of coin selection."
+
+                An earlier version of this kept six quick buttons beside the
+                dropdown, on a relay that turned out to describe the ARENA
+                page's category tabs rather than this control - so the owner
+                had approved keeping buttons that were never at risk. The
+                governing sentence is the one above, and it rules the row out.
+
+                It was also the wrong shape on its own evidence: six buttons
+                plus a ~100px trigger did not fit, .gchat-coins had
+                `overflow-x: auto; scrollbar-width: none`, and the owner's
+                screenshot showed BNB clipped and HYPE off-screen behind a
+                scroll with no scrollbar. That is #745's defect - content
+                reachable only by a scroll nobody knows exists - in the panel
+                filed to remove it. Deleting the row dissolves it rather than
+                patching it, and hands the trigger the full width. */}
+            <div className="gchat-coinbar">
+              <CoinMultiSelect
+                single
+                value={[coin]}
+                onChange={next => {
+                  const c = next[0] as CoinId | undefined;
+                  if (c && c !== coin) { newChat(); setCoin(c); }
+                }}
+              />
             </div>
 
             {/* Rate-limit / error status bar - sits between coins and messages, not in chat stream */}
