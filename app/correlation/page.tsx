@@ -5,6 +5,7 @@ import LoadingState from '@/components/LoadingState';
 import Tip from '@/components/Tip';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
+import { tintPct } from '@/lib/correlationRamp';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useDesignMode } from '@/components/DesignModeProvider';
@@ -83,23 +84,64 @@ function pearson(a: number[], b: number[]): number | null {
 /* ── colors ── */
 /* Crypto correlations cluster in 0.5–1.0, so a linear alpha map renders a wall of
    identical green. Rescale 0.35→1.0 onto the full range with a power curve so
-   0.6 reads faint and 0.95+ pops. */
+   0.6 reads faint and 0.95+ pops.
+ *
+ * THE CURVE IS NOW SHARED WITH TERMINAL (#774). This function used to carry its
+ * own copy - same rescale, same exponents, same floors, and caps of 92% and 96%
+ * against lib/correlationRamp.ts's 56% and 50%. Only the caps differed, and
+ * they are the whole defect: 1332 cells below 4.5:1 on production, worst 1.79,
+ * and the failures were concentrated in the STRONGLY correlated cells, which
+ * are the ones the screen exists to draw attention to.
+ *
+ * correlationRamp.ts exists because #570's caps were argued in prose and the
+ * prose was wrong. Importing it rather than re-deriving a second set means the
+ * tested constants govern both designs. */
 function cellBg(r: number | null, diag: boolean): string {
   if (diag)    return 'var(--accent-bdr)';
   if (r == null) return 'rgba(255,255,255,0.03)';
-  if (r > 0) {
-    const t = Math.max(0, (r - 0.35) / 0.65);
-    const a = 0.04 + Math.pow(t, 2.2) * 0.92;
-    return `rgba(52,211,153,${a.toFixed(2)})`;
-  }
-  const a = 0.06 + Math.pow(Math.abs(r), 1.5) * 0.86;
-  return `rgba(248,113,113,${a.toFixed(2)})`;
+  const a = tintPct(r) / 100;
+  return r > 0
+    ? `rgba(52,211,153,${a.toFixed(2)})`
+    : `rgba(248,113,113,${a.toFixed(2)})`;
 }
 
+/* ALWAYS --txt ON A TINTED CELL (#774), never --txt3.
+ *
+ * The cap was only half of it, and this was the larger half. --txt3 on the
+ * current design's green fails from 9% alpha in dark and red from 12% - so
+ * every cell below |r| = 0.8 was failing almost as soon as it carried any tint
+ * at all, which is most of the grid. Lowering the cap alone leaves --txt3 at
+ * 1.57 at full strength; it is not a fix, it is a smaller failure.
+ *
+ * Terminal already reached this conclusion: CorrelationTerminal.tsx:77 says
+ * "Text is always --txt now", from #570. The current design kept the shape
+ * that issue removed - which is why terminal measures 0 failures on this route
+ * and the design shipping today measures 1332.
+ *
+ * Measured with both changes, worst over the whole ramp on .card's --bg2:
+ * dark 5.01, light 9.95.
+ *
+ * The null cell keeps --txt3 deliberately: it paints rgba(255,255,255,0.03),
+ * essentially the bare card, and measures 4.84 dark / 7.67 light. It is not
+ * part of this defect and #679's --txt-dash is a terminal-only concern. */
 function cellColor(r: number | null, diag: boolean): string {
-  if (diag) return 'var(--accent)';
+  /* THE DIAGONAL TOO, and it was found by rendering rather than by arithmetic
+     (#774). After the two changes above, a 2500-cell sweep of the live grid
+     put the worst cell at 3.88 in dark and 4.34 in light - and it was not a
+     data cell at all. It was the diagonal: var(--accent) printed on
+     var(--accent-bdr), which is #1a7aff at 22%. A signal colour on a wash of
+     itself, the same shape as #738, and there is no --accent-fg token to
+     reach for.
+
+     50 cells, one per coin, and they were the ONLY cells still failing after
+     the ramp fix - so claiming this route was fixed while leaving them would
+     have been the "found a second defect after saying done" failure. --txt
+     measures 12.87 on that ground in dark. The cell shows "-", so it loses
+     nothing by not being blue; the accent-tinted background still marks the
+     diagonal. */
+  if (diag) return 'var(--txt)';
   if (r == null) return 'var(--txt3)';
-  return Math.abs(r) >= 0.8 ? 'var(--txt)' : 'var(--txt3)';
+  return 'var(--txt)';
 }
 
 /* ── alt season signal ── */
