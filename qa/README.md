@@ -21,6 +21,28 @@ The tools in this folder encode traps that a fresh script re-hits. They are
 written *inside* those tools, which is exactly where nobody looks while writing
 a replacement for them. So they are repeated here.
 
+**Nine of the eleven below are one shape: an instrument answering a question
+ADJACENT to the one asked, and returning something well-formed.** Not an error,
+not a zero — a plausible number, correctly computed, about the wrong thing. Only
+7 (a substring match) and 8 (prose citing deleted code) sit outside it.
+
+That is the durable part. A reader who internalises **"well-formed output is not
+evidence of the right question"** has nine of these already; the numbered
+incidents below are just the ways it has actually happened here.
+
+Three of them form a sequence, and each passes the previous check:
+
+```
+3    did I match anything at all?
+3b   did I match the right component?
+11   do the things I matched carry the property I am claiming about?
+```
+
+#756's twenty borders existed, were on the right page, were correctly measured,
+and were neutral. Every guard in place was satisfied. **A wrong subject that
+happens to pass is more durable than one that fails**, because nothing ever
+comes back to it.
+
 **If a committed tool already answers your question, run it.** When an ad-hoc
 script and a purpose-built one disagree, the ad-hoc one is the hypothesis, not
 the finding. On 2026-09-04 a fresh probe reported `/correlation` terminal at
