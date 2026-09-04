@@ -21,22 +21,29 @@ The tools in this folder encode traps that a fresh script re-hits. They are
 written *inside* those tools, which is exactly where nobody looks while writing
 a replacement for them. So they are repeated here.
 
-**Nine of the eleven below are one shape: an instrument answering a question
+**Ten of the thirteen below are one shape: an instrument answering a question
 ADJACENT to the one asked, and returning something well-formed.** Not an error,
 not a zero — a plausible number, correctly computed, about the wrong thing. Only
-7 (a substring match) and 8 (prose citing deleted code) sit outside it.
+7 (a substring match), 8 (prose citing deleted code) and 13 (a probe that broke
+the page it was measuring) sit outside it.
 
 That is the durable part. A reader who internalises **"well-formed output is not
-evidence of the right question"** has nine of these already; the numbered
+evidence of the right question"** has ten of these already; the numbered
 incidents below are just the ways it has actually happened here.
 
-Three of them form a sequence, and each passes the previous check:
+Four of them form a sequence, and each passes the previous check:
 
 ```
+13   is the page still working after whatever I installed on it?
 3    did I match anything at all?
 3b   did I match the right component?
 11   do the things I matched carry the property I am claiming about?
 ```
+
+**12 sits across all four**, because it is the one where every check above
+passes and the answer is still wrong: the page works, the selector matches, the
+component is right, and the FIXTURE was outside the range that could have
+produced a visible result.
 
 #756's twenty borders existed, were on the right page, were correctly measured,
 and were neutral. Every guard in place was satisfied. **A wrong subject that
@@ -201,6 +208,58 @@ The check passed *because* it was looking at the wrong thing. Before believing a
 clean result, confirm the elements you matched are the ones the claim is about —
 not merely that they exist and pass. Trap 3 counts them; this one asks whether
 they are the right ones.
+
+**12. A fixture outside the range under test looks exactly like a regression.**
+On 2026-09-04, verifying that #813's headless `LiqFeed` still fed the chart, the
+probe reported **zero cluster ink on the canvas**. Correct component, correct
+selector, correct colour, a page that had rendered — and the honest reading of
+it was "hiding the card unplugged the chart", which is precisely the defect the
+review existed to catch.
+
+It had not. The seeded liquidation history sat at **108,000–121,500 while BTC
+was trading at 79,400**, so every cluster line resolved to a y-coordinate off
+the visible axis and drew nothing. The overlay's own guard (`if (y < 0) return
+[]`) did its job silently.
+
+**A correct instrument pointed at input outside the observable window returns
+the same output as a broken subject.** Traps 3 and 3b ask whether you matched
+anything and whether it was the right thing; this one asks whether your INPUT
+could have produced a visible result at all. Derive the fixture from the live
+subject — the seed here now reads the chart's own klines and places bands inside
+that range — rather than choosing plausible-looking constants.
+
+The reason this is worth its own entry is what it nearly cost. #766 was filed as
+*"I could not get the lines to draw"* when the measurement was right and the
+defect was real; the lesson taken from it was *distrust the clean result*.
+Applied here, that lesson would have produced the opposite error at the same
+speed. **Neither "my instrument is wrong" nor "the code is wrong" is the default
+— the precondition check is what separates them, and it is cheap.**
+
+**13. A probe can break the page it is measuring, and this one did.** Same run:
+capturing the research prompt meant wrapping `window.fetch` to intercept
+`/api/grok` before it could reach a paid API. The shim forwarded everything else
+with `orig.apply(this, arguments)`.
+
+`this` is `window` only when `fetch` is called as `window.fetch(...)`. Called
+bare — `fetch(url)`, which is how most library code calls it — `this` is
+`undefined` and native `fetch` throws *Illegal invocation*. **Every network
+request on the page failed.** The chart never initialised, `.klc-wrap canvas`
+matched zero elements, and the probe dutifully reported zeros for all nine
+colours it was sampling.
+
+Two things make it worth writing down. The fix is one word (`orig.apply(window,
+arguments)`), and the symptom pointed at the application rather than at the
+probe — the numbers were about the right page, the right selectors and the right
+colours, and every one of them was produced by a page the probe itself had
+disabled.
+
+**This is the trap that sits outside the family the others belong to.** The rest
+are instruments answering an adjacent question; this one changes the subject
+before measuring it. So the guard is different: after installing any shim,
+override or route, assert the page still WORKS — one element that only exists if
+the app got its data — before trusting a single number that comes back. `canvases
+= 0` was that assertion available for free, and it was in the output all along,
+one line above the zeros.
 
 ## Where QA tests
 
