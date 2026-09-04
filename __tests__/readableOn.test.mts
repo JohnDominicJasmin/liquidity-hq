@@ -210,3 +210,87 @@ test('compositeOver flattens toward the ground as alpha falls', () => {
   assert.deepEqual(compositeOver(white, BLACK, 0), [0, 0, 0]);
   assert.deepEqual(compositeOver(white, BLACK, 0.5), [127.5, 127.5, 127.5]);
 });
+
+/* ── color(srgb …), AND THE THINGS THAT MUST STILL RETURN null ─────────────
+ *
+ * Added after #771, where my own chain walk matched `rgb()`/`rgba()` only,
+ * silently skipped a `color(srgb 0.458824 0.305882 0 / 0.1)` layer, and
+ * measured an element against the bare card - 5.56 for something that measures
+ * 4.82. No error, no warning, a plausible number.
+ *
+ * Every color-mix() in this codebase computes to this syntax, so a parser used
+ * against getComputedStyle output that cannot read it is not conservative, it
+ * is wrong in the direction that looks fine. */
+
+test('color(srgb ...) parses, scaled by prefix rather than by value range', () => {
+  // The exact value from #771's .ms-last-event: --accent at 10%.
+  const gold = parseCssColor('color(srgb 0.458824 0.305882 0 / 0.1)');
+  assert.ok(gold, 'color(srgb …) did not parse');
+  assert.deepEqual(gold!.rgb.map(c => Math.round(c)), [117, 78, 0]);
+  assert.ok(Math.abs(gold!.alpha - 0.1) < 1e-9);
+
+  // No alpha component means opaque, not zero.
+  const opaque = parseCssColor('color(srgb 0.2 0.7 0.3)');
+  assert.equal(opaque?.alpha, 1);
+  assert.deepEqual(opaque!.rgb.map(c => Math.round(c)), [51, 179, 77]);
+
+  // Percentage channels are the same colour by another spelling.
+  const pct = parseCssColor('color(srgb 100% 0% 50%)');
+  assert.deepEqual(pct!.rgb.map(c => Math.round(c)), [255, 0, 128]);
+});
+
+test('a 0-255 rgb() is NOT rescaled just because its numbers are small', () => {
+  /* The value-range heuristic - "these all look like 0-1, so scale them" -
+     would turn this into black. The prefix is the only thing that says which
+     space a triple is in, which is why the branch keys on it. */
+  const small = parseCssColor('rgb(0 1 2)');
+  assert.deepEqual(small!.rgb, [0, 1, 2]);
+  assert.equal(small!.alpha, 1);
+});
+
+test('transparent is alpha 0, not a parse failure', () => {
+  /* A layer that is genuinely transparent must composite as a no-op. Returning
+     null for it would make a chain walk treat it as unreadable and stop, which
+     is a different wrong answer from the one this file is about. */
+  const t = parseCssColor('transparent');
+  assert.equal(t?.alpha, 0);
+  assert.deepEqual(compositeOver(t!.rgb, [10, 20, 30], t!.alpha), [10, 20, 30]);
+});
+
+test('FAIL CLOSED: every syntax this does not understand returns null', () => {
+  /* THE LOAD-BEARING TEST. A parser that returns null leaves a visible hole;
+     one that returns a confident number produces a finding. On 2026-09-04 that
+     distinction was the difference between a probe that reported nothing and a
+     probe that reported /correlation at 1.05:1 with "the encoding deleted",
+     which reached an issue and nearly reached the owner.
+     If a later change makes any of these parse, it must be a deliberate branch
+     with its own test - not a lenient fallback that guesses. */
+  for (const s of [
+    'oklch(0.7 0.1 150)',
+    'lab(50% 40 59)',
+    'hsl(210 50% 40%)',
+    'hwb(200 20% 30%)',
+    'color(display-p3 0.2 0.7 0.3)',   // same syntax, DIFFERENT primaries
+    'color(rec2020 0.2 0.7 0.3)',
+    'color(srgb 0.2 0.7)',             // too few channels
+    'color(srgb 0.2 0.7 nope)',
+    'rebeccapurple',
+    '#ff',
+    '',
+  ]) {
+    assert.equal(parseCssColor(s), null, `${JSON.stringify(s)} should not parse`);
+  }
+});
+
+test('readableOn composites a color(srgb ...) surface and ground correctly', () => {
+  /* End to end on the shape that broke: a translucent modern-syntax tint over
+     an opaque card. The answer has to match the same colour written as rgba. */
+  const viaColorFn = readableOn(
+    'color(srgb 0.458824 0.305882 0 / 0.1)',
+    'color(srgb 0.921569 0.913725 0.901961)',
+  );
+  const viaRgba = readableOn('rgba(117,78,0,0.1)', '#ebe9e6');
+  assert.ok(viaColorFn && viaRgba);
+  assert.ok(Math.abs(viaColorFn!.ratio - viaRgba!.ratio) < 0.02,
+    `same colour, two spellings, different answers: ${viaColorFn!.ratio} vs ${viaRgba!.ratio}`);
+});

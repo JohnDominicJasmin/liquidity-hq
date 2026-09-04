@@ -26,11 +26,47 @@
 
 export type Rgb = [number, number, number];
 
-/** `#rgb`, `#rrggbb`, `rgb()` and `rgba()`. Returns the colour and its alpha
- *  separately, because a band's alpha is the whole reason it needs
- *  compositing before it can be measured. */
+/** `#rgb`, `#rrggbb`, `rgb()`, `rgba()`, `color(srgb …)` and `transparent`.
+ *  Returns the colour and its alpha separately, because a band's alpha is the
+ *  whole reason it needs compositing before it can be measured.
+ *
+ *  `color(srgb …)` IS NOT OPTIONAL IN A BROWSER (#774, #771). Every
+ *  `color-mix()` in this codebase computes to it - `getComputedStyle` returns
+ *  `color(srgb 0.458824 0.305882 0 / 0.1)` where the stylesheet says
+ *  `color-mix(in srgb, var(--accent) 10%, transparent)`. Without this branch a
+ *  chain walk skips that layer silently and measures the wrong ground. I did
+ *  exactly that on #771, an hour after arguing the rule belonged where probes
+ *  get written, and reported 5.56 for an element that measures 4.82.
+ *
+ *  SCALED BY PREFIX, NEVER BY VALUE RANGE. `color(srgb …)` channels are 0-1;
+ *  `rgb()` channels are 0-255. Deciding from the values - "these all look
+ *  small, they must be 0-1" - misreads a real `rgb(0 1 2)`. The prefix is the
+ *  only thing that actually says which.
+ *
+ *  EVERYTHING ELSE STILL RETURNS null, and that is load-bearing rather than
+ *  incidental. `oklch()`, `lab()`, `hsl()` and `color(display-p3 …)` are not
+ *  handled, and a caller that gets `null` leaves a visible hole; a caller that
+ *  gets a confidently wrong number produces a finding. That distinction cost an
+ *  hour on #774. The tests pin it so nobody later adds a lenient fallback. */
 export function parseCssColor(input: string): { rgb: Rgb; alpha: number } | null {
   const s = input.trim();
+
+  if (s === 'transparent') return { rgb: [0, 0, 0], alpha: 0 };
+
+  /* `srgb` only. display-p3, rec2020 and the rest share this syntax with
+     DIFFERENT primaries, so treating them as srgb would be the value-range
+     mistake in another costume. */
+  const srgb = /^color\(\s*srgb\s+([^)]+)\)$/i.exec(s);
+  if (srgb) {
+    const raw = srgb[1].split(/[\s/]+/).filter(Boolean);
+    if (raw.length < 3) return null;
+    const num = (t: string) => (t.endsWith('%') ? Number(t.slice(0, -1)) / 100 : Number(t));
+    const ch = raw.slice(0, 3).map(num);
+    if (ch.some(Number.isNaN)) return null;
+    const alpha = raw.length > 3 ? num(raw[3]) : 1;
+    if (Number.isNaN(alpha)) return null;
+    return { rgb: ch.map(c => c * 255) as Rgb, alpha };
+  }
 
   const hex6 = /^#([0-9a-fA-F]{6})$/.exec(s);
   if (hex6) {
