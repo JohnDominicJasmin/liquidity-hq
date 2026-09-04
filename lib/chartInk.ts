@@ -74,14 +74,14 @@ export const TERMINAL_EMA_RAMP = {
  * painted a borrowed colour. Periods 20 and 50 are byte-for-byte what the file
  * already had.
  *
- * KNOWN AND DELIBERATELY UNTOUCHED: on the light ground, 20 (#60a5fa) measures
- * 2.11:1 and 50 (#f97316) measures 2.33:1, against 3:1 for graphics. Both
- * predate this work, both are in the design the owner uses daily, and changing
- * four ribbon colours nobody asked about is not what #806 ruled. Reported on
- * the issue instead of fixed here. */
+ * 20 and 50 on the LIGHT ground were #60a5fa (2.11:1) and #f97316 (2.33:1) -
+ * both under 3:1 - until #816 ruled them in scope alongside the four overlay
+ * colours. They carry the same hue at lower lightness, so the ribbon reads the
+ * same and the ground contrast is 3.30 and 3.31. Dark is untouched; 9 and 200
+ * already cleared both grounds. */
 export const CURRENT_EMA_RAMP = {
   dark:  { 9: '#fbbf24', 20: '#60a5fa', 50: '#f97316', 200: '#1a7aff' },
-  light: { 9: '#8F4508', 20: '#60a5fa', 50: '#f97316', 200: '#0052CC' },
+  light: { 9: '#8F4508', 20: '#187cf8', 50: '#d45a05', 200: '#0052CC' },
 } as const satisfies Record<'dark' | 'light', Record<EmaPeriod, string>>;
 
 /** The colour one EMA ribbon line paints, for the context it is painting in.
@@ -94,29 +94,67 @@ export function emaInk(period: EmaPeriod, ctx: { terminal: boolean; dark: boolea
   return (ctx.dark ? ramp.dark : ramp.light)[period];
 }
 
-/* OVERLAY LABEL INK (#808).
+/* OVERLAY LINE INK (#808, then #816).
  *
- * Each overlay label is white or black text on a filled chip whose colour is
- * the line's own. The line colours are fine; the TEXT on them was not. Measured
- * with lib/readableOn.ts:
+ * NOT to be confused with KLineProChart's own OVERLAY_INK, which is a different
+ * table for the buy/sell marker glow, chevron and alert line (#752). These are
+ * the S/R, GEX and cluster RULES and the chips that label them.
  *
- *                        white   black
- *   S/R resistance        2.77    7.59
- *   S/R support           1.92   10.92
- *   GEX max pain          2.72    7.72
- *   GEX gamma flip        1.81   11.62
- *   realized liq cluster  4.60    4.57
+ * Each overlay is a coloured rule plus a filled chip carrying its label. The
+ * rule's colour IS the chip's background, so one value has two accessibility
+ * jobs: a graphic against the chart ground (3:1, SC 1.4.11) and a text
+ * background under the label (4.5:1, SC 1.4.3).
  *
- * Four of the five failed 4.5:1 on white and clear it comfortably on black, so
- * the fix is the text colour and not the palette - no line changes hue, and
- * nothing about how the chart reads changes. The cluster chip keeps white: it
- * is the only background dark enough to sit mid-scale, where white is the
- * marginally better of two passing options.
+ * #808 fixed the second by switching the label text to black. #816 fixes the
+ * first, which only failed on the LIGHT ground: every one of these clears its
+ * ground comfortably on #000000 and six of the seven failed on #E8EAED.
+ *
+ *   gexFlip 1.50   srSupport 1.59   ema20 2.11
+ *   gexMaxPain 2.26   srResistance 2.30   ema50 2.33
+ *
+ * HUE IS KEPT AND LIGHTNESS IS LOWERED, deliberately. What makes these tellable
+ * apart from each other is hue, not lightness - a contrast ratio between two of
+ * them is the wrong instrument for "can a user distinguish them", which is what
+ * #787 and #756 were both filed on. So each light value is its dark value with
+ * the same H and S walked down in L until it clears the ground. Measured hue
+ * drift is at most 0.2 degrees.
+ *
+ * TARGETED AT 3.3 RATHER THAN 3.0. The threshold is 3:1; landing on 3.05 leaves
+ * nothing for a future change to --bg, and the ground has moved before. The
+ * realized-cluster pink sits at 3.81 untouched, so this keeps the set in one
+ * band.
+ *
+ * DARK IS UNTOUCHED. Every dark value clears #000000 already and a change there
+ * would be a redesign nobody asked for.
  */
-export const OVERLAY_LABEL_INK = {
-  srResistance: { bg: '#f87171', text: '#000000' },
-  srSupport:    { bg: '#34d399', text: '#000000' },
-  gexMaxPain:   { bg: '#a78bfa', text: '#000000' },
-  gexFlip:      { bg: '#22d3ee', text: '#000000' },
-  liqCluster:   { bg: '#db2777', text: '#ffffff' },
+export const OVERLAY_LINE_INK = {
+  dark: {
+    srResistance: { bg: '#f87171', text: '#000000' },
+    srSupport:    { bg: '#34d399', text: '#000000' },
+    gexMaxPain:   { bg: '#a78bfa', text: '#000000' },
+    gexFlip:      { bg: '#22d3ee', text: '#000000' },
+    liqCluster:   { bg: '#db2777', text: '#ffffff' },
+  },
+  light: {
+    srResistance: { bg: '#f52c2c', text: '#000000' },
+    srSupport:    { bg: '#1f9067', text: '#000000' },
+    gexMaxPain:   { bg: '#8964f8', text: '#000000' },
+    gexFlip:      { bg: '#0c8ca0', text: '#000000' },
+    /* Unchanged, and that is a decision rather than an oversight: #db2777
+       measures 3.81 on the light ground, and its white label text wins over
+       black by 0.03 (4.60 against 4.57). Retune the chip and that coin-toss has
+       to be re-made for no accessibility gain. */
+    liqCluster:   { bg: '#db2777', text: '#ffffff' },
+  },
 } as const;
+
+export type OverlayKind = keyof (typeof OVERLAY_LINE_INK)['dark'];
+
+/** The ink one overlay paints in, for the theme it is painting in.
+ *
+ *  Read per repaint, not captured at overlay creation - the overlays outlive a
+ *  theme switch, and a colour chosen when the overlay was created goes stale
+ *  exactly the way the RSI indicator's did (#806). */
+export function lineInk(kind: OverlayKind, dark: boolean): { bg: string; text: string } {
+  return dark ? OVERLAY_LINE_INK.dark[kind] : OVERLAY_LINE_INK.light[kind];
+}

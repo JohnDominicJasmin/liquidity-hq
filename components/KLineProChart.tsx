@@ -10,7 +10,7 @@ import { Warn } from '@/components/icons';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
 import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
-import { emaInk, OVERLAY_LABEL_INK, type EmaPeriod } from '@/lib/chartInk';
+import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
@@ -411,7 +411,6 @@ let structureOverlayRegistered = false;
    hundred lines apart in the same repo, is the shape #736 and #663 are both
    about; QA caught it reviewing #812. Restating them here again is how it
    comes back. */
-const LIQ_CLUSTER_COLOR = OVERLAY_LABEL_INK.liqCluster.bg;
 
 /* A canvas strokeStyle cannot resolve a CSS custom property. Passing
    'var(--amber)' neither throws nor paints amber - the context keeps whatever
@@ -1309,7 +1308,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const { srType, price, labelYOffset } = overlay.extendData as { srType: 'support' | 'resistance'; price: number; labelYOffset?: number };
             const y = coordinates[0]?.y;
             if (y == null || !isFinite(y) || y < 0) return [];
-            const ink = srType === 'resistance' ? OVERLAY_LABEL_INK.srResistance : OVERLAY_LABEL_INK.srSupport;
+            const ink = lineInk(srType === 'resistance' ? 'srResistance' : 'srSupport',
+                                   document.documentElement.getAttribute('data-theme') !== 'light');
             const color = ink.bg;
             const rightX = (bounding?.width ?? 9999);
             const labelY = y - 3 - (labelYOffset ?? 0);
@@ -1364,7 +1364,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const { gexType, price, labelYOffset } = overlay.extendData as { gexType: 'maxpain' | 'flip'; price: number; labelYOffset?: number };
             const y = coordinates[0]?.y;
             if (y == null || !isFinite(y) || y < 0) return [];
-            const ink = gexType === 'maxpain' ? OVERLAY_LABEL_INK.gexMaxPain : OVERLAY_LABEL_INK.gexFlip;
+            const ink = lineInk(gexType === 'maxpain' ? 'gexMaxPain' : 'gexFlip',
+                                   document.documentElement.getAttribute('data-theme') !== 'light');
             const color = ink.bg;
             const label = gexType === 'maxpain' ? 'MAX PAIN' : 'γ FLIP';
             const rightX = (bounding?.width ?? 9999);
@@ -1419,19 +1420,20 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             if (y == null || !isFinite(y) || y < 0) return [];
             const rightX = (bounding?.width ?? 9999);
             const labelY = y - 3 - (labelYOffset ?? 0);
+            const ink = lineInk('liqCluster', document.documentElement.getAttribute('data-theme') !== 'light');
             return [
               {
                 type: 'line',
                 attrs: { coordinates: [{ x: 0, y }, { x: rightX, y }] },
-                styles: { style: 'dashed', color: LIQ_CLUSTER_COLOR, size: 1, dashedValue: [1, 4] },
+                styles: { style: 'dashed', color: ink.bg, size: 1, dashedValue: [1, 4] },
               },
               {
                 type: 'text',
                 attrs: { x: 6, y: labelY, text: `REALIZED LIQ $${fmtPx(price)} · ${fmtLiqUsd(total)}`, align: 'left', baseline: 'bottom' },
                 styles: {
-                  color: OVERLAY_LABEL_INK.liqCluster.text, size: 9, weight: '700',
+                  color: ink.text, size: 9, weight: '700',
                   paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
-                  backgroundColor: LIQ_CLUSTER_COLOR,
+                  backgroundColor: ink.bg,
                   borderRadius: document.documentElement.getAttribute('data-design') === 'terminal' ? 0 : 3,
                 },
               },
