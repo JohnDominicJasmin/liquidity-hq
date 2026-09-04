@@ -1770,7 +1770,7 @@ function ArenaContent() {
                 onClick={saveArenaAlert}
                 disabled={alertSaving || !alertPrice}
                 style={{
-                  width: '100%', fontSize: 'var(--fs-body)', fontWeight: 700, color: '#fff',
+                  width: '100%', fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--on-accent)',
                   background: 'var(--accent-solid)', border: 'none', borderRadius: 10, padding: '12px 18px',
                   cursor: alertSaving || !alertPrice ? 'default' : 'pointer',
                   opacity: alertSaving || !alertPrice ? 0.5 : 1, transition: 'opacity .15s',

@@ -14,7 +14,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseCssColor, contrastRatio } from '../lib/readableOn.ts';
@@ -58,6 +58,16 @@ const CONTEXTS: Array<[string, Record<string, string>]> = [
   ['terminal light', { ...root, ...light, ...termLight }],
 ];
 
+/** A white COLOUR VALUE anywhere in a style object. No `color:` prefix: in
+ *  JSX the declaration is comma-separated and the colour can sit either side
+ *  of the background it pairs with.
+ *
+ *  The first version of this line went through a heredoc and a python -c and
+ *  arrived with a literal BACKSPACE where each \\b was meant. It matched
+ *  nothing, the JSX sweep reported clean, and only the control below caught
+ *  it - a test that could never fail, which is the exact defect this suite
+ *  keeps finding elsewhere. */
+const WHITE_VALUE = /(#fff\b|#ffffff\b|'white'|"white")/i;
 const WHITE = /color:\s*(#fff\b|#ffffff\b|white\b|rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*1\s*\))/i;
 
 /** Declaration blocks that paint a background of var(--accent-solid). */
@@ -134,4 +144,85 @@ test('var(--accent) is NOT covered by this token, and nothing relies on it being
   assert.deepEqual(onAccentRules, [],
     `unscoped rule(s) paint var(--on-accent) on var(--accent): ${onAccentRules.join(', ')}. ` +
     'That pairing is 3.98 in the current design - measure it and give it its own token.');
+});
+
+/* ── AND THE SAME PAIRING IN JSX, WHICH THE STYLESHEET CHECK CANNOT SEE ────
+ *
+ * The assertion above reads globals.css and is TRUE. It stayed true while two
+ * inline `style={{ background: 'var(--accent-solid)', color: '#fff' }}` props
+ * on /upgrade kept failing at 2.23:1 - QA caught them on the post-deploy
+ * sweep, after the fix, after the approval, with the suite green.
+ *
+ * That is a coverage boundary rather than a broken test, and it is the
+ * sharpest instance of the day's pattern: THE TEST PASSING IS WHAT MADE THE
+ * GAP INVISIBLE. Eleven rules were converted, the assertion covered exactly
+ * those eleven, and nobody looked at the twelfth because the check that would
+ * have looked was already green.
+ *
+ * So the boundary moves to where the pattern can occur, not to where it
+ * happened to be found. */
+const SRC_DIRS = ['app', 'components'];
+
+/** Every .tsx under app/ and components/. */
+function tsxFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap(name => {
+    const full = path.join(dir, name);
+    if (name === 'node_modules' || name === '.next') return [];
+    return statSync(full).isDirectory()
+      ? tsxFiles(full)
+      : name.endsWith('.tsx') ? [full] : [];
+  });
+}
+
+/* THE ONE EXEMPTION, BY NAME. app/global-error.tsx renders when the root
+   layout has already failed, so no stylesheet is guaranteed. There
+   var(--accent-solid) may resolve to nothing and the button falls back to
+   transparent on that file's own #0d0d0d body - where white is the readable
+   answer and var(--on-accent) would resolve to nothing at all. The fallback
+   behaviour is the point, which is why eslint.config.mjs allow-lists the same
+   file. Listed rather than filtered by a rule, so removing the exemption is a
+   deliberate edit. */
+const JSX_EXEMPT = new Set(['app/global-error.tsx']);
+
+test('no JSX inline style pairs white with --accent-solid', () => {
+  const offenders: string[] = [];
+  for (const dir of SRC_DIRS) {
+    for (const file of tsxFiles(path.join(ROOT, dir))) {
+      const rel = path.relative(ROOT, file).split(path.sep).join('/');
+      if (JSX_EXEMPT.has(rel)) continue;
+      const src = readFileSync(file, 'utf8');
+      /* Brace-depth capture, not a regex over the whole file: a style object
+         can contain a ternary, a template literal or a nested object, and
+         `[^}]*` stops at the first one. Same lesson as #681. */
+      for (const m of src.matchAll(/style=\{\{/g)) {
+        const open = src.indexOf('{', m.index! + 6);
+        let depth = 0, end = open;
+        for (let i = open; i < src.length && i < open + 4000; i++) {
+          if (src[i] === '{') depth++;
+          else if (src[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+        }
+        const obj = src.slice(open, end + 1);
+        if (/var\(--accent-solid\)/.test(obj) && WHITE_VALUE.test(obj)) {
+          offenders.push(`${rel} (offset ${m.index})`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(offenders, [],
+    `${offenders.length} inline style(s) pair white with --accent-solid: ${offenders.join(', ')}. ` +
+    "Use 'var(--on-accent)' - white is 2.23:1 on terminal dark's #d9a626. " +
+    'If this is genuinely a no-stylesheet context, add the file to JSX_EXEMPT with the reason.');
+});
+
+test('CONTROL: the JSX scan can actually see the shape it looks for', () => {
+  /* The stylesheet assertion was true and useless for two lines of JSX. This
+     control exists so the JSX one cannot become the same thing: it feeds the
+     scanner the exact source that shipped the defect and requires a hit. */
+  const shipped = `<div style={{ position: 'absolute', top: -11, fontSize: 'var(--fs-micro)', fontWeight: 700, color: '#fff', background: 'var(--accent-solid)', padding: '3px 12px' }}>`;
+  assert.ok(/var\(--accent-solid\)/.test(shipped) && WHITE_VALUE.test(shipped),
+    'the scan predicate no longer matches the /upgrade "Recommended" badge as it was written');
+
+  /* And that a nested brace does not truncate the object before the colour. */
+  const nested = `<div style={{ transform: \`translate(\${x}px)\`, background: 'var(--accent-solid)', color: '#fff' }}>`;
+  assert.ok(WHITE_VALUE.test(nested), 'a template literal in the object breaks the predicate');
 });
