@@ -520,7 +520,12 @@ export default function AlertsPage() {
   const numStyle: React.CSSProperties = {
     width: 24, height: 24, borderRadius: '50%', background: 'var(--accent-solid)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#fff', flexShrink: 0, marginTop: 1,
+    /* var(--on-accent), not '#fff' (#775). White on terminal dark's
+       --accent-solid (#d9a626) is 2.23:1. Found by QA reading the file, not by
+       the JSX scan: this is a named React.CSSProperties constant rather than a
+       `style={{ }}` prop, so the scan walked past it. The scan is widened in
+       this same change. */
+    fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--on-accent)', flexShrink: 0, marginTop: 1,
   };
 
   return (

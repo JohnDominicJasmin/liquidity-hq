@@ -1273,8 +1273,23 @@ function Inner() {
                     style={{
                       width: 26, height: 26, fontSize: 'var(--fs-caption)', fontWeight: 700, borderRadius: 6,
                       border: `0.5px solid ${i === historyPageSafe ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
-                      background: i === historyPageSafe ? 'var(--accent)' : 'transparent',
-                      color: i === historyPageSafe ? '#fff' : 'var(--txt3)',
+                      /* --accent-solid, not --accent, and --on-accent, not
+                         '#fff' (#775). This is a FILLED control, which is what
+                         --accent-solid exists for. The pairing matters because
+                         --on-accent alone does not rescue --accent here:
+
+                           on --accent        3.98 / 6.82 / 8.95 / 7.38
+                           on --accent-solid  5.09 / 5.09 / 8.95 / 7.38
+
+                         Current dark stays below the bar on --accent whatever
+                         the foreground, because #1a7aff is simply too light for
+                         white and --on-accent IS white in that context. Moving
+                         the background is what fixes it, and it also moves this
+                         button onto the token every other filled control uses.
+                         White here was 2.23 in terminal dark, where
+                         --accent-solid is aliased to --accent. */
+                      background: i === historyPageSafe ? 'var(--accent-solid)' : 'transparent',
+                      color: i === historyPageSafe ? 'var(--on-accent)' : 'var(--txt3)',
                       cursor: 'pointer',
                     }}
                   >
