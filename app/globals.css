@@ -2220,19 +2220,25 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-icon-btn { font-size: 0.8125rem; color: var(--txt3); cursor: pointer; background: none; border: none; padding: 0; width: 36px; height: 36px; border-radius: 6px; transition: color 0.15s; display: inline-flex; align-items: center; justify-content: center; }
 .gchat-icon-btn:hover { color: var(--txt2); }
 /* Fast / Live mode segment (#383).
-   Deliberately borrows the .gchat-coin affordance below rather than inventing
-   one: same radius, same fill weight, same 44px target. The old pill was
-   min-height 32px sitting 8px above 44px chips, which is why it read as a
-   status badge and not a control. */
+   A pill with a 16px radius, a tinted fill for the active option and a 44px
+   target. That was described as "borrows the .gchat-coin affordance" until
+   #746 deleted .gchat-coin with the coin button row, which left this comment
+   explaining a live rule by pointing at a class that no longer existed - so
+   the affordance is spelled out here instead of referenced.
+   The old pill was min-height 32px sitting 8px above 44px chips, which is why
+   it read as a status badge and not a control. */
 .gchat-mode {
   display: inline-flex; align-items: stretch; padding: 2px;
   border: 0.5px solid var(--bdr); background: var(--bg2); border-radius: 16px;
 }
 /* Sized down at the owner's request after seeing it in place - it sat as tall as
-   the coin chips and dominated a header it only shares with icon buttons.
-   Colours are TOKENS, not literals: --purple-bg / --green-bg are redefined under
-   [data-theme="light"], so this follows the theme the way .gchat-coin does. The
-   control it replaced hardcoded rgba(52,211,153,...) and could not. */
+   the coin chips that used to sit beside it and dominated a header it only
+   shares with icon buttons.
+   Colours are TOKENS, not literals: --purple-bg / --green-bg are redefined
+   under [data-theme="light"], so this follows the theme without a per-theme
+   override of its own. The control it replaced hardcoded
+   rgba(52,211,153,...) and could not. (#746 removed the coin chips this used
+   to cite as the precedent.) */
 .gchat-mode-opt {
   font-size: var(--fs-micro); font-weight: 700; letter-spacing: .02em;
   padding: 3px 10px; min-width: 42px; min-height: 28px; border-radius: 14px;
@@ -2833,8 +2839,6 @@ html[data-theme="light"] { background: var(--bg0); }
 [data-theme="light"] .gchat-send {
   background: var(--accent-bg); border-color: var(--accent-bdr); color: var(--accent);
 }
-[data-theme="light"] .gchat-coin { background: var(--bg2); border-color: var(--bdr); }
-[data-theme="light"] .gchat-coin.on { background: var(--purple-bg); color: var(--purple); }
 [data-theme="light"] .gchat-coinbar,
 [data-theme="light"] .gchat-quick-row,
 [data-theme="light"] .gchat-input-row { border-color: rgba(0,0,0,0.07); }
@@ -7706,7 +7710,6 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .desktop-nav-item { --_c6-tag: desktop-nav-item; border-radius: 0 !important; }
 [data-design="terminal"] .theme-btn { --_c6-tag: theme-btn; border-radius: 0 !important; }
 [data-design="terminal"] .lang-nav-btn { --_c6-tag: lang-nav-btn; border-radius: 0 !important; }
-[data-design="terminal"] .gchat-coin { --_c6-tag: gchat-coin; border-radius: 0 !important; }
 [data-design="terminal"] .gchat-quick { --_c6-tag: gchat-quick; border-radius: 0 !important; }
 [data-design="terminal"] .gchat-send { --_c6-tag: gchat-send; border-radius: 0 !important; }
 

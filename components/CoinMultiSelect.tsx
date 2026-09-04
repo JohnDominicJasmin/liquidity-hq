@@ -178,13 +178,38 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
             onChange={e => setSearch(e.target.value)}
             onKeyDown={onListKey}
           />
-          <div className="cms-list" id={listId} ref={listRef} onKeyDown={onListKey}>
+          {/* THE LISTBOX THE TRIGGER PROMISES (#746 review).
+              aria-haspopup="listbox" and aria-controls pointed at a plain div.
+              A combobox that promises option semantics and delivers none is
+              worse than one that promises nothing: the screen reader tells the
+              user to expect count, position and selected state, and a div
+              supplies none of it.
+              aria-multiselectable rather than a second component - the same
+              popover serves both modes and the difference is exactly this
+              attribute plus the row's control type. */}
+          <div
+            className="cms-list"
+            id={listId}
+            ref={listRef}
+            role="listbox"
+            aria-multiselectable={!single}
+            onKeyDown={onListKey}
+          >
             {filtered.length === 0 ? (
               <div className="cms-empty">{t('COIN_SELECT_NO_MATCH', { search })}</div>
             ) : filtered.map(c => {
               const checked = value.includes(c);
               return (
-                <label key={c} className={`cms-row${checked ? ' checked' : ''}`}>
+                /* role="option" with aria-selected, so the count and the
+                   selected state the trigger advertises are actually there.
+                   The native input stays: it carries checked state for free
+                   and it is what the arrow keys move focus between. */
+                <label
+                  key={c}
+                  role="option"
+                  aria-selected={checked}
+                  className={`cms-row${checked ? ' checked' : ''}`}
+                >
                   <input
                     type={single ? 'radio' : 'checkbox'}
                     name={single ? 'cms-single' : undefined}
