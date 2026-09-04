@@ -1,15 +1,14 @@
-/* The design-mode resolver, and the bootstrap script that duplicates it (#719).
+/* The design-mode resolver, and the bootstrap script that duplicates it (#748).
  *
- * Terminal now ships on `/` for every visitor, so this function decides what a
- * prospective user sees on the first frame of the acquisition page. It had no
- * tests at all before this.
+ * Terminal is now the default on EVERY route, so this function decides what
+ * every visitor sees on the first frame of every page. #719's route list is
+ * gone; what remains is the escape hatch and the precedence around it.
  *
  * THE REAL RISK HERE IS DRIFT, NOT ARITHMETIC. The precedence lives in two
  * places: `resolveDesignMode` in lib/designMode.ts, and a hand-written copy
- * inside the `design-init` <Script> in app/layout.tsx. The copy exists because
- * that script runs `beforeInteractive` - before any module is loaded - which is
- * the only way to set `data-design` before first paint and avoid flashing the
- * current design's light ground on a page that should be near-black.
+ * inside the inline `design-init` script in app/layout.tsx. The copy exists
+ * because that script runs before any module is loaded, which is the only way
+ * to set `data-design` before first paint and avoid flashing the wrong ground.
  *
  * Two copies of a rule stay in step for about a week. So the last test here
  * extracts the script's logic from layout.tsx and runs BOTH against every
@@ -20,67 +19,47 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import {
-  resolveDesignMode, designAttribute, isTerminalByDefault,
-  TERMINAL_BY_DEFAULT_ROUTES,
-} from '../lib/designMode.ts';
+import { resolveDesignMode, designAttribute } from '../lib/designMode.ts';
 
-test('/ defaults to terminal for a visitor with no param and nothing stored', () => {
-  /* The whole point of #719. If this ever returns 'current', the landing ships
-     the old design to everyone and nothing else in the app notices. */
-  assert.equal(resolveDesignMode('', null, '/'), 'terminal');
+const APP_ROUTES = ['/', '/dashboard', '/arena', '/liq', '/scanner', '/hours', '/settings'];
+
+test('terminal is the default everywhere, with no param and nothing stored', () => {
+  /* The whole point of #748. If this ever returns 'current', the flip is
+     silently undone and nothing else in the app notices. */
+  assert.equal(resolveDesignMode('', null), 'terminal');
 });
 
-test('every other route still defaults to current', () => {
-  for (const p of ['/dashboard', '/arena', '/liq', '/scanner', '/hours', '/settings']) {
-    assert.equal(resolveDesignMode('', null, p), 'current', `${p} must not default to terminal`);
-  }
-});
-
-test('?design=current on / is a real escape hatch, and survives as a stored value', () => {
+test('?design=current is a real escape hatch, and survives as a stored value', () => {
   /* Both halves matter. The param has to win on the request that carries it,
      AND the stored value it writes has to keep winning on the next load -
-     otherwise the hatch undoes itself on reload and the visitor is stuck. */
-  assert.equal(resolveDesignMode('?design=current', null, '/'), 'current');
-  assert.equal(resolveDesignMode('', 'current', '/'), 'current');
+     otherwise the hatch undoes itself on reload and the visitor is stuck on a
+     design they opted out of. After #748 this is also the only rollback that
+     does not require a deploy. */
+  assert.equal(resolveDesignMode('?design=current', null), 'current');
+  assert.equal(resolveDesignMode('', 'current'), 'current');
 });
 
-test('?design=terminal still works on app routes, and sticks', () => {
-  // QA reviews deployed builds through this path; #719 says keep it.
-  assert.equal(resolveDesignMode('?design=terminal', null, '/dashboard'), 'terminal');
-  assert.equal(resolveDesignMode('', 'terminal', '/dashboard'), 'terminal');
+test('?design=terminal still parses, and is now a no-op naming the default', () => {
+  // Links carrying it exist all over the issue tracker; it must not break.
+  assert.equal(resolveDesignMode('?design=terminal', null), 'terminal');
+  assert.equal(resolveDesignMode('', 'terminal'), 'terminal');
 });
 
 test('the query param outranks a conflicting stored value, both directions', () => {
-  assert.equal(resolveDesignMode('?design=current', 'terminal', '/dashboard'), 'current');
-  assert.equal(resolveDesignMode('?design=terminal', 'current', '/'), 'terminal');
+  assert.equal(resolveDesignMode('?design=current', 'terminal'), 'current');
+  assert.equal(resolveDesignMode('?design=terminal', 'current'), 'terminal');
 });
 
-test('a stored value outranks the route default', () => {
-  /* This is the line that makes the escape hatch real: without it, `/` would
-     re-assert terminal on every load and stored 'current' would be inert. */
-  assert.equal(resolveDesignMode('', 'current', '/'), 'current');
+test('a stored value outranks the default', () => {
+  /* The line that makes the escape hatch real: without it every load would
+     re-assert terminal and a stored 'current' would be inert. */
+  assert.equal(resolveDesignMode('', 'current'), 'current');
 });
 
-test('omitting pathname means no route default, not terminal', () => {
-  /* The parameter is optional so older call sites compile. Optional must not
-     mean "assume the landing page" - that would flip the default app-wide the
-     first time someone calls this without a route. */
-  assert.equal(resolveDesignMode('', null), 'current');
-  assert.equal(resolveDesignMode('', null, null), 'current');
-});
-
-test('a trailing slash is the same page', () => {
-  assert.equal(isTerminalByDefault('/'), true);
-  assert.equal(resolveDesignMode('', null, '/'), 'terminal');
-});
-
-test('a route that merely starts with / is not the landing page', () => {
-  /* Guards the obvious wrong implementation - `pathname.startsWith('/')` is
-     true of every route in the app. */
-  assert.equal(isTerminalByDefault('/dashboard'), false);
-  assert.equal(isTerminalByDefault(''), false);
-  assert.equal(isTerminalByDefault(null), false);
+test('an unrecognised value falls through to the default rather than sticking', () => {
+  assert.equal(resolveDesignMode('?design=garbage', null), 'terminal');
+  assert.equal(resolveDesignMode('', 'garbage'), 'terminal');
+  assert.equal(resolveDesignMode('?foo=1', null), 'terminal');
 });
 
 test('designAttribute removes the attribute for current rather than naming it', () => {
@@ -101,15 +80,18 @@ test('the layout bootstrap script agrees with resolveDesignMode on every input',
   const m = layout.match(/__html:\s*`([\s\S]*?)`,?\s*\}\}/);
   assert.ok(m, 'the design-init inline script was not found in app/layout.tsx - moved, renamed, or converted back to <Script>?');
 
-  /* The file holds the TEMPLATE, not what the browser receives. Two things
-     differ and both bit me writing this:
-       - `${JSON.stringify(TERMINAL_BY_DEFAULT_ROUTES)}` is still literal text
-       - a `\\` in the source is one backslash after the template is evaluated
-     Reproduce both, or the extracted string is not the script that ships. */
-  const src = m![1]
-    .replace('${JSON.stringify(TERMINAL_BY_DEFAULT_ROUTES)}', JSON.stringify(TERMINAL_BY_DEFAULT_ROUTES))
-    .replace(/\\\\/g, '\\');
-  assert.ok(!src.includes('${'), 'an interpolation in design-init is not being substituted here - the gate would test the wrong string');
+  /* The file holds the TEMPLATE, not what the browser receives: a `\\` in the
+     source is one backslash once the template is evaluated.
+
+     #748 removed the only interpolation the script had - the route list - so
+     the assertion below now does double duty. It still catches a gate testing
+     an un-substituted string, and it also catches a NEW interpolation being
+     added without this extraction learning about it, which would otherwise
+     silently compare the wrong text. */
+  const src = m![1].replace(/\\\\/g, '\\');
+  assert.ok(!src.includes('${'),
+    'design-init contains an interpolation this gate does not substitute - ' +
+    'it would be testing a string the browser never runs. Substitute it here.');
 
   /* The script is written for a browser. Give it exactly the globals it uses
      and read back what it did to documentElement.
@@ -146,14 +128,17 @@ test('the layout bootstrap script agrees with resolveDesignMode on every input',
 
   const searches = ['', '?design=terminal', '?design=current', '?foo=1'];
   const stores: (string | null)[] = [null, 'terminal', 'current', 'garbage'];
-  const paths = ['/', '/dashboard', '/arena', '/liq'];
+  /* Every route, not a sample. The script no longer reads the pathname, so
+     these must all agree - and if a route default is ever reintroduced,
+     this is what catches the two copies disagreeing about it. */
+  const paths = APP_ROUTES;
 
   const mismatches: string[] = [];
   for (const s of searches) {
     for (const st of stores) {
       for (const p of paths) {
         const fromScript = runScript(s, st, p);
-        const fromModule = resolveDesignMode(s, st, p);
+        const fromModule = resolveDesignMode(s, st);
         if (fromScript !== fromModule) {
           mismatches.push(`search=${s || '(none)'} stored=${st ?? 'null'} path=${p}: script=${fromScript} module=${fromModule}`);
         }
@@ -168,17 +153,12 @@ test('CONTROL: the drift gate can actually detect a disagreement', () => {
      "false clean" in this project started as a check that quietly measured
      nothing - a regex that matched no rules, a grep for a class that never
      existed. Prove the comparison has teeth by feeding it a wrong resolver. */
-  const wrong = (_s: string, _st: string | null, _p: string) => 'terminal' as const;
+  const wrong = (_s: string, _st: string | null) => 'current' as const;
   let disagreed = false;
-  for (const p of ['/dashboard']) {
-    if (wrong('', null, p) !== resolveDesignMode('', null, p)) disagreed = true;
-  }
+  /* 'current' is now the WRONG answer for an unspecified visitor - before #748
+     it was the right one for every route but `/`, which is why this control
+     had to be rewritten rather than left alone. A control that still passed
+     after the default flipped would have been measuring nothing. */
+  if (wrong('', null) !== resolveDesignMode('', null)) disagreed = true;
   assert.ok(disagreed, 'the comparison cannot distinguish a wrong resolver from the real one');
-});
-
-test('the route list is the single source the script interpolates', () => {
-  const layout = readFileSync('app/layout.tsx', 'utf8');
-  assert.match(layout, /JSON\.stringify\(TERMINAL_BY_DEFAULT_ROUTES\)/,
-    'layout.tsx should interpolate the exported list rather than hardcode routes');
-  assert.deepEqual([...TERMINAL_BY_DEFAULT_ROUTES], ['/']);
 });

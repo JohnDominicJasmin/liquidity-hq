@@ -4,7 +4,6 @@ import Script from 'next/script';
 import './globals.css';
 import AppShell from '@/components/AppShell';
 import DesignModeProvider from '@/components/DesignModeProvider';
-import { TERMINAL_BY_DEFAULT_ROUTES } from '@/lib/designMode';
 
 // Self-hosted, previously next/font/google.
 //
@@ -126,14 +125,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
        *
        * The precedence MUST match resolveDesignMode in lib/designMode.ts.
        * It is duplicated because this runs before any module is loaded, which
-       * is the point. The route list is interpolated from
-       * TERMINAL_BY_DEFAULT_ROUTES so that half has one source; the ordering
-       * is kept in step by __tests__/designMode.test.mts, which extracts this
-       * exact string and runs both against every combination of inputs rather
-       * than trusting this comment. */}
+       * is the point. It is kept in step by __tests__/designMode.test.mts,
+       * which extracts this exact string and runs both against every
+       * combination of inputs rather than trusting this comment.
+       *
+       * #748 removed the interpolated route list. Terminal is the default on
+       * every route now, so there is no list to mirror and no pathname to
+       * read - the script is the param, the stored value, then terminal. */}
       <script
         dangerouslySetInnerHTML={{
-          __html: `(function(){try{var q=new URLSearchParams(window.location.search).get('design');var s=null;try{s=localStorage.getItem('lhq-design-mode');}catch(e){}var r=${JSON.stringify(TERMINAL_BY_DEFAULT_ROUTES)};var p=window.location.pathname;if(p.length>1)p=p.replace(/\\/+$/,'');if(!p)p='/';var m=q==='terminal'?'terminal':q==='current'?'current':s==='terminal'?'terminal':s==='current'?'current':(r.indexOf(p)>=0?'terminal':'current');if(m==='terminal'){document.documentElement.setAttribute('data-design','terminal');}else{document.documentElement.removeAttribute('data-design');}}catch(e){}})();`,
+          __html: `(function(){try{var q=new URLSearchParams(window.location.search).get('design');var s=null;try{s=localStorage.getItem('lhq-design-mode');}catch(e){}var m=q==='terminal'?'terminal':q==='current'?'current':s==='terminal'?'terminal':s==='current'?'current':'terminal';if(m==='terminal'){document.documentElement.setAttribute('data-design','terminal');}else{document.documentElement.removeAttribute('data-design');}}catch(e){}})();`,
         }}
       />
       {/* No manual apple-touch-icon <link> here - app/apple-icon.png's file
