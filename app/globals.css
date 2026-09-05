@@ -608,6 +608,39 @@ body::after {
    --txt2, two different tokens - and they now measure 11.2:1 to 12.5:1 across
    both themes and both card states. Nothing left to patch there.
 
+   ⚠️ THE PARAGRAPH ABOVE IS WRONG ABOUT F, AND REMOVING THE OVERRIDE ON THE
+   STRENGTH OF IT REINSTATED THE DEFECT THE OVERRIDE EXISTED TO PREVENT (#836).
+
+   It says C, D and F paint their text `--txt`. That is the CANVAS's rule. The
+   BUILD never did it: `lib/marketStore.ts` has returned `--txt3` for F since
+   the function was written, and still returns a different token per grade -
+   --amber for A, --green-2 for B, --txt2 for C, --orange for D. Only the
+   canvas separates ink from tint; the build has always tinted with the ink.
+
+   So F never escaped the self-tint, "11.2:1 to 12.5:1" was never measured on
+   anything the build renders, and the `color: var(--txt)` override was doing
+   real work when #614 deleted it as redundant. Measured on deployed qa
+   @ 122423d, eight months later, in the three places the badge renders:
+
+     /dashboard dark 4.30    /dashboard light 4.44    /arena dark 4.34
+
+   All three under AA, all three the same defect the override had been fixing.
+   Fixed at source in marketStore.ts (F is now --txt2, 4.83-5.07) rather than
+   by restoring a CSS patch over a token choice.
+
+   WHAT THIS GUARD IS FOR, stated as intent because token names drift and
+   intent does not: **the health badge tints its own background from its own
+   text colour, so every grade needs its ink checked against a surface that
+   has already moved 13.3% toward that same ink.** Any change to a grade
+   colour is a change to its own ground. Compute both, or measure it rendered.
+
+   And the general lesson, which is trap 16 in qa/README.md: this comment was
+   not vague, it was specific, confident, and describing a design document
+   rather than the code beneath it. A stated reason that was never true is
+   worse than no reason, because the next reader removes a guard on the
+   strength of it. Before deleting a guard, verify its premise against the
+   source it claims to describe - `lib/marketStore.ts` here, one grep away.
+
    A and B do NOT escape it. The canvas tints green with green, so the self-
    tint is still exactly what it was, only in a different token: --green
    rather than --green-2. Measured at the canvas's own 15%:
@@ -4913,7 +4946,32 @@ body.landing {
    visitor with light mode set elsewhere in the app got a black page with
    light-mode card/text colors bleeding through. Re-pin the dark values
    here, scoped to the landing subtree only, so nothing outside it changes.
-   Also scoped off terminal landing for the same reason as above (#595). */
+   Also scoped off terminal landing for the same reason as above (#595).
+
+   ⚠️ `:not([data-design="terminal"])` IS NOT A SCOPING DETAIL. IT IS THE
+   MECHANISM, AND IT CUTS BOTH WAYS (#836).
+
+   It reads like housekeeping - "this block is for the current design" - and
+   what it actually says is: **terminal landing gets NO re-pinning here and
+   falls through to `:root`.** The same exclusion that protects the current
+   design is what leaves terminal unprotected, and the two are one line.
+
+   That is not hypothetical. `.lp-h1-accent` and `.learn-category-title` read
+   `--accent-2`. Terminal declares `--accent-2: var(--accent)` at `:root`, so
+   in light it resolved to #754e00 - a dark amber, correct on a light ground -
+   and inherited into `.lp-root`, whose own `--bg0` is #050505 in every theme.
+   2.76:1, twelve instances, the worst text ratio on the platform. Fixed by
+   declaring `--accent-2` inside `.lp-root` itself.
+
+   The trap for the next reader: grepping `--accent-2` finds `#0052CC` in a
+   `[data-theme="light"]` block and it computes to 2.99:1 on #050505, which
+   looks like a second live defect. It is not - THIS selector excludes the
+   design that was failing, so that value never reaches the element. A correct
+   ratio computed in a scope that does not govern the thing.
+
+   Before believing any token value found by grep in this file, check which
+   selector block it sits in and whether that block applies to the element you
+   are measuring. qa/README.md trap 16. */
 :root[data-theme="light"]:not([data-design="terminal"]) body.landing {
   --bg0: #030405;
   --bg:  #000000;
