@@ -291,6 +291,63 @@ authority over what goes into it.
 
 ---
 
+## 3c. The landing hard gate — four files, and it is not satisfied by reasoning
+
+**Four files are gated. Changing any of them requires landing (`/`) to be
+RENDERED and confirmed unchanged in four contexts — current/terminal ×
+dark/light — before the PR merges.**
+
+| file | how it is signposted |
+|---|---|
+| `app/globals.css` | header comment |
+| `lib/labelKeys.ts` | header comment |
+| `components/AppShell.tsx` | header comment |
+| `lib/labelDefaults.en.json` | **cannot be** — see below |
+
+`docs/HANDOVER.md` §14 holds the rule and its history. **This section is the
+explanation; the header comments are the defence.** That split is the finding
+of #873 rather than a stylistic choice — see below.
+
+**Why these four.** The owner keeps the canvas-mirrored landing (#592) and
+excluded it from the 2026-09-03 revert. All four are **shared between landing
+and the reverted screens**, so a change aimed at an app screen reaches landing
+too. `AppShell.tsx` is the one that bit us: it rendered `PriceTickerStrip` on
+`/` gated on design mode rather than pathname.
+
+**What does NOT satisfy it.** *"The selectors cannot reach landing."* *"The
+diff is purely additive."* *"I verified the five surfaces I changed."* All
+three were offered, all three are true, and none is the check. **The gate asks
+what landing RENDERS, not what the diff touches** — and both times it was
+missed, the author had verified what they changed rather than what the gate
+protects.
+
+**One path is uncovered and is named rather than papered over.**
+`lib/labelDefaults.en.json` can carry no notice: JSON has no comments, and
+`npm run labels:regen` rewrites the file wholesale from a dev server, so
+anything injected by hand is destroyed on the next run. *Adding* a key is
+covered — it must also be declared in `lib/labelKeys.ts`, which carries the
+notice. **Editing an existing string value by hand is not.** The notice sits in
+`scripts/regen-label-defaults.mjs` instead, which covers the regen path only.
+
+**Why the comments and not just this section.** #873 was originally filed as a
+discoverability problem, on the reasoning that the gate lived only in
+`HANDOVER.md`. The evidence says otherwise. The author who tripped it on #883
+had read `HANDOVER.md` end to end that session, **edited §14 twice**, and
+**quoted `:383` by line number three hours earlier** — then edited two of the
+four files without recalling it. Relocating prose does not help a reader who
+has already read the prose. The signal has to sit where the edit happens.
+
+**A CI check would be stronger and is not the fix today.** GitHub Actions is
+disabled (`CI` — `disabled_manually`, for cost), so a gate that only fires when
+someone turns CI on is weaker than a comment that always fires. Worth
+revisiting whenever CI comes back.
+
+**These comments point at the gate rather than restating it.** One copy of the
+rule, four signposts — deliberately, because a duplicated rule is a rule that
+can go stale in one place. `app/globals.css:597` is the local precedent: a
+guard deleted on the strength of a comment whose claim had quietly become
+false, which reinstated the defect it described.
+
 ## 4. Two-workspace handoff (dev folder ↔ QA folder)
 
 Both folders are separate local clones of the same GitHub remote. **The PR is
