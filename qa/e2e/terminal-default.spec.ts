@@ -1,13 +1,27 @@
 import { test, expect } from '@playwright/test';
 
-/* TERMINAL SHIPS ON `/` ONLY (#719).
+/* TERMINAL IS THE DEFAULT, EVERYWHERE (#748).
  *
  * This is the first design change any real visitor sees. Everything here is a
  * user-visible contract, not an implementation detail:
  *
- *   `/`            terminal, for someone with no query param and no storage
- *   every app route  current, unchanged
+ *   `/`              terminal, for someone with no query param and no storage
+ *   every app route  terminal, on the same terms
  *   both escape hatches still work
+ *
+ * THIS FILE USED TO ASSERT THE OPPOSITE, and the correction is recorded rather
+ * than quietly swapped. It was written for #719, which shipped terminal on `/`
+ * alone and left every app route on the current design. #748 reversed that on
+ * the owner's instruction - "remove ?design terminal make terminal design
+ * default" - and `lib/designMode.ts` now ends `return 'terminal'` with
+ * `pathname` no longer an input to the resolver at all.
+ *
+ * The two tests that encoded #719's route split kept passing on `dev` for a day
+ * and then failed on the release candidate's CI run, which is the wrong order:
+ * the spec should have failed in the PR that changed the behaviour. It did not,
+ * because the browser suite runs on exactly one automatic trigger - a PR into
+ * `main`. That gap is real and is named in CI's own header comment; this file is
+ * one of the things that fell into it. See #844.
  *
  * `data-design` is the thing under test rather than any rendered pixel: it is
  * what the whole terminal stylesheet keys off, it is set before first paint by
@@ -27,7 +41,7 @@ async function designAttr(page: import('@playwright/test').Page): Promise<string
   return page.evaluate(() => document.documentElement.getAttribute('data-design'));
 }
 
-test.describe('#719 terminal on landing only', () => {
+test.describe('#748 terminal is the default on every route', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test('/ renders terminal for a first-time visitor', async ({ page }) => {
@@ -35,10 +49,15 @@ test.describe('#719 terminal on landing only', () => {
     expect(await designAttr(page)).toBe('terminal');
   });
 
-  test('app routes stay on the current design', async ({ page }) => {
+  test('app routes render terminal too, on the same terms', async ({ page }) => {
+    /* The #719 version of this test asserted `.toBeNull()` here - that an app
+       route must NOT be terminal. Inverted for #748 rather than deleted,
+       because "every route agrees with `/`" is still a contract worth holding:
+       a route that opts itself out of the default would strand a visitor in a
+       design the rest of the app has left. */
     for (const route of APP_ROUTES) {
       await page.goto(route);
-      expect(await designAttr(page), `${route} must not be terminal by default`).toBeNull();
+      expect(await designAttr(page), `${route} must be terminal by default`).toBe('terminal');
     }
   });
 
@@ -66,7 +85,12 @@ test.describe('#719 terminal on landing only', () => {
   });
 
   test('?design=terminal still works on app routes, and sticks', async ({ page }) => {
-    // QA reviews deployed builds through this path.
+    /* QA reviews deployed builds through this path. After #748 the param names
+       the default rather than changing anything, so the ATTRIBUTE half of this
+       test would now pass with the param removed entirely. The half that still
+       earns its keep is the persisted write below: `?design=terminal` must
+       leave a stored 'terminal', because that is what pins a reviewer's session
+       if the default is ever moved back. */
     await page.goto('/dashboard?design=terminal');
     expect(await designAttr(page)).toBe('terminal');
 
@@ -169,20 +193,45 @@ test.describe('#719 terminal on landing only', () => {
     expect(landingNavHrefs.length, 'landing has no sign-in or sign-up link left').toBeGreaterThan(0);
   });
 
-  test('the boundary: / to an app route swaps the design, and says so', async ({ page }) => {
-    /* #719 asks what the user sees crossing from landing into the app. It is a
-       real design change mid-session and there is no hiding it - the owner's
-       decision IS that the two surfaces differ. What must not happen is a
-       BROKEN intermediate state, so this asserts the attribute is correct on
-       both sides of a client-side navigation rather than pretending the swap
-       is invisible. */
+  test('the boundary: / to an app route no longer swaps the design', async ({ page }) => {
+    /* THERE IS NO LONGER A BOUNDARY, AND THAT IS THE ASSERTION.
+     *
+     * Under #719 this test read the other way: crossing from `/` into an app
+     * route was a real design change mid-session, the owner's decision WAS that
+     * the two surfaces differ, and the test existed to prove the swap was clean
+     * rather than to pretend it was invisible.
+     *
+     * #748 removed the split, so the swap is the defect now. Kept as a test
+     * rather than deleted because the crossing is exactly where a per-route
+     * default would reappear if someone reintroduced one, and it would reappear
+     * silently - both sides render, both look deliberate, and only a visitor
+     * moving between them sees the flip. */
     await page.goto('/');
     expect(await designAttr(page)).toBe('terminal');
 
     await page.goto('/dashboard');
-    expect(await designAttr(page), 'crossing into the app must land on the current design').toBeNull();
+    expect(await designAttr(page), 'crossing into the app must stay on terminal - #748 retired the route split').toBe('terminal');
 
     await page.goBack();
-    expect(await designAttr(page), 'going back to / must return to terminal').toBe('terminal');
+    expect(await designAttr(page), 'going back to / must still be terminal').toBe('terminal');
+  });
+
+  test('the opt-out crosses the boundary too', async ({ page }) => {
+    /* The half that matters more than the default. A visitor who opts out on
+       `/` must stay opted out when they reach the app - otherwise the escape
+       hatch is only an escape from the landing page, and the first app route
+       silently puts them back. Not covered before #748, because before #748 an
+       app route was current-design regardless and this would have passed
+       vacuously. */
+    await page.goto('/?design=current');
+    expect(await designAttr(page)).toBeNull();
+
+    await expect
+      .poll(() => page.evaluate(() => { try { return localStorage.getItem('lhq-design-mode'); } catch { return null; } }),
+        { message: 'the opt-out was never persisted' })
+      .toBe('current');
+
+    await page.goto('/dashboard');
+    expect(await designAttr(page), 'the opt-out must survive crossing into the app').toBeNull();
   });
 });

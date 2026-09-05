@@ -231,6 +231,57 @@ const PAGE_EVAL = ({ tokens, radiusExempt, emptySource }) => {
     radiusTotal: Object.values(radius).reduce((a,c)=>a+c,0),
     radiusTop: Object.entries(radius).sort((a,b)=>b[1]-a[1]).slice(0,3),
     contrastFails, worstContrast, subMin, empties, emptyLabels: [...new Set(emptyLabels)],
+
+    /* ── IS THE CONTROL REACHABLE. Added 2026-09-05, and the reason matters ──
+     *
+     * #845: /learn's logo and BOTH hero buttons, the primary CTA included, were
+     * painted over by the terminal app nav and could not be clicked. This file
+     * swept /learn on every audit and reported it CLEAN, because none of the
+     * checks above can see an unclickable control - contrast, overflow, radius,
+     * tap size and empty labels all pass on a button nobody can press.
+     *
+     * It was caught by the Playwright suite instead, which runs on exactly one
+     * trigger: a PR into main. The three releases before it - 2026-08-29,
+     * 09-02 and 09-03 - shipped with that suite disabled for cost, so nothing
+     * exercised a browser at all. A defect class that only one release-time
+     * gate can see is a defect class that ships whenever that gate is off.
+     *
+     * This check costs nothing extra: the sweep is already on the page with a
+     * laid-out DOM. It belongs here rather than only in the suite so it runs
+     * every audit, on every design, theme and viewport, for free.
+     *
+     * ATTRIBUTED BY THE COVERER, NOT COUNTED. A fixed bottom bar legitimately
+     * overlaps content on a scrolled page, so a raw count reports a healthy
+     * build as broken. `barCovered` is reported separately rather than dropped -
+     * the caller decides whether the bar belongs on that route, because on a
+     * marketing page it does NOT and that overlap IS the bug. Getting this
+     * backwards would have hidden #845 at 390 on the very routes under test. */
+    ...(() => {
+      const SEL = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
+      const covered = []; let barCovered = 0, probed = 0;
+      for (const el of document.querySelectorAll(SEL)) {
+        const b = el.getBoundingClientRect();
+        if (b.width < 1 || b.height < 1) continue;
+        if (b.bottom < 0 || b.top > innerHeight) continue;
+        const s = getComputedStyle(el);
+        if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') continue;
+        if (el.closest('[inert]')) continue;
+        probed++;
+        const x = Math.min(Math.max(b.left + b.width / 2, 1), innerWidth - 1);
+        const y = Math.min(Math.max(b.top + b.height / 2, 1), innerHeight - 1);
+        const hit = document.elementFromPoint(x, y);
+        /* Both directions: a button wrapping an icon hit-tests to the icon and a
+           link inside a styled wrapper hit-tests to the wrapper. Only an
+           UNRELATED element is a finding. Same rule as layout.spec.ts. */
+        if (!hit || hit === el || el.contains(hit) || hit.contains(el)) continue;
+        if (hit.closest('.mobile-tab-bar, .tnav-tabs')) { barCovered++; continue; }
+        const nameOf = n => n.tagName.toLowerCase()
+          + (typeof n.className === 'string' && n.className.trim()
+            ? '.' + n.className.trim().split(/\s+/).slice(0, 3).join('.') : '');
+        if (covered.length < 12) covered.push(`${nameOf(el)} < ${nameOf(hit)}`);
+      }
+      return { probed, coveredCount: covered.length, covered, barCovered };
+    })(),
   };
 };
 
@@ -246,12 +297,72 @@ for (const vp of VIEWPORTS) {
        exists and none should. Storing the string is still correct: it is what
        resolveDesignMode reads, and it maps to "attribute absent". */
     await ctx.addInitScript(([t, d]) => { try { localStorage.setItem('theme', t); localStorage.setItem('lhq-design-mode', d); } catch {} }, [theme, design]);
+    /* PIN CONSENT. Added 2026-09-05 with the coverage check, because without it
+     * that check measures the banner rather than the layout: the first
+     * instrumented run reported 60 covered controls and nearly every one was
+     * `< div.consent-bar`, `< p.consent-text` or `< button.consent-btn`.
+     *
+     * The banner legitimately covers the page until dismissed, so counting it is
+     * not a finding — it is the same reason contrast.spec.ts, layout.spec.ts and
+     * a11y.spec.ts all seed this key. `layout.spec.ts` keeps a dedicated
+     * first-visit sweep for the banner itself, which is where that question
+     * belongs. */
+    await ctx.addInitScript(() => { try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch {} });
     const page = await ctx.newPage();
     page.on('pageerror', () => {});
+
+    /* A 4xx/5xx DURING A RUN INVALIDATES THE RUN. Added 2026-09-05 on Dev Team's
+     * finding, and it is the cheapest guard on this page.
+     *
+     * They spent an afternoon measuring against a local server whose
+     * `_next/static/chunks/*` were answering 500 with `text/plain`. The landing
+     * JS never executed, `.lp-loading` stayed up at 2.4s and at 15s alike, and
+     * every number that came back was well-formed and about a page that had not
+     * run. It only surfaced because a figure disagreed with a second instrument.
+     *
+     * A failed asset does not throw, does not appear in `pageerror`, and does
+     * not stop the sweep - it silently changes what is on screen. Same family as
+     * trap 13, where a broken fetch shim produced nine confident zeros: the
+     * measurement is fine and the SUBJECT is not what you think.
+     *
+     * So it is counted per route and reported, rather than left to be
+     * discovered. Requests the app makes to third parties are excluded - those
+     * fail all the time and are not this page's health. */
+    let badResponses = [];
+    page.on('response', (r) => {
+      try {
+        const u = r.url();
+        if (r.status() < 400 || !u.startsWith(BASE)) return;
+        /* DOCUMENTS AND ASSETS ONLY — NOT `/api/*`. Scoped on the first real run
+         * of this guard, which fired on 30 of 120 loads and was wrong on nearly
+         * all of them.
+         *
+         * What it caught: 19x `502 /api/proxy?type=premium-index`, 4x `502
+         * /api/ath`, and 4x `401 /api/price-alerts`. The 401 is the app working
+         * CORRECTLY — the sweep is signed out and that route is supposed to
+         * refuse. The 502s are upstream exchange failures wearing our own
+         * origin, which happen constantly and say nothing about the build.
+         *
+         * The failure this guard exists for is Dev Team's: `_next/static/chunks/*`
+         * answering 500, so the page's JS never executed while every measurement
+         * came back well-formed. That is a DOCUMENT/ASSET failure. An API route
+         * answering 401 or 502 leaves the page rendered and the measurement
+         * valid — it changes the DATA, which `empty` already counts.
+         *
+         * Scoped by resourceType rather than by URL shape, because the point is
+         * "did the page's own machinery load", not "did every request succeed".
+         * A guard that fires on healthy runs gets skimmed past within a day,
+         * which is worse than not having one. */
+        const kind = r.request().resourceType();
+        if (!['document', 'script', 'stylesheet', 'font'].includes(kind)) return;
+        badResponses.push(`${r.status()} ${kind} ${u.slice(BASE.length) || '/'}`);
+      } catch { /* response gone */ }
+    });
 
     for (const route of ROUTES) {
       const url = BASE + route + (route.includes('?') ? '&' : '?') + 'design=' + design;
       let rec = { route, viewport: vp, theme, design, error: null };
+      badResponses = [];
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
         /* Dashboard double-mounts during the design-mode transition; wait for a
@@ -336,14 +447,14 @@ for (const vp of VIEWPORTS) {
           }
         }
         const data = await page.evaluate(PAGE_EVAL, { tokens: theme === 'light' ? LIGHT : DARK, radiusExempt: 24, emptySource: EMPTY_SOURCE });
-        rec = { ...rec, ...data };
+        rec = { ...rec, ...data, badResponses: [...badResponses] };
       } catch (e) {
         rec.error = String(e.message || e).slice(0, 70);
       }
       rows.push(rec);
       if (!JSON_OUT) {
         const f = rec.error ? `ERROR ${rec.error}` :
-          `ovf ${String(rec.overflow).padStart(4)}${rec.overflow === 0 && rec.widerThanViewport > 0 ? '(w' + rec.widerThanViewport + ')' : ''}  off ${String(rec.offDistinct).padStart(3)}  rad ${String(rec.radiusTotal).padStart(3)}  contrast ${String(rec.contrastFails).padStart(3)}  <24px ${String(rec.subMin).padStart(2)}  empty ${String(rec.empties).padStart(2)}` + (rec.unsettled ? '  UNSETTLED' : '');
+          `ovf ${String(rec.overflow).padStart(4)}${rec.overflow === 0 && rec.widerThanViewport > 0 ? '(w' + rec.widerThanViewport + ')' : ''}  off ${String(rec.offDistinct).padStart(3)}  rad ${String(rec.radiusTotal).padStart(3)}  contrast ${String(rec.contrastFails).padStart(3)}  <24px ${String(rec.subMin).padStart(2)}  empty ${String(rec.empties).padStart(2)}  covered ${String(rec.coveredCount).padStart(2)}${rec.barCovered ? '(bar' + rec.barCovered + ')' : ''}` + (rec.unsettled ? '  UNSETTLED' : '');
         const dcol = DESIGNS.length > 1 ? design.padEnd(9) + ' ' : '';
         console.log(`${dcol}${vp.padEnd(7)} ${theme.padEnd(5)} ${route.padEnd(18)} ${f}`);
         /* Name the empties. A bare count cannot be acted on - which field is
@@ -351,6 +462,19 @@ for (const vp of VIEWPORTS) {
            row into a bug report. */
         if (rec.emptyLabels && rec.emptyLabels.length) {
           console.log('              empty: ' + rec.emptyLabels.join(' | '));
+        }
+        /* Name the covered controls for the same reason the empties are named:
+           "3 covered" cannot be acted on, and "a.lp-btn-primary < header.tnav"
+           is a bug report. #845 was three lines like this one, and the audit
+           that swept that page every day printed none of them. */
+        if (rec.covered && rec.covered.length) {
+          for (const c of rec.covered) console.log('              covered: ' + c);
+        }
+        /* Printed, never swallowed. A row with a 500 behind it is not a result. */
+        if (rec.badResponses && rec.badResponses.length) {
+          console.log('              🔴 HTTP: ' + rec.badResponses.slice(0, 4).join(' | ')
+            + (rec.badResponses.length > 4 ? ` (+${rec.badResponses.length - 4} more)` : '')
+            + '  — this row measured a page that did not fully load');
         }
       }
     }
@@ -399,6 +523,17 @@ if (measured.length === 0) {
 
 console.log(`overflowing            ${measured.filter(r => r.overflow > 0).length} of ${measured.length}`);
 console.log(`with contrast failures ${measured.filter(r => r.contrastFails > 0).length}   (total ${sum('contrastFails')})`);
+/* SEPARATE LINE, not folded into a total. A control nobody can click is a
+   different severity from a low-contrast label, and #845 shipped because this
+   number did not exist. `bar` is counted apart because a fixed bottom bar
+   legitimately overlaps a scrolled page - it is context, not a pass. */
+console.log(`with covered controls  ${measured.filter(r => r.coveredCount > 0).length}   (total ${sum('coveredCount')}, plus ${sum('barCovered')} behind a fixed bottom bar)`);
+/* LAST, and loudest, because it invalidates everything above it rather than
+   adding to it. A sweep with 4xx/5xx in it did not measure the app. */
+const withBad = measured.filter(r => (r.badResponses || []).length);
+console.log(withBad.length
+  ? `🔴 loads with HTTP >= 400   ${withBad.length} of ${measured.length}   — THESE ROWS ARE NOT RESULTS, re-run before quoting any number above`
+  : `loads with HTTP >= 400  0 of ${measured.length}`);
 console.log(`with off-palette       ${measured.filter(r => r.offDistinct > 0).length}   (total distinct-instances ${sum('offDistinct')})`);
 console.log(`with radius violations ${measured.filter(r => r.radiusTotal > 0).length}   (total ${sum('radiusTotal')}, circular <=24px exempt per radius-ruling.md)`);
 console.log(`with sub-24px targets  ${measured.filter(r => r.subMin > 0).length}   (total ${sum('subMin')})`);

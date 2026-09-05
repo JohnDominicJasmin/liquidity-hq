@@ -76,7 +76,36 @@ test.describe('no duplicate controls on a converted screen', () => {
           const r = el.getBoundingClientRect();
           if (r.width < 1 || r.height < 1) continue;            // not painted
           if (!(el as HTMLElement).offsetParent && getComputedStyle(el).position !== 'fixed') continue;
-          const label = ((el as HTMLElement).innerText || el.getAttribute('aria-label') || '').trim();
+          /* ACCESSIBLE-NAME PRECEDENCE, not innerText-first. Fixed 2026-09-05.
+           *
+           * This read `innerText || aria-label`, which is backwards: the accname
+           * spec resolves aria-labelledby, then aria-label, then content. The
+           * error was not academic. components/Tip.tsx renders
+           *
+           *     <span role="button" tabIndex={0} aria-label={text}>ⓘ</span>
+           *
+           * so every Tip's accessible name is its own distinct tooltip text and
+           * its innerText is always "ⓘ". Reading content first meant the
+           * aria-label was never reached and EVERY Tip on a page collided with
+           * every other Tip. #846 was filed with five findings; three of them
+           * were this - /liq's liqfeed-header + wf-header, /dashboard's
+           * mr-eyebrow + edge-card-label, /markets' mkt-col-pressure. A screen
+           * reader announces those as "Liquidation feed…", "Whale trades…" and
+           * so on, correctly and distinctly.
+           *
+           * Worse than a false positive: acting on it would have made the UI
+           * worse, since the only way to satisfy the broken measurement is to
+           * give each ⓘ a different visible glyph. Dev Team caught it.
+           *
+           * The empty-string check on aria-label matters - `aria-label=""` does
+           * NOT name an element, and falling through to content is correct
+           * there. */
+          const labelledBy = (el.getAttribute('aria-labelledby') || '')
+            .split(/\s+/).filter(Boolean)
+            .map(id => document.getElementById(id)?.textContent?.trim() || '')
+            .filter(Boolean).join(' ');
+          const ariaLabel = (el.getAttribute('aria-label') || '').trim();
+          const label = (labelledBy || ariaLabel || (el as HTMLElement).innerText || '').trim();
           if (!label || label.length > 24) continue;            // prose, not a control label
           let n: Element | null = el, owner = '';
           while (n && !owner) {
