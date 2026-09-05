@@ -293,6 +293,121 @@ number that comes back.
 answer, and I read past it. **That is a different failure from not having a
 check**, and the only guard on offer for it is knowing it is possible.
 
+**14. The sweep that runs every time could not see the defect class that
+shipped.** 2026-09-05, and this is the most expensive entry on the page because
+it is about coverage rather than a single wrong number.
+
+`qa/platform-audit.mjs` swept `/learn` on every audit — 124 page loads, four
+design/theme combinations — and reported it **clean** while the page's logo and
+**both hero buttons, the primary CTA included, could not be clicked**. The
+terminal app nav was painted over them. Nothing in the audit was wrong. Contrast,
+overflow, radius, tap-target size and empty labels all pass on a button nobody
+can press, because **not one of those checks asks whether a control is
+reachable.**
+
+The check that caught it was `layout.spec.ts`, in the Playwright suite, which
+runs on exactly one trigger: a PR into `main`. The three releases before it —
+2026-08-29, 09-02 and 09-03 — shipped with that workflow disabled for cost. So
+the defect class was invisible to the tooling that runs constantly and visible
+only to a gate that was switched off.
+
+**Two lessons, and the second is the one that generalises.**
+
+A clean audit means "clean on the properties this tool measures", never "clean".
+Say which properties when reporting one. `/learn` was reported clean for weeks
+and the report was accurate; it just never made a claim about clickability and
+nobody noticed the gap between what was measured and what was believed.
+
+And **a defect class that only the expensive release-time gate can see is a
+defect class that ships whenever that gate is off.** The fix is not to run the
+suite more often — it costs real money and the owner switched it off deliberately.
+It is to move the cheap half of the check into the tool that already runs: a
+hit-test at each control's centre costs nothing when the sweep is already on the
+page with a laid-out DOM. `platform-audit.mjs` now reports `coveredCount` per
+row for this reason.
+
+**15. Reading `innerText` before `aria-label` invents duplicate names that no
+screen reader would ever announce.** Same day, found by Dev Team while fixing
+what QA had filed.
+
+`no-duplicate-controls.spec.ts` computed a control's label as
+`innerText || aria-label`. Accessible-name precedence is the other way round —
+`aria-labelledby`, then `aria-label`, then content. `components/Tip.tsx` renders
+`<span role="button" aria-label={text}>ⓘ</span>`, so every tooltip's accessible
+name is its own distinct text and its `innerText` is always `ⓘ`. Content-first
+meant the `aria-label` was never reached and **every Tip on a page collided with
+every other Tip.**
+
+#846 was filed with five findings. Three were this. A screen reader announces
+those correctly and distinctly today.
+
+**What makes it worse than an ordinary false positive is where the fix would
+have landed.** The only way to satisfy the broken measurement is to give each
+`ⓘ` a different visible glyph — so acting on the finding degrades the interface
+to please an instrument that was wrong. A false positive that costs a round trip
+is cheap; one whose remedy damages the product is not.
+
+The general form: **when a probe computes a value the platform also defines,
+implement the platform's rule, not an approximation of it.** Accessible name,
+visibility, focus order and stacking all have specifications, and a plausible
+two-term fallback is the shape this error takes every time.
+
+**16. A list that looks like a rename is usually a different measurement.**
+Three instances on 2026-09-05, all caught the same way, which is what makes it a
+trap rather than three mistakes.
+
+`layout.spec.ts`'s mobile baseline named `nav.mobile-tab-bar` on every entry.
+That element is the CURRENT design's bottom bar; after #748 the bar at
+`bottom: 0` is `nav.tnav-tabs`. The obvious move — and the one I was one edit
+from making — is to copy the list and swap the element name. **Measured
+instead:**
+
+```
+only in terminal   /alerts, /arena
+only in current    /funding, /scanner, /journal, /news, /playbook
+in both            /briefing, /calc, /dashboard, /faq, /offline
+```
+
+Seven entries against ten, five shared. The two designs lay their pages out
+differently, so *which* control ends up under a fixed bar differs with them —
+the bar being 4px taller is not the only variable. The renamed copy would have
+asserted five overlaps that do not happen and missed two that do, and it would
+have looked completely reasonable in review.
+
+Same shape twice more the same afternoon. A `--accent-2: #0052CC` declaration
+found by grep, correctly computed at 2.99:1, in a scope a guard at
+`globals.css:4880` means never governs the element — a confident correction to
+dev, half-written, that would have been wrong. And dev computing a fix against a
+measured ground that the fix itself moves, because the chip is a self-tint: the
+ground is the ink at 13.3%, so changing the token changes the surface too.
+
+**Three different mechanisms, one last step that saved all three: check what is
+actually behind the number before believing it.** The transformation is always
+the cheap-looking part, and it is always the part that is wrong — a rename, a
+grep hit, a ground held constant. If you are about to derive a measurement from
+another measurement instead of taking it, take it.
+
+**And the fourth instance is the one that says when the check gets skipped.**
+Two hours after writing the paragraph above, I found `.lp-footer-col a:hover`
+reading `--accent-2`, computed the token's value in terminal light, and reported
+a 2.76:1 failure that #854 had fixed as a bonus. **The selector does not render
+in terminal at all** — terminal's landing uses a different root, so there is no
+`.lp-root` and no `.lp-footer-col` on that page. A CSS rule existing is not an
+element rendering. Trap 3 with an extra step, walked into by the person who had
+just written trap 16.
+
+Dev Team did the same thing in the same hour, repeating the finding onward
+without checking it. Their diagnosis is the durable part and it belongs here:
+
+> **the check gets skipped on findings that flatter, not on findings that are
+> hard.**
+
+Neither of us failed at the technique — we had both just used it successfully on
+harder problems. We skipped it on a result we liked. A fix that quietly does more
+than it claims, a bug found in someone else's blind spot, a number that confirms
+what you already argued: those are the ones to re-check, and the pleasure of
+having found them is the signal, not the reward.
+
 ## Where QA tests
 
 **Four branches, four services, one each.** Nothing auto-deploys — moving a
@@ -481,10 +596,39 @@ nagging is not approval.
 
 ### CI is switched off on purpose
 
-The repo is private, so every Actions minute is billed to the owner personally.
-All workflows are `disabled_manually`. **A cost decision, not an outage** — do
-not enable one, do not file it as a defect, do not caveat every PR with "no CI
+Every Actions minute is billed to the owner. **A cost decision, not an outage** —
+do not enable one, do not file it as a defect, do not caveat every PR with "no CI
 ran".
+
+**Two claims in this section were stale and are corrected rather than quietly
+edited, because both were quoted at people.**
+
+*"The repo is private."* It is **public**, and has been since before 2026-09-05 —
+found while preparing it for publication, at which point it was already
+published. Nothing in the reasoning changes; the minutes are still billed.
+
+*"All workflows are `disabled_manually`."* **They are not, and were not when this
+was written.** The API reports Actions `{"enabled": true}` and all three
+workflows `active`. `Ready for QA` fires on pushes to `qa` — issue #849 is
+evidence, since a workflow that never runs cannot post "0 PRs waiting". Caught by
+PM/DevOps Team on their first day, from this file.
+
+**What is actually switched off is one job**, gated on a repository variable:
+
+```
+release-signals.yml:65   if: … && vars.RELEASE_PR_PAUSED != '1'
+RELEASE_PR_PAUSED = 1    set 2026-08-09, never unset
+```
+
+So the release PR does not open itself, and **`gh workflow list` cannot tell you
+that** — it reports `active` regardless. Whoever pushes `staging` checks a
+release PR exists and opens it by hand.
+
+**And one thing remains genuinely unexplained: zero workflow runs of ANY kind
+between 2026-08-13 and 2026-09-05.** 23 days. That variable gates one job in one
+workflow and cannot account for it. Two sessions have each produced one confident
+wrong explanation for it already — billing, then the pause variable. It is
+recorded as unexplained on purpose. Measure before adding a third.
 
 The substitute is free and stronger: lint, `tsc`, unit tests, and Playwright
 **against a deployed host**.
