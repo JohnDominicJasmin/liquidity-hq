@@ -1022,20 +1022,34 @@ dev can move the release candidate, the guarantee is gone.
 already open it is **commented on, never rewritten** — QA reports failures in
 that thread and replacing the body underneath them would destroy the record.
 
-> ⚠️ **It does not open itself while Actions are switched off, which is most of
-> the time. Verified 2026-09-05.**
+> ⚠️ **It is switched OFF right now, and has been since 2026-08-09.**
+> **Verified 2026-09-05.**
 >
-> The cost control in `ci.yml` is enforced by turning GitHub Actions on for one
-> run against a release candidate and off again. While they are off, a push to
-> `staging` produces **no runs at all** — not `Release signals`, not `Ready for
-> QA`. Measured: **zero workflow runs of any kind between 2026-08-13 and
-> 2026-09-05**, 23 days, and the push that moved `staging` to `9cefa0bb` opened
-> no release PR.
+> The job is gated on a repository variable:
 >
-> All three workflows report `active` in `gh workflow list`, so that command
-> cannot tell you this. **Whoever pushes `staging` checks that a release PR
-> exists and opens it by hand if not.** "It opens itself" is true of the
-> workflow and false of the process it sits in.
+> ```yaml
+> release-pr:
+>   if: github.ref == 'refs/heads/staging' && vars.RELEASE_PR_PAUSED != '1'
+> ```
+>
+> `gh variable list` shows **`RELEASE_PR_PAUSED = 1`**, set 2026-08-09 and never
+> unset. That is deliberate — it lets `staging` accumulate without a release PR
+> existing — but it means **"it opens itself" is currently false**, and both
+> #828 and #842 had to be opened by hand.
+>
+> **Whoever pushes `staging` checks that a release PR exists and opens it by
+> hand if not.** Unset or delete the variable to resume; the next push to
+> `staging` then opens one for everything piled up since.
+>
+> **Do not diagnose this as "Actions are off".** That was this note's first
+> version and it was wrong. Measured: `gh api .../actions/permissions` returns
+> `{"enabled": true}` and all three workflows report `active` in
+> `gh workflow list`. Separately and confusingly, there are **zero workflow runs
+> of any kind between 2026-08-13 and 2026-09-05** — 23 days — which is a real
+> observation with a cause I have not established. It is not this variable, and
+> `docs/HANDOVER.md`'s older claim that the workflows are `disabled_manually`
+> does not match what the API returns today either. Someone should settle it;
+> until then, do not repeat either explanation as fact.
 
 This was missing and it silently broke the handoff. Five changes sat on the
 `qa` site — including the worst Core Web Vital in the product and a bug that

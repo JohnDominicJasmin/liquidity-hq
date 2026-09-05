@@ -280,7 +280,19 @@ android/      Capacitor Android shell
 
 **The release is held and the fix-forward ruling was reversed.** On 2026-09-05 the owner was told #843, #846 and #836 would ship as known defects and answered *"THEN VERIFY IT"*. Nothing ships until all three are fixed and QA has verified them on qa. Do not re-park them.
 
-**CI has been off since 2026-08-13.** Zero workflow runs of any kind between `2026-08-13` and `2026-09-05` — 23 days covering the whole terminal redesign. It is switched on by hand for one run against a release candidate and off again, which is the documented practice, and the consequence is that `release-signals.yml` does not fire on a push to `staging`, so **the release PR has to be opened manually.**
+**Zero workflow runs of any kind between `2026-08-13` and `2026-09-05`** — 23 days covering the whole terminal redesign, so nothing exercised a browser across all of it.
+
+**The cause of that gap is NOT established, and two plausible-sounding explanations are both wrong.** Measured 2026-09-05:
+
+```
+gh api repos/.../actions/permissions   {"enabled": true}
+gh workflow list --all                 CI active · Ready for QA active · Release signals active
+gh variable list                       RELEASE_PR_PAUSED = 1   (set 2026-08-09)
+```
+
+So Actions are **not** disabled at the repository level, and the banner higher up this file claiming all three workflows are `disabled_manually` does not match what the API returns today. Do not repeat either explanation as fact until someone settles it.
+
+**What IS established: the release PR does not open itself.** `release-signals.yml`'s `release-pr` job is gated `vars.RELEASE_PR_PAUSED != '1'`, and that variable has been `1` since 2026-08-09. Deliberate — it lets `staging` accumulate — but it means **the release PR must be opened by hand**, which is why #828 and #842 both were.
 
 **The one E2E run in that window is void.** Run `33932048082` reported 88 failed / 483 passed and it means nothing: the dev Supabase project was unreachable for the entire 66 minutes — **3,308 Cloudflare `522`s**, first at `00:13:25Z` and last at `01:15:34Z`. `/api/labels` returned a Cloudflare error page throughout, which is the exact condition `ci.yml` names as a known defect generator, so every control label on every page came from fallbacks. Read no failure from that run as a product defect without re-running. Detail on #841.
 
