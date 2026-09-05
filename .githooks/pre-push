@@ -1,12 +1,35 @@
 #!/bin/sh
 #
-# Runs the gates before every push. ALL CI IS DISABLED (owner instruction,
-# 2026-08-10, for cost), so on most days this is the only thing standing between
-# a mistake and the `dev` branch.
+# Runs three of the four gates before every push.
 #
-# Enable once per clone - it is NOT automatic, because .git/ is not versioned:
+# HOW MUCH THIS PROTECTS DEPENDS ON WHETHER CI IS RUNNING, AND THIS FILE CANNOT
+# SEE THAT. Check, do not assume: `gh workflow list`. When CI is off - which is
+# the usual state, because Actions minutes are billed to the owner personally -
+# this is the only automated thing between a mistake and `dev`.
+#
+# This header used to assert "ALL CI IS DISABLED (owner instruction, 2026-08-10)".
+# That was true when written, FALSE for most of 2026-09-05 while CI gated the
+# v2026.09.05 release, and true again by that evening. Right, wrong, then right,
+# with nobody touching it.
+#
+# The general form, and it is why the sentence is gone rather than updated:
+# A COMMENT THAT ASSERTS EXTERNAL STATE IS A CLAIM WITH NO OWNER. globals.css:597
+# asserted what marketStore returns and cost a reinstated defect (#836) when a
+# later reader removed a working guard on the strength of it. Neither file can
+# see the thing it describes, and nothing fails when the claim goes stale.
+#
+# Enabled by `npm install` via the `prepare` script - but ONLY if you ran it
+# after 2026-09-06. Older clones need it once, by hand, because .git/ is not
+# versioned:
 #
 #     git config core.hooksPath .githooks
+#
+# Verify rather than assume: `git config core.hooksPath` should print .githooks.
+# A tracked-but-inert hook is worse than a missing one - someone checks whether
+# it is in the repo, sees yes, and infers it runs. That happened on 2026-09-05:
+# the file was tracked, one clone had it active and another did not, and the
+# session with the inert one had been pushing ungated all day while telling the
+# others the hook was what stood behind them.
 #
 # Both working folders need it separately. dev's clone and QA's clone are
 # different checkouts and a hook enabled in one protects nothing in the other.
@@ -33,4 +56,4 @@ npx tsc --noEmit
 printf '[pre-push] unit tests\n'
 npm test
 
-printf '[pre-push] all gates passed\n'
+printf '[pre-push] lint, typecheck and unit tests passed. BUILD NOT RUN - run `npm run verify` before opening a PR.\n'
