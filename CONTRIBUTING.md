@@ -240,9 +240,16 @@ which is the general lesson, and the reason neither was predicted.
 > what the PM/DevOps split fixes structurally. Tracking and sequencing are
 > PM/DevOps's, as is the last hop to production; the gate and the `qa`/`staging`
 > routes are QA's; and they are different sessions now, so the conflict has
-> nowhere to be settled quietly. **Still open: `qa/STATUS.md` lives in QA's tree
-> while the tracking job is now PM/DevOps's. Agreed to move it to `docs/` after
-> the current release, with a pointer left behind — not reassigned mid-flight.**
+> nowhere to be settled quietly. **`qa/STATUS.md` stays in QA's tree** — a move
+> to `docs/` was agreed on 2026-09-05 and then abandoned on 2026-09-06 after
+> measuring it: **17 references across 10 files, 9 of them inside `qa/` and
+> `playwright.config.ts`.** None are imports, so nothing would break — every one
+> would just become a comment naming a path that no longer exists, which is the
+> construct this project keeps having to remove. The friction it was meant to fix
+> (tracking updates routing through a `qa/`-scoped PR) was predicted in the
+> abstract and never once encountered in practice. **QA writes the file;
+> PM/DevOps feeds it.** Revisit only with evidence the review path actually
+> blocked something.
 
 **QA held two jobs: the quality gate, and knowing where the project is.** The
 second one lives in [`qa/STATUS.md`](qa/STATUS.md) — what is live, what is
