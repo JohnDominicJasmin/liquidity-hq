@@ -28,6 +28,7 @@ import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
+import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -189,7 +190,10 @@ function TCoinSidebar() {
                   A base .csb2-health-badge rule carries the current design's
                   size, so only ownership moved, not the rendering. */}
               {d?.price && (
-                <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
+                <span
+                  className={`csb2-health-badge grade-${health.grade.toLowerCase()}`}
+                  {...healthGradeA11y(health.grade, health.labelKey, t)}
+                  style={{
                   fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 0,
                   color: health.color,

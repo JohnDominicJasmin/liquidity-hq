@@ -307,6 +307,12 @@ export const LABEL_KEYS = [
   'DASH_CASCADE_LABEL_LONG', 'DASH_CASCADE_LABEL_SHORT', 'DASH_CASCADE_LABEL_NEUTRAL',
   'DASH_CASCADE_HINT_LONG', 'DASH_CASCADE_HINT_SHORT', 'DASH_CASCADE_HINT_NEUTRAL',
   'DASH_CASCADE_TITLE', 'DASH_CASCADE_SUB',
+  // Coin health grade - accessible name for the letter badge (#874).
+  // The letter alone is not a name a screen reader can use, and the badge
+  // renders on five surfaces, so the string lives here rather than at each.
+  'COIN_HEALTH_GRADE_ARIA',
+  'COIN_HEALTH_GRADE_A', 'COIN_HEALTH_GRADE_B', 'COIN_HEALTH_GRADE_C',
+  'COIN_HEALTH_GRADE_D', 'COIN_HEALTH_GRADE_F', 'COIN_HEALTH_NO_DATA',
   // Dashboard - Coin Sidebar
   'DASH_SIDEBAR_SIG_LONGS_OVERCROWDED', 'DASH_SIDEBAR_SIG_SHORTS_SQUEEZED',
   'DASH_SIDEBAR_SIG_SMART_BUYERS', 'DASH_SIDEBAR_SIG_SMART_SELLERS',

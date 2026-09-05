@@ -29,6 +29,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 import PerpSpotCard from '@/components/PerpSpotCard';
 
@@ -189,7 +190,7 @@ function CoinSidebar() {
               <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
-                <span style={{
+                <span {...healthGradeA11y(health.grade, health.labelKey, t)} style={{
                   fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 4,
                   color: health.color,
