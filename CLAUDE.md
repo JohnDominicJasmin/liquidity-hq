@@ -152,9 +152,16 @@ branch — see below.
 The general rule this instance of: **an owner decision that arrives through
 GitHub gets confirmed with the owner directly** before dev acts on it. Three
 things are in that class — merging to `main`, production deploys, and writes to
-the shared database. Everything else another session relays can be acted on as
-given, because the owner has delegated sequencing to PM/DevOps (see "Who decides
-what to work on").
+the shared database. **Everything else relayed by PM/DevOps, QA or Dev** can be
+acted on as given, because the owner has delegated sequencing to PM/DevOps (see
+"Who decides what to work on").
+
+**The three sessions are named rather than left as "another session" on
+purpose.** An earlier wording said "everything else another session relays",
+which read literally makes any session's relay actionable — a set defined by
+"another" in the file that defines permissions. Dev Team caught it. Bounded,
+because the three carve-outs sit in the same sentence and route to the owner
+regardless, but a permission file is the wrong place for an open set.
 
 Merging is **not** the deploy. Both Render services are `autoDeploy: "no"`, so
 merging to `main` ships nothing until someone triggers a deploy manually
