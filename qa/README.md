@@ -451,6 +451,70 @@ than any one of the three investigations above, let alone all three combined,
 and it is the one check that would have ended this in a single click instead
 of two days.
 
+**18. A shared `node_modules` junction is a correct fix for one problem and a
+loaded trap for another.** #886, 2026-09-06, while setting up a worktree to
+render #883's branch.
+
+`git worktree add` gives a fresh checkout with no `node_modules` — a full
+`npm install` per worktree is slow and, worse, produces a *second* dependency
+tree that can silently disagree with the main one. The established fix all
+three sessions were already using was an NTFS junction:
+`<worktree>/node_modules -> <main-repo>/node_modules`, so the worktree reads
+the one real install.
+
+**Tearing it down the obvious way deletes the wrong thing.** `git worktree
+remove --force <path>` recursed *through* the junction and deleted
+`node_modules/.bin` from the **main repo's own checkout** — not the
+worktree's copy, the shared one on the other side of the link. `npm install`
+rebuilt it in under a minute, and that is the only reason this is trap 18 and
+not a filed incident: the junction happened to point at derived state, which
+`npm install` reconstructs byte-for-byte. A junction pointing at source, a
+database directory, or `.git` would have handed the same command something
+no reinstall gets back.
+
+**Worse than the loss itself: what it would have looked like from another
+session's seat.** This landed between gate runs, so it surfaced as an obvious
+missing directory. Land the same delete while another session is mid-`npm
+run verify` and the symptom is a lint or build failure in a change that never
+touched the thing that broke — that session debugs its own diff and finds
+nothing, because there is nothing to find. Two other defects this same week
+had exactly that shape: a deleted component that read as a 32px styling slip,
+and a database outage that read as an application bug. A cross-session
+deletion during a gate run produces the same shape on purpose.
+
+**The fix is order, not a flag.** There is no variant of `git worktree
+remove` that behaves differently when a junction points at something
+irreplaceable, and nothing in its output says it left the worktree.
+Unlinking the junction first removes the *link*, not the target:
+
+```bash
+cmd /c rmdir "<worktree>/node_modules"     # removes the link only
+git worktree remove --force <path>
+```
+
+**`rm -rf` on the same path is not equivalent and re-introduces the bug** —
+Git Bash's `rm` follows the junction and recurses through it, same as `git
+worktree remove` did. The safety is specific to the command, not the intent.
+
+`qa/worktree-shared-deps.mjs` wraps both halves so nobody has to remember the
+order by hand:
+
+```bash
+node qa/worktree-shared-deps.mjs create <path> <branch-or-commit>
+node qa/worktree-shared-deps.mjs remove <path>
+```
+
+Tested end to end before this was written down: `create` produces a junction
+that resolves (`next` reachable through it), `remove` unlinks it and leaves
+the main repo's `node_modules/.bin` untouched. **Use the script, or the
+`cmd /c rmdir` line by hand — never `rm -rf` — on a worktree carrying one of
+these.**
+
+The general form: **only junction directories that are fully reproducible
+from a lockfile.** That property is what made this survivable. A rule that
+depends on remembering to be careful with `--force` fails the same way
+`#873`'s did; a script that cannot be called in the wrong order does not.
+
 ## Where QA tests
 
 **Four branches, four services, one each.** Nothing auto-deploys — moving a
