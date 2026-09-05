@@ -152,8 +152,9 @@ branch — see below.
 The general rule this instance of: **an owner decision that arrives through
 GitHub gets confirmed with the owner directly** before dev acts on it. Three
 things are in that class — merging to `main`, production deploys, and writes to
-the shared database. Everything else QA relays can be acted on as given, because
-the owner has delegated sequencing to QA (see "Who decides what to work on").
+the shared database. Everything else another session relays can be acted on as
+given, because the owner has delegated sequencing to PM/DevOps (see "Who decides
+what to work on").
 
 Merging is **not** the deploy. Both Render services are `autoDeploy: "no"`, so
 merging to `main` ships nothing until someone triggers a deploy manually
@@ -187,10 +188,14 @@ and QA's "not ready" outranks any position in it.
 - **Negative results count.** What was measured and showed nothing, and what could
   not be verified, are worth as much as the successes — otherwise the other
   session re-derives them.
-- **"What is next?" goes to QA**, on GitHub. Not to the owner in chat.
+- **"What is next?" goes to PM/DevOps**, on GitHub. Not to the owner in chat.
+  **"Is this done?" goes to QA**, and always did — sequencing and sign-off are
+  different questions and they moved separately. PM/DevOps decides what is worked
+  on; QA decides whether it is finished, and a "not ready" outranks any position
+  in the queue.
 
 Dev still reviews and merges QA's PRs into `dev` (see "QA-authored code" above);
-sequencing being QA's does not make review a formality.
+sequencing sitting with PM/DevOps does not make review a formality.
 
 **Nobody waits on the owner to merge into `dev`. Added 2026-08-10, on their
 instruction:**
