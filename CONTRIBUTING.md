@@ -446,6 +446,46 @@ not in QA's**, so QA cannot trigger a deploy at all. Under the old rule every
 `qa` → `staging` promotion stalled until someone opened the dashboard, and
 `staging` sat serving older code than its own branch for hours at a time.
 
+> ### ⚠️ SUPERSEDED 2026-09-05 — every row below moved to PM/DevOps
+>
+> **The owner added a fourth session, PM/DevOps, and moved ALL deploys and the
+> merge to `main` to it, in their own words:** *"You're not doing the merging and
+> deploy production. Hand it over to Project Manager DevOps."*
+>
+> | Service | Deployed by |
+> |---|---|
+> | `liquidity-hq-dev` | **PM/DevOps** — ask the owner first, build-hour cap |
+> | `liquidity-hq-qa` | **PM/DevOps**, straight after promoting |
+> | `liquidity-hq-staging` | **PM/DevOps** |
+> | `liquidity-hq-prod` | **PM/DevOps, owner-approved** |
+>
+> **Merging `staging` → `main` is also PM/DevOps now, owner-approved.** It was
+> QA's from 2026-08-09 to 2026-09-05.
+>
+> **QA no longer deploys anything and no longer merges to `main`.** QA tests,
+> audits, and signs off. The sign-off did NOT move: PM/DevOps decides *when*
+> something is worked on and shipped; QA decides *whether* it is done, and can
+> refuse a release regardless of where it sits in a sequence.
+>
+> **The handshake this creates is the thing most likely to break.** Promotion and
+> deploy used to be one job on purpose — see the warning below about a branch
+> moving while its service has not, which happened three times on 2026-08-09
+> alone. Split across sessions, it only works if **whoever deploys tells QA the
+> moment `/api/version` reports the new commit.** QA cannot verify a build it does
+> not know is live.
+>
+> **How this rule got made is worth more than the rule.** On 2026-09-05 QA wrote
+> an onboarding doc assigning non-prod deploys to PM/DevOps, then cited that doc
+> as authority when handing over release steps. Dev Team refused to act on it and
+> took it to the owner, correctly: *"I cannot verify an authority claim from
+> inside the chain that makes it."* The session was real and the permission was
+> not — two different claims, and only the owner could settle the second. **A
+> document you wrote is a proposal, not a decision, no matter how carefully it is
+> argued.**
+
+The table below is the pre-2026-09-05 arrangement, kept because several closed
+issues and PR comments cite it.
+
 | Service | Deployed by |
 |---|---|
 | `liquidity-hq-dev` | dev — ask first, it has a build-hour cap prod does not |
@@ -462,20 +502,28 @@ acted on as given.
 Merging is not the deploy. **No** Render service auto-deploys; all three are
 `autoDeploy: "no"` / `autoDeployTrigger: "off"`:
 
-| Service | Branch | Auto-deploy | Who deploys |
+| Service | Branch | Auto-deploy | Who deploys — from 2026-09-05 |
 |---|---|---|---|
-| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **QA** (owner may) — never dev |
-| `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **no** | whoever merged `dev` → `qa` |
-| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | dev, ask first |
+| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **PM/DevOps, owner-approved** |
+| `liquidity-hq-staging` → liquidity-hq-staging.onrender.com | `staging` | **no** | **PM/DevOps** |
+| `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **no** | **PM/DevOps** |
+| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | **PM/DevOps**, ask first |
 
 So **merging to `main` ships nothing on its own.** Production keeps serving the
-previous build until someone triggers a deploy. QA must do both:
+previous build until someone triggers a deploy. **PM/DevOps** must do both:
 
-1. Merge **`qa`** into `main` and push — not the original feature branch.
+1. Merge **`staging`** into `main` and push — not the original feature branch.
 2. **Trigger the deploy manually** — Render dashboard → `liquidity-hq-prod` →
-   *Manual Deploy* → *Deploy latest commit*.
-3. Confirm the deploy reaches `live` and re-check the "How to test" steps
-   against production, not just the branch.
+   *Manual Deploy* → *Deploy latest commit*, or the Render MCP tools.
+3. **Tell QA the moment `/api/version` reports the new commit**, and quote what it
+   returns rather than the branch that was merged. QA then re-checks the "How to
+   test" steps against production.
+
+**Step 3 is not a courtesy.** Before 2026-09-05 whoever merged also deployed and
+also verified, so there was no gap to drop anything into. Splitting the roles
+creates one, and a branch that has moved while its service has not is the single
+most common way this project has confused itself — three times on 2026-08-09
+alone, the site serving old code while every commit said the fix had shipped.
 
 **None of this is enforced by GitHub.** Branch protection needs GitHub Pro on a
 private repo, and this repo has neither, so nothing technically stops anyone
