@@ -151,7 +151,23 @@ const NAV_SECTIONS: NavSection[] = [
   ] },
   { headerKey: 'NAV_SECTION_MY_TOOLS', items: [
     { path: '/journal',  labelKey: 'NAV_JOURNAL',        Icon: NavJournal },
-    { path: '/calc',     labelKey: 'NAV_POSITION_SIZER', Icon: NavCalc },
+    /* NAV_CALCULATORS, not NAV_POSITION_SIZER (#846).
+     *
+     * Two bugs in one label. The route is a six-tool hub - sizer, liquidation,
+     * PnL, R:R, funding, DCA - and "Position Sizer" names one of the six, which
+     * is also the name of the FIRST TAB on the page it opens. On mobile that put
+     * two controls reading "Position Sizer" on the same screen: this one
+     * navigates, the tab does not. Same name, different action, no way to tell
+     * them apart by ear.
+     *
+     * It was also drift. `lib/navRoutes.ts` - the module #714 created precisely
+     * so the two navs could not disagree - already called this route
+     * NAV_CALCULATORS. This tile is the copy that was left behind, from when
+     * /calc really was only a position sizer.
+     *
+     * Renaming the TAB instead would be wrong: that tab genuinely is the
+     * position sizer, and the hub is genuinely the calculators. */
+    { path: '/calc',     labelKey: 'NAV_CALCULATORS', Icon: NavCalc },
     { path: '/alerts',   labelKey: 'NAV_ALERTS',         Icon: NavAlerts },
     { path: '/hours',    labelKey: 'NAV_BEST_HOURS',     Icon: NavHours },
     { path: '/playbook', labelKey: 'NAV_PLAYBOOK',       Icon: NavPlaybook },

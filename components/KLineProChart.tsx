@@ -2353,7 +2353,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }}>
               {setupQuality.label}
               <span className="sq-info" style={{ '--sq-bdr': setupQuality.bdr } as React.CSSProperties}>
-                <span style={{ opacity: 0.6, fontSize: '0.6875rem', lineHeight: 1 }}>ⓘ</span>
+                {/* No `opacity` (#836) - eighth instance of the trap named
+                    above `.lp-footer-ack` in globals.css. Inherits the setup
+                    badge's colour, and 0.6 of any of the badge tones lands
+                    under AA on the badge's own tinted ground.
+
+                    NOT FIXED HERE, filed instead: this ⓘ is keyboard-dead.
+                    `.sq-info` is `cursor: help` with a hover-only tooltip -
+                    no tabIndex, no role, no Escape. `Tip.tsx` solved exactly
+                    this (role="button", tabIndex, aria-label, Enter/Space,
+                    Escape) and the fix here is to use it rather than to
+                    re-derive it. That is a behaviour change on the chart
+                    toolbar and does not belong in a contrast batch. */}
+                <span style={{ fontSize: '0.6875rem', lineHeight: 1 }}>ⓘ</span>
                 <div className="sq-tooltip">
                   <div style={{
                     width: 240,
