@@ -110,6 +110,20 @@ below is the first time it is written down.
 | `liquidity-hq-staging` | **QA** | QA promotes and deploys both |
 | `liquidity-hq-prod` | **PM/DevOps**, owner-approved **each time** | never dev |
 
+**The rule was tested within the hour of being written, and it held.** QA's
+go-signal for this release addressed rows 2 and 3 to PM/DevOps — *"You promote
+`dev` → `qa`, deploy, tell me when `/api/version` reports the new commit."* Both
+belong to dev and QA respectively. It was habit, not a claim: QA had accepted this
+table one message earlier. PM/DevOps declined and said why rather than doing it
+and mentioning it after.
+
+Recorded because **doing it once quietly is the entire mechanism.** That is how
+rows 3 and 5 drifted: nobody decided QA would take the `qa` and `staging`
+deploys, someone did it once because it was quicker, and two days later the file
+and reality disagreed with no one able to say when it started. The cost of the
+shortcut is never the shortcut — it is that "PM/DevOps performed rows 2 and 3
+during the 2026-09-05 release" becomes what the next reader finds.
+
 **Dev's rows did not change and that is stated plainly rather than left implied:
 dev merges its own feature branches into `dev`, promotes `dev` → `qa`, and
 deploys nothing.** The standing owner instruction of 2026-09-03 — dev deploys no
