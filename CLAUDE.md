@@ -110,6 +110,13 @@ below is the first time it is written down.
 | `liquidity-hq-staging` | **QA** | QA promotes and deploys both |
 | `liquidity-hq-prod` | **PM/DevOps**, owner-approved **each time** | never dev |
 
+**Dev's rows did not change and that is stated plainly rather than left implied:
+dev merges its own feature branches into `dev`, promotes `dev` → `qa`, and
+deploys nothing.** The standing owner instruction of 2026-09-03 — dev deploys no
+environment without the owner's go each time — **stands, and nothing on this page
+supersedes it.** It is a separate instruction from this document and outlives any
+table here.
+
 **`liquidity-hq-dev` is genuinely unassigned and that is stated rather than
 guessed.** Dev held it, dev is held, and no session has been named to take it.
 Nobody has needed it — local verification is the default and the service carries
