@@ -596,10 +596,39 @@ nagging is not approval.
 
 ### CI is switched off on purpose
 
-The repo is private, so every Actions minute is billed to the owner personally.
-All workflows are `disabled_manually`. **A cost decision, not an outage** — do
-not enable one, do not file it as a defect, do not caveat every PR with "no CI
+Every Actions minute is billed to the owner. **A cost decision, not an outage** —
+do not enable one, do not file it as a defect, do not caveat every PR with "no CI
 ran".
+
+**Two claims in this section were stale and are corrected rather than quietly
+edited, because both were quoted at people.**
+
+*"The repo is private."* It is **public**, and has been since before 2026-09-05 —
+found while preparing it for publication, at which point it was already
+published. Nothing in the reasoning changes; the minutes are still billed.
+
+*"All workflows are `disabled_manually`."* **They are not, and were not when this
+was written.** The API reports Actions `{"enabled": true}` and all three
+workflows `active`. `Ready for QA` fires on pushes to `qa` — issue #849 is
+evidence, since a workflow that never runs cannot post "0 PRs waiting". Caught by
+PM/DevOps Team on their first day, from this file.
+
+**What is actually switched off is one job**, gated on a repository variable:
+
+```
+release-signals.yml:65   if: … && vars.RELEASE_PR_PAUSED != '1'
+RELEASE_PR_PAUSED = 1    set 2026-08-09, never unset
+```
+
+So the release PR does not open itself, and **`gh workflow list` cannot tell you
+that** — it reports `active` regardless. Whoever pushes `staging` checks a
+release PR exists and opens it by hand.
+
+**And one thing remains genuinely unexplained: zero workflow runs of ANY kind
+between 2026-08-13 and 2026-09-05.** 23 days. That variable gates one job in one
+workflow and cannot account for it. Two sessions have each produced one confident
+wrong explanation for it already — billing, then the pause variable. It is
+recorded as unexplained on purpose. Measure before adding a third.
 
 The substitute is free and stronger: lint, `tsc`, unit tests, and Playwright
 **against a deployed host**.
