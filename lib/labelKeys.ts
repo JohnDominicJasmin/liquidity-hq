@@ -1,3 +1,26 @@
+// LANDING HARD GATE - this file is one of four that trips it.
+//
+// Changing this file requires that LANDING (`/`) IS RENDERED and confirmed
+// unchanged in FOUR CONTEXTS - current/terminal x dark/light - before the PR
+// merges. Not "the selectors cannot reach landing", not "the diff is
+// additive": rendered. The rule and its history live in docs/HANDOVER.md
+// section 14 (search: "landing renders identically"); this is a signpost, not a
+// second copy of it.
+//
+// WHY THIS FILE. The owner keeps the canvas-mirrored landing (#592) and it was
+// deliberately excluded from the 2026-09-03 revert. These four files are shared
+// between landing and the reverted screens, so a change aimed at an app screen
+// reaches landing too. AppShell.tsx is the one that bit us - it rendered
+// PriceTickerStrip on `/` gated on design mode rather than pathname.
+//
+// The reason is written down because a guard whose reason is invisible gets
+// deleted by the next reader - see app/globals.css:597, removed on the strength
+// of a comment that had gone stale, which reinstated the defect it described.
+//
+// Missed twice in two days (#871, #883) by authors who had read HANDOVER, both
+// times because they verified what they CHANGED rather than what the gate
+// PROTECTS. That is why this sits here rather than only in a document. #873.
+
 // Canonical list of every label key currently seeded/consumed (see
 // supabase/migrations/20260723_labels_seed.sql). t() only accepts keys from
 // this list, so a typo'd key is a compile error instead of a silently
