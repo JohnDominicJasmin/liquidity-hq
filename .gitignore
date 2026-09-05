@@ -48,3 +48,18 @@ test-results/
 # Written during a run by qa/server-intercept.mjs in count mode. A measurement
 # artefact, and it is rewritten every second while a run is in progress.
 qa/.intercept-tally.*.json
+
+# Session working directory. Staging area for things passed to `--body-file`,
+# `git commit -F`, and small scripts — content that ends up on GitHub or in a
+# commit, not in the tree.
+#
+# It lives HERE rather than in a temp scratchpad on the owner's instruction,
+# 2026-09-06. Temp is per-session: anything left there vanishes when the session
+# ends and leaves no artefact at all — not a stale branch, not a wrong comment,
+# nothing. Every other failure this project has catalogued left evidence behind.
+# That one does not, which is why the files live in the repo where they can be
+# seen, even though they are not tracked.
+#
+# STAGING, NOT STORAGE. Anything that is genuinely a document belongs in the
+# repo properly and tracked.
+.work/
