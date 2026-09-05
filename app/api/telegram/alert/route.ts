@@ -1387,7 +1387,42 @@ async function checkDistribution(
           volRatio: avg20 > 0 ? vols[vols.length - 1] / avg20 : null,
           priceBelowVwap: null, // not derived server-side
         });
-        if (!res || res.score < 70) return;
+        /* #673: scale the gate to what these inputs could actually score.
+           Owner's ruling, 2026-09-03 - not a lower constant.
+
+           This caller passes `priceBelowVwap: null` above, and whaleLongRatio
+           is empty whenever the Binance lsr endpoint is down (#657). A fixed 70
+           was a bar set for a complete score being applied to a partial one, so
+           the gate silently TIGHTENED as feeds dropped: a genuinely
+           distributing coin scored lower and never fired.
+
+           Because every branch in the scorer adds and none subtract, this can
+           only ever have suppressed true alerts - it could not produce false
+           ones. That is the hard failure to notice, since a missed alert and a
+           quiet market are the same observation.
+
+           EXPECT MORE ALERTS TO FIRE, especially while lsr is unavailable.
+           That is the bug being fixed, not a regression. Before reverting this
+           because volume rose, check `scoreableMax` on the scores that fired -
+           if it is below 100, they are alerts the fixed threshold was
+           swallowing.
+
+           Scaling rather than a constant matters because it self-corrects: at
+           full data scoreableMax is 100 and this is exactly the old `< 70`. */
+        /* MIN_SCOREABLE first, and it is not belt-and-braces. Scaling alone
+           has a hole at the bottom: with no scoreable inputs at all,
+           scoreableMax is 0 and `0 >= 0 * 0.70` is TRUE, so a coin with no data
+           would alert - which the fixed `< 70` blocked for free. A unit test
+           caught that before this shipped.
+
+           Requiring 60 of the 105 possible points to be reachable is the
+           marketStore.ts:290 pattern: refuse to make the claim when too little
+           was measurable, rather than making it from thin evidence. It admits
+           the real degraded case (85, lsr down) and rejects the pathological
+           ones. */
+        const MIN_SCOREABLE = 60;
+        if (!res || res.scoreableMax < MIN_SCOREABLE) return;
+        if (res.score < res.scoreableMax * 0.70) return;
 
         const key = `distribution_${coin}`;
         if (onCooldown(key, CD.distribution)) return;

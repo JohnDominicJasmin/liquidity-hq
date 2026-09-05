@@ -21,11 +21,11 @@ const CAT: Record<Cat, readonly CoinId[]> = {
 };
 
 function changeColor(chg: number | null): { bg: string; text: string } {
-  if (chg == null) return { bg: 'rgba(255,255,255,0.04)', text: 'var(--txt-dim)' };
-  if (chg >=  10) return { bg: 'rgba(52,211,153,0.30)',  text: 'var(--green-2)' };
-  if (chg >=   5) return { bg: 'rgba(52,211,153,0.22)',  text: 'var(--green-soft)' };
-  if (chg >=   2) return { bg: 'rgba(52,211,153,0.13)',  text: 'var(--green-soft)' };
-  if (chg >=   0) return { bg: 'rgba(52,211,153,0.07)',  text: 'var(--green)' };
+  if (chg == null) return { bg: 'color-mix(in srgb, var(--txt) 4%, transparent)', text: 'var(--txt-dim)' };
+  if (chg >=  10) return { bg: 'color-mix(in srgb, var(--green-2) 30%, transparent)',  text: 'var(--green-2)' };
+  if (chg >=   5) return { bg: 'color-mix(in srgb, var(--green-2) 22%, transparent)',  text: 'var(--green-soft)' };
+  if (chg >=   2) return { bg: 'color-mix(in srgb, var(--green-2) 13%, transparent)',  text: 'var(--green-soft)' };
+  if (chg >=   0) return { bg: 'color-mix(in srgb, var(--green-2) 7%, transparent)',  text: 'var(--green)' };
   /* The red ramp used to darken the text (#fca5a5 -> #f87171 -> #ef4444 ->
      #dc2626) at the same time as it made the tile background a more opaque red
      (0.07 -> 0.38). Both moving together collapses the contrast exactly where
@@ -37,10 +37,10 @@ function changeColor(chg: number | null): { bg: string; text: string } {
      The green side has the same shape but does not fail (its worst bucket is
      5.71:1) because green is inherently light; left as-is rather than churning
      a passing palette, but the same rule applies if that ramp is ever extended. */
-  if (chg >= -2)  return { bg: 'rgba(248,113,113,0.07)', text: 'var(--red-soft)' };
-  if (chg >= -5)  return { bg: 'rgba(248,113,113,0.15)', text: 'var(--red-soft)' };
-  if (chg >= -10) return { bg: 'rgba(248,113,113,0.25)', text: 'var(--red-soft)' };
-  return              { bg: 'rgba(248,113,113,0.38)',     text: '#fee2e2' };
+  if (chg >= -2)  return { bg: 'color-mix(in srgb, var(--red) 7%, transparent)', text: 'var(--heat-red-fg)' };
+  if (chg >= -5)  return { bg: 'color-mix(in srgb, var(--red) 15%, transparent)', text: 'var(--heat-red-fg)' };
+  if (chg >= -10) return { bg: 'color-mix(in srgb, var(--red) 25%, transparent)', text: 'var(--heat-red-fg)' };
+  return              { bg: 'color-mix(in srgb, var(--red) 38%, transparent)',     text: 'var(--heat-red-deep-fg)' };
 }
 
 function fmtPrice(p: number): string {
@@ -148,13 +148,31 @@ export default function CoinHeatmap() {
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
           <Tip text={t('COIN_HEATMAP_TOOLTIP')}>{t('COIN_HEATMAP_TITLE')}</Tip>
         </span>
+        {/* --green-fg on the TEXT, --green-2 still on the tint and border
+            (#738). This is the pattern the token exists for: a signal colour
+            printed on a wash of itself. In terminal light --green is #14702c,
+            and on its own 10% wash that measures 4.47 by token arithmetic and
+            4.11 rendered - QA's number, three runs, same ratio each time.
+            --green-fg is 6.03 there and is ALIASED to --green everywhere else,
+            so the other three contexts are byte-identical. The tint keeps
+            --green-2 deliberately: changing the wash would move the ground
+            this was just measured against.
+
+            The comment sits ABOVE the conditional, not inside it. A
+            short-circuit render takes exactly one child, and a JSX comment in
+            that slot is a second one - it compiles to an object where JSX
+            expects an element. Third time in this session; tests pass every
+            time, because nothing typechecks a .tsx, and only tsc says so.
+            Braces are spelled out in words here for the same reason: this
+            comment lives inside a JSX expression container, so a stray brace
+            in the prose closes it early. */}
         {positiveCount > 0 && (
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--green-2)', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--green-fg)', background: 'color-mix(in srgb, var(--green-2) 10%, transparent)', border: '0.5px solid color-mix(in srgb, var(--green-2) 25%, transparent)' }}>
             ↑ {positiveCount}
           </span>
         )}
         {negativeCount > 0 && (
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--red)', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--red)', background: 'color-mix(in srgb, var(--red) 10%, transparent)', border: '0.5px solid color-mix(in srgb, var(--red) 25%, transparent)' }}>
             ↓ {negativeCount}
           </span>
         )}
@@ -203,17 +221,28 @@ export default function CoinHeatmap() {
           return (
             <div
               key={c}
+              /* Only tiles WITH a value take the terminal override. QA's review
+                 of #701: --heat-fg: var(--txt) applied to every tile would
+                 override the no-data branch's --txt-dim too, so an empty
+                 tile would read as prominently as one carrying a price.
+                 That is #692's loss pointed the other way - contrast up,
+                 meaning down - and --txt-dim was the signal that a tile has
+                 nothing to say. It was never in the failing set, so it keeps
+                 its own colour by simply not getting the class. */
+              className={chg == null ? undefined : "chm-tile"}
               style={{
                 background: bg,
                 borderRadius: 8,
                 padding: '10px 8px',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                 border: `0.5px solid ${withAlpha(text, '22')}`,
+                /* #698: terminal overrides --heat-fg to --txt; the current design
+                   leaves it unset so each span falls back to its ramp colour. */
                 transition: 'background .2s',
                 cursor: 'default',
               }}
             >
-              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: text, letterSpacing: '.04em' }}>
+              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: `var(--heat-fg, ${text})`, letterSpacing: '.04em' }}>
                 {c.toUpperCase()}
               </span>
               {/* Always rendered, even with no price yet. Conditionally
@@ -226,11 +255,11 @@ export default function CoinHeatmap() {
                   as little as 2.43:1 on the redder tiles. It is a live price,
                   not decoration. The caption size already sets it apart from
                   the percentage above it, so it takes the tile colour flat. */}
-              <span style={{ fontSize: 'var(--fs-caption)', color: text, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 'var(--fs-caption)', color: `var(--heat-fg, ${text})`, fontVariantNumeric: 'tabular-nums' }}>
                 {coin?.price != null ? `$${fmtPrice(coin.price)}` : '-'}
               </span>
               <span style={{
-                fontSize: 'var(--fs-label)', fontWeight: 700, color: text,
+                fontSize: 'var(--fs-label)', fontWeight: 700, color: `var(--heat-fg, ${text})`,
                 fontVariantNumeric: 'tabular-nums', lineHeight: 1,
               }}>
                 {chg != null ? `${sign}${chg.toFixed(1)}%` : '-'}
@@ -249,8 +278,24 @@ export default function CoinHeatmap() {
         {[
           { label: '>+10%', c: 'var(--green-2)' }, { label: '+5%', c: 'var(--green-soft)' },
           { label: '+2%', c: 'var(--green-soft)' },   { label: '0', c: 'var(--txt-dim)' },
-          { label: '-2%', c: 'var(--red-soft)' },   { label: '-5%', c: 'var(--red-soft)' },
-          { label: '<-10%', c: '#fee2e2' },
+          { label: '-2%', c: 'var(--heat-red-fg)' },   { label: '-5%', c: 'var(--heat-red-fg)' },
+          /* NOT '#fee2e2' (#761). That is the TILE's text colour, and it is
+             correct there - the worst bucket's tile is var(--red) at 38%, and
+             pale text on a saturated tile measures 8.6-9.6, which is the rule
+             the comment at the top of this file sets out.
+
+             The legend has no tile. It is text on the panel, var(--bg1), and
+             the same value measures 1.22 in current light and 1.01 in terminal
+             light. Dark hid it completely (16.49 / 14.96) because there the
+             panel is dark and pale text is exactly right.
+
+             Same fact, two grounds, and the copy took the value without the
+             surface it depended on. var(--red) clears all four (7.28 / 6.47 /
+             5.24 / 6.65) and reads as the strongest step of the ramp, which is
+             what the legend is for. In terminal dark it coincides with
+             --red-soft, so the last two steps look identical there; that is
+             the palette's own doing, not this substitution's. */
+          { label: '<-10%', c: 'var(--red)' },
         ].map(({ label, c }) => (
           <span key={label} style={{ fontSize: 'var(--fs-caption)', color: c, fontWeight: 600 }}>{label}</span>
         ))}

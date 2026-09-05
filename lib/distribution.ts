@@ -30,6 +30,10 @@ export interface DistributionScore {
    *  a partial score must be distinguishable from a complete one. */
   inputsPresent: number;
   inputsTotal:   number;
+  /** #673: the highest score these inputs could have produced, capped at 100.
+   *  A caller gating on an absolute threshold must scale it by this, or it is
+   *  comparing a partial score against a bar set for a complete one. */
+  scoreableMax: number;
 }
 
 /* Gate: profit-taking is only meaningful after strength. Coins that haven't run
@@ -99,7 +103,35 @@ export function computeDistributionScore(d: DistributionInputs): DistributionSco
   ];
   const inputsPresent = INPUTS.filter(v => v != null).length;
 
-  return { score: capped, reasons, label, inputsPresent, inputsTotal: INPUTS.length };
+  /* #673: POINTS, not inputs. inputsPresent counts fields; a threshold needs
+     the score those fields could have reached, and the sections are not equal -
+     cvd is worth 25 and VWAP 5.
+
+     Each term is a section's maximum, added only when the input gating that
+     section is present. Section 6 needs BOTH volRatio and takerBuyRatio, so it
+     is unreachable if either is missing.
+
+     THE CAP IS NOT COSMETIC. The section maxima sum to 105 while `score` is
+     capped at 100, so there are 5 points of headroom: losing VWAP alone leaves
+     the reachable maximum at 100 and changes nothing. The gate only moves once
+     a SECOND input drops.
+
+     That headroom is why this was invisible, and why #673 as I first wrote it
+     was wrong - I said the Telegram caller had been scoring out of 95 since it
+     was written. It has been scoring out of a true 100. The defect is real but
+     it only bites when something else is also missing, which is the current
+     staging state rather than the permanent baseline. */
+  const scoreableMax = Math.min(100,
+    (d.cvdDivergence  != null ? 25 : 0) +
+    (d.takerBuyRatio  != null ? 15 : 0) +
+    (d.oiTrend        != null ? 20 : 0) +
+    (d.whaleLongRatio != null ? 15 : 0) +
+    (d.fundingRatePct != null ? 15 : 0) +
+    (d.volRatio != null && d.takerBuyRatio != null ? 10 : 0) +
+    (d.priceBelowVwap != null ? 5 : 0),
+  );
+
+  return { score: capped, reasons, label, inputsPresent, inputsTotal: INPUTS.length, scoreableMax };
 }
 
 export function distributionColor(score: number): string {

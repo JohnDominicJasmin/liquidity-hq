@@ -88,9 +88,9 @@ function scoreCoin(id: CoinId, d: CoinData | undefined): AccumRow | null {
      Modelled on lib/marketStore.ts:290, which already refuses to label unless
      >= 2 independent signals agree - the correct handling already exists in
      this repo, one file over from the two scorers that lack it.
-     NOT RENDERED YET. How a partial score presents itself is the owner's
-     ruling; this is the measurement that ruling needs, carried so the decision
-     can be made against real numbers instead of estimates. */
+     Rendered as of #661's ruling: show the score, disclose the completeness.
+     Not withheld and not re-weighted - a partial score keeps its signal while
+     admitting the gap. The chip appears only when present < total. */
   const INPUTS = [d.change, d.cvdDivergence, d.takerBuyRatio, d.oiTrend, d.fundingRate, d.bnWhaleLongRatio, d.volRatio];
   const inputsPresent = INPUTS.filter(v => v != null).length;
 
@@ -115,7 +115,12 @@ export default function AccumulationTracker() {
       .slice(0, MAX_ROWS);
   }, [store.coins]);
 
-  const scoreCol = (s: number) => s >= 75 ? 'var(--green)' : s >= 60 ? '#a3e635' : 'var(--amber)';
+  /* All three bands are tokens now (#787). The middle one was the literal
+     #a3e635 between two tokens, so it alone did not follow the theme - 1.15:1
+     on this card in terminal light, against 12.98 in the dark it was picked
+     for. A ternary of three colours reads as one ramp; two of them adapted and
+     one did not, and nothing failed. */
+  const scoreCol = (s: number) => s >= 75 ? 'var(--green)' : s >= 60 ? 'var(--score-mid)' : 'var(--amber)';
 
   return (
     <div style={{
@@ -194,6 +199,28 @@ export default function AccumulationTracker() {
                     {reason}
                   </span>
                 ))}
+                {/* #661: the score renders, and says what it was built from -
+                    the owner's ruling was disclose, not withhold or re-weight.
+                    Only when incomplete. A row that always ended "7 of 7"
+                    would train people to stop reading it, which is why
+                    `partial` and data-spark are omitted when there is nothing
+                    to report.
+                    Both scorers are purely additive - every branch is
+                    `score += N` - so a missing input can only have LOWERED the
+                    number. The score is therefore a floor, which is what the
+                    tooltip says. */}
+                {r.inputsPresent < r.inputsTotal && (
+                  <Tip width={250} text={t('SCORE_INPUTS_PARTIAL_TIP', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}>
+                    <span style={{
+                      fontFamily: 'var(--font-mono), monospace',
+                      fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt3)',
+                      background: 'transparent', border: '0.5px dashed var(--bdr)',
+                      borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap',
+                    }}>
+                      {t('SCORE_INPUTS_PARTIAL', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}
+                    </span>
+                  </Tip>
+                )}
               </span>
               <span className="at-price" style={{
                 fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-data)', color: 'var(--txt2)',

@@ -5,14 +5,6 @@ import { computeMarketRead, type FundingSide } from '@/lib/marketRead';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 
-/* Current-design only as of #587. This used to carry a `mode === 'terminal'`
- * eyebrow branch and a formatUtcStamp helper for it, from when the terminal
- * dashboard rendered this component in its first main-column slot. The
- * canvas wants a three-line verdict banner there, not this conditions gauge,
- * so terminal now renders DashboardTerminal's own TMarketReadBanner and the
- * terminal branch here became unreachable - removed rather than left as dead
- * design-specific code in a shared component. */
-
 // The dashboard's answer-first hero. Replaces the RaidMeter + Smart Money Score
 // + Sentiment Extremes stack with one plain-language verdict (see lib/marketRead
 // for the merged math). Score bands drive colour: good >=70 / mid 45-69 / weak.

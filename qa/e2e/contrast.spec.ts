@@ -22,9 +22,43 @@ import { installMarketFixtures } from './_fixtures';
  * tell", so it says "fine".
  */
 
-/** Seed the theme and prove it applied before measuring anything. */
+/** WHICH DESIGN THIS SWEEP MEASURES, pinned rather than inherited (#844).
+ *
+ * This file used to seed no design at all, so it swept whatever the app's
+ * default happened to be. That was the current design when the baselines were
+ * recorded, and became terminal the day #748 landed - which reported a DESIGN
+ * change as a CONTRAST change. Six dark tokens and nine light ones arrived as
+ * "not in baseline" while the totals FELL (dark 7 against a baseline of 13,
+ * light 20 against 26), because the sweep had started walking a different set
+ * of rendered surfaces. Nothing had regressed and the ratchet said otherwise.
+ *
+ * Terminal is the default, so terminal is what a visitor gets and what this
+ * sweep holds by default. `?design=current` is a supported escape hatch and is
+ * NOT swept on an ordinary run - one sweep is 9-10 minutes in CI and doubling
+ * the slowest spec in the suite for the rollback path is not worth the minutes.
+ * Measure it deliberately when the current design changes:
+ *
+ *     QA_CONTRAST_DESIGN=current npx playwright test qa/e2e/contrast.spec.ts
+ *
+ * Both baselines live in `_shared.ts` and neither is deleted, so switching back
+ * costs nothing. Say which design a contrast number came from when reporting
+ * one - a ratio without a design is the ambiguity this whole comment exists to
+ * remove.
+ */
+const DESIGN_UNDER_TEST: 'current' | 'terminal' =
+  process.env.QA_CONTRAST_DESIGN === 'current' ? 'current' : 'terminal';
+
+/** Seed the theme and the design, and prove both applied before measuring. */
 async function themedPage(browser: Browser, theme: 'dark' | 'light'): Promise<{ page: Page; close: () => Promise<void> }> {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  /* Seeded the same way the theme is, and for the same reason: the `design-init`
+   * script in app/layout.tsx reads localStorage before hydration, so the page
+   * never renders a frame of the design we are not measuring. A `?design=` query
+   * param would arrive one step later and would have to be re-appended to all 58
+   * route navigations. */
+  await ctx.addInitScript((d) => {
+    try { localStorage.setItem('lhq-design-mode', d); } catch { /* private mode */ }
+  }, DESIGN_UNDER_TEST);
   // app/layout.tsx runs an inline script that reads localStorage BEFORE
   // hydration and stamps data-theme, so seeding the key is enough — no click on
   // a theme toggle, and no race with hydration.
@@ -373,22 +407,22 @@ test.describe('colour contrast', () => {
       colours.set(key, { n: e.n + 1, worst: Math.min(e.worst, v.ratio), where: e.where });
     }
 
-    const known = new Set(BASELINE.contrast.darkTokens);
+    const known = new Set(BASELINE.contrast[DESIGN_UNDER_TEST].darkTokens);
     const unexpected = [...colours].filter(([fg]) => !known.has(fg));
-    const fixed = BASELINE.contrast.darkTokens.filter(fg => !colours.has(fg));
+    const fixed = BASELINE.contrast[DESIGN_UNDER_TEST].darkTokens.filter(fg => !colours.has(fg));
 
     /* Printed as well as attached. Attachments are only uploaded on failure
      * (`ci.yml` uses `if: failure()`), so on a GREEN run these numbers exist
      * nowhere a reader can reach them - which is how "did the sweep get weaker?"
      * became unanswerable without re-running it locally. One line costs
      * nothing and makes the measurement legible in the gate log itself. */
-    console.log(`[contrast] dark: ${all.length} violations across ${colours.size} tokens (baseline ${BASELINE.contrast.darkTokens.length})`);
+    console.log(`[contrast] ${DESIGN_UNDER_TEST} dark: ${all.length} violations across ${colours.size} tokens (baseline ${BASELINE.contrast[DESIGN_UNDER_TEST].darkTokens.length})`);
 
     testInfo.attach('contrast-dark.txt', {
       body: `${all.length} violations across ${colours.size} tokens\n\n`
         + [...colours].sort((a, b) => a[1].worst - b[1].worst)
             .map(([fg, e]) => `${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}  first seen ${e.where}`).join('\n')
-        + (fixed.length ? `\n\nno longer failing (remove from BASELINE.contrast.darkTokens):\n${fixed.join('\n')}` : ''),
+        + (fixed.length ? `\n\nno longer failing (remove from BASELINE.contrast.${DESIGN_UNDER_TEST}.darkTokens):\n${fixed.join('\n')}` : ''),
       contentType: 'text/plain',
     });
 
@@ -414,7 +448,7 @@ test.describe('colour contrast', () => {
     expect(
       unexpected.map(([fg]) => fg),
       `Dark theme: ${unexpected.length} foreground token(s) failing SC 1.4.3 that are not in ` +
-      `BASELINE.contrast.darkTokens.
+      `BASELINE.contrast.${DESIGN_UNDER_TEST}.darkTokens (design under test: ${DESIGN_UNDER_TEST}).
 
 ` +
       unexpected.map(([fg, e]) => `  ${fg}  worst ${e.worst.toFixed(2)}:1  on ${e.where}`).join('\n') +
@@ -508,17 +542,17 @@ This is NOT automatically a regression. It is either:
       });
     }
 
-    const known = new Set(BASELINE.contrast.lightTokens);
+    const known = new Set(BASELINE.contrast[DESIGN_UNDER_TEST].lightTokens);
     const unexpected = [...byColour].filter(([fg]) => !known.has(fg));
-    const fixed = BASELINE.contrast.lightTokens.filter(fg => !byColour.has(fg));
+    const fixed = BASELINE.contrast[DESIGN_UNDER_TEST].lightTokens.filter(fg => !byColour.has(fg));
 
-    console.log(`[contrast] light: ${all.length} violations across ${byColour.size} tokens (baseline ${BASELINE.contrast.lightTokens.length})`);
+    console.log(`[contrast] ${DESIGN_UNDER_TEST} light: ${all.length} violations across ${byColour.size} tokens (baseline ${BASELINE.contrast[DESIGN_UNDER_TEST].lightTokens.length})`);
 
     testInfo.attach('contrast-light.txt', {
       body: `${all.length} violations across ${byColour.size} tokens\n\n`
         + [...byColour].sort((a, b) => a[1].worst - b[1].worst)
             .map(([fg, e]) => `${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}  worst at ${e.where}  ${e.what}`).join('\n')
-        + (fixed.length ? `\n\nno longer failing (remove from BASELINE.contrast.lightTokens):\n${fixed.join('\n')}` : ''),
+        + (fixed.length ? `\n\nno longer failing (remove from BASELINE.contrast.${DESIGN_UNDER_TEST}.lightTokens):\n${fixed.join('\n')}` : ''),
       contentType: 'text/plain',
     });
 
@@ -544,7 +578,7 @@ This is NOT automatically a regression. It is either:
     expect(
       unexpected.map(([fg]) => fg),
       `Light theme: ${unexpected.length} foreground token(s) failing that are not in ` +
-      `BASELINE.contrast.lightTokens.
+      `BASELINE.contrast.${DESIGN_UNDER_TEST}.lightTokens (design under test: ${DESIGN_UNDER_TEST}).
 
 ` +
       unexpected.map(([fg, e]) => `  ${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}  worst at ${e.where}  ${e.what}`).join('\n') +

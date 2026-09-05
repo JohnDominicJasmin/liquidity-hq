@@ -1,0 +1,260 @@
+import { readFileSync } from 'node:fs';
+import type { Page } from '@playwright/test';
+
+/* AN ENTITLED SESSION, WITHOUT AUTHENTICATING AS ANYONE.
+ *
+ * QA cannot cover the Pro path. Creating accounts and typing passwords are hard
+ * limits on that session, so "sign up and look" is not available to it — and
+ * `GlobalMacroContext` / `PerpSpotCard` render an entitlement-gated branch that
+ * nothing has ever verified. #717's spacing work sits inside that branch, on
+ * `app/dashboard/page.tsx` — the current-design dashboard, which after #719 is
+ * the screen every user sees. So the uncovered path is the high-traffic one.
+ *
+ * WHAT THIS IS NOT, AND WHY IT MATTERS
+ *
+ * It is NOT an entitlement flag in application code. The obvious version of
+ * this — `NEXT_PUBLIC_TEST_ENTITLED=1` short-circuiting `entitled` in
+ * AuthProvider — ships a paywall bypass in the production bundle, gated on a
+ * variable anyone can set at build time. This codebase already has that
+ * incident on record: #377, where a stuck `loading` state granted Pro access
+ * for free, and the fix commentary at AuthProvider.tsx:89 exists because of
+ * it. A DELIBERATE bypass is strictly worse than the accidental one, so it is
+ * not on the table regardless of how convenient the fixture would be.
+ *
+ * It is also NOT a credential. The token seeded below is a syntactically
+ * well-formed JWT with a deliberately invalid signature. It authenticates
+ * nothing: every request that would carry it to Supabase is intercepted here
+ * and answered locally, and any that escaped would be rejected by the server.
+ * It is a local test double for a client library that reads its session from
+ * localStorage, not a key to anything.
+ *
+ * THE WRAPPED SHAPE BELOW IS DELIBERATE. DO NOT "FIX" IT TO THE RAW SESSION.
+ *
+ * `{ currentSession, expiresAt }` is the supabase-js v1 layout, and v2's
+ * `_isValidSession` does reject it — that part is true and was measured. On
+ * 2026-09-05 it was changed to store the session object directly (#831), on the
+ * evidence that the key then survives and `.auth-avatar-btn` renders.
+ *
+ * **That change was reverted the same day.** Run against the committed spec it
+ * took the suite from 5 passed in ~25s to 2 passed in 1.9m, and the three that
+ * broke were `as pro`, #717 and #723 — the ENTITLED-branch tests, which is the
+ * outcome this fixture exists to produce. Signed-in was measured; entitled was
+ * not, and they are different claims.
+ *
+ * So both of these are true at once and neither explains the other yet:
+ *
+ *   - supabase-js judges the wrapped value invalid and deletes the key.
+ *   - The app still renders entitled with it, and does not without it.
+ *
+ * Something reads this key other than supabase-js — most likely AuthProvider on
+ * its own fast path. **Nobody has chased that**, and until someone does, the
+ * shape below is load-bearing for reasons that are demonstrated rather than
+ * understood.
+ *
+ * THE OLD DIAGNOSIS HERE WAS ALSO WRONG, and is recorded rather than restored.
+ * This comment used to say the session dies because supabase-js refreshes with
+ * the invalid token, the request reaches Supabase, and the client discards the
+ * result. Measured on 2026-09-05: **no /auth/v1 traffic escapes interception at
+ * all.** The deletion is local and shape-driven. Right conclusion, wrong
+ * mechanism — which is how it survived long enough to be built on.
+ *
+ * THE CONSEQUENCE IS THE PART TO KNOW. Nothing behind sign-in can be verified
+ * by rendering a deployed environment. On one day that left four findings
+ * source-only: the terminal nav's signed-in avatar (#747), the chart's
+ * price-alert line (#759), the journal's badge dots (#756) and the /alerts
+ * Telegram button (#786). Any of those needs either a Playwright run — which
+ * is owner-gated, it costs real money — or a human signed in at a keyboard.
+ *
+ * So when a QA report says "unverified, behind sign-in", this file is why, and
+ * the fix is not in this file.
+ *
+ * HOW IT WORKS
+ *
+ * `AuthProvider` resolves the user from `sb.auth.getSession()`
+ * (AuthProvider.tsx:65), which reads localStorage and makes no network call.
+ * It then reads the role from one PostgREST select (AuthProvider.tsx:171).
+ * So an entitled render needs exactly two things faked, both client-side:
+ *
+ *   1. a session in localStorage under supabase-js's key
+ *   2. that one subscription row coming back as `role: 'pro'`
+ *
+ * Everything else — the paywall logic, the gate at each call site, the
+ * components themselves — runs as shipped. That is the point: a fixture that
+ * stubbed `entitled` directly would prove nothing about the code under test.
+ */
+
+/* Next.js loads .env.local for the APP, but Playwright's own process does not
+   inherit it - the spec runs in plain Node. Rather than edit playwright.config.ts
+   (QA's file) to pull in dotenv, this reads the one variable it needs. Falls
+   back to the real process env first so CI, which sets it properly, is
+   unaffected. */
+function envSupabaseUrl(): string | undefined {
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) return process.env.NEXT_PUBLIC_SUPABASE_URL;
+  for (const f of ['.env.e2e.local', '.env.local', '.env']) {
+    try {
+      const m = readFileSync(f, 'utf8').match(/^\s*NEXT_PUBLIC_SUPABASE_URL\s*=\s*(.+)$/m);
+      if (m) return m[1].trim().replace(/^["']|["']$/g, '');
+    } catch { /* file absent is normal - try the next one */ }
+  }
+  return undefined;
+}
+
+/** supabase-js keys its session `sb-<project-ref>-auth-token`, where the ref is
+ *  the first hostname label of the project URL. Derived rather than hardcoded so
+ *  this keeps working when the harness points at a different project. */
+function storageKey(supabaseUrl: string): string {
+  const ref = new URL(supabaseUrl).hostname.split('.')[0];
+  return `sb-${ref}-auth-token`;
+}
+
+/** A structurally valid JWT whose signature is intentionally not valid.
+ *  supabase-js decodes the payload locally to find `exp` and the user; it does
+ *  not verify the signature client-side, and no request carrying this ever
+ *  reaches a server (see the routes installed below). */
+function unsignedJwt(userId: string, email: string, expSeconds: number): string {
+  const b64 = (o: unknown) =>
+    Buffer.from(JSON.stringify(o)).toString('base64url');
+  const header = b64({ alg: 'HS256', typ: 'JWT' });
+  const payload = b64({
+    sub: userId, email, role: 'authenticated', aud: 'authenticated',
+    exp: expSeconds, iat: Math.floor(Date.now() / 1000),
+  });
+  return `${header}.${payload}.test-signature-not-valid`;
+}
+
+export interface EntitledOptions {
+  /** 'pro' is a paid subscriber; 'trial' exercises the OTHER branch of
+   *  `entitled = isPro || isTrial`, which is the one a real new signup gets.
+   *
+   *  'free' is SIGNED IN BUT NOT ENTITLED, and it is not a contradiction of
+   *  this file's name - it is the state `/upgrade` needs. That page redirects
+   *  Pro users straight to /arena (app/upgrade/page.tsx:84), so a 'pro'
+   *  session cannot see the checkout button at all, and a signed-OUT session
+   *  renders no CTA either. Only a signed-in non-subscriber is shown the
+   *  thing being sold. Found by running it: my first #243 check used 'pro',
+   *  got redirected, and reported a config disagreement that was really my
+   *  own wrong session state. */
+  as?: 'pro' | 'trial' | 'free' | 'expired';
+  supabaseUrl?: string;
+}
+
+/**
+ * Make the page render as an entitled user.
+ *
+ * MUST be called before the first navigation — it installs an init script and
+ * network routes, neither of which applies retroactively to a loaded page.
+ *
+ * ```ts
+ * test('macro card renders its full breakdown', async ({ page }) => {
+ *   await useEntitledSession(page);
+ *   await page.goto('/dashboard');
+ *   await expect(page.getByTestId('locked-feature')).toHaveCount(0);
+ * });
+ * ```
+ */
+export async function useEntitledSession(page: Page, opts: EntitledOptions = {}): Promise<void> {
+  const as = opts.as ?? 'pro';
+  const supabaseUrl = opts.supabaseUrl ?? envSupabaseUrl();
+  if (!supabaseUrl) {
+    /* Loud, not skipped. A fixture that silently no-ops leaves the test
+       asserting against a SIGNED-OUT page — which renders the locked card, so
+       an entitled-path assertion fails with a message about the wrong thing.
+       Every "false clean" in this project's history started as a check that
+       quietly measured nothing. */
+    throw new Error(
+      'useEntitledSession: NEXT_PUBLIC_SUPABASE_URL is unset, so the session key ' +
+      'cannot be derived. Set it in the harness env, or pass { supabaseUrl }.',
+    );
+  }
+
+  const userId = '00000000-0000-4000-8000-000000000001';
+  const email = 'qa-entitled@example.invalid'; // .invalid is reserved (RFC 2606)
+  const nowSec = Math.floor(Date.now() / 1000);
+  /* 'expired' puts the expiry an hour in the PAST. Everything else about the
+     session is identical - this is the state a returning user's browser is in
+     between visits, which is the normal case rather than an edge one, since
+     tokens expire by design. #727. */
+  const expired = as === 'expired';
+  const expSec = expired ? nowSec - 3600 : nowSec + 3600;
+  const accessToken = unsignedJwt(userId, email, expSec);
+
+  const user = {
+    id: userId, aud: 'authenticated', role: 'authenticated', email,
+    app_metadata: { provider: 'email' }, user_metadata: {},
+    created_at: new Date(0).toISOString(),
+  };
+
+  const session = {
+    access_token: accessToken,
+    refresh_token: 'test-refresh-token-not-valid',
+    token_type: 'bearer',
+    expires_in: 3600,
+    expires_at: expSec,
+    user,
+  };
+
+  const key = storageKey(supabaseUrl);
+
+  await page.addInitScript(
+    ({ key, session }) => {
+      window.localStorage.setItem(key, JSON.stringify({
+        currentSession: session, expiresAt: session.expires_at,
+      }));
+      /* AuthProvider force-signs-out a session idle more than 7 days
+         (AuthProvider.tsx:49, #304). Without this the fixture would be
+         torn down by the app's own expiry check and the test would see a
+         signed-out page. */
+      window.localStorage.setItem('lhq_last_active', String(Date.now()));
+    },
+    { key, session },
+  );
+
+  /* The one row that decides `entitled`. A trial is the NON-pro branch:
+     role stays 'free' and the window carries it, exactly as the signup
+     trigger writes it (supabase/migrations/20260804g_trial_email_dedup.sql). */
+  const row = as === 'pro'
+    ? { role: 'pro', trial_ends_at: null }
+    : as === 'trial'
+      ? { role: 'free', trial_ends_at: new Date(Date.now() + 14 * 864e5).toISOString() }
+      /* 'free': a PAST trial end, not null. Both read as not-entitled, but an
+         expired window also exercises the `trialEndsAt > clock` comparison
+         rather than short-circuiting on null - closer to a real lapsed user. */
+      : { role: 'free', trial_ends_at: new Date(Date.now() - 864e5).toISOString() };
+
+  await page.route(`${supabaseUrl}/rest/v1/**`, async route => {
+    const url = route.request().url();
+    if (!/user_subscriptions/.test(url)) return route.fallback();
+    /* `.maybeSingle()` asks PostgREST for a single object via the Accept
+       header rather than an array. Answering with the wrong shape makes
+       supabase-js return null data and the app reads that as 'free' - a
+       fixture that fails by looking like a correct not-entitled result. */
+    const single = (route.request().headers()['accept'] ?? '').includes('vnd.pgrst.object');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(single ? row : [row]),
+    });
+  });
+
+  /* supabase-js calls these when it refreshes or re-validates. Unhandled they
+     would hit the real project with an invalid token, and its 401 would sign
+     the fixture out mid-test. */
+  /* DELIBERATELY NOT INTERCEPTED FOR 'expired'. The whole point of that state
+     is what supabase-js does when it tries to refresh a dead token and the
+     refresh does not come back - fulfilling /auth/v1/token here with a valid
+     session would paper over exactly the condition under test and the fixture
+     would prove the opposite of what it claims. Left to reach the real
+     endpoint, which rejects the bogus refresh token. */
+  if (expired) return;
+
+  await page.route(`${supabaseUrl}/auth/v1/**`, async route => {
+    const url = route.request().url();
+    if (/\/user\b/.test(url)) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) });
+    }
+    if (/token/.test(url)) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session) });
+    }
+    return route.fallback();
+  });
+}

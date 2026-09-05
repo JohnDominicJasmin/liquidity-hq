@@ -74,6 +74,62 @@
      empty-cell dash only. Verified: 5.724/5.248/5.312/4.791 across
      --bg0/--bg1/--bg2/#1d1e20. */
   --txt-dash: #848a92;
+  /* --txt-stamp: the market-structure age stamp, and ONLY that (#771).
+     It sits on .ms-last-event, whose background is a 10% tint of whatever the
+     latest event was - gold, red or green - so its ground is DATA-DEPENDENT and
+     there are twelve of them: three tints x --bg1/--bg2 x two themes, in each
+     design. #641 fixed this with --txt2 scoped to terminal; the numbers in that
+     comment were terminal dark written as "dark", the current design never got
+     the rule at all, and --txt2 lands 4.22-4.78 on the worst grounds either way.
+     Target here is 5.0, not 4.5: the binding case was 4.49 and a hundredth of
+     margin on a ground that changes with the market is not a fix.
+     Dark value clears at 6.40 current / 5.90 terminal; the light value below at
+     5.99 / 5.10. Verified over all twelve grounds in
+     __tests__/marketStructureStamp.test.mts rather than asserted here. */
+  --txt-stamp: #9aa0a6;
+
+  /* --score-mid: the middle band of the accumulation score ramp (#787).
+     AccumulationTracker prints 75+ in --green, under 60 in --amber, and 60-74
+     in this. The middle branch was the literal #a3e635 while its two
+     neighbours were tokens, so it alone did not follow the theme: 1.15:1
+     against terminal light's card, the worst text contrast measured on this
+     project. Correct where it was chosen - 12.98 in dark - and wrong
+     everywhere else, with no error and no failing test, which is the
+     one-ground family in its purest form.
+     Dark keeps #a3e635 (12.98 current / 12.12 terminal). The light value below
+     clears 6.37 / 5.42 and stays a distinct olive against --green's teal and
+     --amber's brown, because three bands that read alike stop carrying the
+     information the ramp exists for. Verified against both gradient stops in
+     all four contexts in __tests__/scoreMidBand.test.mts. */
+  --score-mid: #a3e635;
+
+
+  /* --badge-0..11: the per-coin identity dots (#756).
+     lib/coinBadge.ts hashed a coin id onto twelve fixed hexes, so the dots did
+     not follow the theme. As GRAPHICS against the light cards they measured
+     1.28 to 3.46 - ten of twelve below the 3:1 bar, worst #fbbf24 at 1.28.
+     Not a 1.4.11 violation: the ticker is spelled out beside every dot, so the
+     colour is redundant encoding. But an invisible dot is pointless rather
+     than compliant, and #734's "keep the dot, plain text" ruling produced
+     decoration that does not decorate. BADGE_PALETTE's own comment asks for
+     "a stable, varied hue so each row gets a recognizable dot"; recognisable
+     is the requirement it was failing.
+     The light values are the SAME twelve hues scaled down in lightness - the
+     least darkening that clears 3:1 on the worst of four light grounds
+     (--bg1/--bg2 in each light design). Hue is preserved, so a coin keeps its
+     identity across themes. Verified in __tests__/coinBadge.test.mts. */
+  --badge-0: #f7931a;
+  --badge-1: #627eea;
+  --badge-2: #9945ff;
+  --badge-3: #00aae4;
+  --badge-4: #f3ba2f;
+  --badge-5: #00c08b;
+  --badge-6: #f87171;
+  --badge-7: #4ade80;
+  --badge-8: #fbbf24;
+  --badge-9: #60a5fa;
+  --badge-10: #f472b6;
+  --badge-11: #2dd4bf;
 
   /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
@@ -97,7 +153,23 @@
      terminal mode inherit white-on-gold (2.23:1) unnoticed - terminalTokens.ts
      documents --accent as "ALWAYS with #08090a text", a contract white text
      violates. Declared here too so var(--on-accent) resolves for every design
-     mode/theme, not just terminal's two. */
+     mode/theme, not just terminal's two.
+
+     #775: TEN RULES STILL HARDCODED #fff ON --accent-solid and they are now
+     all on this token. Terminal dark's accent-solid is #d9a626, where white
+     measures 2.23:1 and this token's #08090a measures 8.95. Six of the eight
+     routes in that issue were the same line: a primary CTA or an auth button.
+
+     The general shape, worth having once rather than ten times: an accent
+     chosen to be visible against a dark ground is BY CONSTRUCTION a light
+     colour, so "white on the accent" is the one pairing guaranteed to fail as
+     soon as the accent does its job. The convention is not wrong by accident -
+     it is wrong in exactly the case it was written for.
+
+     Not a blanket rule for var(--accent): white on the CURRENT design's
+     --accent (#1a7aff) is 3.98, so a rule that paints on THAT token needs its
+     own measurement rather than this token. Nothing in the stylesheet does
+     today; __tests__/onAccent.test.mts is what notices if one starts. */
   --on-accent:  #ffffff;
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(26,122,255,0.12);
@@ -121,6 +193,10 @@
      Worth collapsing into --green deliberately at some point. Two greens for
      one meaning is the reason this got missed in the first place. */
   --green-2:   #34d399;
+  /* #652: green foreground on a composited tint. Aliases --green-2 everywhere
+     except terminal light, where the composited grounds pull it under 4.5. */
+  --green-fg:  var(--green-2);
+  --red-fg:    var(--red);
   /* Weaker-signal tier (e.g. "slightly high funding" vs "very high") - a
      paler version of --green/--red so the two tiers stay visually distinct. */
   --green-soft: #86efac;
@@ -129,6 +205,12 @@
   --red-bg:  rgba(248,113,113,0.08);
   --red-bdr: rgba(248,113,113,0.22);
   --red-soft: #fca5a5;
+  /* CoinHeatmap's red ramp text (#835). PER CONTEXT, because the tile is a
+     tint of --red over that context's ground: light text works on a dark
+     tint and fails on a light one. Reusing --red-soft made both light
+     themes paint the tint's own colour onto itself. */
+  --heat-red-fg: #fca5a5;
+  --heat-red-deep-fg: #fee2e2;
 
   --amber:     #fbbf24;
   --amber-2:   #fcd34d;
@@ -144,6 +226,17 @@
      a near-black canvas, ~2:1 on white. */
   --fr-slight-long: #d4b483;
 
+  /* --orange HAS NO TERMINAL VALUE, DELIBERATELY (#736). It is the last of the
+     four tokens that issue named; the other three - --green-2, --green-soft
+     and --txt-dim - were given terminal declarations by #737 and are listed in
+     TERMINAL_ALIASES.
+     This one falls through to the value below in terminal dark and to the
+     light block's #7C2D12 in terminal light, and both were measured on
+     terminal's own grounds rather than assumed: worst 8.07 dark and 7.18 light
+     across --bg0/--bg1/--bg2. A fallback that clears by four points is not
+     "fine by coincidence", so terminal owning a value would be ceremony.
+     Recorded because silence is what #736 objects to - a token the terminal
+     palette does not own reads identically to one nobody has looked at. */
   --orange:     #fb923c;
   --orange-bg:  rgba(251,146,60,0.08);
   --orange-bdr: rgba(251,146,60,0.22);
@@ -353,27 +446,43 @@ body::after {
      FAB even at that natural, un-stuck top (measured empirically, not
      derived from the 68px sticky offset - that offset only applies once
      stuck, and stuck is always a *smaller* top, so it's the safer case). */
+  /* THE RAIL NO LONGER SCROLLS INSIDE ITSELF (#745). Owner: "I don't want it
+     to be scrollable. So what I want you to do is show a fixed number of coins
+     and then show the data below."
+
+     It was `max-height: calc(100vh - 265px); overflow-y: auto`, and QA measured
+     548px of box around 1128px of content - roughly 580px of BTC.D, PERPS VS
+     SPOT and GLOBAL MACRO CONTEXT reachable only by scrolling inside a rail
+     most people never think to scroll.
+
+     Capping the coin list alone would not have fixed it: the list was already
+     capped at 7 and the 1128 is mostly the three panels, so the count is the
+     owner's framing of the layout and the scroll is a separate thing to
+     remove. Both are done here - eight coins, and the rail flows.
+
+     `position: sticky` goes with it. A sticky box taller than the viewport
+     pins its top and puts its bottom permanently out of reach, which is the
+     same defect wearing different clothes. The rail now scrolls with the page,
+     so everything in it is reachable by the scroll people already use. The
+     cost is real and deliberate: the rail no longer follows the viewport on a
+     long page. */
   .dash-right {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    position: sticky;
-    top: 68px;
-    max-height: calc(100vh - 265px);
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.05) transparent;
   }
-  .dash-right::-webkit-scrollbar { display: block; width: 3px; }
-  .dash-right::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
 
   /* Sticky left sidebar */
 
-  /* Sticky right rail */
-  .dash-right {
-    position: sticky;
-    top: 68px;
-  }
+  /* NOT sticky any more (#745). A sticky box taller than the viewport pins its
+     top and puts its bottom permanently out of reach - the same content being
+     unreachable that removing the rail's own overflow was meant to fix, just
+     achieved a different way. Measured after that removal: the rail is 1206px,
+     which exceeds every laptop viewport and most desktop ones.
+     Left in place as a comment rather than deleted, because "why is the rail
+     not sticky" is a question someone will ask, and the answer is that it
+     cannot be both taller than the screen and pinned to it. */
+  .dash-right { position: static; }
 
   /* Hide mobile-only elements on desktop */
 }
@@ -414,8 +523,7 @@ body::after {
   /* min-width:0 stops the 1fr track expanding to its widest child (news
      banner) and overflowing - same guard the >=1100 block uses. */
   .dash-main { min-width: 0; overflow-x: hidden; }
-  .dash-sidebar,
-  .dash-right {
+  .dash-sidebar {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -426,8 +534,15 @@ body::after {
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.05) transparent;
   }
-  /* Trimmed shorter than .dash-sidebar - see the >=1100 rule for why. */
-  .dash-right { max-height: calc(100vh - 265px); }
+  /* Split out of the rule above (#745). The left sidebar keeps its own scroll;
+     the right rail does not, for the reason given at the >=1100 rule. They
+     shared a declaration block only because they happened to want the same
+     thing, and they no longer do. */
+  .dash-right {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
   /* Don't render both the sidebar AND the mobile stacked coin block */
 }
 
@@ -493,6 +608,39 @@ body::after {
    --txt2, two different tokens - and they now measure 11.2:1 to 12.5:1 across
    both themes and both card states. Nothing left to patch there.
 
+   ⚠️ THE PARAGRAPH ABOVE IS WRONG ABOUT F, AND REMOVING THE OVERRIDE ON THE
+   STRENGTH OF IT REINSTATED THE DEFECT THE OVERRIDE EXISTED TO PREVENT (#836).
+
+   It says C, D and F paint their text `--txt`. That is the CANVAS's rule. The
+   BUILD never did it: `lib/marketStore.ts` has returned `--txt3` for F since
+   the function was written, and still returns a different token per grade -
+   --amber for A, --green-2 for B, --txt2 for C, --orange for D. Only the
+   canvas separates ink from tint; the build has always tinted with the ink.
+
+   So F never escaped the self-tint, "11.2:1 to 12.5:1" was never measured on
+   anything the build renders, and the `color: var(--txt)` override was doing
+   real work when #614 deleted it as redundant. Measured on deployed qa
+   @ 122423d, eight months later, in the three places the badge renders:
+
+     /dashboard dark 4.30    /dashboard light 4.44    /arena dark 4.34
+
+   All three under AA, all three the same defect the override had been fixing.
+   Fixed at source in marketStore.ts (F is now --txt2, 4.83-5.07) rather than
+   by restoring a CSS patch over a token choice.
+
+   WHAT THIS GUARD IS FOR, stated as intent because token names drift and
+   intent does not: **the health badge tints its own background from its own
+   text colour, so every grade needs its ink checked against a surface that
+   has already moved 13.3% toward that same ink.** Any change to a grade
+   colour is a change to its own ground. Compute both, or measure it rendered.
+
+   And the general lesson, which is trap 16 in qa/README.md: this comment was
+   not vague, it was specific, confident, and describing a design document
+   rather than the code beneath it. A stated reason that was never true is
+   worse than no reason, because the next reader removes a guard on the
+   strength of it. Before deleting a guard, verify its premise against the
+   source it claims to describe - `lib/marketStore.ts` here, one grep away.
+
    A and B do NOT escape it. The canvas tints green with green, so the self-
    tint is still exactly what it was, only in a different token: --green
    rather than --green-2. Measured at the canvas's own 15%:
@@ -553,6 +701,10 @@ body::after {
   font-family: var(--font-mono), monospace; font-size: 10.5px;
 }
 [data-design="terminal"] .csb2-sig { font-size: 10.5px; }
+/* Current design's size, moved out of the component's inline style (#718).
+   It has to live here or the terminal rule below is dead - an inline value
+   outranks every selector. */
+.csb2-health-badge { font-size: var(--fs-caption); }
 [data-design="terminal"] .csb2-health-badge {
   font-family: var(--font-mono), monospace; font-size: 9.5px;
 }
@@ -889,8 +1041,7 @@ body::after {
 .scc-up { color: var(--green); } .scc-dn { color: var(--red); }
 .scc-sig { font-size: var(--fs-caption); font-weight: 600; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 190px; }
-.scc-cta { flex-shrink: 0; font-family: var(--font-mono), monospace; font-size: var(--fs-caption);
-  font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.scc-arrow { flex-shrink: 0; font-size: 1.1rem; color: var(--txt3); line-height: 1; }
 
 /* Macro Context rail wrapper - GlobalMacroContext has its own inner padding,
    this just gives it the flat-card frame the other rail items carry. */
@@ -1009,7 +1160,7 @@ body[data-rpm-level="high"]::before {
   border: 0.5px solid transparent; white-space: nowrap;
 }
 .desktop-nav-item:hover { color: var(--txt); background: rgba(90,150,255,0.07); }
-.desktop-nav-item.on { color: #ffffff; background: var(--accent-solid); font-weight: 600; }
+.desktop-nav-item.on { color: var(--on-accent); background: var(--accent-solid); font-weight: 600; }
 
 @media (min-width: 768px) {
   .hamburger   { display: none !important; }
@@ -1395,6 +1546,21 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .wp-prime  { background: var(--green-bg);  color: var(--green);  border: 0.5px solid var(--green-bdr);  box-shadow: var(--glow-green); }
 .wp-london { background: var(--blue-bg);   color: var(--blue);   border: 0.5px solid var(--blue-bdr); }
 .wp-dead   { background: var(--red-bg);    color: var(--red);    border: 0.5px solid var(--red-bdr); }
+/* .wp-prime's text takes --green-fg under terminal (#707). --green on
+   rgb(210,216,207) - the pill's own green tint over the light ground -
+   measures 4.28, short of 4.5 by 0.22. --green-fg is 5.6 there and is the
+   treatment already shipped for this exact shape on #688 and #693.
+
+   TERMINAL-SCOPED RATHER THAN CHANGING THE BASE RULE, deliberately. At :root
+   --green-fg aliases --green-2, which is a different colour from --green - so
+   editing the base rule would repaint the pill on the CURRENT design, where
+   nothing has been measured failing. The defect was measured in terminal
+   light; the fix goes where the measurement was.
+
+   The other three pills are untouched: only .wp-prime was measured short, and
+   applying the -fg treatment to all four for symmetry would be four changes
+   with one defect behind them. */
+[data-design="terminal"] .wp-prime { color: var(--green-fg); }
 .wp-other  { background: var(--bg2);       color: var(--txt2);   border: 0.5px solid var(--bdr); }
 .nw-row       { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: var(--bg2); border: 0.5px solid var(--bdr); }
 .nw-name      { font-size: var(--fs-label); font-weight: 600; }
@@ -1486,6 +1652,27 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   box-shadow: 0 4px 16px rgba(217, 119, 6, 0.12) !important;
   color: #e8a838 !important;
 }
+
+/* LIGHT NEEDS ITS OWN FOREGROUND (#769). The rule above is unscoped and
+   !important, so #c8891e - measured 6.44 against the DARK ground and correct
+   there - also lands on the light themes' cream. It measures 2.33 in current
+   light and 2.59 in terminal light, on a live control, on production.
+
+   The comment above closes off the obvious defence before anyone reaches for
+   it: this button is NOT disabled, it navigates to /login, so WCAG 1.4.3's
+   inactive-component carve-out does not apply. "Deliberately dimmed" is not
+   available.
+
+   Tokens rather than a new hex: --amber IS the light themes' amber, and it
+   clears both grounds - 5.44 on current light's rgb(231,227,223) and 6.22 on
+   terminal light's rgb(245,238,229). The hover takes --amber-2 for the same
+   reason: #e8a838 measures 1.63 and 1.81 there. Hover feedback survives
+   independently through the background and border, which both change.
+
+   Dark is untouched and stays at 6.44. Verified in
+   __tests__/arenaDeepLocked.test.mts against both light grounds. */
+[data-theme="light"] .arena-deep-locked { color: var(--amber) !important; }
+[data-theme="light"] .arena-deep-locked:not(:disabled):hover { color: var(--amber-2) !important; }
 /* Cache banner */
 
 /* Signal cards - flat, no colored border/glow. Matches this project's card
@@ -1738,7 +1925,7 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   min-height: 30px; letter-spacing: 0; white-space: nowrap;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.ncard-ask-btn:hover { background: var(--accent-solid); border-color: var(--accent); color: #fff; box-shadow: none; }
+.ncard-ask-btn:hover { background: var(--accent-solid); border-color: var(--accent); color: var(--on-accent); box-shadow: none; }
 .ncard-ask-spark { font-size: 0.8em; line-height: 1; }
 /* Secondary action - neutral, not accent-colored, so it doesn't compete with
    Ask LiquidityAI for attention as the primary CTA. */
@@ -2111,19 +2298,25 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-icon-btn { font-size: 0.8125rem; color: var(--txt3); cursor: pointer; background: none; border: none; padding: 0; width: 36px; height: 36px; border-radius: 6px; transition: color 0.15s; display: inline-flex; align-items: center; justify-content: center; }
 .gchat-icon-btn:hover { color: var(--txt2); }
 /* Fast / Live mode segment (#383).
-   Deliberately borrows the .gchat-coin affordance below rather than inventing
-   one: same radius, same fill weight, same 44px target. The old pill was
-   min-height 32px sitting 8px above 44px chips, which is why it read as a
-   status badge and not a control. */
+   A pill with a 16px radius, a tinted fill for the active option and a 44px
+   target. That was described as "borrows the .gchat-coin affordance" until
+   #746 deleted .gchat-coin with the coin button row, which left this comment
+   explaining a live rule by pointing at a class that no longer existed - so
+   the affordance is spelled out here instead of referenced.
+   The old pill was min-height 32px sitting 8px above 44px chips, which is why
+   it read as a status badge and not a control. */
 .gchat-mode {
   display: inline-flex; align-items: stretch; padding: 2px;
   border: 0.5px solid var(--bdr); background: var(--bg2); border-radius: 16px;
 }
 /* Sized down at the owner's request after seeing it in place - it sat as tall as
-   the coin chips and dominated a header it only shares with icon buttons.
-   Colours are TOKENS, not literals: --purple-bg / --green-bg are redefined under
-   [data-theme="light"], so this follows the theme the way .gchat-coin does. The
-   control it replaced hardcoded rgba(52,211,153,...) and could not. */
+   the coin chips that used to sit beside it and dominated a header it only
+   shares with icon buttons.
+   Colours are TOKENS, not literals: --purple-bg / --green-bg are redefined
+   under [data-theme="light"], so this follows the theme without a per-theme
+   override of its own. The control it replaced hardcoded
+   rgba(52,211,153,...) and could not. (#746 removed the coin chips this used
+   to cite as the precedent.) */
 .gchat-mode-opt {
   font-size: var(--fs-micro); font-weight: 700; letter-spacing: .02em;
   padding: 3px 10px; min-width: 42px; min-height: 28px; border-radius: 14px;
@@ -2169,11 +2362,11 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 .gchat-mode-count.zero { color: var(--red-soft); }
 .gchat-mode-note { font-size: var(--fs-micro); color: var(--txt3); }
-.gchat-coins { display: flex; gap: 4px; padding: 8px 14px 6px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
-.gchat-coins::-webkit-scrollbar { display: none; }
-.gchat-coin { font-size: var(--fs-caption); font-weight: 700; padding: 5px 10px; border-radius: 20px; border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt3); cursor: pointer; white-space: nowrap; transition: all 0.12s; flex-shrink: 0; min-height: 44px; display: inline-flex; align-items: center; }
-.gchat-coin:hover { color: var(--txt2); }
-.gchat-coin.on { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
+/* The coin bar is the dropdown, full width (#746). It was a row of quick
+   buttons plus a trigger; the buttons are gone, so the wrapper exists only to
+   carry the padding and the divider the row used to draw. */
+.gchat-coinbar { padding: 8px 14px 6px; flex-shrink: 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
+.gchat-coinbar .cms-trigger { width: 100%; min-height: 44px; }
 .gchat-msgs { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: none; }
 .gchat-msgs::-webkit-scrollbar { display: none; }
 .gchat-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; opacity: 0.8; }
@@ -2311,7 +2504,14 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-section-hdr { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: var(--fs-caption); font-weight: 700; letter-spacing: 0.02em; }
 .liq-section-hdr-short { color: var(--green-2); background: rgba(52,211,153,0.06); border-bottom: 0.5px solid rgba(52,211,153,0.12); }
 .liq-section-hdr-long  { color: var(--red); background: rgba(248,113,113,0.06); border-top: 0.5px solid rgba(248,113,113,0.12); border-bottom: 0.5px solid rgba(248,113,113,0.12); }
-.liq-section-sub { font-size: var(--fs-caption); font-weight: 500; opacity: 0.75; text-transform: none; letter-spacing: 0; }
+/* No `opacity` (#836). This inherits the header's --green-2 or --red, and 0.75
+   computed to #458c57 = 3.03:1 and #af4a50 = 3.90:1 in light terminal, over the
+   6%-tinted header ground. At full strength the same two measure 4.96 and 6.33
+   light, 6.54 and 4.87 dark - so the opacity was the entire defect and there is
+   nothing to retint. Fifth and sixth instances of the trap named at
+   .lp-footer-ack. Kept visually secondary by weight 500 against the header's
+   700, which is what was actually wanted. */
+.liq-section-sub { font-size: var(--fs-caption); font-weight: 500; text-transform: none; letter-spacing: 0; }
 
 /* Derived from --accent-2, was rgba(26,122,255,...) (#652). Those literals
    are the current design's dark --accent-2, and the [data-theme="light"]
@@ -2332,6 +2532,25 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-current-chg { font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; }
 .liq-current-tag { font-size: var(--fs-caption); font-weight: 700; color: var(--purple); background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.06em; animation: liq-pulse 2s infinite; }
 .liq-current-oi { font-size: var(--fs-caption); color: var(--txt3); margin-left: auto; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* THE ONE ON /liq THAT IS NOT AN OPACITY BUG (#836).
+ *
+ * Every other entry in that issue is `opacity` multiplied onto an already-tuned
+ * token, and removing the multiplier fixes it. This one has no multiplier -
+ * `--txt3` at FULL strength measures 4.09:1 here, because `.liq-current-bar` is
+ * not a panel ground: it is `--accent-2` at 9% composited over the panel, which
+ * lifts the ground toward the ink instead of away from it. A background is not
+ * the first non-transparent ancestor, and this row is why that matters.
+ *
+ * Measured over the composited ground rather than over --bg1:
+ *     --txt3  dark 4.09  light 4.66      <- what ships today
+ *     --txt2  dark 4.87  light 5.11      <- this
+ *     --txt   dark 13.04 light 13.51     <- would read as primary, which it is not
+ *
+ * --txt2 is the smallest step that clears AA in both themes and keeps the OI
+ * figure secondary to the price beside it. Scoped to terminal because that is
+ * where it was measured; the current design's tint is the same rule but its
+ * numbers have not been checked and I am not changing what I did not measure. */
+:root[data-design="terminal"] .liq-current-oi { color: var(--txt2); }
 
 .liq-row { display: grid; grid-template-columns: 72px 30px 38px 1fr 48px; align-items: center; gap: 5px; padding: 3.5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); transition: background 0.12s; }
 .liq-row:last-child { border-bottom: none; }
@@ -2378,6 +2597,14 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    and at 15px that ellipsises. This keeps the rail aligned in every state
    without forcing a word to compete with a number for width. */
 .edge-card-value { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: calc(var(--fs-data) * 1.1); display: flex; align-items: center; }
+/* #663: the deliberately-smaller variant, as a class rather than an inline
+   font-size. Two cells in CoinMarketSnapshot carry words ("Rising", "Falling")
+   instead of a number and want --fs-label, and they were setting it inline -
+   which outranks every selector, so [data-design="terminal"] .at-snapcells
+   .edge-card-value's 14px could never apply to them. Lower specificity than
+   that terminal rule on purpose: the current design keeps 13px here, terminal
+   still gets its 14px. */
+.edge-card-value.is-label { font-size: var(--fs-label); }
 .edge-card-sub   { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; line-height: 1.4; }
 .edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 2px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -2436,6 +2663,27 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gex-row:last-child { border-bottom: none; }
 .gex-row:hover   { background: rgba(255,255,255,0.015); }
 .gex-row-atm     { background: rgba(255,255,255,0.03); }
+/* #679: the "<- current price" marker. It was a bare span with an inline
+   colour, so it could not be targeted at all and any rule written for it would
+   have been dead on arrival - #663's shape.
+
+   --txt3 on this row measures 4.40 dark / 4.32 light. The row is the failing
+   ingredient, not the token: .gex-row-atm composites a 3% white (4% black in
+   light) overlay ON TOP of the card, and that overlay lightens the ground
+   toward --txt3. --txt3 itself passes on every bare palette ground - 5.14 /
+   4.71 / 4.77 dark - so this is a local problem wanting a local value.
+
+   That is exactly what --txt-dash was created for on #559: "a dedicated value
+   for this one use, not a change to --txt3 itself", for a placeholder on a
+   composited tile measuring 4.30. Same shape, same answer. On this ground it
+   measures 4.90 dark and 5.51 light.
+
+   TERMINAL ONLY, deliberately. The current design's light theme aliases
+   --txt-dash to var(--txt3) (globals.css:2504), so pointing at it there would
+   change nothing while implying a fix. That theme's ground was never measured
+   and is not what #679 is about. */
+.gex-atm-marker { font-size: var(--fs-caption); margin-left: 4px; color: var(--txt3); }
+[data-design="terminal"] .gex-atm-marker { color: var(--txt-dash); }
 [data-theme="light"] .gex-row-atm { background: rgba(0,0,0,0.04); }
 .gex-strike      { font-size: var(--fs-caption); font-weight: 700; color: var(--txt2); }
 .gex-bar-wrap    { position: relative; height: 7px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,0.04); }
@@ -2476,6 +2724,17 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 [data-theme="light"] {
   /* Clean neutral - white cards on light gray canvas */
   --bg:  #E8EAED;
+  /* --bg0 DECLARED HERE AT LAST (#783). It was the one background token the
+     current design's light block did not set, so `var(--bg0)` in a light,
+     non-terminal context fell through to :root's #030405 - near-black behind
+     light text, with no error and nothing failing.
+     Nothing rendered wrong, because the two places that reach for it were
+     already worked around: the html rule below was SPLIT into a literal and a
+     token specifically to dodge this, and its comment says so. The workaround
+     was correct and the hole it dodged was still there for the next caller.
+     #E8EAED is the literal that split rule already used, so this declares what
+     the design was already painting rather than choosing a new colour. */
+  --bg0: #E8EAED;
   --bg1: #FFFFFF;
   --bg2: #F2F3F5;
   --bg3: #E4E6E9;
@@ -2502,6 +2761,30 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
      only dark's composited /scanner tile background was. Alias rather
      than invent a second light value nobody measured a failure on. */
   --txt-dash: var(--txt3);
+  /* See --txt-stamp in :root. #4f5257 is the value terminal light already uses
+     for --txt-dash, reached independently for this ground. */
+  --txt-stamp: #4f5257;
+
+  /* See --score-mid in :root. Lime-800: the ramp has to darken in light the
+     way --green and --amber already do, and #4d7c0f - the obvious one step
+     lighter - measures 3.82 in terminal light. */
+  --score-mid: #3f6212;
+
+  /* See --badge-0..11 in :root. Same hues, darkened until each clears 3:1 on
+     the lightest ground it can land on. */
+  --badge-0: #b76d13;
+  --badge-1: #5d78de;
+  --badge-2: #9945ff;
+  --badge-3: #0088b6;
+  --badge-4: #9e791f;
+  --badge-5: #009068;
+  --badge-6: #cb5d5d;
+  --badge-7: #309053;
+  --badge-8: #9e7817;
+  --badge-9: #4b81c3;
+  --badge-10: #c35b92;
+  --badge-11: #1e8e80;
+
   --bdr:  rgba(0,0,0,0.08);
   --bdr2: rgba(0,0,0,0.14);
 
@@ -2546,6 +2829,12 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --red-bg:  rgba(185,28,28,0.07);
   --red-bdr: rgba(185,28,28,0.20);
   --red-soft: var(--red);
+  /* CoinHeatmap's red ramp text (#835). PER CONTEXT, because the tile is a
+     tint of --red over that context's ground: light text works on a dark
+     tint and fails on a light one. Reusing --red-soft made both light
+     themes paint the tint's own colour onto itself. */
+  --heat-red-fg: #6b1414;
+  --heat-red-deep-fg: #6b1414;
   /* was #B45309 - 3.59:1 on --bg4 and the amber-tinted panel #f3eee0. */
   --amber:     #8F4508;
   --amber-2:   #92400E;
@@ -2570,7 +2859,27 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --glow-amber:  0 0 16px rgba(180,83,9,0.12);
 }
 
-[data-theme="light"] html { background: #E8EAED; }
+/* #706: `html`, not ` html`. This read `[data-theme="light"] html`, which asks
+   for an <html> that is a DESCENDANT of an element carrying data-theme - and
+   data-theme is set on <html> itself (app/layout.tsx:190 writes it to
+   document.documentElement). A document has one <html> and it is the root, so
+   the selector could never match anything, on any route, in any theme.
+
+   The light root has therefore always rendered :255's `html { background:
+   #06070a }` - the dark pin. It hid because <body> paints over <html> almost
+   everywhere, and the body rules just below are correctly scoped and do match.
+   It shows wherever body does not paint: /learn's headings measured 2.76:1,
+   light --accent on a near-black ground.
+
+   Split the same way as the body rules directly below, and for the same reason
+   given in their comment: --bg0 is not declared in the current design's own
+   light block, so terminal takes it and the current design keeps its literal. */
+/* ONE RULE AGAIN (#783). This was split in two because --bg0 was undeclared in
+   the current design's light block, so the token could not be used there. It is
+   declared now, and it resolves to the same #E8EAED this rule used to hardcode,
+   so the split has nothing left to protect against and a literal that has to
+   stay in step with a token is one more thing to keep in step. */
+html[data-theme="light"] { background: var(--bg0); }
 /* #557 investigation (QA, terminal-light audit): unscoped, so terminal+light
    pages rendered the current design's #E8EAED canvas instead of terminal's
    own --bg0 (#f7f6f3) - close enough in hue that it went unnoticed visually,
@@ -2656,9 +2965,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 [data-theme="light"] .gchat-send {
   background: var(--accent-bg); border-color: var(--accent-bdr); color: var(--accent);
 }
-[data-theme="light"] .gchat-coin { background: var(--bg2); border-color: var(--bdr); }
-[data-theme="light"] .gchat-coin.on { background: var(--purple-bg); color: var(--purple); }
-[data-theme="light"] .gchat-coins,
+[data-theme="light"] .gchat-coinbar,
 [data-theme="light"] .gchat-quick-row,
 [data-theme="light"] .gchat-input-row { border-color: rgba(0,0,0,0.07); }
 
@@ -2985,7 +3292,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .ps-result-profit .ps-rval { color: var(--green); }
 .ps-result-good   .ps-rval { color: var(--green); }
 .ps-result-danger .ps-rval { color: var(--red); }
-.ps-warn { background: rgba(217,119,6,.1); border: 0.5px solid rgba(217,119,6,.3); border-radius: 8px; padding: 8px 12px; font-size: var(--fs-caption); color: #f59e0b; margin-bottom: 8px; }
+.ps-warn { background: rgba(217,119,6,.1); border: 0.5px solid rgba(217,119,6,.3); border-radius: 8px; padding: 8px 12px; font-size: var(--fs-caption); color: var(--amber); margin-bottom: 8px; }
 .ps-log-btn { width: 100%; padding: 13px; border-radius: var(--radius-card); border: 0.5px solid var(--green-bdr); background: var(--green-bg); color: var(--green); font-size: var(--fs-label); font-weight: 700; cursor: pointer; margin-top: 4px; transition: box-shadow .15s; }
 .ps-log-btn:hover { box-shadow: 0 0 16px rgba(52,211,153,.2); }
 /* ── Shared empty state pattern ── */
@@ -3106,7 +3413,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .tj-trade-dir-tag.tj-short { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
 .tj-trade-setup-tag { font-size: var(--fs-caption); color: var(--txt3); padding: 2px 7px; border-radius: 20px; border: 0.5px solid var(--bdr); }
 .tj-result-badge { font-size: var(--fs-caption); font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-.tj-rb-open { background: rgba(217,119,6,.12); color: #f59e0b; border: 0.5px solid rgba(217,119,6,.3); }
+.tj-rb-open { background: rgba(217,119,6,.12); color: var(--amber); border: 0.5px solid rgba(217,119,6,.3); }
 .tj-rb-win  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
 .tj-rb-loss { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
 .tj-rb-be   { background: var(--bg3); color: var(--txt3); border: 0.5px solid var(--bdr); }
@@ -3383,7 +3690,15 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .frh-summary-heading { font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.06em; margin-right: 2px; }
 .frh-summary-item    { font-size: var(--fs-caption); font-weight: 500; display: flex; align-items: center; gap: 4px; }
 .frh-summary-count   { font-size: var(--fs-data); font-weight: 800; font-variant-numeric: tabular-nums; }
-.frh-summary-sep     { color: var(--bdr2); font-size: var(--fs-caption); }
+/* --txt2, not --bdr2 (#761). A BORDER token as a text colour is a category
+   error: --bdr2 is a hairline, so it is defined to sit about a shade from its
+   own ground. Against .frh-summary-bar it measures 1.07 in terminal dark and
+   1.14 in terminal light - the separator was absent, not dim. It passed in
+   the current design (19.24 / 21.00) only because --bdr2 takes a wildly
+   different value there, which is what let it survive this long.
+   --txt2 clears all four (4.80 / 9.15 / 5.24 / 5.59) and stays subordinate to
+   the counts either side, which --txt at 14-18 would not. */
+.frh-summary-sep     { color: var(--txt2); font-size: var(--fs-caption); }
 
 .frh-chart-card     { overflow: hidden; }
 .frh-chart-header   { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
@@ -3469,7 +3784,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    this block got rewritten rather than patched. */
 .auth-gate-btn {
   margin-top: 6px; padding: 9px 26px; border-radius: 10px;
-  background: var(--accent-solid); color: #fff;
+  background: var(--accent-solid); color: var(--on-accent);
   font-size: var(--fs-label); font-weight: 600; text-decoration: none; letter-spacing: -0.1px;
   transition: filter 0.15s; display: inline-block;
 }
@@ -3671,7 +3986,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    fixing the one element issue #56 named: white text on --purple (= --accent,
    #1a7aff) is 3.98:1. Only on hover, so axe's resting-state sweep never saw it.
    --accent-solid is the filled-surface token: 5.09:1. */
-.st-save-btn:hover { background: var(--accent-solid); color: #fff; }
+.st-save-btn:hover { background: var(--accent-solid); color: var(--on-accent); }
 .st-save-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Sign out */
@@ -3733,7 +4048,18 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    inactive components does not apply. Light theme keeps its 0.6 over a white
    card, where the base colour has the headroom to absorb it. */
 .st-locked-list { color: var(--txt2); }
-[data-theme="light"] .st-locked-list { opacity: 0.6; }
+/* SCOPED OFF TERMINAL, not deleted (#836). The justification above - "over a
+   white card, where the base colour has the headroom to absorb it" - was
+   measured against the current design and holds there. Terminal light has
+   neither the white card nor the same --txt2, and the same 0.6 computed to
+   #9b9da0 = 2.71:1, reported seven times on /settings. So the multiplier keeps
+   the design it was tuned for and loses the one it was never checked against,
+   rather than being removed from both on the strength of one theme's number.
+
+   `data-theme` and `data-design` are BOTH on <html>, so this is one compound
+   selector rather than a descendant pair - same shape as the
+   `:root[data-theme="light"]:not([data-design="terminal"])` rule above. */
+:root[data-theme="light"]:not([data-design="terminal"]) .st-locked-list { opacity: 0.6; }
 
 /* ── Coin multi-select dropdown (replaces the full chip-grid watchlist picker) ── */
 .cms-trigger {
@@ -4049,7 +4375,11 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .login-email-btn {
   width: 100%; padding: 11px 16px; border-radius: 12px;
   background: var(--accent-solid); border: 0.5px solid var(--accent);
-  color: #fff; font-size: var(--fs-label); font-weight: 600; cursor: pointer;
+  /* var(--on-accent), not #fff (#775). This is /login's "Send Magic Link" -
+     2.23:1 in terminal dark, and a line-based sweep missed it because the
+     declaration sits on a different line from the background. The test found
+     it; the grep did not. */
+  color: var(--on-accent); font-size: var(--fs-label); font-weight: 600; cursor: pointer;
   transition: all 0.15s; font-family: inherit; letter-spacing: -0.1px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
@@ -4476,7 +4806,8 @@ body.consent-pending .gchat-fab { visibility: hidden; }
 }
 .ms-ev-ago {
   font-size: var(--fs-caption);
-  color: var(--txt3);
+  /* --txt-stamp, not --txt3 (#771). See the token's own note in :root. */
+  color: var(--txt-stamp);
   margin-left: auto;
 }
 .ms-levels {
@@ -4579,6 +4910,13 @@ body.landing .news-ticker,
    also render underneath it. Same hide-on-landing mechanism as the rest of
    this block, not new logic. */
 body.landing .price-ticker-strip,
+/* NO `body.landing .tnav` HERE, deliberately (#714). The terminal app nav also
+   had to go from `/`, and this block is where it belongs by symmetry - but
+   `body.landing` is added by an effect, so a CSS hide cannot apply until after
+   hydration and the nav flashed on every landing visit. It is gated at the
+   render instead, in components/NavDrawer.tsx, which has the pathname
+   synchronously. Noted here so the next person does not add the line and
+   assume it is doing the work. */
 body.landing .gchat-fab,
 body.landing .gchat-panel,
 body.landing .ob-checklist { display: none !important; }
@@ -4608,7 +4946,32 @@ body.landing {
    visitor with light mode set elsewhere in the app got a black page with
    light-mode card/text colors bleeding through. Re-pin the dark values
    here, scoped to the landing subtree only, so nothing outside it changes.
-   Also scoped off terminal landing for the same reason as above (#595). */
+   Also scoped off terminal landing for the same reason as above (#595).
+
+   ⚠️ `:not([data-design="terminal"])` IS NOT A SCOPING DETAIL. IT IS THE
+   MECHANISM, AND IT CUTS BOTH WAYS (#836).
+
+   It reads like housekeeping - "this block is for the current design" - and
+   what it actually says is: **terminal landing gets NO re-pinning here and
+   falls through to `:root`.** The same exclusion that protects the current
+   design is what leaves terminal unprotected, and the two are one line.
+
+   That is not hypothetical. `.lp-h1-accent` and `.learn-category-title` read
+   `--accent-2`. Terminal declares `--accent-2: var(--accent)` at `:root`, so
+   in light it resolved to #754e00 - a dark amber, correct on a light ground -
+   and inherited into `.lp-root`, whose own `--bg0` is #050505 in every theme.
+   2.76:1, twelve instances, the worst text ratio on the platform. Fixed by
+   declaring `--accent-2` inside `.lp-root` itself.
+
+   The trap for the next reader: grepping `--accent-2` finds `#0052CC` in a
+   `[data-theme="light"]` block and it computes to 2.99:1 on #050505, which
+   looks like a second live defect. It is not - THIS selector excludes the
+   design that was failing, so that value never reaches the element. A correct
+   ratio computed in a scope that does not govern the thing.
+
+   Before believing any token value found by grep in this file, check which
+   selector block it sits in and whether that block applies to the element you
+   are measuring. qa/README.md trap 16. */
 :root[data-theme="light"]:not([data-design="terminal"]) body.landing {
   --bg0: #030405;
   --bg:  #000000;
@@ -4728,9 +5091,39 @@ body.landing {
   --txt3:   #7c7c82;
   --bdr:    rgba(255,255,255,0.07);
   --accent: #1a7aff;
+  /* --accent-2 MUST be declared here too, and this is the exact failure the
+     --txt3 comment above describes, one token along (#836).
+
+     `.lp-h1-accent` and `.learn-category-title` read --accent-2, not --accent.
+     Terminal declares `--accent-2: var(--accent)` at :root, and a custom
+     property is substituted where it is DECLARED, not where it is used - so
+     that resolves against :root's --accent and inherits into this block as an
+     already-computed colour. Redeclaring --accent here does not reach it.
+
+     Measured on /learn, terminal, ground #050505 (this block's own --bg0,
+     which does not change with theme - the whole point of the scope):
+
+         dark   #d9a626   9.15:1
+         light  #754e00   2.76:1   <- 12 instances, worst on the platform
+
+     The token was not wrong and the ground was not wrong; the PAIRING was.
+     A light-palette accent, correct on a light ground, was being painted on a
+     region that is deliberately dark in both themes.
+
+     Per design rather than one value, because the two designs have different
+     brand accents and neither look should change: current keeps its blue, and
+     terminal gets the amber it already shows in dark. */
+  --accent-2: #5aa3ff;
   display: flex; flex-direction: column; min-height: 100vh; color: var(--txt); background: var(--bg0); font-family: inherit;
   animation: lp-content-in 0.5s var(--ease-settle);
 }
+/* Terminal's half of the pair above (#836). #d9a626 is what this region already
+   renders in dark, so dark is unchanged at 9.15:1 and light stops being 2.76:1.
+   Deliberately a literal rather than `var(--accent)`: --accent is redeclared to
+   #1a7aff inside .lp-root for the current design, so pointing at it here would
+   paint terminal's landing accent blue. */
+[data-design="terminal"] .lp-root { --accent-2: #d9a626; }
+
 @keyframes lp-content-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -4751,7 +5144,7 @@ body.landing {
 .lp-nav-actions { display: flex; align-items: center; gap: 10px; }
 .lp-btn-ghost  { font-size: var(--fs-label); font-weight: 500; color: var(--txt2); padding: 6px 14px; border-radius: var(--radius-chip); text-decoration: none; transition: color .15s, background .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-ghost:hover { color: var(--txt); background: rgba(255,255,255,.05); }
-.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: #fff; background: var(--accent-solid); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
+.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: var(--on-accent); background: var(--accent-solid); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-primary:hover { opacity: .85; }
 .lp-lang-short { display: none; }
 
@@ -4790,7 +5183,7 @@ body.landing {
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
 .lp-hero-ctas   { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: #fff; background: var(--accent-solid); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
+.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: var(--on-accent); background: var(--accent-solid); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
 .lp-cta-primary:hover { opacity: .88; }
 .lp-cta-ghost   { font-size: var(--fs-card-title); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.06); border: 1px solid var(--bdr); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: background .15s, color .15s; }
 .lp-cta-ghost:hover { background: rgba(255,255,255,.1); color: var(--txt); }
@@ -4831,7 +5224,7 @@ body.landing {
 .lp-step          { flex: 1; padding: 0 28px; text-align: center; }
 .lp-step:first-child { padding-left: 0; }
 .lp-step:last-child  { padding-right: 0; }
-.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-solid); color: #fff; font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-solid); color: var(--on-accent); font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
 .lp-step h3       { font-size: var(--fs-card-title); font-weight: 700; margin: 0 0 8px; }
 .lp-step p        { font-size: var(--fs-label); color: var(--txt2); line-height: 1.6; margin: 0; }
 .lp-step-arrow    { font-size: 1.25rem; color: var(--txt3); margin-top: 10px; flex-shrink: 0; align-self: center; }
@@ -4840,7 +5233,7 @@ body.landing {
 .lp-pricing         { display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
 .lp-plan            { flex: 1; min-width: 280px; max-width: 380px; border-radius: var(--radius-card); padding: 28px; border: 1px solid var(--bdr); background: var(--bg2); position: relative; }
 .lp-plan-pro        { border-color: rgba(26,122,255,.3); background: var(--bg2); }
-.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent-solid); color: #fff; padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
+.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent-solid); color: var(--on-accent); padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
 .lp-plan-header     { margin-bottom: 24px; }
 .lp-plan-name       { font-size: var(--fs-label); font-weight: 700; color: var(--txt2); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
 .lp-plan-price      { font-size: 3rem; font-weight: 900; letter-spacing: -.04em; line-height: 1; margin-bottom: 6px; }
@@ -4854,7 +5247,7 @@ body.landing {
 .lp-plan-cta        { display: block; text-align: center; padding: 12px; border-radius: var(--radius-card); font-size: var(--fs-label); font-weight: 700; text-decoration: none; transition: opacity .15s; }
 .lp-plan-cta-free   { background: rgba(255,255,255,.07); border: 0.5px solid var(--bdr); color: var(--txt); }
 .lp-plan-cta-free:hover { background: rgba(255,255,255,.12); }
-.lp-plan-cta-pro    { background: var(--accent-solid); color: #fff; }
+.lp-plan-cta-pro    { background: var(--accent-solid); color: var(--on-accent); }
 .lp-plan-cta-pro:hover { opacity: .85; }
 
 /* ── LP FINAL CTA ────────────────────────────────────────────────────── */
@@ -5255,7 +5648,7 @@ html[lang="ar"] .lp-h1-accent {
 }
 .obw-btn-back { flex-shrink: 0; background: transparent; border: 1px solid var(--bdr); color: var(--txt2); }
 .obw-btn-back:hover { border-color: var(--bdr2); color: var(--txt); }
-.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent-solid); color: #fff; }
+.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent-solid); color: var(--on-accent); }
 .obw-btn-next:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
 .obw-btn-next:disabled { background: var(--bg2); border-color: var(--bdr); color: var(--txt3); cursor: not-allowed; }
 .obw-skip {
@@ -5593,6 +5986,10 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      - terminal's --txt3 is the identical #7c828a literal, so the same
      composited-surface failure applies here too. */
   --txt-dash: #848a92;
+  /* #652: matches lib/terminalTokens.ts. Dark's green passes on every ground
+     it meets, so this is --green; terminal light takes its own darker value. */
+  --green-fg: #3fb950;
+  --red-fg: #ff8a85;
   /* #546 C9: derived tints for --green/--red, same pattern as the already-
      existing --accent-bg/--accent-bdr. Undeclared here, .chg-up/.chg-dn's
      background/border (app/globals.css:786-787) fell through to the current
@@ -5765,6 +6162,8 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --bg3: var(--bg2);
   --bg4: var(--bg1);
   --green-2:    var(--green);
+  --green-fg:   #0f5a22;
+  --red-fg:     #7d0f18;
   --green-soft: var(--green);
   --red-soft:   var(--red);
   --txt-dim:    var(--txt2);
@@ -5898,6 +6297,122 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 }
 [data-design="terminal"] .tnav-item:hover { color: var(--txt2); }
 
+/* ── Terminal nav dropdowns (#714) ──────────────────────────────────────
+   The owner reported this bar twice: it carried five tabs where the nav it
+   replaced carried eight items and two grouping dropdowns, so everything
+   else was reachable only through the drawer.
+
+   Shaped from .tnav-item rather than from the current design's
+   .nav-more-dropdown: that shell is 12px-radius on --bg2 with a soft shadow,
+   which is the other design's language. Terminal is square, hairline, flat -
+   reusing the current-design shell here would have put a rounded card under a
+   monochrome bar. Same STRUCTURE and same disclosure behaviour, terminal's
+   surface treatment.
+
+   The button inherits .tnav-item, so it is one declaration for type and
+   colour and cannot drift from the tabs beside it - a nav where one item is
+   half a pixel off the rest is exactly what "it got down" describes. */
+[data-design="terminal"] .tnav-drop-wrap { position: relative; }
+[data-design="terminal"] .tnav-drop-btn {
+  background: none; border: 0; cursor: pointer;
+  /* Matches the Link siblings: a <button> inherits none of this. */
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+}
+[data-design="terminal"] .tnav-item.on,
+[data-design="terminal"] .tnav-drop-btn.on { color: var(--txt); }
+
+[data-design="terminal"] .tnav-dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 300;
+  min-width: 180px; padding: 4px;
+  background: var(--bg1);
+  border: 1px solid var(--bdr2);
+  border-radius: 0;                     /* C17: no radius anywhere in terminal */
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+[data-design="terminal"] .tnav-drop-item {
+  display: block; padding: 7px 10px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--txt3); text-decoration: none; white-space: nowrap;
+  transition: color .12s, background .12s;
+}
+[data-design="terminal"] .tnav-drop-item:hover {
+  color: var(--txt);
+  /* color-mix on a token, not an rgba() literal - a hardcoded white wash is
+     the cross-palette bug that kept reappearing through the redesign work. */
+  background: color-mix(in srgb, var(--txt) 8%, transparent);
+}
+[data-design="terminal"] .tnav-drop-item.on { color: var(--txt); }
+
+/* Below 768 the drawer is the navigation and these would compete with it -
+   the same breakpoint .hamburger and .tnav-mmore already use, not a new one. */
+@media (max-width: 767px) {
+  [data-design="terminal"] .tnav-drop-wrap { display: none; }
+}
+
+/* Theme toggle, language and Sign In (#714). The owner asked for these by
+   name: "on terminal top app bar There are missing buttons. like switching
+   dark theme and light theme and sign in".
+
+   The theme button is the one that mattered most. Terminal ships a full light
+   palette ([data-design="terminal"][data-theme="light"], #563) and nothing in
+   the terminal UI could reach it - the palette existed and was unreachable
+   without editing localStorage by hand.
+
+   Terminal's treatment, not the current design's: no radius, no accent fill,
+   monochrome, and sized against .tnav-item's 11px so the right cluster reads
+   as one bar rather than two. 28px box for a 16px glyph clears SC 2.5.8's
+   24px minimum without the padded-hit-area trick .tnav-avatar needed. */
+[data-design="terminal"] .tnav-icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex-shrink: 0;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--txt3);
+  transition: color .12s;
+}
+[data-design="terminal"] .tnav-icon-btn:hover { color: var(--txt); }
+
+[data-design="terminal"] .tnav-signin {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+  padding: 6px 12px; white-space: nowrap; text-decoration: none;
+  color: var(--txt);
+  border: 1px solid var(--bdr2);
+  border-radius: 0;
+  transition: border-color .12s, color .12s;
+}
+[data-design="terminal"] .tnav-signin:hover { border-color: var(--txt3); }
+
+/* The language switcher is a shared component carrying the current design's
+   own classes. Only its surface is restated here - structure, dropdown
+   behaviour and the switching itself are untouched. */
+[data-design="terminal"] .lang-nav-btn {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .08em;
+  border-radius: 0; color: var(--txt3);
+}
+[data-design="terminal"] .lang-nav-btn:hover { color: var(--txt); }
+/* Its panel too - verified against the component's own class names rather than
+   assumed. Left rounded it would be the one curved surface in the bar, which
+   is the "two design languages on one screen" failure the redesign notes warn
+   about repeatedly. */
+[data-design="terminal"] .lang-nav-dropdown {
+  background: var(--bg1);
+  border: 1px solid var(--bdr2);
+  border-radius: 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+[data-design="terminal"] .lang-nav-item {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px; letter-spacing: .08em; border-radius: 0; color: var(--txt3);
+}
+[data-design="terminal"] .lang-nav-item:hover {
+  color: var(--txt);
+  background: color-mix(in srgb, var(--txt) 8%, transparent);
+}
+[data-design="terminal"] .lang-nav-item.on { color: var(--txt); }
+
 /* The nav's right-hand cluster (#599). Dashboard 2a.dc.html:49-53 draws
    three elements after a flex spacer at gap:14px - a session indicator, a
    ⌘K hint and an avatar. None of them had ANY rule before this: wiring the
@@ -5926,12 +6441,29 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    only the element type moved. background/padding/font are resets: a button
    does not inherit them the way the span did. */
 [data-design="terminal"] .tnav-avatar {
+  /* #714: 22x22 painted, 24x24 tappable. QA measured 22x22 against SC 2.5.8's
+     24px minimum - 2px short on each axis, correctly labelled so this is size
+     only. The frame draws this box at 22px deliberately (it matches
+     .tnav-session-dot's row and the kbd chip's proportions), so growing the
+     visible box would be a design change this fix has no standing to make.
+
+     Same padded-hit-area shape as #652's liq-heat-swatch, and box-sizing:
+     content-box is why it will not repeat that fix's first miss: this project
+     sets `* { box-sizing: border-box }` globally (globals.css:213), so height
+     ALREADY includes padding under the default box model - the swatch's first
+     version added padding under border-box and the hit area never grew. Set
+     explicitly here rather than relying on it being noticed again. */
+  box-sizing: content-box;
   width: 22px; height: 22px;
+  padding: 1px;
+  margin: -1px;
+  background: none;
+  background-clip: content-box;
   border: 1px solid var(--border-input);
   display: flex; align-items: center; justify-content: center;
   color: var(--txt2); font-size: 10px; font-weight: 700;
   flex-shrink: 0;
-  background: none; padding: 0; cursor: pointer;
+  cursor: pointer;
   font-family: var(--font-mono), monospace;
 }
 [data-design="terminal"] .tnav-avatar:hover { color: var(--txt); }
@@ -6052,6 +6584,16 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 [data-design="terminal"] .dterm-toc-item:hover { color: var(--txt2); }
 [data-design="terminal"] .dterm-toc-item.on { border-left-color: var(--accent); color: var(--txt); }
 [data-design="terminal"] .dterm-toc-num {
+  /* UNREACHABLE AS OF #794, and nobody could determine whether it is pending
+     or residue. No .tsx renders .dterm-toc or .dterm-toc-item, so this rule
+     never matches; --txt4's only live use was the landing route string, which
+     #794 moved to --txt3 on the owner's ruling.
+     Kept rather than deleted because .tnav-kbd sets the precedent for a rule
+     held against a screen that does not exist yet (#599) - but that one says
+     so, and the difference between "waiting" and "forgotten" is exactly that
+     sentence. This is the sentence. If the terminal docs screen lands, this is
+     ready; if it never does, this and the .at-snapcells rule below go
+     together. */
   font-family: var(--font-mono), monospace; font-size: 10px; color: var(--txt4); flex-shrink: 0;
 }
 
@@ -6461,7 +7003,14 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    .ms-hist-row, which has no background of its own and composites on plain
    --bg1 at 4.71 - passing. Only the BADGE in a history row is tinted, not
    the row. The first version of this rule targeted the passing element. */
-[data-design="terminal"] .ms-ev-ago,
+/* .ms-ev-ago is NOT here any more (#771). It takes --txt-stamp from its base
+   rule, unscoped, because the defect was never terminal-specific: the current
+   design was left on --txt3 by this very rule's scoping and measures 4.41 on a
+   green last-event in dark. A token that both designs need does not belong
+   behind a design selector.
+   .ms-hist-ago stays: it sits in .ms-hist-row, which has no background of its
+   own, so it composites on plain --bg1 and measures 5.26-8.49 across the four
+   contexts. It passes, so it is not being changed to match a pattern. */
 [data-design="terminal"] .ms-hist-ago { color: var(--txt2); }
 
 /* Footer column links: a 25px hit area with ZERO layout change (#641).
@@ -6677,7 +7226,7 @@ main.app-content[data-chrome="none"] {
   border-bottom: 1px solid var(--bdr); background: var(--bg1);
 }
 [data-design="terminal"] .at-vmain {
-  flex: 0 0 330px; padding: 20px; display: flex; flex-direction: column; gap: 10px;
+  flex: 0 0 330px; padding: 16px; display: flex; flex-direction: column; gap: 6px;
   border-right: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .at-vlabel {
@@ -6704,7 +7253,7 @@ main.app-content[data-chrome="none"] {
 }
 [data-design="terminal"] .at-vlevels { display: flex; flex: 1; }
 [data-design="terminal"] .at-vlevel {
-  flex: 1; padding: 20px 22px; display: flex; flex-direction: column; gap: 7px;
+  flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 5px;
   border-right: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .at-vlevelval {
@@ -6776,15 +7325,7 @@ main.app-content[data-chrome="none"] {
   flex: 1; min-width: 0; border-right: 1px solid var(--bdr);
 }
 [data-design="terminal"] .at-rail { flex: 0 0 352px; display: flex; flex-direction: column; }
-/* overflow/position: KLineProChart is restyled by tokens, not rebuilt
-   (arena.md, out of scope) - it sizes its own internal canvas/overlay price
-   tags from assumptions that predate this 430px box. Without a clip
-   boundary here, anything it renders taller than 430px spills into
-   MultiTF/MarketStructure below instead of being cropped by its own panel. */
-[data-design="terminal"] .at-chart {
-  height: 430px; padding: 16px 62px 24px 16px;
-  position: relative; overflow: hidden;
-}
+[data-design="terminal"] .at-chart { height: 430px; padding: 16px 62px 24px 16px; }
 /* The two paired rows: each half flex:1, divided by one structural hairline. */
 [data-design="terminal"] .at-pair { display: flex; align-items: stretch; border-bottom: 1px solid var(--bdr); }
 [data-design="terminal"] .at-pair > * { flex: 1; min-width: 0; }
@@ -6836,22 +7377,6 @@ main.app-content[data-chrome="none"] {
   [data-design="terminal"] .at-chart { height: 210px; }
   [data-design="terminal"] .at-ev { padding: 10px 14px; }
   [data-design="terminal"] .at-root { padding-bottom: 60px; }
-  /* .at-pair (MTF+Structure, EMA+Absorption) stacks instead of sitting
-     side-by-side - two ~170px-wide halves at 390px isn't enough room for
-     either panel's own content. */
-  [data-design="terminal"] .at-pair { flex-direction: column; }
-  [data-design="terminal"] .at-pair > * + * { border-left: 0; border-top: 1px solid var(--bdr); }
-  /* Structure row: type + price + ago, direction glyph absent (arena.md
-     mobile region table). MarketStructure is shared, so the glyph itself
-     stays - restyled off, not deleted, same as the KLineProChart toolbar
-     buttons above. */
-  [data-design="terminal"] .at-panelbody .ms-dir-glyph { display: none; }
-  /* C32: nav 38. Nav itself is shell chrome (out of scope this branch,
-     matches every other terminal route tonight) - this only sets the height
-     so the mobile tree matches the spec's number; it does not restyle nav
-     content. The tab bar (60, five destinations) is the app shell's own
-     .mobile-tab-bar below, not a second arena-only bar. */
-  [data-design="terminal"] .at-nav-mobile { height: 38px; }
 }
 
 /* Rail panels — clusters, Why, session history. Rows use --bdr3 (list
@@ -6903,11 +7428,11 @@ main.app-content[data-chrome="none"] {
 
 /* Region 4, snapshot band: 330 coin cell | stat cells | 230 badge cell. */
 [data-design="terminal"] .at-coincell {
-  flex: 0 0 330px; display: flex; align-items: center; gap: 13px;
-  padding: 0 20px; border-right: 1px solid var(--bdr3);
+  flex: 0 0 330px; display: flex; align-items: center; gap: 12px;
+  padding: 0 18px; border-right: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .at-coinsym {
-  font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: var(--txt);
+  font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--txt);
 }
 [data-design="terminal"] .at-snapcells { flex: 1; min-width: 0; display: flex; align-items: center; }
 [data-design="terminal"] .at-badgecell {
@@ -6958,41 +7483,22 @@ main.app-content[data-chrome="none"] {
   font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--txt);
   font-variant-numeric: tabular-nums;
 }
+/* Unreachable as of #794 - see the .dterm-toc-num note above. .edge-card-signal
+   IS rendered, but never inside .at-snapcells, which no .tsx produces. */
 [data-design="terminal"] .at-snapcells .edge-card-signal {
   font-family: var(--font-mono); font-size: 10px; color: var(--txt4);
 }
 
 /* Body panels wear the spec's header (§Panel header: "every panel in the body
    uses it"). The passed-in components draw their own, so theirs is suppressed
-   here and .at-phead (app/arena/page.tsx's terminal branch - no separate
-   ArenaTerminal.tsx, see #413 architecture note there) supplies the pattern -
-   height 30, 0 16px, 10px mono/700 .16em, optional PRO chip.
+   here and ArenaTerminal's BodyPanel supplies the pattern - height 30, 0 16px,
+   10px mono/700 .16em, optional PRO chip.
    Suppressed rather than deleted: these components render on other screens
    where their headers are correct. */
 [data-design="terminal"] .at-bodypanel .sms-header,
 [data-design="terminal"] .at-bodypanel .ms-header,
-[data-design="terminal"] .at-bodypanel .abs-header,
-[data-design="terminal"] .at-bodypanel .ema-header {
-  /* !important: ema-header carries an inline display:'flex' - same
-     "inline beats a non-important class rule" shape as #559's radius
-     fixes tonight, just for display instead of border-radius. The other
-     three (sms/ms/abs-header) have no competing inline style, so this is
-     harmless for them. */
-  display: none !important;
-}
+[data-design="terminal"] .at-bodypanel .abs-header { display: none; }
 [data-design="terminal"] .at-panelbody { padding: 0; }
-/* MultiTFAlignment's own title is an .edge-card-label, the same class its
-   repeated row-cells use elsewhere (dashboard's signal grid) - safe to
-   suppress wholesale here because .at-panelbody never hosts that repeated
-   pattern, only this one title use. */
-[data-design="terminal"] .at-panelbody .edge-card-label { display: none; }
-/* EMASignal ships its own card chrome (bg/border/radius) with no class to
-   flatten via the .card/.edge-card hook above - same shape as the "class
-   exists only for a terminal selector" pattern used throughout this file. */
-[data-design="terminal"] .at-panelbody .ema-card {
-  background: transparent !important; border: 0 !important; border-radius: 0 !important;
-  padding: 0 !important; margin: 0 !important;
-}
 /* The cards these components ship lose their frames inside a panel that
    already has one - otherwise every row reads as its own region. */
 [data-design="terminal"] .at-panelbody .card,
@@ -7028,9 +7534,28 @@ main.app-content[data-chrome="none"] {
    per-band fill. Terminal only - the current design's dashboard keeps its
    spaced cards, and .scc-card/.dash-conditions-row both render there too. */
 [data-design="terminal"] .dash-main { gap: 0; }
+/* The coin row keeps a surface (#744). Owner: "the coin item. Why does it have
+   no background even in dark theme."
+
+   THIS PARTLY REVERSES #607, WHICH IS WHY IT IS SPELLED OUT. That decision made
+   the whole main column banded rather than carded - no per-band fill, hairline
+   separators, column ground throughout - and `background: transparent` here was
+   part of it, not an oversight. The owner is asking for the opposite for this
+   one element, so this is a ruling overriding a ruling rather than a bug fix.
+
+   --bg1, not the base rule's card treatment: it lifts the row off --bg0 enough
+   to read as a surface while staying inside terminal's palette, and the
+   hairline separator and zero radius from #607 are kept. So the row gains a
+   ground without becoming a floating card again, which is the half of #607
+   the owner did not object to.
+
+   The sibling bands (.dash-conditions-row below) are deliberately NOT given a
+   fill - the owner named this element specifically, and changing the others to
+   match would be me deciding how far the reversal goes. If the column should
+   be carded again throughout, that is a bigger call and theirs. */
 [data-design="terminal"] .dash-main > .scc-card {
   border: 0; border-bottom: 1px solid var(--bdr);
-  background: transparent; border-radius: 0;
+  background: var(--bg1); border-radius: 0;
 }
 [data-design="terminal"] .dash-main > .dash-conditions-row {
   gap: 0; border-bottom: 1px solid var(--bdr);
@@ -7138,86 +7663,33 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .mcw-rsi-fill,
 [data-design="terminal"] .mcw-ls-bar,
 [data-design="terminal"] .mcw-ls-bar > *   { border-radius: 0; }
+/* #698: the coin-heatmap tile's text in terminal.
+   The tile's colour ramp was built for the CURRENT design - text lightens as
+   the tile saturates (#86efac, #fee2e2), so severity is carried by the tile
+   while the number stays readable, 8.6:1 to 9.6:1 across the ramp. In terminal
+   --green-soft and --red-soft alias flat to --green/--red, so that lightening
+   does not happen and the strongest tiles put a mid-tone signal colour on a
+   saturated tint of itself: 3.51 worst, 26 failures on /scanner (#698).
 
-/* Rail width, canvas-exact (qa/reports/dashboard-2a-canvas-geometry.md: aside
-   width 352px). Was 360px, close but not what the canvas draws. */
-@media (min-width: 1100px) {
-  [data-design="terminal"] .dashboard-grid { grid-template-columns: minmax(0, 1fr) 352px; }
-}
+   Terminal takes --txt and lets the tint carry direction, which is what
+   /correlation already shipped on #570 - 2368 failing cells fixed exactly that
+   way, now measuring 2450 with zero failures on production. It clears every
+   ground on this ramp by 7.8:1 or better and, unlike a stronger foreground,
+   cannot be reopened by a stronger tint - the tint strength here is
+   data-driven, so there is no value that is safe by construction.
 
-/* ── Dashboard canvas mirror (feature/dashboard-canvas-mirror, #587) ──
-   Dashboard 2a.dc.html draws the six coin-signal cards as ONE 3x2 table -
-   hairline-separated cells, no per-card background or gap - not two
-   auto-fit card grids with a gap between them. TEdgeSignals now renders
-   all six as siblings of a single .edge-grid; this makes that grid lay
-   out and look like the canvas's table instead of the base .edge-card's
-   free-standing rounded cards. Scoped to .dash-main so Arena's own
-   .at-snapcells/.at-panelbody overrides (different geometry, same base
-   classes) are untouched.
-   Geometry from qa/reports/dashboard-2a-canvas-geometry.md: cell padding
-   12px 16px, label/value/sig 10.5/15/10.5, hairline #16191b (--bdr3). */
-[data-design="terminal"] .dash-main .edge-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  margin-bottom: 0;
-}
-[data-design="terminal"] .dash-main .edge-card {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  border-right: 1px solid var(--bdr3);
-  border-bottom: 1px solid var(--bdr3);
-  padding: 12px 16px;
-}
-[data-design="terminal"] .dash-main .edge-card:nth-child(3n) { border-right: 0; }
-[data-design="terminal"] .dash-main .edge-card:nth-last-child(-n+3) { border-bottom: 0; }
-[data-design="terminal"] .dash-main .edge-card-label  { font-size: 10.5px; }
-[data-design="terminal"] .dash-main .edge-card-value  { font-size: 15px; }
-[data-design="terminal"] .dash-main .edge-card-signal { font-size: 10.5px; }
+   Direction is not lost with the colour: the tile tint and the +/- sign both
+   still carry it, which is also what keeps this clear of WCAG 1.4.1.
 
-/* Market read banner - the canvas's first main-column panel (#587).
-   Desktop geometry, Dashboard 2a.dc.html:79-83: background #141517, padding
-   15px 20px, bottom hairline #1f2225 (--bdr); eyebrow 10px mono .16em
-   uppercase --txt3; verdict 24px mono 700 line-height 1 at 8px above; sub
-   12.5px/1.5 --txt2 at 8px above, capped 680px so the sentence wraps at a
-   readable measure rather than the full column width.
+   The current design is untouched - --heat-fg is unset there, so each span
+   falls back to its own ramp colour.
 
-   #141517 is --bg1, NOT --bg2. This shipped as --bg2 (#111416) with a
-   comment claiming it was #141517, so the wrong value read as verified:
-   the banner painted DARKER than the TPanel siblings below it, inverting
-   the canvas relationship where the band is a lifted surface on the
-   column ground. Light theme had the same inversion (canvas #ebe9e6 is
-   terminal-light --bg1; --bg2 there is #e3e1dd). */
-[data-design="terminal"] .dash-market-read-banner {
-  background: var(--bg1);
-  border-bottom: 1px solid var(--bdr);
-  padding: 15px 20px;
-}
-[data-design="terminal"] .dmrb-eyebrow {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--txt3);
-}
-[data-design="terminal"] .dmrb-verdict {
-  font-family: var(--font-mono), monospace;
-  font-size: 24px; font-weight: 700; line-height: 1; margin-top: 8px;
-}
-[data-design="terminal"] .dmrb-sub {
-  font-size: 12.5px; line-height: 1.5; color: var(--txt2);
-  margin-top: 8px; max-width: 680px;
-}
-/* Mobile band, Dashboard 2a.dc.html:236-239 - a distinct geometry, not the
-   desktop one reflowed: padding 14, verdict 21px at line-height 1.1, sub
-   12px. The canvas hand-breaks its verdict string ("RISK-ON,<br>CAUTIOUS")
-   precisely because 24px at line-height 1 does not survive a narrow column -
-   production strings are longer still ("Decent conditions - be selective" is
-   32 characters), so without this they wrap and the lines touch. */
-@media (max-width: 640px) {
-  [data-design="terminal"] .dash-market-read-banner { padding: 14px; }
-  [data-design="terminal"] .dmrb-verdict { font-size: 21px; line-height: 1.1; }
-  [data-design="terminal"] .dmrb-sub { font-size: 12px; }
-}
+   RESTORED (#720 review). This rule sat directly above the cluster-ladder
+   block on `dev` and went out with it in ed47abe - the commit whose own
+   message claims to have kept it. It belongs to /scanner, which #718 does not
+   revert. Placed here, away from any liq-scoped block, so the next revert in
+   this file cannot sweep it up the same way. */
+[data-design="terminal"] .chm-tile { --heat-fg: var(--txt); }
 
 /* briefing */
 [data-design="terminal"] .mb-macro-item { border-radius: 0; }
@@ -7300,171 +7772,6 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .liq-term-wrap,
 [data-design="terminal"] .liq-term-wrap * { border-radius: 0 !important; }
 
-/* ══ Liquidation map, canvas regions 2-4 (#652) ═══════════════════════════
-   Values measured off Liquidation Map.dc.html: title row 46, tabs row 40,
-   heat rails 46 and 58, time axis 20. The surface's own ground is the
-   canvas's #0a0710 - the darkest stop of ramp 0, so the unlit part of the
-   field reads as the ramp's floor rather than as the page showing through.
-   It is deliberately NOT a token: it is the bottom of a continuous colour
-   scale, the same reason the ramps themselves are not palette members. */
-[data-design="terminal"] .liq-heat-head {
-  height: 46px; flex-shrink: 0; display: flex; align-items: center;
-  padding: 0 16px; gap: 14px; border-bottom: 1px solid var(--bdr);
-}
-[data-design="terminal"] .liq-heat-title {
-  font-family: var(--font-mono), monospace;
-  font-size: 14px; font-weight: 700; letter-spacing: .1em; color: var(--txt);
-}
-[data-design="terminal"] .liq-heat-source {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .14em; color: var(--txt3);
-}
-[data-design="terminal"] .liq-heat-tfs {
-  display: flex; gap: 2px; border: 1px solid var(--bdr);
-  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .1em;
-}
-[data-design="terminal"] .liq-heat-tf {
-  padding: 5px 10px; color: var(--txt3); background: none; border: 0; cursor: pointer;
-  font-family: inherit; font-size: inherit; letter-spacing: inherit;
-}
-[data-design="terminal"] .liq-heat-tf.on { color: var(--bg0); background: var(--accent); }
-[data-design="terminal"] .liq-heat-refresh {
-  border: 1px solid var(--border-input); width: 30px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  background: none; cursor: pointer; color: var(--txt2); flex-shrink: 0;
-}
-[data-design="terminal"] .liq-heat-refresh:hover { border-color: var(--accent); }
-
-[data-design="terminal"] .liq-heat-controls {
-  height: 40px; flex-shrink: 0; display: flex; align-items: center;
-  padding: 0 16px; gap: 12px; border-bottom: 1px solid var(--bdr);
-}
-[data-design="terminal"] .liq-heat-tabs {
-  display: flex; gap: 2px;
-  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .12em;
-}
-[data-design="terminal"] .liq-heat-tab {
-  padding: 6px 12px; border: 1px solid var(--bdr); background: none;
-  color: var(--txt3); cursor: pointer; font-family: inherit;
-  font-size: inherit; letter-spacing: inherit;
-}
-[data-design="terminal"] .liq-heat-tab.on { color: var(--bg0); background: var(--accent); }
-[data-design="terminal"] .liq-heat-swatches { display: flex; gap: 4px; }
-/* 26x16 painted, 26x24 tappable (#652). The canvas specifies width:26px;
-   height:16px and this is built exactly to it - so the CANVAS asks for a
-   control that fails SC 2.5.8's 24px minimum. Resolved the way landing.md:512
-   already prescribes for its own two undersized controls, "a padded hit area
-   without changing their painted box", and the way #642 built it for the
-   footer links: padding grows the box, an equal negative margin pulls the
-   flow back, nothing moves. Only the height failed - 26 already clears 24. */
-[data-design="terminal"] .liq-heat-swatch {
-  width: 26px; height: 16px; border: 1px solid var(--bdr); cursor: pointer;
-  padding: 4px 0; margin: -4px 0; background-clip: content-box;
-}
-[data-design="terminal"] .liq-heat-swatch.on { border-color: var(--accent); }
-[data-design="terminal"] .liq-heat-thr-label {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .12em; color: var(--txt2);
-}
-[data-design="terminal"] .liq-heat-thr { width: 150px; accent-color: var(--accent); cursor: pointer; }
-
-[data-design="terminal"] .liq-heat-wrap {
-  flex: 1; min-height: 0; display: flex; padding: 14px 16px 8px; gap: 12px;
-}
-[data-design="terminal"] .liq-heat-scale {
-  width: 46px; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start;
-  font-family: var(--font-mono), monospace; font-size: 9.5px;
-}
-[data-design="terminal"] .liq-heat-scale-max { color: var(--txt2); }
-[data-design="terminal"] .liq-heat-scale-min { color: var(--txt4); margin-top: 6px; }
-[data-design="terminal"] .liq-heat-scale-bar {
-  flex: 1; width: 16px; margin-top: 6px; border: 1px solid var(--bdr);
-}
-[data-design="terminal"] .liq-heat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-[data-design="terminal"] .liq-heat-surface {
-  flex: 1; min-height: 0; position: relative; overflow: hidden; background: #0a0710;
-}
-[data-design="terminal"] .liq-heat-row { position: absolute; left: 0; right: 0; }
-[data-design="terminal"] .liq-heat-spot {
-  position: absolute; left: 0; right: 0;
-  border-top: 1px dashed color-mix(in srgb, var(--txt) 50%, transparent);
-}
-[data-design="terminal"] .liq-heat-spot-label {
-  position: absolute; right: 6px; margin-top: -8px;
-  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700;
-  color: var(--bg0); background: var(--txt); padding: 1px 4px;
-}
-[data-design="terminal"] .liq-heat-time {
-  height: 20px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
-  font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: .08em; color: var(--txt4);
-}
-[data-design="terminal"] .liq-heat-axis {
-  width: 58px; flex-shrink: 0; display: flex; flex-direction: column;
-  justify-content: space-between; padding-bottom: 20px;
-  font-family: var(--font-mono), monospace; font-size: 9.5px; color: var(--txt3); text-align: right;
-}
-[data-design="terminal"] .liq-heat-tz { color: var(--txt3); letter-spacing: .12em; }
-[data-design="terminal"] .liq-heat-cap {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px; letter-spacing: .12em; color: var(--amber);
-  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
-  padding: 3px 8px;
-}
-/* #652: --txt2 on the current-price bar, not --txt3.
-   Fixing the bar's colour leak (above) corrected the PALETTE but not the
-   CONTRAST - the two were separate defects on one element. Measured against
-   the corrected ground, --txt3 reads 4.16 dark / 4.33 light, and only clears
-   4.5 once the tint drops to 3%, which is close enough to no tint that the
-   bar stops marking the current-price row at all. That is the highlight's
-   whole job.
-   --txt2 clears at every alpha the bar could reasonably use - 4.95 dark and
-   4.55 light at the current 9%/6% - so the tint keeps doing its work and the
-   label becomes readable. Same resolution as .ms-ev-ago: when text sits on a
-   deliberate tint, the text moves up a step rather than the tint being
-   flattened out of existence. Terminal only; the current design's bar is a
-   different ground and was not measured. */
-[data-design="terminal"] .liq-current-oi { color: var(--txt2); }
-
-/* Mobile chrome, measured off Liquidation Map.dc.html's 390x844 frame
-   (#652). The desktop rows were rendering unchanged at 390 - correct
-   heights, no mobile variant. Row heights 46->36 and 40->34, rails 46->26
-   and 58->46, axis type 9.5->8.5.
-
-   The fixed 330 surface is the one that matters most. On desktop flex:1 is
-   right; at 390 the canvas deliberately BANDS the surface at 330 rather than
-   letting it take the remainder, so the ladder and feeds below stay reachable
-   without scrolling past a full-height heatmap. */
-@media (max-width: 767px) {
-  [data-design="terminal"] .liq-heat-head {
-    height: 36px; padding: 0 14px; gap: 10px;
-  }
-  [data-design="terminal"] .liq-heat-title { font-size: 11.5px; }
-  [data-design="terminal"] .liq-heat-source { font-size: 9.5px; }
-  [data-design="terminal"] .liq-heat-controls {
-    height: 34px; padding: 0 14px; gap: 10px;
-  }
-  [data-design="terminal"] .liq-heat-tab { padding: 5px 11px; }
-  [data-design="terminal"] .liq-heat-wrap {
-    flex: 0 0 330px; height: 330px; padding: 10px 12px 6px; gap: 8px;
-  }
-  [data-design="terminal"] .liq-heat-scale { width: 26px; font-size: 8.5px; }
-  [data-design="terminal"] .liq-heat-scale-bar { width: 12px; }
-  [data-design="terminal"] .liq-heat-axis { width: 46px; font-size: 8.5px; }
-  [data-design="terminal"] .liq-heat-time { font-size: 8.5px; }
-  /* The threshold slider and its label are the first things to lose at 390 -
-     the canvas's mobile controls row carries the view tabs and swatches only.
-     Hidden rather than shrunk: a 150px range input inside a 366px row would
-     crowd out the tabs that select what is being shown. */
-  [data-design="terminal"] .liq-heat-thr,
-  [data-design="terminal"] .liq-heat-thr-label { display: none; }
-}
-
-[data-design="terminal"] .liq-heat-empty {
-  flex: 1; display: flex; align-items: center; justify-content: center;
-  padding: 2rem; color: var(--txt3);
-  font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .08em;
-}
-
 /* ── #559 platform radius sweep: circular-glyph carve-out ──────────────────
    specs/radius-ruling.md: "border-radius: 0 applies to rectangular surfaces
    ... It does not apply to elements that are inherently circular in the
@@ -7516,7 +7823,26 @@ main.app-content[data-chrome="none"] {
    on inherently circular glyphs at 24px or under, and a selector cannot
    tell a 16px icon from a 26px one. The component can. */
 [data-design="terminal"] .tj-lev-slider::-webkit-slider-thumb,
-[data-design="terminal"] .tj-lev-slider::-moz-range-thumb {
+[data-design="terminal"] .tj-lev-slider::-moz-range-thumb,
+/* #703: back on the list, but as .coin-icon-round - a class CoinIcon only emits
+   at 24px or under, which is the ruling's own threshold. The note above is right
+   that a selector cannot tell a 16px icon from a 32px one; the component can, so
+   it decides and the class carries that decision somewhere that outranks the
+   blanket `* { border-radius: 0 !important }` shells. The inline radius alone
+   never could.
+
+   BOTH CLASSES IN THE SELECTOR, deliberately. `.coin-icon-round` alone is
+   (0,2,0) with the attribute - exactly equal to `[data-design="terminal"]
+   .at-root *` - so it would win only by sitting later in the file. That holds
+   against the thirteen page-root blankets at :6219-:7340, and fails against the
+   twenty `!important` radius rules after it at :7742 (`.app-bar *`,
+   `.nav-menu *`, `.mobile-tab-bar *` and friends): a coin icon rendered inside
+   any of those would go square again.
+
+   Adding `.coin-icon` makes it (0,3,0), which beats every `.<x> *` blanket on
+   SPECIFICITY rather than position - so it survives a future rule being appended
+   below, which source order does not. QA caught this on the #709 review. */
+[data-design="terminal"] .coin-icon.coin-icon-round {
   border-radius: 50% !important;
 }
 
@@ -7588,7 +7914,6 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .desktop-nav-item { --_c6-tag: desktop-nav-item; border-radius: 0 !important; }
 [data-design="terminal"] .theme-btn { --_c6-tag: theme-btn; border-radius: 0 !important; }
 [data-design="terminal"] .lang-nav-btn { --_c6-tag: lang-nav-btn; border-radius: 0 !important; }
-[data-design="terminal"] .gchat-coin { --_c6-tag: gchat-coin; border-radius: 0 !important; }
 [data-design="terminal"] .gchat-quick { --_c6-tag: gchat-quick; border-radius: 0 !important; }
 [data-design="terminal"] .gchat-send { --_c6-tag: gchat-send; border-radius: 0 !important; }
 

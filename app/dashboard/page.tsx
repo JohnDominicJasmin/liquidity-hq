@@ -112,7 +112,14 @@ function MarketPulseStrip() {
 
 
 /* ── Coin Sidebar v2 - signal cards ── */
-const SIDEBAR_DEFAULT = 7;
+/* EIGHT, on the owner's ruling for #745: "show a fixed number of coins and
+   then show the data below". Eight fills the rail to roughly its natural height
+   so the data panels start without a gap and no row is cut mid-way.
+   The count alone was never the scroll - the list was already capped at 7 while
+   the rail held 1128px in a 548px box - so globals.css removes the rail's own
+   overflow in the same change. This number is the owner's; that removal is what
+   makes it visible. */
+const SIDEBAR_DEFAULT = 8;
 
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
@@ -338,7 +345,7 @@ function EdgeSignals() {
       <div className="edge-card-label">
         <Tip text={t('DASH_EDGE_VWAP_TIP')}>{t('DASH_EDGE_VWAP_LABEL', { coin: coin.toUpperCase() })}</Tip>
       </div>
-      <div className="edge-card-value" style={{ color: vwapCol, fontSize: 'var(--fs-data)' }}>
+      <div className="edge-card-value" style={{ color: vwapCol }}>
         {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
       </div>
       {vwap != null && (
@@ -361,7 +368,7 @@ function EdgeSignals() {
       </div>
       {oiMeta ? (
         <>
-          <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-data)' }}>{t(oiMeta.txtKey)}</div>
+          <div className="edge-card-value" style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
           <div className="edge-card-signal" style={{ color: oiMeta.col }}>{t(oiMeta.subKey)}</div>
         </>
       ) : (
@@ -396,7 +403,7 @@ function EdgeSignals() {
       <div className="edge-card-label">
         <Tip width={260} text={t('DASH_EDGE_SETUP_TIP')}>{t('DASH_EDGE_SETUP_LABEL', { coin: coin.toUpperCase() })}</Tip>
       </div>
-      <div className="edge-card-value" style={{ color: sqCol, fontSize: 'var(--fs-data)' }}>
+      <div className="edge-card-value" style={{ color: sqCol }}>
         {sq.score}
         <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{sq.label}</span>
       </div>
@@ -413,7 +420,7 @@ function EdgeSignals() {
       <div className="edge-card-label">
         <Tip text={t('DASH_EDGE_CB_TIP')}>{t('DASH_EDGE_CB_LABEL')}</Tip>
       </div>
-      <div className="edge-card-value" style={{ color: cbCol, fontSize: 'var(--fs-data)' }}>
+      <div className="edge-card-value" style={{ color: cbCol }}>
         {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-'}
       </div>
       <div className="edge-card-signal" style={{ color: cbCol }}>

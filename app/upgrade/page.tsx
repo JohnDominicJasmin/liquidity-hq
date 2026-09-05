@@ -149,7 +149,25 @@ export default function UpgradePage() {
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
               {FREE_FEATURES.map(([k, vars]) => (
                 <li key={k} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ color: '#22c55e', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(k, vars)}
+                  {/* #705: var(--green), not #22c55e. That literal is Tailwind's green-500 and
+    is in NEITHER palette - not the current design's --green (#4ade80 dark,
+    #046B4E light) nor terminal's (#3fb950 / #14702c) - so it tracked no theme
+    and measured 1.88:1 on terminal light's --bg1. Dark passed at 7.4, which is
+    why it survived: the failure only existed in the theme nobody defaulted to.
+    --green is declared in all four scopes, so this is one token everywhere.
+    Measured, ground stated:
+
+        terminal light  --green #14702c on --bg1 #ebe9e6   5.12   was 1.88
+        terminal dark   --green #3fb950 on --bg1 #141517   7.19   was 8.29
+        current light   --green #046B4E on #E8EAED         5.41   was 1.89
+        current dark    --green #4ade80 on #06070a        11.56   was 8.84
+
+    THE CURRENT DESIGN'S LIGHT THEME WAS ALSO FAILING, at 1.89. #705 measured
+    terminal only, so that half was never counted - the literal tracked no
+    theme, and both light themes land it on a light ground. Dark passed in both
+    designs, which is why seven checkmarks sat at under 2:1 without anyone
+    noticing. */}
+                  <span style={{ color: 'var(--green)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(k, vars)}
                 </li>
               ))}
             </ul>
@@ -157,7 +175,7 @@ export default function UpgradePage() {
 
           {/* Pro card */}
           <div style={{ borderRadius: 16, padding: '24px 28px', border: '0.5px solid var(--accent-bdr)', background: 'linear-gradient(160deg, var(--accent-bg) 0%, var(--bg1) 60%)', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent-solid)', color: '#fff', padding: '3px 14px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent-solid)', color: 'var(--on-accent)', padding: '3px 14px', borderRadius: 20, whiteSpace: 'nowrap' }}>
               {t('UPGRADE_PRO_CARD_BADGE')}
             </div>
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>{t('UPGRADE_PRO_CARD_EYEBROW')}</div>
@@ -180,6 +198,7 @@ export default function UpgradePage() {
             <>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <button
+                  data-testid="checkout-cta-monthly"
                   onClick={handleCheckout}
                   disabled={redirecting}
                   style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
@@ -189,6 +208,7 @@ export default function UpgradePage() {
                   {redirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_MONTHLY_CHECKOUT_BUTTON_CTA')}
                 </button>
                 <button
+                  data-testid="checkout-cta-annual"
                   onClick={handleCheckoutAnnual}
                   disabled={redirecting}
                   style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative' }}
@@ -203,7 +223,7 @@ export default function UpgradePage() {
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_BILLED_ANNUALLY', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
                   <span key={label} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ color: '#22c55e', fontSize: '0.6875rem' }}>✓</span> {t(label)}
+                    <span style={{ color: 'var(--green)', fontSize: '0.6875rem' }}>✓</span> {t(label)}
                   </span>
                 ))}
               </div>
@@ -212,9 +232,10 @@ export default function UpgradePage() {
             /* State 2: monthly only — pixel-identical to today */
             <>
               <button
+                data-testid="checkout-cta-monthly"
                 onClick={handleCheckout}
                 disabled={redirecting}
-                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#fff', background: 'var(--accent-solid)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
+                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
                 onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
               >
@@ -223,7 +244,7 @@ export default function UpgradePage() {
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
                   <span key={label} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ color: '#22c55e', fontSize: '0.6875rem' }}>✓</span> {t(label)}
+                    <span style={{ color: 'var(--green)', fontSize: '0.6875rem' }}>✓</span> {t(label)}
                   </span>
                 ))}
               </div>

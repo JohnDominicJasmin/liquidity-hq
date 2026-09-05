@@ -279,18 +279,29 @@ export function buildPrompt(ctx: GrokContext): string {
     // Quick mode has no tools, so it was a standing instruction the model
     // could not act on, spending tokens to say nothing. Restore alongside a
     // source that actually answers, not as a search prompt.
-    /* BTC in the header, because the data is BTC's whatever coin is being
-       analysed (#637): ctx.liqLevels is built from store.btcLiqLevels, and
-       the string it carries is bare prices and sides with no coin in it. An
-       analysis of SOL was handed a section titled LIQUIDATION CLUSTERS
-       containing BTC's, with nothing marking whose they were - and a model
-       asked for a per-coin read will weave those levels in rather than
-       reject them. Every sibling field in this prompt already names its
-       scope: "CB Premium (Coinbase BTC - Binance BTC)" at :240, "BTC
-       exchange net flow" at :268, "BTC Put/Call Ratio" and "BTC Max Pain
-       Strike" at :232-233. This one was the gap in an otherwise careful
-       set. */
-    '=== BTC LIQUIDATION CLUSTERS (BTC-wide, not the analysed coin) ===',
+    /* THE #637 CAVEAT IS GONE BECAUSE THE DATA CHANGED, NOT BECAUSE IT STOPPED
+       MATTERING. This header used to read "BTC LIQUIDATION CLUSTERS (BTC-wide,
+       not the analysed coin)", because ctx.liqLevels came from
+       store.btcLiqLevels and carried bare prices with no coin in them - an
+       analysis of SOL was handed BTC's levels with nothing marking whose they
+       were, and a model asked for a per-coin read weaves those in rather than
+       rejecting them. The source is now LiqFeed's buckets, which carry `coin`
+       and are filtered to the analysed one before they get here (#814), so the
+       header can finally name the coin instead of warning about it.
+
+       Worth keeping the old sentence's reasoning: every sibling field in this
+       prompt names its scope - "CB Premium (Coinbase BTC - Binance BTC)",
+       "BTC exchange net flow", "BTC Put/Call Ratio". A section that does not
+       is the one a model will misattribute.
+
+       REALIZED IS IN THE HEADER AND HAS TO STAY THERE. These are liquidations
+       that ALREADY happened - price memory, fuel spent. Coinglass sold
+       PREDICTED levels, where open positions WOULD blow up, which reads as a
+       forward magnet. A model handed "liquidation clusters" with no qualifier
+       reasons about them as the second kind, and it will do so confidently.
+       The owner ruled the wording for the chart overlay on #766; it matters
+       more here, because nothing in a prompt is visible to check afterwards. */
+    `=== REALIZED LIQUIDATION CLUSTERS (${ctx.coin}, last 24h - where liquidations ALREADY happened, not predicted levels) ===`,
     ctx.liqLevels,
     '',
     '=== MACRO EVENTS - RELEASED (LAST 72H) + UPCOMING (48H) ===',

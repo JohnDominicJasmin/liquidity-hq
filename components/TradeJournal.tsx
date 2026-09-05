@@ -820,7 +820,7 @@ function Inner() {
           {t('TRADE_JOURNAL_TAB_RULES')}{rules.filter(r => r.enabled).length > 0 && (
             <span style={{
               marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700,
-              background: 'var(--accent-solid)', color: '#fff',
+              background: 'var(--accent-solid)', color: 'var(--on-accent)',
               borderRadius: 10, padding: '1px 5px',
             }}>{rules.filter(r => r.enabled).length}</span>
           )}
@@ -829,7 +829,7 @@ function Inner() {
         <button data-testid="journal-tab" className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>{t('TRADE_JOURNAL_TAB_BIAS')}</button>
         <button data-testid="journal-tab" className={`tj-tab${tab === 'thesis' ? ' on' : ''}`} onClick={() => setTab('thesis')} style={{ position: 'relative' }}>
           {t('TRADE_JOURNAL_TAB_THESIS')}{theses.length > 0 && (
-            <span style={{ marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700, background: 'var(--accent-solid)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
+            <span style={{ marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700, background: 'var(--accent-solid)', color: 'var(--on-accent)', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
           )}
         </button>
       </div>
@@ -989,11 +989,11 @@ function Inner() {
               background: 'rgba(217,119,6,0.08)', border: '0.5px solid rgba(217,119,6,0.3)',
               borderRadius: 8, padding: '10px 12px', marginBottom: 12,
             }}>
-              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#f59e0b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--amber)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <Warn /> {t('TRADE_JOURNAL_LOG_LEVEL_WARNINGS_TITLE')}
               </div>
               {levelWarnings.map((w, i) => (
-                <div key={i} style={{ fontSize: 'var(--fs-caption)', color: '#f59e0b', opacity: 0.85, lineHeight: 1.5 }}>
+                <div key={i} style={{ fontSize: 'var(--fs-caption)', color: 'var(--amber)', opacity: 0.85, lineHeight: 1.5 }}>
                   · {w}
                 </div>
               ))}
@@ -1273,8 +1273,23 @@ function Inner() {
                     style={{
                       width: 26, height: 26, fontSize: 'var(--fs-caption)', fontWeight: 700, borderRadius: 6,
                       border: `0.5px solid ${i === historyPageSafe ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
-                      background: i === historyPageSafe ? 'var(--accent)' : 'transparent',
-                      color: i === historyPageSafe ? '#fff' : 'var(--txt3)',
+                      /* --accent-solid, not --accent, and --on-accent, not
+                         '#fff' (#775). This is a FILLED control, which is what
+                         --accent-solid exists for. The pairing matters because
+                         --on-accent alone does not rescue --accent here:
+
+                           on --accent        3.98 / 6.82 / 8.95 / 7.38
+                           on --accent-solid  5.09 / 5.09 / 8.95 / 7.38
+
+                         Current dark stays below the bar on --accent whatever
+                         the foreground, because #1a7aff is simply too light for
+                         white and --on-accent IS white in that context. Moving
+                         the background is what fixes it, and it also moves this
+                         button onto the token every other filled control uses.
+                         White here was 2.23 in terminal dark, where
+                         --accent-solid is aliased to --accent. */
+                      background: i === historyPageSafe ? 'var(--accent-solid)' : 'transparent',
+                      color: i === historyPageSafe ? 'var(--on-accent)' : 'var(--txt3)',
                       cursor: 'pointer',
                     }}
                   >

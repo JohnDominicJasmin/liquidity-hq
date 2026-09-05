@@ -26,18 +26,31 @@ import assert from 'node:assert/strict';
 
 const KEY = 'NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL';
 
-/** Import fresh each time: the module reads process.env at call time, but a
- *  cached module would hide it if that ever changed to read-at-import. */
-async function checkout() {
-  const mod = await import(`../lib/checkout.ts?t=${Date.now()}`);
-  return mod.getCheckoutUrl as (u: { id: string; email?: string } | null) => string;
-}
+type GetCheckoutUrl = (u: { id: string; email?: string } | null) => string;
 
-async function withEnv<T>(value: string | undefined, fn: () => Promise<T>): Promise<T> {
+/** Import fresh each time, AFTER the environment is set.
+ *
+ *  The comment here used to say the module "reads process.env at call time,
+ *  but a cached module would hide it if that ever changed to read-at-import".
+ *  It changed (#243): lib/checkout.ts now captures the value at module scope,
+ *  because Next.js inlines ONLY a literal `process.env.NEXT_PUBLIC_X` member
+ *  access into the client bundle - reading it off an object at call time
+ *  resolved to nothing in the browser and left the upgrade page with no
+ *  checkout button in every environment.
+ *
+ *  Read-at-import is therefore required, not incidental, and these tests have
+ *  to import after setting the variable rather than before. The ordering now
+ *  lives INSIDE this helper and the module is handed to the callback, so a
+ *  future test cannot get it wrong by writing the two lines in the old order -
+ *  which is exactly how these five started failing. */
+async function withEnv<T>(value: string | undefined, fn: (getCheckoutUrl: GetCheckoutUrl) => Promise<T>): Promise<T> {
   const saved = process.env[KEY];
   if (value === undefined) delete process.env[KEY];
   else process.env[KEY] = value;
-  try { return await fn(); } finally {
+  try {
+    const mod = await import(`../lib/checkout.ts?t=${Date.now()}`);
+    return await fn(mod.getCheckoutUrl as GetCheckoutUrl);
+  } finally {
     if (saved === undefined) delete process.env[KEY];
     else process.env[KEY] = saved;
   }
@@ -47,20 +60,18 @@ const USER = { id: '11111111-2222-4333-8444-555555555555', email: 'payer@example
 
 test('the checkout URL carries the identity the webhook must not trust', async (t) => {
   await t.test('unconfigured checkout sends the user to signup, not to a broken URL', async () => {
-    const getCheckoutUrl = await checkout();
-    await withEnv(undefined, async () => {
+    await withEnv(undefined, async (getCheckoutUrl) => {
       assert.equal(getCheckoutUrl(USER), '/login?signup=1');
     });
     /* '#' is what the env file ships as a placeholder. Treating it as
      * "configured" would produce a checkout link that goes nowhere. */
-    await withEnv('#', async () => {
+    await withEnv('#', async (getCheckoutUrl) => {
       assert.equal(getCheckoutUrl(USER), '/login?signup=1');
     });
   });
 
   await t.test('a signed-in user gets their OWN id and email in the URL', async () => {
-    const getCheckoutUrl = await checkout();
-    await withEnv('https://example.lemonsqueezy.com/checkout/buy/abc', async () => {
+    await withEnv('https://example.lemonsqueezy.com/checkout/buy/abc', async (getCheckoutUrl) => {
       const url = new URL(getCheckoutUrl(USER));
       assert.equal(url.searchParams.get('checkout[custom][user_id]'), USER.id);
       assert.equal(url.searchParams.get('checkout[email]'), USER.email);
@@ -78,8 +89,7 @@ test('the checkout URL carries the identity the webhook must not trust', async (
    * server-side, that is an improvement - and the ownership check should still
    * stay, because defence in depth is the whole argument. */
   await t.test('the id is client-editable, which is WHY the webhook verifies ownership', async () => {
-    const getCheckoutUrl = await checkout();
-    await withEnv('https://example.lemonsqueezy.com/checkout/buy/abc', async () => {
+    await withEnv('https://example.lemonsqueezy.com/checkout/buy/abc', async (getCheckoutUrl) => {
       const mine = new URL(getCheckoutUrl(USER));
 
       // Anyone can do this in the address bar before paying.
@@ -95,8 +105,7 @@ test('the checkout URL carries the identity the webhook must not trust', async (
   });
 
   await t.test('a signed-out visitor leaks no checkout parameters', async () => {
-    const getCheckoutUrl = await checkout();
-    await withEnv('https://example.lemonsqueezy.com/checkout/buy/abc', async () => {
+    await withEnv('https://example.lemonsqueezy.com/checkout/buy/abc', async (getCheckoutUrl) => {
       const url = new URL(getCheckoutUrl(null));
       assert.equal(url.searchParams.get('checkout[custom][user_id]'), null);
       assert.equal(url.searchParams.get('checkout[email]'), null);
@@ -107,8 +116,7 @@ test('the checkout URL carries the identity the webhook must not trust', async (
    * /upgrade and inside UpgradeGateModal; an exception there blanks the page a
    * user reached in order to give us money. */
   await t.test('a malformed checkout URL degrades instead of throwing', async () => {
-    const getCheckoutUrl = await checkout();
-    await withEnv('not a url', async () => {
+    await withEnv('not a url', async (getCheckoutUrl) => {
       assert.doesNotThrow(() => getCheckoutUrl(USER));
       assert.equal(getCheckoutUrl(USER), 'not a url');
     });

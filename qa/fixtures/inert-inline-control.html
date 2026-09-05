@@ -1,0 +1,71 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>inertInline positive control</title>
+<!--
+  A known-positive page for qa/mobile-audit.mjs's inertInline check.
+
+  A detector that returns nothing against a real site and a detector that is
+  broken produce identical output. This project has shipped that mistake three
+  times - the deadRules walk that collected nothing, the ownership sweep whose
+  matcher never matched, and the platform audit whose summary read clean while
+  measuring zero loads. So every check gets a page it is KNOWN to fail on.
+
+  Run:  node qa/mobile-audit.mjs "file:///<abs path>/qa/fixtures/inert-inline-control.html"
+
+  Expect inertInline to contain ONLY .control-important.
+
+  All three cases below are exercised and each must land differently:
+    .control-important  reported     a rule outranks inline unconditionally,
+                                     and designScoped is FALSE
+    .control-scoped     reported     same, but the winning rule is scoped to a
+                                     design - designScoped is TRUE. That is the
+                                     difference between a dead declaration and a
+                                     deliberate override, and #703 was filed as
+                                     the former when it was the latter.
+    .control-redundant  NOT reported inline matches the rule, so it changes
+                                     nothing - but it would win if it differed
+    .control-effective  NOT reported inline correctly beats an ordinary rule
+
+  The middle case is why the check does a second test. Its first version
+  reported redundant declarations too and returned twelve rows on every real
+  route, almost all of them `display:block` computing to `block`. True, useless,
+  and enough noise to bury the one row that mattered.
+-->
+<style>
+  html { background: #06070a; }
+  body { color: #e8e9ea; font-family: monospace; padding: 20px; }
+
+  /* 1. !important beats the inline value - the #633 shape this exists for. */
+  .control-important { font-size: 30px !important; }
+
+  /* 2. the rule and the inline value agree, so the inline one changes nothing.
+        Different cause, same observable: a declaration doing no work. */
+  .control-redundant { letter-spacing: 4px; }
+
+  /* 3. a normal rule the inline value correctly outranks - MUST NOT be flagged,
+        or the check reports ordinary cascade use as a defect. */
+  .control-effective { color: #ff0000; }
+
+  /* 4. inert for a DESIGN-SCOPED reason. Reported like case 1, but the label
+        must say designScoped so a reader can tell a deliberate override from a
+        dead declaration without opening the stylesheet. */
+  [data-design="terminal"] .control-scoped { letter-spacing: 9px !important; }
+</style>
+
+<p class="control-important" style="font-size: 11px">
+  inline 11px, rule 30px !important - inline is inert
+</p>
+
+<p class="control-redundant" style="letter-spacing: 4px">
+  inline and rule both 4px - inline is redundant
+</p>
+
+<p class="control-effective" style="color: #3fb950">
+  inline green beats the rule's red - inline IS doing the work
+</p>
+
+<div data-design="terminal">
+  <p class="control-scoped" style="letter-spacing: 2px">
+    inline 2px, design-scoped rule 9px !important - inert, but deliberately
+  </p>
+</div>

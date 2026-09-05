@@ -8,7 +8,6 @@ import Tip from './Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-import { useDesignMode } from './DesignModeProvider';
 
 interface MacroData {
   dxy: number;  dxyChg: number;
@@ -52,7 +51,6 @@ function chgStr(chg: number) {
 
 export default function GlobalMacroContext() {
   const { t } = useLabels();
-  const mode = useDesignMode();
   const router = useRouter();
   const { entitled, loading: authLoading } = useAuth();
   const [state,  setState]  = useState<LoadState>('loading');
@@ -121,13 +119,9 @@ export default function GlobalMacroContext() {
   return (
     <div>
       <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4 }}>
-        {mode === 'terminal' ? (
-          t('DASH_MACRO_BACKDROP_HEADER')
-        ) : (
-          <Tip width={320} text={t('GLOBAL_MACRO_CONTEXT_TOOLTIP')}>
-            {t('GLOBAL_MACRO_CONTEXT_TITLE')}
-          </Tip>
-        )}
+        <Tip width={320} text={t('GLOBAL_MACRO_CONTEXT_TOOLTIP')}>
+          {t('GLOBAL_MACRO_CONTEXT_TITLE')}
+        </Tip>
       </div>
 
       {!authLoading && !entitled ? (
@@ -178,13 +172,22 @@ export default function GlobalMacroContext() {
         ];
         return (
           <>
+            {/* #656 item 4: five stacked sections (signal / grid / analysis /
+                implications / watch level), each carrying its own 6-10px
+                marginBottom or paddingTop. None of that content moves or
+                shrinks - the Pro-feature gate and this full breakdown are
+                both real, both kept, per the owner's "restyle to fit" ruling.
+                Only the gaps between sections tighten, roughly by a third
+                each. Six gaps compressed this way is where the height
+                actually was, more than any single section. */}
+
             {/* Signal badge */}
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, marginBottom: 8, background: sm.bg, border: `0.5px solid ${sm.bdr}` }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, marginBottom: 6, background: sm.bg, border: `0.5px solid ${sm.bdr}` }}>
               <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: sm.col, letterSpacing: '0.05em' }}>{t(sm.labelKey)}</span>
             </div>
 
             {/* Data grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 8px', marginBottom: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 8px', marginBottom: 8 }}>
               {rows.map(r => (
                 <div key={r.id} style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{r.label}</span>
@@ -198,22 +201,22 @@ export default function GlobalMacroContext() {
 
             {/* Analysis */}
             {d.analysis && (
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55, marginBottom: 8 }}>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55, marginBottom: 6 }}>
                 {d.analysis}
               </div>
             )}
 
             {/* Crypto implications */}
             {d.implications && (
-              <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 7, marginBottom: 6 }}>
-                <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--txt3)', marginBottom: 4 }}>{t('GLOBAL_MACRO_CONTEXT_IMPLICATIONS_TITLE')}</div>
+              <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 5, marginBottom: 5 }}>
+                <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--txt3)', marginBottom: 3 }}>{t('GLOBAL_MACRO_CONTEXT_IMPLICATIONS_TITLE')}</div>
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{d.implications}</div>
               </div>
             )}
 
             {/* Watch level */}
             {d.watchLevel && (
-              <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 6, marginBottom: 6 }}>
+              <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 5, marginBottom: 5 }}>
                 <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontWeight: 600 }}>{t('GLOBAL_MACRO_CONTEXT_WATCH_LABEL')}</span>
                 <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{d.watchLevel}</span>
               </div>

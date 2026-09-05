@@ -96,7 +96,7 @@ export default function MarketsTerminal() {
   const GRADE_STYLE: Record<string, { bg: string; col: string }> = {
     A: { bg: 'rgba(52,211,153,0.15)',  col: 'var(--green-2)' },
     B: { bg: 'rgba(96,165,250,0.15)',  col: 'var(--accent-2)' },
-    C: { bg: 'rgba(245,158,11,0.15)',  col: '#f59e0b' },
+    C: { bg: 'rgba(245,158,11,0.15)',  col: 'var(--amber)' },
     D: { bg: 'rgba(248,113,113,0.15)', col: 'var(--red)' },
     F: { bg: 'rgba(239,68,68,0.15)',   col: 'var(--red)' },
   };
@@ -341,8 +341,14 @@ export default function MarketsTerminal() {
                   style={{
                     width: 26, height: 26, fontSize: 'var(--fs-caption)', fontWeight: 700, borderRadius: 0,
                     border: `0.5px solid ${i === pageSafe ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
-                    background: i === pageSafe ? 'var(--accent)' : 'transparent',
-                    color: i === pageSafe ? '#fff' : 'var(--txt3)',
+                    /* --accent-solid and --on-accent, not --accent and '#fff' (#775).
+                         A filled control belongs on --accent-solid, and the
+                         pairing matters: --on-accent alone does not rescue
+                         --accent, because it IS white in the current design
+                         where --accent measures 3.98. Same change as
+                         TradeJournal's history pagination. */
+                      background: i === pageSafe ? 'var(--accent-solid)' : 'transparent',
+                    color: i === pageSafe ? 'var(--on-accent)' : 'var(--txt3)',
                     cursor: 'pointer',
                   }}
                 >

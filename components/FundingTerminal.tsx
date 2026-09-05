@@ -447,7 +447,12 @@ export default function FundingTerminal() {
             <div style={{ maxHeight: 220, overflowY: 'auto' }}>
               {liveCoins.map(({ id, fr, sig, carryArb, contraShort, contraLong }) => (
                 <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderTop: '0.5px solid var(--bdr)' }}>
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: coinBadgeColor(id), minWidth: 32, flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>
+                  {/* PLAIN TEXT, NOT THE BADGE COLOUR (#734, owner ruling).
+                      Same change as app/funding/page.tsx and for the same
+                      reason - the badge hue is written for a dot at the 3:1
+                      graphics bar, and reached 1.38:1 as 12px text. The dot
+                      itself, the CoinIcon below, keeps its colour. */}
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: 'var(--txt)', minWidth: 32, flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>
                     {id.toUpperCase()}
                   </span>
                   <span style={{ fontSize: 'var(--fs-caption)', color: frColor(fr), fontFamily: 'var(--font-mono), monospace', minWidth: 64, flexShrink: 0 }}>
@@ -496,7 +501,13 @@ export default function FundingTerminal() {
             {t(RANGE_LABEL_KEYS[r.key])}
           </button>
         ))}
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 4, alignSelf: 'center', opacity: 0.6 }}>
+        {/* No `opacity` (#836). `--txt3` is already tuned to just above 4.5:1,
+            so 0.6 of it computed to #9b9d9f = 2.51:1 light and #4d5157 = 2.52:1
+            dark. This is a hint telling the reader what the range buttons do -
+            the copy people read when they do not already know - so it is the
+            worst text on the row to dim. See .lp-footer-ack in globals.css for
+            the four earlier instances of the same mistake. */}
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 4, alignSelf: 'center' }}>
           {t('FUNDING_RANGE_ROW_HINT')}
         </span>
       </div>

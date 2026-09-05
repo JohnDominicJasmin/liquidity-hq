@@ -60,6 +60,14 @@ export default function DesignModeProvider({ children }: { children: React.React
 
   const snapshot = useSyncExternalStore(noopSubscribe, readSnapshot, () => SERVER_SNAPSHOT);
   const [search, stored] = JSON.parse(snapshot) as [string, string | null];
+  /* The route is no longer an input (#748): terminal is the default
+     everywhere, so there is nothing for a pathname to decide. The query param
+     and stored value arrive client-only via the snapshot above, which is why
+     the server snapshot is ['', null] - on the server we know neither, and the
+     SSR pass therefore renders the default. That is the trade recorded in
+     lib/designMode.ts, and after #748 the default is the common case rather
+     than the exception, so SSR is now right for most visitors instead of for
+     one route. */
   const mode = resolveDesignMode(search, stored);
 
   useEffect(() => {

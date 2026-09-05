@@ -19,7 +19,7 @@ export default function GexTable() {
   const gexLoaded = btcNetGex !== null && btcGexLevels.length > 0;
   const isLongGamma = (btcNetGex ?? 0) >= 0;
 
-  const gexCol     = isLongGamma ? 'var(--green-2)' : 'var(--red)';
+  const gexCol     = isLongGamma ? 'var(--green-fg)' : 'var(--red)';
   const gexBg      = isLongGamma ? 'color-mix(in srgb, var(--green-2) 12%, transparent)' : 'color-mix(in srgb, var(--red) 12%, transparent)';
   const gexBorder  = isLongGamma ? 'color-mix(in srgb, var(--green-2) 30%, transparent)'  : 'color-mix(in srgb, var(--red) 30%, transparent)';
 
@@ -33,7 +33,14 @@ export default function GexTable() {
     <div className="gex-table">
       {/* Title + net GEX chip */}
       <div className="gex-title-row">
-        <div className="gex-title">{t('GEX_TABLE_TITLE')} <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, opacity: 0.5 }}>{t('GEX_TABLE_TITLE_SUFFIX')}</span></div>
+        {/* No `opacity` here (#836). The parent is already `--txt3`, which is
+            tuned to sit just above 4.5:1, so multiplying it computed #a1a2a2 =
+            1.95:1 in light terminal - the worst text ratio measured anywhere on
+            the platform. Same trap as .pf-footer-bottom-note, .mr-scale-good,
+            .st-locked-list and .lp-footer-ack; this is the fifth instance.
+            The suffix is de-emphasised by size and weight, which it already
+            was, rather than by dimming ink that has no room left to dim. */}
+        <div className="gex-title">{t('GEX_TABLE_TITLE')} <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400 }}>{t('GEX_TABLE_TITLE_SUFFIX')}</span></div>
         {gexLoaded ? (
           <div
             className="gex-net-chip"
@@ -149,13 +156,13 @@ export default function GexTable() {
           {btcGexLevels.map(({ strike, gex }) => {
             const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
             const col   = gex >= 0 ? 'var(--green-2)' : 'var(--red)';
-            const vcol  = gex >= 0 ? 'var(--green-2)' : 'var(--red)';
+            const vcol  = gex >= 0 ? 'var(--green-fg)' : 'var(--red)';
             const isAtm = spotPrice > 0 && Math.abs(strike - spotPrice) / spotPrice < 0.005;
             return (
               <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
                 <div className="gex-strike" style={isAtm ? { color: 'var(--txt)' } : {}}>
                   ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
-                  {isAtm && <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 4 }}>{t('GEX_TABLE_CURRENT_PRICE_MARKER')}</span>}
+                  {isAtm && <span className="gex-atm-marker">{t('GEX_TABLE_CURRENT_PRICE_MARKER')}</span>}
                 </div>
                 <div className="gex-bar-wrap">
                   <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />

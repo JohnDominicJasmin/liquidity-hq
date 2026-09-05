@@ -508,6 +508,92 @@ all 18 failures across 11 distinct causes have `#6a6e73` as the foreground, and
 every background involved clears 4.70 with the new value. Arithmetic, not yet a
 measurement.
 
+**Measured 2026-09-03: `/liq` reaches zero in both themes, and the route there
+needed two more tokens.** The arithmetic above held, but it did not cover the
+case that dominated the remaining failures.
+
+### The `-fg` pattern — a foreground for a composited ground
+
+| token | dark | light | for |
+|---|---|---|---|
+| `--txt-dash` | `#848a92` | `#4f5257` | muted text on a translucent overlay |
+| `--green-fg` | `#3fb950` (= `--green`) | `#0f5a22` | positive value on a green tint |
+| `--red-fg` | `#ff8a85` | `#7d0f18` | negative value on a red tint |
+
+**The recurring failure is a signal colour on a wash of itself.** `/liq`'s
+`.gex-net-chip` measured 4.05, `/econ-calendar`'s impact badge 4.04, and
+`/scanner` runs 3.51–4.23 across four tint strengths. Same arithmetic each time:
+the tint lifts the ground toward the foreground, and the stronger the signal the
+worse the contrast — so the worst case is set by the data, not by a fixed value.
+
+**Each `-fg` token aliases its base wherever the base passes**, so only the
+composited case moves and the rest of the palette is untouched. That is the same
+reasoning that kept `--txt3` dark at `#7c828a`: fix what is local, do not degrade
+what works.
+
+### Two things this pattern does NOT solve
+
+**A data-driven tint can outrun any foreground.** `/scanner`'s green tint
+`rgb(30,78,62)` puts `--green-fg` at 3.73 — it is stronger than the 12% wash the
+token was sized against, and the next stronger mover would beat a new value too.
+Recorded on #698 with three options; **the durable one is `/correlation`'s**,
+where #570 moved the text to `--txt` and let the tint carry the meaning. That
+measures 2450 cells at zero failures on production and cannot be reopened by a
+stronger tint.
+
+**A theme-aware overlay is not automatically safer than a literal.** Replacing
+`rgba(255,255,255,0.025)` with `color-mix(in srgb, var(--txt) 2.5%, transparent)`
+correctly stopped a dark-palette literal being painted in light — and made the
+light row *darker*, taking `--txt3` there from 4.74 to 4.48. Nothing failed,
+because every cell on that row had already moved to `--txt-dash`, but the row
+went from a dark-only hazard to an all-theme one. **A tokenisation can move a
+number in the direction nobody was watching.**
+
+### A literal from the other palette is invisible from both sides
+
+**Three instances on 2026-09-03**, and they share one signature: **a composited
+ground that corresponds to no token in the palette being audited.**
+
+| where | the literal | what it actually was |
+|---|---|---|
+| `/econ-calendar` impact badge | `rgba(248,113,113,…)` | current design's `--red` |
+| `/scanner` heatmap tiles | `rgba(52,211,153,…)`, `rgba(248,113,113,…)` | current design's `--green-2`, `--red` |
+| `qa/platform-audit.mjs` | five hard-coded hexes | superseded light values |
+
+The failure is symmetric and that is what makes it hard to see. **Reading the
+terminal stylesheet, the value is not there. Reading the current design's, it is
+correct.** Only a composited measurement shows it, and then only as a ground
+that matches nothing — on `/scanner` the measured grounds were `rgb(30,78,62)`
+and `rgb(77,44,46)`, neither of which is any tint of terminal's `--green` or
+`--red`. **QA recorded both as observed values and moved on; the mismatch was
+the finding.**
+
+It also skews the contrast in a way that hides its own size: terminal was
+painting a *lighter* ground than its own palette would, so `/econ-calendar`'s
+badge measured 4.04 where its own colour gives 4.49 — the literal made the
+defect look worse than the token error it was, and tokenising alone closed most
+of the gap.
+
+**The check that catches it is compositing, not reading.** `color-mix(in srgb,
+var(--token) N%, transparent)` cannot cross palettes; an `rgba()` literal always
+can, and no source read on either side will say so.
+
+### Opacity is not a fade tool here
+
+Minimum opacity each token needs to hold 4.5:1 against `--bg1`:
+
+| token | dark | light |
+|---|---|---|
+| `--txt` | 50% | 61% |
+| `--txt2` | 87% | 91% |
+| `--txt3` | 97% | 95% |
+| `--txt-dash` | 91% | 85% |
+
+**Only `--txt` survives a fade anyone would perceive.** A 0.45 stale-row fade
+measured 1.87–1.93 and was removed rather than tuned (#692) — there was no safe
+value to tune it to. If a de-emphasised state is wanted, a background tint or a
+left border moves no text contrast.
+
 ## 9. What no audit can score
 
 These need controlled fixtures, not a live sweep. They are **unverified**, not

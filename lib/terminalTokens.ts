@@ -58,6 +58,17 @@ export const TERMINAL_COLORS = {
      placeholder actually renders on. Design's ruling: a dedicated value
      for this one use, not a change to --txt3 itself. */
   '--txt-dash': '#848a92',
+  /* #652: green FOREGROUND on a composited tint. Dark's --green passes on
+     every ground it meets, so this is simply --green there; terminal light's
+     #14702c does not - 4.35 on its own 12% chip tint, 4.19 on the
+     current-price bar's accent wash. Dedicated value for the composited case,
+     exactly as --txt-dash above, rather than moving --green and shifting every
+     green in the light theme to fix three elements on one screen. */
+  '--green-fg': '#3fb950',
+  /* #684: red FOREGROUND on a composited red tint, the --green-fg counterpart.
+     --red on its own 14% wash measures 4.49 over --bg1 - short by 0.01 - so the
+     impact badge takes this instead. Aliased to --red everywhere it passes. */
+  '--red-fg':   '#ff8a85',
 } as const;
 
 /** The same 18 tokens under `[data-design="terminal"][data-theme="light"]`
@@ -104,6 +115,8 @@ export const TERMINAL_COLORS_LIGHT = {
   '--border-input': '#75797e',  // Input and secondary-button border
   '--fr-slight-long': '#7C5E2E',
   '--txt-dash':     '#4f5257',
+  '--red-fg':       '#7d0f18',   // 6.52 worst of three grounds
+  '--green-fg':     '#0f5a22',   // see the dark entry - 5.87 / 5.66 on the two tints
 } as const;
 
 /* The seventeenth value: the FLAT cell in the hours expectancy grid.
@@ -118,6 +131,45 @@ export const TERMINAL_COLORS_LIGHT = {
  * later says they should be one token, that is a one-line change with a test
  * behind it rather than an archaeology exercise. */
 export const TERMINAL_FLAT_CELL = '#1c1f22';
+
+/* ── THE SECOND SOURCE, NAMED (#736) ─────────────────────────────────────
+ *
+ * The terminal CSS blocks declare 48 custom properties. This file documents
+ * 18 of them. The other 28 are ALIASES - tokens the current design owns that
+ * terminal re-points at its own palette (`--green-2: var(--green)`), plus the
+ * radius and surface overrides that make terminal square and flat.
+ *
+ * WHY THIS LIST EXISTS. Nothing recorded that the second set was governed at
+ * all, so the honest answer to "is --green-2 terminal-aware?" depended on
+ * which file you opened: `terminalTokens.ts` said no, `globals.css` said yes.
+ * On #734 I grepped this file, concluded four tokens were ungoverned, and QA
+ * verified by grepping the same file. Two people agreed and both were wrong,
+ * because agreement between two readings of the same half is not
+ * corroboration. Resolving the enclosing selector in globals.css took one
+ * command and gave the opposite answer.
+ *
+ * So this is not a second copy of the values - it deliberately holds NAMES
+ * only. The values stay in globals.css, which remains where they are read
+ * from; duplicating them here would recreate exactly the drift the file
+ * header warns about. What this fixes is the question "which file is
+ * authoritative", by making this one say out loud that the CSS blocks carry
+ * more than it does and listing what.
+ *
+ * __tests__/terminalTokens.test.mts asserts the two agree in both directions,
+ * so a token added to the CSS blocks and not named here fails, and vice
+ * versa. */
+export const TERMINAL_ALIASES = [
+  '--accent-2', '--accent-bdr', '--accent-bg', '--accent-dim', '--accent-solid',
+  '--amber-bdr', '--amber-bg',
+  '--bg3', '--bg4',
+  '--blue', '--blue-bdr', '--blue-bg',
+  '--font-sans',
+  '--green-2', '--green-bdr', '--green-bg', '--green-soft',
+  '--on-accent',
+  '--radius-card', '--radius-chip', '--radius-data', '--radius-pill', '--radius-sharp',
+  '--red-bdr', '--red-bg', '--red-soft',
+  '--txt-dim',
+] as const;
 
 /* Liquidation map only. The one place the design permits a multi-hue ramp,
    because a heatmap's whole content is magnitude. Four palettes are selectable;

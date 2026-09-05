@@ -9,11 +9,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 
 /* ── Types ── */
-/* Exported for the heatmap (#652). LiqFeed owns ingestion - two websockets
-   plus the Supabase 24h load - and nothing else should open a second one, so
-   consumers that need the raw stream take it from here rather than querying
-   liq_events themselves. */
-export interface LiqEvent {
+interface LiqEvent {
   id:     number;
   symbol: string;
   coin:   string;
@@ -87,14 +83,22 @@ function fmtEventPrice(price: number): string {
   return '$' + price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 3 : 2 });
 }
 
-export default function LiqFeed({ onClusters, onEvents, coinFilter }: {
-  onClusters?: (clusters: Bucket[]) => void;
-  /* Raw events, for consumers that need a TIME axis. onClusters aggregates
-     the whole 24h window into price buckets and throws the timestamps away,
-     which is exactly what a density-over-time surface needs (#652). */
-  onEvents?: (events: LiqEvent[]) => void;
-  coinFilter: string;
-}) {
+/** `headless` runs the feed and renders nothing (#811).
+ *
+ *  Arena needs what this component COLLECTS - the 24h cluster accumulation off
+ *  the Binance and Bybit sockets, handed up through onClusters - and not what
+ *  it DRAWS: the chart already draws those same eight clusters as lines, so the
+ *  card was 844px repeating them. Unmounting it would take the chart's data
+ *  with it, which is why this is a render flag and not a conditional mount.
+ *
+ *  Deliberately NOT `display: none`: that keeps the whole subtree in the DOM
+ *  and in the accessibility tree, so a screen reader still walks a live-region
+ *  feed the owner asked to remove. Returning null is the honest version.
+ *
+ *  The live event ticker goes with it. The owner was offered "keep the ticker,
+ *  drop the duplicated bars" and chose to hide the card - recorded here so it
+ *  does not come back as an oversight. */
+export default function LiqFeed({ onClusters, coinFilter, headless = false }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string; headless?: boolean }) {
   const { t } = useLabels();
   const [feed,     setFeed]     = useState<LiqEvent[]>([]);
   const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
@@ -158,22 +162,7 @@ export default function LiqFeed({ onClusters, onEvents, coinFilter }: {
       .slice(0, 100);
     setClusters(buckets);
     onClusters?.(buckets);
-
-    /* Throttled, unlike onClusters (#652 review). rebuild() runs on every
-       websocket liquidation, and the first version of this emitted the whole
-       history each time - so a busy minute pushed a new array into the
-       parent's state hundreds of times, re-rendering the page per event for
-       a surface that buckets into 34 columns and cannot show the difference.
-       onClusters can afford it: it emits a small aggregate the parent renders
-       directly. This emits up to 5000 events for a density grid.
-       Leading edge, so the first data paints immediately and the empty state
-       does not linger. */
-    const now2 = Date.now();
-    if (onEvents && now2 - lastEmitRef.current >= EVENTS_EMIT_MS) {
-      lastEmitRef.current = now2;
-      onEvents(history);
-    }
-  }, [onClusters, onEvents]);
+  }, [onClusters]);
 
   /* ── Sync coinFilter prop → ref and re-derive stats/clusters ── */
   useEffect(() => {
@@ -395,6 +384,13 @@ export default function LiqFeed({ onClusters, onEvents, coinFilter }: {
   const longDom   = stats.longUsd  > stats.shortUsd * 1.2;
   const shortDom  = stats.shortUsd > stats.longUsd  * 1.2;
   const anyLive   = bnStatus === 'live' || bbStatus === 'live';
+
+  /* AFTER every hook, and that placement is the whole correctness argument.
+     Returning early above them would break the rules-of-hooks order and, worse,
+     skip the effects that open the sockets, seed from localStorage and emit
+     onClusters - the exact work headless mode exists to keep running. The
+     cleanup at the bottom of the mount effect has to stay reachable too. */
+  if (headless) return null;
 
   return (
     <div className="liqfeed-wrap">

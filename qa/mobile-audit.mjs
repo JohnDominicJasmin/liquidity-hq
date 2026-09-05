@@ -94,6 +94,39 @@ await page.waitForFunction(() => {
 }, { timeout: 180000 }).catch(() => {});
 await page.waitForTimeout(6000);
 
+/* Then wait for the DESIGN AND THEME to stop moving, because 6000ms is a
+   guess and a guess is what produced the number below.
+
+   Measuring /?design=terminal in light on qa 2ef168c returned 263 contrast
+   failures. A re-run of the identical command returned 0. Nothing in that
+   build touches the landing page - it carried an econ-calendar change and two
+   QA scripts - so 263 was the page sampled mid-transition, with one design's
+   colours already applied and the other's not yet. Reported as-is it would
+   have read as a catastrophic regression on a screen that had been signed
+   off minutes earlier.
+
+   The stable proxy is cheap: the two root attributes plus the body's
+   composited background. A transition moves at least one of them, and a
+   settled page moves none. Full contrast is far too expensive to sample
+   twice, which is why this watches the inputs rather than the output. */
+const settled = await page.waitForFunction((want) => {
+  const de = document.documentElement;
+  const key = de.getAttribute('data-design') + '|' + de.getAttribute('data-theme') +
+              '|' + getComputedStyle(document.body).backgroundColor;
+  const s = (window.__maSettle ||= { last: null, n: 0 });
+  s.n = key === s.last ? s.n + 1 : 0;
+  s.last = key;
+  /* The requested theme must actually be on the root as well: a run that
+     never applied it is stable and wrong, which is the same failure one
+     level down. */
+  return s.n >= 2 && de.getAttribute('data-theme') === want;
+}, theme, { timeout: 45000, polling: 1000 }).then(() => true).catch(() => false);
+
+if (!settled) {
+  console.error('mobile-audit: design/theme never settled within 45s on ' + url +
+                ' (theme=' + theme + '). Measuring anyway - treat this run as suspect.');
+}
+
 const result = await page.evaluate(TOKENS => {
   const TOK = Object.fromEntries(TOKENS.map(t => [t, 1]));
   /* Same 0-1 vs 0-255 scaling as parse(): a `color(srgb ...)` declaration
@@ -194,6 +227,200 @@ const result = await page.evaluate(TOKENS => {
     subMinTargets: small.slice(0, 8),
     subMinCount: small.length,
     emptyFields: [...new Set(empty)].slice(0, 8),
+    /* The REVERSE of deadRules: a CSS `!important` beating a component's
+       inline value. #633's shape, and #663 records it as a live exposure with
+       no detector - 53 terminal rules use `!important` across seven
+       properties, and nothing checks whether any of them is silently winning.
+
+       A string compare cannot answer this. An inline `font-size: var(--fs-data)`
+       computes to `15px`, so inline-versus-computed differs textually on almost
+       every element even when the inline value won. Every naive version of this
+       check is one long false positive.
+
+       So ASK THE PAGE instead: read the computed value, remove the inline
+       declaration, read it again, put it back. If nothing changed, the inline
+       declaration had NO EFFECT - either a rule outranked it or the two values
+       coincide. Both are worth knowing and neither is visible from source.
+
+       Mutating and restoring is already the pattern horizontalOverflow uses
+       above, for the same reason: some questions only the layout engine can
+       answer. Capped at 400 elements so a large page cannot make the audit
+       quadratic. */
+    inertInline: (() => {
+      const PROPS = ['font-size', 'font-family', 'font-weight', 'letter-spacing',
+                     'color', 'background-color', 'padding', 'margin', 'border-radius', 'display'];
+      const out = [];
+      let scanned = 0;
+      for (const el of document.querySelectorAll('[style]')) {
+        if (scanned++ > 400) break;
+        for (const p of PROPS) {
+          const inline = el.style.getPropertyValue(p);
+          if (!inline) continue;
+          const prio = el.style.getPropertyPriority(p);
+          const before = getComputedStyle(el).getPropertyValue(p);
+          el.style.removeProperty(p);
+          const after = getComputedStyle(el).getPropertyValue(p);
+          el.style.setProperty(p, inline, prio);
+          if (before !== after) continue;            // the inline value is doing the work
+
+          /* Two very different reasons the removal changed nothing, and only
+             one is a finding:
+
+               OVERRIDDEN  a rule outranks inline entirely - #633's shape, and
+                           what #663 says has no detector
+               REDUNDANT   the inline value happens to equal the rule's, so it
+                           changes nothing but would win if it differed
+
+             The first run of this reported twelve rows on every route and
+             almost all were redundant - `display:block` computing to `block`,
+             `font-weight:400` to `400`. True, useless, and enough noise to bury
+             the real case, which is the mistake #666's first version made in
+             the other direction.
+
+             The split needs a second question: CAN anything inline move this
+             property? Set a sentinel the property cannot already hold and read
+             back. If the computed value still does not move, nothing inline can
+             win and a rule owns it unconditionally. */
+          const SENTINEL = { 'font-size': '7px', 'font-family': 'cursive', 'font-weight': '333',
+            'letter-spacing': '7px', 'color': 'rgb(1, 2, 3)', 'background-color': 'rgb(1, 2, 3)',
+            'padding': '7px', 'margin': '7px', 'border-radius': '7px', 'display': 'inline-table' };
+          el.style.setProperty(p, SENTINEL[p] || '7px');
+          const moved = getComputedStyle(el).getPropertyValue(p) !== before;
+          el.style.setProperty(p, inline, prio);
+          if (moved) continue;                       // redundant, not overridden
+
+          out.push({
+            prop: p,
+            inline: inline.slice(0, 40),
+            computed: before.slice(0, 40),
+            el: (el.className || el.tagName).toString().slice(0, 40),
+            /* WHICH rule won, and whether it is design-scoped.
+
+               This check runs in ONE design, so a declaration that terminal
+               deliberately overrides looks identical to one that is simply
+               dead. #703 was filed as dead code on exactly that confusion:
+               /arena's 32px coin icon carries `border-radius: 50%` inline, which
+               APPLIES in the current design and which terminal overrides on
+               purpose because 32px is over the ruling's threshold.
+
+               Without this label every deliberate terminal override reads as a
+               defect, and there are hundreds - globals.css carries 45
+               `border-radius: 0 !important` declarations alone. A check that
+               reports intent as error is worse than no check.
+
+               So name the winning selectors and flag the ones scoped to a
+               design. It does not decide - a design-scoped override can still
+               be wrong, as #709 showed when 16px marks were being squared
+               against the ruling - but the reader can now tell the two apart
+               without opening the stylesheet. */
+            ...(() => {
+              const winners = [];
+              for (const sheet of document.styleSheets) {
+                let rules;
+                try { rules = sheet.cssRules; } catch { continue; }
+                const walk = (list) => {
+                  for (const r of list) {
+                    if (r.selectorText && r.style && r.style.getPropertyPriority(p) === 'important') {
+                      let hit = false;
+                      try { hit = el.matches(r.selectorText); } catch { hit = false; }
+                      if (hit) winners.push(r.selectorText);
+                    }
+                    if (r.cssRules && r.cssRules.length) walk(r.cssRules);
+                  }
+                };
+                walk(rules);
+              }
+              return {
+                wonBy: winners.slice(-2).map((w) => w.slice(0, 60)),
+                designScoped: winners.length > 0 && winners.every((w) => w.includes('[data-design=')),
+              };
+            })(),
+          });
+        }
+      }
+      /* Dedupe by element+property: one row per silently-inert declaration. */
+      const seen = new Set();
+      return out.filter((r) => {
+        const k = r.el + '|' + r.prop;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      }).slice(0, 12);
+    })(),
+    deadRules: (() => {
+      /* A CSS declaration an inline style outranks is DEAD, not overridden -
+         it can never apply, and source reads cannot see that. Three defects
+         shipped this way (#629, #633, #660): globals.css said 9.5px for weeks
+         while the badge rendered 12, because an inline font-size won every
+         time. The rule looked correct in the file and had no effect.
+
+         Detection: collect every selector in our own stylesheets that sets a
+         property, then find elements matching one of those selectors that ALSO
+         carry that property inline. The intersection is exactly the dead set.
+         Cross-origin sheets throw on .cssRules and are skipped - we only own
+         same-origin ones anyway. */
+      const PROPS = ['font-size', 'font-family', 'letter-spacing', 'color', 'background-color'];
+      const byProp = {};
+      for (const p of PROPS) byProp[p] = [];
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules; } catch { continue; }
+        /* Collect BEFORE recursing, and recurse only into a non-empty list.
+           Modern Chrome gives every CSSStyleRule a `cssRules` property for
+           nested-CSS support - an empty CSSRuleList, which is truthy. A
+           `if (r.cssRules) recurse; else collect;` shape therefore treats
+           every plain rule as a group, walks an empty list, and collects
+           nothing. That version returned [] on a synthetic page built to
+           contain exactly one dead rule, which is the only reason it was
+           caught: an empty result from a detector and an empty result from a
+           clean page are indistinguishable. */
+        const walk = (list) => {
+          for (const r of list) {
+            if (r.selectorText && r.style) {
+              for (const p of PROPS) if (r.style.getPropertyValue(p)) byProp[p].push(r.selectorText);
+            }
+            if (r.cssRules && r.cssRules.length) walk(r.cssRules);
+          }
+        };
+        walk(rules);
+      }
+      const out = [];
+      for (const el of document.querySelectorAll('[style]')) {
+        for (const p of PROPS) {
+          /* el.style, not a regex over the style attribute. The regex here was
+             `new RegExp('(^|;)\s*' + p + '\s*:')` written with single
+             backslashes, so `\s` collapsed to a literal `s` and the pattern
+             became `(^|;)s*font-sizes*:` - matching only when the property is
+             FIRST in the attribute or follows a `;` with no space. The browser
+             serialises `style` with `; `, so it silently detected the first
+             declaration and skipped every other one, and would have missed one
+             of the two defects in #660.
+             CSSStyleDeclaration answers the question exactly: a non-empty
+             value means the property is set inline. No escaping to get wrong,
+             and no dependence on how the attribute is serialised. */
+          if (!el.style.getPropertyValue(p)) continue;
+          for (const sel of byProp[p]) {
+            let hit = false;
+            try { hit = el.matches(sel); } catch { continue; }
+            if (!hit) continue;
+            /* Only class/id-scoped rules. A base rule like `button, input`
+               or `a` being overridden inline is ordinary cascade use, not a
+               dead rule - reporting those buries the real case in noise.
+               The defects that shipped (#629, #633, #660) were all a
+               COMPONENT rule silently losing to an inline declaration, and
+               those selectors always carry a class. */
+            if (!/[.#]/.test(sel)) continue;
+            out.push({ prop: p, selector: sel.slice(0, 70),
+                       el: (el.className || el.tagName).toString().slice(0, 30),
+                       computed: getComputedStyle(el).getPropertyValue(p) });
+            break;
+          }
+        }
+      }
+      const seen = new Set();
+      return out.filter(x => { const k = x.prop + x.selector + x.el;
+        if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 12);
+    })(),
   };
 }, TOKENS);
 

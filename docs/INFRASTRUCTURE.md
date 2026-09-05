@@ -147,7 +147,13 @@ cheap to remove or needed a dedicated bot first. It was cheap.
 
 Self-hosted, see §1. Login is separate from Render/Supabase/cron-job.org — another credential silo an assistant can't see into without being handed the URL.
 
-Project: **Personal** → folder **`liquidityhq`** (`https://n8n-workflows-6ig6.onrender.com/projects/9B0VhqigwtxZEqpc/folders/wiWQZx7PhztvoBTv/workflows`).
+Project: **Personal** → folder **`liquidityhq`**, on the n8n host in §1.
+
+> The full admin deep link used to sit here, project and folder IDs included.
+> Trimmed 2026-09-05: **this repo is public**, and a direct link into the
+> workflow editor is a starting point rather than a maintainer's need — the
+> host is already in §1 and anyone with a login reaches the folder by name in
+> two clicks. Nothing operational is lost; the reconnaissance shortcut is.
 
 | Workflow | Trigger | Action | Status |
 |---|---|---|---|
@@ -195,10 +201,20 @@ A local Claude Code **scheduled-tasks** entry (`mcp__scheduled-tasks`, `lhq-aler
 > over-corrected it, calling the dev project "stale/superseded" — also wrong.
 > This version is the owner-confirmed final state.
 
-| Project name | Ref | Region | Status | Used by LHQ? |
-|---|---|---|---|---|
-| **`liquidity-hq-prod`** | `qdpwhnvmhqgzijuwopso` | ap-northeast-2 | Active | **Yes — production only.** The `liquidity-hq-prod` Render service points here. Holds `lhq_*` (prod) tables. |
-| **`liquidity-hq-dev`** | `wdtjhrilakoitfcezxpx` | ap-northeast-1 | Active | **Yes — all dev.** Both the `liquidity-hq-dev` Render service AND local `.env.local` point here. Holds the parallel `lhq_dev_*` table set. |
+| Project name | Region | Status | Used by LHQ? |
+|---|---|---|---|
+| **`liquidity-hq-prod`** | ap-northeast-2 | Active | **Yes — production only.** The `liquidity-hq-prod` Render service points here. Holds `lhq_*` (prod) tables. |
+| **`liquidity-hq-dev`** | ap-northeast-1 | Active | **Yes — all dev.** Both the `liquidity-hq-dev` Render service AND local `.env.local` point here. Holds the parallel `lhq_dev_*` table set. |
+
+**Refs are deliberately not listed here.** They are public by design — a
+Supabase ref is the hostname in every `NEXT_PUBLIC_SUPABASE_URL`, so it ships in
+the browser bundle and hiding it would achieve nothing. What is worth not
+publishing is this file **telling a reader which ref is production**, on a page
+that also documents that production has no backups. Read the ref off
+`NEXT_PUBLIC_SUPABASE_URL` for the environment you are actually in — the Render
+service's env vars, or `.env.local` locally. That is one lookup, it cannot go
+stale, and it answers for the environment in front of you rather than for a
+table someone edited months ago.
 
 > **Corrected 2026-08-01:** the two rows above were named `LiquidityHq` and
 > `Automations` — stale. Confirmed directly against the Supabase API
@@ -209,15 +225,13 @@ A local Claude Code **scheduled-tasks** entry (`mcp__scheduled-tasks`, `lhq-aler
 > **Render services** now share the exact names `liquidity-hq-prod` /
 > `liquidity-hq-dev`. When it matters which system you mean, say "Supabase
 > project" or "Render service" — don't rely on the bare name. Identify
-> Supabase unambiguously by ref (`qdpwhnvmhqgzijuwopso` = prod,
-> `wdtjhrilakoitfcezxpx` = dev); Render by service id (`srv-d8aluf6l51nc73e1ijp0`
-> = prod, `srv-d8prs6po3t8c739aepdg` = dev).
+> Supabase unambiguously by ref — read from `NEXT_PUBLIC_SUPABASE_URL`, not from
+> this file — and Render by service id, which is in the §1 table.
 >
 > **Corrected 2026-07-30:** the row above previously said local `.env.local`
 > pointed at prod. It does not - verified by reading
-> `NEXT_PUBLIC_SUPABASE_URL` in `.env.local`, which is `wdtjhrilakoitfcezxpx`
-> (`liquidity-hq-dev`), with `NEXT_PUBLIC_APP_ENV=dev` so it uses the `lhq_dev_`
-> prefix. Local development has never touched the prod database. Check the env
+> `NEXT_PUBLIC_SUPABASE_URL` in `.env.local`, which resolves to the **dev**
+> project, with `NEXT_PUBLIC_APP_ENV=dev` so it uses the `lhq_dev_` prefix. Local development has never touched the prod database. Check the env
 > file rather than this table if it matters - that is what made the old claim
 > detectable.
 | `MotoTracker` | `bseewwodijmuvpbqdgcc` | ap-northeast-2 | Inactive | No - unrelated project. |
@@ -333,7 +347,7 @@ deliberate exceptions. Set as of 2026-08-05:
 | `NEXT_PUBLIC_APP_ENV` | `dev` | **Not `qa`** — see §4b |
 | `NEXT_PUBLIC_SENTRY_ENV` | `qa` | The one place qa may call itself qa. Separates its errors from dev's in GlitchTip without touching table selection — see §4b. **Set — confirmed in the dashboard 2026-08-08** (this row previously read "not yet set") |
 | `NEXT_PUBLIC_APP_URL` | `https://liquidity-hq-qa.onrender.com` | Its own URL, never dev's. Telegram webhook registration and email links build absolute URLs from this |
-| `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` | dev project `wdtjhrilakoitfcezxpx` | Shares the dev database — see §1 |
+| `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` | the **dev** Supabase project | Shares the dev database — see §1 |
 | `SUPABASE_SERVICE_ROLE_KEY` | dev project's | Server routes return empty results without it. `/api/labels` answered `{}` until it was set |
 | `AI_GLOBAL_DAILY_MAX` | `25` | Low cap. QA testing spends real xAI credit |
 | `CMC_API_KEY`, `FINNHUB_KEY`, `GROK_API_KEY` | copied from dev | Shares dev's quota |
@@ -375,6 +389,32 @@ admins (`sendSpikeAlertEmail`, `sendHealthAlertEmail`, `sendAdminAddedEmail`, an
 `sendBanEmail` in practice). Only welcome, ban and trial-ending reach ordinary
 users — and on dev, qa and staging those tables are the **dev** Supabase project,
 so the recipients are test accounts rather than real customers.
+
+### `SPIKE_ALERT_RECIPIENTS` — a second way to send nothing and look fine
+
+Added 2026-09-05 (#824). The AI-spend spike alert used to hold its two recipient
+addresses in `lib/email.ts`; this repo is public, so they moved to an env var:
+**comma-separated, server-only, NOT `NEXT_PUBLIC_`** — that prefix inlines the
+value into the browser bundle and would publish them again by a longer route.
+
+| Service | Needs it | Why |
+|---|---|---|
+| `liquidity-hq-prod` | **Yes** | The only service that runs the alert. n8n triggers `LHQ - AI Spike Alert` against the prod host — see §3. |
+| dev / qa / staging | No | They do not run it. Setting it is harmless and buys nothing. |
+
+**Unset means the alert is built and sent to an empty list.** It does not throw
+and it does not warn: `sendSpikeAlertEmail` returns the same way it would if the
+send had worked.
+
+That is deliberate — an alert going nowhere beats one hardcoded to a person's
+inbox in a public repo — but read it against the paragraphs above, because it is
+**the same failure shape as a missing `BREVO_API_KEY`, one layer in.** Brevo
+missing means no environment can send; this missing means one environment sends
+to nobody. Both are indistinguishable from "nobody was due", and the spike alert
+is the one that only fires when something has already gone wrong with spend.
+
+If the alert is what you are relying on to notice a runaway xAI bill, **check the
+variable is set rather than inferring it from silence.**
 
 ### Telegram on QA — currently dev's bot, safe only by accident
 

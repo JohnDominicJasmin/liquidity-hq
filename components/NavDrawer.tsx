@@ -22,6 +22,9 @@ import {
 } from './icons';
 import type { ComponentType } from 'react';
 import { useLabels } from '@/lib/labels';
+import { useIsDesktop } from '@/lib/useIsDesktop';
+/* Shared with TerminalNav so both designs reach the same routes (#714). */
+import { PRIMARY, SCANNERS, TOOLS, TAIL, rendersOwnNav } from '@/lib/navRoutes';
 import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── Mobile tab bar icons - plain SVGs, not emoji. Emoji glyphs like ⚡ render
@@ -122,33 +125,6 @@ function SessionPill() {
 }
 
 /* ── Nav data ──────────────────────────────────────────────────────────────── */
-const PRIMARY = [
-  { path: '/dashboard', labelKey: 'NAV_DASHBOARD' as const },
-  { path: '/arena',     labelKey: 'NAV_ARENA'     as const },
-  { path: '/briefing',  labelKey: 'NAV_BRIEFING'  as const },
-];
-
-const SCANNERS = [
-  { path: '/markets',       labelKey: 'NAV_MARKETS'        as const },
-  { path: '/scanner',       labelKey: 'NAV_SETUP_SCANNER'  as const },
-  { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP' as const },
-  { path: '/funding',       labelKey: 'NAV_FR_HISTORY'     as const },
-  { path: '/correlation',   labelKey: 'NAV_CORRELATION'    as const },
-];
-
-const TOOLS = [
-  { path: '/journal',       labelKey: 'NAV_JOURNAL'       as const },
-  { path: '/research',      labelKey: 'NAV_RESEARCH'      as const },
-  { path: '/calc',          labelKey: 'NAV_CALCULATORS'   as const },
-  { path: '/econ-calendar', labelKey: 'NAV_ECON_CALENDAR' as const },
-  { path: '/alerts',        labelKey: 'NAV_ALERTS'        as const },
-  { path: '/hours',         labelKey: 'NAV_BEST_HOURS'    as const },
-  { path: '/playbook',      labelKey: 'NAV_PLAYBOOK'      as const },
-];
-
-const TAIL = [
-  { path: '/news', labelKey: 'NAV_NEWS' as const },
-];
 
 type NavIcon = ComponentType<{ size?: number }>;
 type NavDest = { path: string; labelKey: LabelKey; Icon: NavIcon };
@@ -175,7 +151,23 @@ const NAV_SECTIONS: NavSection[] = [
   ] },
   { headerKey: 'NAV_SECTION_MY_TOOLS', items: [
     { path: '/journal',  labelKey: 'NAV_JOURNAL',        Icon: NavJournal },
-    { path: '/calc',     labelKey: 'NAV_POSITION_SIZER', Icon: NavCalc },
+    /* NAV_CALCULATORS, not NAV_POSITION_SIZER (#846).
+     *
+     * Two bugs in one label. The route is a six-tool hub - sizer, liquidation,
+     * PnL, R:R, funding, DCA - and "Position Sizer" names one of the six, which
+     * is also the name of the FIRST TAB on the page it opens. On mobile that put
+     * two controls reading "Position Sizer" on the same screen: this one
+     * navigates, the tab does not. Same name, different action, no way to tell
+     * them apart by ear.
+     *
+     * It was also drift. `lib/navRoutes.ts` - the module #714 created precisely
+     * so the two navs could not disagree - already called this route
+     * NAV_CALCULATORS. This tile is the copy that was left behind, from when
+     * /calc really was only a position sizer.
+     *
+     * Renaming the TAB instead would be wrong: that tab genuinely is the
+     * position sizer, and the hub is genuinely the calculators. */
+    { path: '/calc',     labelKey: 'NAV_CALCULATORS', Icon: NavCalc },
     { path: '/alerts',   labelKey: 'NAV_ALERTS',         Icon: NavAlerts },
     { path: '/hours',    labelKey: 'NAV_BEST_HOURS',     Icon: NavHours },
     { path: '/playbook', labelKey: 'NAV_PLAYBOOK',       Icon: NavPlaybook },
@@ -253,6 +245,8 @@ export default function NavDrawer() {
   const [authOpen, setAuthOpen]         = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const { theme, toggleTheme }          = useTheme();
+  /* 768px, the same breakpoint .hamburger and .tnav-mmore already use (#731). */
+  const isDesktop = useIsDesktop();
   const pathname = usePathname();
   const dot      = useStatusDot();
   const mode     = useDesignMode();
@@ -302,9 +296,45 @@ export default function NavDrawer() {
      a prop instead of a window event threaded through the shell. */
   const terminal = mode === 'terminal';
 
+  /* NOT ON THE LANDING PAGE (#714).
+   *
+   * LandingTerminal renders its own nav - `Sign In` and `Get Started Free` -
+   * and this one was rendering underneath it, so `/` served two stacked navs.
+   * The app nav is the wrong one to show there: its five items (Overview,
+   * Arena, Scan, Flow, Book) are all GATED routes, so a logged-out visitor
+   * clicking any of them lands somewhere they cannot use, on the page whose
+   * only job is to convert them.
+   *
+   * Latent until #719. `.tnav` renders only in terminal mode, and before
+   * terminal became the default on `/`, anyone seeing it had typed
+   * ?design=terminal and was already a signed-in operator reading an app nav
+   * as normal. Making it the default turned a duplicate nobody met into the
+   * first thing every visitor sees.
+   *
+   * A RENDER GATE, NOT `body.landing { display: none }`. That block hides the
+   * rest of the app chrome and I tried it first - but `body.landing` is added
+   * by an effect in LandingContent, so the CSS cannot apply until after
+   * hydration and the nav FLASHES on every landing visit. Measured: the
+   * regression test failed on exactly that, asserting immediately after
+   * navigation. #719 established that a flash on the acquisition surface is
+   * the thing to avoid, so the nav must never be in the tree here rather than
+   * be painted and then hidden.
+   *
+   * Route-based rather than a `body.landing` read because the pathname is
+   * known synchronously on the first render, server and client. Same shape as
+   * AppShell's own isChromeless()/isAuthRoute() gates.
+   *
+   * WAS `pathname === '/'` UNTIL #845. That covered the route in front of me
+   * and not the family, so `/learn` - the same `.lp-nav` + `.lp-logo` shell -
+   * kept the app nav and had its logo and both hero buttons painted over the
+   * moment #748 made terminal the default. The membership test moved to
+   * `rendersOwnNav` in lib/navRoutes.ts, next to the route groups it belongs
+   * with; add routes there rather than reintroducing a comparison here. */
+  const onLanding = rendersOwnNav(pathname);
+
   return (
     <>
-      {terminal && <TerminalNav onOpenDrawer={() => setDrawerOpen(true)} />}
+      {terminal && !onLanding && <TerminalNav onOpenDrawer={() => setDrawerOpen(true)} />}
       {!terminal && (
       <div className="app-bar">
         <div className="app-bar-inner">
@@ -481,12 +511,46 @@ export default function NavDrawer() {
       </nav>
       )}
 
-      {/* inert while closed - see the same fix in GrokChat. The drawer is
-          hidden with a transform and pointer-events:none, so its 23 focusable
-          controls stayed in the tab order behind an invisible panel. */}
+      {/* MOBILE AND TABLET ONLY (#731). Owner: "the side menu on the right
+          side, it should be only available on mobile view or tablet."
+
+          `.nav-menu` is 360px wide and slid off-canvas by a transform that
+          left 8px of its near-black ground inside the right edge on desktop -
+          a visible strip on every route, in BOTH designs, scaling with the
+          window (14px at 2818px). `pointer-events: none` is why it intercepted
+          nothing and every click test passed, and why platform-audit reported
+          `overflow 0`: 8px of a fixed element INSIDE the viewport is neither an
+          overflow nor a page wider than the screen. Nothing in the suite asked
+          whether an off-canvas panel is actually off canvas.
+
+          A RENDER GATE, NOT `display: none`, per #728 - a CSS hide applied
+          after hydration paints first.
+
+          768px because that is the breakpoint the drawer's own openers already
+          use: `.hamburger` is hidden at `min-width: 768px` (globals.css:1022)
+          and `.tnav-mmore` lives in `@media (max-width: 767px)`. So on desktop
+          the drawer already had no opener in either design - it was unreachable
+          chrome bleeding 8px. No new number invented.
+
+          SAFE ONLY BECAUSE #732 LANDED FIRST. Until then `.tnav-avatar` was
+          terminal's DESKTOP drawer opener and the sole path to ~15 routes;
+          gating here would have stranded them. The bar now reaches those routes
+          directly, which is what makes this a removal rather than a
+          regression. */}
+      {!isDesktop && (
       <div
         id="nav-drawer"
         className={`nav-drawer${drawerOpen ? ' open' : ''}`}
+        /* inert while closed - the same fix as GrokChat. The drawer is hidden
+           with a transform and pointer-events:none, so its 23 focusable
+           controls otherwise stayed in the tab order behind an invisible panel.
+           STILL LOAD-BEARING, on mobile. The render gate above removes those
+           controls from the document entirely on desktop, which solves it there
+           outright - but below 768 the drawer exists and spends most of its
+           life closed, so this is what keeps it out of the tab order. Restored
+           after QA noticed I had dropped the explanation with the comment block
+           the #731 note replaced; a future reader seeing a bare `inert` and the
+           new gate could reasonably conclude the gate had made it redundant. */
         inert={!drawerOpen}
         aria-hidden={!drawerOpen}
       >
@@ -591,6 +655,7 @@ export default function NavDrawer() {
           )}
         </div>
       </div>
+      )}
     </>
   );
 }

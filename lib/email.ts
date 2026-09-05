@@ -57,9 +57,28 @@ async function brevoFetch(init: RequestInit): Promise<Response> {
 
 const APP_NAME = 'LiquidityHQ';
 
-// Fixed recipient list for the AI-spend spike alert - the owner's own
-// addresses, not a per-user setting, so no env var / admin UI for this list.
-const SPIKE_ALERT_RECIPIENTS = ['johndominicbuilds@gmail.com', 'mikocabal27@gmail.com'];
+/* Recipients for the AI-spend spike alert. Still not a per-user setting and
+   still no admin UI - but out of the source, because this repo is public.
+   The two addresses that used to sit here were real inboxes readable by anyone
+   who cloned it; the risk is spam and social engineering rather than access,
+   which is why this is a scrub and not an incident.
+
+   Comma-separated and server-only, the same shape as ADMIN_EMAILS
+   (lib/admin-auth.ts:28). NOT NEXT_PUBLIC_ - a NEXT_PUBLIC_ var is inlined
+   into the browser bundle at build time, which would put the addresses back in
+   public view by a longer route.
+
+   EMPTY IS THE CORRECT FALLBACK and it is a deliberate trade. With the var
+   unset the alert is built and sent to nobody, so the spend spike goes
+   unannounced - that is worse than mail arriving, and better than a repo that
+   hardcodes someone's inbox. Every service that should page a human needs
+   SPIKE_ALERT_RECIPIENTS set; see the PR for which ones. */
+function spikeAlertRecipients(): string[] {
+  return (process.env.SPIKE_ALERT_RECIPIENTS ?? '')
+    .split(',')
+    .map(e => e.trim())
+    .filter(Boolean);
+}
 
 function appUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://liquidity-hq.com';
@@ -116,7 +135,7 @@ export async function sendAdminAddedEmail(args: AdminAddedArgs): Promise<boolean
 
 // Owner-only warning: today's xAI call volume crossed 80% of the global
 // daily cap (app/api/ops/spike-alert/route.ts). Fixed recipient list, not
-// per-user - see SPIKE_ALERT_RECIPIENTS above.
+// per-user - see spikeAlertRecipients() above.
 export interface HealthAlertArgs {
   down: Array<{ source: string; category: string; detail: string; failures: number; lastOkAt: string | null }>;
   recovered: string[];
@@ -185,7 +204,7 @@ export async function sendHealthAlertEmail(args: HealthAlertArgs): Promise<boole
       },
       body: JSON.stringify({
         sender: { name: `${APP_NAME} Ops`, email: from },
-        to: SPIKE_ALERT_RECIPIENTS.map(email => ({ email })),
+        to: spikeAlertRecipients().map(email => ({ email })),
         subject,
         htmlContent: html,
       }),
@@ -224,7 +243,7 @@ export async function sendSpikeAlertEmail(args: SpikeAlertArgs): Promise<boolean
       },
       body: JSON.stringify({
         sender: { name: `${APP_NAME} Ops`, email: from },
-        to: SPIKE_ALERT_RECIPIENTS.map(email => ({ email })),
+        to: spikeAlertRecipients().map(email => ({ email })),
         subject,
         htmlContent: html,
       }),

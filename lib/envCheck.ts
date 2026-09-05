@@ -35,9 +35,16 @@
  * Everything else logs and returns.
  */
 
-// Project refs, not secrets - these appear in every NEXT_PUBLIC_SUPABASE_URL
-// and in docs/INFRASTRUCTURE.md 4. Named so the comparison below reads as
-// intent rather than as a magic string.
+// Project refs, not secrets - these appear in every NEXT_PUBLIC_SUPABASE_URL,
+// so they ship in the browser bundle and hiding them achieves nothing. Named so
+// the comparison below reads as intent rather than as a magic string.
+//
+// docs/INFRASTRUCTURE.md 4 NO LONGER LISTS THEM (trimmed 2026-09-05, public
+// repo): what was worth not publishing is a doc telling a reader which ref is
+// production, next to the note that production has no backups. This constant is
+// the opposite case and stays - it is the check that stops a non-prod service
+// pointing at the prod database, which CONTRIBUTING calls a hard rule. Deleting
+// it to tidy the string away would remove the guard and keep the exposure.
 const PROD_SUPABASE_REF = 'qdpwhnvmhqgzijuwopso';
 
 export interface EnvFinding {

@@ -155,7 +155,24 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
             letterSpacing: '.03em', whiteSpace: 'nowrap', flexShrink: 0,
           }}>
             {m.symbol}
-            <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, fontSize: '0.625rem' }}>·</span>
+            {/* Inherits the chip's own signal colour (#752). It was
+                rgba(255,255,255,0.3), which measured 1.09-2.64 against the
+                chip in every theme - worst 1.09 in light, so the divider
+                simply was not there and the chip read "BTC 12".
+
+                Measured three ways before picking. The chip is its signal
+                colour at 8% over the page ground, and against that:
+
+                  rgba(255,255,255,0.3)   1.09 - 2.64   fails all four
+                  var(--txt3)             4.46          fails terminal light
+                  var(--txt2)             4.81 - 6.68   passes
+                  inherited (no colour)   4.62 - 10.02  passes
+
+                Inheriting wins on being a deletion rather than a new
+                declaration, and the symbol beside it already proves that
+                colour is legible on this chip - it is the same measurement.
+                fontWeight 400 against the symbol's 700 still separates them. */}
+            <span style={{ fontWeight: 400, fontSize: '0.625rem' }}>·</span>
             <span style={{ fontWeight: 500, fontSize: 'var(--fs-caption)' }}>{m.total}{arrow}</span>
           </span>
         );
@@ -166,29 +183,54 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
   );
 }
 
-/* ── Source color map ── */
-const SOURCE_COLORS: Record<string, string> = {
-  'Reuters':          '#f59e0b',
-  'Reuters World':    '#f59e0b',
-  'Reuters Business': '#f59e0b',
-  'AP News':          'var(--accent-2)',
-  'AP Business':      'var(--accent-2)',
-  'BBC World':        '#e11d48',
-  'BBC Business':     '#e11d48',
-  'CoinDesk':         '#1a7aff',
-  'CoinTelegraph':    'var(--green-2)',
-  'Decrypt':          'var(--orange)',
-  'The Block':        '#38bdf8',
-  'CryptoSlate':      '#818cf8',
-  'Bitcoin Magazine': 'var(--amber)',
-  'Finnhub':          'var(--txt-dim)',
-};
+/* THE SOURCE COLOUR MAP IS GONE (#752). It was fourteen brand colours used as
+   TEXT at --fs-micro, and six of them failed:
+
+     source            value       cur dark  cur light  term dark  term light
+     Reuters (x3)      #f59e0b       7.68      2.00       7.08       1.68
+     The Block         #38bdf8       7.70      1.99       7.10       1.68
+     CryptoSlate       #818cf8       5.61      2.64       5.18       2.23
+     CoinDesk          #1a7aff       4.26      3.47       3.93       2.94
+     BBC (x2)          #e11d48       3.62      4.26       3.33       3.60
+     (unmapped)        --txt3        4.43      6.43       4.05       4.14
+
+   QA confirmed three of these on liquidity-hq.com by rendering - The Block
+   1.99, Reuters 2.00, BBC Business 4.26 - matching the arithmetic above to two
+   decimal places. `#e11d48` and `#1a7aff` fail in ALL FOUR contexts, so this
+   was never only a light-theme problem.
+
+   The three Reuters entries are the same `#f59e0b` #739 was opened for and
+   #742 was supposed to remove; that sweep matched on a hex string and missed
+   the ones held in this map.
+
+   WHY PLAIN TEXT AND NOT A COLOURED DOT. The owner ruled the identical
+   question on #734 - keep the coloured dot, make the text plain - and the
+   obvious move was to apply it here. Measured first: as a DOT these same
+   colours sit at 1.68-2.94 against the light grounds, so half of them would
+   be decoration nobody can see. A dot is worth keeping where one already
+   exists and is visible; inventing one at 1.68 is not. The source NAME is
+   spelled out either way, so the colour was redundant encoding, not
+   information.
+
+   --txt2 clears everywhere: 5.03 / 9.15 / 5.62 / 5.56 across the four
+   contexts. The `opacity: 0.9` had to go with it - at 0.9 the same token
+   measures 4.24 and 4.48 in current dark and terminal light, below the bar.
+   That is the second time today a decorative fade was the thing standing
+   between a correct colour and a passing measurement (#707 was the first). */
 
 /* ── Card type config ── */
 const TYPE_CFG: Record<'red' | 'amber' | 'purple', { dot: string; labelKey: LabelKey; accentBg: string }> = {
   red:    { dot: 'var(--red)', labelKey: 'NEWS_TYPE_BADGE_BREAKING', accentBg: 'rgba(248,113,113,0.08)'  },
   amber:  { dot: 'var(--amber)', labelKey: 'NEWS_TYPE_BADGE_MACRO',    accentBg: 'rgba(251,191,36,0.07)'  },
-  purple: { dot: '#1a7aff', labelKey: 'NEWS_TYPE_BADGE_CRYPTO',   accentBg: 'rgba(26,122,255,0.07)' },
+  /* `dot` is a misnomer inherited from an earlier design - all three are used
+     as `color:` on .ncard-type-badge, which is TEXT. Found while sweeping
+     #752 rather than by looking at the badge, because the field name says
+     otherwise. --red and --amber clear everywhere (5.24-12.07). The blue did
+     not: `#1a7aff` measured 3.98 in current light and 3.29 in terminal light
+     on --bg1, and the card's own 7% tint sits under it, which moves it down
+     rather than up. --accent-2 is the palette's blue and clears all four
+     contexts at 6.09-8.21. */
+  purple: { dot: 'var(--accent-2)', labelKey: 'NEWS_TYPE_BADGE_CRYPTO',   accentBg: 'rgba(26,122,255,0.07)' },
 };
 
 /* ── Market impact chip - first 6 words of note ── */
@@ -211,11 +253,10 @@ function ImpactChip({ note, color }: { note: string; color: string }) {
 
 /* ── Source pill ── */
 function SourcePill({ source }: { source: string }) {
-  const col = SOURCE_COLORS[source] ?? 'var(--txt3)';
   return (
     <span style={{
       fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
-      color: col, textTransform: 'uppercase', opacity: 0.9,
+      color: 'var(--txt2)', textTransform: 'uppercase',
     }}>{source}</span>
   );
 }
@@ -617,9 +658,27 @@ export default function NewsPage() {
             return groups.map((g, gi) => (
               <div key={gi} style={{ marginBottom: 20 }}>
                 {/* Date header */}
+                {/* var(--bdr), not var(--border) (#798). --border has NEVER been
+                    declared - `git log -S"--border:"` on globals.css returns
+                    nothing, so it is not a rename casualty, it is a typo. All
+                    three uses arrived in one commit, "Redesign Events tab as
+                    Economic Calendar with date-grouped rows", which modelled
+                    this block on /econ-calendar - and that screen writes the
+                    same divider as `0.5px solid var(--bdr)`.
+
+                    An unresolvable var() with no fallback invalidates the WHOLE
+                    declaration, and an invalid `border` shorthand does not
+                    degrade to a default: there was no divider here at all. That
+                    is why nothing measured it - a missing border leaves no
+                    element behind to measure.
+
+                    Widths left as written, 1px and 3px rather than
+                    /econ-calendar's 0.5px. Only the colour was broken, and
+                    changing the width would be a visual decision riding along
+                    with a defect fix. */}
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 8px',
-                  borderBottom: '1px solid var(--border)',
+                  borderBottom: '1px solid var(--bdr)',
                 }}>
                   <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: g.isToday ? 'var(--amber)' : 'var(--txt)' }}>
                     {g.isToday ? t('NEWS_EVENTS_TODAY_PREFIX', { date: g.dateLabel }) : g.dateLabel}
@@ -643,8 +702,8 @@ export default function NewsPage() {
                     <div key={ei} style={{
                       display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px',
                       gap: 4, padding: '10px 8px', minWidth: 370,
-                      borderLeft: `3px solid ${past && !urgent ? 'var(--border)' : borderColor}`,
-                      borderBottom: '1px solid var(--border)',
+                      borderLeft: `3px solid ${past && !urgent ? 'var(--bdr)' : borderColor}`,
+                      borderBottom: '1px solid var(--bdr)',
                       opacity: past && !urgent ? 0.55 : 1,
                       alignItems: 'start',
                     }}>

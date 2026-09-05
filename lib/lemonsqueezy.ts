@@ -151,3 +151,66 @@ export function patchForEvent(
 function pickDate(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
 }
+
+/* ── The two gates in front of patchForEvent ──────────────────────────────────
+ *
+ * This file's header says the route's harness "proves the route verifies,
+ * dedupes and writes; this proves the decision itself. Different halves." Two
+ * of those three are pure and were only reachable through a live endpoint with
+ * a real secret and a real database - so they had no tests at all, while the
+ * decision they guard had eleven.
+ *
+ * Verification and ownership move here. Dedup and the write stay in the route:
+ * both need the database and neither can be honestly faked.
+ */
+
+import crypto from 'crypto';
+
+/** Does this body carry LemonSqueezy's HMAC for our secret?
+ *
+ *  FAILS CLOSED IN EVERY DIRECTION, and each guard is a real case rather than
+ *  defensive noise:
+ *
+ *  - **No secret configured** returns false. An unset env var must not become
+ *    an open endpoint - on a public repo that is the difference between a
+ *    misconfiguration and anyone being able to grant themselves Pro.
+ *  - **`timingSafeEqual` throws on length mismatch**, which a wrong-length or
+ *    non-hex signature produces. Caught, not propagated: a 500 tells an
+ *    attacker their input reached further than a 401 does, and LemonSqueezy
+ *    RETRIES a 500.
+ *  - **Constant-time compare**, not `===`. The digest is derived from
+ *    attacker-supplied bytes, so an early-exit comparison leaks how much of a
+ *    guessed prefix was right.
+ *
+ *  Buffer.from(x, 'hex') silently drops invalid characters rather than
+ *  throwing, so a signature of "zz" becomes an empty buffer and the length
+ *  check is what rejects it. That is why the try/catch is load-bearing and not
+ *  belt-and-braces. */
+export function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
+  if (!secret) return false;
+  const digest = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(digest, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+/** Does the payer own the account the checkout named?
+ *
+ *  THE SIGNATURE PROVES LEMONSQUEEZY SENT THIS. IT NEVER PROVES THE PAYER OWNS
+ *  THE ACCOUNT THEY NAMED. `custom_data.user_id` is written into a CLIENT-SIDE
+ *  checkout URL by lib/checkout.ts, so the payer chooses it: edit the id in
+ *  your own browser, make one genuine purchase, and Pro lands on any account
+ *  you like. This comparison is the only thing between that and a working
+ *  attack.
+ *
+ *  Empty on either side is a refusal, not a pass. An account with no email and
+ *  a payer with no email are not "the same"; that is the shape where a missing
+ *  lookup silently authorises everything. */
+export function payerOwnsAccount(payerEmail: string | null | undefined, accountEmail: string | null | undefined): boolean {
+  const payer = String(payerEmail ?? '').trim().toLowerCase();
+  const account = String(accountEmail ?? '').trim().toLowerCase();
+  if (!payer || !account) return false;
+  return payer === account;
+}

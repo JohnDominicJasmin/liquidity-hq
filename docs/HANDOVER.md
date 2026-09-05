@@ -269,7 +269,77 @@ android/      Capacitor Android shell
   body explaining the real cause and why the fix is shaped that way. Look at recent commits
   before writing one. Trailer: `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
 
-### Branch & deploy state as of 2026-09-02
+### Branch & deploy state as of 2026-09-05
+
+| Branch | Commit | Note |
+|---|---|---|
+| `origin/dev` | `24aa188a` | PR #847 merged — the app nav no longer covers marketing pages (#845) |
+| `origin/qa` | `24aa188a` | promoted by dev; **deploy is QA's** — dev is under a standing owner hold on every environment since 2026-09-03 |
+| `origin/staging` | `9cefa0bb` | behind `qa` by the #845 fix |
+| `origin/main` | `1ee554ee` | production. Release **held by the owner** on #836, #843 and #846 |
+
+**The release is held and the fix-forward ruling was reversed.** On 2026-09-05 the owner was told #843, #846 and #836 would ship as known defects and answered *"THEN VERIFY IT"*. Nothing ships until all three are fixed and QA has verified them on qa. Do not re-park them.
+
+**Zero workflow runs of any kind between `2026-08-13` and `2026-09-05`** — 23 days covering the whole terminal redesign, so nothing exercised a browser across all of it.
+
+**The cause of that gap is NOT established, and two plausible-sounding explanations are both wrong.** Measured 2026-09-05:
+
+```
+gh api repos/.../actions/permissions   {"enabled": true}
+gh workflow list --all                 CI active · Ready for QA active · Release signals active
+gh variable list                       RELEASE_PR_PAUSED = 1   (set 2026-08-09)
+```
+
+So Actions are **not** disabled at the repository level, and the banner higher up this file claiming all three workflows are `disabled_manually` does not match what the API returns today. Do not repeat either explanation as fact until someone settles it.
+
+**What IS established: the release PR does not open itself.** `release-signals.yml`'s `release-pr` job is gated `vars.RELEASE_PR_PAUSED != '1'`, and that variable has been `1` since 2026-08-09. Deliberate — it lets `staging` accumulate — but it means **the release PR must be opened by hand**, which is why #828 and #842 both were.
+
+**The one E2E run in that window is void.** Run `33932048082` reported 88 failed / 483 passed and it means nothing: the dev Supabase project was unreachable for the entire 66 minutes — **3,308 Cloudflare `522`s**, first at `00:13:25Z` and last at `01:15:34Z`. `/api/labels` returned a Cloudflare error page throughout, which is the exact condition `ci.yml` names as a known defect generator, so every control label on every page came from fallbacks. Read no failure from that run as a product defect without re-running. Detail on #841.
+
+#### Superseded: branch state as of 2026-09-03
+
+| Branch | Commit | Note |
+|---|---|---|
+| `origin/dev` | `06c647e` | PR #720 merged — the canvas-mirror revert (#718) |
+| `origin/qa` | `06c647e` | promoted and **deployed** — `/api/version` confirmed `06c647e` |
+| `origin/staging` | `06c647e` | promoted and **deployed** — `/api/version` confirmed `06c647e` |
+| `origin/main` | `1ee554e` | production — **91 commits behind `staging`** (54 excluding merges), no release PR open. Shipping is the owner's call and they have not given it. |
+
+**`main` is not an ancestor of `staging`, and that is topology rather than risk — check this before a release rather than re-deriving it.** Seven commits sit on `main` and not on `staging`, so `staging` → `main` cannot fast-forward and needs a merge commit. All seven are release merge commits from previous ships: `git diff origin/staging...origin/main` is **empty**, meaning `main`'s tree is identical to the merge-base (`bb24e374`). So `main` carries no unique content, and shipping `staging` reverts nothing that is live.
+
+Stated explicitly because "not an ancestor" is normally the shape of an unmerged hotfix — the case CLAUDE.md warns about, where a fix went straight to prod and the next release quietly undoes it. Here it is not that, and confirming it takes one command:
+
+```
+git diff --stat origin/staging...origin/main     # empty  -> main adds nothing
+git rev-list --count origin/main..origin/staging # 91     -> the release size
+```
+
+**READ THIS BEFORE ANY DESIGN WORK — the redesign direction reversed on 2026-09-03.**
+
+The owner stopped the canvas-mirror initiative. Their words: *"we are repackaging the platform without users feedback... we are wasting time, money, and resources, and also tokens."* Two decisions came out of it, and both are now the standing rule:
+
+1. **Terminal styling goes over the existing production layout.** Same button positions, same text positions, same structure. Do **not** restructure a screen to match a `design-handoff-dir/design_files/*.dc.html` canvas. The `#413` batch — closed by `895f116` — is the reference state for what "right" looks like; `/scanner`, `/hours`, `/funding` and `/journal` are still in it.
+2. **Terminal ships on the landing page only** (#719, not yet built). `/` renders terminal by default; every app screen stays on the current design. Until this ships, `lib/designMode.ts` defaults everyone to `current` and **no user has ever seen any of the terminal work.**
+
+The sorting rule that follows from #2, and it governs triage: **after #719, a terminal-mode defect on any route except `/` is invisible to users and does not earn dev time.** A defect on the current design, or on landing, is real. #707, #698 and #663 were parked under exactly this rule with their measurements intact; #656 and #652 were closed as superseded; #620, #622 and #712 are parked.
+
+> ## ⚠️ THAT SORTING RULE IS DEAD. It reversed on 2026-09-04 and it is now exactly backwards.
+>
+> `7435d87c feat(dashboard): terminal is the default design on every route` (#748/#768) removed the "only `/`" half. **Terminal is what every visitor gets on every route**, and `?design=current` is the rollback rather than the default.
+>
+> So the sentence above now reads as "the defect every user sees does not earn dev time". Anything parked under it needs re-triage, not inheritance — and the paragraph is left in place rather than deleted because several closed issues cite it as their reason.
+>
+> This is not theoretical. #836, #843 and #846 are all terminal-mode defects on routes other than `/`; the old rule would park all three; the owner has **held the release** for exactly those three. If you are about to park a terminal defect because of the paragraph above, stop.
+>
+> One rule from #2 that did NOT change: terminal styling still goes **over the existing production layout**. Do not restructure a screen to match a canvas. #843 is what happens when that line is crossed and then reverted — see §14.
+
+**The one exception is landing.** The owner likes the canvas-mirrored landing (`ad6b08c`, #592) and it was deliberately excluded from the revert. Never revert it, and treat "landing renders identically" as a hard gate on any work touching `app/globals.css`, `lib/labelKeys.ts`, `lib/labelDefaults.en.json` or `components/AppShell.tsx` — all four are shared between landing and the reverted screens, and `AppShell.tsx` is the one that bit us (it rendered `PriceTickerStrip` on `/` gated on design mode rather than pathname).
+
+**Known and deliberately not filed**, so nobody re-derives them: `/dashboard` shows 10 terminal radius violations, all `MarketRead` (`.mr`, `.mr-factor`, `.mr-track`, unscoped in `app/globals.css` around lines 776-812, outside `.dashboard-term-wrap` so the blanket radius rule misses them). That is `#413`-era, restored correctly by the revert, and invisible after #719. Landing also fails 3 of 21 `specs/landing.md` criteria (C10 hero-glow, C11 nav 44 vs 56, C18 mobile nav 38 vs 52) — pre-existing, and the owner has stopped aligning to the handoff specs.
+
+**Superseded history below.** The 2026-09-02 entry that follows described the redesign as "back and active" and drove the canvas-mirror work. It is kept because the token-governance work in it is still live and correct — only the direction changed.
+
+#### Superseded: branch state as of 2026-09-02
 
 | Branch | Commit | Note |
 |---|---|---|
@@ -278,7 +348,7 @@ android/      Capacitor Android shell
 | `origin/staging` | `507c080` | not yet re-promoted with the terminal work below — check `/api/version` on `liquidity-hq-staging` before assuming |
 | `origin/main` | `b9795ee` | production — not yet touched by the terminal redesign batch |
 
-**Monochrome Terminal redesign (#413) is back and active, unlike the 2026-08-27 revert noted below.** Session 2026-09-01/02 shipped, in order: #558 (Dashboard C8 radius), #560 (platform conformance batch — terminal token governance for `--accent-solid`/`--accent-dim`/`--blue` family/`--bg3`/`--bg4`/`--on-accent`, `/funding`+`/correlation` light-theme contrast, a platform-wide radius carve-out for circular markers, footer link touch targets), #562 (QA's `qa/contrast-diff.mjs` + `qa/platform-audit.mjs` tooling), #563 (the terminal design now has an actual `[data-design="terminal"][data-theme="light"]` token block — it didn't before, terminal+light silently fell back to the current design and QA's #559 audit's light-theme rows were measuring two unrelated systems against each other; see issue #561). A new conformance test direction was added in `__tests__/terminalTokens.test.mts` (2026-09-01): asserts every `var()` a terminal-scoped selector references is actually declared in the terminal token block, not just that the block declares nothing undocumented — the asymmetry that let five different tokens (`--amber`, `--accent-2`, `--accent-bg`/`--accent-bdr`, `--fr-slight-long`, `--on-accent`) fall through ungoverned over the course of the session before being caught by manual sweep or QA's audit.
+**(SUPERSEDED 2026-09-03 — see the reversal above. Token-governance content still accurate.)** Monochrome Terminal redesign (#413) is back and active, unlike the 2026-08-27 revert noted below. Session 2026-09-01/02 shipped, in order: #558 (Dashboard C8 radius), #560 (platform conformance batch — terminal token governance for `--accent-solid`/`--accent-dim`/`--blue` family/`--bg3`/`--bg4`/`--on-accent`, `/funding`+`/correlation` light-theme contrast, a platform-wide radius carve-out for circular markers, footer link touch targets), #562 (QA's `qa/contrast-diff.mjs` + `qa/platform-audit.mjs` tooling), #563 (the terminal design now has an actual `[data-design="terminal"][data-theme="light"]` token block — it didn't before, terminal+light silently fell back to the current design and QA's #559 audit's light-theme rows were measuring two unrelated systems against each other; see issue #561). A new conformance test direction was added in `__tests__/terminalTokens.test.mts` (2026-09-01): asserts every `var()` a terminal-scoped selector references is actually declared in the terminal token block, not just that the block declares nothing undocumented — the asymmetry that let five different tokens (`--amber`, `--accent-2`, `--accent-bg`/`--accent-bdr`, `--fr-slight-long`, `--on-accent`) fall through ungoverned over the course of the session before being caught by manual sweep or QA's audit.
 
 **What changed since 2026-08-01 (older entries, still accurate):**
 - #481: Monochrome Terminal redesign reverted from qa/staging. Preserved on `feature/monochrome-terminal`. `CONVERTED_ROUTES = []` — palette specs paused.
@@ -386,6 +456,20 @@ These wasted real time in earlier sessions. All are documented as recurring:
 ---
 
 ## 9. Current issues
+
+### 🔴 Holding the 2026-09-05 release
+
+Three issues, all terminal-mode on routes other than `/`, all of which the dead sorting rule in §6 would have parked. The owner reversed the fix-forward ruling and held the release for them.
+
+| Issue | What it actually is | State |
+|---|---|---|
+| **#836** contrast | Seven instances of `opacity` over `--txt3`, plus one genuine tint-ground failure. Worst was `#a1a2a2` **1.95:1** on `/liq` `.gex-title > span` — the worst text ratio measured anywhere on the platform. `/liq` carried 5 of 9 light and 4 of 6 dark. | dev fixing |
+| **#846** duplicate accessible names | **Three of the five are a spec defect, not app code.** `no-duplicate-controls.spec.ts:79` reads `innerText \|\| aria-label` — precedence backwards. `Tip.tsx` sets a distinct `aria-label` per instance but its `innerText` is always `ⓘ`, so every Tip collides with every other Tip. Real ones: `/calc` "Position Sizer" (nav-tile vs ps-preset, one navigates and one does not) and `/arena` "Sign In →". | QA's file to fix |
+| **#843** Arena geometry | **Not a width.** The terminal Arena component was reverted and never restored — see §14. Cannot be fixed by a CSS number. | awaiting owner |
+
+**#845 shipped** — the terminal app nav covered `/learn`'s logo and both hero buttons including the primary CTA. Root cause: #714 fixed the same bug on `/` and wrote the gate as `pathname === '/'` — one route, not a family. Now `rendersOwnNav()` in `lib/navRoutes.ts`, covering `/`, `/learn`, `/ko`, `/zh`.
+
+> **The landing locales are `['ko','zh']` from `lib/i18n/dictionaries.ts`, NOT the ten in `lib/locales.ts`.** Two different lists. `app/[locale]/page.tsx` generates from the small one and `dynamicParams = false` 404s the rest — on a running build `/ko` is **200** and `/es` is **404**. Gating on the wide list claims eight routes that do not exist. A test binds the copy to `dictionaries.ts`.
 
 ### 🔴 Live risk
 
@@ -696,6 +780,162 @@ Context for the move off the desktop GUI.
   cards** - qa and staging share the dev database. Missing local API keys are *not* the
   cause and deploying to dev does not help. Any change to `/news` reaches production
   unverified; say so in the PR rather than letting the reader assume it was checked.
+
+### Three that cost the most time on 2026-09-05
+
+**1. `opacity` multiplied onto `--txt3` is now SEVEN instances of the same defect.**
+
+`--txt3` is tuned to sit just above 4.5:1 — measured at full strength it is **4.70 to 5.88 across every panel ground in both terminal themes**. It has no headroom left, so any multiplier at all drops it under AA. The instances, in the order they were found:
+
+```
+1  .pf-footer-bottom-note      2  .mr-scale-good        3  .st-locked-list  (dark half only)
+4  .lp-footer-ack              5  .gex-title > span     0.5 -> #a1a2a2  1.95:1
+6  .liq-section-sub            0.75 -> #458c57 3.03, #af4a50 3.90
+7  .st-locked-list             0.6 light -> #9b9da0  2.71:1   (the half #3 missed)
+   + FundingTerminal hint 0.6, econ-calendar source 0.5
+```
+
+**The rule: de-emphasise with size, weight or a separator — never by dimming ink that is already at its floor.** `globals.css` names the trap at `.lp-footer-ack`; read that comment before adding an `opacity` to any text.
+
+The corollary, and the thing that made #3 half-fixed for weeks: **a fix scoped to one theme is not a fix.** `.st-locked-list` was "fixed" in dark and its light multiplier survived because the justification — *"over a white card, where the base colour has the headroom"* — was true of the current design and never re-checked against terminal.
+
+**2. A background is not the first non-transparent ancestor.** `.liq-current-oi` was the only entry on #836 that is *not* an opacity bug: `--txt3` at full strength still measures **4.09:1** there, because `.liq-current-bar` is `--accent-2` at 9% composited over the panel, which lifts the ground toward the ink. Measure over the composited ground or the number is wrong in the safe-looking direction.
+
+**3. CSS can outlive the component it styles, and the CSS is not evidence the screen exists.**
+
+`components/ArenaTerminal.tsx` **does not exist.** `dd39c9bb` reverted the terminal-Arena branch — 1,212 lines including the component (355), `lib/arenaColour.ts`, `lib/arenaTimeframes.ts` and their tests — and `ccefc0de` (#413) then restored **939 lines of `globals.css` and not the component.** So `[data-design="terminal"] .at-rail { flex: 0 0 352px }` is correct, present, and styles markup that nothing renders.
+
+A sweep of every `[data-design="terminal"]` selector against every `className` in `app/` and `components/` found **194 of 349 terminal classes have no markup**. That number is an upper bound on dead CSS, **not a defect count** — and the difference matters:
+
+| Cluster | n | Component | Verdict |
+|---|---|---|---|
+| `at-*` | 66 | `ArenaTerminal.tsx` — **gone** | `/arena` is not converted. Real. |
+| `lt-*` | 88 | `LandingTerminal.tsx` — exists, renders `lpt-*` | dead CSS, no user impact |
+| `dterm-*` | 19 | `DashboardTerminal.tsx` — exists, renders `dash-*` | dead CSS |
+| `sshell*` | 5 | none | dead CSS |
+
+`lt-*` looked identical to `at-*` from the grep and was nearly reported as breakage; only opening `LandingTerminal.tsx` separated them. **Run the control in both directions before trusting a sweep** — and `/arena` sits in `CONVERTED_ROUTES` today, so the ledger says converted where the screen is current-design markup plus `border-radius: 0`.
+
+### The failure that looks like success — 2026-09-03
+
+Six defects in one session shared a shape: **the symptom is indistinguishable from
+the healthy state**, so the thing you check to find them returns the same answer
+either way. Each is cheap to avoid once named.
+
+**A TypeScript parameter property makes a `lib/` module permanently untestable.**
+
+```ts
+constructor(public readonly status: number, message: string) {}
+```
+
+SWC compiles this, so it works in production. Node's type-stripping **refuses the
+whole file** — the shorthand emits code rather than only annotating — so any
+`__tests__/*.test.mts` importing that module dies with
+`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` before a single test runs. **Lint, `tsc` and
+`npm run build` all pass.** The only symptom is a test file that will not load.
+Declare the field separately and assign in the body.
+
+**A CSS rule an inline style outranks is dead, not overridden.** It can never
+apply, and no source read shows that — `globals.css` said the rail badge was
+9.5px mono for as long as the rule existed while it rendered 12px sans. Three
+defects shipped this way (#629, #633, #660). This is what `qa/mobile-audit.mjs`'s
+`deadRules` check is for (#666) — written after the third, because no source
+read finds them.
+
+**An empty result from a broken detector looks like a clean page.** The first
+version of that check returned `[]` against the real site *and* against a page
+built to contain one known dead rule — modern Chrome gives every `CSSStyleRule` a
+truthy empty `cssRules`, so a `if (r.cssRules) recurse` walk collects nothing.
+**Validate any new check against a known positive before trusting a clean run.**
+
+**A number computed from a subset of its inputs renders as a complete number.**
+`AccumulationTracker` could drop 47 points against a display threshold of 45;
+`lib/distribution.ts` can drop 55 against labels at 70 and 45, which turns a
+genuine `Distribution` into `Quiet` — the opposite claim, not a weaker one.
+`?? 0` on a missing price change was worse still: the coin survived a filter meant
+to exclude it, took the maximum of its section, and asserted `'Price flat'` in
+rendered text. **A neutral-looking default is often the strongest possible claim.**
+
+**A loading state and a missing source render identically.** A 15-second wait on
+`/liq` caught `LIQ_NO_OI_DATA` and produced a report that the page was broken in
+production. Polling to 60s showed 154 rows. **Poll until the page settles; never
+conclude absence from one sample.** The same confusion made "not applicable" and
+"not tested" identical in the dialog audit, and made a null `.liq-heat-wrap` look
+like a defect when it was the empty-state path.
+
+**Three identical measurements can be one measurement.** Three scanner runs
+returned the same five blank symbols, which looked like proof it was not a race —
+but `s-maxage=120, stale-while-revalidate=600` meant all three read one cached
+answer. **Variation confirms; stability inside a cache window proves nothing.**
+
+**The correct pattern already existing in-repo does not mean it travelled.**
+Four times in one session the right handling was present and documented at the
+place that got it right, and absent everywhere else: `--border-input`, a governed
+neutral nobody reached for; `marketStore`'s `>= 2` signal floor, which two other
+scorers lacked; `pool()`; and terminal typography, where `globals.css:6976`
+documents one inline-vs-stylesheet collision at the rule itself and reaches
+nobody writing the next component. `pool()` existed **twice**, hand-copied,
+each copy explaining why it was needed. Copying is what stopped it spreading: a
+comment only reaches someone already reading that function. Prefer a check over a
+convention, because a convention has to be recalled at the moment of writing.
+
+**A backslash dies inside a quoted string, and the detector goes silent.** Three
+instances in one session, all in checks whose failure mode is *finding nothing*:
+
+```js
+if (!/[.#]/.test(sel)) …            // fine - a regex literal
+new RegExp('(^|;|\s)' + prop)       // '\s' is just the letter s
+new RegExp(`…\b${cls}\b`)              // \b in a template literal is BACKSPACE
+```
+
+The first was `qa/mobile-audit.mjs`'s dead-rule detector under-reporting; the
+other two were `__tests__/terminalTypographyOwnership`'s sweep **matching
+nothing at all** and therefore declaring the codebase clean.
+
+**The distinction between those two matters more than the bug.** Under-reporting
+means some cases were missed; the third instance meant the rule map came back
+near-empty, so the sweep **reported on an empty set** — it did not miss some
+collisions, it compared the codebase against nothing and called it clean. A run
+that examines zero things and a codebase with zero defects produce byte-identical
+output. That is why every sweep in this repo now carries an arming assertion (`the
+rule map has > 20 entries`, `the file walk found > 50 files`) alongside its
+positive control: the control proves the check *can* fail, the arming assertion
+proves it had something to look at.
+
+A regex literal is safe; the moment a pattern is built from a string — because it interpolates a
+variable — every backslash needs doubling, and nothing warns you. **Build
+patterns from plain strings with explicit `\\`, never from template
+literals**, and assume any new string-built matcher is broken until a positive
+control says otherwise.
+
+**A measurement over the wrong field gives a confident wrong answer, not an
+obviously broken one.** Investigating `/econ-calendar`'s 72 blank cells, a probe
+read `e.date || e.time || e.datetime`. The field is `isoDate`. Every event fell
+back to epoch and read as *past*, so the run reported "19 past, 19 missing
+actual" — a fabricated defect that pointed at the **opposite** conclusion from
+the truth, which is that all 19 events are in the future and their blank
+`actual` is correct. It was caught only because a printed sample row showed a
+September 4 date under a "past" heading. **Print a sample of what you measured,
+not just the aggregate** — the aggregate cannot show you that you read the wrong
+key. The same shape produced `rsi symbols=2` from counting the two top-level
+keys `{rsi, ts}` instead of the 46 inside `rsi`.
+
+**A hex grep reads prose.** Sweeping `qa/` for stale palettes, a grep for
+`#6a6e73` and `#1a7f37` matched `qa/token-surfaces.mjs` — in a *comment*
+documenting the previous stale-palette incident. The real drift there was four
+different values, found only by parsing the object literal by brace depth.
+Files in this repo deliberately record their own history in place, which makes
+grep-for-a-value structurally unreliable on them. `app/globals.css` has the same
+property and it has caused this before (#641).
+
+**Two tools measuring the same thing must be reconciled, or the weaker one keeps
+publishing.** `qa/mobile-audit.mjs` proves horizontal overflow by scrolling and
+checking the offset sticks; `qa/platform-audit.mjs` computed
+`scrollWidth - clientWidth`. `html { overflow-x: hidden }` clips the closed nav
+drawer while `scrollWidth` still reports its extents, so the second tool flagged
+four mobile loads that cannot scroll — reproducing a phantom overflow QA had
+already reported and retracted on #641, on every run for weeks afterward.
+**When a check is corrected, grep for every other copy of the same comparison.**
 
 ---
 
