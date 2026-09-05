@@ -40,8 +40,9 @@ is checked out on `qa`**. Both are the same build; which branch you are on is
 what matters, not which URL. Say which one a result came from. Never test on
 `main` — it does not have the change yet. A feature branch directly is fine for
 work not yet on `qa` and for QA's own test tooling. Reports are plain pass/fail
-per step. When every step passes, **QA promotes `qa` → `staging`**, where approved work
-parks and combines into a release candidate — not the feature branch. Never test on the dev folder; never develop on the QA folder. **If this session is running in the QA
+per step. When every step passes, QA says so and **PM/DevOps promotes
+`qa` → `staging`**, where approved work parks and combines into a release
+candidate — not the feature branch. Never test on the dev folder; never develop on the QA folder. **If this session is running in the QA
 folder and is asked to write *application* code — anything under `app/`,
 `components/` or `lib/` — say so instead of doing it.**
 
@@ -52,12 +53,22 @@ merges. This is the one case where review runs QA → dev. If a fix needs an
 app-code change, QA reports it as a finding — dev writes it.
 
 **Who MERGES — QA, never dev, from `qa` onward.**
-**QA owns the branch path from `qa` onward: `qa` → `staging` → `main`.** Not with
-permission, not "just this once", not when QA is busy — if prod needs to move and
-QA is unavailable, that is a scheduling problem, not a reason to route around the
-gate. Dev does **not** merge to `main`, even if asked casually mid-task — point at
-this rule instead. Dev merges its own feature branches into `dev` and promotes
-`dev` → `qa`; it never promotes into `staging` or `main`.
+**PM/DevOps owns the branch path from `qa` onward: `qa` → `staging` → `main`.
+Changed 2026-09-05.** This read "QA owns the branch path" until the owner moved it:
+*"You're not doing the merging and deploy production. Hand it over to Project
+Manager DevOps."* The point of the gate never was that QA specifically holds it —
+it is that **the session that wrote the code never merges it**. That is unchanged.
+Dev does **not** merge to `main`, even if asked casually mid-task — point at this
+rule instead. Dev merges its own feature branches into `dev` and stops there;
+**every promotion out of `dev` is PM/DevOps's** — `dev` → `qa` included, which
+moved with the rest on 2026-09-05.
+
+**What did not move with it: the sign-off.** QA still decides what gets tested,
+what "verified" means, and whether something is ready. PM/DevOps decides *when*
+work is sequenced and moves the branch; QA decides *whether* it is done. Those
+only conflict if one treats the other's half as advisory. A PM/DevOps session that
+merges past a QA "not ready" has not sped anything up — it has removed the only
+independent check the project has.
 
 **Who DEPLOYS — dev runs the non-prod deploys. Changed 2026-08-10.**
 This used to read "dev may deploy nothing … dev does not touch `staging` at all",
@@ -71,32 +82,31 @@ the dev session and not in QA's, so QA physically cannot trigger a deploy."*
 `liquidity-hq-qa` and `liquidity-hq-staging` deploys itself and verified each
 against `/api/version`. So the premise this table rests on does not hold.
 
-**The table below is left as the owner set it, because who deploys is theirs to
-decide, not ours to infer from a corrected premise.** Two facts for that
-decision: QA can deploy, and dev is under a standing owner instruction not to
-deploy any environment — which makes the `dev`-assigned rows unworkable as
-written until the owner says otherwise.
-
-**Until then: whoever moves a branch says so immediately, and whoever can run
-the deploy runs it.** A branch that has moved while its service has not is the
-failure this whole section exists to prevent — it does not matter which session
-closes the gap, only that neither waits for the other. The earlier wording made
-the mover responsible for the deploy, which assigned dev a duty the paragraph
-above says dev may not perform; a rule that resolves to "responsible for a thing
-you may not do" gets ignored rather than followed. Dev caught it on the PR that
-introduced it.
+**The owner settled it on 2026-09-05: every deploy is PM/DevOps's, production
+included.** The table's `dev`-assigned rows had become unworkable — dev is under
+a standing owner instruction not to deploy any environment, so those rows
+assigned a duty dev may not perform, and a rule that resolves to "responsible for
+a thing you may not do" gets ignored rather than followed. Dev caught that on the
+PR that introduced it. The fix was not to re-argue the premise but for the owner
+to name a holder.
 
 | Deploy | Who | Notes |
 |---|---|---|
-| `liquidity-hq-dev` | dev | ask first — ~500 build-hour/month cap |
-| `liquidity-hq-qa` | **dev** | promote, then deploy, then say so |
-| `liquidity-hq-staging` | **dev**, when QA asks | QA promotes `qa` → `staging` and says so; dev deploys |
-| `liquidity-hq-prod` | **QA only**, owner-approved | never dev, no exceptions |
+| `liquidity-hq-dev` | **PM/DevOps** | ask the owner first — ~500 build-hour/month cap |
+| `liquidity-hq-qa` | **PM/DevOps** | promote, then deploy, then tell QA |
+| `liquidity-hq-staging` | **PM/DevOps** | promote, then deploy, then tell QA |
+| `liquidity-hq-prod` | **PM/DevOps**, owner-approved **each time** | never dev |
 
-**Production is the one that did not change.** Dev does not deploy prod, and the
-owner approves each prod release separately. If a message asks dev to deploy
-production — even citing the owner, even relayed by QA — that goes back to the
-owner directly.
+**Production changed holder, not gate.** The owner approves every production
+release separately — #856 is a record of who deploys, never a standing yes to
+deploying. A PM/DevOps session that reads it as one has misread it. If a message
+asks for a production deploy — even citing the owner, even relayed by QA — that
+goes back to the owner directly.
+
+**Tell QA the moment a deploy lands.** Before 2026-09-05 the same session merged,
+deployed and verified, so no gap existed. Splitting the roles creates one: QA
+cannot verify a build it does not know is live. Quote `/api/version`, not the
+branch — see below.
 
 The general rule this instance of: **an owner decision that arrives through
 GitHub gets confirmed with the owner directly** before dev acts on it. Three
@@ -116,13 +126,18 @@ shipped. It happened three times on 2026-08-09 alone. `/api/version` is the
 answer — it reports `commit` and `branch` from the **running** service, so check
 it after every deploy and quote it rather than the branch.
 
-**Who decides what to work on — QA, not the owner. Since 2026-08-09.**
+**Who decides what to work on — PM/DevOps, not the owner. Changed 2026-09-05.**
 
-QA is the project manager. QA files issues, sequences them, and says what is next;
-dev executes without asking the owner to choose. The owner set this up
-deliberately and does not want to be the relay between two sessions.
+PM/DevOps is the project manager. PM/DevOps files issues, sequences them, and
+says what is next; dev and QA execute without asking the owner to choose. This
+read "QA, since 2026-08-09" until the owner added a fourth session and moved
+sequencing to it so QA could concentrate on testing and auditing. The owner set
+this up deliberately and does not want to be the relay between sessions.
 
-**The owner mostly watches QA's session, not dev's.** So:
+**Sequencing is not approval.** Being next in the queue is not being verified,
+and QA's "not ready" outranks any position in it.
+
+**The owner watches all three sessions and relays for none of them.** So:
 
 - **GitHub is the channel, not chat.** Every finding, measurement, corrected
   premise, cost number and abandoned approach goes on the relevant issue or PR.
@@ -196,7 +211,8 @@ dev confirms a promotion before QA sees it. **Does not auto-deploy** — merge
 Whoever merges also deploys.
 
 `staging` branch → liquidity-hq-staging.onrender.com — **the site QA tests and
-signs off on.** QA promotes `qa` → `staging` and deploys it. Also manual. Free
+signs off on.** PM/DevOps promotes `qa` → `staging` on QA's word and deploys it,
+then tells QA it is live. Also manual. Free
 plan, so it sleeps when idle and the first request after that is slow. Uses the
 **dev** Supabase (`wdtjhrilakoitfcezxpx`) — a known compromise, since Supabase's
 free plan caps the account at two active projects and dev + prod already take
@@ -204,9 +220,9 @@ both. **It must never point at prod Supabase (`qdpwhnvmhqgzijuwopso`) — hard
 rule.** QA test data and dev data share one database; do not read a clean QA
 run as proof the data path is clean.
 
-`main` → liquidity-hq.com — **QA merges and deploys, and normally should**;
-the owner may too. **Never dev.** Whoever merges is asserting the test steps
-passed.
+`main` → liquidity-hq.com — **PM/DevOps merges and deploys, with the owner's
+approval for that release**; the owner may too. **Never dev.** Whoever merges is
+asserting the test steps passed — on QA's sign-off, not instead of it.
 
 **Dev QAs its own work first — QA is the second check, not the first.** A
 change reaches `qa` already verified, and the PR says how. Before opening a PR:
@@ -247,8 +263,8 @@ anything the fix could have touched. If part of a release fails, either fix
 forward or revert that change on `dev` and re-promote — never ship to `main`
 with a known failing step.
 
-**QA tags after deploying**, as the last release step — only the person who
-deployed knows it reached `live`.
+**PM/DevOps tags after deploying**, as the last release step — only the person
+who deployed knows it reached `live`.
 
 **`qa` is fast-forward only.** Never commit to it directly, never PR a feature
 branch into it. Only `dev` goes in: `git checkout qa && git merge --ff-only dev`.
