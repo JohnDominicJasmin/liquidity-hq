@@ -45,6 +45,37 @@ Three rules for keeping it honest:
 
 Everything below is outside that.
 
+### 🔴 What the ROUTINE sweep does not cover — added 2026-09-05, after it shipped
+
+**The table above is the Playwright suite, which runs on one trigger: a PR into
+`main`.** Between releases the thing that actually runs is
+`qa/platform-audit.mjs`, and its checks are **contrast, overflow, border-radius,
+tap-target size and empty labels**. That list is the whole of it.
+
+**None of those can see an unclickable control**, and on 2026-09-05 that shipped:
+`/learn`'s logo and both hero buttons — the primary CTA included — were painted
+over by the terminal app nav for every visitor, and the routine sweep reported
+the page clean on every run. It was clean, on the five properties it measures.
+
+Worse, the suite that *would* have caught it was **switched off for the three
+releases before that one** (2026-08-29, 09-02, 09-03), so those shipped with
+nothing exercising a browser at all. See `qa/README.md` trap 14.
+
+Two rules out of it, and neither is optional:
+
+- **Never report "clean" without naming the properties.** "No contrast or
+  overflow failures across 124 loads" is a true statement; "the page is clean"
+  is not the same claim and is the one that got believed.
+- **A check only the release gate can run is a check that does not run.** The
+  cheap half belongs in the routine sweep. Control reachability is now measured
+  there (`coveredCount` per row) because a hit-test costs nothing once the sweep
+  is already on a laid-out page.
+
+Still only in the suite, and still therefore only at release time: axe's full
+WCAG rule set, entitlement boundaries, BOLA, payments, offline/service worker,
+performance budgets and SEO. Those are not cheap to move and are named here so
+nobody assumes the routine sweep covers them.
+
 ---
 
 ## 🟡 1. Data and clock are controllable; SERVER time is not
@@ -245,6 +276,19 @@ case, which bites in production and is invisible on the test environments.
 
 Recorded here rather than hidden, because the suite is code and has defects too.
 
+- **`no-duplicate-controls.spec.ts` computed the accessible name backwards, and
+  filed three defects that did not exist.** It read `innerText || aria-label`;
+  the accname spec resolves `aria-labelledby`, then `aria-label`, then content.
+  `components/Tip.tsx` renders `<span role="button" aria-label={text}>ⓘ</span>`,
+  so every tooltip's real name is distinct and its `innerText` is always `ⓘ` —
+  content-first collided every Tip on a page with every other one. Three of the
+  five findings on #846 were this. **Fixed 2026-09-05**; the danger it leaves
+  behind is the shape, not the line: the only way to satisfy the broken
+  measurement was to give each `ⓘ` a different visible glyph, so acting on the
+  finding would have damaged the UI to please the instrument. When a probe
+  computes something the platform specifies — accessible name, visibility, focus
+  order, stacking — implement the specification, not a two-term fallback that
+  looks reasonable. `qa/README.md` trap 15.
 - **`perf.spec`'s LCP budget was calibrated on a laptop and fails in CI.**
   `< 2500ms` was set against a local 84–720ms measurement — 3× headroom over a
   dev machine and none over a GitHub runner. Measured 2026-08-10 on the same

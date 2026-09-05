@@ -231,6 +231,57 @@ const PAGE_EVAL = ({ tokens, radiusExempt, emptySource }) => {
     radiusTotal: Object.values(radius).reduce((a,c)=>a+c,0),
     radiusTop: Object.entries(radius).sort((a,b)=>b[1]-a[1]).slice(0,3),
     contrastFails, worstContrast, subMin, empties, emptyLabels: [...new Set(emptyLabels)],
+
+    /* ── IS THE CONTROL REACHABLE. Added 2026-09-05, and the reason matters ──
+     *
+     * #845: /learn's logo and BOTH hero buttons, the primary CTA included, were
+     * painted over by the terminal app nav and could not be clicked. This file
+     * swept /learn on every audit and reported it CLEAN, because none of the
+     * checks above can see an unclickable control - contrast, overflow, radius,
+     * tap size and empty labels all pass on a button nobody can press.
+     *
+     * It was caught by the Playwright suite instead, which runs on exactly one
+     * trigger: a PR into main. The three releases before it - 2026-08-29,
+     * 09-02 and 09-03 - shipped with that suite disabled for cost, so nothing
+     * exercised a browser at all. A defect class that only one release-time
+     * gate can see is a defect class that ships whenever that gate is off.
+     *
+     * This check costs nothing extra: the sweep is already on the page with a
+     * laid-out DOM. It belongs here rather than only in the suite so it runs
+     * every audit, on every design, theme and viewport, for free.
+     *
+     * ATTRIBUTED BY THE COVERER, NOT COUNTED. A fixed bottom bar legitimately
+     * overlaps content on a scrolled page, so a raw count reports a healthy
+     * build as broken. `barCovered` is reported separately rather than dropped -
+     * the caller decides whether the bar belongs on that route, because on a
+     * marketing page it does NOT and that overlap IS the bug. Getting this
+     * backwards would have hidden #845 at 390 on the very routes under test. */
+    ...(() => {
+      const SEL = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
+      const covered = []; let barCovered = 0, probed = 0;
+      for (const el of document.querySelectorAll(SEL)) {
+        const b = el.getBoundingClientRect();
+        if (b.width < 1 || b.height < 1) continue;
+        if (b.bottom < 0 || b.top > innerHeight) continue;
+        const s = getComputedStyle(el);
+        if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') continue;
+        if (el.closest('[inert]')) continue;
+        probed++;
+        const x = Math.min(Math.max(b.left + b.width / 2, 1), innerWidth - 1);
+        const y = Math.min(Math.max(b.top + b.height / 2, 1), innerHeight - 1);
+        const hit = document.elementFromPoint(x, y);
+        /* Both directions: a button wrapping an icon hit-tests to the icon and a
+           link inside a styled wrapper hit-tests to the wrapper. Only an
+           UNRELATED element is a finding. Same rule as layout.spec.ts. */
+        if (!hit || hit === el || el.contains(hit) || hit.contains(el)) continue;
+        if (hit.closest('.mobile-tab-bar, .tnav-tabs')) { barCovered++; continue; }
+        const nameOf = n => n.tagName.toLowerCase()
+          + (typeof n.className === 'string' && n.className.trim()
+            ? '.' + n.className.trim().split(/\s+/).slice(0, 3).join('.') : '');
+        if (covered.length < 12) covered.push(`${nameOf(el)} < ${nameOf(hit)}`);
+      }
+      return { probed, coveredCount: covered.length, covered, barCovered };
+    })(),
   };
 };
 

@@ -293,6 +293,65 @@ number that comes back.
 answer, and I read past it. **That is a different failure from not having a
 check**, and the only guard on offer for it is knowing it is possible.
 
+**14. The sweep that runs every time could not see the defect class that
+shipped.** 2026-09-05, and this is the most expensive entry on the page because
+it is about coverage rather than a single wrong number.
+
+`qa/platform-audit.mjs` swept `/learn` on every audit — 124 page loads, four
+design/theme combinations — and reported it **clean** while the page's logo and
+**both hero buttons, the primary CTA included, could not be clicked**. The
+terminal app nav was painted over them. Nothing in the audit was wrong. Contrast,
+overflow, radius, tap-target size and empty labels all pass on a button nobody
+can press, because **not one of those checks asks whether a control is
+reachable.**
+
+The check that caught it was `layout.spec.ts`, in the Playwright suite, which
+runs on exactly one trigger: a PR into `main`. The three releases before it —
+2026-08-29, 09-02 and 09-03 — shipped with that workflow disabled for cost. So
+the defect class was invisible to the tooling that runs constantly and visible
+only to a gate that was switched off.
+
+**Two lessons, and the second is the one that generalises.**
+
+A clean audit means "clean on the properties this tool measures", never "clean".
+Say which properties when reporting one. `/learn` was reported clean for weeks
+and the report was accurate; it just never made a claim about clickability and
+nobody noticed the gap between what was measured and what was believed.
+
+And **a defect class that only the expensive release-time gate can see is a
+defect class that ships whenever that gate is off.** The fix is not to run the
+suite more often — it costs real money and the owner switched it off deliberately.
+It is to move the cheap half of the check into the tool that already runs: a
+hit-test at each control's centre costs nothing when the sweep is already on the
+page with a laid-out DOM. `platform-audit.mjs` now reports `coveredCount` per
+row for this reason.
+
+**15. Reading `innerText` before `aria-label` invents duplicate names that no
+screen reader would ever announce.** Same day, found by Dev Team while fixing
+what QA had filed.
+
+`no-duplicate-controls.spec.ts` computed a control's label as
+`innerText || aria-label`. Accessible-name precedence is the other way round —
+`aria-labelledby`, then `aria-label`, then content. `components/Tip.tsx` renders
+`<span role="button" aria-label={text}>ⓘ</span>`, so every tooltip's accessible
+name is its own distinct text and its `innerText` is always `ⓘ`. Content-first
+meant the `aria-label` was never reached and **every Tip on a page collided with
+every other Tip.**
+
+#846 was filed with five findings. Three were this. A screen reader announces
+those correctly and distinctly today.
+
+**What makes it worse than an ordinary false positive is where the fix would
+have landed.** The only way to satisfy the broken measurement is to give each
+`ⓘ` a different visible glyph — so acting on the finding degrades the interface
+to please an instrument that was wrong. A false positive that costs a round trip
+is cheap; one whose remedy damages the product is not.
+
+The general form: **when a probe computes a value the platform also defines,
+implement the platform's rule, not an approximation of it.** Accessible name,
+visibility, focus order and stacking all have specifications, and a plausible
+two-term fallback is the shape this error takes every time.
+
 ## Where QA tests
 
 **Four branches, four services, one each.** Nothing auto-deploys — moving a
