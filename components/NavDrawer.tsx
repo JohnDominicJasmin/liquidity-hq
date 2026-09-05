@@ -24,7 +24,7 @@ import type { ComponentType } from 'react';
 import { useLabels } from '@/lib/labels';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 /* Shared with TerminalNav so both designs reach the same routes (#714). */
-import { PRIMARY, SCANNERS, TOOLS, TAIL } from '@/lib/navRoutes';
+import { PRIMARY, SCANNERS, TOOLS, TAIL, rendersOwnNav } from '@/lib/navRoutes';
 import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── Mobile tab bar icons - plain SVGs, not emoji. Emoji glyphs like ⚡ render
@@ -306,8 +306,15 @@ export default function NavDrawer() {
    *
    * Route-based rather than a `body.landing` read because the pathname is
    * known synchronously on the first render, server and client. Same shape as
-   * AppShell's own isChromeless()/isAuthRoute() gates. */
-  const onLanding = pathname === '/';
+   * AppShell's own isChromeless()/isAuthRoute() gates.
+   *
+   * WAS `pathname === '/'` UNTIL #845. That covered the route in front of me
+   * and not the family, so `/learn` - the same `.lp-nav` + `.lp-logo` shell -
+   * kept the app nav and had its logo and both hero buttons painted over the
+   * moment #748 made terminal the default. The membership test moved to
+   * `rendersOwnNav` in lib/navRoutes.ts, next to the route groups it belongs
+   * with; add routes there rather than reintroducing a comparison here. */
+  const onLanding = rendersOwnNav(pathname);
 
   return (
     <>
