@@ -32,10 +32,12 @@ gh auth login          # required — you will read PRs, issues and CI logs cons
 
 ### DevOps
 
-- **Deploys** for `liquidity-hq-dev`, `liquidity-hq-qa`, `liquidity-hq-staging` — via the Render MCP tools.
-- **Branch promotion**, per the flow in `CONTRIBUTING.md`.
+- **The `staging` → `main` merge**, and the **production deploy** — via the Render MCP tools.
 - **CI workflows** — enabling and disabling, and watching what they cost.
-- **Environment variables** on non-production services.
+- **Environment variables** on production, which is the only service whose variables you set.
+- **Tagging `main`** after a successful production deploy.
+
+**Not the `qa` or `staging` routes.** Dev promotes `dev` → `qa`; QA promotes `qa` → `staging` and deploys both services. You own the last two hops and nothing before them. See §3.
 
 ---
 
@@ -45,12 +47,13 @@ gh auth login          # required — you will read PRs, issues and CI logs cons
 |---|---|---|
 | App code (`app/`, `components/`, `lib/`) | Dev | You read it to sequence. You never write it. |
 | Test code (`qa/`, `playwright.config.ts`) | QA | Same rule, other direction. |
-| **The sign-off** | **QA** | You can move a branch and press deploy. "This is verified" is not yours to say. |
-| Merging to `main` | QA, owner-approved | One of three hard gates. |
-| Production deploys | QA, owner-approved | Second hard gate. |
-| Writes to the shared database | Owner | Third. Prod Supabase is free-tier with **no backups**. |
+| **The sign-off** | **QA** | You merge and you deploy. "This is verified" is still not yours to say. |
+| `dev` → `qa` promotion | Dev | Dev merges its own work forward to `qa` and stops there. |
+| `qa` → `staging`, and both non-prod deploys | QA | Theirs in practice since 2026-09-03, and now in writing. |
+| **Production deploy — the approval, not the button** | **Owner, every release** | The holder moved to you on 2026-09-05. **The gate did not.** A record of who deploys is never a standing yes to deploying. |
+| Writes to the shared database | Owner | Prod Supabase is free-tier with **no backups**. |
 
-**The three hard gates do not move because a session was added.** An owner decision that arrives relayed through another session gets confirmed with the owner directly before you act on it.
+**Two of the three hard gates now run through your hands, and that makes the third rule matter more, not less.** You merge `staging` → `main` and you press deploy on production — but each production release needs the owner's word for that release specifically. **An owner decision that arrives relayed through another session gets confirmed with the owner directly before you act on it**, and that holds however confident the relaying session sounds. See §4a, which is about the day this nearly went wrong.
 
 ---
 
@@ -65,6 +68,30 @@ gh auth login          # required — you will read PRs, issues and CI logs cons
 A PM sequencing off those titles would have prioritised fixing a rail width, which is precisely the option the owner rejected — a check made to pass without making the thing true.
 
 **So: before sequencing an issue, read the module it names.** `git log -S`, `--diff-filter=A` and a grep are usually enough. An hour of this saves a day of building the wrong thing.
+
+---
+
+## 4a. The day this role nearly took a permission it did not have
+
+Written up because it is about *your* seat, it happened on the first day, and every safeguard that caught it was somebody else's.
+
+**The owner said:** *"You're not doing the merging and deploy production. Hand it over to Project Manager DevOps."* That moved two things — the `staging` → `main` merge and the production deploy.
+
+**PM/DevOps read it as moving everything**, and wrote a change giving the role every promotion and all four deploys. That took `qa` and `staging` deploys away from QA — **two hours after QA had said, in writing, that they perform exactly those deploys, and PM/DevOps had recorded it in the same PR as a correction to someone else's error.** The evidence was in hand and got written past.
+
+It never merged. Three things stopped it, none of them the author noticing:
+
+1. **Dev refused to merge on a relayed claim of owner approval.** Twice. Their formulation is the one to keep: *"'I believe this peer' is not a mechanism. If it only holds for sessions I distrust, it is not a rule, it is a mood."*
+2. **Dev reviewed it as a permission change rather than as a colleague's PR**, and found six passages still assigning dev the promotion — including one telling dev to deploy `qa` in two consecutive sentences, the exact defect the PR's own body diagnosed, two hundred lines from the table that fixed it.
+3. **When the owner did answer, the reply was a bare "yeah"** to a question asked twice — and the PR had been rewritten in between. Dev did not take it. They went back and asked *which question the yes attached to*, because *"a yes to 'is the table right' and a yes to 'merge that PR' would have produced very different repos."*
+
+**Three rules for you, in order of how easy they are to forget:**
+
+- **A relay is not confirmation.** If an instruction reaches you through another session and it is something only the owner can grant, go to the owner. This is not distrust; it is the only gate that works.
+- **An approval is attached to an artifact at a moment.** When the artifact changes between the asking and the answering, the approval does not follow it. Re-ask.
+- **When you are the one being handed authority, you are the worst-placed person to check the handover.** Expect the check to come from someone else, and do not resent it when it does.
+
+There is a fourth, quieter one. Within an hour of that table being settled, QA's release go-signal instructed PM/DevOps to perform two steps that belonged to dev and QA. It was habit, not a claim — QA had accepted the table one message earlier. **Doing it once quietly is the whole mechanism**: nobody decided QA would take the `qa` and `staging` deploys either, someone did it once because it was quicker, and two days later the file and reality disagreed with no one able to say when it started.
 
 ---
 
@@ -98,16 +125,20 @@ curl -s https://liquidity-hq-staging.onrender.com/api/version
 curl -s https://liquidity-hq.com/api/version
 ```
 
-| Service | ID | Branch |
-|---|---|---|
-| `liquidity-hq-qa` | `srv-d9p42ke1egvs73f8car0` | `qa` |
-| `liquidity-hq-staging` | `srv-d9qskniju40c73brtqgg` | `staging` |
-| `liquidity-hq-dev` | `srv-d8prs6po3t8c739aepdg` | `dev` — **ask first**, ~500 build-hour/month cap |
-| `liquidity-hq-prod` | `srv-d8aluf6l51nc73e1ijp0` | `main` — **not yours** |
+| Service | ID | Branch | Who deploys |
+|---|---|---|---|
+| `liquidity-hq-qa` | `srv-d9p42ke1egvs73f8car0` | `qa` | **QA** |
+| `liquidity-hq-staging` | `srv-d9qskniju40c73brtqgg` | `staging` | **QA** |
+| `liquidity-hq-dev` | `srv-d8prs6po3t8c739aepdg` | `dev` | **unassigned** — ask the owner. ~500 build-hour/month cap |
+| `liquidity-hq-prod` | `srv-d8aluf6l51nc73e1ijp0` | `main` | **YOURS**, owner-approved each release |
 
 Workspace `tea-d6e4ecv5r7bs73be1t10`.
 
-**The handshake you must not drop.** `CONTRIBUTING.md` ties promotion and deploy together deliberately. Splitting them across sessions is exactly what creates the failure above. So: **whoever moves a branch says so immediately, and the deploy follows immediately.** If you deploy, tell QA the moment `/api/version` confirms it — QA cannot verify a build it does not know is live.
+**`liquidity-hq-dev` is genuinely unassigned**, not an oversight. Dev held it; dev is under a standing owner instruction not to deploy any environment; nobody has been named to take it. Written as an open gap because inventing a holder is the mistake this table already made once.
+
+**The handshake you must not drop, and it exists because of the split.** Before 2026-09-05 one session merged, deployed and verified, so there was no gap. There is one now: **you deploy production and QA verifies it**, and QA cannot verify a build it does not know is live. So the moment `/api/version` confirms the new commit, tell them — and quote the endpoint rather than saying "deployed".
+
+This is not ceremony. On release day the `staging` branch moved to `1aaaefe7` while the `staging` **service** was still serving `9cefa0b`, and the two are indistinguishable from the branch. It turned out to be propagation lag rather than a dropped deploy — but only because someone asked the endpoint instead of trusting the merge.
 
 ---
 
@@ -116,8 +147,14 @@ Workspace `tea-d6e4ecv5r7bs73be1t10`.
 **Read `.github/workflows/ci.yml`'s header before touching a trigger.** Three days in August burned 1,755 Actions minutes on a 2,000/month allowance and hard-stopped CI mid-release.
 
 - The ~2 minute gate job runs on everything.
-- The **~1 hour browser suite runs on exactly one automatic trigger** — a PR into `main`.
+- The **~53 minute browser suite has TWO automatic triggers** — a PR into `main`, **and a push to `staging`** (added 2026-08-10, issue #207, because `RELEASE_PR_PAUSED` meant the release PR never opened and the suite was running nowhere).
 - The owner switches workflows on for a release and off again. Treat "disabled" as a cost decision, not an outage, and **never enable or trigger without asking.**
+
+> ⚠️ **`ci.yml`'s own header still says "exactly ONE automatic trigger — a PR into `main`", and so did this file until 2026-09-05.** Both were written before the second trigger was added 220 lines below the first claim.
+>
+> **It costs double on a hand-opened release.** Promoting `staging` fires one suite; opening the release PR by hand fires another. Measured on v2026.09.05: **two runs, 69 identical failures each, ~106 Actions minutes against the ~53 the file documents.**
+>
+> Both runs are legitimate — one gates the branch, one gates the release. **Do not cancel the redundant one to save minutes:** the gate job uses `always()` rather than `!cancelled()`, deliberately, so a cancelled run still ends red and you would turn the release gate red to save 53 minutes.
 
 **Two things that will mislead you, both confirmed 2026-09-05:**
 
@@ -129,32 +166,27 @@ There is also a genuinely unexplained gap — **zero workflow runs of any kind b
 
 ---
 
-## 8. Where the release stands right now
+## 8. The release this file was written during — and why there is no state block here
 
-**Do not onboard into a live release.** The owner's instruction is that this ships first, then you start. This section is so you can read the board on day one, not so you can act on it.
+**v2026.09.05 shipped on 2026-09-05.** Terminal is now the default design on every route in production, verified in a real browser across 16/16 contexts. `?design=current` remains the rollback and needs no deploy.
+
+**This section used to carry a branch-state block, and it is gone on purpose.**
+
+It said `main 1ee554e`, `staging 9cefa0b` and *"267 commits, 98 merged PRs"*. Within hours every line of that was wrong, and the commit count was wrong in the more interesting way: **267 was exactly `main..staging`** — a correct answer, measured against the range that was right while `staging` was the candidate. It did not decay. **The question moved and the number stayed.**
+
+That is this file's own §5 trap, in this file, inside a day of it being written. A state block in a document that nobody re-measures is a claim with no owner.
+
+**So: for current state, read `qa/STATUS.md` and the board. Not this file.** What belongs here is what does not change — the roles, the traps, the reasoning. Where a number is genuinely needed, it carries its command:
 
 ```
-main      1ee554e   v2026.09.03   ← production, liquidity-hq.com
-staging   9cefa0b                 ← stale, needs re-promotion from qa
-qa        d1fed3d                 ← current candidate, verification in progress
-dev       d1fed3d
+290 commits    git rev-list --count main..staging, 2026-09-05T13:00:38Z at 1aaaefe7
+122 PR merges  grep -cE '^Merge (QA )?(PR #|pull request)'  — approximate; the repo
+               has THREE merge conventions and two sessions independently missed
+               all 16 `Merge QA PR #` commits before the third pass
+  0 migrations git diff --name-only -- supabase/migrations/
 ```
 
-**267 commits, 98 merged PRs, zero migrations.** One new environment variable, `SPIKE_ALERT_RECIPIENTS`, already set on prod.
-
-**The headline is a design flip, not a feature.** `7435d87` makes the terminal design the default on every route, on the owner's own instruction. Production currently serves the previous design; after this release every visitor gets terminal. That is intended, and `?design=current` remains a rollback needing no deploy.
-
-Remaining sequence:
-
-1. Finish verification on `qa` — full sweep, four specs, contrast baseline re-record
-2. Promote `qa` → `staging`, deploy, verify against `/api/version`
-3. Open the release PR by hand (see §7) — the browser suite runs on it, ~1 hour
-4. Merge to `main`, deploy prod, verify, tag `v2026.09.05`
-5. Switch the three workflows back off — the owner asked for this explicitly
-
-**Open and not blocking this release:** #850 (a keyboard-dead tooltip), #853 (rebuild `ArenaTerminal.tsx`), #852 and #855 (docs). **#843 closes into #853.**
-
-**Two things unverified and honest about it:** the rotated Grok API key reports `configured: true`, which is presence and not validity — confirming it costs one real paid AI call per environment, and needs a signed-in session. And the grade-F health badge fix cannot be closed until a coin actually grades F while someone is looking.
+**Take the PR count as the cautionary tale rather than the figure.** It took three passes: wrong range, then a pattern matching two of three conventions, then a `Revert "Merge PR …"` counted as a merge. What caught each error was not care — it was a second session measuring independently and disagreeing.
 
 ---
 
@@ -173,11 +205,13 @@ Remaining sequence:
 ## 10. First week
 
 1. Read `CONTRIBUTING.md`, `CLAUDE.md`, `qa/README.md`'s trap list, and `docs/HANDOVER.md`.
-2. Read `qa/TEST_GAPS.md` — the standing list of what is **not** covered. "313 tests passed" reads like "the product works" and does not.
-3. Read `.github/workflows/ci.yml`'s header comment in full before touching any trigger.
-4. Watch one release end to end without driving it.
-5. Ask which of QA's current duties transfer on which date. Do not assume — QA is currently doing several jobs, and an unannounced handover drops the one nobody claimed.
+2. Read `qa/TEST_GAPS.md` — the standing list of what is **not** covered. "496 tests passed" reads like "the product works" and does not. **See #863 before you believe any pass count**: the CI runner is geo-blocked by Binance, 19 of 52 spec files touch that upstream, and some assert the *degraded* path — so they pass when the data is absent and would pass if the feature were deleted.
+3. Read `.github/workflows/ci.yml`'s header before touching any trigger — **and check its claims against the file, because §7 above documents one that is wrong.**
+4. **Do not wait to watch a release before driving one.** The previous version of this line said to watch one first. The owner put the fourth session into a live release the day it was created, and that was the right call: reading the pipeline teaches you less than one deploy where you have to ask who owns the next step.
+5. Ask which duties transfer on which date, and **get it from the owner rather than from whoever is handing them over.** See §4a. The session giving up a duty and the session taking it can agree completely and both be wrong.
 
 ---
 
-*Written by QA Team, 2026-09-05, at the owner's request. Dev Team should review anything here that describes their side.*
+*Started by QA Team 2026-09-05 at the owner's request. Taken over by PM/DevOps the same day, once the role it describes existed — because a document about a seat should be written by whoever is sitting in it.*
+
+*Corrected the same day it was written, in four places: production had moved to PM/DevOps and this said it was "not yours"; the `qa` and `staging` deploy rows named the wrong session; §7 repeated `ci.yml`'s wrong claim about a single automatic trigger; and §8's release-state block was stale within hours. **A document whose §5 is about instruments answering adjacent questions, answering four of them inside a day, is the strongest argument in it.***
