@@ -29,12 +29,37 @@ import { installMarketFixtures } from './_fixtures';
  * than claiming the gap is closed.
  */
 
-/** A page with the clock pinned, fixtures served, and the banner dismissed. */
-async function pinnedTo(browser: Browser, iso: string, timezoneId?: string) {
+/** The two designs, and the element each one uses to name the active window.
+ *
+ * PIN THE DESIGN, NEVER INHERIT IT (#844). This file used to seed no design and
+ * read `div.session-pill`, which is the CURRENT design's app bar. That was
+ * correct right up until #748 made terminal the default on every route, at
+ * which point the selector stopped existing and the test failed with "the
+ * session pill never rendered" - a message that reads like a broken feature and
+ * was actually a spec looking at the wrong design.
+ *
+ * The feature is not missing in terminal. `TerminalNav.tsx` renders
+ * `.tnav-session` from the same `getCurrentWindow()` in `lib/session.ts`. Two
+ * components, one source of truth - so the clock behaviour is asserted in BOTH,
+ * which is strictly more than this file used to prove. */
+const DESIGNS = [
+  { design: 'current',  selector: 'div.session-pill'   },
+  { design: 'terminal', selector: 'span.tnav-session'  },
+] as const;
+
+/** A page with the clock pinned, fixtures served, the banner dismissed, and the
+ *  design pinned rather than inherited. */
+async function pinnedTo(browser: Browser, iso: string, timezoneId?: string, design: 'current' | 'terminal' = 'terminal') {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId });
   await ctx.addInitScript(() => {
     try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
   });
+  /* Seeded, not passed as `?design=`, so the preference is in place before the
+   * `design-init` script in app/layout.tsx reads it - the same route the query
+   * param takes, one step earlier, and with no first frame on the default. */
+  await ctx.addInitScript((d) => {
+    try { localStorage.setItem('lhq-design-mode', d); } catch { /* private mode */ }
+  }, design);
   const page = await ctx.newPage();
   /* BEFORE navigation, and before fixtures. The app reads the clock during
    * hydration, so installing it after a goto measures the real time on first
@@ -91,29 +116,43 @@ test.describe('clock-dependent behaviour', () => {
    *
    * `.session-pill` is the single element that names the CURRENTLY active
    * window, which is the thing that actually depends on the clock. */
-  async function sessionPill(browser: Browser, iso: string): Promise<string> {
-    const { page, close } = await pinnedTo(browser, iso);
+  async function sessionPill(
+    browser: Browser, iso: string, design: 'current' | 'terminal', selector: string,
+  ): Promise<string> {
+    const { page, close } = await pinnedTo(browser, iso, undefined, design);
     try {
       await gotoGuarded(page, '/hours', { waitUntil: 'domcontentloaded' });
-      const pill = page.locator('div.session-pill');
-      await expect(pill, 'the session pill never rendered - nothing can be concluded from its text')
+
+      /* PROVE THE DESIGN APPLIED BEFORE CONCLUDING ANYTHING FROM A SELECTOR.
+       * Without this, seeding the wrong key or the app ignoring it both surface
+       * as "the element never rendered", which is the exact failure this file
+       * just spent a release misreading. */
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.getAttribute('data-design')),
+          { message: `the ${design} design never applied - the selector below would be measuring the other one`, timeout: 10_000 })
+        .toBe(design === 'terminal' ? 'terminal' : null);
+
+      const pill = page.locator(selector);
+      await expect(pill, `${selector} never rendered in the ${design} design - nothing can be concluded from its text`)
         .toBeVisible({ timeout: 20_000 });
       return ((await pill.innerText()) || '').replace(/\s+/g, ' ').trim();
     } finally { await close(); }
   }
 
-  test('the active session window follows the clock', async ({ browser }) => {
-    const asia = await sessionPill(browser, '2026-08-10T02:00:00Z');
-    expect(asia, 'Monday 02:00 UTC is inside the Asia window').toMatch(/ASIA SESSION/i);
+  for (const { design, selector } of DESIGNS) {
+    test(`the active session window follows the clock (${design} design)`, async ({ browser }) => {
+      const asia = await sessionPill(browser, '2026-08-10T02:00:00Z', design, selector);
+      expect(asia, 'Monday 02:00 UTC is inside the Asia window').toMatch(/ASIA SESSION/i);
 
-    const monEvening = await sessionPill(browser, '2026-08-10T14:00:00Z');
-    expect(monEvening, 'Monday 14:00 UTC is the Monday-evening window').toMatch(/MON EVENING/i);
+      const monEvening = await sessionPill(browser, '2026-08-10T14:00:00Z', design, selector);
+      expect(monEvening, 'Monday 14:00 UTC is the Monday-evening window').toMatch(/MON EVENING/i);
 
-    /* The negative cases are what make the two above mean anything: a pill that
-     * says the same thing at every instant would satisfy both otherwise. */
-    expect(monEvening, '14:00 UTC must NOT also claim the Asia session').not.toMatch(/ASIA SESSION/i);
-    expect(asia, '02:00 UTC must NOT also claim the Monday-evening window').not.toMatch(/MON EVENING/i);
-  });
+      /* The negative cases are what make the two above mean anything: a pill that
+       * says the same thing at every instant would satisfy both otherwise. */
+      expect(monEvening, '14:00 UTC must NOT also claim the Asia session').not.toMatch(/ASIA SESSION/i);
+      expect(asia, '02:00 UTC must NOT also claim the Monday-evening window').not.toMatch(/MON EVENING/i);
+    });
+  }
 
   /* TIMEZONES, and the harness question had to be settled first.
    *

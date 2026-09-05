@@ -313,6 +313,22 @@ export const BASELINE = {
      * Measured 2026-08-08 against a local production build at c3a7571, all 32
      * routes, 1440x900 - the same shape of environment CI runs.
      */
+    /* KEYED BY DESIGN SINCE 2026-09-05 (#844). These are two different sets of
+     * rendered surfaces, and they were being compared against one list.
+     *
+     * `contrast.spec.ts` seeded no design, so it swept whatever the app's
+     * default was. Everything below `current` was recorded while that default
+     * WAS the current design. #748 made terminal the default on every route and
+     * the same sweep started walking terminal, which surfaced 6 new dark tokens
+     * and 9 new light ones - while the totals FELL, dark 7 against a baseline of
+     * 13 and light 20 against 26. A design change reported as a contrast
+     * regression.
+     *
+     * The lists are not merged, and merging them is the wrong fix even though it
+     * would go green: a token that fails in one design and passes in the other
+     * is a real difference, and one list cannot say which design it belongs to.
+     */
+    current: {
     darkTokens: [
       // Near-white foregrounds collapse to one bucket - see bucket() in
       // contrast.spec.ts. In dark that is the /hours session badges, white-ish
@@ -364,6 +380,65 @@ export const BASELINE = {
       '#f3ba2f', '#f472b6', '#f69f9f',
       '#f87171', '#f97316', '#fbbf24',
     ] as readonly string[],
+    },
+
+    /* TERMINAL - the design a visitor actually gets after #748, and therefore
+     * the one an ordinary CI run measures.
+     *
+     * RECORDED 2026-09-05 against staging `9cefa0b`, both themes, 1440x900,
+     * consent seeded `denied`, market fixtures `as-recorded`. This is a
+     * deliberate recording sweep rather than tokens copied out of a failure
+     * message - the difference matters, because a failure message only lists
+     * what was NOT already in a list and would silently omit any token the two
+     * designs happen to share.
+     *
+     * NONE OF THIS IS A BLESSING. Every entry is a real SC 1.4.3 failure on a
+     * surface a visitor now reaches by default, and they are tracked on #836
+     * with selectors and worst-case ratios. The list exists so the NEXT one is
+     * visible, not to make these acceptable. Six of the light entries are below
+     * 3:1, and `#a1a2a2` on `/liq`'s `.gex-title` measures 1.95:1 - worse than
+     * `/learn`'s h1, which this project has been calling its worst for weeks.
+     *
+     * Delete entries as they are fixed. Do not add one without a note saying
+     * which route and which element put it here.
+     */
+    terminal: {
+      /* ONE SWEEP IS NOT THE WHOLE SET, and this list is honest about that.
+       * A recording run on the same build an hour earlier reported dark as 7
+       * tokens; this one reports 8. The difference is `#41454a` on
+       * /econ-calendar, a surface the first sweep did not reach. Server-side
+       * fetches are not covered by `installMarketFixtures` - see the long note
+       * in contrast.spec.ts - so which states render still varies run to run.
+       * A token appearing here later is therefore case (a), not automatically a
+       * regression; check the diff before deciding. */
+      darkTokens: [
+        // Same bucket as the current design's - see bucket() in contrast.spec.ts.
+        'near-white',
+        '#41454a',   // 2.08:1  /econ-calendar
+        '#474b50',   // 2.10:1  /liq
+        '#51565c',   // 2.49:1  /liq
+        '#4d5157',   // 2.52:1  /funding
+        '#bc4441',   // 3.30:1  /liq
+        '#7c828a',   // 4.16:1  /liq   - --txt3, and #836's div.liq-current-bar
+        '#349344',   // 4.34:1  /liq
+      ] as readonly string[],
+
+      /* Six of these nine are below 3:1. `#a1a2a2` at 1.95:1 is the worst text
+       * ratio measured anywhere on this platform, /learn's h1 included - and
+       * /liq carries five of the nine. If this gets triaged rather than fixed
+       * wholesale, /liq is where to start. */
+      lightTokens: [
+        '#a1a2a2',   // 1.95:1  /liq             .gex-title > span
+        '#abacad',   // 2.10:1  /econ-calendar   .econ-term-wrap > div:nth-child(1) > div:nth-child(2) > span
+        '#939596',   // 2.30:1  /liq             .gex-meta > span
+        '#9b9d9f',   // 2.51:1  /funding         .frh-range-row > span
+        '#9b9da0',   // 2.71:1  /settings        .st-locked-list > div:nth-child(1)   x7
+        '#754e00',   // 2.76:1  /learn           .lp-h1-accent                        x6, pre-existing, #836
+        '#458c57',   // 3.03:1  /liq             .liq-section-hdr-short > .liq-section-sub
+        '#af4a50',   // 3.90:1  /liq             .liq-section-hdr-long > .liq-section-sub
+        '#5e6267',   // 4.32:1  /liq             .liq-current-oi   - #836's div.liq-current-bar
+      ] as readonly string[],
+    },
   },
   /** §6.4 - pages with no <h1>, desktop. */
   pagesWithoutH1: 13,
