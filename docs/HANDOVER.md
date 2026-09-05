@@ -269,7 +269,22 @@ android/      Capacitor Android shell
   body explaining the real cause and why the fix is shaped that way. Look at recent commits
   before writing one. Trailer: `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
 
-### Branch & deploy state as of 2026-09-03
+### Branch & deploy state as of 2026-09-05
+
+| Branch | Commit | Note |
+|---|---|---|
+| `origin/dev` | `24aa188a` | PR #847 merged — the app nav no longer covers marketing pages (#845) |
+| `origin/qa` | `24aa188a` | promoted by dev; **deploy is QA's** — dev is under a standing owner hold on every environment since 2026-09-03 |
+| `origin/staging` | `9cefa0bb` | behind `qa` by the #845 fix |
+| `origin/main` | `1ee554ee` | production. Release **held by the owner** on #836, #843 and #846 |
+
+**The release is held and the fix-forward ruling was reversed.** On 2026-09-05 the owner was told #843, #846 and #836 would ship as known defects and answered *"THEN VERIFY IT"*. Nothing ships until all three are fixed and QA has verified them on qa. Do not re-park them.
+
+**CI has been off since 2026-08-13.** Zero workflow runs of any kind between `2026-08-13` and `2026-09-05` — 23 days covering the whole terminal redesign. It is switched on by hand for one run against a release candidate and off again, which is the documented practice, and the consequence is that `release-signals.yml` does not fire on a push to `staging`, so **the release PR has to be opened manually.**
+
+**The one E2E run in that window is void.** Run `33932048082` reported 88 failed / 483 passed and it means nothing: the dev Supabase project was unreachable for the entire 66 minutes — **3,308 Cloudflare `522`s**, first at `00:13:25Z` and last at `01:15:34Z`. `/api/labels` returned a Cloudflare error page throughout, which is the exact condition `ci.yml` names as a known defect generator, so every control label on every page came from fallbacks. Read no failure from that run as a product defect without re-running. Detail on #841.
+
+#### Superseded: branch state as of 2026-09-03
 
 | Branch | Commit | Note |
 |---|---|---|
@@ -295,6 +310,16 @@ The owner stopped the canvas-mirror initiative. Their words: *"we are repackagin
 2. **Terminal ships on the landing page only** (#719, not yet built). `/` renders terminal by default; every app screen stays on the current design. Until this ships, `lib/designMode.ts` defaults everyone to `current` and **no user has ever seen any of the terminal work.**
 
 The sorting rule that follows from #2, and it governs triage: **after #719, a terminal-mode defect on any route except `/` is invisible to users and does not earn dev time.** A defect on the current design, or on landing, is real. #707, #698 and #663 were parked under exactly this rule with their measurements intact; #656 and #652 were closed as superseded; #620, #622 and #712 are parked.
+
+> ## ⚠️ THAT SORTING RULE IS DEAD. It reversed on 2026-09-04 and it is now exactly backwards.
+>
+> `7435d87c feat(dashboard): terminal is the default design on every route` (#748/#768) removed the "only `/`" half. **Terminal is what every visitor gets on every route**, and `?design=current` is the rollback rather than the default.
+>
+> So the sentence above now reads as "the defect every user sees does not earn dev time". Anything parked under it needs re-triage, not inheritance — and the paragraph is left in place rather than deleted because several closed issues cite it as their reason.
+>
+> This is not theoretical. #836, #843 and #846 are all terminal-mode defects on routes other than `/`; the old rule would park all three; the owner has **held the release** for exactly those three. If you are about to park a terminal defect because of the paragraph above, stop.
+>
+> One rule from #2 that did NOT change: terminal styling still goes **over the existing production layout**. Do not restructure a screen to match a canvas. #843 is what happens when that line is crossed and then reverted — see §14.
 
 **The one exception is landing.** The owner likes the canvas-mirrored landing (`ad6b08c`, #592) and it was deliberately excluded from the revert. Never revert it, and treat "landing renders identically" as a hard gate on any work touching `app/globals.css`, `lib/labelKeys.ts`, `lib/labelDefaults.en.json` or `components/AppShell.tsx` — all four are shared between landing and the reverted screens, and `AppShell.tsx` is the one that bit us (it rendered `PriceTickerStrip` on `/` gated on design mode rather than pathname).
 
@@ -419,6 +444,20 @@ These wasted real time in earlier sessions. All are documented as recurring:
 ---
 
 ## 9. Current issues
+
+### 🔴 Holding the 2026-09-05 release
+
+Three issues, all terminal-mode on routes other than `/`, all of which the dead sorting rule in §6 would have parked. The owner reversed the fix-forward ruling and held the release for them.
+
+| Issue | What it actually is | State |
+|---|---|---|
+| **#836** contrast | Seven instances of `opacity` over `--txt3`, plus one genuine tint-ground failure. Worst was `#a1a2a2` **1.95:1** on `/liq` `.gex-title > span` — the worst text ratio measured anywhere on the platform. `/liq` carried 5 of 9 light and 4 of 6 dark. | dev fixing |
+| **#846** duplicate accessible names | **Three of the five are a spec defect, not app code.** `no-duplicate-controls.spec.ts:79` reads `innerText \|\| aria-label` — precedence backwards. `Tip.tsx` sets a distinct `aria-label` per instance but its `innerText` is always `ⓘ`, so every Tip collides with every other Tip. Real ones: `/calc` "Position Sizer" (nav-tile vs ps-preset, one navigates and one does not) and `/arena` "Sign In →". | QA's file to fix |
+| **#843** Arena geometry | **Not a width.** The terminal Arena component was reverted and never restored — see §14. Cannot be fixed by a CSS number. | awaiting owner |
+
+**#845 shipped** — the terminal app nav covered `/learn`'s logo and both hero buttons including the primary CTA. Root cause: #714 fixed the same bug on `/` and wrote the gate as `pathname === '/'` — one route, not a family. Now `rendersOwnNav()` in `lib/navRoutes.ts`, covering `/`, `/learn`, `/ko`, `/zh`.
+
+> **The landing locales are `['ko','zh']` from `lib/i18n/dictionaries.ts`, NOT the ten in `lib/locales.ts`.** Two different lists. `app/[locale]/page.tsx` generates from the small one and `dynamicParams = false` 404s the rest — on a running build `/ko` is **200** and `/es` is **404**. Gating on the wide list claims eight routes that do not exist. A test binds the copy to `dictionaries.ts`.
 
 ### 🔴 Live risk
 
@@ -729,6 +768,41 @@ Context for the move off the desktop GUI.
   cards** - qa and staging share the dev database. Missing local API keys are *not* the
   cause and deploying to dev does not help. Any change to `/news` reaches production
   unverified; say so in the PR rather than letting the reader assume it was checked.
+
+### Three that cost the most time on 2026-09-05
+
+**1. `opacity` multiplied onto `--txt3` is now SEVEN instances of the same defect.**
+
+`--txt3` is tuned to sit just above 4.5:1 — measured at full strength it is **4.70 to 5.88 across every panel ground in both terminal themes**. It has no headroom left, so any multiplier at all drops it under AA. The instances, in the order they were found:
+
+```
+1  .pf-footer-bottom-note      2  .mr-scale-good        3  .st-locked-list  (dark half only)
+4  .lp-footer-ack              5  .gex-title > span     0.5 -> #a1a2a2  1.95:1
+6  .liq-section-sub            0.75 -> #458c57 3.03, #af4a50 3.90
+7  .st-locked-list             0.6 light -> #9b9da0  2.71:1   (the half #3 missed)
+   + FundingTerminal hint 0.6, econ-calendar source 0.5
+```
+
+**The rule: de-emphasise with size, weight or a separator — never by dimming ink that is already at its floor.** `globals.css` names the trap at `.lp-footer-ack`; read that comment before adding an `opacity` to any text.
+
+The corollary, and the thing that made #3 half-fixed for weeks: **a fix scoped to one theme is not a fix.** `.st-locked-list` was "fixed" in dark and its light multiplier survived because the justification — *"over a white card, where the base colour has the headroom"* — was true of the current design and never re-checked against terminal.
+
+**2. A background is not the first non-transparent ancestor.** `.liq-current-oi` was the only entry on #836 that is *not* an opacity bug: `--txt3` at full strength still measures **4.09:1** there, because `.liq-current-bar` is `--accent-2` at 9% composited over the panel, which lifts the ground toward the ink. Measure over the composited ground or the number is wrong in the safe-looking direction.
+
+**3. CSS can outlive the component it styles, and the CSS is not evidence the screen exists.**
+
+`components/ArenaTerminal.tsx` **does not exist.** `dd39c9bb` reverted the terminal-Arena branch — 1,212 lines including the component (355), `lib/arenaColour.ts`, `lib/arenaTimeframes.ts` and their tests — and `ccefc0de` (#413) then restored **939 lines of `globals.css` and not the component.** So `[data-design="terminal"] .at-rail { flex: 0 0 352px }` is correct, present, and styles markup that nothing renders.
+
+A sweep of every `[data-design="terminal"]` selector against every `className` in `app/` and `components/` found **194 of 349 terminal classes have no markup**. That number is an upper bound on dead CSS, **not a defect count** — and the difference matters:
+
+| Cluster | n | Component | Verdict |
+|---|---|---|---|
+| `at-*` | 66 | `ArenaTerminal.tsx` — **gone** | `/arena` is not converted. Real. |
+| `lt-*` | 88 | `LandingTerminal.tsx` — exists, renders `lpt-*` | dead CSS, no user impact |
+| `dterm-*` | 19 | `DashboardTerminal.tsx` — exists, renders `dash-*` | dead CSS |
+| `sshell*` | 5 | none | dead CSS |
+
+`lt-*` looked identical to `at-*` from the grep and was nearly reported as breakage; only opening `LandingTerminal.tsx` separated them. **Run the control in both directions before trusting a sweep** — and `/arena` sits in `CONVERTED_ROUTES` today, so the ledger says converted where the screen is current-design markup plus `border-radius: 0`.
 
 ### The failure that looks like success — 2026-09-03
 

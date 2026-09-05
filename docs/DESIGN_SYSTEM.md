@@ -54,3 +54,52 @@ landing, upgrade, 404.
 3. Landing: MindPillar-style italic serif accent words in hero headline; footer as
    multi-column link grid (Crypto Planet footer).
 4. Pagination pattern (`1–10 of N · page numbers · jump to page`) for long tables.
+
+---
+
+## Contrast: never dim ink that is already at its floor
+
+**Added 2026-09-05 after the same defect was found for the seventh time (#836).**
+
+`--txt3` is not "muted text you can mute further". It is tuned to sit **just above 4.5:1**
+and has no headroom left. Measured at full strength on a production build, across every
+panel ground in both terminal themes:
+
+```
+dark   #7c828a   4.71 – 5.20
+light  #5e6267   4.70 – 5.88
+```
+
+Every one of those clears AA. Multiply any of them by an `opacity` and it does not:
+
+| Multiplier | Computes to | Ratio | Where |
+|---|---|---|---|
+| `0.5` | `#a1a2a2` | **1.95:1** | `.gex-title > span` — worst text on the platform |
+| `0.5` | `#abacad` | 2.10:1 | `/econ-calendar` source suffix |
+| `0.6` | `#9b9d9f` | 2.51:1 | `/funding` range hint |
+| `0.6` | `#9b9da0` | 2.71:1 | `.st-locked-list`, light |
+| `0.75` | `#458c57` / `#af4a50` | 3.03 / 3.90 | `.liq-section-sub` |
+
+**The rule.** De-emphasise with **size, weight, or a separator** — never by dimming ink.
+The seven known instances are listed in `docs/HANDOVER.md` §14; `globals.css` names the trap
+in the comment above `.lp-footer-ack`. Read it before adding `opacity` to any text.
+
+**Two corollaries, both learned the expensive way:**
+
+1. **A fix scoped to one theme is not a fix.** `.st-locked-list` was corrected in dark and its
+   light multiplier survived for weeks, because the justification — *"over a white card, where
+   the base colour has the headroom to absorb it"* — was measured against the current design
+   and never re-checked against terminal. Measure all four contexts: design × theme.
+2. **A background is not the first non-transparent ancestor.** `.liq-current-oi` has no
+   multiplier and still failed at **4.09:1**, because `.liq-current-bar` is `--accent-2` at 9%
+   composited over the panel — a tint that lifts the ground *toward* the ink. Composite the
+   tint over its ground and measure against the result, or the number comes out wrong in the
+   direction that looks safe.
+
+**Contrast ratio is the wrong instrument for two different hues.** It reports 1.02 for a brown
+against a blue. Use it for same-hue pairs; for different hues, judge distinctness another way.
+
+> ⚠️ **The token table at the top of this file is stale.** It lists
+> `--txt / txt2 / txt3` as `#eef0fa / #9296b5 / #4e5374`; `globals.css` `:root` today has
+> `--txt3: #7b8297`, and the terminal blocks override all three again per theme. Treat
+> `app/globals.css` as authoritative and this table as historical until someone re-derives it.

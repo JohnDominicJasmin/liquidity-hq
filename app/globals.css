@@ -2471,7 +2471,14 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-section-hdr { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: var(--fs-caption); font-weight: 700; letter-spacing: 0.02em; }
 .liq-section-hdr-short { color: var(--green-2); background: rgba(52,211,153,0.06); border-bottom: 0.5px solid rgba(52,211,153,0.12); }
 .liq-section-hdr-long  { color: var(--red); background: rgba(248,113,113,0.06); border-top: 0.5px solid rgba(248,113,113,0.12); border-bottom: 0.5px solid rgba(248,113,113,0.12); }
-.liq-section-sub { font-size: var(--fs-caption); font-weight: 500; opacity: 0.75; text-transform: none; letter-spacing: 0; }
+/* No `opacity` (#836). This inherits the header's --green-2 or --red, and 0.75
+   computed to #458c57 = 3.03:1 and #af4a50 = 3.90:1 in light terminal, over the
+   6%-tinted header ground. At full strength the same two measure 4.96 and 6.33
+   light, 6.54 and 4.87 dark - so the opacity was the entire defect and there is
+   nothing to retint. Fifth and sixth instances of the trap named at
+   .lp-footer-ack. Kept visually secondary by weight 500 against the header's
+   700, which is what was actually wanted. */
+.liq-section-sub { font-size: var(--fs-caption); font-weight: 500; text-transform: none; letter-spacing: 0; }
 
 /* Derived from --accent-2, was rgba(26,122,255,...) (#652). Those literals
    are the current design's dark --accent-2, and the [data-theme="light"]
@@ -2492,6 +2499,25 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-current-chg { font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; }
 .liq-current-tag { font-size: var(--fs-caption); font-weight: 700; color: var(--purple); background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.06em; animation: liq-pulse 2s infinite; }
 .liq-current-oi { font-size: var(--fs-caption); color: var(--txt3); margin-left: auto; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* THE ONE ON /liq THAT IS NOT AN OPACITY BUG (#836).
+ *
+ * Every other entry in that issue is `opacity` multiplied onto an already-tuned
+ * token, and removing the multiplier fixes it. This one has no multiplier -
+ * `--txt3` at FULL strength measures 4.09:1 here, because `.liq-current-bar` is
+ * not a panel ground: it is `--accent-2` at 9% composited over the panel, which
+ * lifts the ground toward the ink instead of away from it. A background is not
+ * the first non-transparent ancestor, and this row is why that matters.
+ *
+ * Measured over the composited ground rather than over --bg1:
+ *     --txt3  dark 4.09  light 4.66      <- what ships today
+ *     --txt2  dark 4.87  light 5.11      <- this
+ *     --txt   dark 13.04 light 13.51     <- would read as primary, which it is not
+ *
+ * --txt2 is the smallest step that clears AA in both themes and keeps the OI
+ * figure secondary to the price beside it. Scoped to terminal because that is
+ * where it was measured; the current design's tint is the same rule but its
+ * numbers have not been checked and I am not changing what I did not measure. */
+:root[data-design="terminal"] .liq-current-oi { color: var(--txt2); }
 
 .liq-row { display: grid; grid-template-columns: 72px 30px 38px 1fr 48px; align-items: center; gap: 5px; padding: 3.5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); transition: background 0.12s; }
 .liq-row:last-child { border-bottom: none; }
@@ -3989,7 +4015,18 @@ html[data-theme="light"] { background: var(--bg0); }
    inactive components does not apply. Light theme keeps its 0.6 over a white
    card, where the base colour has the headroom to absorb it. */
 .st-locked-list { color: var(--txt2); }
-[data-theme="light"] .st-locked-list { opacity: 0.6; }
+/* SCOPED OFF TERMINAL, not deleted (#836). The justification above - "over a
+   white card, where the base colour has the headroom to absorb it" - was
+   measured against the current design and holds there. Terminal light has
+   neither the white card nor the same --txt2, and the same 0.6 computed to
+   #9b9da0 = 2.71:1, reported seven times on /settings. So the multiplier keeps
+   the design it was tuned for and loses the one it was never checked against,
+   rather than being removed from both on the strength of one theme's number.
+
+   `data-theme` and `data-design` are BOTH on <html>, so this is one compound
+   selector rather than a descendant pair - same shape as the
+   `:root[data-theme="light"]:not([data-design="terminal"])` rule above. */
+:root[data-theme="light"]:not([data-design="terminal"]) .st-locked-list { opacity: 0.6; }
 
 /* ── Coin multi-select dropdown (replaces the full chip-grid watchlist picker) ── */
 .cms-trigger {

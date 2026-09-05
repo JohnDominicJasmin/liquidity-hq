@@ -140,7 +140,13 @@ export default function EconCalendarPage() {
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
           {t('ECON_CALENDAR_SUBTITLE')}
-          {source && <span style={{ marginLeft: 8, opacity: .5 }}>· {source}</span>}
+          {/* No `opacity` (#836). The parent is already `--txt3` and 0.5 of it
+              computed to #abacad = 2.10:1 in light terminal. Same trap the
+              comment at line ~272 of this file already refuses for the
+              estimated-date fade (#692), and the same one globals.css names at
+              .lp-footer-ack. The separator dot is what marks this as secondary;
+              it does not need dimmer ink as well. */}
+          {source && <span style={{ marginLeft: 8 }}>· {source}</span>}
         </div>
       </div>
 

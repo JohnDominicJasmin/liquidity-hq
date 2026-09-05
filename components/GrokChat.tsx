@@ -954,8 +954,19 @@ export default function GrokChat() {
                            aliases it to var(--accent) and now follows. */
                         style={{ marginTop: 10, fontSize: 'var(--fs-caption)', color: 'var(--accent-2)', background: 'none', border: `0.5px solid ${withAlpha('var(--accent-2)', '44')}`, borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
                         onClick={() => setShowLoginModal(true)}
+                        /* Named for what it DOES, not for what it is (#846).
+                           This read "Sign In →", the same words as
+                           `.usage-auth-link` on /arena - and the two do
+                           different things: that one is a <Link> to /login,
+                           this one opens a modal in place. Two controls with
+                           one name on the same screen is a coin flip for anyone
+                           navigating by name rather than by position.
+                           aria-label as well as visible text, so the accessible
+                           name is right regardless of how a checker computes
+                           it. */
+                        aria-label="Sign in to chat"
                       >
-                        Sign In →
+                        Sign in to chat →
                       </button>
                     </>
                   )}
