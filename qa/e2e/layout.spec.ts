@@ -292,14 +292,36 @@ const KNOWN_OBSCURED_BY_DESIGN: Record<'current' | 'terminal', Record<string, st
      * are not the same set:
      *
      *   only in terminal   /alerts, /arena
-     *   only in current    /funding, /scanner, /journal, /news, /playbook
-     *   in both            /briefing, /calc, /dashboard, /faq, /offline
+     *   only in current    /funding, /journal, /news, /playbook
+     *   in both            /briefing, /calc, /dashboard, /faq, /offline, /scanner
      *
-     * Seven against ten, five shared. The two designs lay their pages out
+     * Eight against nine, six shared. The two designs lay their pages out
      * differently, so which control ends up under a fixed bar differs with
      * them - the bar being 4px taller in terminal is not the only variable.
      * A renamed copy of the other list would have asserted five overlaps that
-     * do not happen and missed two that do. */
+     * do not happen and missed two that do.
+     *
+     * /scanner WAS MISSING FROM THIS LIST, CORRECTED 2026-09-05, AFTER THIS
+     * COMMENT HAD ALREADY BEEN WRITTEN CLAIMING IT WAS "ONLY IN CURRENT". The
+     * release-candidate re-run failed on it - a coin-row button covered by
+     * nav.tnav-tabs at the natural rest state, before any scrolling.
+     *
+     * VERIFIED RATHER THAN ADDED ON FAITH. The spec's own error names the
+     * danger explicitly: "if your change added a fixed overlay, the fix is to
+     * reserve space for it, not to add the entry to KNOWN." So before adding
+     * it: scrolled to the true bottom (`scrollTop + clientHeight >=
+     * scrollHeight`, checked, not assumed) and re-swept every interactive
+     * element against the bar. Nothing was covered at max scroll. The overlap
+     * exists only in the first, unscrolled frame and clears the instant the
+     * page moves - same mechanism as the other six mobile entries here, not a
+     * new one.
+     *
+     * WHY THE ORIGINAL RECORDING SWEEP MISSED IT. /scanner's list length and
+     * row height depend on live coin data, so whether the last visible row on
+     * the first screen reaches far enough down to meet the bar varies run to
+     * run - the same data-dependent-ground shape as trap 12 and the grade-F
+     * badge. The comment above was written from one sweep and stated as a
+     * fact about the route rather than about that sweep. */
     mobile: [
       '/alerts: a.auth-gate-btn is covered by nav.tnav-tabs',
       '/arena: button.klc-tool-btn is covered by button.gchat-fab',
@@ -308,6 +330,7 @@ const KNOWN_OBSCURED_BY_DESIGN: Record<'current' | 'terminal', Record<string, st
       '/dashboard: button.sotd-refresh is covered by nav.tnav-tabs',
       '/faq: button is covered by nav.tnav-tabs',
       '/offline: button.pf-footer-expand is covered by nav.tnav-tabs',
+      '/scanner: button is covered by nav.tnav-tabs',
     ],
   },
 };
