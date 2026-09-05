@@ -207,7 +207,42 @@ async function findLayoutDefects(page: Page): Promise<LayoutDefects> {
  *
  * If a future diff shows these flipping back, the attribution changed - not
  * the layout. */
-const KNOWN_OBSCURED: Record<string, string[]> = {
+/* ── AND THE WHOLE MAP IS DESIGN-SCOPED. Added 2026-09-05 (#844) ────────────
+ *
+ * Every mobile entry below names `nav.mobile-tab-bar`, and that element is
+ * rendered by `NavDrawer.tsx` inside the `{!terminal && ...}` branch — it is the
+ * CURRENT design's bottom bar. This baseline was derived on 2026-08-12, when the
+ * current design was what the app served by default.
+ *
+ * #748 made terminal the default on every route. The bar at `bottom: 0` is now
+ * `nav.tnav-tabs`, from TerminalNav, and this spec pins no design — so on
+ * 2026-09-05 it reported **eight new obscured controls** against a build where
+ * nothing had regressed. Seven were the same overlaps under the new element's
+ * name.
+ *
+ * MEASURED BEFORE CONCLUDING THAT, because "same overlap, new name" is exactly
+ * the sort of thing that is convenient to believe. Both designs, 390x844, on
+ * deployed `qa`:
+ *
+ *     terminal   bar=tnav-tabs       h=60  top=784
+ *     current    bar=mobile-tab-bar  h=56  top=788
+ *
+ * with the same controls covered on the same routes in both columns. Terminal's
+ * bar is 4px taller and sits 4px higher; that is the entire difference. So the
+ * overlaps are pre-existing and NOT a consequence of #748 — but the names are
+ * design-specific and one flat list cannot hold both.
+ *
+ * Keyed by design for the same reason `BASELINE.contrast` is: merging the two
+ * would go green and would be wrong, because a control covered in one design and
+ * clear in the other is a real difference that a single list cannot express.
+ *
+ * `/arena: button.klc-tool-btn is covered by button.gchat-fab` is the one entry
+ * that is NOT the bottom bar. It is present in both designs, so it is also
+ * pre-existing rather than introduced — but nobody had filed it, because until
+ * the design flip forced a re-derivation nobody had looked at this list again.
+ */
+const KNOWN_OBSCURED_BY_DESIGN: Record<'current' | 'terminal', Record<string, string[]>> = {
+  current: {
     desktop: [],
     /* RE-DERIVED 2026-08-12 against deployed `qa` @ ae213e7, after the coverer
      * normalisation above. Three entries were RENAMED rather than fixed, and one
@@ -238,7 +273,52 @@ const KNOWN_OBSCURED: Record<string, string[]> = {
       '/playbook: button.pb-star is covered by button.gchat-fab',
       '/scanner: button is covered by nav.mobile-tab-bar',
     ],
-  };
+  },
+
+  /* TERMINAL — the design a visitor gets after #748, and therefore the one an
+   * ordinary run measures. RECORDED 2026-09-05 against deployed `qa`, filled in
+   * from an actual sweep rather than by substituting the element name into the
+   * `current` list above. The substitution would almost certainly have been
+   * right, and "almost certainly" is how the contrast baseline went wrong
+   * earlier the same day. */
+  terminal: {
+    /* ZERO, and that is the #845 fix showing up as a number. Before it, this
+     * held /learn's a.lp-logo, a.lp-btn-ghost and a.lp-btn-primary, all covered
+     * by header.tnav. Measured on deployed `qa` @ 122423d: 0 across 30 routes. */
+    desktop: [],
+
+    /* AND THE SUBSTITUTION WOULD HAVE BEEN WRONG. The plan was to take the
+     * `current` list and swap `nav.mobile-tab-bar` for `nav.tnav-tabs`. These
+     * are not the same set:
+     *
+     *   only in terminal   /alerts, /arena
+     *   only in current    /funding, /scanner, /journal, /news, /playbook
+     *   in both            /briefing, /calc, /dashboard, /faq, /offline
+     *
+     * Seven against ten, five shared. The two designs lay their pages out
+     * differently, so which control ends up under a fixed bar differs with
+     * them - the bar being 4px taller in terminal is not the only variable.
+     * A renamed copy of the other list would have asserted five overlaps that
+     * do not happen and missed two that do. */
+    mobile: [
+      '/alerts: a.auth-gate-btn is covered by nav.tnav-tabs',
+      '/arena: button.klc-tool-btn is covered by button.gchat-fab',
+      '/briefing: a is covered by nav.tnav-tabs',
+      '/calc: input.ps-inp is covered by nav.tnav-tabs',
+      '/dashboard: button.sotd-refresh is covered by nav.tnav-tabs',
+      '/faq: button is covered by nav.tnav-tabs',
+      '/offline: button.pf-footer-expand is covered by nav.tnav-tabs',
+    ],
+  },
+};
+
+/** The design this run measures. Terminal is the default after #748; the spec
+ *  seeds it rather than inheriting it, so the baseline above cannot silently
+ *  come to describe a different design than the one on screen. */
+const LAYOUT_DESIGN: 'current' | 'terminal' =
+  process.env.QA_LAYOUT_DESIGN === 'current' ? 'current' : 'terminal';
+
+const KNOWN_OBSCURED: Record<string, string[]> = KNOWN_OBSCURED_BY_DESIGN[LAYOUT_DESIGN];
 
 test.describe('layout', () => {
   /* Runs on BOTH projects, unlike the HTTP-level specs which skip mobile. That
@@ -255,6 +335,16 @@ test.describe('layout', () => {
     consent: 'denied' | 'first-visit' = 'denied',
   ) {
     const ctx = await browser.newContext({ viewport });
+    /* PIN THE DESIGN (#844). Seeded before navigation so the `design-init`
+     * script in app/layout.tsx reads it pre-hydration, the same route the query
+     * param takes one step later. Unpinned, this spec swept whatever the app's
+     * default happened to be, and KNOWN_OBSCURED — derived on 2026-08-12 against
+     * the current design — silently came to describe a different one the day
+     * #748 landed. Seeded even on the first-visit path: consent is what that
+     * test varies, and the design must not vary with it. */
+    await ctx.addInitScript((d) => {
+      try { localStorage.setItem('lhq-design-mode', d); } catch { /* private mode */ }
+    }, LAYOUT_DESIGN);
     if (consent === 'denied') {
       await ctx.addInitScript(() => {
         try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }

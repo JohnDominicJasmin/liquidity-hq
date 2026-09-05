@@ -352,6 +352,62 @@ implement the platform's rule, not an approximation of it.** Accessible name,
 visibility, focus order and stacking all have specifications, and a plausible
 two-term fallback is the shape this error takes every time.
 
+**16. A list that looks like a rename is usually a different measurement.**
+Three instances on 2026-09-05, all caught the same way, which is what makes it a
+trap rather than three mistakes.
+
+`layout.spec.ts`'s mobile baseline named `nav.mobile-tab-bar` on every entry.
+That element is the CURRENT design's bottom bar; after #748 the bar at
+`bottom: 0` is `nav.tnav-tabs`. The obvious move — and the one I was one edit
+from making — is to copy the list and swap the element name. **Measured
+instead:**
+
+```
+only in terminal   /alerts, /arena
+only in current    /funding, /scanner, /journal, /news, /playbook
+in both            /briefing, /calc, /dashboard, /faq, /offline
+```
+
+Seven entries against ten, five shared. The two designs lay their pages out
+differently, so *which* control ends up under a fixed bar differs with them —
+the bar being 4px taller is not the only variable. The renamed copy would have
+asserted five overlaps that do not happen and missed two that do, and it would
+have looked completely reasonable in review.
+
+Same shape twice more the same afternoon. A `--accent-2: #0052CC` declaration
+found by grep, correctly computed at 2.99:1, in a scope a guard at
+`globals.css:4880` means never governs the element — a confident correction to
+dev, half-written, that would have been wrong. And dev computing a fix against a
+measured ground that the fix itself moves, because the chip is a self-tint: the
+ground is the ink at 13.3%, so changing the token changes the surface too.
+
+**Three different mechanisms, one last step that saved all three: check what is
+actually behind the number before believing it.** The transformation is always
+the cheap-looking part, and it is always the part that is wrong — a rename, a
+grep hit, a ground held constant. If you are about to derive a measurement from
+another measurement instead of taking it, take it.
+
+**And the fourth instance is the one that says when the check gets skipped.**
+Two hours after writing the paragraph above, I found `.lp-footer-col a:hover`
+reading `--accent-2`, computed the token's value in terminal light, and reported
+a 2.76:1 failure that #854 had fixed as a bonus. **The selector does not render
+in terminal at all** — terminal's landing uses a different root, so there is no
+`.lp-root` and no `.lp-footer-col` on that page. A CSS rule existing is not an
+element rendering. Trap 3 with an extra step, walked into by the person who had
+just written trap 16.
+
+Dev Team did the same thing in the same hour, repeating the finding onward
+without checking it. Their diagnosis is the durable part and it belongs here:
+
+> **the check gets skipped on findings that flatter, not on findings that are
+> hard.**
+
+Neither of us failed at the technique — we had both just used it successfully on
+harder problems. We skipped it on a result we liked. A fix that quietly does more
+than it claims, a bug found in someone else's blind spot, a number that confirms
+what you already argued: those are the ones to re-check, and the pleasure of
+having found them is the signal, not the reward.
+
 ## Where QA tests
 
 **Four branches, four services, one each.** Nothing auto-deploys — moving a
