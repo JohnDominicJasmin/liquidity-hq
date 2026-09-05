@@ -33,7 +33,14 @@ export default function GexTable() {
     <div className="gex-table">
       {/* Title + net GEX chip */}
       <div className="gex-title-row">
-        <div className="gex-title">{t('GEX_TABLE_TITLE')} <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, opacity: 0.5 }}>{t('GEX_TABLE_TITLE_SUFFIX')}</span></div>
+        {/* No `opacity` here (#836). The parent is already `--txt3`, which is
+            tuned to sit just above 4.5:1, so multiplying it computed #a1a2a2 =
+            1.95:1 in light terminal - the worst text ratio measured anywhere on
+            the platform. Same trap as .pf-footer-bottom-note, .mr-scale-good,
+            .st-locked-list and .lp-footer-ack; this is the fifth instance.
+            The suffix is de-emphasised by size and weight, which it already
+            was, rather than by dimming ink that has no room left to dim. */}
+        <div className="gex-title">{t('GEX_TABLE_TITLE')} <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400 }}>{t('GEX_TABLE_TITLE_SUFFIX')}</span></div>
         {gexLoaded ? (
           <div
             className="gex-net-chip"
