@@ -237,11 +237,12 @@ which is the general lesson, and the reason neither was predicted.
 > **Resolved 2026-09-05 by adding a fourth session, and kept here because the
 > reasoning is why that session exists.** The conflict below — one role holding
 > both "not yet" and "this has been finished and unshipped for two days" — is
-> what the PM/DevOps split fixes structurally. Tracking, sequencing and the
-> release path are PM/DevOps's; the gate is QA's; and they are different sessions
-> now, so the conflict has nowhere to be settled quietly. **Still open:
-> `qa/STATUS.md` lives in QA's tree while the job it does is now PM/DevOps's.
-> Not reassigned unilaterally — flagged for the owner.**
+> what the PM/DevOps split fixes structurally. Tracking and sequencing are
+> PM/DevOps's, as is the last hop to production; the gate and the `qa`/`staging`
+> routes are QA's; and they are different sessions now, so the conflict has
+> nowhere to be settled quietly. **Still open: `qa/STATUS.md` lives in QA's tree
+> while the tracking job is now PM/DevOps's. Agreed to move it to `docs/` after
+> the current release, with a pointer left behind — not reassigned mid-flight.**
 
 **QA held two jobs: the quality gate, and knowing where the project is.** The
 second one lives in [`qa/STATUS.md`](qa/STATUS.md) — what is live, what is
@@ -297,9 +298,9 @@ the handoff point between them.**
    the change is not on `qa` yet.
 
 **Dev is not done when the PR is open.** Dev also merges its own feature branch
-into `dev`. **PM/DevOps takes it from there** — the `dev` → `qa` promotion, the
-deploy, and the release path onward. What dev never does is promote out of `dev`,
-merge to `main`, or deploy anything — see "Who merges and deploys" below.
+into `dev` and promotes `dev` → `qa`, then hands the deploy to QA. What dev never
+does is promote into `staging`, merge to `main`, or deploy anything — see "Who
+merges and deploys" below.
 
 This used to read "dev's responsibility ends here", which was true when there
 were two branches and is not now. Stopping at "PR is open" is how a change sits
@@ -311,9 +312,9 @@ on `dev` for a day with nobody wondering why it never reached staging.
 
    https://liquidity-hq-qa.onrender.com
 
-   That is the point of the `qa` branch: PM/DevOps merges `dev` → `qa`, deploys
-   it, and QA gets a real running build with no setup. Testing a branch you
-   built locally tests your machine as much as the change.
+   That is the point of the `qa` branch: dev merges `dev` → `qa`, QA deploys it,
+   and QA gets a real running build with no setup. Testing a branch you built
+   locally tests your machine as much as the change.
 
    Confirm you are looking at the right build before reporting anything — the
    commit `qa` is on should contain the change under test. If it does not, say
@@ -442,15 +443,21 @@ production.** Not with
 permission, not "just this once", not when QA is busy. The whole value of the
 gate is that it is never the person who wrote the code.
 
-**PM/DevOps does the merge and the deploy. Changed 2026-09-05.** This section
-read "QA does the merge and the deploy" until the owner moved it: *"You're not
-doing the merging and deploy production. Hand it over to Project Manager
-DevOps."* The owner may still do it themselves.
+**PM/DevOps does the `staging` → `main` merge and the production deploy. Changed
+2026-09-05.** This section read "QA does the merge and the deploy" until the owner
+moved those two: *"You're not doing the merging and deploy production. Hand it
+over to Project Manager DevOps."* The owner may still do them themselves.
+
+**Only those two moved.** QA keeps the `qa` and `staging` routes — promoting into
+each and deploying each. Dev keeps feature branches into `dev` and the
+`dev` → `qa` promotion. A first draft of this change took all four deploys and
+every promotion to PM/DevOps, generalising from the sentence above; the owner
+narrowed it to production the same day and it never merged.
 
 **What the gate was ever about.** Not that QA specifically holds it — that the
-session which wrote the code never merges it. Moving the holder from QA to
-PM/DevOps leaves that intact. Handing it to *dev* would not, which is why that
-row is the one thing here with no exceptions.
+session which wrote the code never merges it. Moving `main` from QA to PM/DevOps
+leaves that intact. Handing it to *dev* would not, which is why that row is the
+one thing here with no exceptions.
 
 **QA keeps the sign-off, and it did not move with the merge button.** QA decides
 what gets tested, what "verified" means, and whether a release is ready.
@@ -460,9 +467,11 @@ purpose — whoever merges is asserting the "How to test" steps passed, and they
 are asserting it on QA's word, not instead of it. **A merge past a QA "not
 ready" removes the only independent check the project has.**
 
-**Dev's authority stops at `dev`.** Dev may merge its own feature branches into
-`dev` and nothing further. It never promotes out of `dev` — `qa` included, which
-moved on 2026-09-05 — never merges to `main`, and never deploys.
+**Dev's authority stops at `dev` and `qa` for branches, and nowhere for
+deploys.** Dev may merge its own feature branches into `dev` and may promote
+`dev` → `qa`. It never promotes into `staging`, never merges to `main`, and
+**since 2026-09-03 deploys no environment at all** — a standing owner
+instruction, separate from this document.
 
 **Deploys were split from merges on 2026-08-10 and re-joined on 2026-09-05.**
 This section said dev deploys `qa` and `staging` on QA's request, for a stated
@@ -475,9 +484,9 @@ resting on a wrong premise is worth knowing about even after it is replaced.
 
 | Service | Deployed by |
 |---|---|
-| `liquidity-hq-dev` | **PM/DevOps** — ask the owner first, it has a build-hour cap prod does not |
-| `liquidity-hq-qa` | **PM/DevOps**, straight after promoting |
-| `liquidity-hq-staging` | **PM/DevOps**, straight after promoting |
+| `liquidity-hq-dev` | **unassigned** — dev held it, dev is held, nobody named. Ask the owner |
+| `liquidity-hq-qa` | **QA**, after dev promotes |
+| `liquidity-hq-staging` | **QA**, straight after promoting — both halves |
 | `liquidity-hq-prod` | **PM/DevOps, owner-approved each time. Never dev.** |
 
 **Production changed holder, not gate.** The owner approves every production
@@ -498,9 +507,9 @@ Merging is not the deploy. **No** Render service auto-deploys; all three are
 | Service | Branch | Auto-deploy | Who deploys |
 |---|---|---|---|
 | `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **PM/DevOps**, owner-approved each time — never dev |
-| `liquidity-hq-staging` → liquidity-hq-staging.onrender.com | `staging` | **no** | **PM/DevOps** |
-| `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **no** | **PM/DevOps** |
-| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | **PM/DevOps**, ask the owner first |
+| `liquidity-hq-staging` → liquidity-hq-staging.onrender.com | `staging` | **no** | **QA** |
+| `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **no** | **QA** |
+| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | **unassigned** — ask the owner |
 
 So **merging to `main` ships nothing on its own.** Production keeps serving the
 previous build until someone triggers a deploy. QA must do both:
@@ -692,8 +701,8 @@ wrong host in front of a test plan.
 |---|---|---|---|
 | `<type>/<description>` | none | dev | n/a |
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
-| `qa` | **liquidity-hq-qa.onrender.com** | **PM/DevOps** merges `dev` → `qa` | **no** — trigger manually |
-| `staging` | **liquidity-hq-staging.onrender.com** | **PM/DevOps** merges `qa` → `staging`, on QA's word | **no** — trigger manually |
+| `qa` | **liquidity-hq-qa.onrender.com** | **dev** merges `dev` → `qa`; **QA** deploys | **no** — trigger manually |
+| `staging` | **liquidity-hq-staging.onrender.com** | **QA** merges `qa` → `staging` and deploys | **no** — trigger manually |
 | `main` | liquidity-hq.com (production) | **PM/DevOps** merges `staging` → `main`, on QA's sign-off | **no** — trigger manually |
 
 ### Why `staging` exists
@@ -760,9 +769,10 @@ each.
 
 Merging `dev` → `qa` does **not** deploy. Like prod and dev, this service is
 `autoDeploy: no`, so the branch moving and the environment moving are two
-separate acts. **PM/DevOps merges `dev` → `qa` and triggers the deploy** — both
-halves, because getting a build in front of QA is part of the handoff. QA may
-trigger it too, for a re-deploy or after a config change.
+separate acts. **Dev merges `dev` → `qa`; QA triggers the deploy** — the two
+halves are split here, and that is deliberate rather than an oversight. Dev is
+under a standing instruction not to deploy, so the handoff is the merge, and QA
+closes it by deploying and saying so.
 
 Render dashboard → `liquidity-hq-qa` → *Manual Deploy* → *Deploy latest
 commit*. Say in the PR or the handoff message that you have done it, otherwise
@@ -967,8 +977,8 @@ So the question is only ever *"are you mid-run?"*:
 > *...later...*
 > **QA:** Go.
 
-QA does not need a reason to say hold, and PM/DevOps does not need to justify the
-promotion. If QA does not answer, PM/DevOps promotes — this is a courtesy that
+QA does not need a reason to say hold, and dev does not need to justify the
+promotion. If QA does not answer, dev promotes — this is a courtesy that
 prevents wasted test runs, not a lock that stalls the pipeline waiting on
 someone who has gone home.
 
@@ -1047,9 +1057,9 @@ Two properties worth knowing, because they decide whether you can trust it:
 Dev still asks before promoting (below). That is a *timing* check — it stops a
 promotion landing mid-test-run. The announcement afterwards is now automatic.
 
-**When QA says a batch is approved and ready to park, PM/DevOps promotes
-`qa` → `staging`.** Dev does not promote into `staging` — that is the whole point
-of the branch. If dev can move the release candidate, the guarantee is gone.
+**QA, when a batch is approved and ready to park: promote `qa` → `staging` and
+deploy it.** Dev does not promote into `staging` — that is the whole point of the
+branch. If dev can move the release candidate, the guarantee is gone.
 
 **The `staging` → `main` release PR now opens itself**
 (`.github/workflows/release-signals.yml`), aggregating each PR's "How to test
