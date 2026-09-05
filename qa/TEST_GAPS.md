@@ -326,6 +326,22 @@ Recorded here rather than hidden, because the suite is code and has defects too.
 - **110 tests skip every run.** 95+ are the mobile project on HTTP-level specs,
   which is by design. Every skip names its reason. Read them — some are accepted
   limits and some would be findings if they appeared.
+- **A pixel result is scoped to the browser's PLATFORM, not the host it points
+  at — and this was stated as platform-neutral within an hour of writing the
+  rule that says it can't be.** Rendering happens where the Chromium process
+  runs, not where the deployed URL is hosted. Colour/contrast survives the
+  platform — a computed RGB value doesn't depend on font rendering. Anything
+  measured in **pixels** — overflow, layout, coverage — does not, because it
+  depends on glyph metrics and line-wrap decisions that differ between a local
+  Windows Chromium and CI's Linux runner. `qa/e2e/layout.spec.ts`'s
+  `KNOWN_OBSCURED` baseline carries the long version and the incident that
+  forced it: a Windows-derived entry missed `/briefing` by 21px on Linux, while
+  the sibling test's identical entry had a guard for exactly this and correctly
+  declined to fail. Fixed there; the mistake repeated here is the general one —
+  "0 overflow on production, measured from my machine" is a true and narrower
+  claim than "production does not overflow", and only one of those
+  generalises. Caught by Dev Team, 2026-09-05, an hour after making the same
+  distinction correctly for someone else's number.
 
 ---
 
