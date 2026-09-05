@@ -5033,9 +5033,39 @@ body.landing {
   --txt3:   #7c7c82;
   --bdr:    rgba(255,255,255,0.07);
   --accent: #1a7aff;
+  /* --accent-2 MUST be declared here too, and this is the exact failure the
+     --txt3 comment above describes, one token along (#836).
+
+     `.lp-h1-accent` and `.learn-category-title` read --accent-2, not --accent.
+     Terminal declares `--accent-2: var(--accent)` at :root, and a custom
+     property is substituted where it is DECLARED, not where it is used - so
+     that resolves against :root's --accent and inherits into this block as an
+     already-computed colour. Redeclaring --accent here does not reach it.
+
+     Measured on /learn, terminal, ground #050505 (this block's own --bg0,
+     which does not change with theme - the whole point of the scope):
+
+         dark   #d9a626   9.15:1
+         light  #754e00   2.76:1   <- 12 instances, worst on the platform
+
+     The token was not wrong and the ground was not wrong; the PAIRING was.
+     A light-palette accent, correct on a light ground, was being painted on a
+     region that is deliberately dark in both themes.
+
+     Per design rather than one value, because the two designs have different
+     brand accents and neither look should change: current keeps its blue, and
+     terminal gets the amber it already shows in dark. */
+  --accent-2: #5aa3ff;
   display: flex; flex-direction: column; min-height: 100vh; color: var(--txt); background: var(--bg0); font-family: inherit;
   animation: lp-content-in 0.5s var(--ease-settle);
 }
+/* Terminal's half of the pair above (#836). #d9a626 is what this region already
+   renders in dark, so dark is unchanged at 9.15:1 and light stops being 2.76:1.
+   Deliberately a literal rather than `var(--accent)`: --accent is redeclared to
+   #1a7aff inside .lp-root for the current design, so pointing at it here would
+   paint terminal's landing accent blue. */
+[data-design="terminal"] .lp-root { --accent-2: #d9a626; }
+
 @keyframes lp-content-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }

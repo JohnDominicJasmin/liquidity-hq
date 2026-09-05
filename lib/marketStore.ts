@@ -347,7 +347,45 @@ export function computeCoinHealth(coin: CoinData | undefined): {
     grade === 'B' ? 'var(--green-2)' :   // green
     grade === 'C' ? 'var(--txt2)' :   // gray
     grade === 'D' ? 'var(--orange)' :   // orange
-                    'var(--txt3)';  // muted (F)
+                    /* F was --txt3 and measured 4.31-4.46:1 on its own tinted
+                       chip - under AA in all three places it renders (#836).
+
+                       THE CHIP IS A SELF-TINT, so changing this token moves the
+                       GROUND as well as the ink: DashboardTerminal.tsx paints
+                       `color: health.color` and
+                       `background: withAlpha(health.color, '22')`, the same
+                       value at 13.3%. The surface therefore moves toward the
+                       text rather than away, which is exactly the trap
+                       globals.css:600 describes - and it means a naive
+                       new-ink-on-old-ground calculation reads high. Modelled
+                       properly, backing the card colour out of QA's measured
+                       ground and recompositing:
+
+                         /dashboard dark   4.30 -> 5.02
+                         /dashboard light  4.44 -> 4.83
+                         /arena     dark   4.34 -> 5.07
+
+                       The before column reproduces QA's measurement on the
+                       deployed build (4.31 / 4.46 / 4.33) to rounding, which is
+                       what makes the after column trustworthy.
+
+                       NOT --txt, which would be 12.9-13.9 but makes the WORST
+                       grade the brightest text on the card. F is the muted
+                       state and should read as muted; it just has to be
+                       readable while it does.
+
+                       This is the line globals.css:597 assumed was already
+                       --txt when #614 removed the terminal override that used
+                       to force it. It was not, and removing the override
+                       reinstated the defect it was written to fix. The grade
+                       letter is what separates C from F, not the ink - they
+                       share --txt2 now and that is fine.
+
+                       Both render paths read this one value: /dashboard's
+                       span.csb2-health-badge.grade-f and /arena's bare span.
+                       Whether those two should share a component is a real
+                       question and a separate one. */
+                    'var(--txt2)';  // muted (F)
 
   const label =
     grade === 'A' ? 'Strong setup' :
