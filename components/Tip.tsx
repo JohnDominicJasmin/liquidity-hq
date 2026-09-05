@@ -3,7 +3,20 @@ import { useState, useRef, useCallback, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 
 interface TipProps {
+  /** The accessible name, and the panel body unless `body` overrides it.
+   *  Stays a plain string: it is what `aria-label` announces, and a ReactNode
+   *  there would stringify to "[object Object]" for a screen reader. */
   text: string;
+  /* Optional rich panel content (#850). When present it replaces `text` in the
+     PANEL only — `aria-label` still announces `text`, so the accessible name is
+     unaffected and no existing call site changes behaviour.
+
+     Added for the chart's setup-quality tooltip, which had three tiers of
+     emphasis - a title, a dim sub-line and a brighter explanation - in
+     hand-rolled markup that was keyboard-dead. Collapsing it to one string to
+     fit this component would have traded a visual regression for the
+     accessibility fix; this takes both. */
+  body?: React.ReactNode;
   /* Optional. Tip usually wraps the label it explains, but where that label
      lives inside a <button> the Tip has to sit outside it - its trigger is a
      real focusable control, and a control inside a control is an
@@ -15,7 +28,7 @@ interface TipProps {
   iconColor?: string;
 }
 
-export default function Tip({ text, children, width = 230, iconColor = 'var(--txt3)' }: TipProps) {
+export default function Tip({ text, body, children, width = 230, iconColor = 'var(--txt3)' }: TipProps) {
   const [open, setOpen]   = useState(false);
   const [above, setAbove] = useState(false);
   const [coords, setCoords] = useState({ top: 0, bottom: 0, left: 0 });
@@ -147,7 +160,7 @@ export default function Tip({ text, children, width = 230, iconColor = 'var(--tx
             letterSpacing: 'normal',
           }}
         >
-          {text}
+          {body ?? text}
         </span>,
         document.body,
       )}

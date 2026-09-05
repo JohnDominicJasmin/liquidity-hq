@@ -2133,11 +2133,18 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-ws-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .klc-ws-dot.err  { background: var(--red); }
 .sq-badge { display: inline-flex; align-items: center; }
-.sq-info  { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; margin: -4px; cursor: help; }
-@keyframes sq-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
-.sq-tooltip { display: none; position: absolute; bottom: calc(100% + 2px); right: 0; padding-bottom: 10px; z-index: 999; white-space: normal; }
-.sq-info:hover .sq-tooltip { display: block; animation: sq-fade 120ms ease; }
-.sq-tooltip::after { content: ''; position: absolute; bottom: 2px; right: 12px; border: 5px solid transparent; border-top: 6px solid var(--sq-bdr, rgba(251,191,36,0.28)); border-bottom: none; }
+/* `.sq-info`, `.sq-tooltip`, `.sq-info:hover .sq-tooltip`, `.sq-tooltip::after`
+   and `@keyframes sq-fade` were REMOVED here (#850), not left behind.
+
+   They styled a hover-only tooltip on the setup-quality badge that had no
+   tabIndex, no role and no aria-label — keyboard-dead, and invisible to
+   `no-duplicate-controls.spec.ts`, which selects on role and tabIndex. That
+   markup is now `<Tip>`, which owns its own panel styling.
+
+   Deleted rather than kept "in case", because this file already carries 194
+   terminal-scoped classes that no markup renders (see docs/HANDOVER.md §14),
+   and every one of them started as a rule whose component went away. A rule
+   with no markup is not harmless: it reads as evidence the feature exists. */
 /* Clickable price chips in chart toolbar */
 .klc-price-chip {
   font-size: var(--fs-data); font-weight: 700; letter-spacing: .03em; white-space: nowrap;
