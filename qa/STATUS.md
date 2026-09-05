@@ -2,7 +2,7 @@
 
 **One page. If you only read one thing, read this.**
 
-Kept current by QA. Last updated **2026-09-04**.
+Kept current by QA. Last updated **2026-09-06**.
 
 ## Read this before you trust anything below
 
@@ -97,6 +97,22 @@ gh issue list --state open
   slow when nobody names which dashboard.
 
 ## Standing risks
+
+### The dev Supabase project is unhealthy — checked at the application layer for two days before anyone read its own status page
+
+2026-09-06, #872. Both seeded E2E accounts (`E2E_USER_A_*`, `E2E_USER_B_*`) hang
+and 504 on sign-in. Three sessions investigated for two days — reproduction,
+competing hypotheses, an escalation to the owner for `auth.users` read access
+— all careful, all at the wrong layer. The project's own status page read
+**Unhealthy** the entire time: most gateway requests erroring, zero reaching
+Postgres. See `qa/README.md` trap 17 for the full account; the fix it draws is
+a step zero, not a better technique.
+
+**What this means right now:** every signed-in spec against `qa` or `staging`
+fails for this reason, not a code reason, until the project's health recovers.
+Do not attribute a signed-in failure on either environment to the app under
+test without checking the project's status first. `staging` and `dev` share
+this project (see below), so the outage is not scoped to one service.
 
 ### A colour verified against one ground, shipped against another
 
