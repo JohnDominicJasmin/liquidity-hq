@@ -2588,5 +2588,12 @@
   "FUNDING_TIP_MILD_POS": "The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Mildly positive means longs are paying shorts - a slight bullish lean, not an extreme.",
   "FUNDING_TIP_NEUTRAL": "The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Near zero means no crowded side, so a liquidation raid is less likely either way.",
   "FUNDING_TIP_MILD_NEG": "The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Mildly negative means shorts are paying longs - a slight bearish lean, not an extreme.",
-  "FUNDING_TIP_HEAVY_NEG": "The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly negative means too many traders are leveraged short - whales often squeeze price up to liquidate them and pocket the fee."
+  "FUNDING_TIP_HEAVY_NEG": "The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly negative means too many traders are leveraged short - whales often squeeze price up to liquidate them and pocket the fee.",
+  "COIN_HEALTH_GRADE_ARIA": "Health grade {grade}, {label}",
+  "COIN_HEALTH_GRADE_A": "Strong setup",
+  "COIN_HEALTH_GRADE_B": "Clear signal",
+  "COIN_HEALTH_GRADE_C": "Mixed signals",
+  "COIN_HEALTH_GRADE_D": "Weak signal",
+  "COIN_HEALTH_GRADE_F": "No clear setup",
+  "COIN_HEALTH_NO_DATA": "No data"
 }

@@ -12,6 +12,7 @@ import Tip from '@/components/Tip';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
@@ -254,7 +255,7 @@ export default function MarketsPage() {
               }}
             >
               {/* Grade */}
-              <div style={{
+              <div {...healthGradeA11y(health.grade, health.labelKey, t)} style={{
                 width: 22, height: 22, borderRadius: 5,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 'var(--fs-caption)', fontWeight: 800,
