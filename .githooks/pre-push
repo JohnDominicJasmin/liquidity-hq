@@ -47,6 +47,39 @@
 # the PR, because nothing else will.
 set -e
 
+# DELETING A REF PUSHES NO CODE, SO THE GATES CANNOT SAY ANYTHING ABOUT IT.
+#
+# git feeds pre-push one line per ref on stdin:
+#     <local ref> <local sha> <remote ref> <remote sha>
+# and a DELETION carries an all-zeros local sha. If every ref in this push is a
+# deletion, there is nothing to gate.
+#
+# This is not a convenience. Deleting the 18 merged branches on 2026-09-06 ran
+# lint, tsc and 722 unit tests ONCE PER BRANCH - about 25 seconds each, roughly
+# seven minutes, to prove nothing about refs that carry no content.
+#
+# The cost is not the time. A gate that fires where it cannot possibly help is
+# how people learn to type `--no-verify` by reflex, and this file's own header
+# says a gate people disable protects nothing. Bypassing it fifteen times in a
+# row and telling nobody is exactly the "do it once quietly" mechanism that let
+# the deploy rows drift for two days.
+#
+# `saw_ref` matters: an EMPTY stdin must not look like a deletion. Without it a
+# push git gave no refs for would skip the gates silently, which is a worse
+# failure than the one being fixed.
+saw_ref=0
+only_deletions=1
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  saw_ref=1
+  case "$local_sha" in
+    *[!0]*) only_deletions=0 ;;
+  esac
+done
+if [ "$saw_ref" = 1 ] && [ "$only_deletions" = 1 ]; then
+  printf '[pre-push] deletion only - no code pushed, gates skipped\n'
+  exit 0
+fi
+
 printf '[pre-push] lint\n'
 npm run lint
 
