@@ -168,8 +168,9 @@ separate times, which is why it is written down rather than assumed.
 
 **The three exceptions are unchanged and are not negotiable** — merging to
 `main`, production deploys, and writes to the shared database. Those go to the
-owner directly, and per "Who DEPLOYS" above dev confirms them with the owner even
-when QA relays them. Everything else moves without a checkpoint.
+owner directly, and per "Who DEPLOYS" above **whoever is asked confirms them with
+the owner even when another session relays them** — now most often PM/DevOps,
+who holds the merge and the deploy. Everything else moves without a checkpoint.
 
 **Flow is `dev` → `qa` → `staging` → `main`.**
 
@@ -180,9 +181,9 @@ branch, not a place" until 2026-08-08, which was true for about six hours.
 | Branch | Who promotes into it | What it is for |
 |---|---|---|
 | `dev` | dev | integration; features merge here |
-| `qa` | **dev** | what QA tests and signs off, on liquidity-hq-qa.onrender.com |
-| `staging` | **QA** | approved work parks here and combines into one release |
-| `main` | **QA** | production |
+| `qa` | **PM/DevOps** | what QA tests and signs off, on liquidity-hq-qa.onrender.com |
+| `staging` | **PM/DevOps** | approved work parks here and combines into one release |
+| `main` | **PM/DevOps** | production, owner-approved that release |
 
 **Why `staging` exists.** `qa` was doing two jobs — rolling integration *and*
 release candidate. Because a release PR's head IS its base branch, every
@@ -205,10 +206,12 @@ permission needed. **Deploying the `liquidity-hq-dev` service is different —
 ask first**, it has a ~500 build-hour/month cap prod does not. Verify locally
 by default.
 
-`qa` branch → liquidity-hq-qa.onrender.com — **dev's** integration site, where
-dev confirms a promotion before QA sees it. **Does not auto-deploy** — merge
-`dev` → `qa`, then trigger the deploy manually, and say you have done it.
-Whoever merges also deploys.
+`qa` branch → liquidity-hq-qa.onrender.com — the integration site, where a
+promotion is confirmed before QA signs off on `staging`. **Does not auto-deploy**
+— **PM/DevOps** merges `dev` → `qa`, triggers the deploy manually, and tells QA
+it is live. Both halves are PM/DevOps's; this said "whoever merges also deploys"
+when dev held the merge, and that sentence is what assigned dev a deploy duty dev
+is under a standing owner instruction not to perform.
 
 `staging` branch → liquidity-hq-staging.onrender.com — **the site QA tests and
 signs off on.** PM/DevOps promotes `qa` → `staging` on QA's word and deploys it,
@@ -233,11 +236,11 @@ symptom; and name whatever is still unverified in the PR Risk level. Test to
 apply: *if QA finds nothing, was this finished?* Finding a second defect after
 saying "done" is the same failure as not finding it.
 
-**Ask QA before promoting `dev` → `qa`.** A timing check, not a review — QA
-owns that environment and a promotion mid-test-run changes the build under the
-tester. "Ok to push?" / "hold" or "go". No answer means go; it is a courtesy,
-not a lock. QA is not reviewing the code — nothing dev writes is independently
-reviewed until QA tests the build on the qa environment.
+**PM/DevOps asks QA before promoting `dev` → `qa`.** A timing check, not a
+review — QA owns that environment and a promotion mid-test-run changes the build
+under the tester. "Ok to push?" / "hold" or "go". No answer means go; it is a
+courtesy, not a lock. QA is not reviewing the code — nothing dev writes is
+independently reviewed until QA tests the build on the qa environment.
 
 **Announcing the promotion afterwards is automatic — do not rely on remembering
 it.** Pushing to `qa` opens or updates a **"Ready for QA" issue**

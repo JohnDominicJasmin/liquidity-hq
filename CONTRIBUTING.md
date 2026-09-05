@@ -297,9 +297,9 @@ the handoff point between them.**
    the change is not on `qa` yet.
 
 **Dev is not done when the PR is open.** Dev also merges its own feature branch
-into `dev`, promotes `dev` → `qa`, and deploys the qa service. QA opens the release
-PR that tells QA there is something to test (§7). What dev never does is merge
-to `main` or deploy production — see "Who merges and deploys" below.
+into `dev`. **PM/DevOps takes it from there** — the `dev` → `qa` promotion, the
+deploy, and the release path onward. What dev never does is promote out of `dev`,
+merge to `main`, or deploy anything — see "Who merges and deploys" below.
 
 This used to read "dev's responsibility ends here", which was true when there
 were two branches and is not now. Stopping at "PR is open" is how a change sits
@@ -311,9 +311,9 @@ on `dev` for a day with nobody wondering why it never reached staging.
 
    https://liquidity-hq-qa.onrender.com
 
-   That is the point of the `qa` branch: dev merges `dev` → `qa`, deploys it,
-   and QA gets a real running build with no setup. Testing a branch you built
-   locally tests your machine as much as the change.
+   That is the point of the `qa` branch: PM/DevOps merges `dev` → `qa`, deploys
+   it, and QA gets a real running build with no setup. Testing a branch you
+   built locally tests your machine as much as the change.
 
    Confirm you are looking at the right build before reporting anything — the
    commit `qa` is on should contain the change under test. If it does not, say
@@ -430,8 +430,10 @@ you're not on waiting game"*.
 
 **Three exceptions, unchanged and not negotiable:** merging to `main`, production
 deploys, and writes to the shared database. Those go to the owner directly, and
-dev confirms them with the owner even when QA relays them — see "Who merges and
-deploys". Everything else moves without a checkpoint.
+**whoever is asked confirms them with the owner even when another session
+relays them** — that now most often means PM/DevOps, since PM/DevOps holds the
+merge and the deploy. See "Who merges and deploys". Everything else moves
+without a checkpoint.
 
 ### Who merges and deploys
 
@@ -458,9 +460,9 @@ purpose — whoever merges is asserting the "How to test" steps passed, and they
 are asserting it on QA's word, not instead of it. **A merge past a QA "not
 ready" removes the only independent check the project has.**
 
-Dev's authority stops at `dev` and `qa` **for branches**. Dev may merge its own
-feature branches into `dev` and may promote `dev` → `qa`. It never promotes into
-`staging` and never merges to `main`.
+**Dev's authority stops at `dev`.** Dev may merge its own feature branches into
+`dev` and nothing further. It never promotes out of `dev` — `qa` included, which
+moved on 2026-09-05 — never merges to `main`, and never deploys.
 
 **Deploys were split from merges on 2026-08-10 and re-joined on 2026-09-05.**
 This section said dev deploys `qa` and `staging` on QA's request, for a stated
@@ -758,9 +760,9 @@ each.
 
 Merging `dev` → `qa` does **not** deploy. Like prod and dev, this service is
 `autoDeploy: no`, so the branch moving and the environment moving are two
-separate acts. **Whoever merges `dev` → `qa` also triggers the deploy** —
-normally dev, since getting a build in front of QA is part of the handoff. QA
-may trigger it too, for a re-deploy or after a config change.
+separate acts. **PM/DevOps merges `dev` → `qa` and triggers the deploy** — both
+halves, because getting a build in front of QA is part of the handoff. QA may
+trigger it too, for a re-deploy or after a config change.
 
 Render dashboard → `liquidity-hq-qa` → *Manual Deploy* → *Deploy latest
 commit*. Say in the PR or the handoff message that you have done it, otherwise
@@ -965,8 +967,8 @@ So the question is only ever *"are you mid-run?"*:
 > *...later...*
 > **QA:** Go.
 
-QA does not need a reason to say hold, and dev does not need to justify the
-promotion. If QA does not answer, dev promotes — this is a courtesy that
+QA does not need a reason to say hold, and PM/DevOps does not need to justify the
+promotion. If QA does not answer, PM/DevOps promotes — this is a courtesy that
 prevents wasted test runs, not a lock that stalls the pipeline waiting on
 someone who has gone home.
 
