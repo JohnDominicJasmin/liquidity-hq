@@ -303,9 +303,19 @@ Not a release problem — a standing limit on what the browser suite can ever pr
 
 **451 is Unavailable For Legal Reasons — a geo-block keyed on the caller's IP.** The runner is refused outright. **19 of 52 spec files** reference a blocked upstream or market-data path.
 
-**The dangerous half is the passes, not the failures.** A spec asserting a graceful-degradation path — *"when data is unavailable, show CANNOT MEASURE rather than a number"* — **passes when the upstream is blocked, and would pass identically if the feature were deleted.** `real-yield`'s *"an UNAVAILABLE yield says so"* is satisfied for free by a 451. So some of those 19 are not merely untested on CI; they are green for the wrong reason.
+**I claimed the dangerous half was the passes. QA audited all 19 and it is not — corrected 2026-09-06.**
 
-The 2,865 count came from reading the run's own logs rather than its failure list. Nobody has yet split the 19 into *asserts on a value from the upstream* versus *asserts on the degraded state*. Until someone does, **"496 passed" on a CI run is not what it appears**, and this has been true for as long as the suite has run on GitHub. Same class as `qa/TEST_GAPS.md` §11. Detail on #862.
+The worry was real in shape: a spec asserting a graceful-degradation path — *"when data is unavailable, show CANNOT MEASURE rather than a number"* — would pass when the upstream is blocked, and would pass identically if the feature were deleted. **Zero of the 19 are that.** QA read the assertions rather than the filenames, and every file that could plausibly hit the trap was written with a guard against it.
+
+**My named example was the worst of the wrong ones.** I wrote that `real-yield`'s *"an UNAVAILABLE yield says so"* is *"satisfied for free by a 451"*. It is not. `pinYield()` at `qa/e2e/real-yield.spec.ts:85` calls `page.route(MACRO_ROUTE)` and `route.fulfill()` at `:95` — the test feeds itself a hand-authored `'unknown'` fixture and a live 451 never enters the request path. Verified by reading the file, which is what I should have done before writing the sentence.
+
+The other 18 divide the same way: eight more intercept their own `/api/*` route with `route.fulfill()`; eight have no `page.route()` at all and are safe for individually-checked reasons — `marketDataUnavailable` returning a skip reason rather than a silent pass, explicit 4xx/5xx branches, counting socket *construction* rather than handshake success, counting request *volume* rather than response success. Several carry a comment naming the near-miss that produced the guard (`reconnect.spec.ts` citing #309's voided before-control, `klines-route.spec.ts` citing #228). This codebase has hit the trap before and built the guard each time.
+
+**How the wrong claim was produced, since that is the reusable part.** The grep behind "19 of 52" was honest — it matched *files referencing a blocked upstream*, and said so: *"a grep over files, not over assertions — it bounds the question rather than answering it."* I then wrote the bound as though it were the answer, and reached for the most alarming member of the set as an illustration without opening it. **A number that names its own limit is not evidence for the claim past that limit**, and the illustration is exactly where that slips.
+
+The 2,865 count came from reading the run's own logs rather than its failure list. The split QA has now done — *asserts on a value from the upstream* versus *asserts on the degraded state* — came back **19 / 0**, by reading source rather than by running the 19 against a live geo-blocked runner, which nobody has one of on demand.
+
+**What survives the correction, stated narrowly.** None of the 19 prove the live Binance integration works from a GitHub runner, because none of them can — the runner is refused. That is a real coverage gap and it is why `reconnect-cdp` fails. But it is *untested*, not *green for the wrong reason*, and those are different severities: the first is a hole you can see, the second is a hole that reports itself as covered. **"496 passed" means less than it looks on CI, but not the thing I said it meant.** Same class as `qa/TEST_GAPS.md` §11. Detail on #862 and #863.
 
 It also explains `reconnect-cdp` — sockets to `stream.binance.com` did not fail to reconnect, the upstream refuses the region, and #306's behaviour was never exercised.
 
