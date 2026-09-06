@@ -140,6 +140,12 @@ Dev Team found it by accident, going to watch a trigger fire on the first `stagi
 
 **Two more from the same day, both corrected by someone else measuring:** ruling that `--green-2` should be decoupled across 235 consumers, when Dev found a token that already existed one line below and made it a one-line change; and sizing #930's build a third too high by counting only this project's own overlays and never checking that klinecharts ships 27 indicators.
 
+**A third, on 2026-09-06, with a mechanism the other two do not have: the measurement was correct and it expired.** I handed Dev a component's state as *19 restated hex values, 13 rgba, 20 non-zero radii* and asked for the conversion. Dev checked before starting and found the file already converted — design-mode hook, terminal token block, wrapper class, and an `!important` radius rule in the stylesheet. **My figures were accurate when I took them and described a state that the dialogs work had since replaced.**
+
+This is worth separating from a wrong number. Nothing about the measurement was sloppy, and taking it more carefully would have changed nothing. **What made it wrong was quoting it later in the present tense.** On a repo with four sessions committing in parallel, any state another session can change — a file's contents, a branch head, a workflow's enabled flag, a deploy's status — is an observation with a timestamp, never a fact. Two of the three trap-16 instances above are the same shape once you look: the `CI disabled_manually` reading was also correct when taken.
+
+**So date the figure in the sentence that carries it** — *"as of `1f481a52`"*, *"measured 09:11"* — and re-run it before anyone acts on it. An undated number is read as present tense, which is precisely what makes it an instruction. **And tell the other sessions to re-check anything numeric this seat gives them.** Dev doing exactly that is what caught this one, and it is the only defence in this section that has ever worked prospectively rather than after the fact.
+
 **Three more, all self-caught, and the fact that they were nearly left out is itself the lesson.**
 
 - **A capped `gh run list` reported as a month.** First August CI count: **168 runs**. The real figure is **461**. The list was truncated at its default limit and I read a page as a total. **This is the same failure as the trigger model, arrived at more cheaply** — and it is the one to watch hardest in this seat, because a capped list reported as a total *is* an instruction.
