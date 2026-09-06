@@ -1,0 +1,119 @@
+/* The registry is data, so it is checkable without rendering anything - which
+ * matters here because the panel is terminal-only and `npm test` is bare
+ * `node --test` with no DOM. */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS, LIMITS,
+  AUTO_SET_ID, CUSTOM_SET_ID,
+  byGroup, findIndicator, indicatorLimit, defaultParams,
+} from '../lib/strategyRegistry.ts';
+
+test('the approved layout draws 21 indicators in 5 groups', () => {
+  /* 21 and 5 are counted off the owner-approved artifact, twice. Three numbers
+     were in circulation - 21 from the drawing, 7 from a stale wireframe, 20
+     from a miscount - and this is the one that came from the spec. */
+  assert.equal(INDICATORS.length, 21);
+  assert.equal(GROUPS.length, 5);
+});
+
+test('every group in the drawing has at least one indicator', () => {
+  /* Guards a rename: a group whose entries all move away would otherwise render
+     as an empty heading rather than fail. */
+  for (const g of GROUPS) {
+    assert.ok(byGroup(g).length > 0, `group ${g} is empty`);
+    assert.ok(GROUP_LABEL[g], `group ${g} has no label`);
+  }
+});
+
+test('ids are unique', () => {
+  const ids = INDICATORS.map(i => i.id);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test('only ADX and STOCH declare a basis, and each names a real klinecharts builtin', () => {
+  /* `basis` is the honesty field: klinecharts' DMI renders four figures
+     including adxr, and KDJ renders three where stochastic means two. Measured
+     against dist/index.esm.js - every other builtin is honest under its own
+     name, so this must not grow silently. */
+  const derived = INDICATORS.filter(i => i.basis).map(i => `${i.id}<-${i.basis}`).sort();
+  assert.deepEqual(derived, ['ADX<-DMI', 'STOCH<-KDJ']);
+});
+
+test('a derived entry is source "new", never "builtin"', () => {
+  /* If ADX were `builtin` the registry would be claiming klinecharts ships one.
+     It does not - it ships DMI, and we register a custom figure list. */
+  for (const i of INDICATORS) {
+    if (i.basis) assert.equal(i.source, 'new', `${i.id} derives from ${i.basis} but claims ${i.source}`);
+  }
+});
+
+test('the EMA ribbon stays an overlay on the candle pane', () => {
+  /* Not decoration. klinecharts folds every indicator's values into its pane's
+     auto Y-range, and a long EMA dragged the candle axis ~11x wider than the
+     visible price range - measured live on PEPE/BONK 15m, recorded at
+     KLineProChart.tsx:997. Turning this into a builtin reinstates that. */
+  const ema = findIndicator('EMA_RIBBON');
+  assert.ok(ema);
+  assert.equal(ema.source, 'overlay');
+  assert.equal(ema.pane, 'candle');
+});
+
+test('every param schema yields a default for each key', () => {
+  for (const i of INDICATORS) {
+    const d = defaultParams(i);
+    for (const p of i.paramSchema) {
+      assert.notEqual(d[p.key], undefined, `${i.id}.${p.key} has no default`);
+    }
+  }
+});
+
+test('numeric defaults sit inside their own min/max', () => {
+  /* A default outside its range makes the input invalid the moment it renders. */
+  for (const i of INDICATORS) {
+    for (const p of i.paramSchema) {
+      if (p.kind === 'int' || p.kind === 'float') {
+        assert.ok(p.default >= p.min && p.default <= p.max,
+          `${i.id}.${p.key} default ${p.default} outside ${p.min}..${p.max}`);
+      }
+      if (p.kind === 'enum') {
+        assert.ok(p.options.includes(p.default), `${i.id}.${p.key} default not in options`);
+      }
+    }
+  }
+});
+
+test('free gets one indicator and pro gets three', () => {
+  assert.equal(indicatorLimit(false), 1);
+  assert.equal(indicatorLimit(true), 3);
+  assert.equal(LIMITS.free, 1);
+  assert.equal(LIMITS.pro, 3);
+});
+
+test('"Let the read choose" is first, is empty, and Custom is last', () => {
+  /* First and default because the owner's reason is that not every trader has
+     their own strategy - so the read choosing for itself is what happens when a
+     user does nothing. Empty is the valid state, not an error. */
+  assert.equal(STRATEGY_SETS[0].id, AUTO_SET_ID);
+  assert.equal(STRATEGY_SETS[0].indicators.length, 0);
+  assert.equal(STRATEGY_SETS[STRATEGY_SETS.length - 1].id, CUSTOM_SET_ID);
+});
+
+test('every preset names indicators that exist', () => {
+  for (const s of STRATEGY_SETS) {
+    for (const id of s.indicators) {
+      assert.ok(findIndicator(id), `set ${s.id} names unknown indicator ${id}`);
+    }
+  }
+});
+
+test('CONTROL: the lookups can fail', () => {
+  /* Without this, every assertion above passes on a registry that returns
+     nothing for everything. Both directions, because a finder that matches
+     anything is as useless as one that matches nothing. */
+  assert.equal(findIndicator('NOT_AN_INDICATOR'), undefined);
+  assert.ok(findIndicator('RSI'));
+  // @ts-expect-error - deliberately outside the union
+  assert.equal(byGroup('not_a_group').length, 0);
+  assert.ok(byGroup('trend').length > 0);
+});
