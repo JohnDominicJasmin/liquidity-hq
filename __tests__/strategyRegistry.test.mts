@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS, LIMITS,
   AUTO_SET_ID, CUSTOM_SET_ID,
-  byGroup, findIndicator, indicatorLimit, defaultParams, describeSelection,
+  byGroup, findIndicator, indicatorLimit, defaultParams, describeSelection, canRender,
 } from '../lib/strategyRegistry.ts';
 
 test('the approved layout draws 21 indicators in 5 groups', () => {
@@ -172,6 +172,30 @@ test('every builtin id is a real klinecharts indicator name', () => {
     }
     if (i.basis) {
       assert.ok(KLINECHARTS.has(i.basis), `${i.id} derives from ${i.basis}, which klinecharts does not ship`);
+    }
+  }
+});
+
+test('canRender is true for exactly the entries the chart can draw', () => {
+  /* Derived from `source` rather than a stored flag, because a flag can
+     disagree with reality. The split itself is pinned by the test above and by
+     the klinecharts-name check, so this only has to hold the derivation. */
+  for (const i of INDICATORS) {
+    assert.equal(canRender(i), i.source !== 'new', `${i.id}: canRender disagrees with source`);
+  }
+  assert.equal(INDICATORS.filter(canRender).length, 9);
+  assert.equal(INDICATORS.filter(i => !canRender(i)).length, 12);
+});
+
+test('a preset never names an indicator that cannot draw', () => {
+  /* Choosing a preset that selects a chip which then explains it is unavailable
+     is a worse first experience than a preset that works. When a `new` entry is
+     implemented it can go back into a set - this fails until then. */
+  for (const set of STRATEGY_SETS) {
+    for (const id of set.indicators) {
+      const entry = findIndicator(id);
+      assert.ok(entry, `set ${set.id} names unknown indicator ${id}`);
+      assert.ok(canRender(entry), `set ${set.id} names ${id}, which cannot draw yet`);
     }
   }
 });

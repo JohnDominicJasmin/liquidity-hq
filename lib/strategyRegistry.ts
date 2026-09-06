@@ -259,7 +259,11 @@ export const CUSTOM_SET_ID = 'custom';
 export const STRATEGY_SETS: readonly StrategySet[] = [
   { id: AUTO_SET_ID, label: 'Let the read choose', indicators: [] },
   { id: 'liquidity_sweep', label: 'Liquidity Sweep', indicators: ['EMA_RIBBON', 'LIQ_CLUSTERS'] },
-  { id: 'trend_follow',    label: 'Trend Follow',    indicators: ['EMA_RIBBON', 'ADX'] },
+  /* SAR rather than ADX: a preset may only name indicators that actually
+     draw, or choosing it selects a chip that then explains it cannot
+     render - which is a worse first experience than a preset that works.
+     ADX goes back in when it is implemented; the test below enforces it. */
+  { id: 'trend_follow',    label: 'Trend Follow',    indicators: ['EMA_RIBBON', 'SAR'] },
   { id: 'mean_reversion',  label: 'Mean Reversion',  indicators: ['RSI', 'BOLL'] },
   { id: CUSTOM_SET_ID,     label: 'Custom',          indicators: [] },
 ];
@@ -282,4 +286,24 @@ export function describeSelection(ids: readonly string[]): string | null {
     .map(e => (e.basis ? `${e.label} (from ${e.basis})` : e.label));
   if (!names.length) return null;
   return names.join(', ');
+}
+
+/** Whether selecting this entry actually draws anything on the chart today.
+ *
+ *  A `builtin` is handed to klinecharts' `createIndicator`; an `overlay` is
+ *  already drawn from its own prop. A `new` entry has no calculation yet, so
+ *  selecting it would accept the click and do nothing.
+ *
+ *  THIS EXISTS TO BE SHOWN, NOT TO SILENTLY FILTER. The 21 chips in 5 groups
+ *  are the approved design and the list stays whole - what changes is that the
+ *  twelve which cannot draw say so, in the accessible name as well as visually.
+ *  A chip that accepts a click and does nothing is the same silent-failure shape
+ *  as a check that cannot fail, and it would be sitting on the owner's own
+ *  screen.
+ *
+ *  Derived from `source` rather than stored as its own flag: a flag can disagree
+ *  with reality, and __tests__/strategyRegistry pins the source split against
+ *  the names klinecharts actually ships. */
+export function canRender(entry: IndicatorEntry): boolean {
+  return entry.source !== 'new';
 }
