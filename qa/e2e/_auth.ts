@@ -51,6 +51,14 @@ export const FIXTURES = {
    *  digit `1` from CI logs (#107). */
   bPriceAlertId: process.env.E2E_B_PRICE_ALERT_ID ?? '',
 
+  /** Account C - the sacrificial fixture for #243's real-purchase run
+   *  (#239). Referenced by nothing else, deliberately: it exists to be the
+   *  one account a real LemonSqueezy purchase is allowed to mutate, without
+   *  touching A or B's pinned entitlement states that entitlements.spec.ts
+   *  depends on. */
+  cEmail: process.env.E2E_USER_C_EMAIL ?? '',
+  cPassword: process.env.E2E_USER_C_PASSWORD ?? '',
+  cId: process.env.E2E_USER_C_ID ?? '',
 } as const;
 
 
@@ -121,6 +129,33 @@ export const ENTITLEMENT_READY = AUTH_READY;
 export const ENTITLEMENT_SKIP_REASON =
   'entitlement fixtures absent - ' + AUTH_SKIP_REASON;
 
+/* ACCOUNT C, SEPARATELY GATED FROM A/B (#243).
+ *
+ * C's password is not in this checkout as of 2026-09-06 - the issue that
+ * created this fixture says so explicitly and asks whoever has it to rotate
+ * it first rather than hand over the value that already sits in a session
+ * transcript. So this is its own readiness flag rather than folded into
+ * AUTH_READY: A/B's 20 existing authenticated tests must keep running
+ * whether or not C's password ever arrives, and C's absence must not read as
+ * "the authenticated surface is uncovered" when it already is, by A and B. */
+const REQUIRED_ACCOUNT_C: ReadonlyArray<readonly [name: string, value: string]> = [
+  ['NEXT_PUBLIC_SUPABASE_URL', SUPABASE_URL],
+  ['NEXT_PUBLIC_SUPABASE_ANON_KEY', SUPABASE_ANON],
+  ['E2E_USER_C_EMAIL', FIXTURES.cEmail],
+  ['E2E_USER_C_PASSWORD', FIXTURES.cPassword],
+  ['E2E_USER_C_ID', FIXTURES.cId],
+];
+
+const MISSING_ACCOUNT_C = REQUIRED_ACCOUNT_C.filter(([, v]) => !v).map(([n]) => n);
+
+export const ACCOUNT_C_READY = MISSING_ACCOUNT_C.length === 0;
+
+export const ACCOUNT_C_SKIP_REASON =
+  `account C fixtures absent - MISSING: ${MISSING_ACCOUNT_C.join(', ')}. ` +
+  'E2E_USER_C_PASSWORD in particular is not yet set anywhere QA has access to - ' +
+  'see #239/#243. Skipping rather than failing: the LemonSqueezy real-purchase ' +
+  'harness cannot run without it, and that is a fixture gap, not a product defect.';
+
 /** Password grant against the dev project. Throws loudly - a silent auth failure
  *  would make every cross-account assertion trivially "pass". */
 export async function signIn(email: string, password: string): Promise<string> {
@@ -164,11 +199,11 @@ export async function signIn(email: string, password: string): Promise<string> {
  */
 export async function signedInContext(
   browser: import('@playwright/test').Browser,
-  who: 'a' | 'b' = 'a',
+  who: 'a' | 'b' | 'c' = 'a',
   opts: { viewport?: { width: number; height: number } } = {},
 ) {
-  const email = who === 'a' ? FIXTURES.aEmail : FIXTURES.bEmail;
-  const password = who === 'a' ? FIXTURES.aPassword : FIXTURES.bPassword;
+  const email = who === 'a' ? FIXTURES.aEmail : who === 'b' ? FIXTURES.bEmail : FIXTURES.cEmail;
+  const password = who === 'a' ? FIXTURES.aPassword : who === 'b' ? FIXTURES.bPassword : FIXTURES.cPassword;
 
   const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
