@@ -11,7 +11,7 @@
 
 **Conflicts.** None. The frame is authored end to end — a search for `: ` inside any style attribute returns zero. Where the old frame and README disagreed, this file carries the reasoned reconstruction: rail **352** (three sibling frames), verdict **34px** desktop (README:103), verdict **26px** mobile (*ratio argument only — the softest of the five, do not cite as measured*), band **full 1440**, rail height **flex**.
 
-**Structure decision:** one scroll. All 15 modules in production order, restyled. No regrouping, no tabs. Tabs are a separate proposal for the owner.
+**Structure decision:** one scroll. All 14 modules in production order, restyled. *(15 until the heatmap was struck — see below.)* No regrouping, no tabs. Tabs are a separate proposal for the owner.
 
 ---
 
@@ -31,7 +31,7 @@ Ground `--bg0`. `border-radius: 0` on every element. Regions separated by `1px -
 
 **Body split:** main `flex: 1; min-width: 0`, rail **352** fixed, `border-right: 1px --bdr` on the main column.
 
-**Main column, in order:** chart 430 → Confluence → (`MultiTFAlignment` | `MarketStructure`) → (`EMASignal` | `AbsorptionDetector`) → `LiqHeatmap` fills.
+**Main column, in order:** chart 430 → Confluence → (`MultiTFAlignment` | `MarketStructure`) → (`EMASignal` | `AbsorptionDetector`). *`LiqHeatmap` stood last and is struck — see the note under Acceptance criteria 3.*
 
 The two paired rows are `display: flex`, each half `flex: 1; min-width: 0`, divided by `1px --bdr`.
 
@@ -67,7 +67,7 @@ A separate layout, not a reflow. **Breakpoint 768px.**
 
 ---
 
-## Panel inventory — the 15 modules
+## Panel inventory — the 14 modules *(15 before the heatmap was struck)*
 
 Production order preserved. Nothing dropped.
 
@@ -245,7 +245,7 @@ Labels are DB-driven and can change length at runtime. Nothing on this route may
 | Error | as empty, plus a `STALE` marker in the band's right cell. No retry button in the band; the re-run action already exists. |
 | Signed out | route redirects to `/login`; no Arena markup mounts |
 | Free | Confluence locked card, Absorption absent, `UsageMeter` at `n of 3`, gated timeframes locked |
-| Pro | all 15 modules render |
+| Pro | all 14 modules render |
 
 ---
 
@@ -312,10 +312,30 @@ Criteria 12–18 name their fixture. If the store cannot be stubbed, mark them u
 **Structure**
 1. Desktop renders 7 top-level regions in order: nav, ticker, hint band, snapshot band, verdict band, timeframe row, body.
 2. Body is exactly 2 columns; the rail's `offsetWidth === 352`.
-3. Main column contains 5 panels in order: chart, confluence, (MTF | structure), (EMA | absorption), heatmap.
+3. Main column contains **4** panels in order: chart, confluence, (MTF | structure), (EMA | absorption). *Was 5 with a heatmap last; struck 2026-09-06, see the note below.*
 4. Rail contains 5 panels in order: usage, clusters, why, evidence, session history.
-5. All 15 named modules render for an entitled user.
+5. All **14** named modules render for an entitled user.
 6. Every element computes `border-radius: 0px`.
+
+> **The liquidation heatmap is STRUCK from this spec, 2026-09-06 (#853).** Its
+> data source is gone: `store.btcLiqLevels` is permanently empty since Coinglass
+> retired the v2 endpoints, v4 answers 401 on this tier, and
+> `pendings/PENDING.md:18` defers the upgrade until revenue. The current design
+> had already removed the card, recording that it *"had drawn zero times, for
+> every coin, in every theme."*
+>
+> **Struck rather than left as an unsatisfiable criterion.** A criterion nobody
+> can meet trains readers to treat a failing conformance run as normal, which is
+> worse than a missing criterion. It is **not** repurposed to `LiqFeed` either:
+> that is REALIZED liquidations and this slot specified PREDICTED levels, and
+> §Honest labels already settles that class of question — `Liq 24h` ships as
+> `Liq 15m` because *"copying a mock label onto a different measurement makes
+> the screen lie."* A realized-liquidation panel may be right for this space; it
+> would be a **new panel**, filed separately, not a restore.
+>
+> The module count therefore reads **14**, not 15. Every line below that said 15
+> is amended in place rather than deleted, so the change is visible.
+
 
 **Geometry — desktop 1440**
 7. Nav 44, ticker 34, hint band 36, snapshot band 88, timeframe row 42.
