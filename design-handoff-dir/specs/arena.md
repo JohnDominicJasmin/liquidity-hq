@@ -141,7 +141,9 @@ A cleared penalty is a *good* outcome rendered quiet. It is not green.
 
 ### Multi-timeframe
 
-`rsi > 57` → `BULLISH` `--green`; `rsi < 43` → `BEARISH` `--red`; otherwise `NEUTRAL` `--txt3` with the bar in `#2a2e32`. The bar's 30% and 70% gridlines are `#2a2e32` and are not signals.
+`rsi > 57` → `BULLISH` `--green`; `rsi < 43` → `BEARISH` `--red`; otherwise `NEUTRAL` `--txt3` with the bar in `TERMINAL_MTF_NEUTRAL_BAR`. The bar's 30% and 70% gridlines are `TERMINAL_MTF_GRIDLINE` and are not signals.
+
+> **Both were a bare `#2a2e32` until 2026-09-06 (#893).** That value is the *pre-amendment* `--border-input`, superseded on #526, so it read as drift with `#5e646b` waiting — and it was not: `#2a2e32` was never any token, amended or original. The owner ruled to name it rather than substitute, because every candidate changes what renders. The two names hold the same value deliberately: a state fill and a reference mark are two roles that currently coincide, and merging them later is one line where splitting them later is archaeology. Both live in `lib/terminalTokens.ts`; neither has a light-theme value, which is stated there rather than left silent.
 
 ### Market structure
 
@@ -329,8 +331,10 @@ Criteria 12–18 name their fixture. If the store cannot be stubbed, mark them u
 15. Fixture: null evidence value. That row renders an em dash in `--txt2` and no numeral.
 16. `CB PREM` renders an em dash under every fixture. The string `Liq 24h` appears nowhere.
 17. Confluence rows with a cleared penalty compute `--txt3` and read `CLEAR` — not `--green`.
-18. MTF rows with `43 ≤ rsi ≤ 57` compute `--txt3` with the bar at `#2a2e32`.
-19. Every colour on the route is one of the 15 tokens in `lib/terminalTokens.ts`.
+18. MTF rows with `43 ≤ rsi ≤ 57` compute `--txt3` with the bar at `TERMINAL_MTF_NEUTRAL_BAR` and its 30%/70% gridlines at `TERMINAL_MTF_GRIDLINE`.
+19. Every colour on the route is in **`TERMINAL_ALLOWED`** in `lib/terminalTokens.ts` — the exported list, not a count. It was written as "one of the 15 tokens" until 2026-09-06; `TERMINAL_COLORS` holds 20 today, so the number was wrong and would go wrong again. Point at the list a check can read.
+
+   **One exception, ruled by the owner on #889 and written here so it is not flagged as drift:** the liquidation heatmap ground `#0a0710` and the seven `MAGMA_RAMP` stops stay literal. The ramp is a continuous density scale — no token expresses a gradient stop, and tokenising it would name colours that appear in one component. The ground sits under that gradient rather than beside palette colours, so a token would imply it participates in a system it does not. `specs/light-theme-tokens.md:32` already records that `#0a0710` is deliberately not swapped for light; this criterion now agrees with it instead of contradicting it.
 
 **Timeframes**
 20. Exactly 3 chips render a padlock glyph, and their labels are `1m`, `5m`, `15m`.
