@@ -3,6 +3,7 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboarding } from './OnboardingProvider';
 import { useAuth } from './AuthProvider';
+import { activatable } from '@/lib/activatable';
 
 const ITEMS = [
   { key: 'telegram'   as const, label: 'Connect Telegram alerts', href: '/alerts' },
@@ -42,7 +43,11 @@ export default function SetupChecklist() {
 
   if (collapsed) {
     return (
-      <div className="ob-checklist ob-checklist-mini" onClick={() => setCollapsed(false)}>
+      /* role/tabIndex rather than a <button> (#939): this element already
+         contains the dismiss <button>, and a button inside a button is
+         invalid. Expanding was click-only, so a keyboard user who collapsed
+         the checklist could never get it back. */
+      <div className="ob-checklist ob-checklist-mini" {...activatable(() => setCollapsed(false), false)}>
         <span className="ob-cl-mini-text">Setup {doneCount}/4</span>
         <div className="ob-cl-mini-track">
           <div className="ob-cl-mini-fill" style={{ width: `${(doneCount / 4) * 100}%` }} />

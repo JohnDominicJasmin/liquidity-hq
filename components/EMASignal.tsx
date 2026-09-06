@@ -4,6 +4,7 @@ import { CoinId } from '@/lib/marketStore';
 import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
+import { activatable } from '@/lib/activatable';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
@@ -189,10 +190,15 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             const bg   = pass === true ? 'color-mix(in srgb, var(--green-2) 7%, transparent)' : pass === false ? 'color-mix(in srgb, var(--red) 7%, transparent)' : 'rgba(255,255,255,0.02)';
             const icon = pass === true ? '✓' : pass === false ? '✗' : '-';
             return (
+              /* #939: the explain action was click-only. Spread conditionally -
+                 a row that cannot explain must not advertise a role or take
+                 focus, or the keyboard tab order fills with dead stops. */
               <div
                 key={i}
                 title={canExplain ? `Click to explain "${c.label}" in plain English` : c.detail}
-                onClick={canExplain ? () => fireExplain(buildConditionPrompt(c.label, c.pass, c.detail, coin!, tf), coin!) : undefined}
+                {...(canExplain
+                  ? activatable(() => fireExplain(buildConditionPrompt(c.label, c.pass, c.detail, coin!, tf), coin!))
+                  : {})}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '5px 8px', borderRadius: 6,

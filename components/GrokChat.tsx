@@ -16,6 +16,7 @@ import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
 import CoinMultiSelect from './CoinMultiSelect';
+import { activatable } from '@/lib/activatable';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -823,10 +824,14 @@ export default function GrokChat() {
             ) : (
               <div className="gchat-hist-list">
                 {convos.map(c => (
+                  /* #939: loading a past conversation was click-only, so the
+                     whole history was unreachable from the keyboard. role and
+                     tabIndex rather than a <button> because the row carries a
+                     delete <button> of its own. */
                   <div
                     key={c.id}
                     className={`gchat-hist-item${c.id === currentIdRef.current ? ' gchat-hist-item-active' : ''}`}
-                    onClick={() => loadConvo(c)}
+                    {...activatable(() => loadConvo(c))}
                   >
                     <span
                       className="gchat-hist-coin"
