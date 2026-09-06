@@ -100,13 +100,22 @@ function specFor(name) {
   return candidates.find(p => fs.existsSync(p)) || null;
 }
 
+/* design-handoff-dir/README.md is the landing handoff, not a generic one — it
+ * only counts for the Landing screen. Arena has its own, README-arena.md
+ * (#889/#891; the original design_handoff_arena/README.md was deleted by
+ * ed219ccd on 2026-09-01 and did not exist again until #891 restored it under
+ * this new name). Neither top-level file is a valid fallback for any other
+ * screen. This mirrors specFor()'s arena unshift above, one candidate per
+ * screen instead of reordering a shared list — the reorder is what produced
+ * #889: arena kept design-handoff-dir/README.md as its first candidate, so it
+ * matched landing's README and reported readme: true throughout the five days
+ * the real Arena README did not exist, while Landing's own committed README
+ * was excluded by the same shift and reported readme: false. */
 function readmeFor(name) {
-  const candidates = [
-    path.join(ROOT, 'README.md'),
-    path.join(PAGES, `${name}.md`),
-    path.join(PAGES, 'README.md'),
-  ];
-  if (!/^arena/i.test(name)) candidates.shift();
+  const candidates = [];
+  if (/^arena/i.test(name)) candidates.push(path.join(ROOT, 'README-arena.md'));
+  if (/^landing/i.test(name)) candidates.push(path.join(ROOT, 'README.md'));
+  candidates.push(path.join(PAGES, `${name}.md`), path.join(PAGES, 'README.md'));
   return candidates.find(p => fs.existsSync(p)) || null;
 }
 
@@ -177,8 +186,8 @@ const noDesktop = miss('desktop'), noMobile = miss('mobile');
 const staleAny = rows.filter(r => r.staleTokens.length);
 
 const report = [
-  ['Specs (normative, numbered acceptance criteria)', noSpec, 'Only Arena has one. Without a spec there is nothing to score an implementation against.'],
-  ['READMEs (fidelity, extend rules, colour-is-data, open decisions)', noReadme, 'Only Arena has one.'],
+  ['Specs (normative, numbered acceptance criteria)', noSpec, `${n - noSpec.length} of ${n} have one so far. Without a spec there is nothing to score an implementation against.`],
+  ['READMEs (fidelity, extend rules, colour-is-data, open decisions)', noReadme, `${n - noReadme.length} of ${n} have one so far.`],
   ['Light-theme artboards', noLight, 'The product ships a light theme and the owner requires it audited. No design exists for it.'],
   ['Desktop 1440 artboards', noDesktop, ''],
   ['Mobile 390 artboards', noMobile, ''],

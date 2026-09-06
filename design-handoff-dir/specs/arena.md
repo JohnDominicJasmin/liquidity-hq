@@ -251,6 +251,23 @@ Labels are DB-driven and can change length at runtime. Nothing on this route may
 
 Pairs requiring 4.5:1: `--txt`/`--bg0`, `--txt`/`--bg1`, `--txt2`/`--bg0`, `--txt2`/`--bg1`, `--txt3`/`--bg0`, `--bg0`/`--accent`, `--green`/`--bg1`, `--red`/`--bg1`, `--green`/`--bg0`, `--red`/`--bg0`.
 
+> **Amendment — 2026-09-01, owner-approved.** This clause and the original
+> `--txt3` value were in direct conflict. `--txt3` `#5a5f66` on `--bg0`
+> `#08090a` measures **3.10:1** — the pair is named in the list above, and it
+> failed the bar the list sets. On the original `--bg1` `#0c0d0f` it is
+> **3.03:1**.
+>
+> `--txt3` is now **`#7c828a`** and `--bg1` is now **`#141517`**: **5.14:1** on
+> `--bg0`, **4.78:1** on `--bg1`. `--border-input` is now **`#5e646b`**, for
+> WCAG 1.4.11's separate 3:1 component-boundary bar (**1.36:1** before,
+> **3.14:1** after). Every pair above now clears 4.5:1.
+>
+> Rationale, originals, and the alternatives considered are in the README's
+> Design tokens amendment.
+>
+> **Acceptance criterion 19** — "every colour on the route is one of the 15
+> tokens in `lib/terminalTokens.ts`" — is scored against the **amended** values.
+
 `--txt4` appears only on snapshot notes and structure timestamps — non-essential, paired with a labelled value. `--mark-idle` is a 2px marker, decorative.
 
 **Never apply alpha to a token to de-emphasise it.**

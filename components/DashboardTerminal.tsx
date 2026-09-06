@@ -28,6 +28,7 @@ import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
+import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -188,18 +189,27 @@ function TCoinSidebar() {
                   fixed, now ratcheted by terminalTypographyOwnership.test.mts.
                   A base .csb2-health-badge rule carries the current design's
                   size, so only ownership moved, not the rendering. */}
-              {d?.price && (
-                <span className={`csb2-health-badge grade-${health.grade.toLowerCase()}`} style={{
-                  fontWeight: 800, lineHeight: 1,
-                  padding: '2px 4px', borderRadius: 0,
-                  color: health.color,
-                  background: withAlpha(health.color, '22'),
-                  border: `1px solid var(--bdr)`,
-                  letterSpacing: '.04em', flexShrink: 0,
-                }}>
-                  {health.grade}
-                </span>
-              )}
+              {/* NOT gated on price (#899) - see the twin of this comment in
+                  app/dashboard/page.tsx for the measurement. Short version:
+                  computeCoinHealth's `none` branch carries COIN_HEALTH_NO_DATA,
+                  and `d?.price &&` made that label unreachable here while
+                  /arena and /markets announced it. Removing the guard changes
+                  no geometry - row height, card height and the x of the name
+                  and price are identical with the badge present and absent,
+                  verified against a control probe that did move them. */}
+              <span
+                className={`csb2-health-badge grade-${health.grade.toLowerCase()}`}
+                {...healthGradeA11y(health.grade, health.labelKey, t)}
+                style={{
+                fontWeight: 800, lineHeight: 1,
+                padding: '2px 4px', borderRadius: 0,
+                color: health.color,
+                background: withAlpha(health.color, '22'),
+                border: `1px solid var(--bdr)`,
+                letterSpacing: '.04em', flexShrink: 0,
+              }}>
+                {health.grade}
+              </span>
               <span className="csb2-price">
                 {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
               </span>

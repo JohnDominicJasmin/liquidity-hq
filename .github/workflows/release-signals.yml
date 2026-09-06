@@ -115,8 +115,20 @@ jobs:
           fi
 
           git log --format=%s origin/main..origin/staging > /tmp/subjects.txt
-          grep -oE 'Merge pull request #[0-9]+' /tmp/subjects.txt \
+
+          # Same two-format problem as ready-for-qa.yml, and the same fix. See the
+          # long comment there. Short version: `Merge pull request #N from ...` is
+          # github's default and `Merge PR #N: ...` is what `gh pr merge --subject`
+          # writes, both are in this repo's history, and only the first was matched.
+          # A release PR built from the narrow pattern silently omits the "How to
+          # test" and "Risk level" of every PR merged the other way - in a document
+          # whose entire purpose is to be the complete list.
+          grep -oE '^Merge (pull request|PR) #[0-9]+' /tmp/subjects.txt \
             | grep -oE '[0-9]+' | sort -u > /tmp/prs.txt || true
+
+          # Merges the pattern could not claim, counted independently of it.
+          git log --merges --format=%s origin/main..origin/staging > /tmp/merges.txt || true
+          grep -vE '^Merge (pull request|PR) #[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
 
           {
             echo "**QA Team** — opened automatically when \`staging\` moved."
@@ -144,6 +156,22 @@ jobs:
             else echo "_No \"How to test (QA)\" section — ask dev before signing this off._" >> /tmp/body.md; fi
             echo >> /tmp/body.md
           done < /tmp/prs.txt
+
+          # Merges with no readable PR number. In a release PR this matters more
+          # than anywhere else: whoever merges to `main` is asserting the test
+          # steps passed, and they can only assert that about steps they were
+          # shown. An omission here reads as a smaller release, not as a gap.
+          if [ -s /tmp/unmatched.txt ]; then
+            {
+              echo "## Merges with no PR number this workflow could read"
+              echo
+              echo "**In this release, with no \"How to test\" or \"Risk level\" below.**"
+              echo "Do not sign this release off without accounting for them."
+              echo
+              sed 's/^/- /' /tmp/unmatched.txt
+              echo
+            } >> /tmp/body.md
+          fi
 
           # Risk level is collected the same way: the caveats a PR author flagged
           # are exactly what a release reviewer needs and never sees otherwise.
@@ -185,6 +213,133 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # ── a release candidate sitting on staging with nobody told ──────────────
+      #
+      # #885. When `staging` moves, the only visible artefact is the Ready-for-QA
+      # issue CLOSING - which reads as work finishing, not as work waiting. The
+      # `release-pr` job above would open the PR, but it is gated on
+      # `vars.RELEASE_PR_PAUSED != '1'` and that has been `1` since 2026-08-09, so
+      # in practice the release PR is opened by hand and nothing notices if it is
+      # not. `prod-drift` below only compares production against `main`; a
+      # candidate parked on `staging` is not in its scope.
+      #
+      # This step lives in prod-drift's job rather than release-pr's ON PURPOSE:
+      # release-pr is double-gated (`github.ref == staging` AND not paused) and
+      # would never run this. prod-drift runs on push to main, on the daily
+      # schedule and on workflow_dispatch.
+      #
+      # IT IS DELIBERATELY BEFORE THE PRODUCTION CHECK. That step exits 0 early
+      # when /api/version is unreachable - correctly, since a failed measurement
+      # is not evidence. But a parked candidate is measurable from git alone and
+      # must not be silenced by an unrelated network failure.
+      #
+      # WHAT THIS CANNOT DO, stated because the failure mode is an absence of
+      # alerts: it only fires when Actions run. Between 2026-08-14 and 2026-09-04
+      # nothing ran at all while 700 commits landed on `main`, and `gh workflow
+      # list` reported `active` throughout - that command answers whether a
+      # workflow is enabled, not whether Actions are running. A silent check and
+      # a healthy repository look identical. This narrows the gap; it does not
+      # close it.
+      #
+      # Two more timing limits, named here rather than discovered as an absence:
+      #
+      #   IT FIRES ON THE DAILY, NOT ON THE PUSH THAT PARKS THE CANDIDATE. The
+      #   push that moves `staging` runs `release-pr` (gated) and nothing else,
+      #   so a warning can be up to ~24h late. That is late, not silent, and it
+      #   is the tradeoff for living in the job that is never gated.
+      #
+      #   IT CANNOT WARN ABOUT THE RELEASE CARRYING IT. `schedule` and
+      #   `workflow_dispatch` run the DEFAULT BRANCH's copy of a workflow, so
+      #   this step does nothing on the daily until it reaches `main`. The first
+      #   candidate it can report is the one after the release that ships it.
+      - name: Warn when a release candidate is parked on staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          git rev-parse --verify --quiet origin/staging >/dev/null || {
+            echo "no staging branch - nothing to park"; exit 0; }
+
+          AHEAD=$(git rev-list --count origin/main..origin/staging)
+          PRS=$(git log --format=%s origin/main..origin/staging \
+                  | grep -cE '^Merge (pull request|PR) #[0-9]+' || true)
+
+          # A FAILED QUERY MUST NOT BECOME AN ALARM.
+          #
+          # `2>/dev/null || true` would silence an expected empty result and an
+          # unexpected API failure with the SAME empty string:
+          #
+          #     OPEN_RELEASE (no PR open)      = ""
+          #     OPEN_RELEASE (rate-limited)    = ""      <- indistinguishable
+          #
+          # A blip would then file "a release candidate is parked" while the
+          # release PR is sitting open, and the OPEN_ISSUE lookup below is worse -
+          # on failure it reads as "no existing issue" and opens a duplicate.
+          #
+          # This is the same rule the production check further down already
+          # applies to an unreachable /api/version, and the reason is stronger
+          # here: THIS IS A WARNING SYSTEM, AND THE FIRST FALSE POSITIVE IS WHAT
+          # TEACHES PEOPLE TO IGNORE IT. Bail rather than guess.
+          #
+          # Any open staging -> main PR counts, however it was opened. The point
+          # is whether the release is visible somewhere, not who made it visible.
+          if ! OPEN_RELEASE=$(gh pr list --repo "$REPO" --base main --head staging \
+                                --state open --json number --jq '.[0].number // empty'); then
+            echo "could not list open release PRs - reporting nothing rather than guessing"
+            exit 0
+          fi
+
+          gh label create release-parked --repo "$REPO" --color FBCA04 \
+            --description "staging is ahead of main with no open release PR" 2>/dev/null || true
+
+          if ! OPEN_ISSUE=$(gh issue list --repo "$REPO" --label release-parked --state open \
+                              --json number --jq '.[0].number // empty'); then
+            echo "could not list release-parked issues - reporting nothing rather than guessing"
+            exit 0
+          fi
+
+          echo "staging ahead of main by $AHEAD commit(s), release PR: ${OPEN_RELEASE:-none}"
+
+          if [ "$AHEAD" = "0" ] || [ -n "$OPEN_RELEASE" ]; then
+            if [ -n "$OPEN_ISSUE" ]; then
+              if [ "$AHEAD" = "0" ]; then
+                REASON="\`staging\` no longer leads \`main\` - the release shipped."
+              else
+                REASON="Release PR #$OPEN_RELEASE is open, so the candidate is visible."
+              fi
+              gh issue close "$OPEN_ISSUE" --repo "$REPO" --comment "$REASON Closing automatically."
+            fi
+            exit 0
+          fi
+
+          {
+            echo "**Automated check** — a release candidate is sitting on \`staging\` with no release PR."
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| \`staging\` is ahead of \`main\` by | **$AHEAD commit(s)**, $PRS PR(s) |"
+            echo "| open \`staging\` -> \`main\` PR | **none** |"
+            echo
+            echo "\`CONTRIBUTING.md\` calls the release PR the aggregation point — the"
+            echo "\"How to test\" for the whole release, the merge/deploy/re-check/tag"
+            echo "sequence, and the collected could-not-verify caveats. It names promoting"
+            echo "without one as **\"deploying into silence\"**."
+            echo
+            echo "Open it, or say on this issue why the candidate is parked deliberately."
+            echo
+            echo "Closes itself when a release PR is opened, or when \`staging\` stops leading \`main\`."
+          } > /tmp/parked.md
+
+          if [ -n "$OPEN_ISSUE" ]; then
+            gh issue edit "$OPEN_ISSUE" --repo "$REPO" --body-file /tmp/parked.md
+          else
+            gh issue create --repo "$REPO" --label release-parked \
+              --title "A release candidate is parked on \`staging\` with no release PR" \
+              --body-file /tmp/parked.md
+          fi
 
       - name: Compare production against main, and check main is tagged
         env:

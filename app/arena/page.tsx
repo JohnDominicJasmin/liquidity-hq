@@ -35,6 +35,7 @@ import PageHint from '@/components/PageHint';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
+import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
@@ -1454,8 +1455,13 @@ function ArenaContent() {
           {/* Coin Health grade badge */}
           {(() => {
             const h = computeCoinHealth(store.coins[selectedCoin]);
+            /* `title` stays for the mouse tooltip; it is NOT the accessible
+               name here. title only names an element as a last-resort fallback
+               and is skipped by several screen readers, so #874's fix does not
+               lean on it - aria-label wins the precedence and is what gets
+               announced. */
             return (
-              <span title={h.label} style={{
+              <span title={h.label} {...healthGradeA11y(h.grade, h.labelKey, t)} style={{
                 fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                 padding: '2px 6px', borderRadius: 6, flexShrink: 0,
                 color: h.color, background: withAlpha(h.color, '22'),

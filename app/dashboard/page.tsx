@@ -29,6 +29,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 import PerpSpotCard from '@/components/PerpSpotCard';
 
@@ -188,18 +189,33 @@ function CoinSidebar() {
             <div className="csb2-top">
               <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
               <span className="csb2-name">{id.toUpperCase()}</span>
-              {d?.price && (
-                <span style={{
-                  fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
-                  padding: '2px 4px', borderRadius: 4,
-                  color: health.color,
-                  background: withAlpha(health.color, '22'),
-                  border: `0.5px solid ${withAlpha(health.color, '55')}`,
-                  letterSpacing: '.04em', flexShrink: 0,
-                }}>
-                  {health.grade}
-                </span>
-              )}
+              {/* NOT gated on price (#899). computeCoinHealth returns its `none`
+                  branch when there is no price, and that branch carries
+                  COIN_HEALTH_NO_DATA - the label #874 added so that "F because
+                  measured" and "F because nothing to measure" are told apart in
+                  the accessible name. Wrapping this in `d?.price &&` made that
+                  label unreachable on the two dashboard sites while /arena and
+                  /markets announced it, so the same state was described three
+                  ways across five surfaces. The guard predates #883; #883 only
+                  made the difference observable.
+
+                  Measured before removing it, not reasoned: with the badge
+                  present and absent, row height, card height, and the x of both
+                  the name and the price are byte-identical in current and
+                  terminal designs. The row pins name left and price right, so
+                  the badge occupies free space between them. A deliberately
+                  oversized probe element in the same slot moved all of those,
+                  so the measurement can detect a shift - it just is not one. */}
+              <span {...healthGradeA11y(health.grade, health.labelKey, t)} style={{
+                fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
+                padding: '2px 4px', borderRadius: 4,
+                color: health.color,
+                background: withAlpha(health.color, '22'),
+                border: `0.5px solid ${withAlpha(health.color, '55')}`,
+                letterSpacing: '.04em', flexShrink: 0,
+              }}>
+                {health.grade}
+              </span>
               <span className="csb2-price">
                 {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
               </span>

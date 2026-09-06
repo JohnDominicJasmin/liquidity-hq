@@ -2,6 +2,8 @@
 import { createContext, useContext } from 'react';
 import type { CoinId } from './coins';
 import type { RealYield } from './realYield';
+import { healthLabelKey } from './healthGradeA11y';
+import type { HealthLabelKey } from './healthGradeA11y';
 export type { CoinId } from './coins';
 export { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS } from './coins';
 
@@ -307,8 +309,19 @@ export function computeCoinHealth(coin: CoinData | undefined): {
   grade: 'A' | 'B' | 'C' | 'D' | 'F';
   color: string;
   label: string;
+  /* A stable discriminator for the label, for #874's accessible name.
+     `label` alone cannot carry it: grade F has TWO meanings - "no clear
+     setup" (measured, and the answer is no) and "no data" (not measured at
+     all) - and they are the same letter with different labels. Matching on
+     the English string to tell them apart would break the moment the label
+     is translated or reworded, which is the class of coupling this file has
+     had to unpick twice. */
+  labelKey: HealthLabelKey;
 } {
-  const none = { score: 0, grade: 'F' as const, color: '#475569', label: 'No data' };
+  const none = {
+    score: 0, grade: 'F' as const, color: '#475569',
+    label: 'No data', labelKey: healthLabelKey('F', false),
+  };
   if (!coin?.price) return none;
 
   const sq = computeSqueezeScore(coin);
@@ -394,7 +407,7 @@ export function computeCoinHealth(coin: CoinData | undefined): {
     grade === 'D' ? 'Weak signal' :
                     'No clear setup';
 
-  return { score, grade, color, label };
+  return { score, grade, color, label, labelKey: healthLabelKey(grade, true) };
 }
 
 /* ── Fibonacci Levels ── */

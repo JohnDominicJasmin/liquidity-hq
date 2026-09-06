@@ -1,5 +1,23 @@
 #!/usr/bin/env node
 /**
+ * LANDING HARD GATE - the file this writes is one of four that trips it.
+ *
+ * Regenerating lib/labelDefaults.en.json requires that LANDING (`/`) IS
+ * RENDERED and confirmed unchanged in FOUR CONTEXTS - current/terminal x
+ * dark/light - before the PR merges. docs/HANDOVER.md section 14 has the rule
+ * and its history; this is a signpost, not a second copy.
+ *
+ * THE NOTICE LIVES HERE BECAUSE IT CANNOT LIVE IN THE FILE. JSON has no
+ * comment syntax, and even a `_GATE_NOTE` key would not survive - this script
+ * rewrites the snapshot wholesale from a dev server, so anything injected by
+ * hand is destroyed on the next run. It would also read as a label key to
+ * every consumer that walks the map.
+ *
+ * SO ONE PATH IS UNCOVERED, and it is named rather than papered over: editing
+ * an existing STRING VALUE by hand touches only the .json, and nothing warns.
+ * Adding a KEY is covered, because a key must also be declared in
+ * lib/labelKeys.ts, which carries the notice. #873.
+ *
  * Regenerates lib/labelDefaults.en.json - the static English label snapshot
  * that LabelsProvider seeds its initial state with (see the raw-key-flash
  * section in pendings/I18N_MIGRATION.md).

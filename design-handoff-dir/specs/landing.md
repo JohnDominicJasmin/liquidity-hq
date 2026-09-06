@@ -597,29 +597,46 @@ Negative results, per §13. Each of these the frames do not answer, and I have n
 
 ## Token mapping
 
-All 15 names below are confirmed against `lib/terminalTokens.ts` on `dev`. **The palette is 15 values, not 17.**
+All 15 names below are confirmed against `lib/terminalTokens.ts` on `dev`. **The palette is 15 values, not 17.** *(The names still hold; three of the hex values did not — see the note under the table.)*
 
 **Dev must not hand-copy the hex below.** Reference the token names; the hex column exists only so the values in the frame can be checked against the token file. If any hex disagrees, the token file wins and I will restate the frame.
 
 | Token used in this spec | Hex in frame `7a` | Role |
 |---|---|---|
 | `--bg0` | `#08090a` | page ground |
-| `--bg1` | `#0c0d0f` | raised region |
+| `--bg1` | `#141517` | raised region |
 | `--bg2` | `#111416` | bar/track fill |
 | `--bdr` | `#1f2225` | structural hairline |
 | `--bdr2` | `#131618` | row hairline |
 | `--bdr3` | `#16191b` | cell hairline |
 | `--txt` | `#e8e9ea` | primary text |
 | `--txt2` | `#8b8f94` | secondary text |
-| `--txt3` | `#5a5f66` | micro labels |
+| `--txt3` | `#7c828a` | micro labels |
 | `--txt4` | `#3a3f45` | disabled, tertiary |
 | `--accent` | `#d9a626` | active, primary action |
 | `--green` | `#3fb950` | fired, confirming |
 | `--red` | `#f0524d` | fired, warning |
 | `--mark-idle` | `#22262a` | signal marker, not fired |
-| `--border-input` | `#2a2e32` | input / ghost button border |
+| `--border-input` | `#5e646b` | input / ghost button border |
 
 All 15.
+
+> **Three values corrected 2026-09-06 (#889).** This column was still the
+> designer's originals for `--bg1` (`#0c0d0f`), `--txt3` (`#5a5f66`) and
+> `--border-input` (`#2a2e32`), superseded by the owner's ruling on **#526**
+> because they measured 3.03–3.10:1 and 1.36:1 against bars this handoff sets
+> for itself.
+>
+> **The column header claims the frame's hex, and the frame disagreed with it.**
+> `Landing 7a.dc.html` draws `#141517` 16×, `#7c828a` 29×, `#5e646b` 5×, and
+> **zero** occurrences of the three originals. Across all 62 canvases: zero.
+> The frames and `lib/terminalTokens.ts` had both moved; this table had not, so
+> the paragraph above — *"if any hex disagrees, the token file wins"* — is now
+> applied rather than merely stated.
+>
+> The count of 15 is also stale: `lib/terminalTokens.ts` carries `--amber`
+> (#542), `--fr-slight-long` (#559/#561) and `--txt-dash` (#559) besides.
+> **Read the count from the token file, not from here.**
 
 ---
 
