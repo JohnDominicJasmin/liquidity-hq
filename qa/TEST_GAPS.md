@@ -235,8 +235,9 @@ fallback while claiming to test checkout.
 
 ## 🟡 6. Accessibility is asserted, never heard
 
-**Unchanged.** The suite checks that `aria-live`, `role` and accessible names
-**exist**. It has never checked what a screen reader **announces**.
+**Partly progressed, 2026-09-06 — still open.** The suite checks that `aria-live`,
+`role` and accessible names **exist**. It has never checked what a screen reader
+**announces**, and that half is still unclosed.
 
 An element can have every correct attribute and still be unusable — wrong reading
 order, a name that says "button" and nothing else, a live region that fires on
@@ -245,7 +246,18 @@ every keystroke. Attribute presence is a floor, not a pass.
 Sharpened by §4: `lang` was *present* on every page for the whole life of the
 project. It was present and wrong, and no attribute-presence check can find that.
 
-**To close:** partly unclosable in CI. A real pass needs NVDA or VoiceOver and a
+A tree-reading pass (accessibility tree + source, no NVDA/VoiceOver) found three
+concrete structural gaps without needing a screen reader session — filed as #939:
+a keyboard-inaccessible expand control (`HypothesisTracker.tsx`, plain `<div
+onClick>`, no role/tabIndex/keydown), direction glyphs that are the *only* carrier
+of up/down after `Math.abs()` strips the sign (several dashboard/liq components),
+and disclosure-triangle glyphs baked into accessible names via unwrapped
+`textContent` (four sites; `arena/page.tsx` already has the `aria-hidden` fix
+pattern, just not applied everywhere). None of this proves or disproves what a
+screen reader actually announces — it only shows where the structure is missing
+entirely, which is a floor below "announces the wrong thing."
+
+**To close:** still partly unclosable in CI. A real pass needs NVDA or VoiceOver and a
 person. Book it as a manual session rather than pretending automation covers it.
 
 ---
