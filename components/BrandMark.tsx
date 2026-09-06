@@ -58,10 +58,21 @@ function tonePalette(tone: MarkTone, accent: string) {
     };
   }
   if (tone === 'mono') {
-    /* Unchanged. It exists for single-colour contexts - a favicon mask, a
-       print surface - where the ladder has to read without hue at all, and
-       it is not what the owner was reacting to. */
-    return { bg: '#080C15', fg: '#FFFFFF', dim: '#FFFFFF', accent: '#FFFFFF', accent2: '#FFFFFF' };
+    /* The BARS stay white - that is the point of this tone, a ladder that
+       reads without hue at all for a favicon mask or a print surface.
+       
+       THE GROUND DID NOT STAY. It was #080C15, a blue-tinted near-black from
+       the palette the mark just left, which made the one tone nobody looks at
+       the only place the old design survived. Now --bg0's value.
+
+       NOTHING PASSES tone="mono". Checked across app/, components/, lib/, qa/
+       and __tests__/ - zero call sites; it exists in the exported MarkTone
+       union and this branch and nowhere else. Kept rather than deleted
+       because the union is public API and a single-colour rendition is a real
+       thing a brand asset needs eventually - but recorded as unused, because
+       an untested branch quietly holding a superseded colour is exactly how
+       #2E7BFF would have come back. */
+    return { bg: '#08090a', fg: '#FFFFFF', dim: '#FFFFFF', accent: '#FFFFFF', accent2: '#FFFFFF' };
   }
   return {
     bg:      '#08090a',   // --bg0   dark
