@@ -100,7 +100,10 @@ export default function FaqPage() {
                     }}
                   >
                     {t(item.qKey)}
-                    <span style={{
+                    {/* aria-hidden (#968): aria-expanded on this button already
+                        says open or closed, so the chevron only added "▾" to the
+                        end of every question's announced name. */}
+                    <span aria-hidden="true" style={{
                       flexShrink: 0, color: 'var(--txt3)', transition: 'transform 0.2s ease',
                       transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
                     }}>

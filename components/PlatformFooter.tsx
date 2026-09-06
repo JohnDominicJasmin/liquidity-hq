@@ -112,7 +112,7 @@ export default function PlatformFooter() {
         aria-expanded={expanded}
       >
         {expanded ? 'Hide full risk disclosures' : 'Show full risk disclosures'}
-        <span className={`pf-footer-expand-chevron${expanded ? ' up' : ''}`}>▾</span>
+        <span aria-hidden="true" className={`pf-footer-expand-chevron${expanded ? ' up' : ''}`}>▾</span>
       </button>
 
       {/* Disclosure grid */}

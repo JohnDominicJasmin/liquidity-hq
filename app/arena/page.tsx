@@ -2331,25 +2331,36 @@ function ArenaContent() {
 
           {history.map((h, i) => (
             <div key={i}>
-              <div
+              {/* A <button>, not a <div onClick> (#968). Same defect and same
+                  fix as HypothesisTracker's card header in #942, one screen
+                  over - unreachable by keyboard rather than badly announced.
+
+                  Inner containers are <span> with an explicit display: a
+                  button's content model is phrasing content, so block children
+                  are invalid markup even where browsers tolerate them. */}
+              <button
+                type="button"
                 className={`arena-hist-item${detailIdx === i ? ' arena-hist-open' : ''}`}
                 onClick={() => setDetailIdx(detailIdx === i ? null : i)}
+                aria-expanded={detailIdx === i}
                 style={{ cursor: 'pointer' }}
               >
-                <div className="arena-hist-left">
+                <span className="arena-hist-left" style={{ display: 'flex' }}>
                   <span className={`arena-hist-badge tag ${h.signal === 'BULLISH' || h.signal === 'LEAN BULLISH' ? 'tg' : h.signal === 'BEARISH' || h.signal === 'LEAN BEARISH' ? 'tr' : 'tp'}`}>
                     {h.signal === 'BULLISH' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN BULLISH' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'BEARISH' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN BEARISH' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
                   </span>
-                  <div>
-                    <div className="arena-hist-pair">{h.coin}</div>
-                    <div className="arena-hist-time">{h.time}{h.session ? ` · ${h.session}` : ''}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div className="arena-hist-conf">{h.confidence}%</div>
-                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{detailIdx === i ? '▲' : '▼'}</span>
-                </div>
-              </div>
+                  <span style={{ display: 'block' }}>
+                    <span className="arena-hist-pair" style={{ display: 'block' }}>{h.coin}</span>
+                    <span className="arena-hist-time" style={{ display: 'block' }}>{h.time}{h.session ? ` · ${h.session}` : ''}</span>
+                  </span>
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="arena-hist-conf" style={{ display: 'block' }}>{h.confidence}%</span>
+                  {/* aria-hidden: aria-expanded on the button already says open
+                      or closed, so the glyph would only add "▼" to the name. */}
+                  <span aria-hidden="true" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{detailIdx === i ? '▲' : '▼'}</span>
+                </span>
+              </button>
 
               {detailIdx === i && (
                 <div className={`arena-hist-detail sig-${h.signal.toLowerCase().replace(' ', '-')}`}>
