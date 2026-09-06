@@ -392,11 +392,17 @@ export default function FundingHistory() {
     if (!pts.length) return null;
     const rates = pts.map(p => p.rate);
     const avg   = rates.reduce((a, b) => a + b, 0) / rates.length;
-    const last  = rates[rates.length - 1];
-    const first = rates[0];
-    const trend = last > first + 0.00001 ? '↑' : last < first - 0.00001 ? '↓' : '→';
+    /* `trend` used to be computed here - an ↑/↓/→ glyph from first vs last rate -
+       and returned, and never rendered by either file. Removed with the two
+       locals that existed only to feed it (#945).
+
+       Worth the comment because it looked exactly like the sign-stripping
+       defect swept in #944: a direction glyph with no text carrying the same
+       information. It was not one. Nothing read it, so nothing announced it
+       badly - and checking that before "fixing" it is the difference between a
+       finding and a change to code nobody runs. */
     const extremes = rates.filter(r => Math.abs(r) > 0.001).length;
-    return { avg, trend, extremes };
+    return { avg, extremes };
   }
 
   const currentCoin = store.coins[selected];
