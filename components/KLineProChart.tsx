@@ -2194,25 +2194,49 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (entry && entry.source === 'builtin') wanted.set(id, entry);
     }
 
-    // Remove what is no longer selected.
-    for (const [id, paneId] of [...activeIndicatorIds.current.entries()]) {
-      if (wanted.has(id)) continue;
-      try { chart.removeIndicator({ paneId }); } catch { /* already gone */ }
-      activeIndicatorIds.current.delete(id);
+    /* REMOVE BY THE INDICATOR'S OWN ID, not by pane.
+     *
+     * `createIndicator` returns the id it assigned, and `IndicatorFilter` is
+     * `Partial<Pick<Indicator, 'id' | 'paneId' | 'name'>>` - so an id is both
+     * exact and safe. Removing by `paneId` would have taken out everything in
+     * that pane, which for `candle_pane` means the chart's own overlays. */
+    for (const [key, indicatorId] of [...activeIndicatorIds.current.entries()]) {
+      if (wanted.has(key)) continue;
+      try { chart.removeIndicator({ id: indicatorId }); } catch { /* already gone */ }
+      activeIndicatorIds.current.delete(key);
     }
 
     // Add what is newly selected.
-    for (const [id, entry] of wanted) {
-      if (activeIndicatorIds.current.has(id)) continue;
-      const paneId = `strat_${id.toLowerCase()}`;
+    for (const [key, entry] of wanted) {
+      if (activeIndicatorIds.current.has(key)) continue;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (chart as any).createIndicator(
+        /* `CreateIndicatorOptions` is `{ isStack?, pane?: PaneOptions, yAxis? }`
+         * - the pane always goes under a `pane` key, for the candle pane as
+         * much as for a new one.
+         *
+         * QA caught the first version passing `{ id: 'candle_pane' }` here.
+         * `id` is not a key of that type, so it was ignored, klinecharts made a
+         * fresh pane for every candle-pane indicator, and the later remove
+         * targeted a pane the indicator had never been in - one permanent
+         * zombie pane per select/deselect cycle, for SMA, PSAR and Bollinger.
+         *
+         * THE CAST IS WHY IT SHIPPED. `(chart as any)` turned a compile error
+         * into a live defect; without it this never builds. It is gone. */
+        const indicatorId = chart.createIndicator(
           { name: entry.id },
-          entry.pane === 'own' ? { pane: { id: paneId, height: 90, minHeight: 30 } } : { id: 'candle_pane' },
+          entry.pane === 'own'
+            ? { pane: { id: `strat_${key.toLowerCase()}`, height: 90, minHeight: 30 } }
+            : { pane: { id: 'candle_pane' } },
         );
-        activeIndicatorIds.current.set(id, entry.pane === 'own' ? paneId : 'candle_pane');
-      } catch { /* an unknown builtin name is a registry bug, not a render error */ }
+        /* NULL, NOT A THROW. `createIndicator` returns `Nullable<string>` and
+         * gives back null for a name klinecharts does not know - it does not
+         * raise. The previous comment here claimed the catch handled that; it
+         * never could, because nothing was thrown. A null simply leaves nothing
+         * in the map, so the next sync does not try to remove an indicator that
+         * was never created. The registry test that checks every builtin id
+         * against the 27 names klinecharts ships is what actually guards it. */
+        if (indicatorId) activeIndicatorIds.current.set(key, indicatorId);
+      } catch { /* a genuine render error - leave the map untouched and carry on */ }
     }
   }, [indicators, chartReady]);
 
