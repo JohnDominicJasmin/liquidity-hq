@@ -7776,6 +7776,34 @@ main.app-content[data-chrome="none"] {
 /* login / forgot-password / reset-password terminal (#413) */
 [data-design="terminal"] .login-term-wrap,
 [data-design="terminal"] .login-term-wrap * { border-radius: 0 !important; }
+/* The submit caption was the one thing on these screens that did not follow
+   the handoff (#926). Measured by QA in both themes: `.login-field-label`
+   computes IBM Plex Mono, uppercase, 1.32px tracking - correct - while the
+   button beside it computed Plex Sans at -0.1px. So the form mixed a mono
+   label with a sans caption.
+
+   The handoff is explicit that a primary CTA is the same type as the ghost
+   button beside it - "SIGN IN as a ghost button (11.5px mono, .12em)" and
+   "GET STARTED as the primary (same type at 700)". A button caption is a
+   label, not prose.
+
+   NO text-transform, deliberately. The same handoff line says "Uppercase is
+   REAL TEXT, not text-transform." Casing belongs to the label copy in
+   lib/labelDefaults.en.json, and that file is regenerated wholesale by
+   `npm run labels:regen` - so anything set here by hand would be lost and
+   anything set there is a copy decision, not a styling one. Type and tracking
+   are the parts that are ours; the casing is raised on #926 for whoever owns
+   copy.
+
+   Everything else on these three routes was already conformant - the pages
+   are written in tokens and the tokens already fall through. I added a
+   98-line block assuming otherwise and reverted it; this is what was actually
+   wrong. */
+[data-design="terminal"] .login-email-btn {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .12em;
+}
+
 /* upgrade-gate / locked-feature-card / full-page-upgrade-gate terminal (#413) */
 [data-design="terminal"] .locked-card-term-wrap,
 [data-design="terminal"] .locked-card-term-wrap * { border-radius: 0 !important; }
