@@ -99,6 +99,14 @@ function constantTypographyCount(file: string): number {
 
 /** Measured 2026-09-04. These only go DOWN. */
 const BASELINE: Record<string, number> = {
+  /* Restored 2026-09-06 (#853), and it enters at 0 rather than at a count -
+     measured with this file's own counter, not asserted. The component was
+     written on the reverted branch against #663's rule 1 and puts every
+     constant in CSS already, which is why 939 lines of `at-*` stylesheet
+     survived the revert with nothing rendering them.
+     This entry is what the file-set test asks for when a terminal-only
+     component appears: "A new one starts at 0 in BASELINE." It does. */
+  'components/ArenaTerminal.tsx': 0,
   'components/BriefingTerminal.tsx': 43,
   'components/CorrelationTerminal.tsx': 9,
   'components/DashboardTerminal.tsx': 16,
