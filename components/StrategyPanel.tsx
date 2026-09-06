@@ -34,7 +34,13 @@ import {
 export type RunKind = 'quick' | 'deep' | 'ask';
 
 interface Props {
-  /** Fired with the current selection. Wiring the consumers is the next change. */
+  /** The current selection. CONTROLLED, and that is the point of this change:
+   *  the chart, QUICK, DEEP and ASK AI all need to know what is selected, and
+   *  three of those live outside this component. State that two consumers read
+   *  belongs above both of them. */
+  selected: readonly string[];
+  onSelectedChange: (next: readonly string[]) => void;
+  /** Fired when a run button is pressed. The page owns what running means. */
   onRun?: (kind: RunKind, selection: readonly string[]) => void;
 }
 
@@ -94,17 +100,17 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   );
 }
 
-export default function StrategyPanel({ onRun }: Props) {
+export default function StrategyPanel({ selected, onSelectedChange, onRun }: Props) {
   const { entitled } = useAuth();
   const design = useDesignMode();
   const limitNoteId = useId();
   const limit = indicatorLimit(Boolean(entitled));
 
   const [setId, setSetId] = useState<string>(AUTO_SET_ID);
-  /* An ORDERED list, not a Set. The chip badge shows the position in the
-     selection, which the artifact draws as 1 and 2 - so order is data, and a
-     Set would throw it away. */
-  const [selected, setSelected] = useState<readonly string[]>([]);
+  /* `selected` is a prop now, not state - see Props. It is still an ORDERED
+     list rather than a Set: the chip badge shows the position in the selection,
+     which the artifact draws as 1 and 2, so order is data and a Set would throw
+     it away. */
   const [params, setParams] = useState<Record<string, Record<string, string | number | boolean>>>({});
   /* Which indicator's parameters the box is showing. The artifact draws one
      params box, not one per selected indicator. */
@@ -128,21 +134,19 @@ export default function StrategyPanel({ onRun }: Props) {
        punishes them for the tier. But say so: see `dropped`. */
     const next = preset.indicators.slice(0, limit);
     setDropped(preset.indicators.length - next.length);
-    setSelected(next);
+    onSelectedChange(next);
     setFocused(next[0] ?? null);
   };
 
   const toggle = (entry: IndicatorEntry) => {
-    setSelected(prev => {
-      if (prev.includes(entry.id)) {
-        const next = prev.filter(id => id !== entry.id);
-        setFocused(next[next.length - 1] ?? null);
-        return next;
-      }
-      if (prev.length >= limit) return prev;
+    if (selected.includes(entry.id)) {
+      const next = selected.filter(id => id !== entry.id);
+      setFocused(next[next.length - 1] ?? null);
+      onSelectedChange(next);
+    } else if (selected.length < limit) {
       setFocused(entry.id);
-      return [...prev, entry.id];
-    });
+      onSelectedChange([...selected, entry.id]);
+    }
     /* Touching a chip makes it a custom set on its own. Requiring the dropdown
        to be changed first would make the obvious gesture do nothing. */
     setSetId(CUSTOM_SET_ID);

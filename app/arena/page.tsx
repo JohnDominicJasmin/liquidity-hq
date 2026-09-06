@@ -33,6 +33,7 @@ import { computeDistributionScore, distributionColor, DistributionInputs } from 
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel from '@/components/StrategyPanel';
+import { describeSelection } from '@/lib/strategyRegistry';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -273,6 +274,11 @@ function ArenaContent() {
   // clear ran when the read STARTED, so a dismiss during the load survived into
   // the result and suppressed it. The user spent a Grok call and saw nothing
   // (#278). Clearing on finish is what makes the sentence true.
+  /* The strategy selection lives here rather than inside StrategyPanel
+     because four things need it and three of them are outside that
+     component: the chart's overlays, and the QUICK / DEEP / ASK AI
+     prompts. State two consumers read belongs above both. */
+  const [strategySelection, setStrategySelection] = useState<readonly string[]>([]);
   const [dismissedResults, setDismissedResults] = useState<Set<CoinId>>(new Set());
   const [history, setHistory]         = useState<HistItem[]>([]);
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
@@ -1219,9 +1225,25 @@ function ArenaContent() {
 
       // Step 3 - ask Grok via server proxy (key hidden, rate-limited)
       setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
-      const prompt = mode === 'quick'
+      /* THE SELECTION REACHES THE READ (#930). Appended at the call site rather
+         than threaded through GrokContext: that type is shared with the other
+         prompt builders, and widening it would make every caller carry a field
+         only this one uses.
+
+         describeSelection returns null for an empty selection, so the default
+         "let the read choose" state adds no sentence at all - which is the
+         behaviour, not an omission. */
+      const base = mode === 'quick'
         ? buildQuickPrompt(ctx, chartData)
         : buildCombinedPrompt(ctx, chartData);
+      const watching = describeSelection(strategySelection);
+      const prompt = watching
+        ? [base, '',
+            'The trader has chosen to weigh these indicators: ' + watching + '.',
+            'Give them more weight in the read, and say plainly if they disagree',
+            'with what the rest of the data shows.',
+          ].join('\n')
+        : base;
       const { result: res, usage } = await callGrokViaProxy(prompt, readTf, ctx.session, mode);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
@@ -1741,13 +1763,19 @@ function ArenaContent() {
           onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
             detail: {
               coin: selectedCoin,
-              prompt: result
+              prompt: (result
                 ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
                     coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
                     entryZone: '-',  // #260: no levels; ARENA_CHAT_PROMPT_WITH_RESULT still names one - needs a DB row edit
                     reasoning: result.reasoning,
                   })
-                : t('ARENA_CHAT_PROMPT_NO_RESULT', { coin: selectedCoin.toUpperCase() }),
+                : t('ARENA_CHAT_PROMPT_NO_RESULT', { coin: selectedCoin.toUpperCase() }))
+                /* Same sentence, same helper as the QUICK/DEEP prompts above -
+                   one source so the three cannot drift. */
+                + (describeSelection(strategySelection)
+                    ? ['', '', 'I am weighing these indicators: '
+                        + describeSelection(strategySelection) + '.'].join('\n')
+                    : ''),
             },
           }))}
         >
@@ -2209,7 +2237,7 @@ function ArenaContent() {
           wired, and that is deliberately a separate change. One selection
           driving a chart plus three AI actions is the part that goes wrong
           quietly, and it should not land inside a layout diff. */}
-      <StrategyPanel />
+      <StrategyPanel selected={strategySelection} onSelectedChange={setStrategySelection} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
