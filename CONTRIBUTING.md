@@ -230,6 +230,107 @@ rather than letting it merge with the release.
 Related: #899, #883, #885 — the same shape one level up, where an absence
 produces no artefact and looks identical to nothing being there.
 
+### 3d. A check that cannot fail is not a check — run the control
+
+**Added 2026-09-06, after the fifth instance in one day.**
+
+Every one of these produced a plausible value, no error, and nobody looking
+further:
+
+| instrument | reported | actually |
+|---|---|---|
+| `qa/audit-handoff.mjs` | `readme: true` | resolved the *landing* README for Arena, for the five days the Arena one did not exist |
+| `gh workflow list` | `active` | had not fired in 22 days while 700 commits landed |
+| Ready-for-QA issue | `6 PR(s)` | nine merges in range; the pattern matched one of two merge-subject formats |
+| `gh run view --json conclusion` | `success` | the job under test **skipped** — run-level success means "finished", not "your change ran" |
+| `arena-structure.spec.ts` | **passing** | **skipped entirely** — `/arena` was absent from `CONVERTED_ROUTES`, so criteria 1–4 and 7 had never run |
+
+**The rule: before trusting a green result, make it go red once.**
+
+Assert `353` where the answer is `352`. Point the lookup at a repository that
+does not exist. Delete the file the check is supposed to find. **If you cannot
+make it fail, you have not learned anything from it passing** — and *"passed"*
+and *"skipped"* are the same line in a summary.
+
+This is not the same as [[the caveat rule above]]. There the author knew what
+they had not verified and wrote it down. Here **the author believes the thing
+was verified**, and the instrument agrees with them.
+
+**Ask what question the status actually answers.** `success`, `active`, `true`,
+a count — each answers *something*, rarely the thing you want. Drop one level:
+`--json jobs`, the resolved path, the matched list itself, the skip reason.
+
+**Two species of this are worth naming separately, because they need different
+defences.** Both were built by the same session in one afternoon, the second
+while writing up the first.
+
+**1. A check whose exit code you never see.**
+
+```sh
+npx tsc --noEmit 2>&1 | grep -v "^npm warn" | head -10; echo done
+```
+
+**The exit status of that line belongs to `echo`.** `tsc` failed with seven
+errors, `head` printed them, and the completion notice said exit 0 — true of the
+pipeline, meaningless about `tsc`. Run twice, read twice, believed twice.
+
+**Capture the status of the command you care about, not the line it sits in:**
+
+```sh
+npx tsc --noEmit > /tmp/tsc.txt 2>&1; echo "TSC_EXIT=$?"
+```
+
+Then **read the output even when the code is 0.**
+
+**2. A check whose success is silent.** This is the sharper half and it explains
+why `tsc` was the gate that broke rather than the others:
+
+| gate | says on success | fallback if you misread the code |
+|---|---|---|
+| `npm test` | `730/730` | the count |
+| `next build` | the route table | **the table is printed only *after* success** |
+| `tsc --noEmit` | **nothing at all** | **none** |
+
+**The build row is the strongest of the three and the distinction is worth having
+exactly.** Its fallback is not "a table is present" — it is that `next build`
+prints the route table **only after it succeeds**, and a failed build ends at
+`Failed to compile` with no table at all. That makes the table **positive
+evidence of success**, not merely the absence of an error. It is what let a
+scope question be closed from artefacts rather than from exit codes, after the
+exit codes had already proved untrustworthy.
+
+**Silence and unread failure are identical.** Tests and builds have a second
+signal that survives a misread exit code; `tsc` has one signal and it is the code.
+**The gate with no success output is the one that needs the redirect most, and it
+is the one that gets it least** — precisely because there is nothing to read when
+it works.
+
+**And a summary line can hide the thing it reports.** `230 problems (1 error, 229
+warnings)` puts a blocking result and a non-blocking one in the same number. The
+only thing that pointed at the real error was the count moving from 0 on `dev` to
+1 on the branch. **The pre-push hook, running bare commands under `set -e`, would
+have failed that push without ambiguity — the summary was less informative than
+the gate.**
+
+### 3e. Converting a screen arms its own tests — same PR, no handoff
+
+**Added 2026-09-06, after `/arena` shipped with its acceptance test dormant.**
+
+`qa/e2e/_design-tokens.ts`'s `CONVERTED_ROUTES` gates the per-screen structure
+specs. A route absent from that list makes its spec **skip**, silently.
+
+`/arena` was rebuilt, verified by hand in a browser, and merged — with criteria
+1, 2, 3, 4 and 7 having never executed against it. The spec's own comment says
+it *"arms itself in the PR that converts the screen."* **That PR was Dev's and
+the file is QA's, so the step belonged to two roles and therefore to neither.**
+
+**Whoever converts a screen adds it to `CONVERTED_ROUTES` in the same PR.** Yes,
+that means Dev editing a `qa/` file for one array entry. That is the smaller
+cost, and it is the single exception to "Dev never writes QA tooling".
+
+**Then run the control from §3d before believing the result.** A newly armed
+spec that passes on its first run and a spec still skipping look identical.
+
 ### 3a. Say which side you are — one account, two roles
 
 **Open every PR body, issue and comment with `**Dev Team**` or `**QA Team**`.**
