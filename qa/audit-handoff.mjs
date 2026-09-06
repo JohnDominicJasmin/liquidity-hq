@@ -186,8 +186,8 @@ const noDesktop = miss('desktop'), noMobile = miss('mobile');
 const staleAny = rows.filter(r => r.staleTokens.length);
 
 const report = [
-  ['Specs (normative, numbered acceptance criteria)', noSpec, 'Only Arena has one. Without a spec there is nothing to score an implementation against.'],
-  ['READMEs (fidelity, extend rules, colour-is-data, open decisions)', noReadme, 'Only Arena has one.'],
+  ['Specs (normative, numbered acceptance criteria)', noSpec, `${n - noSpec.length} of ${n} have one so far. Without a spec there is nothing to score an implementation against.`],
+  ['READMEs (fidelity, extend rules, colour-is-data, open decisions)', noReadme, `${n - noReadme.length} of ${n} have one so far.`],
   ['Light-theme artboards', noLight, 'The product ships a light theme and the owner requires it audited. No design exists for it.'],
   ['Desktop 1440 artboards', noDesktop, ''],
   ['Mobile 390 artboards', noMobile, ''],
