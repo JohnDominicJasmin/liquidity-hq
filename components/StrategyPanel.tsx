@@ -27,7 +27,7 @@ import { useDesignMode } from './DesignModeProvider';
 import {
   GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS,
   AUTO_SET_ID, CUSTOM_SET_ID,
-  byGroup, findIndicator, indicatorLimit, defaultParams,
+  byGroup, findIndicator, indicatorLimit, defaultParams, canRender,
   type IndicatorEntry, type ParamSpec,
 } from '@/lib/strategyRegistry';
 
@@ -139,6 +139,10 @@ export default function StrategyPanel({ selected, onSelectedChange, onRun }: Pro
   };
 
   const toggle = (entry: IndicatorEntry) => {
+    /* An entry that cannot draw is not selectable. Accepting the click and
+       doing nothing is the silent-failure shape this project has spent a day
+       arguing against - it would look exactly like a working chip. */
+    if (!canRender(entry)) return;
     if (selected.includes(entry.id)) {
       const next = selected.filter(id => id !== entry.id);
       setFocused(next[next.length - 1] ?? null);
@@ -216,13 +220,20 @@ export default function StrategyPanel({ selected, onSelectedChange, onRun }: Pro
               {entries.map(entry => {
                 const pos = selected.indexOf(entry.id);
                 const on = pos >= 0;
-                const blocked = !on && atLimit;
+                const usable = canRender(entry);
+                const blocked = usable && !on && atLimit;
                 return (
                   <button
                     key={entry.id}
                     type="button"
-                    className={`strat-chip${on ? ' on' : ''}${blocked ? ' blocked' : ''}`}
-                    aria-pressed={on}
+                    className={`strat-chip${on ? ' on' : ''}${blocked ? ' blocked' : ''}${usable ? '' : ' notyet'}`}
+                    aria-pressed={usable ? on : undefined}
+                    aria-disabled={usable ? undefined : true}
+                    /* The reason is in the NAME, not a title. A dimmed chip that
+                       announces identically to a working one is the mouse-only
+                       `title` problem again, one screen over - and `title` is
+                       what clobbered every blocked chip's name on #959. */
+                    aria-label={usable ? undefined : `${entry.label} - not available yet`}
                     /* The reason is a DESCRIPTION, and it points at the visible
                        line below rather than at hidden text or a `title`.
 
@@ -266,6 +277,13 @@ export default function StrategyPanel({ selected, onSelectedChange, onRun }: Pro
             One element for every blocked chip rather than one each - the
             sentence is identical, and twenty copies of it in the accessibility
             tree is its own defect. */}
+        {/* One line for the dimmed chips, visible rather than hidden, for the
+            same reason the limit note is: a sighted user should not have to
+            hover to find out why a third of the list is greyed out. */}
+        <div className="strat-notyet-note">
+          Dimmed indicators are not available yet.
+        </div>
+
         {atLimit && (
           <div id={limitNoteId} className="strat-limit" role="status">
             {`Deselect one first - ${limit} at a time`}
