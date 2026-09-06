@@ -8223,3 +8223,28 @@ main.app-content[data-chrome="none"] {
   background: var(--accent); border-color: var(--accent);
   color: var(--on-accent); font-weight: 600;
 }
+
+
+/* ── The coin-row keyboard controls (#943) ───────────────────────────────────
+   The rows on /markets and the dashboard rail were mouse-only: a click handler
+   on a <div> with no role, no tabIndex and no keydown, so selecting a coin and
+   opening its Arena were unreachable from a keyboard entirely.
+
+   THE ROW IS NOT THE CONTROL. Making it one was the obvious fix and is the
+   wrong one twice over: its accessible name becomes the whole row read aloud -
+   "BTC 64,213 -2.34% smart buyers" - which is reachable and unusable, and it
+   puts a tab stop on every row of a fifty-row table.
+
+   So the coin's own name carries the action, and these rules make a <button>
+   look exactly like the <span> it replaced. The row keeps its onClick, so
+   nothing changes for a mouse. */
+.mkt-row-btn,
+.csb2-name-btn {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; letter-spacing: inherit;
+  cursor: pointer; text-align: left;
+}
+.mkt-row-btn {
+  font-size: var(--fs-caption); font-weight: 700;
+  color: var(--txt); letter-spacing: .02em;
+}

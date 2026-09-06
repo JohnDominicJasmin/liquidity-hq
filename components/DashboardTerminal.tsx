@@ -182,7 +182,23 @@ function TCoinSidebar() {
           >
             <div className="csb2-top">
               <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
-              <span className="csb2-name">{id.toUpperCase()}</span>
+              {/* THE COIN NAME IS THE CONTROL, not the row (#943). The row keeps
+                  its onClick for the mouse; this is the keyboard path.
+
+                  Not a row-as-button: that names the whole row to a screen
+                  reader - "BTC 64,213 -2.34% smart buyers" - which is reachable
+                  and unusable.
+
+                  aria-current rather than aria-pressed: this is "which of the
+                  eight is selected", not a toggle that can be off on its own. */}
+              <button
+                type="button"
+                className="csb2-name csb2-name-btn"
+                aria-current={sel ? 'true' : undefined}
+                onClick={e => { e.stopPropagation(); selectCoin(id); }}
+              >
+                {id.toUpperCase()}
+              </button>
               {/* No fontSize here - it lives in globals.css (#718 revert). The
                   pre-canvas markup set it inline, which outranks the terminal
                   rule's 9.5px and left that rule dead: the shape #660 and #681
