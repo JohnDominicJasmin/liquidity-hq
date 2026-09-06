@@ -7,9 +7,41 @@ name: CI
 # a 2,000 min/month allowance - roughly $124/month annualised, and it hard-
 # stopped CI mid-release when the spending limit was hit.
 #
-# The rule now: the ~2 minute job runs on everything. The ~53 minute Playwright
-# suite runs on exactly ONE automatic trigger - a PR into `main`, which is the
-# release, immediately before a production deploy.
+# The rule now: the ~2 minute job runs on everything. The ~40 minute Playwright
+# suite runs on TWO automatic triggers:
+#
+#   1. a PR into `main` - the release, immediately before a production deploy
+#   2. a push to `staging` - added 2026-08-10, issue #207
+#
+# THIS PARAGRAPH SAID "exactly ONE" UNTIL 2026-09-06, FOUR WEEKS AFTER TRIGGER 2
+# LANDED. The e2e job's own comment below documented trigger 2 correctly the whole
+# time, and `CONTRIBUTING.md` recorded it too - so the only wrong description was
+# the one at the top of the file that readers are told to consult before adding a
+# trigger. That is the failure mode this file already warns about elsewhere: a
+# comment asserting state it cannot see, with nothing that fails when it goes
+# stale. Found while tracing a GitHub charge (#946).
+#
+# WHY TRIGGER 2 EXISTS, so nobody deletes it to make the code match a corrected
+# header: the release PR was the only automatic trigger and it had STOPPED BEING
+# OPENED - `RELEASE_PR_PAUSED` was set on the owner's park-it call and is still
+# set today, so `release-signals.yml` opens nothing. Between those two facts the
+# browser suite ran not at all, and ten spec files were covered NOWHERE. The
+# fuller account is on the e2e job below.
+#
+# AND IT IS NOT WHERE THE MONEY GOES. Measured for August 2026, every E2E job
+# with its real duration:
+#
+#   pull_request (release PRs)   10 runs   449 min
+#   push to `staging`             3 runs   124 min
+#                                13 runs   573 min  = 13.6% of the 4,223 billed
+#
+# Trigger 2 fired THREE TIMES in its whole existence - `staging` moved 15 times
+# in August but 12 of those predate it, and `staging` has not moved since
+# 2026-08-10. Removing it would save ~124 min/month, about a tenth of the
+# overage, in exchange for reopening the gap #207 exists to close.
+#
+# The ~53 minute figure this paragraph used to quote is also stale: the thirteen
+# August runs measured 37-46 minutes, with one 72-minute outlier.
 #
 # THE BRANCH FLOW IS FOUR-STAGE as of 2026-08-07:
 #
