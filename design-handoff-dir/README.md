@@ -8,6 +8,11 @@ The page must convince a signed-out visitor that the product does something spec
 
 **This handoff covers one screen only.** The rest of the redesign (30 further screens) is a separate bundle.
 
+**The Arena handoff is `README-arena.md`, beside this file.** Two screens, two
+READMEs — check which one you are reading before measuring anything from it. It
+was absent from the repository between 2026-09-01 and 2026-09-06 (#889), which
+is long enough for someone to conclude Arena had no handoff at all.
+
 ## About the design files
 
 `design_files/Landing 7a.dc.html` is a **design reference created in HTML** — a prototype showing intended look and behaviour, not production code to copy. It is a canvas holding two fixed-size device frames side by side (1440×3236 desktop and 390×3236 mobile). Those frames are `div`s at a literal pixel size; they are not a responsive page.
@@ -201,7 +206,7 @@ Reference by token name from `lib/terminalTokens.ts`. **Do not restate hex in co
 | `--bdr3` | `#16191b` | cell hairline |
 | `--txt` | `#e8e9ea` | primary text |
 | `--txt2` | `#8b8f94` | secondary text |
-| `--txt3` | `#5a5f66` | micro labels |
+| `--txt3` | `#7c828a` | micro labels — **owner-amended 2026-09-01 (#526)**, was `#5a5f66` |
 | `--txt4` | `#3a3f45` | disabled, tertiary |
 | `--accent` | `#d9a626` | active state, primary action |
 | `--green` | `#3fb950` | fired, confirming |
@@ -211,6 +216,15 @@ Reference by token name from `lib/terminalTokens.ts`. **Do not restate hex in co
 | `--amber` | `#fbbf24` | mid-tier / weak signal — confirmed in `app/globals.css` root, and in `components/DashboardTerminal.tsx`'s OI/funding ladders |
 
 16 values, not 15 — `--amber` was missing from every prior count on this project. Confirmed via source, not inferred.
+
+**Three of these are owner-amended, not the designer's originals** — `--bg1`
+(`#0c0d0f` → `#141517`), `--txt3` (`#5a5f66` → `#7c828a`) and `--border-input`
+(`#2a2e32` → `#5e646b`), ratified on #526 because the originals failed the
+4.5:1 bar this handoff sets for itself. `--txt3` sat stale in this table until
+2026-09-06 while `--bg1` and `--border-input` beside it were already amended,
+so **`lib/terminalTokens.ts` is the file of record and this table is the copy** —
+check against it rather than the other way round. It has also grown past this
+list (`--fr-slight-long`, `--txt-dash`); do not read a token count from here.
 
 ### Light
 
