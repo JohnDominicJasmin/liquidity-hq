@@ -29,7 +29,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
-import { healthGradeA11y } from '@/lib/healthGradeA11y';
+import { healthGradeA11y, healthChipStyle } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 import PerpSpotCard from '@/components/PerpSpotCard';
 
@@ -209,8 +209,7 @@ function CoinSidebar() {
               <span {...healthGradeA11y(health.grade, health.labelKey, t)} style={{
                 fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                 padding: '2px 4px', borderRadius: 4,
-                color: health.color,
-                background: withAlpha(health.color, '22'),
+                ...healthChipStyle(health.color, health.invert),
                 border: `0.5px solid ${withAlpha(health.color, '55')}`,
                 letterSpacing: '.04em', flexShrink: 0,
               }}>

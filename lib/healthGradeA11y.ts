@@ -64,3 +64,31 @@ export function healthGradeA11y(
     'aria-label': t('COIN_HEALTH_GRADE_ARIA', { grade, label: t(labelKey) }),
   };
 }
+
+/** The health chip's two paint values, so the four render sites cannot drift
+ *  apart again.
+ *
+ *  WHY A HELPER AND NOT FOUR INLINE TERNARIES. The chip renders in
+ *  DashboardTerminal, MarketsTerminal and their two current-design
+ *  counterparts, and they have already diverged once: /dashboard's grade-B
+ *  light tint was cut to 3% at globals.css:707 to clear AA, /markets kept the
+ *  13.3% inline tint and measured 4.26:1 for eight months. One function is
+ *  what makes "the right fix propagated" checkable instead of hopeful.
+ *
+ *  INVERTED IS NOT A STYLE CHOICE. `color` becomes the ground and the letter
+ *  goes --bg0. Grade F needs it because C and F both resolve to --txt2 and
+ *  were measurably identical (ΔE 0.0, both themes) - see the `invert` note on
+ *  computeCoinHealth for why a sixth hue was the wrong answer.
+ *
+ *  Duplicates withAlpha's color-mix rather than importing it, deliberately:
+ *  this module has to stay free of value imports so `npm test` (bare
+ *  `node --test`, no TS loader, no extensionless resolution) can reach it.
+ *  13% is withAlpha(c, '22') - round(0x22 / 255 * 100). */
+export function healthChipStyle(
+  color: string,
+  invert: boolean,
+): { background: string; color: string } {
+  return invert
+    ? { background: color, color: 'var(--bg0)' }
+    : { background: `color-mix(in srgb, ${color} 13%, transparent)`, color };
+}

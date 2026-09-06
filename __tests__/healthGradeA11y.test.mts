@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { healthGradeA11y, healthLabelKey } from '../lib/healthGradeA11y.ts';
+import { healthGradeA11y, healthLabelKey, healthChipStyle } from '../lib/healthGradeA11y.ts';
 import { LABEL_KEYS } from '../lib/labelKeys.ts';
 import defaults from '../lib/labelDefaults.en.json' with { type: 'json' };
 
@@ -122,4 +122,34 @@ test('the frame carries both placeholders, or half the name silently vanishes', 
   const frame = (defaults as Record<string, string>)['COIN_HEALTH_GRADE_ARIA'];
   assert.match(frame, /\{grade\}/);
   assert.match(frame, /\{label\}/);
+});
+
+/* The chip's paint values. These exist because the four render sites drifted
+   once already: /dashboard's grade-B light tint was cut to 3% to clear AA and
+   /markets kept 13.3%, measuring 4.26:1 for eight months (#926). */
+
+test('the normal chip tints its ground from its own ink', () => {
+  const s = healthChipStyle('var(--amber)', false);
+  assert.equal(s.color, 'var(--amber)');
+  assert.equal(s.background, 'color-mix(in srgb, var(--amber) 13%, transparent)');
+});
+
+test('the inverted chip swaps ground and ink rather than changing hue', () => {
+  /* Grade F. C and F both resolve to --txt2 and measured ΔE 0.0 in both
+     themes; F stops sharing it by not being a text colour. If this ever
+     starts returning a DIFFERENT colour instead of swapping, the collision is
+     back - the fix was deliberately a form change, not a sixth hue. */
+  const s = healthChipStyle('var(--txt2)', true);
+  assert.equal(s.background, 'var(--txt2)');
+  assert.equal(s.color, 'var(--bg0)');
+});
+
+test('CONTROL: the two branches do not produce the same style', () => {
+  /* Without this the pair above passes on a helper that ignores `invert`,
+     which is the shape of check that has wasted a day of this project. */
+  const normal = healthChipStyle('var(--txt2)', false);
+  const inverted = healthChipStyle('var(--txt2)', true);
+  assert.notDeepEqual(normal, inverted);
+  assert.notEqual(normal.color, inverted.color, 'invert must move the letter colour');
+  assert.notEqual(normal.background, inverted.background, 'invert must move the ground');
 });

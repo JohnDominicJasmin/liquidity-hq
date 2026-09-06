@@ -10,7 +10,7 @@ import Tip from '@/components/Tip';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
-import { healthGradeA11y } from '@/lib/healthGradeA11y';
+import { healthGradeA11y, healthChipStyle } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
@@ -255,7 +255,7 @@ export default function MarketsTerminal() {
                 width: 22, height: 22, borderRadius: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 'var(--fs-caption)', fontWeight: 800,
-                background: withAlpha(health.color, '22'), color: health.color,
+                ...healthChipStyle(health.color, health.invert),
                 fontFamily: 'var(--font-mono), monospace',
               }}>
                 {health.grade}
