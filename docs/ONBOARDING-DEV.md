@@ -18,6 +18,33 @@ you to review. This is the one place review runs QA → dev. **An open QA PR is
 your queue. Review it and merge without being asked**; neither session waits for
 a message that is not coming.
 
+### The one exception, and it has happened twice
+
+**You do not write QA's tooling — except when your own revert makes a QA
+assertion false, and then you fix it in the same change.**
+
+`qa/e2e/_design-tokens.ts` holds `CONVERTED_ROUTES`, the list of routes the
+browser suite holds to the terminal palette. **When a Dev revert takes a route
+back to the current design, that list becomes a lie the moment the revert
+lands** — the suite asserts conversion on a route that has just stopped being
+converted. Waiting for a QA-authored PR leaves the false assertion live in
+between.
+
+Both times it was a revert, and both were Dev commits touching a QA-owned file:
+
+```
+4c11930a  2026-08-27  stub the file after the terminal conversion was parked
+f1325264  2026-09-06  drop /arena after reverting its rebuild
+```
+
+**The rule that actually holds is narrower than "never touch `qa/`":** do not
+write QA's test *logic*. **Keeping their fixtures truthful about what you just
+did is yours**, because you are the only one who knows at the moment it changes.
+Say so in the PR, and expect QA to review it after the fact rather than before.
+
+**If you find yourself editing a spec's assertions rather than its inputs, stop
+— that is QA's, and it is a finding to report rather than a fix to make.**
+
 **You deploy nothing.** There is a standing owner instruction to that effect and
 it outlives any table in any document, including this one. If a table ever
 assigns you a deploy, the table is stale. Do not ask when the hold lifts either —
