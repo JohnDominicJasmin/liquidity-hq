@@ -27,7 +27,7 @@
  * an absence rendered as a value.
  */
 
-import type { FredRow } from './fred';
+import type { FredRow } from './fred.ts';
 
 export const REAL_YIELD_SERIES = 'DFII10';
 

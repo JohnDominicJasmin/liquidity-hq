@@ -1,20 +1,20 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore';
-import { bybitSymbolPriceFactor } from './coins';
+import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
+import { bybitSymbolPriceFactor } from './coins.ts';
 import {
   emaArr, smaArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
   SPREAD_MIN_BY_TF,
-} from './strategyCore';
-import { detectRSIDivergence } from './divergence';
-import { simulateTrades } from './backtestEngine';
-import { TF_MS, CLOSE_SKEW_MS, dropForming, msUntilNextClose, sameCandle } from './candles';
-import { getWaveTrendConfirmation } from './waveTrend';
+} from './strategyCore.ts';
+import { detectRSIDivergence } from './divergence.ts';
+import { simulateTrades } from './backtestEngine.ts';
+import { TF_MS, CLOSE_SKEW_MS, dropForming, msUntilNextClose, sameCandle } from './candles.ts';
+import { getWaveTrendConfirmation } from './waveTrend.ts';
 
-export type { SignalFilterParams } from './strategyCore';
-export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore';
+export type { SignalFilterParams } from './strategyCore.ts';
+export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore.ts';
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 export type StrategyVerdict =

@@ -3,7 +3,7 @@
 // waits for price to prove itself); divergence is a LEADING exhaustion read
 // (momentum fading while price still pushes to a new extreme). The two are
 // meant to complement each other, not replace one another.
-import type { OHLCV } from './strategyCore';
+import type { OHLCV } from './strategyCore.ts';
 
 export function rsiArr(closes: number[], period = 14): number[] {
   const n = closes.length;

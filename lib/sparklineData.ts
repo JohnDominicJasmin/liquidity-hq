@@ -1,5 +1,5 @@
 'use client';
-import { BINANCE_SYMS, BYBIT_SYMS } from './coins';
+import { BINANCE_SYMS, BYBIT_SYMS } from './coins.ts';
 
 // Real 24h hourly close series per coin - same public REST endpoints already
 // used client-side by KLineProChart, just a much smaller request (24 candles).

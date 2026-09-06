@@ -19,9 +19,9 @@
  *
  * The browser side goes from ~50 requests to 1.
  */
-import { cached } from './apiCache';
-import { BYBIT_SYMS } from './coins';
-import { runPool, DEFAULT_CONCURRENCY, HttpStatusError, isRateLimitStatus } from './pool';
+import { cached } from './apiCache.ts';
+import { BYBIT_SYMS } from './coins.ts';
+import { runPool, DEFAULT_CONCURRENCY, HttpStatusError, isRateLimitStatus } from './pool.ts';
 
 /** Every symbol this app tracks on Bybit. A closed set, which is what keeps the
  *  cache key space finite - see the note in app/api/market/klines/route.ts. */

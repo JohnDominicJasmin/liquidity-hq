@@ -1,11 +1,11 @@
 'use client';
 import { createContext, useContext } from 'react';
-import type { CoinId } from './coins';
-import type { RealYield } from './realYield';
-import { healthLabelKey } from './healthGradeA11y';
-import type { HealthLabelKey } from './healthGradeA11y';
-export type { CoinId } from './coins';
-export { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS } from './coins';
+import type { CoinId } from './coins.ts';
+import type { RealYield } from './realYield.ts';
+import { healthLabelKey } from './healthGradeA11y.ts';
+import type { HealthLabelKey } from './healthGradeA11y.ts';
+export type { CoinId } from './coins.ts';
+export { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS } from './coins.ts';
 
 export interface GexLevel {
   strike: number;

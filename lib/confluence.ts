@@ -15,7 +15,7 @@
 // a real v2 feature, not a keyword-matching stand-in).
 
 import type { Bias } from '@/components/StopLossZone';
-import type { RealYield } from './realYield';
+import type { RealYield } from './realYield.ts';
 
 // Mirrors app/api/econ-calendar/route.ts's CalEvent - kept local rather than imported
 // since that file is a server route (matches the convention in app/econ-calendar/page.tsx).

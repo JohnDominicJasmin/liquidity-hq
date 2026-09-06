@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { CoinId } from './marketStore';
+import { CoinId } from './marketStore.ts';
 
 /* ── Endpoints ── */
 const BINANCE_OI: Partial<Record<CoinId, string>> = {

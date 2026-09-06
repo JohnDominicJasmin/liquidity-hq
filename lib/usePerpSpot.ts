@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { BINANCE_SYMS } from './coins';
-import { computePerpSpot, computeAbsorption, type PerpSpotReading, type AbsorptionReading } from './perpSpot';
+import { BINANCE_SYMS } from './coins.ts';
+import { computePerpSpot, computeAbsorption, type PerpSpotReading, type AbsorptionReading } from './perpSpot.ts';
 
 /* One source for the perps-vs-spot reading (#340).
  *

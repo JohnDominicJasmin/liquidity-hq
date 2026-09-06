@@ -2,15 +2,15 @@
 // Reuses the exact same signal-detection logic as the live hook (lib/strategyCore.ts)
 // so backtest results can never silently diverge from what fires on the live chart.
 
-import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore';
+import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
 import {
   OHLCV, SignalEvent, SignalFilterParams,
   DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, detectEMASignals,
-} from './strategyCore';
-import { getWaveTrendConfirmation, WaveTrendParams, DEFAULT_WT_PARAMS } from './waveTrend';
+} from './strategyCore.ts';
+import { getWaveTrendConfirmation, WaveTrendParams, DEFAULT_WT_PARAMS } from './waveTrend.ts';
 import {
   simpleRSI14, lastClosedIndexBefore, computeVolumeProfile, scoreOrderFlowBias, computeOrderFlowZones,
-} from './orderFlowCore';
+} from './orderFlowCore.ts';
 
 // Tuning variants for the WaveTrend confirming-layer backtest sweep - each targets a
 // specific hypothesis for why the original (DEFAULT_WT_PARAMS) version underperformed:
