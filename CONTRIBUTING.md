@@ -260,6 +260,50 @@ was verified**, and the instrument agrees with them.
 a count — each answers *something*, rarely the thing you want. Drop one level:
 `--json jobs`, the resolved path, the matched list itself, the skip reason.
 
+**Two species of this are worth naming separately, because they need different
+defences.** Both were built by the same session in one afternoon, the second
+while writing up the first.
+
+**1. A check whose exit code you never see.**
+
+```sh
+npx tsc --noEmit 2>&1 | grep -v "^npm warn" | head -10; echo done
+```
+
+**The exit status of that line belongs to `echo`.** `tsc` failed with seven
+errors, `head` printed them, and the completion notice said exit 0 — true of the
+pipeline, meaningless about `tsc`. Run twice, read twice, believed twice.
+
+**Capture the status of the command you care about, not the line it sits in:**
+
+```sh
+npx tsc --noEmit > /tmp/tsc.txt 2>&1; echo "TSC_EXIT=$?"
+```
+
+Then **read the output even when the code is 0.**
+
+**2. A check whose success is silent.** This is the sharper half and it explains
+why `tsc` was the gate that broke rather than the others:
+
+| gate | says on success | fallback if you misread the code |
+|---|---|---|
+| `npm test` | `730/730` | the count |
+| `next build` | the route table | the table's presence |
+| `tsc --noEmit` | **nothing at all** | **none** |
+
+**Silence and unread failure are identical.** Tests and builds have a second
+signal that survives a misread exit code; `tsc` has one signal and it is the code.
+**The gate with no success output is the one that needs the redirect most, and it
+is the one that gets it least** — precisely because there is nothing to read when
+it works.
+
+**And a summary line can hide the thing it reports.** `230 problems (1 error, 229
+warnings)` puts a blocking result and a non-blocking one in the same number. The
+only thing that pointed at the real error was the count moving from 0 on `dev` to
+1 on the branch. **The pre-push hook, running bare commands under `set -e`, would
+have failed that push without ambiguity — the summary was less informative than
+the gate.**
+
 ### 3e. Converting a screen arms its own tests — same PR, no handoff
 
 **Added 2026-09-06, after `/arena` shipped with its acceptance test dormant.**
