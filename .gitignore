@@ -63,3 +63,22 @@ qa/.intercept-tally.*.json
 # STAGING, NOT STORAGE. Anything that is genuinely a document belongs in the
 # repo properly and tracked.
 .work/
+
+# ── credentials and session artefacts ──────────────────────────────────────
+#
+# ADDED 2026-09-06 after QA found live Supabase session tokens and a script
+# that mints them from .env.local sitting in a temp directory for days.
+#
+# They were OUTSIDE the repo, so nothing reached git - but that was luck, not
+# design. `.env*` at line 34 covers the credentials themselves; nothing covered
+# the ARTEFACTS a credential produces. A minted session token is as good as the
+# password that made it.
+#
+# The owner's rule, same day: "i want everything inside codebase just put it in
+# git ignored." Scratch work belongs in .work/ above - which means token files
+# now land inside the repo rather than in temp, and this block is what stops
+# them being committable when they do.
+session*.json
+session-*.json
+mint-session*.mjs
+*.session.json
