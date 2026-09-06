@@ -97,12 +97,22 @@ altering anything, `1` stubs. That measurement retired #114: Binance **0**,
 Bybit **<25**, Supabase 100+ per contrast sweep — the constraint the `workers`
 pin was built around barely exists.
 
+**The user's timezone — closed, `2889463`.** `qa/e2e/clock.spec.ts` composes
+`page.clock` (the instant) with Playwright's `timezoneId` context option (the
+zone) — measured before writing, both compose correctly. Three cases assert
+`/hours` renders the right local time, DST included: `America/New_York` in
+August (EDT, UTC-4) and January (EST, UTC-5), `Australia/Sydney` (next
+calendar day, UTC+10). This section said "needs `timezoneId` contexts and is
+a separate piece of work" after that work had already landed in the same
+file it was describing — the claim just never caught up to the test.
+
 **Still open:**
 
 - **SERVER time.** `page.clock` fakes the browser only, so the 24h/48h alert
-  outcome resolution — a cron — remains untestable.
-- **The user's timezone.** `page.clock` moves the instant, not the zone. A real
-  DST matrix needs `timezoneId` contexts.
+  outcome resolution — a cron — remains untestable. Genuinely QA's limit, not
+  an oversight: injecting a clock through app code would touch the 217 sites
+  `clock.spec.ts`'s own header counts (146 `Date.now()`, 71 `new Date()`), and
+  app code is not QA's to write.
 - RSI thresholds and squeeze/flush boundaries have fixtures but no spec asserts
   against them.
 
