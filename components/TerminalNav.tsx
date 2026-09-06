@@ -485,6 +485,18 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
       </header>
 
       {tabs}
+
+      {/* The modal itself, which #929 forgot. The import, the state and the
+          onClick all landed; nothing rendered the component, so setUsageOpen
+          flipped a boolean nobody read and View Usage silently did nothing.
+
+          That is the SAME defect #929 existed to fix - a control that looks
+          right and does not work - reintroduced one menu item over, in the
+          change that fixed it. Source review could not catch it: every line
+          you would check was present and correct. QA caught it by clicking.
+
+          Sibling of NavDrawer.tsx:465, which has always rendered it here. */}
+      <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
     </>
   );
 }
