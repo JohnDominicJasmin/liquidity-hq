@@ -42,8 +42,20 @@ const width = Number(process.argv.includes('--width') ? process.argv[process.arg
    import time with no loader, the same mechanism that lets `npm test` run
    `.mts` specs directly - so importing the real arrays isn't drift-prone the
    way scraping was: there is nothing left to keep in sync. */
-const TOKENS = (theme === 'light' ? TERMINAL_ALLOWED_LIGHT : TERMINAL_ALLOWED)
-  .map((c) => c.toLowerCase());
+/* The scrape this replaced threw below 10 colours rather than silently
+   auditing against an empty palette, which would report every screen as
+   perfectly on-token. An import can't half-succeed the way a regex scrape
+   could - it is either the real array or the module failed to load - so
+   `=== 0` is the one threshold an import can actually produce, and the only
+   one that can't go stale the moment a new token lands (a count like 10
+   would, which is exactly what #909 rewrote criterion 19 to avoid). */
+const checkedPalette = (name, list) => {
+  if (list.length === 0) throw new Error(`mobile-audit: ${name} is empty - import failed or the export was renamed`);
+  return list.map((c) => c.toLowerCase());
+};
+const TOKENS = theme === 'light'
+  ? checkedPalette('TERMINAL_ALLOWED_LIGHT', TERMINAL_ALLOWED_LIGHT)
+  : checkedPalette('TERMINAL_ALLOWED', TERMINAL_ALLOWED);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width, height: 844 } });
