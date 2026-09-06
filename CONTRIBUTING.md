@@ -260,9 +260,10 @@ was verified**, and the instrument agrees with them.
 a count — each answers *something*, rarely the thing you want. Drop one level:
 `--json jobs`, the resolved path, the matched list itself, the skip reason.
 
-**Two species of this are worth naming separately, because they need different
-defences.** Both were built by the same session in one afternoon, the second
-while writing up the first.
+**Three species of this are worth naming separately, because they need different
+defences.** The first two were built by the same session in one afternoon, the
+second while writing up the first. The third arrived from a different direction
+a day later and is the one that leaves no trace at all.
 
 **1. A check whose exit code you never see.**
 
@@ -311,6 +312,36 @@ only thing that pointed at the real error was the count moving from 0 on `dev` t
 1 on the branch. **The pre-push hook, running bare commands under `set -e`, would
 have failed that push without ambiguity — the summary was less informative than
 the gate.**
+
+**3. A gate switched off on the one line that needed it.** Added 2026-09-07,
+after QA found three chart indicators rendering into a phantom pane:
+
+```ts
+(chart as any).createIndicator(
+  { name: entry.id },
+  entry.pane === 'own' ? { pane: { id: paneId } } : { id: 'candle_pane' },
+);
+```
+
+The second argument is typed `CreateIndicatorOptions`, which has `isStack`,
+`pane` and `yAxis` — **and no `id`.** So `{ id: 'candle_pane' }` set nothing, the
+library allocated a fresh pane, and removal later filtered on a pane the
+indicator was never in. **TypeScript's excess property checking rejects that
+object outright. The `as any` is on the call it would have rejected.**
+
+**This is the inverse of the first two species and needs the opposite defence.**
+There the gate ran and its answer was misread. Here the answer was never
+computed — and unlike a skipped spec, **nothing anywhere reports a skip.** `tsc`
+passes, and it is right to: you asked it not to look.
+
+So: **a cast is a claim that you have checked what the compiler no longer will.**
+Narrow it to the expression that genuinely needs it rather than the whole call,
+and say in the PR what it is covering. `(chart as any).createIndicator(a, b)`
+disables checking on **both** arguments to buy whatever the first one needed.
+
+**The tell is that the correct shape was one ternary arm away**, in the same
+expression, written by the same hand in the same minute. **A silenced gate does
+not make a mistake more likely — it makes an ordinary one permanent.**
 
 ### 3e. Converting a screen arms its own tests — same PR, no handoff
 
