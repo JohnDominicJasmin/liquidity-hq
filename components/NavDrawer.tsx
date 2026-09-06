@@ -216,7 +216,7 @@ function NavDropdown({ label, items, open, onToggle, onClose, pathname }: {
         className={`desktop-nav-item nav-more-btn${open || isActive ? ' on' : ''}`}
         onClick={onToggle}
       >
-        {label} {open ? '▴' : '▾'}
+        {label} <span aria-hidden="true">{open ? '▴' : '▾'}</span>
       </button>
       {open && (
         <div className="nav-more-dropdown">

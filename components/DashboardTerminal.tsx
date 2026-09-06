@@ -12,7 +12,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useOnboarding } from '@/components/OnboardingProvider';
 import {
-  useMarket, COINS, COIN_DEC, fmtPrice,
+  useMarket, COINS, COIN_DEC, fmtPrice, fmtChg,
   computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY,
 } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
@@ -217,7 +217,7 @@ function TCoinSidebar() {
 
             <div className="csb2-bottom" style={{ '--csb2-spark-w': `${SPARK_W}px` } as React.CSSProperties}>
               <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
-                {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
+                <span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}
               </span>
               <Sparkline24h coin={id} width={SPARK_W} height={14} />
               {sig && (
@@ -478,7 +478,7 @@ function TSelectedCoinCard() {
         <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>
       </div>
       <div className="scc-meta">
-        <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}>{up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%</span>
+        <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>
         <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
       <span className="scc-arrow" aria-hidden="true">›</span>

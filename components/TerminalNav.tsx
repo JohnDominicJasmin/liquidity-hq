@@ -288,7 +288,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                   aria-haspopup="menu"
                   aria-expanded={open}
                 >
-                  {t(d.labelKey)} {open ? '▴' : '▾'}
+                  {t(d.labelKey)} <span aria-hidden="true">{open ? '▴' : '▾'}</span>
                 </button>
                 {open && (
                   <div className="tnav-dropdown" role="menu">

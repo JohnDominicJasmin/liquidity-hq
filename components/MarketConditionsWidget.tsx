@@ -139,7 +139,7 @@ export default function MarketConditionsWidget() {
           <div className="fng-label" style={{ color: fng != null ? `var(--txt)` : 'var(--txt3)', marginBottom: 6 }}>{store.fngLabel || '-'}</div>
           {delta != null && delta !== 0 && (
             <span className={`fng-delta-pill ${delta > 0 ? 'fng-delta-up' : 'fng-delta-down'}`}>
-              {delta > 0 ? '▲' : '▼'} {Math.abs(delta)}
+              <span aria-hidden="true">{delta > 0 ? '▲' : '▼'}</span> {(delta > 0 ? '+' : '') + delta}
             </span>
           )}
         </div>
