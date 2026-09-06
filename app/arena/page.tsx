@@ -1396,13 +1396,29 @@ function ArenaContent() {
           multiTf={<MultiTFAlignment coin={selectedCoin} />}
           absorption={entitled ? <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} /> : null}
           emaSignal={<EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />}
-          /* The liquidation heatmap panel is STRUCK from the spec, not passed
-             as null (#853, ruled 2026-09-06). store.btcLiqLevels is permanently
-             empty - Coinglass retired v2, v4 answers 401 on this tier - and the
-             current design had already removed the card for that reason. The
-             criterion went with it rather than staying unsatisfiable. Not
-             repurposed to LiqFeed: that is REALIZED liquidation data and the
-             slot specified PREDICTED levels. Filed separately as a new panel. */
+          /* NOT the reverted wiring, and this is a deliberate departure from
+             dd39c9bb^ rather than an omission (#853).
+
+             The reverted version passed <LiqHeatmap levels={store.btcLiqLevels}
+             .../> guarded on `store.btcLiqLevels.length > 0`. **That array is
+             permanently empty.** Coinglass retired the v2 endpoints and v4
+             answers 401 on this tier; pendings/PENDING.md:18 defers the upgrade
+             until revenue. The current design removed that card for exactly
+             this reason - see the note above <LiqFeed>: it "had drawn zero
+             times, for every coin, in every theme."
+
+             So restoring it verbatim would ship a panel that provably never
+             renders, in the slot spec criterion 3 requires to be a heatmap.
+             Passing null instead, so the gap is visible rather than disguised
+             as a working panel waiting for data that is not coming.
+
+             **This is an open decision, not a fix.** specs/arena.md was written
+             while Coinglass worked. What replaced the heatmap is LiqFeed -
+             REALIZED liquidations from Binance and Bybit, keyless and not
+             BTC-only - which is a different claim from PREDICTED levels, not a
+             drop-in. Whether criterion 3's heatmap panel becomes a realized-
+             liquidation view, or is struck, is design's call. */
+          heatmap={null}
           usageMeter={<UsageMeter />}
           /* Clusters DO have a live source, so they are wired to it rather than
              to the dead one. The reverted version read store.btcLiqLevels and
