@@ -80,7 +80,7 @@ Every one of these produced a false result, once, before it was caught. None of 
 
 **Correct yourself in public when you're wrong.** Several findings in this project's history are corrections of an earlier session's own finding, including this session's. Say what changed and why, on the same issue — don't quietly fix it and let the old claim stand uncorrected.
 
-**This repository is public.** Everything you write in an issue, PR or comment is readable by anyone, permanently (edits leave the original visible in history). Before pasting a log excerpt, a network capture, or an error message: no tokens, no connection strings, no real account emails — including seeded fixture accounts, which are real accounts on a real project. A project identifier alone (a Supabase project ref, say) isn't automatically sensitive — check whether it's already committed and tracked elsewhere (`git log -S<the-string>`) before treating a redaction as urgent, but check, don't assume either way.
+**This repository is public.** Everything you write in an issue, PR or comment is readable by anyone, permanently (edits leave the original visible in history). Before pasting a log excerpt, a network capture, or an error message: no tokens, no connection strings, no real account emails — including seeded fixture accounts, which are real accounts on a real project. A project identifier alone (a Supabase project ref, say) isn't automatically sensitive — check whether it's already committed and tracked elsewhere (`git log -S<the-string>`) before treating a redaction as urgent, but check, don't assume either way. **A local absolute path can carry the machine's account name** (`C:\Users\<name>\...`) — use a relative one in anything public.
 
 ---
 
