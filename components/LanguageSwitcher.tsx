@@ -30,6 +30,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
     <div ref={ref} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
         className="lp-lang-btn"
         style={{
           fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)',
@@ -40,7 +41,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
       >
         <span className="lp-lang-full">{current.label}</span>
         <span className="lp-lang-short">{current.code.toUpperCase()}</span>
-        <span style={{ fontSize: '0.6875rem', opacity: 0.6 }}>▾</span>
+        <span aria-hidden="true" style={{ fontSize: '0.6875rem', opacity: 0.6 }}>▾</span>
       </button>
       {open && (
         <div className="lp-lang-menu" style={{

@@ -245,7 +245,13 @@ export default function ConfluenceScore(
             : f.dir === 'bull' ? 'var(--green-2)' : f.dir === 'bear' ? 'var(--red)' : 'var(--txt3)';
           const valueText = isPenalty
             ? (f.active ? t('CONFLUENCE_SCORE_PENALTY_ACTIVE', { weight: f.weight }) : t('CONFLUENCE_SCORE_PENALTY_CLEAR'))
-            : (f.dir === 'neutral' ? '-' : `${f.dir === 'bull' ? '▲' : '▼'} ${f.weight}`);
+            /* The SIGN carries the direction, not the glyph (#939). This read
+               `▲ 12` / `▼ 12` - same number both ways, with bull/bear only in
+               the arrow, so a screen reader heard "12" for a bearish factor
+               and "12" for a bullish one. Same defect as the seven Math.abs
+               sites; different mechanism, which is why a grep for Math.abs
+               said this file was clean and I repeated that. */
+            : (f.dir === 'neutral' ? '-' : `${f.dir === 'bull' ? '▲' : '▼'} ${f.dir === 'bull' ? '+' : '-'}${f.weight}`);
           return (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
