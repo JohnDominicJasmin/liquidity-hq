@@ -16,6 +16,7 @@ import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
 import CoinMultiSelect from './CoinMultiSelect';
+import { activatable } from '@/lib/activatable';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -823,10 +824,24 @@ export default function GrokChat() {
             ) : (
               <div className="gchat-hist-list">
                 {convos.map(c => (
+                  /* #939: loading a past conversation was click-only, so the
+                     whole history was unreachable from the keyboard. role and
+                     tabIndex rather than a <button> because the row carries a
+                     delete <button> of its own.
+
+                     aria-label is not decoration here, it is required BECAUSE
+                     of that delete button (QA on #942). Without an explicit
+                     name, accname computes the row's name from its subtree,
+                     which includes the delete button's own
+                     aria-label="Delete conversation" - so the row announced as
+                     "BTC, <title>, 5 messages · 2h ago, Delete conversation",
+                     ending on the label of a DIFFERENT action. Naming the row
+                     explicitly stops the subtree walk. */
                   <div
                     key={c.id}
                     className={`gchat-hist-item${c.id === currentIdRef.current ? ' gchat-hist-item-active' : ''}`}
-                    onClick={() => loadConvo(c)}
+                    aria-label={`${c.coin.toUpperCase()} - ${c.title}`}
+                    {...activatable(() => loadConvo(c))}
                   >
                     <span
                       className="gchat-hist-coin"

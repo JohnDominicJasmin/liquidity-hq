@@ -22,6 +22,7 @@ import {
 } from './icons';
 import type { ComponentType } from 'react';
 import { useLabels } from '@/lib/labels';
+import { activatable } from '@/lib/activatable';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 /* Shared with TerminalNav so both designs reach the same routes (#714). */
 import { PRIMARY, SCANNERS, TOOLS, TAIL, rendersOwnNav } from '@/lib/navRoutes';
@@ -452,7 +453,20 @@ export default function NavDrawer() {
               )
             )}
 
-            <div className={`hamburger${drawerOpen ? ' open' : ''}`} onClick={() => setDrawerOpen(v => !v)}>
+            {/* #939: the mobile menu opened on click only - three empty
+                divs, no role, no tabIndex, no name. A keyboard-only user on
+                a narrow viewport could not reach navigation at all, which
+                makes this the widest-reaching of the set.
+
+                aria-label reuses the existing TNAV_MORE_ARIA rather than
+                adding a key: `npm run labels:regen` rewrites
+                labelDefaults.en.json wholesale, so a hand-added key does not
+                survive the next run. */}
+            <div
+              className={`hamburger${drawerOpen ? ' open' : ''}`}
+              aria-label={t('TNAV_MORE_ARIA')}
+              {...activatable(() => setDrawerOpen(v => !v), drawerOpen)}
+            >
               <div className="ham-line" />
               <div className="ham-line" />
               <div className="ham-line" />
