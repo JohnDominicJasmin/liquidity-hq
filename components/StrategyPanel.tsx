@@ -219,17 +219,28 @@ export default function StrategyPanel({ onRun }: Props) {
                     type="button"
                     className={`strat-chip${on ? ' on' : ''}${blocked ? ' blocked' : ''}`}
                     aria-pressed={on}
-                    /* The reason lives in a visually-hidden element, not only
-                       in `title`. Chromium surfaces `title` on hover and not on
-                       keyboard focus, and title-as-description is inconsistent
-                       across screen readers - so before this, a keyboard user
-                       learned THAT something stopped them and never why. */
+                    /* The reason is a DESCRIPTION, and it points at the visible
+                       line below rather than at hidden text or a `title`.
+
+                       NO `title` HERE, and that is a fix rather than a
+                       simplification. QA measured it live: with `title` on this
+                       button, every blocked chip's accessible NAME came back as
+                       "Deselect one first - 3 at a time" instead of "Ichimoku",
+                       for all of them alike. Isolated in both directions on the
+                       running page - removing `title` from one chip restored
+                       its name; removing `aria-describedby` from another and
+                       leaving `title` did not. So `title` was clobbering
+                       name-from-content, and the first fix traded "the keyboard
+                       learns nothing" for "the keyboard cannot tell the chips
+                       apart". Second gap, not a closed one.
+
+                       A description does not participate in the name, so this
+                       shape cannot repeat the trade. */
                     aria-describedby={blocked ? limitNoteId : undefined}
-                    /* A chip past the limit stays focusable and says why. Making
-                       it `disabled` would drop it out of the tab order and leave
-                       a keyboard user unable to find out what stopped them. */
+                    /* A chip past the limit stays focusable. Making it
+                       `disabled` would drop it out of the tab order and leave a
+                       keyboard user unable to find out what stopped them. */
                     onClick={() => toggle(entry)}
-                    title={blocked ? `Deselect one first - ${limit} at a time` : undefined}
                   >
                     {on && <span className="strat-n" aria-hidden="true">{pos + 1}</span>}
                     {entry.label}
@@ -240,12 +251,22 @@ export default function StrategyPanel({ onRun }: Props) {
           </div>
         ))}
 
-        {/* One note for every blocked chip, rather than one per chip: the text is
-            identical and duplicating it would put the same sentence in the
-            accessibility tree twenty times. */}
-        <span id={limitNoteId} className="sr-only">
-          {`Deselect one first - ${limit} at a time`}
-        </span>
+        {/* VISIBLE, not screen-reader-only, and only while it is true.
+
+            The first version hid this text and left a `title` for mouse users,
+            which is two channels carrying one sentence and one of them
+            clobbering the chip names. One visible line serves everybody: a
+            sighted mouse user reads it without hovering, and it is what the
+            blocked chips point their description at.
+
+            One element for every blocked chip rather than one each - the
+            sentence is identical, and twenty copies of it in the accessibility
+            tree is its own defect. */}
+        {atLimit && (
+          <div id={limitNoteId} className="strat-limit" role="status">
+            {`Deselect one first - ${limit} at a time`}
+          </div>
+        )}
 
         {isAuto && (
           <div className="strat-auto">
