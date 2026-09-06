@@ -7,41 +7,88 @@ name: CI
 # a 2,000 min/month allowance - roughly $124/month annualised, and it hard-
 # stopped CI mid-release when the spending limit was hit.
 #
-# The rule now: the ~2 minute job runs on everything. The ~40 minute Playwright
-# suite runs on TWO automatic triggers:
+# ⚠️ THIS WORKFLOW IS `disabled_manually`, BY THE OWNER'S DECISION, 2026-09-06:
+# "leave it off until its deployment time again". Nothing here runs until
+# someone turns it on.
+#
+#   gh api repos/:owner/:repo/actions/workflows --jq '.workflows[] | "\(.state)  \(.name)"'
+#     disabled_manually  CI
+#     active             Ready for QA
+#     active             Release signals
+#
+# Last run of any kind: 2026-09-05T14:37:36Z. Confirmed 2026-09-06, when a push
+# to `staging` - the first since 2026-08-10 - started `Ready for QA` and
+# `Release signals` and did not start this. Not `paths-ignore` (docs-only, and
+# that push carried 19 files under components/, lib/ and app/), not the branch
+# list (it contains `staging`), not the `if:` below (no job is evaluated when
+# the workflow never starts).
+#
+# ── THE RELEASE SEQUENCE, because two of these steps get forgotten ────────────
+#
+#   1. ENABLE this workflow                          <- forgotten one
+#   2. Open the `staging` -> `main` release PR BY HAND
+#      (`RELEASE_PR_PAUSED` is still 1, so nothing opens it)
+#   3. The browser suite runs against the candidate
+#   4. Merge, deploy, verify /api/version, tag
+#   5. DISABLE this workflow again                   <- forgotten two
+#
+# WHAT GATES MERGES THE REST OF THE TIME: `.githooks/pre-push`, alone. It runs
+# lint, tsc and unit tests as bare commands under `set -e`. It does NOT run
+# `npm run build` and it does NOT run the browser suite. Those are hand-run
+# before a PR and quoted in it, and that is the load-bearing verification now
+# rather than a belt-and-braces extra.
+#
+# ── WHERE THE SUITE RUNS WHEN IT IS ON ───────────────────────────────────────
+#
+# The ~35 minute Playwright suite has TWO automatic triggers:
 #
 #   1. a PR into `main` - the release, immediately before a production deploy
 #   2. a push to `staging` - added 2026-08-10, issue #207
 #
-# THIS PARAGRAPH SAID "exactly ONE" UNTIL 2026-09-06, FOUR WEEKS AFTER TRIGGER 2
-# LANDED. The e2e job's own comment below documented trigger 2 correctly the whole
-# time, and `CONTRIBUTING.md` recorded it too - so the only wrong description was
-# the one at the top of the file that readers are told to consult before adding a
-# trigger. That is the failure mode this file already warns about elsewhere: a
-# comment asserting state it cannot see, with nothing that fails when it goes
-# stale. Found while tracing a GitHub charge (#946).
+# This paragraph said "exactly ONE automatic trigger" until 2026-09-06, four
+# weeks after trigger 2 landed. The e2e job's own comment below documented it
+# correctly the whole time and `CONTRIBUTING.md` recorded it too - so the only
+# wrong description was the one at the top of the file, which is the paragraph
+# readers are told to consult before adding a trigger. Found while tracing a
+# GitHub charge (#946).
 #
 # WHY TRIGGER 2 EXISTS, so nobody deletes it to make the code match a corrected
 # header: the release PR was the only automatic trigger and it had STOPPED BEING
 # OPENED - `RELEASE_PR_PAUSED` was set on the owner's park-it call and is still
-# set today, so `release-signals.yml` opens nothing. Between those two facts the
-# browser suite ran not at all, and ten spec files were covered NOWHERE. The
-# fuller account is on the e2e job below.
+# set - so the browser suite ran not at all, and ten spec files were covered
+# NOWHERE. Fuller account on the e2e job below.
 #
-# AND IT IS NOT WHERE THE MONEY GOES. Measured for August 2026, every E2E job
-# with its real duration:
+# ── WHAT AUGUST ACTUALLY COST, measured job by job from the Actions API ──────
 #
-#   pull_request (release PRs)   10 runs   449 min
-#   push to `staging`             3 runs   124 min
-#                                13 runs   573 min  = 13.6% of the 4,223 billed
+# Billable minutes are per JOB rounded UP to the whole minute; a run's wall
+# clock is not its cost. Summed this way August comes to 4,223, which matches
+# the invoice exactly - that agreement is what makes the split below trustworthy.
 #
-# Trigger 2 fired THREE TIMES in its whole existence - `staging` moved 15 times
-# in August but 12 of those predate it, and `staging` has not moved since
-# 2026-08-10. Removing it would save ~124 min/month, about a tenth of the
-# overage, in exchange for reopening the gap #207 exists to close.
+#   E2E (Playwright)                2,582   61.1%
+#   Lint + typecheck + test + build 1,099   26.0%
+#   CI Gate (advisory)                361    8.5%
+#   everything else                   181    4.4%
 #
-# The ~53 minute figure this paragraph used to quote is also stale: the thirteen
-# August runs measured 37-46 minutes, with one 72-minute outlier.
+# E2E by trigger, counting only jobs that actually executed - 73 runs, not the
+# 13 an earlier pass reported by filtering to one branch and calling it a census:
+#
+#   dev (push)                  16 runs  523 min   <- before the `if:` existed
+#   staging (pull_request)      10 runs  458 min
+#   qa (pull_request)           10 runs  382 min
+#   qa (push)                    7 runs  232 min
+#   feature-branch PRs          24 runs  740 min
+#   staging (push)               3 runs  127 min   <- trigger 2, 3.0% of the bill
+#   dev (workflow_dispatch)      3 runs  120 min
+#
+# AND THE DATES ARE THE POINT: 08-04 and 08-05 alone are 49 runs and 1,587
+# minutes - 61% of all E2E time in the month. That is the burn this header was
+# written to stop, and the `if:` below is what stopped it. After 08-13 the suite
+# did not run again in August at all.
+#
+# So removing trigger 2 would save ~127 min/month, about a tenth of the 1,223
+# minutes of overage, in exchange for reopening the gap #207 exists to close.
+# The header used to quote the suite at ~53 minutes; the 73 August runs measured
+# 31-46, with one 72-minute outlier.
 #
 # THE BRANCH FLOW IS FOUR-STAGE as of 2026-08-07:
 #
