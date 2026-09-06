@@ -316,7 +316,11 @@ const WIDE_BASELINE = [
   'components/SetupScanner.tsx: .card — inline background kills the terminal rule\'s background',
   'components/Skeleton.tsx: .card — inline padding kills the terminal rule\'s padding',
   'components/Skeleton.tsx: .skel-bar — the terminal rule\'s border-radius !important kills inline borderRadius',
-  'components/UpgradeGateModal.tsx: .card — inline background kills the terminal rule\'s background',
+  /* REMOVED 2026-09-06 (#926): the inline background is now computed -
+     `mode === 'terminal' ? var(--bg1) : the gradient` - so it no longer
+     overrides the terminal rule, it IS the terminal value. The ratchet
+     caught this itself and asked for the deletion; removed rather than
+     left behind, so the ratchet keeps its new position. */
   'components/UpgradeGateModal.tsx: .card — inline border kills the terminal rule\'s border',
   'components/UpgradeGateModal.tsx: .card — inline padding kills the terminal rule\'s padding',
   'components/UpgradeGateModal.tsx: .locked-card-term-wrap — the terminal rule\'s border-radius !important kills inline borderRadius',

@@ -5,6 +5,7 @@ import { useOnboarding } from './OnboardingProvider';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
 import { useTheme } from '@/lib/theme';
+import { useDesignMode } from '@/components/DesignModeProvider';
 import type { LabelKey } from '@/lib/labelKeys';
 
 const MONO = "var(--font-mono, 'IBM Plex Mono', monospace)";
@@ -30,9 +31,42 @@ const LIGHT = {
   TG_BG: 'rgba(34,158,217,0.08)', TG_BDR: 'rgba(34,158,217,0.35)', TG_TXT: '#0e7fae',
   MODAL_SHADOW: '0 20px 48px rgba(20,25,40,0.18)',
 };
+/* THE TERMINAL PALETTE (#926).
+ *
+ * This component is 100% inline-style with no CSS classes, which is why it
+ * needed DARK and LIGHT as objects in the first place - it picks up no
+ * stylesheet at all, so `[data-design="terminal"]` never reached it either.
+ * It rendered identically in both designs: 19 restated hex, 13 rgba() and 20
+ * non-zero radii, on the FIRST screen a new account sees.
+ *
+ * Adding a third palette rather than editing twenty inline sites, because the
+ * file already solved this shape once for theme and the fix should look like
+ * the one that is there.
+ *
+ * Every value is a token by name. The tinted borders and tracks are the
+ * current design's blue at low alpha - `rgba(26,122,255,0.1)` and friends -
+ * which is exactly the kind of literal that never adapts; terminal uses --bdr
+ * and --bg2 instead. The one thing NOT tokenised is TG_TXT and its pair,
+ * which carry the teal "target" accent; terminal has no teal, so they resolve
+ * to --accent like everything else that means "the live one".
+ *
+ * Terminal is one palette, not two: the tokens themselves swap under
+ * [data-theme="light"], so `var(--bg0)` is already correct in both. That is
+ * the whole reason to reference tokens rather than transcribe them. */
+const TERMINAL = {
+  ACCENT: 'var(--accent)', GREEN: 'var(--green)', RED: 'var(--red)', ORANGE: 'var(--amber)',
+  BG0: 'var(--bg0)', BG1: 'var(--bg1)', BG2: 'var(--bg2)',
+  TXT1: 'var(--txt)', TXT2: 'var(--txt2)', TXT3: 'var(--txt3)',
+  BDR: 'var(--bdr)', TRACK_BG: 'var(--bg2)', GRID: 'var(--bdr2)',
+  TG_BG: 'var(--bg2)', TG_BDR: 'var(--border-input)', TG_TXT: 'var(--accent)',
+  MODAL_SHADOW: 'none',
+};
+
 type Palette = typeof DARK;
 function usePalette(): Palette {
   const { theme } = useTheme();
+  const design = useDesignMode();
+  if (design === 'terminal') return TERMINAL;
   return theme === 'light' ? LIGHT : DARK;
 }
 
@@ -487,12 +521,20 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
     setStep(s => s - 1);
   }
 
+  const terminal = useDesignMode() === 'terminal';
   const Visual = current.Visual;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
+      /* Radius is the one thing the TERMINAL palette above cannot carry - it
+         is 18 inline numbers, not a colour. Same wrapper idiom the other 22
+         surfaces use, and appropriate here because "radius 0 everywhere" is
+         an unconditional rule rather than a per-element decision.
+         This is NOT the whole conversion, which is the failure #926 is about:
+         the palette handles colour and type, this handles radius. */
+      className={terminal ? 'tour-term-wrap' : undefined}
       style={{
         position: 'fixed', inset: 0, zIndex: 10001,
         // Was 0.92 - much heavier than this app's own backdrop convention

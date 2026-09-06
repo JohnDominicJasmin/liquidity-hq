@@ -7776,6 +7776,94 @@ main.app-content[data-chrome="none"] {
 /* login / forgot-password / reset-password terminal (#413) */
 [data-design="terminal"] .login-term-wrap,
 [data-design="terminal"] .login-term-wrap * { border-radius: 0 !important; }
+/* The submit caption was the one thing on these screens that did not follow
+   the handoff (#926). Measured by QA in both themes: `.login-field-label`
+   computes IBM Plex Mono, uppercase, 1.32px tracking - correct - while the
+   button beside it computed Plex Sans at -0.1px. So the form mixed a mono
+   label with a sans caption.
+
+   The handoff is explicit that a primary CTA is the same type as the ghost
+   button beside it - "SIGN IN as a ghost button (11.5px mono, .12em)" and
+   "GET STARTED as the primary (same type at 700)". A button caption is a
+   label, not prose.
+
+   NO text-transform, deliberately. The same handoff line says "Uppercase is
+   REAL TEXT, not text-transform." Casing belongs to the label copy in
+   lib/labelDefaults.en.json, and that file is regenerated wholesale by
+   `npm run labels:regen` - so anything set here by hand would be lost and
+   anything set there is a copy decision, not a styling one. Type and tracking
+   are the parts that are ours; the casing is raised on #926 for whoever owns
+   copy.
+
+   Everything else on these three routes was already conformant - the pages
+   are written in tokens and the tokens already fall through. I added a
+   98-line block assuming otherwise and reverted it; this is what was actually
+   wrong. */
+[data-design="terminal"] .login-email-btn {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .12em;
+}
+
+/* The shared modal shell - UsageModal and every settings modal use .smod-*
+   (#926). It had NO terminal rules at all: zero matches for
+   `[data-design="terminal"] .smod`. The panel already draws on --bg0 and
+   --bdr, so the palette was never wrong; what was wrong is an 18px radius, a
+   0.5px hairline and a blurred black backdrop, none of which the handoff
+   allows once terminal is active.
+
+   The backdrop was `rgba(0,0,0,0.55)` plus a 4px blur - a literal, so it
+   never adapted to theme, and in light terminal it dimmed a light page with
+   black. Using the page ground at opacity keeps the relationship in tokens. */
+[data-design="terminal"] .smod-panel {
+  border: 1px solid var(--bdr);
+  border-radius: 0;
+  /* The base rule's `0 24px 80px rgba(0,0,0,0.5)` at :3841 survives unless
+     this says otherwise - I wrote border and radius and forgot the third
+     property, and QA caught it with getComputedStyle rather than by eye.
+     The handoff's "no shadows" is unconditional; an override that fixes two
+     of three properties is the same partial-conversion shape #926 is about,
+     one rule smaller. */
+  box-shadow: none;
+}
+[data-design="terminal"] .smod-backdrop {
+  background: color-mix(in srgb, var(--bg0) 82%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-design="terminal"] .smod-header { border-bottom: 1px solid var(--bdr); }
+[data-design="terminal"] .smod-title {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .1em;
+}
+
+/* .auth-gate - the signed-out panel AuthGate renders in place of a Pro
+   surface (#926). Zero terminal rules existed. It already draws on --bg1 and
+   --bdr, and --nm-raise is `none` in dark, so only the radius, the hairline
+   weight and the button's type were current-design. */
+[data-design="terminal"] .auth-gate {
+  border: 1px solid var(--bdr);
+  border-radius: 0;
+  box-shadow: none;
+}
+[data-design="terminal"] .auth-gate-btn {
+  border-radius: 0;
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .12em;
+}
+[data-design="terminal"] .auth-gate-title {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .04em;
+}
+
+/* SpotlightTour (#926). The component is 100% inline-style with no CSS
+   classes, so it picked up no stylesheet at all - not [data-theme="light"]
+   originally, and not [data-design="terminal"] ever. Colour and type are
+   handled by a third palette object inside the component, next to the DARK
+   and LIGHT ones it already had. This handles the 18 inline radius numbers,
+   which a palette cannot carry. */
+[data-design="terminal"] .tour-term-wrap,
+[data-design="terminal"] .tour-term-wrap * { border-radius: 0 !important; }
+
 /* upgrade-gate / locked-feature-card / full-page-upgrade-gate terminal (#413) */
 [data-design="terminal"] .locked-card-term-wrap,
 [data-design="terminal"] .locked-card-term-wrap * { border-radius: 0 !important; }
