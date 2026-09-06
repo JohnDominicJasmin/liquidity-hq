@@ -241,6 +241,18 @@ jobs:
       # workflow is enabled, not whether Actions are running. A silent check and
       # a healthy repository look identical. This narrows the gap; it does not
       # close it.
+      #
+      # Two more timing limits, named here rather than discovered as an absence:
+      #
+      #   IT FIRES ON THE DAILY, NOT ON THE PUSH THAT PARKS THE CANDIDATE. The
+      #   push that moves `staging` runs `release-pr` (gated) and nothing else,
+      #   so a warning can be up to ~24h late. That is late, not silent, and it
+      #   is the tradeoff for living in the job that is never gated.
+      #
+      #   IT CANNOT WARN ABOUT THE RELEASE CARRYING IT. `schedule` and
+      #   `workflow_dispatch` run the DEFAULT BRANCH's copy of a workflow, so
+      #   this step does nothing on the daily until it reaches `main`. The first
+      #   candidate it can report is the one after the release that ships it.
       - name: Warn when a release candidate is parked on staging
         env:
           GH_TOKEN: ${{ github.token }}
@@ -255,15 +267,39 @@ jobs:
           PRS=$(git log --format=%s origin/main..origin/staging \
                   | grep -cE '^Merge (pull request|PR) #[0-9]+' || true)
 
+          # A FAILED QUERY MUST NOT BECOME AN ALARM.
+          #
+          # `2>/dev/null || true` would silence an expected empty result and an
+          # unexpected API failure with the SAME empty string:
+          #
+          #     OPEN_RELEASE (no PR open)      = ""
+          #     OPEN_RELEASE (rate-limited)    = ""      <- indistinguishable
+          #
+          # A blip would then file "a release candidate is parked" while the
+          # release PR is sitting open, and the OPEN_ISSUE lookup below is worse -
+          # on failure it reads as "no existing issue" and opens a duplicate.
+          #
+          # This is the same rule the production check further down already
+          # applies to an unreachable /api/version, and the reason is stronger
+          # here: THIS IS A WARNING SYSTEM, AND THE FIRST FALSE POSITIVE IS WHAT
+          # TEACHES PEOPLE TO IGNORE IT. Bail rather than guess.
+          #
           # Any open staging -> main PR counts, however it was opened. The point
           # is whether the release is visible somewhere, not who made it visible.
-          OPEN_RELEASE=$(gh pr list --repo "$REPO" --base main --head staging \
-                           --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
+          if ! OPEN_RELEASE=$(gh pr list --repo "$REPO" --base main --head staging \
+                                --state open --json number --jq '.[0].number // empty'); then
+            echo "could not list open release PRs - reporting nothing rather than guessing"
+            exit 0
+          fi
 
           gh label create release-parked --repo "$REPO" --color FBCA04 \
             --description "staging is ahead of main with no open release PR" 2>/dev/null || true
-          OPEN_ISSUE=$(gh issue list --repo "$REPO" --label release-parked --state open \
-                         --json number --jq '.[0].number // empty' 2>/dev/null || true)
+
+          if ! OPEN_ISSUE=$(gh issue list --repo "$REPO" --label release-parked --state open \
+                              --json number --jq '.[0].number // empty'); then
+            echo "could not list release-parked issues - reporting nothing rather than guessing"
+            exit 0
+          fi
 
           echo "staging ahead of main by $AHEAD commit(s), release PR: ${OPEN_RELEASE:-none}"
 
