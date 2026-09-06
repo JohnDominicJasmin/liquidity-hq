@@ -156,7 +156,7 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
         <span className="cms-trigger-txt">{summary}</span>
         <span className="cms-trigger-right">
           {!single && value.length > 0 && <span className="cms-count">{value.length}</span>}
-          <span className="cms-chevron">{open ? '▴' : '▾'}</span>
+          <span className="cms-chevron" aria-hidden="true">{open ? '▴' : '▾'}</span>
         </span>
       </button>
 

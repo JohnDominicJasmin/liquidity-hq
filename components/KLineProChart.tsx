@@ -2282,7 +2282,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             aria-expanded={drawMenuOpen}
             title="Drawing tools"
           >
-            {activeTool ? (TOOLS.find(t => t.id === activeTool)?.label ?? 'Draw') : 'Draw'} {drawMenuOpen ? '▴' : '▾'}
+            {activeTool ? (TOOLS.find(t => t.id === activeTool)?.label ?? 'Draw') : 'Draw'} <span aria-hidden="true">{drawMenuOpen ? '▴' : '▾'}</span>
           </button>
           {drawMenuOpen && (
             <div className="klc-draw-menu">

@@ -81,6 +81,24 @@ export interface CoinData {
 export function fmtPrice(p: number, dec: number): string {
   return p.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 }
+/* THE SIGN IS THE DATA. Keep it here rather than in a ▲/▼ glyph beside the
+   number (#939).
+
+   Seven render sites paired `{up ? '▲' : '▼'}` with `Math.abs(chg).toFixed(2)`,
+   which puts direction ONLY in the glyph. A screen reader then reads a
+   magnitude with no direction - "2.34 percent" for a coin that is down 2.34% -
+   which is not a badly worded announcement, it is a different number.
+   `CoinMarketSnapshot.tsx:73` kept the sign the whole time; the other seven did
+   not, and nothing made them disagree loudly.
+   Alignment, which is the objection worth pre-empting, stated precisely rather
+   than reassuringly: under Math.abs BOTH directions rendered without a sign and
+   now both render with one, so up and down stay the same width AS EACH OTHER -
+   which is what a column of numerals needs. The column itself is one character
+   WIDER than before. That is a real change and not a free one; it is the price
+   of the number carrying its own direction.
+   The glyph stays - it is faster to scan than a character - but it is
+   `aria-hidden` at every call site, because it now duplicates the sign rather
+   than carrying it. */
 export function fmtChg(c: number | null | undefined): string {
   if (c == null) return '--%';
   return (c >= 0 ? '+' : '') + c.toFixed(2) + '%';

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useMarket, CoinId, COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
+import { useMarket, CoinId, COINS, BINANCE_SYMS, BYBIT_SYMS, fmtChg } from '@/lib/marketStore';
 import LiqFeed, { Bucket } from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 import GexTable from '@/components/GexTable';
@@ -643,7 +643,7 @@ export default function LiqPage() {
               <span className="liq-current-dot" />
               <span className="liq-current-price">{fmtP(cd.price)}</span>
               <span className="liq-current-chg" style={{ color: (cd.change ?? 0) >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
-                {(cd.change ?? 0) >= 0 ? '▲' : '▼'}{Math.abs(cd.change ?? 0).toFixed(2)}%
+                <span aria-hidden="true">{(cd.change ?? 0) >= 0 ? '▲' : '▼'}</span>{fmtChg(cd.change ?? 0)}
               </span>
               <span className="liq-current-tag">{t('LIQ_HEATMAP_LIVE_TAG')}</span>
               <span className="liq-current-oi">{t('LIQ_HEATMAP_OI_LABEL', { amount: fmtM(cd.oi / 1e6) })}</span>
