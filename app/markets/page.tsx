@@ -110,13 +110,26 @@ export default function MarketsPage() {
     router.push(`/arena?coin=${id}`);
   }
 
-  const GRADE_STYLE: Record<string, { bg: string; col: string }> = {
-    A: { bg: 'rgba(52,211,153,0.15)',  col: 'var(--green-2)' },
-    B: { bg: 'rgba(96,165,250,0.15)',  col: 'var(--accent-2)' },
-    C: { bg: 'rgba(245,158,11,0.15)',  col: 'var(--amber)' },
-    D: { bg: 'rgba(248,113,113,0.15)', col: 'var(--red)' },
-    F: { bg: 'rgba(239,68,68,0.15)',   col: 'var(--red)' },
-  };
+  /* GRADE_STYLE DELETED (#926). It was a SECOND grade-to-colour mapping,
+     local to this file, and it disagreed with the canonical one in
+     computeCoinHealth on every single grade:
+
+                 canonical            this table
+       A         --amber   gold       --green-2  green
+       B         --green-2 green      --accent-2 blue
+       C         --txt2    gray       --amber    gold
+       D         --orange  orange     --red      red
+       F         --txt2    gray       --red      red     <- same as D
+
+     Two defects, not one. D and F rendered IDENTICALLY here, so the two
+     worst grades were indistinguishable. And the ladder was shifted by one
+     against /dashboard, so gold meant "A" on one screen and "C" on the
+     other - a user comparing coins across two screens read contradictory
+     signals from the same colour.
+
+     Now reads health.color, the value /dashboard and /arena already use.
+     C and F sharing --txt2 there is deliberate and documented at
+     lib/marketStore.ts:395 - the letter separates them, not the ink. */
 
   return (
     <>
@@ -235,7 +248,6 @@ export default function MarketsPage() {
           const health = computeCoinHealth(d);
           const sig    = topSignal(d);
           const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
-          const gradeStyle = GRADE_STYLE[health.grade] ?? GRADE_STYLE.F;
           const barCol = tbp >= 55 ? 'var(--green-2)' : tbp <= 45 ? 'var(--red)' : '#555';
           const badgeCol = coinBadgeColor(id);
 
@@ -259,7 +271,7 @@ export default function MarketsPage() {
                 width: 22, height: 22, borderRadius: 5,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 'var(--fs-caption)', fontWeight: 800,
-                background: gradeStyle.bg, color: gradeStyle.col,
+                background: withAlpha(health.color, '22'), color: health.color,
                 fontFamily: 'var(--font-mono), monospace',
               }}>
                 {health.grade}
