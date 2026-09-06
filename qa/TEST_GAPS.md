@@ -113,8 +113,21 @@ file it was describing — the claim just never caught up to the test.
   an oversight: injecting a clock through app code would touch the 217 sites
   `clock.spec.ts`'s own header counts (146 `Date.now()`, 71 `new Date()`), and
   app code is not QA's to write.
-- RSI thresholds and squeeze/flush boundaries have fixtures but no spec asserts
-  against them.
+- **RSI thresholds — closed, 2026-09-06, and this line was already stale
+  before today.** `__tests__/rsi.test.mts` already pinned `computeRSI14`'s
+  0/50/100 cases and the 14-change window — checked before writing anything,
+  rather than assuming this bullet's "no spec asserts against them" was still
+  true. What was genuinely missing: the exact 30/70 badge cutoffs themselves
+  and one tick past each, now added to the same file. A fixed E2E fixture
+  snapshot can't be relied on to land exactly on a threshold; a unit test can
+  choose to.
+- **Squeeze/flush boundaries — still open, now for a named reason.**
+  `computeSqueezeScore` (`lib/marketStore.ts`) is where these live, and that
+  file can't be unit-tested directly yet: it imports `./healthGradeA11y` with
+  no `.ts` extension, which Next.js's bundler resolves but Node's native
+  TypeScript support (what `node --test` uses) does not. See #952 — 42 such
+  imports across 18 `lib/` files, a mechanical Dev-owned fix, not QA's to
+  make. Blocked, not forgotten.
 
 ---
 

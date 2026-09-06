@@ -59,4 +59,35 @@ test('computeRSI14', async (t) => {
     assert.equal(rsi, Math.round(rsi!));
     assert.ok(rsi! >= 0 && rsi! <= 100);
   });
+
+  /* TEST_GAPS.md §1: "RSI thresholds ... have fixtures but no spec asserts
+     against them." The tests above pin 0/50/100 and the window mechanics but
+     never land exactly on the 30/70 badge cutoffs themselves - these do,
+     since the fixture (a fixed production snapshot) can't be relied on to
+     contain a coin sitting on the exact boundary. */
+  await t.test('the overbought boundary (70) is reached exactly, not approximately', () => {
+    // avgGain:avgLoss = 7:3 over the 14-change window -> 100 - 100/(1+7/3) = 70.
+    const closes = [100, 107, 104, ...Array(12).fill(104)];
+    assert.equal(closes.length, 15);
+    assert.equal(computeRSI14(closes), 70);
+  });
+
+  await t.test('the oversold boundary (30) is reached exactly, not approximately', () => {
+    // avgGain:avgLoss = 3:7 -> 100 - 100/(1+3/7) = 30.
+    const closes = [100, 93, 96, ...Array(12).fill(96)];
+    assert.equal(closes.length, 15);
+    assert.equal(computeRSI14(closes), 30);
+  });
+
+  await t.test('one tick past each boundary still reads as the extreme, not neutral', () => {
+    // avgGain:avgLoss = 9:3 (ratio 3) -> 100 - 100/4 = 75, clear of 70.
+    const overClose = [100, 109, 106, ...Array(12).fill(106)];
+    assert.equal(overClose.length, 15);
+    assert.ok(computeRSI14(overClose)! > 70);
+
+    // avgGain:avgLoss = 2:7 (ratio 2/7) -> 100 - 100/(9/7) = 22.2, clear of 30.
+    const underClose = [100, 102, 95, ...Array(12).fill(95)];
+    assert.equal(underClose.length, 15);
+    assert.ok(computeRSI14(underClose)! < 30);
+  });
 });
