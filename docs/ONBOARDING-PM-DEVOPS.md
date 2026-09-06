@@ -67,6 +67,7 @@ git log --all --pretty=format: --name-only --diff-filter=A | sort -u | grep -iE 
 |---|---|---|
 | App code (`app/`, `components/`, `lib/`) | Dev | You read it to sequence. You never write it. |
 | Test code (`qa/`, `playwright.config.ts`) | QA | Same rule, other direction. |
+| **Review and merge of QA's PRs into `dev`** | **Dev** | The one place review runs QA → Dev. QA opens it, Dev reviews and merges. Not inferable from the row above, and a new PM will otherwise try to merge it themselves. |
 | **The sign-off** | **QA** | You merge and you deploy. "This is verified" is still not yours to say. |
 | `dev` → `qa` promotion | Dev | Dev merges its own work forward to `qa` and stops there. |
 | `qa` → `staging`, and both non-prod deploys | QA | Theirs in practice since 2026-09-03, and now in writing. |
@@ -127,7 +128,21 @@ The two most recent, both from 2026-09-05:
 
 **Trap 16** — *the check gets skipped on findings that flatter, not on findings that are hard.* Both QA and Dev caught difficult errors that day by checking what was behind a number, wrote up the lesson, and then each skipped that same check on a pleasing result within the hour.
 
+**And the largest instance of trap 16 that week was this seat's, so it belongs here rather than in a list of what the other two did.**
+
+On 2026-09-06 I ran `gh workflow list`, saw `CI  disabled_manually`, and wrote it into #885 that morning — in a comment correcting my own earlier claim that Actions were off. **Then I spent the afternoon building a cost model of which CI triggers fire**, told the owner *"every promotion to `staging` runs the full suite"* and *"removing the trigger halves the release path"*, and recommended a config change on that basis. **Both sentences describe a workflow that fires on nothing. I had measured it eight hours earlier and reasoned as though I had not.**
+
+Dev Team found it by accident, going to watch a trigger fire on the first `staging` push in a month. Nothing ran.
+
+**The shape is worth more than the incident.** Trap 16 is usually described as skipping a check. **This was worse: the check was run, the result was correct, and it was not carried forward into reasoning that depended on it.** Knowing the fact and using the fact are separate, and the gap between them does not feel like a gap from inside.
+
+**The cost is the part that makes it belong in a role doc.** QA's and Dev's instances cost minutes. This one cost three sessions an afternoon and put a wrong recommendation in front of the owner — because **this seat's errors arrive as instructions.** A wrong measurement by Dev gets caught by a gate. A wrong measurement by the PM gets sequenced.
+
+**Two more from the same day, both corrected by someone else measuring:** ruling that `--green-2` should be decoupled across 235 consumers, when Dev found a token that already existed one line below and made it a one-line change; and sizing #930's build a third too high by counting only this project's own overlays and never checking that klinecharts ships 27 indicators.
+
 **For you specifically:** when a session reports a number, ask what it measured, not whether it passed. "No contrast or overflow failures across 124 loads" is a claim. "The page is clean" is a different and much larger one, and it is the one that gets believed.
+
+**And ask it of your own numbers first.** Every correction above came from Dev or QA, none from re-reading. **Re-reading confirms what you meant; re-running tests what you did.**
 
 ---
 
@@ -219,6 +234,8 @@ If `CI` reads `disabled_manually`, this paragraph is current. **If it reads `act
 ### Two things that will mislead you
 
 **`gh workflow list` answers whether a workflow is *enabled*, not whether Actions are *running*.** Between 2026-08-14 and 2026-09-04 **nothing ran at all while 700 commits landed on `main`**, and it reported `active` throughout. That gap was recorded as unexplained in an earlier version of this file; it is explained — Actions were off account-wide, which is a different switch from the per-workflow one.
+
+**`--all` is load-bearing.** Plain `gh workflow list` can omit a disabled workflow entirely rather than showing it as disabled — so a reader who drops the flag sees `CI` **missing** and concludes something stranger than "switched off". Always `gh workflow list --all`.
 
 **The release PR does not open itself.** `release-signals.yml` gates the `release-pr` job on `vars.RELEASE_PR_PAUSED != '1'`, and that variable has been `1` since 2026-08-09. **Whoever pushes `staging` opens it by hand** — and aggregates it with `git log --merges origin/main..origin/staging`, not the narrow pattern, because two merge-subject formats exist and the narrow one silently undercounted a nine-PR release as six (#896, fixed #897).
 
