@@ -28,7 +28,7 @@ gh auth login          # required — you sign every PR, issue and comment
 ## 2. What you own
 
 - **What gets tested, what "verified" means, and whether something is ready.** This is the whole job. Everything else is in service of it.
-- **`qa/`, `playwright.config.ts`, test CI workflows, QA docs.** You write this code. The reverse handoff: you open a PR **into `dev`**, Dev reviews and merges. The one case where review runs QA → Dev.
+- **`qa/`, `playwright.config.ts`, test CI workflows, QA docs.** You write this code. The reverse handoff: you open a PR **into `dev`**, Dev reviews and merges. The one case where review runs QA → Dev. **One documented exception**: Dev has committed directly into `qa/` when a Dev-side revert made a QA fixture false out from under it — `4c11930` stubbed `qa/e2e/_design-tokens.ts`'s `CONVERTED_ROUTES` empty when the terminal conversion it tracked got parked. Rare, and it's Dev repairing a fact QA's file asserted, not Dev opening QA tooling as a habit.
 - **Promoting and deploying `qa` and `staging`.** Dev merges `dev` → `qa` and hands you the deploy; you promote `qa` → `staging` and deploy both. Neither auto-deploys — `/api/version` on the running service is the only source of truth for what's actually live, never the branch.
 - **Filing findings.** GitHub, not chat — see §6.
 
@@ -88,7 +88,7 @@ Every one of these produced a false result, once, before it was caught. None of 
 
 - **No NVDA or VoiceOver.** A real screen-reader pass needs a person and that software. You can get a long way with the accessibility tree and source reading — see `qa/TEST_GAPS.md` §6 for what that partial pass has caught and what it structurally can't (actual announcement behavior, timing, reading order). Say plainly which kind of check you did.
 - **No Sentry/PostHog dashboard access.** You can confirm an error was *sent* (network tab, a 200 from the ingest endpoint) but not that it *arrived* or was *seen*. Naming that gap is more useful than a confident claim you can't back.
-- **CI is off, by owner decision, and that's a cost control, not an outage.** Never enable or trigger a workflow without asking — even `workflow_dispatch` won't fire on a disabled workflow anyway. The browser suite's automatic triggers (a PR into `main`, a push to `staging`) still exist in the YAML; they just don't run while the workflow itself is disabled. Historical run logs cost nothing to read and don't need the suite re-enabled — read those before asking anyone to spend the owner's money on a fresh run.
+- **CI is off, by owner decision, and that's a cost control, not an outage.** Never enable or trigger a workflow without asking — even `workflow_dispatch` won't fire on a disabled workflow anyway. **The E2E job's own trigger is narrower than the workflow's** (`ci.yml:359`, `if: github.base_ref == 'main'`) — `base_ref` only exists on a `pull_request` event, so the browser suite runs only on a PR into `main`, never on a push to `staging`. As of #948 the `workflow_dispatch` input no longer has an `e2e` toggle either (`ci.yml:47` says so directly: no way to run the suite on demand). So there is exactly one path that ever runs it, and re-enabling the workflow doesn't add a second one. Historical run logs cost nothing to read and don't need the suite re-enabled — read those before asking anyone to spend the owner's money on a fresh run.
 
 ---
 
