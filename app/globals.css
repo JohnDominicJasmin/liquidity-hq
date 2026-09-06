@@ -7817,6 +7817,13 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .smod-panel {
   border: 1px solid var(--bdr);
   border-radius: 0;
+  /* The base rule's `0 24px 80px rgba(0,0,0,0.5)` at :3841 survives unless
+     this says otherwise - I wrote border and radius and forgot the third
+     property, and QA caught it with getComputedStyle rather than by eye.
+     The handoff's "no shadows" is unconditional; an override that fixes two
+     of three properties is the same partial-conversion shape #926 is about,
+     one rule smaller. */
+  box-shadow: none;
 }
 [data-design="terminal"] .smod-backdrop {
   background: color-mix(in srgb, var(--bg0) 82%, transparent);
