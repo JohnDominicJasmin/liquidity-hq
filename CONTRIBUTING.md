@@ -173,6 +173,41 @@ covered in §7.
   - **High** — auth, payments, alert delivery, migrations, anything that fails
     silently or affects money or user data.
 
+**A caveat in a merged PR has nothing watching it.** Written down 2026-09-06,
+because recording one is the part that already works and it is not enough.
+
+Risk level is where a PR says what it could not verify. That is correct and it
+should stay. But once the PR merges, **the caveat is in a closed document that
+nothing re-reads** — no issue, no owner, no date it comes due. Two in one week:
+
+| | the caveat, recorded correctly | what happened |
+|---|---|---|
+| **#883** | *"All four rail sites gate on `d?.price &&`, so that branch cannot reach them — measured: 16 cards rendered, 8 badges."* | Correct, with a measurement. Surfaced a day later as **#899** when QA hit it live. Nothing between the two was watching. |
+| landing dark theme | *"the toggle lives on `/arena` nav and did not carry to landing"* | Rode **two releases** as a known unknown. Then turned out to be an instrument error — landing has no theme toggle, only a language switcher, and the read path always worked. |
+
+Note the second one especially: **an unwatched caveat is not only a defect
+waiting — it can be a non-defect costing attention every release.** Neither was
+a failure of honesty. Both authors flagged the right thing in the right place.
+
+**So when you write one, decide which of these it is and say so in the PR:**
+
+- **It comes due** — something has to revisit it. File the issue *now*, while
+  you have the measurement, and link it from Risk level. Do not write "worth
+  checking later"; later has no owner.
+- **It is closed by this PR's own test steps** — then it is not a caveat, it is
+  a test step. Move it.
+- **It is a permanent limitation** — say that explicitly, so the next reader
+  does not re-derive it. `lib/terminalTokens.ts:122-133` is the model: the
+  reason, the alternative considered, and why it was rejected.
+
+**Whoever aggregates a release PR reads the Risk sections it collects and asks
+the same question of each.** That is the one moment they are all in front of
+one person. Carry anything still open into the release PR as a named item
+rather than letting it merge with the release.
+
+Related: #899, #883, #885 — the same shape one level up, where an absence
+produces no artefact and looks identical to nothing being there.
+
 ### 3a. Say which side you are — one account, two roles
 
 **Open every PR body, issue and comment with `**Dev Team**` or `**QA Team**`.**
