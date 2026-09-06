@@ -324,9 +324,30 @@ specs. A route absent from that list makes its spec **skip**, silently.
 it *"arms itself in the PR that converts the screen."* **That PR was Dev's and
 the file is QA's, so the step belonged to two roles and therefore to neither.**
 
-**Whoever converts a screen adds it to `CONVERTED_ROUTES` in the same PR.** Yes,
-that means Dev editing a `qa/` file for one array entry. That is the smaller
-cost, and it is the single exception to "Dev never writes QA tooling".
+**Whoever changes whether a screen is converted — in either direction — updates
+`CONVERTED_ROUTES` in the same PR.** Yes, that means Dev editing a `qa/` file for
+one array entry. That is the smaller cost, and it is an exception to "Dev never
+writes QA tooling".
+
+**Both directions, because the removal is the more dangerous one.** This section
+said "adds it" until 2026-09-06 and covered only half the problem:
+
+| | what the list does | what you get |
+|---|---|---|
+| **conversion**, entry missing | spec **skips** | silence — nothing runs, nothing says so |
+| **revert**, entry stale | spec **runs** | **a false green** — it asserts the screen is converted on a route that has just stopped being converted |
+
+**Silence is bad; a false green is worse.** The first tells you nothing, the second
+tells you something untrue and does it in the colour that means "safe". `/arena`
+was reverted the same day this section was written (`f1325264`) and the entry had
+to come back out — **the author of this paragraph had already hit the direction
+it did not cover.**
+
+**Three documents have now under-stated this, each caught by a different reader.**
+It was missing from the Dev role doc, missing from QA's, and half-stated here.
+**A rule three authors independently got smaller than it is, is one the next
+author will get smaller too** — which is the argument for the table rather than
+a sentence.
 
 **Then run the control from §3d before believing the result.** A newly armed
 spec that passes on its first run and a spec still skipping look identical.
