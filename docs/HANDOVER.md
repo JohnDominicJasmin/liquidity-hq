@@ -269,16 +269,73 @@ android/      Capacitor Android shell
   body explaining the real cause and why the fix is shaped that way. Look at recent commits
   before writing one. Trailer: `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
 
-### Branch & deploy state as of 2026-09-05
+### Branch & deploy state — release v2026.09.05 SHIPPED
+
+Verified in production 2026-09-05T14:19Z, by two sessions independently.
 
 | Branch | Commit | Note |
 |---|---|---|
-| `origin/dev` | `24aa188a` | PR #847 merged — the app nav no longer covers marketing pages (#845) |
-| `origin/qa` | `24aa188a` | promoted by dev; **deploy is QA's** — dev is under a standing owner hold on every environment since 2026-09-03 |
-| `origin/staging` | `9cefa0bb` | behind `qa` by the #845 fix |
-| `origin/main` | `1ee554ee` | production. Release **held by the owner** on #836, #843 and #846 |
+| `origin/main` | `fd308b47` | **production**, tagged `v2026.09.05`. `/api/version` reports `fd308b4` |
+| `origin/staging` | `1aaaefe7` | `main..staging` is **0** — nothing stranded |
+| `origin/qa` | `1aaaefe7` | |
+| `origin/dev` | `1aaaefe7` | |
 
-**The release is held and the fix-forward ruling was reversed.** On 2026-09-05 the owner was told #843, #846 and #836 would ship as known defects and answered *"THEN VERIFY IT"*. Nothing ships until all three are fixed and QA has verified them on qa. Do not re-park them.
+**290 commits · 122 PR merges · 0 migrations**, `main..qa`, measured `12:53:53Z` at `1aaaefe7`.
+
+> Those figures took three passes and each pass found a different class of error — wrong *range* (`staging..qa` answers a different question), wrong *pattern* (three merge-message conventions in this repo, `Merge PR #`, `Merge QA PR #` and GitHub's `Merge pull request`), then wrong *arithmetic*. **Any count here carries its range, command and timestamp for that reason.** A bare number in this file should be treated as unverified.
+
+**The headline is a design flip.** #748 made terminal the default on every route. Production served the previous design until this release; every visitor now gets terminal, and `?design=current` is the rollback that needs no deploy.
+
+**Superseded — the release was held, then shipped.** On 2026-09-05 the owner was told #836, #843 and #846 would ship as known defects and answered *"THEN VERIFY IT"*. The fix-forward ruling was reversed and the release waited. All three were then resolved: #836 fixed and measured, #846 fixed for the two real entries (three were an instrument error), #843 closed as a wrong premise into **#853**, which is real work and is **not** done — see §9.
+
+**Deploy authority changed the same day.** Rows moved to a PM/DevOps session: `staging` → `main` and the production deploy, owner-approved each release. QA keeps the `qa` and `staging` deploys and the sign-off. **Dev still deploys nothing** — the standing hold of 2026-09-03 is unchanged and is not superseded by any table. `CLAUDE.md` and `CONTRIBUTING.md` carry the full seven-row split.
+
+### ⚠️ THE GITHUB RUNNER CANNOT REACH BINANCE. Found 2026-09-05, standing.
+
+Not a release problem — a standing limit on what the browser suite can ever prove on CI.
+
+```
+2,865 × HTTP 451 from Binance in one E2E run
+  1608  [proxy] depth            824  [proxy] premium-index
+   250  [proxy] oi-hist          101  [proxy] lsr-global
+    54  [proxy] lsr-top           28  [proxy] binance-24hr
+```
+
+**451 is Unavailable For Legal Reasons — a geo-block keyed on the caller's IP.** The runner is refused outright. **19 of 52 spec files** reference a blocked upstream or market-data path.
+
+**I claimed the dangerous half was the passes. QA audited all 19 and it is not — corrected 2026-09-06.**
+
+The worry was real in shape: a spec asserting a graceful-degradation path — *"when data is unavailable, show CANNOT MEASURE rather than a number"* — would pass when the upstream is blocked, and would pass identically if the feature were deleted. **Zero of the 19 are that.** QA read the assertions rather than the filenames, and every file that could plausibly hit the trap was written with a guard against it.
+
+**My named example was the worst of the wrong ones.** I wrote that `real-yield`'s *"an UNAVAILABLE yield says so"* is *"satisfied for free by a 451"*. It is not. `pinYield()` at `qa/e2e/real-yield.spec.ts:85` calls `page.route(MACRO_ROUTE)` and `route.fulfill()` at `:95` — the test feeds itself a hand-authored `'unknown'` fixture and a live 451 never enters the request path. Verified by reading the file, which is what I should have done before writing the sentence.
+
+The other 18 divide the same way: eight more intercept their own `/api/*` route with `route.fulfill()`; eight have no `page.route()` at all and are safe for individually-checked reasons — `marketDataUnavailable` returning a skip reason rather than a silent pass, explicit 4xx/5xx branches, counting socket *construction* rather than handshake success, counting request *volume* rather than response success. Several carry a comment naming the near-miss that produced the guard (`reconnect.spec.ts` citing #309's voided before-control, `klines-route.spec.ts` citing #228). This codebase has hit the trap before and built the guard each time.
+
+**How the wrong claim was produced, since that is the reusable part.** The grep behind "19 of 52" was honest — it matched *files referencing a blocked upstream*, and said so: *"a grep over files, not over assertions — it bounds the question rather than answering it."* I then wrote the bound as though it were the answer, and reached for the most alarming member of the set as an illustration without opening it. **A number that names its own limit is not evidence for the claim past that limit**, and the illustration is exactly where that slips.
+
+The 2,865 count came from reading the run's own logs rather than its failure list. The split QA has now done — *asserts on a value from the upstream* versus *asserts on the degraded state* — came back **19 / 0**, by reading source rather than by running the 19 against a live geo-blocked runner, which nobody has one of on demand.
+
+**What survives the correction, stated narrowly.** None of the 19 prove the live Binance integration works from a GitHub runner, because none of them can — the runner is refused. That is a real coverage gap and it is why `reconnect-cdp` fails. But it is *untested*, not *green for the wrong reason*, and those are different severities: the first is a hole you can see, the second is a hole that reports itself as covered. **"496 passed" means less than it looks on CI, but not the thing I said it meant.** Same class as `qa/TEST_GAPS.md` §11. Detail on #862 and #863.
+
+It also explains `reconnect-cdp` — sockets to `stream.binance.com` did not fail to reconnect, the upstream refuses the region, and #306's behaviour was never exercised.
+
+### Pixel measurements are platform-relative. Colours are not.
+
+`KNOWN_OBSCURED` was derived on **Windows** Chromium; CI runs **Linux**, and font metrics differ. `/briefing` failed the release gate on exactly this — 21px from what the Windows sweep recorded — against accepted overlaps that run to 148 and 184px.
+
+Rendering happens where the *browser process* runs, not where the site is hosted, so pointing a local browser at deployed `qa` does **not** make a measurement platform-neutral. Every geometry number produced on 2026-09-05 by either session was a Windows number regardless of the URL.
+
+**The split that decides whether to worry:** a *categorical* claim survives the platform — a render gate either mounts an element or it does not, and no glyph width changes a boolean. A *count* does not: "0 controls covered across 30 routes" is a pixel result and a Linux run can surface an overlap Windows never saw. The same measurement can contain both kinds of claim, and #845's *"obscured 3 → 0"* does.
+
+**A live example, from this release's own closing evidence.** The production sweep reported *"32 rows — 8 routes × 2 viewports × 2 themes — 0 contrast failures, 0 overflow, 0 HTTP ≥ 400"*, on the reasoning that colours are platform-independent and the check was therefore cheap. That reasoning is right for **contrast** and does not carry to **overflow**:
+
+| | | |
+|---|---|---|
+| contrast | colour computation | survives the platform — the number means what it says |
+| overflow | **geometry** | font metrics, the exact mechanism behind `/briefing`'s false failure |
+| HTTP ≥ 400 | network | survives the platform |
+
+So *"0 overflow on production"* is a true statement about **how production renders in a Windows browser**. It is not the same claim as *"production does not overflow"*, and the gap between them is a thing that already bit this project once on the same day. Do not quote that half as platform-neutral.
 
 **Zero workflow runs of any kind between `2026-08-13` and `2026-09-05`** — 23 days covering the whole terminal redesign, so nothing exercised a browser across all of it.
 
@@ -457,15 +514,21 @@ These wasted real time in earlier sessions. All are documented as recurring:
 
 ## 9. Current issues
 
-### 🔴 Holding the 2026-09-05 release
+### ✅ The three that held the 2026-09-05 release — all resolved, all shipped
 
-Three issues, all terminal-mode on routes other than `/`, all of which the dead sorting rule in §6 would have parked. The owner reversed the fix-forward ruling and held the release for them.
+All terminal-mode on routes other than `/`, and the dead sorting rule in §6 would have parked every one. The owner reversed the fix-forward ruling and held the release until they were done.
 
-| Issue | What it actually is | State |
+| Issue | What it actually was | Outcome |
 |---|---|---|
-| **#836** contrast | Seven instances of `opacity` over `--txt3`, plus one genuine tint-ground failure. Worst was `#a1a2a2` **1.95:1** on `/liq` `.gex-title > span` — the worst text ratio measured anywhere on the platform. `/liq` carried 5 of 9 light and 4 of 6 dark. | dev fixing |
-| **#846** duplicate accessible names | **Three of the five are a spec defect, not app code.** `no-duplicate-controls.spec.ts:79` reads `innerText \|\| aria-label` — precedence backwards. `Tip.tsx` sets a distinct `aria-label` per instance but its `innerText` is always `ⓘ`, so every Tip collides with every other Tip. Real ones: `/calc` "Position Sizer" (nav-tile vs ps-preset, one navigates and one does not) and `/arena` "Sign In →". | QA's file to fix |
-| **#843** Arena geometry | **Not a width.** The terminal Arena component was reverted and never restored — see §14. Cannot be fixed by a CSS number. | awaiting owner |
+| **#836** contrast | Eight instances of `opacity` over `--txt3` plus one genuine tint-ground failure. Worst `#a1a2a2` **1.95:1** on `/liq` `.gex-title > span`. | **Closed.** All 26 instances fixed and measured; contrast 21 → 0 across the terminal sweep |
+| **#846** duplicate accessible names | **Three of five were an instrument defect, not app code.** `no-duplicate-controls.spec.ts:79` read `innerText \|\| aria-label` — precedence backwards, so every `Tip.tsx` collided with every other. | **Closed.** Two real ones fixed, spec corrected |
+| **#843** Arena geometry | **Not a width.** Both its numbers were wrong — rail measured **320** not 304, ticker measured **`null`** (absent), not mis-sized. | **Closed as a wrong premise into #853**, which is open and is real work |
+
+**#853 is the live one.** `components/ArenaTerminal.tsx` does not exist — `dd39c9bb` reverted 1,212 lines and `ccefc0de` restored 939 lines of CSS without the component, so `[data-design="terminal"] .at-rail { flex: 0 0 352px }` is correct, present, and styles markup nothing renders. 66 orphaned `at-*` classes. `/arena` is out of `CONVERTED_ROUTES` until it is rebuilt. **It reads as finished rather than broken** — current-design markup with square corners — so it is owed, not urgent. See §14.
+
+**#845 shipped** — the terminal app nav covered `/learn`'s logo and both hero buttons including the primary CTA. Root cause: #714 fixed the same bug on `/` and wrote the gate as `pathname === '/'` — one route, not a family. Now `rendersOwnNav()` in `lib/navRoutes.ts`, covering `/`, `/learn`, `/ko`, `/zh`.
+
+> **The landing locales are `['ko','zh']` from `lib/i18n/dictionaries.ts`, NOT the ten in `lib/locales.ts`.** Two different lists. `app/[locale]/page.tsx` generates from the small one and `dynamicParams = false` 404s the rest — on a running build `/ko` is **200** and `/es` is **404**. Gating on the wide list claims eight routes that do not exist. A test binds the copy to `dictionaries.ts`.
 
 **#845 shipped** — the terminal app nav covered `/learn`'s logo and both hero buttons including the primary CTA. Root cause: #714 fixed the same bug on `/` and wrote the gate as `pathname === '/'` — one route, not a family. Now `rendersOwnNav()` in `lib/navRoutes.ts`, covering `/`, `/learn`, `/ko`, `/zh`.
 

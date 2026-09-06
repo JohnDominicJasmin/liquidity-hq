@@ -408,6 +408,49 @@ than it claims, a bug found in someone else's blind spot, a number that confirms
 what you already argued: those are the ones to re-check, and the pleasure of
 having found them is the signal, not the reward.
 
+**17. The right instrument existed, cost one click, and nobody picked it up.**
+2026-09-06, #872. *Different from 14, on purpose: 14 is an instrument that
+answered and was wrong — something misleading stood in the way. This one had
+nothing misleading in it anywhere. It was a pure attention failure, at the
+wrong layer, by three sessions in a row.*
+
+Both seeded E2E accounts hung and 504'd on sign-in. Three independent
+investigations followed, and every one of them was careful:
+
+- **QA** isolated the symptom cleanly — three reproductions, one of them
+  outside Playwright entirely, plus a garbage-credential control fast at
+  238ms against the same endpoint. Textbook: rule out "the whole project is
+  down" before trusting a narrower theory.
+- **Dev** ran probes from both CI and local, held two competing hypotheses
+  open, and proposed a real discriminating experiment rather than guessing
+  between them.
+- **PM/DevOps** escalated "we need `auth.users` read access" to the owner as
+  a standing tax on this and two other investigations that hit the same wall
+  the same day.
+
+**Not one of the three opened the database's own status page.** It read
+*Unhealthy* the entire time — the majority of gateway requests erroring,
+zero of them reaching Postgres. The wall QA and PM/DevOps asked the owner to
+remove was never the blocker; the blocker was one layer below the schema
+entirely, and answering it needed no permission from anyone — it was a page
+load away.
+
+**This is not the same mistake as skipping a control.** All three
+investigations would have passed every guard already in this list — none of
+them matched the wrong element, derived a claim from a transformed number, or
+trusted a fixture out of range. **Being careful at the wrong layer feels
+identical from the inside to being careful at the right one.** Three
+different people, three different methods, one shared blind spot: application
+symptoms were probed in detail before infrastructure health was checked at
+all.
+
+**The fix is a step zero, not a better technique.** Before probing anything
+that depends on a hosted service — a database, an auth provider, a paid
+API — check that service's own status/health surface first. It is cheaper
+than any one of the three investigations above, let alone all three combined,
+and it is the one check that would have ended this in a single click instead
+of two days.
+
 ## Where QA tests
 
 **Four branches, four services, one each.** Nothing auto-deploys — moving a

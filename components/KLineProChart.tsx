@@ -7,6 +7,7 @@ import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
+import Tip from '@/components/Tip';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
 import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
@@ -2352,41 +2353,45 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               display: 'flex', alignItems: 'center', gap: 5,
             }}>
               {setupQuality.label}
-              <span className="sq-info" style={{ '--sq-bdr': setupQuality.bdr } as React.CSSProperties}>
-                {/* No `opacity` (#836) - eighth instance of the trap named
-                    above `.lp-footer-ack` in globals.css. Inherits the setup
-                    badge's colour, and 0.6 of any of the badge tones lands
-                    under AA on the badge's own tinted ground.
-
-                    NOT FIXED HERE, filed instead: this ⓘ is keyboard-dead.
-                    `.sq-info` is `cursor: help` with a hover-only tooltip -
-                    no tabIndex, no role, no Escape. `Tip.tsx` solved exactly
-                    this (role="button", tabIndex, aria-label, Enter/Space,
-                    Escape) and the fix here is to use it rather than to
-                    re-derive it. That is a behaviour change on the chart
-                    toolbar and does not belong in a contrast batch. */}
-                <span style={{ fontSize: '0.6875rem', lineHeight: 1 }}>ⓘ</span>
-                <div className="sq-tooltip">
-                  <div style={{
-                    width: 240,
-                    background: '#111',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: 10, padding: '12px 14px',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.65)',
-                    whiteSpace: 'normal',
-                  }}>
-                    <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 6 }}>
+              {/* `Tip` rather than the hand-rolled `.sq-info` this used to be (#850).
+               *
+               * WHAT WAS WRONG: `.sq-info` was `cursor: help` with a
+               * `:hover`-only `.sq-tooltip` — no `tabIndex`, no `role`, no
+               * `aria-label`, no Escape. A keyboard user could not reach it, a
+               * screen reader announced nothing, and the glyph inside it meant
+               * `no-duplicate-controls.spec.ts` could not see it either: that
+               * spec selects on role and tabIndex, so an unnamed control with
+               * neither is not in its selector set at all. It is a worse defect
+               * than the duplicate names #846 was about, and invisible to the
+               * instrument that found those.
+               *
+               * WHY NOT RE-DERIVE IT HERE: Tip already solves this exact
+               * problem — role="button", tabIndex, aria-label, Enter/Space to
+               * toggle, Escape to dismiss, and a portalled panel that survives
+               * transformed ancestors. Writing a second keyboard implementation
+               * on the chart toolbar would be a second thing to keep correct.
+               *
+               * `body` keeps the three tiers of emphasis the hand-rolled panel
+               * had; `text` is the flat string a screen reader announces. The
+               * accessible name is the sentence, not the glyph. */}
+              <Tip
+                text={`${setupQuality.label}. ${setupQuality.detail} ${setupQuality.explanation}`}
+                width={240}
+                iconColor={setupQuality.color}
+                body={
+                  <>
+                    <div style={{ fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 6 }}>
                       {setupQuality.label}
                     </div>
-                    <div style={{ fontSize: 'var(--fs-caption)', color: 'rgba(255,255,255,0.38)', lineHeight: 1.55, marginBottom: 8 }}>
+                    <div style={{ color: 'rgba(255,255,255,0.38)', lineHeight: 1.55, marginBottom: 8 }}>
                       {setupQuality.detail}
                     </div>
-                    <div style={{ fontSize: 'var(--fs-caption)', color: 'rgba(255,255,255,0.72)', lineHeight: 1.7 }}>
+                    <div style={{ color: 'rgba(255,255,255,0.72)', lineHeight: 1.7 }}>
                       {setupQuality.explanation}
                     </div>
-                  </div>
-                </div>
-              </span>
+                  </>
+                }
+              />
             </span>
           </div>
         )}
