@@ -19,6 +19,26 @@ gh auth login          # required — you will read PRs, issues and CI logs cons
 
 `git config user.name` — sign everything **PM Team** or **DevOps Team** so the shared GitHub account's activity is attributable. One account, four voices; if you do not sign, nobody can tell who said what.
 
+### The repository is public
+
+**Confirmed 2026-09-06.** `gh repo view --json visibility` → `PUBLIC`.
+
+**Everything you write is publicly readable** — issue bodies, PR descriptions, comments, commit messages. Measurements, counts and exit codes are fine and are most of what you write. **What is not: credentials, connection strings, account identifiers, and raw log excerpts you have not read line by line.** A pasted network capture or a quoted 504 can carry a project reference or a fixture account email.
+
+**History is clean and was verified rather than assumed** — no `.env*` has ever been committed, `.env.example` holds placeholders, the only JWT-shaped strings are the jwt.io textbook example in two tests. **Re-check rather than trusting this sentence if it matters:**
+
+```
+git log --all --pretty=format: --name-only --diff-filter=A | sort -u | grep -iE '\.env|secret|credential'
+```
+
+### Working files go in `.work/`, inside the repo
+
+**Owner's instruction, 2026-09-06:** *"i want everything inside codebase just put it in git ignored."* **The reason is that they switch devices** — a temp directory does not survive that, and a gitignored directory in the repo does.
+
+`.work/` is ignored at `.gitignore:65`. **Nothing goes in a scratchpad or temp directory.** On the day that rule was restated, one session had 151 working files outside the repo, another had a stray copy of a source file loose in Windows temp for hours, and QA had **live Supabase session tokens** and the script that minted them sitting in temp for days.
+
+**That last one is why `.gitignore` also covers `session*.json` and `mint-session*.mjs`.** `.env*` covers the credentials; **nothing covered what a credential produces**, and a minted session token is as good as the password behind it. Moving scratch inside the repo is right — and it means those files now land where git can see them.
+
 ---
 
 ## 2. What you own
@@ -146,23 +166,72 @@ This is not ceremony. On release day the `staging` branch moved to `1aaaefe7` wh
 
 **Read `.github/workflows/ci.yml`'s header before touching a trigger.** Three days in August burned 1,755 Actions minutes on a 2,000/month allowance and hard-stopped CI mid-release.
 
-- The ~2 minute gate job runs on everything.
-- The **~53 minute browser suite has TWO automatic triggers** — a PR into `main`, **and a push to `staging`** (added 2026-08-10, issue #207, because `RELEASE_PR_PAUSED` meant the release PR never opened and the suite was running nowhere).
-- The owner switches workflows on for a release and off again. Treat "disabled" as a cost decision, not an outage, and **never enable or trigger without asking.**
+### The current state, and how to check it rather than believe this paragraph
 
-> ⚠️ **`ci.yml`'s own header still says "exactly ONE automatic trigger — a PR into `main`", and so did this file until 2026-09-05.** Both were written before the second trigger was added 220 lines below the first claim.
->
-> **It costs double on a hand-opened release.** Promoting `staging` fires one suite; opening the release PR by hand fires another. Measured on v2026.09.05: **two runs, 69 identical failures each, ~106 Actions minutes against the ~53 the file documents.**
->
-> Both runs are legitimate — one gates the branch, one gates the release. **Do not cancel the redundant one to save minutes:** the gate job uses `always()` rather than `!cancelled()`, deliberately, so a cancelled run still ends red and you would turn the release gate red to save 53 minutes.
+**As of 2026-09-06, by owner decision: the `CI` workflow is switched OFF.**
 
-**Two things that will mislead you, both confirmed 2026-09-05:**
+> *"yes leave it off until its deployment time again"*
 
-`gh workflow list` reports all three workflows `active` regardless. It cannot tell you whether they will run.
+**Check, do not assume — one command:**
 
-The release PR **does not open itself**. `release-signals.yml:65` is gated on `vars.RELEASE_PR_PAUSED != '1'`, and that variable has been `1` since 2026-08-09. Unsetting it restores the automation. Until then, **whoever pushes `staging` checks a release PR exists and opens it by hand.**
+```
+gh workflow list --all
+```
 
-There is also a genuinely unexplained gap — **zero workflow runs of any kind between 2026-08-13 and 2026-09-05**, 23 days. The pause variable gates one job in one workflow and cannot account for it. Recorded as unexplained rather than guessed at; two sessions have already produced one wrong explanation each.
+If `CI` reads `disabled_manually`, this paragraph is current. **If it reads `active`, someone turned it on and this paragraph is stale — fix it rather than working around it.**
+
+**What that makes true right now, and it is the single most important thing on this page:**
+
+**`.githooks/pre-push` is the whole automated gate.** Lint, typecheck and unit tests, as bare commands under `set -e`. **It does not run `build` and it does not run the browser suite.** Every PR body should say so rather than letting a reader assume CI covered it.
+
+### The one trigger
+
+**The browser suite runs on exactly one thing: a `staging` → `main` PR, and only while the workflow is switched on.** No push trigger, no `workflow_dispatch`, no manual override at all.
+
+**That was three triggers until 2026-09-06** — a PR into `main`, a push to `staging` (#207, 2026-08-10), and a dispatch. **The owner collapsed it to one.** The consequence worth knowing: **there is now no way to run the suite on demand.** The dispatch was how #207's coverage gap was worked around by hand and that route is closed too.
+
+**Do not "restore" #207's trigger without reading why it stopped being needed.** It existed because the release PR had stopped being opened while CI was always on, so the only automatic trigger fired never. **CI being off by default removes that failure mode** — the only reason CI ever runs now is that a release is happening. If CI ever goes back to always-on, #207's gap reopens.
+
+### The release sequence gained two steps that get forgotten
+
+```
+1. ENABLE the CI workflow                  <- forgotten
+2. Open the staging -> main release PR     (by hand; RELEASE_PR_PAUSED is still 1)
+3. The browser suite runs against the candidate
+4. Merge, deploy, verify /api/version, tag
+5. DISABLE the CI workflow again           <- also forgotten
+```
+
+**Forgetting step 5 is how August cost money.**
+
+### Expect the suite to fail, and know why before you read it as a signal
+
+**Measured 2026-09-06 across the last two completed runs:**
+
+```
+11 of 13 failing specs   Supabase token endpoint 504 / Cloudflare 522 at sign-in
+ 1 of 13                 genuinely Binance (reconnect-cdp names the sockets)
+ 1 of 13                 a real product bug
+```
+
+**Eleven of thirteen never reach their own assertion** — they die signing in, including a CONTROL case that is supposed to always pass. **The dev Supabase project is free-tier and shared by `qa`, `dev` and the runner.** So a red suite is more likely to mean the database than the code. **Read which specs failed before treating red as "do not ship".**
+
+### Two things that will mislead you
+
+**`gh workflow list` answers whether a workflow is *enabled*, not whether Actions are *running*.** Between 2026-08-14 and 2026-09-04 **nothing ran at all while 700 commits landed on `main`**, and it reported `active` throughout. That gap was recorded as unexplained in an earlier version of this file; it is explained — Actions were off account-wide, which is a different switch from the per-workflow one.
+
+**The release PR does not open itself.** `release-signals.yml` gates the `release-pr` job on `vars.RELEASE_PR_PAUSED != '1'`, and that variable has been `1` since 2026-08-09. **Whoever pushes `staging` opens it by hand** — and aggregates it with `git log --merges origin/main..origin/staging`, not the narrow pattern, because two merge-subject formats exist and the narrow one silently undercounted a nine-PR release as six (#896, fixed #897).
+
+### What the August bill was, since you will be asked
+
+```
+4,223 Actions minutes   3,000 included   1,223 over
+E2E                     2,582 min   61.1%
+lint/tsc/test/build     1,099 min   26.0%
+CI Gate (advisory)        361 min    8.5%
+```
+
+**61% of the E2E time was two days — 08-04 and 08-05 — and the `if:` condition was written to stop exactly that.** After 08-13 the suite did not run again all month. **The overage records a problem being fixed, not an ongoing leak.** Say that when it comes up; the alternative reading costs someone an afternoon.
 
 ---
 
