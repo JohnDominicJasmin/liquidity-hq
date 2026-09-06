@@ -41,8 +41,6 @@ import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_T
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
-import ArenaTerminal from '@/components/ArenaTerminal';
-import { useDesignMode } from '@/components/DesignModeProvider';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -180,7 +178,6 @@ function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, entitled } = useAuth();
-  const designMode = useDesignMode();
   const { settings, update } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -1338,107 +1335,6 @@ function ArenaContent() {
   const visibleScannerRows = scannerSearch
     ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
     : scannerRows;
-
-  const arenaChart = <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} />;
-
-  /* The terminal Arena (#413, restored #853). Built to specs/arena.md.
-     Reverted by dd39c9bb on 2026-08-16, which deleted the component and left
-     939 lines of its stylesheet behind - 66 at-* classes styled and rendered
-     by nothing. Restored from dd39c9bb^ rather than 6b14b7a6: the branch had
-     seven commits and the first one predates the ticker strip, the snapshot
-     band and the panel headers that criteria 1, 5 and 7 turn on.
-
-     EVERY PANEL IS PASSED IN ALREADY GUARDED. The entitlement check lives here,
-     at the call site, not inside ArenaTerminal - moving a panel moves its
-     markup and leaves its guard behind, which shipped once and showed free
-     users the paid confluence score.
-
-     The two Pro panels are deliberately asymmetric, per spec §Pro surfaces:
-     Confluence degrades to a LockedFeatureCard because it is the panel worth
-     paying for and the main column is wide enough for the card to read as an
-     offer; Absorption renders NOTHING, because a second locked card beside the
-     first is noise. That asymmetry is production's behaviour and must survive. */
-  if (designMode === 'terminal') {
-    const verdictDir = result?.signal?.includes('BULLISH') ? 'bull' as const
-                     : result?.signal?.includes('BEARISH') ? 'bear' as const
-                     : result ? 'neutral' as const : null;
-    return (
-      <>
-        <ArenaTerminal
-          coin={selectedCoin}
-          tf={readTf}
-          onTfChange={t => setReadTf(t as ChartTf)}
-          onUpgrade={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
-          entitled={entitled}
-          authLoading={authLoading}
-          verdict={result ? { label: result.signal, dir: verdictDir, confidence: result.confidence } : null}
-          levels={{
-            entry:  emaSignal.ema20_4h ?? null,
-            stop:   emaSignal.sl ?? null,
-            target: emaSignal.tp ?? null,
-          }}
-          chart={arenaChart}
-          hintBand={<PageHint pageKey="arena" title={t('ARENA_HINT_TITLE')} body={t('ARENA_HINT_BODY')} />}
-          /* Snapshot band, region 4: the coin mark, five stat cells, and the
-             higher-timeframe badge. The five cells are ABSENT at mobile, not
-             hidden - the component owns that, so it is passed either way and
-             the layout decides. */
-          coinIcon={<CoinIcon coin={selectedCoin} size={32} />}
-          snapshot={<CoinMarketSnapshot coin={selectedCoin} />}
-          tfBadge={<HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />}
-          confluence={authLoading || entitled
-            ? <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
-            : <LockedFeatureCard
-                title={t('ARENA_CONFLUENCE_GATE_TITLE')}
-                description={t('ARENA_CONFLUENCE_GATE_DESC')}
-                onUnlock={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
-              />}
-          multiTf={<MultiTFAlignment coin={selectedCoin} />}
-          absorption={entitled ? <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} /> : null}
-          emaSignal={<EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />}
-          /* NOT the reverted wiring, and this is a deliberate departure from
-             dd39c9bb^ rather than an omission (#853).
-
-             The reverted version passed <LiqHeatmap levels={store.btcLiqLevels}
-             .../> guarded on `store.btcLiqLevels.length > 0`. **That array is
-             permanently empty.** Coinglass retired the v2 endpoints and v4
-             answers 401 on this tier; pendings/PENDING.md:18 defers the upgrade
-             until revenue. The current design removed that card for exactly
-             this reason - see the note above <LiqFeed>: it "had drawn zero
-             times, for every coin, in every theme."
-
-             So restoring it verbatim would ship a panel that provably never
-             renders, in the slot spec criterion 3 requires to be a heatmap.
-             Passing null instead, so the gap is visible rather than disguised
-             as a working panel waiting for data that is not coming.
-
-             **This is an open decision, not a fix.** specs/arena.md was written
-             while Coinglass worked. What replaced the heatmap is LiqFeed -
-             REALIZED liquidations from Binance and Bybit, keyless and not
-             BTC-only - which is a different claim from PREDICTED levels, not a
-             drop-in. Whether criterion 3's heatmap panel becomes a realized-
-             liquidation view, or is struck, is design's call. */
-          heatmap={null}
-          usageMeter={<UsageMeter />}
-          /* Clusters DO have a live source, so they are wired to it rather than
-             to the dead one. The reverted version read store.btcLiqLevels and
-             was BTC-only for that reason; chartLiqClusters comes from LiqFeed's
-             24h accumulation, already narrowed to the displayed coin and
-             memoised, and it is what the chart itself draws. Every coin now
-             gets real clusters instead of BTC getting an empty ladder and the
-             rest getting "No clusters in range". */
-          clusters={chartLiqClusters.map(b => ({ price: b.price, usd: b.total }))}
-          why={result?.reasoning ?? null}
-          history={history.map(h => ({ time: h.time, verdict: h.signal, conf: h.confidence }))}
-        />
-        <UpgradeGateModal
-          open={upgradeGate !== null}
-          onClose={() => setUpgradeGate(null)}
-          feature={upgradeGate ?? undefined}
-        />
-      </>
-    );
-  }
 
   return (
     <div className="arena-term-wrap">
