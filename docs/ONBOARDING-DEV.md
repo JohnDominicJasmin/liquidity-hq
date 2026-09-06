@@ -109,6 +109,22 @@ page was reported as a month's total.
 **A filter is not a census.** If you narrowed the population to answer a
 question, say which population the answer describes.
 
+**A port is not an application.** Before reproducing anything against a
+`localhost` server you did not just start, check what it is actually serving:
+
+> `(Get-CimInstance Win32_Process -Filter 'ProcessId=<pid>').CommandLine`
+
+A dev server already listening on 3001 during a mobile-layout reproduction here
+turned out to be a completely different project from the owner's Downloads
+folder. **Nothing about the port, the 200 response, or the rendered HTML would
+have said so** — and a layout measurement against the wrong application produces
+a confident, entirely fictional finding. The same shape as reproducing against a
+stale checkout, which also happened the same day.
+
+**And when you are done with a server you started, stop it by PID or port —
+never by image name.** `taskkill //F //IM node.exe` on this machine kills the
+other sessions' work; it took out three of QA's pushes in one morning.
+
 **Run the control before trusting a check.** Make it fail on purpose first. And
 check the control itself: three eslint controls in a row used rules the config
 does not enable, so eslint was correctly silent and the gate looked broken when
