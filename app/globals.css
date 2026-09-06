@@ -6498,6 +6498,28 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   font-family: var(--font-mono), monospace;
 }
 [data-design="terminal"] .tnav-avatar:hover { color: var(--txt); }
+/* The avatar became a real <button> in #929 - it was a bare aria-hidden span
+   with no handler, so Usage, Settings and Sign out were unreachable from this
+   nav. The rule above already described a control (cursor, border, mono), it
+   just had nothing to control. These three lines are what a button needs and
+   a span did not. */
+[data-design="terminal"] .tnav-avatar { appearance: none; -webkit-appearance: none; }
+[data-design="terminal"] .tnav-avatar.on { border-color: var(--accent); color: var(--accent); }
+
+/* The account menu hangs off the right edge - the Scanners/Tools dropdowns
+   open left-aligned under a nav item, but this sits at the end of the row and
+   would overflow the viewport. */
+[data-design="terminal"] .tnav-account-menu { left: auto; right: 0; }
+[data-design="terminal"] .tnav-drop-email {
+  padding: 6px 10px 7px;
+  border-bottom: 1px solid var(--bdr2);
+  margin-bottom: 4px;
+  color: var(--txt3);
+  font-size: 10px;
+  font-family: var(--font-mono), monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 220px;
+}
 /* The design's one inversion: active nav is amber-filled with #08090a text.
    --bg0 IS #08090a, so this is the token rather than the literal. */
 [data-design="terminal"] .tnav-item.on { background: var(--accent); color: var(--bg0); font-weight: 700; }
