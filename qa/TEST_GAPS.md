@@ -365,9 +365,18 @@ fragment removed while the path survives.
 proof above is a harness or a bundle inspection. The original finding on this
 section was a 429 quota rejection, which is invisible from outside.
 
-**To close:** raise one deliberate error in production and confirm it appears in
-GlitchTip. It needs the owner's say-so, because it means breaking something on
-purpose on the live site.
+**To close, reframed 2026-09-06:** the question is not "can we trigger an alert",
+it is "has anything ever arrived" — a read, not a write. One number from each
+dashboard: has Sentry received any event from the prod project in the last 30
+days, has PostHog received any event from the prod environment. If yes to
+either, delivery is confirmed and this closes without touching production. If
+no to both, that is the finding, and it is worse than a synthetic test would
+have found: real user errors have been vanishing silently, invisibly, for as
+long as nobody looked. **Neither QA nor PM/DevOps has Sentry or PostHog
+dashboard access as of this note** — checked, not assumed, on both sides. A
+deliberate production error is the fallback only if the read comes back
+negative, and only the owner should trigger it, for the reason already stated
+above.
 
 ---
 
