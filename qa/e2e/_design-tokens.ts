@@ -9,7 +9,8 @@
  * Verified (with commit + date):
  *   /               — #448, verified 2026-08-26
  *   /disclaimer     — #420, verified 2026-08-26
- *   /arena          — #460, verified 2026-08-26
+ *   /arena          — #914/#921 @ 0444225, verified 2026-09-06 (rebuilt component;
+ *                     removed from this list 2026-09-01 through 2026-09-06, see below)
  *   /dashboard      — #491 @ d3d7e15, verified 2026-08-28
  *   /briefing       — #492 @ 27e495a, verified 2026-08-28
  *   /liq            — #494 @ 8496ea7, verified 2026-08-29 (static)
@@ -37,42 +38,28 @@
  *   /refund         — #503 @ 701d368, verified 2026-08-29 (static)
  *   /upgrade        — #503 @ 701d368, verified 2026-08-29 (static)
  */
-/* `/arena` IS NOT IN THIS LIST, and its absence is the finding (#843, #853).
- *
- * It was here, and the four `arena-structure.spec.ts` tests measured it against
- * `specs/arena.md` and failed — rail 320 where the spec says 352, ticker strip
- * absent entirely. Neither number is a styling slip. **The terminal Arena
- * component does not exist.** `components/ArenaTerminal.tsx` was removed by the
- * `dd39c9bb` revert, 1,212 lines including `lib/arenaColour.ts`,
- * `lib/arenaTimeframes.ts` and their tests; `ccefc0de` later restored 939 lines
- * of CSS and never restored the component. So
- * `[data-design="terminal"] .at-rail { flex: 0 0 352px }` is already in
- * `globals.css` and **nothing renders `.at-rail`** — along with `.at-body`,
- * `.at-main`, `.at-pair`, `.at-ev*`, `.at-verdict` and the ticker strip. 66
- * orphaned `at-*` classes styling markup that is not emitted. The 320 the spec
- * measured is `.arena-ws`, the CURRENT design's Arena grid column.
- *
- * Setting `.arena-ws` to 352 under terminal was on the table and the owner
- * rejected it on 2026-09-05: one criterion goes green, four stay red, and the
- * screen is still not the one the spec describes. **A check made to pass without
+/* `/arena` WAS NOT IN THIS LIST from 2026-09-01 through 2026-09-06 (#843,
+ * #853) — removed rather than left failing, because a route in this list is a
+ * claim that the screen was converted, and for those five weeks that claim was
+ * false: `components/ArenaTerminal.tsx` had been removed by the `dd39c9bb`
+ * revert, `ccefc0de` restored 939 lines of CSS for it and never restored the
+ * component, so `arena-structure.spec.ts`'s four tests measured `.arena-ws`
+ * (the current design's grid column, 320px) against a spec written for a
+ * component that did not exist (352px, plus a ticker strip that was not
+ * there). Setting `.arena-ws` to 352 under terminal was on the table and the
+ * owner rejected it: one criterion goes green, four stay red, and the screen
+ * is still not the one the spec describes. **A check made to pass without
  * making the thing true is the failure this whole folder is about.**
  *
- * Removed rather than left failing, because a route in this list is a claim that
- * the screen was converted, and that claim is false — what `/arena` has is
- * current-design markup plus `border-radius: 0 !important` from #505. Leaving it
- * would have the suite reporting a conversion that was reverted eight weeks ago.
- *
- * PUT IT BACK IN THE PR THAT REBUILDS THE COMPONENT — #853. The four structural
- * tests arm themselves off this list and are the acceptance criteria for that
- * work, so they need no edit when it lands.
- *
- * What this does NOT do, stated because the absence is easy to misread: it fixes
- * nothing a visitor sees, and since #748 made terminal the default everywhere,
- * whatever `/arena` looks like is now what every visitor gets. Swept on deployed
- * `qa` @ 122423d — it renders coherently: title, category filters, coin row, the
- * three research controls, chart with timeframe row, and a market-snapshot rail.
- * Not the spec's screen, not a broken one.
- */
+ * PUT BACK IN by #914/#921 (2026-09-06), which restored the component (four
+ * modules from `dd39c9bb^`) and mounted `LiqFeed` in the terminal branch so
+ * `arena-structure.spec.ts` can measure the real rail rather than an orphaned
+ * ladder. The four structural tests arm themselves off this list and are the
+ * acceptance criteria for that work — this line is the only edit they needed.
+ * Control run before arming for real: temporarily asserted 353 instead of 352
+ * in `arena-structure.spec.ts`, confirmed it reported a genuine failure rather
+ * than a skip, then reverted — a spec that has never executed is otherwise
+ * indistinguishable from one that always passes. */
 export const CONVERTED_ROUTES: string[] = [
   '/',
   '/disclaimer',
@@ -102,6 +89,7 @@ export const CONVERTED_ROUTES: string[] = [
   '/terms',
   '/refund',
   '/upgrade',
+  '/arena',
 ];
 
 /**
