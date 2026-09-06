@@ -524,7 +524,15 @@ All terminal-mode on routes other than `/`, and the dead sorting rule in §6 wou
 | **#846** duplicate accessible names | **Three of five were an instrument defect, not app code.** `no-duplicate-controls.spec.ts:79` read `innerText \|\| aria-label` — precedence backwards, so every `Tip.tsx` collided with every other. | **Closed.** Two real ones fixed, spec corrected |
 | **#843** Arena geometry | **Not a width.** Both its numbers were wrong — rail measured **320** not 304, ticker measured **`null`** (absent), not mis-sized. | **Closed as a wrong premise into #853**, which is open and is real work |
 
-**#853 is the live one.** `components/ArenaTerminal.tsx` does not exist — `dd39c9bb` reverted 1,212 lines and `ccefc0de` restored 939 lines of CSS without the component, so `[data-design="terminal"] .at-rail { flex: 0 0 352px }` is correct, present, and styles markup nothing renders. 66 orphaned `at-*` classes. `/arena` is out of `CONVERTED_ROUTES` until it is rebuilt. **It reads as finished rather than broken** — current-design markup with square corners — so it is owed, not urgent. See §14.
+**#853 — the component is back, 2026-09-06.** `components/ArenaTerminal.tsx` and four supporting modules are restored and mounted behind `designMode === 'terminal'`. It had not existed since `dd39c9bb` reverted 1,212 lines and `ccefc0de` restored 939 lines of CSS **without** the component — so `[data-design="terminal"] .at-rail { flex: 0 0 352px }` was correct, present, and styling markup nothing rendered. See §14, which keeps the lesson.
+
+Restored from `dd39c9bb^`, **not** `6b14b7a6`: that branch had seven commits and the first predates the ticker strip, the snapshot band and the panel headers that criteria 1, 5 and 7 turn on. Two modules the issue never listed — `lib/arenaEvidence.ts` and `lib/useViewport.ts` — were removed by a *different* revert (`c4921954`) and came back with it.
+
+**Three things a reader needs before touching it:**
+
+- **The liquidation heatmap is struck**, not missing. Its data source is permanently empty (Coinglass v2 retired, v4 401s on this tier, upgrade deferred in `pendings/PENDING.md:18`). Criterion 3 reads **4 panels**, criterion 5 reads **14 modules**. A realized-liquidation replacement is `WORK-QUEUE.md` **D6**, and it is a new panel rather than a restore — `LiqFeed` is realized, the slot specified predicted.
+- **`LiqFeed` must be mounted in BOTH branches.** The terminal branch returns before the current-design one, so a producer mounted only below it never runs. That shipped for one promotion and made the clusters ladder read "No clusters in range" for every coin, permanently. QA caught it by measuring four coins across two timeframes — one empty coin is a buffer story, four is a wiring story.
+- **`qa/e2e/arena-structure.spec.ts` skips unless `/arena` is in `CONVERTED_ROUTES`**, and as of this writing it is not. The spec says it "arms itself in the PR that converts the screen" — but that PR is dev's and the list is QA's, so the arming step has no owner and did not happen. **Verify it fails on purpose before trusting it green.**
 
 **#845 shipped** — the terminal app nav covered `/learn`'s logo and both hero buttons including the primary CTA. Root cause: #714 fixed the same bug on `/` and wrote the gate as `pathname === '/'` — one route, not a family. Now `rendersOwnNav()` in `lib/navRoutes.ts`, covering `/`, `/learn`, `/ko`, `/zh`.
 
@@ -866,18 +874,18 @@ The corollary, and the thing that made #3 half-fixed for weeks: **a fix scoped t
 
 **3. CSS can outlive the component it styles, and the CSS is not evidence the screen exists.**
 
-`components/ArenaTerminal.tsx` **does not exist.** `dd39c9bb` reverted the terminal-Arena branch — 1,212 lines including the component (355), `lib/arenaColour.ts`, `lib/arenaTimeframes.ts` and their tests — and `ccefc0de` (#413) then restored **939 lines of `globals.css` and not the component.** So `[data-design="terminal"] .at-rail { flex: 0 0 352px }` is correct, present, and styles markup that nothing renders.
+`components/ArenaTerminal.tsx` **did not exist between 2026-08-16 and 2026-09-06**, and the CSS never stopped being correct. Restored under #853 — the lesson below is why it sat unnoticed for three weeks, and it survives the fix. `dd39c9bb` reverted the terminal-Arena branch — 1,212 lines including the component (355), `lib/arenaColour.ts`, `lib/arenaTimeframes.ts` and their tests — and `ccefc0de` (#413) then restored **939 lines of `globals.css` and not the component.** So `[data-design="terminal"] .at-rail { flex: 0 0 352px }` is correct, present, and styles markup that nothing renders.
 
 A sweep of every `[data-design="terminal"]` selector against every `className` in `app/` and `components/` found **194 of 349 terminal classes have no markup**. That number is an upper bound on dead CSS, **not a defect count** — and the difference matters:
 
 | Cluster | n | Component | Verdict |
 |---|---|---|---|
-| `at-*` | 66 | `ArenaTerminal.tsx` — **gone** | `/arena` is not converted. Real. |
+| `at-*` | 66 | `ArenaTerminal.tsx` — **restored 2026-09-06 (#853)** | Was real. QA's render sweep after the restore found **45 distinct `at-*` classes live, all 45 matching a rule**. |
 | `lt-*` | 88 | `LandingTerminal.tsx` — exists, renders `lpt-*` | dead CSS, no user impact |
 | `dterm-*` | 19 | `DashboardTerminal.tsx` — exists, renders `dash-*` | dead CSS |
 | `sshell*` | 5 | none | dead CSS |
 
-`lt-*` looked identical to `at-*` from the grep and was nearly reported as breakage; only opening `LandingTerminal.tsx` separated them. **Run the control in both directions before trusting a sweep** — and `/arena` sits in `CONVERTED_ROUTES` today, so the ledger says converted where the screen is current-design markup plus `border-radius: 0`.
+`lt-*` looked identical to `at-*` from the grep and was nearly reported as breakage; only opening `LandingTerminal.tsx` separated them. **Run the control in both directions before trusting a sweep** — and note the ledger was wrong in *both* directions at different times: it once said `/arena` was converted when the screen was current-design markup plus `border-radius: 0`, and today `/arena` is **absent** from `CONVERTED_ROUTES` while the screen genuinely is converted, which silently skips its own acceptance spec.
 
 ### The failure that looks like success — 2026-09-03
 
