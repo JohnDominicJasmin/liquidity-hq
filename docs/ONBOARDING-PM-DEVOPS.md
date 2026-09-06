@@ -130,7 +130,7 @@ The two most recent, both from 2026-09-05:
 
 **And the largest instance of trap 16 that week was this seat's, so it belongs here rather than in a list of what the other two did.**
 
-On 2026-09-06 I ran `gh workflow list`, saw `CI  disabled_manually`, and wrote it into #885 that morning — in a comment correcting my own earlier claim that Actions were off. **Then I spent the afternoon building a cost model of which CI triggers fire**, told the owner *"every promotion to `staging` runs the full suite"* and *"removing the trigger halves the release path"*, and recommended a config change on that basis. **Both sentences describe a workflow that fires on nothing. I had measured it eight hours earlier and reasoned as though I had not.**
+On 2026-09-06 at **09:11** I ran `gh workflow list`, saw `CI  disabled_manually`, and wrote it into #885 — in a comment correcting my own earlier claim that Actions were off. **At 18:47, nine and a half hours later, I told the owner** *"every promotion to `staging` runs the full suite"* and *"removing the trigger halves the release path"*, and recommended a config change on that basis. **Both sentences describe a workflow that fires on nothing. I had measured it that morning and reasoned as though I had not.**
 
 Dev Team found it by accident, going to watch a trigger fire on the first `staging` push in a month. Nothing ran.
 
@@ -139,6 +139,16 @@ Dev Team found it by accident, going to watch a trigger fire on the first `stagi
 **The cost is the part that makes it belong in a role doc.** QA's and Dev's instances cost minutes. This one cost three sessions an afternoon and put a wrong recommendation in front of the owner — because **this seat's errors arrive as instructions.** A wrong measurement by Dev gets caught by a gate. A wrong measurement by the PM gets sequenced.
 
 **Two more from the same day, both corrected by someone else measuring:** ruling that `--green-2` should be decoupled across 235 consumers, when Dev found a token that already existed one line below and made it a one-line change; and sizing #930's build a third too high by counting only this project's own overlays and never checking that klinecharts ships 27 indicators.
+
+**Three more, all self-caught, and the fact that they were nearly left out is itself the lesson.**
+
+- **A capped `gh run list` reported as a month.** First August CI count: **168 runs**. The real figure is **461**. The list was truncated at its default limit and I read a page as a total. **This is the same failure as the trigger model, arrived at more cheaply** — and it is the one to watch hardest in this seat, because a capped list reported as a total *is* an instruction.
+- **`461` was itself CI-only** — 538 across all workflows. An error inside the correction to the first one.
+- **A byte-order mark on my own commit subject**, from the same PowerShell redirect I had asked Dev to fix in #892 that morning — committed inside the change documenting the previous instrument failure.
+
+**These three were volunteered before anyone asked. The three above them were raised by a reviewer.** The first draft of this section contained only the reviewer's three — **written against the comment in front of me rather than against the day** — which is the trap this section is about, one layer up. Dev Team caught that on a second pass.
+
+> **A boundary on all of the above, and read it before you read the list.** Every error here is one somebody else caught, or one caught after the fact. **The document cannot contain the errors nobody noticed.** Treat this as a sample of the caught ones, not a census of the made ones — the same distinction that produced half of them. **A filter is not a census**, whether the filter is a `head` on a run listing or the set of mistakes somebody happened to point at.
 
 **For you specifically:** when a session reports a number, ask what it measured, not whether it passed. "No contrast or overflow failures across 124 loads" is a claim. "The page is clean" is a different and much larger one, and it is the one that gets believed.
 
