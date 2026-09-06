@@ -11,7 +11,7 @@
 
 **Conflicts.** None. The frame is authored end to end — a search for `: ` inside any style attribute returns zero. Where the old frame and README disagreed, this file carries the reasoned reconstruction: rail **352** (three sibling frames), verdict **34px** desktop (README:103), verdict **26px** mobile (*ratio argument only — the softest of the five, do not cite as measured*), band **full 1440**, rail height **flex**.
 
-**Structure decision:** one scroll. All 15 modules in production order, restyled. No regrouping, no tabs. Tabs are a separate proposal for the owner.
+**Structure decision:** one scroll. All 14 modules in production order, restyled. *(15 until the heatmap was struck — see below.)* No regrouping, no tabs. Tabs are a separate proposal for the owner.
 
 ---
 
@@ -31,7 +31,7 @@ Ground `--bg0`. `border-radius: 0` on every element. Regions separated by `1px -
 
 **Body split:** main `flex: 1; min-width: 0`, rail **352** fixed, `border-right: 1px --bdr` on the main column.
 
-**Main column, in order:** chart 430 → Confluence → (`MultiTFAlignment` | `MarketStructure`) → (`EMASignal` | `AbsorptionDetector`) → `LiqHeatmap` fills.
+**Main column, in order:** chart 430 → Confluence → (`MultiTFAlignment` | `MarketStructure`) → (`EMASignal` | `AbsorptionDetector`). *`LiqHeatmap` stood last and is struck — see the note under Acceptance criteria 3.*
 
 The two paired rows are `display: flex`, each half `flex: 1; min-width: 0`, divided by `1px --bdr`.
 
@@ -63,11 +63,11 @@ A separate layout, not a reflow. **Breakpoint 768px.**
 | Tab bar | — | **60**, five destinations |
 | Section padding | `0 16px` | `0 14px` |
 
-`CoinMarketSnapshot`'s five stats, the cluster ladder, the liquidation heatmap and session history are **absent at mobile**, not hidden. See §Absent vs hidden.
+`CoinMarketSnapshot`'s five stats, the cluster ladder and session history are **absent at mobile**, not hidden. See §Absent vs hidden. *(The liquidation heatmap was in this list until it was struck — it is now absent at every width.)*
 
 ---
 
-## Panel inventory — the 15 modules
+## Panel inventory — the 14 modules *(15 before the heatmap was struck)*
 
 Production order preserved. Nothing dropped.
 
@@ -84,7 +84,7 @@ Production order preserved. Nothing dropped.
 | `MarketStructure` | body 3 right | 4 event rows `padding: 11px 16px` + a last-flip line |
 | `EMASignal` | body 4 left | 6 conditions in a 2-col grid + 4 values in a 4-col grid |
 | `AbsorptionDetector` | body 4 right | score row + 3 breakdown bars. **Pro** |
-| `LiqHeatmap` | body 5 | fills remaining, 40×16 cells on `#0a0710`, `padding: 12px 58px 12px 12px` |
+| ~~`LiqHeatmap`~~ | ~~body 5~~ | **STRUCK 2026-09-06 (#853)** — data source retired, see the note under Acceptance criteria. Row kept so the removal is visible; it is not one of the 14. |
 | `UsageMeter` | rail 1 | `padding: 14px 16px`, 3px track |
 | `UpgradeGateModal` + `LockedFeatureCard` | — | see §Pro surfaces |
 
@@ -245,7 +245,7 @@ Labels are DB-driven and can change length at runtime. Nothing on this route may
 | Error | as empty, plus a `STALE` marker in the band's right cell. No retry button in the band; the re-run action already exists. |
 | Signed out | route redirects to `/login`; no Arena markup mounts |
 | Free | Confluence locked card, Absorption absent, `UsageMeter` at `n of 3`, gated timeframes locked |
-| Pro | all 15 modules render |
+| Pro | all 14 modules render |
 
 ---
 
@@ -278,7 +278,7 @@ Interactive targets **≥24×24**. Timeframe chips measure 27 tall — compliant
 
 Focus: `2px solid --accent`, offset 2; offset `-2` inside grid cells.
 
-The heatmap encodes magnitude in colour alone. It is supported by the cluster ladder immediately beside it in the rail, which states every level numerically — that ladder is **absent on mobile**, so at mobile the heatmap is absent too rather than left as an unsupported colour-only graphic.
+~~The heatmap encodes magnitude in colour alone.~~ **Moot since the heatmap was struck (#853).** The cluster ladder was specified as its accessible counterpart, stating every level numerically; it survives and is now the only liquidation view on the screen rather than a fallback for a colour-only graphic. It remains **absent on mobile**.
 
 ---
 
@@ -289,7 +289,7 @@ Candles and prices arrive over `wss://stream.binance.com`, which `page.route` ca
 | Region | Fixture-measurable |
 |---|---|
 | Nav, hint band, timeframe row, panel headers, Pro slots | **yes** |
-| Chart, ticker, snapshot, heatmap | **no** — WebSocket |
+| Chart, ticker, snapshot | **no** — WebSocket. *(The heatmap was listed here; struck #853.)* |
 | Verdict, evidence, confluence, MTF, structure, EMA, absorption | **only if the read store is stubbed above the socket** |
 
 Criteria 12–18 name their fixture. If the store cannot be stubbed, mark them unverifiable and check by inspection — do not score the route green against a starved page.
@@ -312,10 +312,30 @@ Criteria 12–18 name their fixture. If the store cannot be stubbed, mark them u
 **Structure**
 1. Desktop renders 7 top-level regions in order: nav, ticker, hint band, snapshot band, verdict band, timeframe row, body.
 2. Body is exactly 2 columns; the rail's `offsetWidth === 352`.
-3. Main column contains 5 panels in order: chart, confluence, (MTF | structure), (EMA | absorption), heatmap.
+3. Main column contains **4** panels in order: chart, confluence, (MTF | structure), (EMA | absorption). *Was 5 with a heatmap last; struck 2026-09-06, see the note below.*
 4. Rail contains 5 panels in order: usage, clusters, why, evidence, session history.
-5. All 15 named modules render for an entitled user.
+5. All **14** named modules render for an entitled user.
 6. Every element computes `border-radius: 0px`.
+
+> **The liquidation heatmap is STRUCK from this spec, 2026-09-06 (#853).** Its
+> data source is gone: `store.btcLiqLevels` is permanently empty since Coinglass
+> retired the v2 endpoints, v4 answers 401 on this tier, and
+> `pendings/PENDING.md:18` defers the upgrade until revenue. The current design
+> had already removed the card, recording that it *"had drawn zero times, for
+> every coin, in every theme."*
+>
+> **Struck rather than left as an unsatisfiable criterion.** A criterion nobody
+> can meet trains readers to treat a failing conformance run as normal, which is
+> worse than a missing criterion. It is **not** repurposed to `LiqFeed` either:
+> that is REALIZED liquidations and this slot specified PREDICTED levels, and
+> §Honest labels already settles that class of question — `Liq 24h` ships as
+> `Liq 15m` because *"copying a mock label onto a different measurement makes
+> the screen lie."* A realized-liquidation panel may be right for this space; it
+> would be a **new panel**, filed separately, not a restore.
+>
+> The module count therefore reads **14**, not 15. Every line below that said 15
+> is amended in place rather than deleted, so the change is visible.
+
 
 **Geometry — desktop 1440**
 7. Nav 44, ticker 34, hint band 36, snapshot band 88, timeframe row 42.
@@ -345,7 +365,7 @@ Criteria 12–18 name their fixture. If the store cannot be stubbed, mark them u
 **Absent vs hidden**
 24. At 1440, `[data-layout="mobile"]` node count is 0. At 390, the desktop tree count is 0. By node count, not computed style.
 25. Exactly one `KLineProChart` instance mounts at any viewport width, and exactly one candle subscription is open.
-26. At 390, the rail does not exist in the DOM — clusters, session history and heatmap all absent.
+26. At 390, the rail does not exist in the DOM — clusters and session history absent. *(The heatmap was named here too; it is struck at every width.)*
 
 **Gating**
 27. Signed out as free: `ConfluenceScore` does not render, and a `LockedFeatureCard` renders in its position at full main-column width.

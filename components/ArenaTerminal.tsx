@@ -54,12 +54,16 @@ interface Props {
   structure?:   ReactNode;
   emaSignal?:   ReactNode;
   absorption?:  ReactNode;
-  heatmap?:     ReactNode;
   usageMeter?:  ReactNode;
   /** Rail, in spec order: UsageMeter -> clusters -> Why -> evidence -> history.
-   *  All three are ABSENT on mobile, not hidden - the cluster ladder is what
-   *  makes the heatmap's colour-only magnitude readable, so §Accessibility
-   *  drops the heatmap at mobile rather than leave it unsupported. */
+   *  All three are ABSENT on mobile, not hidden.
+   *
+   *  The clusters ladder was specified as the accessible counterpart to the
+   *  heatmap's colour-only magnitude - §Accessibility dropped the heatmap at
+   *  mobile and kept this. The heatmap is now struck entirely (see the body
+   *  column), so the ladder is no longer a fallback for anything: it is the
+   *  only liquidation view on the screen, and it is wired to LiqFeed's 24h
+   *  realized accumulation rather than the dead predicted-levels array. */
   clusters?:    { price: number; usd: number }[];
   why?:         string | null;
   history?:     { time: string; verdict: string; conf: number | null }[];
@@ -165,7 +169,7 @@ function TimeframeRow({
 
 export default function ArenaTerminal({
   coin, tf, onTfChange, onUpgrade, entitled, authLoading, verdict, levels,
-  chart, confluence, multiTf, structure, emaSignal, absorption, heatmap,
+  chart, confluence, multiTf, structure, emaSignal, absorption,
   usageMeter, hintBand, snapshot, tfBadge, coinIcon, clusters, why, history,
 }: Props) {
   const mobile = useMobileLayout(LANDING_MOBILE_QUERY);
@@ -218,7 +222,7 @@ export default function ArenaTerminal({
   );
 
   /* ── MOBILE ────────────────────────────────────────────────────────────
-     Separate tree. The rail, the heatmap, the snapshot band's five cells and
+     Separate tree. The rail, the snapshot band's five cells and
      the ticker do not EXIST here - criterion 24 counts nodes. */
   if (mobile) {
     return (
@@ -292,7 +296,27 @@ export default function ArenaTerminal({
                 makes BodyPanel render nothing rather than an empty header. */}
             <BodyPanel title="Absorption" pro>{absorption}</BodyPanel>
           </div>
-          <BodyPanel title="Liquidation heatmap">{heatmap}</BodyPanel>
+          {/* The liquidation heatmap panel STOOD HERE and is struck, not
+              hidden (#853, ruled 2026-09-06). Its data source is gone:
+              store.btcLiqLevels is permanently empty since Coinglass retired
+              the v2 endpoints, v4 answers 401 on this tier, and
+              pendings/PENDING.md:18 defers the upgrade until revenue. The
+              current design had already removed the card, recording that it
+              "had drawn zero times, for every coin, in every theme."
+
+              Keeping the slot with a null child would render nothing anyway -
+              BodyPanel drops an empty header - but it would leave a panel in
+              the tree that can never fill, which is the exact shape this whole
+              issue is about: 66 at-* classes styled by a stylesheet and
+              rendered by nothing.
+
+              NOT repurposed to LiqFeed either. That is REALIZED liquidations;
+              this slot was specified for PREDICTED levels, and the handoff's
+              own Honest labels section settles that class of question -
+              `Liq 24h` ships as `Liq 15m` because "copying a mock label onto a
+              different measurement makes the screen lie." A realized-
+              liquidation panel may be right for this space; it is a new panel,
+              not a restore, and #853 is a restyle. Filed separately. */}
         </div>
 
         <aside className="at-rail">
