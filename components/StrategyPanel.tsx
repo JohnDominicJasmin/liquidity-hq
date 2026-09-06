@@ -21,8 +21,9 @@
  * which `npm run labels:regen` rewrites wholesale, so they would not survive.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useId } from 'react';
 import { useAuth } from './AuthProvider';
+import { useDesignMode } from './DesignModeProvider';
 import {
   GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS,
   AUTO_SET_ID, CUSTOM_SET_ID,
@@ -95,6 +96,8 @@ function ParamRow({ spec, value, readOnly, onChange }: {
 
 export default function StrategyPanel({ onRun }: Props) {
   const { entitled } = useAuth();
+  const design = useDesignMode();
+  const limitNoteId = useId();
   const limit = indicatorLimit(Boolean(entitled));
 
   const [setId, setSetId] = useState<string>(AUTO_SET_ID);
@@ -149,6 +152,29 @@ export default function StrategyPanel({ onRun }: Props) {
   const groups = useMemo(() => GROUPS.map(g => ({ id: g, entries: byGroup(g) })), []);
   const isAuto = setId === AUTO_SET_ID && selected.length === 0;
 
+  /* SELF-GATED, and this is a fix rather than a flourish. The first version
+     mounted unconditionally in `app/arena/page.tsx`'s shared rail and relied on
+     the CSS being terminal-scoped to hide it. Scoped CSS hides the STYLING; the
+     component still rendered under the current design as a wall of unstyled
+     text - "StrategyFREE · 1", the chip labels run together with no spacing -
+     pushing the rest of the rail down. QA found it; my own test step said "the
+     rail should look exactly as it did before" and I read it as satisfied.
+
+     THE GENERAL SHAPE, because this will happen again: scoping the STYLES to a
+     design while leaving the MOUNT ungated is CSS that knows about a boundary
+     the component does not. It is the same split that produced the dead
+     `*-term-wrap` rules - a stylesheet carrying a design decision that the tree
+     it styles has never heard of. If a component belongs to one design, the
+     component should be the thing that knows it.
+
+     Gated HERE rather than at the call site, which is where the equivalent
+     split lives on /dashboard. That file swaps the whole page, so one `if` at
+     the top covers it. This is one panel inside a tree both designs share, so a
+     call-site gate protects exactly one mount and the next one reintroduces
+     the bug. A component that cannot render in the wrong design cannot be
+     mounted into it by mistake. */
+  if (design !== 'terminal') return null;
+
   return (
     <div className="strat-panel">
       <div className="strat-head">
@@ -193,6 +219,12 @@ export default function StrategyPanel({ onRun }: Props) {
                     type="button"
                     className={`strat-chip${on ? ' on' : ''}${blocked ? ' blocked' : ''}`}
                     aria-pressed={on}
+                    /* The reason lives in a visually-hidden element, not only
+                       in `title`. Chromium surfaces `title` on hover and not on
+                       keyboard focus, and title-as-description is inconsistent
+                       across screen readers - so before this, a keyboard user
+                       learned THAT something stopped them and never why. */
+                    aria-describedby={blocked ? limitNoteId : undefined}
                     /* A chip past the limit stays focusable and says why. Making
                        it `disabled` would drop it out of the tab order and leave
                        a keyboard user unable to find out what stopped them. */
@@ -207,6 +239,13 @@ export default function StrategyPanel({ onRun }: Props) {
             </div>
           </div>
         ))}
+
+        {/* One note for every blocked chip, rather than one per chip: the text is
+            identical and duplicating it would put the same sentence in the
+            accessibility tree twenty times. */}
+        <span id={limitNoteId} className="sr-only">
+          {`Deselect one first - ${limit} at a time`}
+        </span>
 
         {isAuto && (
           <div className="strat-auto">
