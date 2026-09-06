@@ -7829,6 +7829,34 @@ main.app-content[data-chrome="none"] {
   letter-spacing: .1em;
 }
 
+/* .auth-gate - the signed-out panel AuthGate renders in place of a Pro
+   surface (#926). Zero terminal rules existed. It already draws on --bg1 and
+   --bdr, and --nm-raise is `none` in dark, so only the radius, the hairline
+   weight and the button's type were current-design. */
+[data-design="terminal"] .auth-gate {
+  border: 1px solid var(--bdr);
+  border-radius: 0;
+  box-shadow: none;
+}
+[data-design="terminal"] .auth-gate-btn {
+  border-radius: 0;
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .12em;
+}
+[data-design="terminal"] .auth-gate-title {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .04em;
+}
+
+/* SpotlightTour (#926). The component is 100% inline-style with no CSS
+   classes, so it picked up no stylesheet at all - not [data-theme="light"]
+   originally, and not [data-design="terminal"] ever. Colour and type are
+   handled by a third palette object inside the component, next to the DARK
+   and LIGHT ones it already had. This handles the 18 inline radius numbers,
+   which a palette cannot carry. */
+[data-design="terminal"] .tour-term-wrap,
+[data-design="terminal"] .tour-term-wrap * { border-radius: 0 !important; }
+
 /* upgrade-gate / locked-feature-card / full-page-upgrade-gate terminal (#413) */
 [data-design="terminal"] .locked-card-term-wrap,
 [data-design="terminal"] .locked-card-term-wrap * { border-radius: 0 !important; }
