@@ -106,11 +106,16 @@ export default function MarketRead() {
 
       <div className="mr-override">
         <button className="mr-override-btn" onClick={() => setShowOverride(v => !v)}
+          aria-expanded={showOverride}
           style={{ color: manualFund ? 'var(--amber)' : 'var(--txt3)' }}>
           {manualFund
             ? t('MARKET_READ_OVERRIDE_ACTIVE', { value: manualFund === 'pos' ? t('MARKET_READ_FUND_LONG_LC') : manualFund === 'neg' ? t('MARKET_READ_FUND_SHORT_LC') : t('MARKET_READ_FUND_NEUTRAL_LC') })
             : t('MARKET_READ_OVERRIDE_DEFAULT')}
-          {showOverride ? ' ▲' : ' ▼'}
+          {/* aria-hidden (#939 second sweep): aria-expanded on the button
+              already says open or closed. Missed by the first sweep because
+              the literal carries a LEADING SPACE - ' ▼' - and the search
+              string was an exact quote rather than the pattern. */}
+          <span aria-hidden="true">{showOverride ? ' ▲' : ' ▼'}</span>
         </button>
         {showOverride && (
           <div className="mr-override-opts">
