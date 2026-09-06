@@ -280,9 +280,24 @@ export default function MarketsPage() {
               {/* Coin badge + name */}
               <div style={{ paddingLeft: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                 <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
-                <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
+                {/* THE COIN NAME IS THE CONTROL, not the row (#943).
+
+                    The row keeps its onClick so a mouse still hits anywhere,
+                    but the keyboard path is this button. A row-as-button was
+                    the obvious shape and is the wrong one: its accessible name
+                    is the whole row read out - "BTC 64,213 -2.34% smart buyers"
+                    - which is reachable and unusable, and it puts one tab stop
+                    on every row of a fifty-row table.
+
+                    stopPropagation because the row's own handler would
+                    otherwise fire a second time for the same gesture. */}
+                <button
+                  type="button"
+                  className="mkt-row-btn"
+                  onClick={e => { e.stopPropagation(); goToArena(id); }}
+                >
                   {id.toUpperCase()}
-                </span>
+                </button>
               </div>
 
               {/* Sparkline */}
