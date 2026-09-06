@@ -63,7 +63,7 @@ A separate layout, not a reflow. **Breakpoint 768px.**
 | Tab bar | — | **60**, five destinations |
 | Section padding | `0 16px` | `0 14px` |
 
-`CoinMarketSnapshot`'s five stats, the cluster ladder, the liquidation heatmap and session history are **absent at mobile**, not hidden. See §Absent vs hidden.
+`CoinMarketSnapshot`'s five stats, the cluster ladder and session history are **absent at mobile**, not hidden. See §Absent vs hidden. *(The liquidation heatmap was in this list until it was struck — it is now absent at every width.)*
 
 ---
 
@@ -84,7 +84,7 @@ Production order preserved. Nothing dropped.
 | `MarketStructure` | body 3 right | 4 event rows `padding: 11px 16px` + a last-flip line |
 | `EMASignal` | body 4 left | 6 conditions in a 2-col grid + 4 values in a 4-col grid |
 | `AbsorptionDetector` | body 4 right | score row + 3 breakdown bars. **Pro** |
-| `LiqHeatmap` | body 5 | fills remaining, 40×16 cells on `#0a0710`, `padding: 12px 58px 12px 12px` |
+| ~~`LiqHeatmap`~~ | ~~body 5~~ | **STRUCK 2026-09-06 (#853)** — data source retired, see the note under Acceptance criteria. Row kept so the removal is visible; it is not one of the 14. |
 | `UsageMeter` | rail 1 | `padding: 14px 16px`, 3px track |
 | `UpgradeGateModal` + `LockedFeatureCard` | — | see §Pro surfaces |
 
@@ -278,7 +278,7 @@ Interactive targets **≥24×24**. Timeframe chips measure 27 tall — compliant
 
 Focus: `2px solid --accent`, offset 2; offset `-2` inside grid cells.
 
-The heatmap encodes magnitude in colour alone. It is supported by the cluster ladder immediately beside it in the rail, which states every level numerically — that ladder is **absent on mobile**, so at mobile the heatmap is absent too rather than left as an unsupported colour-only graphic.
+~~The heatmap encodes magnitude in colour alone.~~ **Moot since the heatmap was struck (#853).** The cluster ladder was specified as its accessible counterpart, stating every level numerically; it survives and is now the only liquidation view on the screen rather than a fallback for a colour-only graphic. It remains **absent on mobile**.
 
 ---
 
@@ -289,7 +289,7 @@ Candles and prices arrive over `wss://stream.binance.com`, which `page.route` ca
 | Region | Fixture-measurable |
 |---|---|
 | Nav, hint band, timeframe row, panel headers, Pro slots | **yes** |
-| Chart, ticker, snapshot, heatmap | **no** — WebSocket |
+| Chart, ticker, snapshot | **no** — WebSocket. *(The heatmap was listed here; struck #853.)* |
 | Verdict, evidence, confluence, MTF, structure, EMA, absorption | **only if the read store is stubbed above the socket** |
 
 Criteria 12–18 name their fixture. If the store cannot be stubbed, mark them unverifiable and check by inspection — do not score the route green against a starved page.
@@ -365,7 +365,7 @@ Criteria 12–18 name their fixture. If the store cannot be stubbed, mark them u
 **Absent vs hidden**
 24. At 1440, `[data-layout="mobile"]` node count is 0. At 390, the desktop tree count is 0. By node count, not computed style.
 25. Exactly one `KLineProChart` instance mounts at any viewport width, and exactly one candle subscription is open.
-26. At 390, the rail does not exist in the DOM — clusters, session history and heatmap all absent.
+26. At 390, the rail does not exist in the DOM — clusters and session history absent. *(The heatmap was named here too; it is struck at every width.)*
 
 **Gating**
 27. Signed out as free: `ConfluenceScore` does not render, and a `LockedFeatureCard` renders in its position at full main-column width.
