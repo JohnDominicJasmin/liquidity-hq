@@ -8084,3 +8084,136 @@ main.app-content[data-chrome="none"] {
    #587: MarketRead no longer renders on any terminal route. */
 [data-design="terminal"] .av-rail-panel { --_c8-tag: av-rail-panel; border-radius: 0 !important; }
 [data-design="terminal"] .skel-bar { --_c8-tag: skel-bar; border-radius: 0 !important; }
+
+
+/* ── Arena strategy panel (#930) ─────────────────────────────────────────────
+   Built from the owner-approved layout. Every value here is measured off that
+   drawing rather than chosen, which is why the sizes are odd numbers: 9px and
+   9.5px and 8.5px are what the artifact specifies.
+
+   TERMINAL-ONLY, so rule 1 of #663 applies and the constants live here rather
+   than inline in the component. Worth saying explicitly because the component
+   is named StrategyPanel.tsx, not *Terminal.tsx, so
+   __tests__/terminalOnlyConstants.test.mts does not sweep it - that test warns
+   in its own header that a terminal-only component under another name is
+   silently exempt. Exempt by name, compliant by choice.
+
+   The artifact's own tokens map onto ours one for one except --accent-fg, which
+   is --on-accent here.
+
+   SCOPED TO [data-design="terminal"], and not for tidiness. __tests__/onAccent
+   caught the unscoped version: `.strat-chip.on` paints var(--on-accent) on
+   var(--accent), which is 8.95:1 in terminal and 3.98:1 in the current design
+   where --on-accent is white and --accent is #1a7aff. Unscoped, those rules are
+   reachable by a design they were never measured against. The scope is what
+   makes the pairing true rather than merely intended.
+ */
+
+[data-design="terminal"] .strat-panel { background: var(--bg1); border: 1px solid var(--bdr); }
+
+[data-design="terminal"] .strat-head {
+  height: 28px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 9px; border-bottom: 1px solid var(--bdr);
+  font-family: var(--font-mono), monospace; font-size: 10px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--txt);
+}
+[data-design="terminal"] .strat-aux { color: var(--txt4); font-size: 9px; letter-spacing: .1em; }
+
+[data-design="terminal"] .strat-sect { padding: 10px 9px; border-bottom: 1px solid var(--bdr3); }
+[data-design="terminal"] .strat-sect:last-child { border-bottom: 0; }
+
+[data-design="terminal"] .strat-lbl {
+  font-family: var(--font-mono), monospace; font-size: 9px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
+  display: flex; justify-content: space-between; margin-bottom: 6px;
+}
+[data-design="terminal"] .strat-cap { color: var(--txt4); }
+
+[data-design="terminal"] .strat-sel {
+  width: 100%; height: 26px; background: var(--bg2);
+  border: 1px solid var(--border-input); border-radius: 0;
+  font-family: var(--font-mono), monospace; font-size: 11px;
+  color: var(--txt); padding: 0 7px;
+}
+
+[data-design="terminal"] .strat-grp { margin-bottom: 7px; }
+[data-design="terminal"] .strat-grp:last-of-type { margin-bottom: 0; }
+[data-design="terminal"] .strat-gname {
+  font-family: var(--font-mono), monospace; font-size: 8.5px;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt4);
+  margin-bottom: 3px;
+}
+
+[data-design="terminal"] .strat-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+[data-design="terminal"] .strat-chip {
+  font-family: var(--font-mono), monospace; font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 5px; border: 1px solid var(--bdr); border-radius: 0;
+  background: none; color: var(--txt3); cursor: pointer;
+  display: inline-flex; gap: 3px; align-items: center;
+}
+[data-design="terminal"] .strat-chip.on {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--on-accent); font-weight: 600;
+}
+/* Past the limit. Dimmed, still focusable, still says why on hover - a
+   `disabled` chip would leave the tab order and a keyboard user would never
+   find out what stopped them. */
+[data-design="terminal"] .strat-chip.blocked { color: var(--txt4); border-color: var(--bdr3); cursor: default; }
+[data-design="terminal"] .strat-n {
+  background: var(--on-accent); color: var(--accent);
+  width: 11px; height: 11px; display: inline-flex;
+  align-items: center; justify-content: center;
+  font-size: 7.5px; font-weight: 700;
+}
+
+/* The default state's one line, where the params box would be. Plex Sans, not
+   mono: it is a sentence, not a value. */
+[data-design="terminal"] .strat-auto {
+  margin-top: 7px; font-size: 11px; line-height: 1.5; color: var(--txt3);
+}
+
+[data-design="terminal"] .strat-trunc {
+  margin-top: 7px; padding: 5px 6px;
+  border: 1px solid var(--bdr3); background: var(--bg2);
+  font-size: 10.5px; line-height: 1.45; color: var(--txt3);
+}
+
+[data-design="terminal"] .strat-params {
+  margin-top: 7px; border: 1px solid var(--bdr3);
+  background: var(--bg2); padding: 7px;
+}
+[data-design="terminal"] .strat-params-h {
+  font-family: var(--font-mono), monospace; font-size: 8.5px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
+  margin-bottom: 5px;
+}
+[data-design="terminal"] .strat-prow {
+  display: grid; grid-template-columns: 1fr 54px; gap: 5px; align-items: center;
+  font-family: var(--font-mono), monospace; font-size: 10px;
+  color: var(--txt2); padding: 2px 0;
+}
+[data-design="terminal"] .strat-pv {
+  border: 1px solid var(--border-input); border-radius: 0;
+  background: var(--bg1); color: var(--txt);
+  text-align: right; padding: 0 4px;
+  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-variant-numeric: tabular-nums; width: 100%;
+}
+[data-design="terminal"] .strat-pv:disabled { color: var(--txt3); }
+[data-design="terminal"] .strat-ro {
+  margin-top: 5px; font-family: var(--font-mono), monospace; font-size: 8.5px;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--txt4);
+}
+
+[data-design="terminal"] .strat-actions { display: flex; gap: 3px; }
+[data-design="terminal"] .strat-btn {
+  flex: 1; height: 26px; border: 1px solid var(--bdr); border-radius: 0;
+  background: var(--bg2); color: var(--txt2); cursor: pointer;
+  font-family: var(--font-mono), monospace; font-size: 9.5px;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+[data-design="terminal"] .strat-btn.pri {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--on-accent); font-weight: 600;
+}

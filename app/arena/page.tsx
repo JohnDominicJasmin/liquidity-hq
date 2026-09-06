@@ -32,6 +32,7 @@ import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, D
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
+import StrategyPanel from '@/components/StrategyPanel';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -2201,6 +2202,14 @@ function ArenaContent() {
       </div>
         </div>
         <aside className="arena-ws-rail">
+      {/* ── Strategy (#930) ── First in the rail, per the owner-approved layout.
+
+          It owns the selection and nothing else yet: `onRun` is the seam where
+          the four consumers - chart overlays, QUICK, DEEP and ASK AI - get
+          wired, and that is deliberately a separate change. One selection
+          driving a chart plus three AI actions is the part that goes wrong
+          quietly, and it should not land inside a layout diff. */}
+      <StrategyPanel />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
