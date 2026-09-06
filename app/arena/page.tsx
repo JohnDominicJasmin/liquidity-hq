@@ -1415,18 +1415,6 @@ function ArenaContent() {
           why={result?.reasoning ?? null}
           history={history.map(h => ({ time: h.time, verdict: h.signal, conf: h.confidence }))}
         />
-        {/* THE CLUSTERS LADDER'S DATA SOURCE. Headless, so it renders nothing -
-            it owns the Binance and Bybit sockets and the 24h accumulation, and
-            `chartLiqClusters` above is derived from what it emits.
-
-            It has to be here as well as in the current-design return below,
-            because this branch returns BEFORE that one. Without it `liqClusters`
-            never fills and the rail's ladder reads "No clusters in range" for
-            every coin, forever - which is exactly what QA measured on #914
-            across BTC, ETH and SOL before this was added. Wiring a panel to a
-            producer that does not mount in the same branch is the same defect
-            as the heatmap this PR struck, one level less obvious. */}
-        <LiqFeed onClusters={handleLiqClusters} coinFilter={selectedCoin.toUpperCase()} headless />
         <UpgradeGateModal
           open={upgradeGate !== null}
           onClose={() => setUpgradeGate(null)}
