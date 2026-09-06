@@ -173,6 +173,63 @@ covered in §7.
   - **High** — auth, payments, alert delivery, migrations, anything that fails
     silently or affects money or user data.
 
+**A caveat in a merged PR has nothing watching it.** Written down 2026-09-06,
+because recording one is the part that already works and it is not enough.
+
+Risk level is where a PR says what it could not verify. That is correct and it
+should stay. But once the PR merges, **the caveat is in a closed document that
+nothing re-reads** — no issue, no owner, no date it comes due. Three failure
+modes, all from the same week, all written honestly:
+
+| | the caveat, as written | what happened |
+|---|---|---|
+| **#883** | *"All four rail sites gate on `d?.price &&`, so that branch cannot reach them — measured: 16 cards rendered, 8 badges."* | **It came due.** Surfaced a day later as **#899** when QA hit it during a live page load. Nothing between the two was watching. |
+| **#883**, again | the same sentence | **It was wrong about its own scope, by more than double, and nothing caught that either.** When #883 merged, *two* of five call sites gated on price, not four — `app/markets/page.tsx:258`, `components/MarketsTerminal.tsx:242` and `app/arena/page.tsx:1464` did not, and were announcing the no-data name the whole time the caveat said they could not. **#902 then removed both remaining guards, so the count is now zero.** The line references are what stay checkable; the count was only ever true on one day. |
+| landing dark theme | *"the toggle lives on `/arena` nav and did not carry to landing"* | **It was not a defect at all.** Rode **two releases** as a known unknown, then turned out to be an instrument error — landing has no theme toggle, only a language switcher, and the read path always worked. |
+
+The second row is the one with no defence left. It was written in the right
+place, at the right time, **with a real measurement attached** — and the
+measurement was over-extended from the sites the author had changed to sites
+they had not re-read. **A caveat is a claim, and nothing checks it any harder
+than it checks the code it is about.**
+
+The third matters for a different reason: **an unwatched caveat is not only a
+defect waiting — it can be a non-defect costing attention every release.**
+
+None of the three was a failure of honesty. Every author flagged the right kind
+of thing in the right place, which is precisely why the flagging is not the part
+that needs fixing.
+
+**So when you write one, decide which of these it is and say so in the PR:**
+
+- **It comes due** — something has to revisit it. File the issue *now*, while
+  you have the measurement, and link it from Risk level. Do not write "worth
+  checking later"; later has no owner.
+- **It is closed by this PR's own test steps** — then it is not a caveat, it is
+  a test step. Move it.
+- **It is a permanent limitation** — say that explicitly, so the next reader
+  does not re-derive it. `lib/terminalTokens.ts:122-133` is the model: the
+  reason, the alternative considered, and why it was rejected.
+
+**And state its scope in checkable terms.** "All four rail sites" was the whole
+defect in row two — a count, asserted, never re-counted. Name the files, or give
+the command that produces the number, so the next reader can disagree with you
+in one line instead of inheriting it.
+
+**A count is true on a date; a path is true until someone moves it.** Row two
+had to be amended before this section even merged, because #902 fixed the thing
+it describes and took the count from two to zero — the same staleness the row is
+about, inside the row, within a day. Prefer the reference that survives the fix,
+and date the number when you need one.
+
+**Whoever aggregates a release PR reads the Risk sections it collects and asks
+the same question of each.** That is the one moment they are all in front of
+one person. Carry anything still open into the release PR as a named item
+rather than letting it merge with the release.
+
+Related: #899, #883, #885 — the same shape one level up, where an absence
+produces no artefact and looks identical to nothing being there.
+
 ### 3a. Say which side you are — one account, two roles
 
 **Open every PR body, issue and comment with `**Dev Team**` or `**QA Team**`.**
