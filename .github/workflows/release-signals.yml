@@ -123,12 +123,12 @@ jobs:
           # A release PR built from the narrow pattern silently omits the "How to
           # test" and "Risk level" of every PR merged the other way - in a document
           # whose entire purpose is to be the complete list.
-          grep -oE '^Merge (pull request|PR) #[0-9]+' /tmp/subjects.txt \
+          grep -oE '^Merge (pull request |PR )?#[0-9]+' /tmp/subjects.txt \
             | grep -oE '[0-9]+' | sort -u > /tmp/prs.txt || true
 
           # Merges the pattern could not claim, counted independently of it.
           git log --merges --format=%s origin/main..origin/staging > /tmp/merges.txt || true
-          grep -vE '^Merge (pull request|PR) #[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
+          grep -vE '^Merge (pull request |PR )?#[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
 
           {
             echo "**QA Team** — opened automatically when \`staging\` moved."
@@ -265,7 +265,7 @@ jobs:
 
           AHEAD=$(git rev-list --count origin/main..origin/staging)
           PRS=$(git log --format=%s origin/main..origin/staging \
-                  | grep -cE '^Merge (pull request|PR) #[0-9]+' || true)
+                  | grep -cE '^Merge (pull request |PR )?#[0-9]+' || true)
 
           # A FAILED QUERY MUST NOT BECOME AN ALARM.
           #

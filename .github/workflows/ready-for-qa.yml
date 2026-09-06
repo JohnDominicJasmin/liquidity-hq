@@ -75,7 +75,7 @@ jobs:
           # Anchored at ^ because %s is a subject line: a real merge subject starts
           # with Merge, and prose that happens to quote "Merge pull request #123"
           # should not register as a PR in the release.
-          grep -oE '^Merge (pull request|PR) #[0-9]+' /tmp/subjects.txt \
+          grep -oE '^Merge (pull request |PR )?#[0-9]+' /tmp/subjects.txt \
             | grep -oE '[0-9]+' | sort -u > /tmp/prs.txt || true
           echo "prs=$(wc -l < /tmp/prs.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
@@ -90,7 +90,7 @@ jobs:
           # the pattern did not claim. A merge commit is a merge commit whatever
           # its wording, and `--merges` does not care how it is phrased.
           git log --merges --format=%s "$BASE..origin/qa" > /tmp/merges.txt || true
-          grep -vE '^Merge (pull request|PR) #[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
+          grep -vE '^Merge (pull request |PR )?#[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
           echo "unmatched=$(wc -l < /tmp/unmatched.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
       - name: Build the issue body
