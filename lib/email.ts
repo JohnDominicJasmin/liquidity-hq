@@ -33,7 +33,7 @@ interface TrialEndingArgs {
 }
 
 import { reportHealth, healthError } from '@/lib/apiHealth';
-import { isCheckoutConfigured } from './checkout';
+import { isCheckoutConfigured } from './checkout.ts';
 
 /* Every sender in this file ends in `return res.ok` inside a try/catch that
    returns false - so a bounced welcome email, an expired Brevo key or a

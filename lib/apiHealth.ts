@@ -9,7 +9,7 @@
 // "we got data we can actually use", which is why TruthSocial's 200-with-no-
 // items counts as a failure. Callers decide, because only the caller knows
 // what usable looks like for its own payload.
-import { getSupabaseAdmin } from './supabase-admin';
+import { getSupabaseAdmin } from './supabase-admin.ts';
 
 // Same env-prefixed naming as the tables in lib/tables.ts - the two Supabase
 // projects each hold their own copy of this function. Matches the pattern

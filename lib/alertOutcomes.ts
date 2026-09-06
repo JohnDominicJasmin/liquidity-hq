@@ -1,5 +1,5 @@
-import { getSupabaseAdmin } from './supabase-admin';
-import { T } from './tables';
+import { getSupabaseAdmin } from './supabase-admin.ts';
+import { T } from './tables.ts';
 
 // Only these rule_keys carry an unambiguous implied direction (set as
 // SignalEntry.dir at the point they fire in app/api/telegram/alert/route.ts).

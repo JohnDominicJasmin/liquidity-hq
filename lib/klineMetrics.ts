@@ -1,5 +1,5 @@
-import { computeRSI14 } from './rsi';
-import { detectPatterns } from './patterns';
+import { computeRSI14 } from './rsi.ts';
+import { detectPatterns } from './patterns.ts';
 
 /* Everything MarketProvider used to derive from a coin's 15-minute candles,
  * lifted out verbatim so app/api/market/snapshot can compute it once on the
