@@ -60,9 +60,38 @@ jobs:
           COUNT=$(wc -l < /tmp/subjects.txt | tr -d ' ')
           echo "commits=$COUNT" >> "$GITHUB_OUTPUT"
 
-          grep -oE 'Merge pull request #[0-9]+' /tmp/subjects.txt \
+          # TWO MERGE SUBJECT FORMATS EXIST IN THIS REPO AND ONLY ONE WAS MATCHED.
+          #
+          #   Merge pull request #890 from JohnDominicJasmin/test/...   <- github's default
+          #   Merge PR #891: restore the Arena handoff and the ...      <- gh pr merge --subject
+          #
+          # On 2026-09-06 the range staging..qa held nine merges. Six matched.
+          # #891, #892 and #894 were absent from the Ready-for-QA issue entirely,
+          # so QA was handed six "How to test" sections for nine PRs and had no
+          # way to notice the other three - the issue said "6 PR(s)" and looked
+          # complete. Nobody chose the second format; it is what
+          # `gh pr merge --subject "Merge PR #N: ..."` produces.
+          #
+          # Anchored at ^ because %s is a subject line: a real merge subject starts
+          # with Merge, and prose that happens to quote "Merge pull request #123"
+          # should not register as a PR in the release.
+          grep -oE '^Merge (pull request|PR) #[0-9]+' /tmp/subjects.txt \
             | grep -oE '[0-9]+' | sort -u > /tmp/prs.txt || true
           echo "prs=$(wc -l < /tmp/prs.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+          # RECONCILE, BECAUSE THE FAILURE MODE ABOVE WAS SILENCE.
+          #
+          # Broadening the pattern fixes the two formats we know about. It does
+          # nothing for the third one someone invents later, and that miss would
+          # look exactly like this one did: a smaller number, no error, an issue
+          # that reads as complete.
+          #
+          # So count the merges independently of the pattern and carry any subject
+          # the pattern did not claim. A merge commit is a merge commit whatever
+          # its wording, and `--merges` does not care how it is phrased.
+          git log --merges --format=%s "$BASE..origin/qa" > /tmp/merges.txt || true
+          grep -vE '^Merge (pull request|PR) #[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
+          echo "unmatched=$(wc -l < /tmp/unmatched.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
       - name: Build the issue body
         if: steps.pending.outputs.commits != '0'
@@ -106,6 +135,22 @@ jobs:
             done < /tmp/prs.txt
           fi
 
+          # A merge this workflow could not attribute to a PR number. Listed
+          # rather than dropped: an unrecognised subject format is the one case
+          # where a smaller PR count is indistinguishable from a smaller release.
+          if [ -s /tmp/unmatched.txt ]; then
+            {
+              echo "## Merges with no PR number this workflow could read"
+              echo
+              echo "**These are in the range and have no \"How to test\" above.**"
+              echo "Test them from the commits, and say so, rather than assuming"
+              echo "the section above is the whole promotion."
+              echo
+              sed 's/^/- /' /tmp/unmatched.txt
+              echo
+            } >> /tmp/body.md
+          fi
+
           # Commits that arrived without a PR are the ones most worth surfacing:
           # nothing else records them anywhere QA would look.
           if ! [ -s /tmp/prs.txt ]; then
@@ -119,7 +164,8 @@ jobs:
             echo "---"
             echo
             echo "Range: \`${{ steps.pending.outputs.base }}..origin/qa\` — "
-            echo "${{ steps.pending.outputs.commits }} commit(s), ${{ steps.pending.outputs.prs }} PR(s)."
+            echo "${{ steps.pending.outputs.commits }} commit(s), ${{ steps.pending.outputs.prs }} PR(s),"
+            echo "${{ steps.pending.outputs.unmatched }} merge(s) with no readable PR number."
             echo "Computed from the branch range rather than the push event, so it stays"
             echo "correct across force-pushes, re-runs and several promotions in a row."
           } >> /tmp/body.md

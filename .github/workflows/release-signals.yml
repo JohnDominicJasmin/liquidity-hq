@@ -115,8 +115,20 @@ jobs:
           fi
 
           git log --format=%s origin/main..origin/staging > /tmp/subjects.txt
-          grep -oE 'Merge pull request #[0-9]+' /tmp/subjects.txt \
+
+          # Same two-format problem as ready-for-qa.yml, and the same fix. See the
+          # long comment there. Short version: `Merge pull request #N from ...` is
+          # github's default and `Merge PR #N: ...` is what `gh pr merge --subject`
+          # writes, both are in this repo's history, and only the first was matched.
+          # A release PR built from the narrow pattern silently omits the "How to
+          # test" and "Risk level" of every PR merged the other way - in a document
+          # whose entire purpose is to be the complete list.
+          grep -oE '^Merge (pull request|PR) #[0-9]+' /tmp/subjects.txt \
             | grep -oE '[0-9]+' | sort -u > /tmp/prs.txt || true
+
+          # Merges the pattern could not claim, counted independently of it.
+          git log --merges --format=%s origin/main..origin/staging > /tmp/merges.txt || true
+          grep -vE '^Merge (pull request|PR) #[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
 
           {
             echo "**QA Team** — opened automatically when \`staging\` moved."
@@ -144,6 +156,22 @@ jobs:
             else echo "_No \"How to test (QA)\" section — ask dev before signing this off._" >> /tmp/body.md; fi
             echo >> /tmp/body.md
           done < /tmp/prs.txt
+
+          # Merges with no readable PR number. In a release PR this matters more
+          # than anywhere else: whoever merges to `main` is asserting the test
+          # steps passed, and they can only assert that about steps they were
+          # shown. An omission here reads as a smaller release, not as a gap.
+          if [ -s /tmp/unmatched.txt ]; then
+            {
+              echo "## Merges with no PR number this workflow could read"
+              echo
+              echo "**In this release, with no \"How to test\" or \"Risk level\" below.**"
+              echo "Do not sign this release off without accounting for them."
+              echo
+              sed 's/^/- /' /tmp/unmatched.txt
+              echo
+            } >> /tmp/body.md
+          fi
 
           # Risk level is collected the same way: the caveats a PR author flagged
           # are exactly what a release reviewer needs and never sees otherwise.
