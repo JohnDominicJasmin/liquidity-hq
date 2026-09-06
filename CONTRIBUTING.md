@@ -288,8 +288,16 @@ why `tsc` was the gate that broke rather than the others:
 | gate | says on success | fallback if you misread the code |
 |---|---|---|
 | `npm test` | `730/730` | the count |
-| `next build` | the route table | the table's presence |
+| `next build` | the route table | **the table is printed only *after* success** |
 | `tsc --noEmit` | **nothing at all** | **none** |
+
+**The build row is the strongest of the three and the distinction is worth having
+exactly.** Its fallback is not "a table is present" — it is that `next build`
+prints the route table **only after it succeeds**, and a failed build ends at
+`Failed to compile` with no table at all. That makes the table **positive
+evidence of success**, not merely the absence of an error. It is what let a
+scope question be closed from artefacts rather than from exit codes, after the
+exit codes had already proved untrustworthy.
 
 **Silence and unread failure are identical.** Tests and builds have a second
 signal that survives a misread exit code; `tsc` has one signal and it is the code.
