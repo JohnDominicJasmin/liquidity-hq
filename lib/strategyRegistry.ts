@@ -263,3 +263,23 @@ export const STRATEGY_SETS: readonly StrategySet[] = [
   { id: 'mean_reversion',  label: 'Mean Reversion',  indicators: ['RSI', 'BOLL'] },
   { id: CUSTOM_SET_ID,     label: 'Custom',          indicators: [] },
 ];
+
+/** A one-line description of a selection, for a Grok prompt.
+ *
+ *  WHY A HELPER RATHER THAN INLINE JOINING. Three consumers need this sentence
+ *  - QUICK, DEEP and ASK AI - and they build their prompts in different files.
+ *  Three copies would drift, and a prompt that drifts is a change to what the
+ *  model is told that nothing tests.
+ *
+ *  Returns null for an empty selection rather than an empty string, so a caller
+ *  cannot accidentally append "the trader is watching: " with nothing after it.
+ *  The empty case is "let the read choose", which means saying nothing extra. */
+export function describeSelection(ids: readonly string[]): string | null {
+  if (!ids.length) return null;
+  const names = ids
+    .map(id => findIndicator(id))
+    .filter((e): e is IndicatorEntry => Boolean(e))
+    .map(e => (e.basis ? `${e.label} (from ${e.basis})` : e.label));
+  if (!names.length) return null;
+  return names.join(', ');
+}

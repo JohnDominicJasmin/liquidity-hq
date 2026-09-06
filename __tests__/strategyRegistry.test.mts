@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS, LIMITS,
   AUTO_SET_ID, CUSTOM_SET_ID,
-  byGroup, findIndicator, indicatorLimit, defaultParams,
+  byGroup, findIndicator, indicatorLimit, defaultParams, describeSelection,
 } from '../lib/strategyRegistry.ts';
 
 test('the approved layout draws 21 indicators in 5 groups', () => {
@@ -116,4 +116,29 @@ test('CONTROL: the lookups can fail', () => {
   // @ts-expect-error - deliberately outside the union
   assert.equal(byGroup('not_a_group').length, 0);
   assert.ok(byGroup('trend').length > 0);
+});
+
+test('describeSelection names the chosen indicators, and says nothing for none', () => {
+  /* The empty case returns null rather than '' so a caller cannot append
+     "the trader is watching: " with nothing after it. Empty means "let the read
+     choose", which means adding no sentence at all. */
+  assert.equal(describeSelection([]), null);
+  assert.equal(describeSelection(['RSI']), 'RSI');
+  assert.equal(describeSelection(['EMA_RIBBON', 'LIQ_CLUSTERS']), 'EMA ribbon, Liq clusters');
+});
+
+test('describeSelection names the basis for a derived entry', () => {
+  /* ADX renders klinecharts' DMI with a custom figure list. A prompt that says
+     "ADX" without that is telling the model something slightly untrue about
+     what the user is looking at. */
+  assert.equal(describeSelection(['ADX']), 'ADX (from DMI)');
+  assert.equal(describeSelection(['STOCH']), 'Stoch (from KDJ)');
+});
+
+test('CONTROL: an unknown id is dropped rather than named', () => {
+  /* Without this, a stale id from a saved set would reach the prompt as
+     "undefined" and the model would be told to weigh an indicator that does
+     not exist. Both directions: real ids survive the same filter. */
+  assert.equal(describeSelection(['NOT_AN_INDICATOR']), null);
+  assert.equal(describeSelection(['NOT_AN_INDICATOR', 'RSI']), 'RSI');
 });
