@@ -40,23 +40,39 @@ name: CI
 #
 # ── WHERE THE SUITE RUNS WHEN IT IS ON ───────────────────────────────────────
 #
-# The ~35 minute Playwright suite has TWO automatic triggers:
+# ONE trigger, and no manual override:
 #
-#   1. a PR into `main` - the release, immediately before a production deploy
-#   2. a push to `staging` - added 2026-08-10, issue #207
+#   a PR into `main` - the release, immediately before a production deploy
 #
-# This paragraph said "exactly ONE automatic trigger" until 2026-09-06, four
-# weeks after trigger 2 landed. The e2e job's own comment below documented it
-# correctly the whole time and `CONTRIBUTING.md` recorded it too - so the only
-# wrong description was the one at the top of the file, which is the paragraph
-# readers are told to consult before adding a trigger. Found while tracing a
-# GitHub charge (#946).
+# ⚠️ THERE IS NOW NO WAY TO RUN THE SUITE ON DEMAND. The `workflow_dispatch`
+# input that did it was removed on 2026-09-06 with the trigger below. If you
+# need the suite against a branch, the only route is opening a `staging` ->
+# `main` PR. That is a real constraint and it is the owner's decision - the
+# dispatch was how #207's coverage gap got worked around by hand, and that route
+# is closed too.
 #
-# WHY TRIGGER 2 EXISTS, so nobody deletes it to make the code match a corrected
-# header: the release PR was the only automatic trigger and it had STOPPED BEING
+# ── AND THE HISTORY, WHICH IS WHY THIS PARAGRAPH IS WORTH READING ────────────
+#
+# It said "exactly ONE automatic trigger" for four weeks while there were TWO,
+# and it is ONE again by a different decision. A reader who sees only the
+# current sentence learns nothing about the four weeks, and the four weeks are
+# the point.
+#
+# TRIGGER 2 WAS a push to `staging`, added 2026-08-10, issue #207. It existed
+# because the release PR was the only automatic trigger and it had STOPPED BEING
 # OPENED - `RELEASE_PR_PAUSED` was set on the owner's park-it call and is still
 # set - so the browser suite ran not at all, and ten spec files were covered
-# NOWHERE. Fuller account on the e2e job below.
+# NOWHERE. That reasoning was sound on the facts as they stood.
+#
+# WHAT REMOVED IT WAS A POLICY CHANGE, NOT A BETTER ARGUMENT. CI is now off by
+# default and switched on only at deploy time, so there is no window where CI is
+# running and the release PR is not being opened - the only reason CI is ever
+# running is that a release is happening. Trigger 2 was a fix for a failure mode
+# the new policy removes.
+#
+# ⚠️ SO IF CI EVER GOES BACK TO ALWAYS-ON, #207's GAP REOPENS. Do not treat the
+# single clause below as a settled preference; it is downstream of the workflow
+# being disabled by default. The e2e job carries the fuller account.
 #
 # ── WHAT AUGUST ACTUALLY COST, measured job by job from the Actions API ──────
 #
@@ -204,10 +220,12 @@ on:
   # proving a fix without opening a release PR first.
   workflow_dispatch:
     inputs:
-      e2e:
-        description: Run the full browser suite
-        type: boolean
-        default: true
+      # `e2e` REMOVED 2026-09-06 with the trigger it drove. A boolean that no
+      # condition reads is worse than no boolean: it renders as a checkbox
+      # promising to run the browser suite and does nothing. The dispatch
+      # itself stays, because `count_egress` below still needs it and the
+      # 2-minute job is cheap to run on demand.
+      #
       # DISPATCH-ONLY, and off by default. This changes what the run measures,
       # so it must never be the thing that happens on an ordinary push.
       #
@@ -334,10 +352,11 @@ jobs:
     # the intended flow it cannot happen. It is accepted rather than guarded
     # because the guard would have to ask GitHub whether a PR exists, and a
     # gate that can be disabled by an API hiccup is worse than a rare duplicate.
-    if: >-
-      github.base_ref == 'main' ||
-      (github.event_name == 'push' && github.ref_name == 'staging') ||
-      (github.event_name == 'workflow_dispatch' && inputs.e2e)
+    # ONE CLAUSE, on the owner's decision of 2026-09-06. A `staging` -> `main`
+    # PR is the only thing that runs this, and only while the workflow is
+    # switched on - which is only at deploy time. There is no manual override
+    # any more; see the header for what that closes off.
+    if: github.base_ref == 'main'
     # Without a cap, a genuinely hung run burns to GitHub's 6-hour default, and
     # a stuck run looks identical to a slow one - which happened while this
     # suite was being brought up. So the cap stays; the number moved.
