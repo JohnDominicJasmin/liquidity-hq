@@ -184,7 +184,7 @@ modes, all from the same week, all written honestly:
 | | the caveat, as written | what happened |
 |---|---|---|
 | **#883** | *"All four rail sites gate on `d?.price &&`, so that branch cannot reach them — measured: 16 cards rendered, 8 badges."* | **It came due.** Surfaced a day later as **#899** when QA hit it during a live page load. Nothing between the two was watching. |
-| **#883**, again | the same sentence | **It was wrong about its own scope, by more than double, and nothing caught that either.** *Two* of five call sites gate on price, not four — `app/markets/page.tsx:258`, `components/MarketsTerminal.tsx:242` and `app/arena/page.tsx:1464` do not. Those three were announcing the no-data name the whole time while the caveat said they could not. |
+| **#883**, again | the same sentence | **It was wrong about its own scope, by more than double, and nothing caught that either.** When #883 merged, *two* of five call sites gated on price, not four — `app/markets/page.tsx:258`, `components/MarketsTerminal.tsx:242` and `app/arena/page.tsx:1464` did not, and were announcing the no-data name the whole time the caveat said they could not. **#902 then removed both remaining guards, so the count is now zero.** The line references are what stay checkable; the count was only ever true on one day. |
 | landing dark theme | *"the toggle lives on `/arena` nav and did not carry to landing"* | **It was not a defect at all.** Rode **two releases** as a known unknown, then turned out to be an instrument error — landing has no theme toggle, only a language switcher, and the read path always worked. |
 
 The second row is the one with no defence left. It was written in the right
@@ -215,6 +215,12 @@ that needs fixing.
 defect in row two — a count, asserted, never re-counted. Name the files, or give
 the command that produces the number, so the next reader can disagree with you
 in one line instead of inheriting it.
+
+**A count is true on a date; a path is true until someone moves it.** Row two
+had to be amended before this section even merged, because #902 fixed the thing
+it describes and took the count from two to zero — the same staleness the row is
+about, inside the row, within a day. Prefer the reference that survives the fix,
+and date the number when you need one.
 
 **Whoever aggregates a release PR reads the Risk sections it collects and asks
 the same question of each.** That is the one moment they are all in front of
