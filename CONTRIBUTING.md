@@ -178,16 +178,27 @@ because recording one is the part that already works and it is not enough.
 
 Risk level is where a PR says what it could not verify. That is correct and it
 should stay. But once the PR merges, **the caveat is in a closed document that
-nothing re-reads** — no issue, no owner, no date it comes due. Two in one week:
+nothing re-reads** — no issue, no owner, no date it comes due. Three failure
+modes, all from the same week, all written honestly:
 
-| | the caveat, recorded correctly | what happened |
+| | the caveat, as written | what happened |
 |---|---|---|
-| **#883** | *"All four rail sites gate on `d?.price &&`, so that branch cannot reach them — measured: 16 cards rendered, 8 badges."* | Correct, with a measurement. Surfaced a day later as **#899** when QA hit it live. Nothing between the two was watching. |
-| landing dark theme | *"the toggle lives on `/arena` nav and did not carry to landing"* | Rode **two releases** as a known unknown. Then turned out to be an instrument error — landing has no theme toggle, only a language switcher, and the read path always worked. |
+| **#883** | *"All four rail sites gate on `d?.price &&`, so that branch cannot reach them — measured: 16 cards rendered, 8 badges."* | **It came due.** Surfaced a day later as **#899** when QA hit it during a live page load. Nothing between the two was watching. |
+| **#883**, again | the same sentence | **It was wrong about its own scope, by more than double, and nothing caught that either.** *Two* of five call sites gate on price, not four — `app/markets/page.tsx:258`, `components/MarketsTerminal.tsx:242` and `app/arena/page.tsx:1464` do not. Those three were announcing the no-data name the whole time while the caveat said they could not. |
+| landing dark theme | *"the toggle lives on `/arena` nav and did not carry to landing"* | **It was not a defect at all.** Rode **two releases** as a known unknown, then turned out to be an instrument error — landing has no theme toggle, only a language switcher, and the read path always worked. |
 
-Note the second one especially: **an unwatched caveat is not only a defect
-waiting — it can be a non-defect costing attention every release.** Neither was
-a failure of honesty. Both authors flagged the right thing in the right place.
+The second row is the one with no defence left. It was written in the right
+place, at the right time, **with a real measurement attached** — and the
+measurement was over-extended from the sites the author had changed to sites
+they had not re-read. **A caveat is a claim, and nothing checks it any harder
+than it checks the code it is about.**
+
+The third matters for a different reason: **an unwatched caveat is not only a
+defect waiting — it can be a non-defect costing attention every release.**
+
+None of the three was a failure of honesty. Every author flagged the right kind
+of thing in the right place, which is precisely why the flagging is not the part
+that needs fixing.
 
 **So when you write one, decide which of these it is and say so in the PR:**
 
@@ -199,6 +210,11 @@ a failure of honesty. Both authors flagged the right thing in the right place.
 - **It is a permanent limitation** — say that explicitly, so the next reader
   does not re-derive it. `lib/terminalTokens.ts:122-133` is the model: the
   reason, the alternative considered, and why it was rejected.
+
+**And state its scope in checkable terms.** "All four rail sites" was the whole
+defect in row two — a count, asserted, never re-counted. Name the files, or give
+the command that produces the number, so the next reader can disagree with you
+in one line instead of inheriting it.
 
 **Whoever aggregates a release PR reads the Risk sections it collects and asks
 the same question of each.** That is the one moment they are all in front of
