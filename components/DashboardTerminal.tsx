@@ -28,7 +28,7 @@ import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
-import { healthGradeA11y } from '@/lib/healthGradeA11y';
+import { healthGradeA11y, healthChipStyle } from '@/lib/healthGradeA11y';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -203,8 +203,7 @@ function TCoinSidebar() {
                 style={{
                 fontWeight: 800, lineHeight: 1,
                 padding: '2px 4px', borderRadius: 0,
-                color: health.color,
-                background: withAlpha(health.color, '22'),
+                ...healthChipStyle(health.color, health.invert),
                 border: `1px solid var(--bdr)`,
                 letterSpacing: '.04em', flexShrink: 0,
               }}>
