@@ -7804,6 +7804,31 @@ main.app-content[data-chrome="none"] {
   letter-spacing: .12em;
 }
 
+/* The shared modal shell - UsageModal and every settings modal use .smod-*
+   (#926). It had NO terminal rules at all: zero matches for
+   `[data-design="terminal"] .smod`. The panel already draws on --bg0 and
+   --bdr, so the palette was never wrong; what was wrong is an 18px radius, a
+   0.5px hairline and a blurred black backdrop, none of which the handoff
+   allows once terminal is active.
+
+   The backdrop was `rgba(0,0,0,0.55)` plus a 4px blur - a literal, so it
+   never adapted to theme, and in light terminal it dimmed a light page with
+   black. Using the page ground at opacity keeps the relationship in tokens. */
+[data-design="terminal"] .smod-panel {
+  border: 1px solid var(--bdr);
+  border-radius: 0;
+}
+[data-design="terminal"] .smod-backdrop {
+  background: color-mix(in srgb, var(--bg0) 82%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-design="terminal"] .smod-header { border-bottom: 1px solid var(--bdr); }
+[data-design="terminal"] .smod-title {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .1em;
+}
+
 /* upgrade-gate / locked-feature-card / full-page-upgrade-gate terminal (#413) */
 [data-design="terminal"] .locked-card-term-wrap,
 [data-design="terminal"] .locked-card-term-wrap * { border-radius: 0 !important; }

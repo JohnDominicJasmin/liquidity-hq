@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useDesignMode } from '@/components/DesignModeProvider';
 import { Download } from '@/components/icons';
 
 export default function PWAInstallPrompt() {
+  const terminal = useDesignMode() === 'terminal';
   const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [show, setShow] = useState(false);
 
@@ -65,20 +67,25 @@ export default function PWAInstallPrompt() {
       left: '50%',
       transform: 'translateX(-50%)',
       zIndex: 9000,
-      background: 'var(--bg2)',
-      border: '0.5px solid var(--bdr)',
-      borderRadius: 12,
+      background: terminal ? 'var(--bg1)' : 'var(--bg2)',
+      border: terminal ? '1px solid var(--bdr)' : '0.5px solid var(--bdr)',
+      borderRadius: terminal ? 0 : 12,
       padding: '12px 14px',
       display: 'flex',
       alignItems: 'center',
       gap: 10,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+      /* Terminal is flat - the handoff's "no shadows" is unconditional. */
+      boxShadow: terminal ? 'none' : '0 8px 32px rgba(0,0,0,0.45)',
       maxWidth: 320,
       width: 'calc(100vw - 32px)',
     }}>
       <span style={{
-        flexShrink: 0, width: 34, height: 34, borderRadius: 10,
-        background: 'rgba(26,122,255,0.14)', border: '0.5px solid rgba(26,122,255,0.3)',
+        flexShrink: 0, width: 34, height: 34, borderRadius: terminal ? 0 : 10,
+        /* rgba(26,122,255,…) is the CURRENT design's blue, restated as a
+           literal, so it never adapted to design mode or theme - the icon
+           chip stayed blue on a terminal page where --accent is amber. */
+        background: terminal ? 'var(--bg2)' : 'rgba(26,122,255,0.14)',
+        border: terminal ? '1px solid var(--bdr)' : '0.5px solid rgba(26,122,255,0.3)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)',
       }}>
         <Download size={17} style={{ verticalAlign: 'baseline' }} />
@@ -93,7 +100,7 @@ export default function PWAInstallPrompt() {
           style={{
             background: 'var(--accent-solid)',
             border: 'none',
-            borderRadius: 6,
+            borderRadius: terminal ? 0 : 6,
             padding: '5px 11px',
             fontSize: 'var(--fs-caption)',
             fontWeight: 700,
