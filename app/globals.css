@@ -8256,3 +8256,32 @@ main.app-content[data-chrome="none"] {
   font-size: var(--fs-caption); font-weight: 700;
   color: var(--txt); letter-spacing: .02em;
 }
+
+
+/* ── The last four box-shadows the terminal design never dropped (#926) ───────
+   The handoff's rule is flat: no shadows. Twenty-something surfaces were
+   converted and these four were missed, and they were missed for a reason worth
+   recording - they were found by sweeping for the PROPERTY, not by reading the
+   terminal overrides. An override that sets `border` and `border-radius` and
+   never mentions `box-shadow` looks complete; the defect is what the rule does
+   not say, and reading it can never show that.
+
+   `.gchat-fab` is the one that matters. It carries `var(--glow-accent)` - a
+   glow, on a design whose whole premise is that surfaces do not glow - and it
+   renders on EVERY route, so it was the most visible unconverted thing left.
+
+   Scoped to both attributes rather than to `[data-design="terminal"]` alone so
+   these beat the `[data-theme="light"]` variants on their own specificity
+   rather than on source order. Source order would work today and would break
+   the first time someone moves a block. */
+[data-design="terminal"] .gchat-fab,
+[data-design="terminal"] .gchat-fab:hover,
+[data-design="terminal"][data-theme="light"] .gchat-fab,
+[data-design="terminal"][data-theme="light"] .gchat-fab:hover,
+[data-design="terminal"] .nav-menu,
+[data-design="terminal"] .nav-more-dropdown,
+[data-design="terminal"][data-theme="light"] .nav-more-dropdown,
+[data-design="terminal"] .ob-checklist,
+[data-design="terminal"][data-theme="light"] .ob-checklist {
+  box-shadow: none;
+}
