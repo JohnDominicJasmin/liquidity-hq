@@ -1,4 +1,4 @@
-﻿# Handoff: LiquidityHQ Arena — Monochrome Terminal
+# Handoff: LiquidityHQ Arena — Monochrome Terminal
 
 > **Why this file has a suffix, and where it went.** `README.md` in this
 > directory is the **landing page** handoff. This is the **Arena** one. They are
