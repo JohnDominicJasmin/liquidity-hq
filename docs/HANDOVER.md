@@ -487,12 +487,54 @@ proves the build compiled.
 | **T3** | `/login` at 375px mobile width | Core claim of `0bf7305`; app is an installable PWA so mobile is the likely real-world width | Resize internal browser to 375×812 on prod `/login`. Confirm: Turnstile widget does not overflow the card, password checklist is single-column (not a cramped wrapping 2×2), no horizontal page scroll |
 | **T4** | Visible field labels render + are wired | Claim of `0e1ea60` | On `/login`, confirm each input has a visible mono/uppercase label above it, and that clicking the label focuses its input (proves real `<label for>`, not decoration) |
 | **T5** | Light mode on `/login` | `d154ac7` notes `:root` is the *dark* theme here, and its token swap leaked into light mode once already | Toggle to light on `/login`. Confirm the segmented control isn't inverted (should be recessed grey track, raised white pill) |
-| **T6** | Tour step-dot animation timing | Claim of `c4e6044`; only visible during onboarding | Needs a **fresh** signup — the tour only fires for a new account. Watch the bottom-left step indicator on "Next": dots should glide with the content fade, not snap ahead of it |
+| **T6** | Tour step-dot animation timing | Claim of `c4e6044`; only visible during onboarding | **Source half verified 2026-09-06 — see below. The timings are right today and were not when claimed.** Appearance still needs a **fresh** signup: watch the bottom-left step indicator on "Next", dots should glide with the content fade, not snap ahead |
 | **T7** | Password policy checklist behaviour | Claim of `5a49b14` | On create-account, type a weak password and watch the four rules flip live 2/4 → 4/4. Confirm the length rule reads **12**, and that a rejected password never surfaces GoTrue's raw `abcdefghijklmnopqrstuvwxyz...` string |
 | **T8** | Password reveal toggles | Same commit | Confirm each eye toggle flips **only its own** field and does **not** submit the form |
 
 **Note on T6/T7:** T1 and T6 both need a fresh signup, and T7 sits on the same screen —
 running one signup with a new inbox covers all three plus most of T2–T5. Do that first.
+
+**T6, measured from source 2026-09-06.** The timings are correct today. **They were
+not correct when the commit claimed them, and they became correct by accident.**
+
+`c4e6044` slowed the dots to `width 0.42s cubic-bezier(0.33,1,0.68,1)` and justified
+it in a code comment: *"it finished before the 0.38s content fade and the 0.4s
+progress bar."* Both halves of that justification were wrong at the time.
+
+| | claimed | actual, at `c4e6044` |
+|---|---|---|
+| content fade | `0.38s` | **no such value exists** — `ob-fade-up 0.35s`, plus a text copy at `0.35s 0.05s` |
+| content fade running at all | implied yes | **no** — the keyframe name was wrong |
+
+The animation shorthand said `ob-fade-up`, which is the **CSS class** wrapping the
+keyframes, not the `@keyframes` identifier (`obFadeUp`, `globals.css:5727`). So the
+panel and the text **appeared instantly, with no fade** — `getAnimations()` returned
+zero. The dots were slowed to land with an animation that was not playing.
+
+`140be9ee`, nineteen hours later the same day, fixed the keyframe name for an
+unrelated reason (*"its dead fade-in"*). **That is what made T6's claim true**, and
+nothing connects the two commits.
+
+Today, from source:
+
+```
+visual fade    obFadeUp 0.35s                  0.35s
+text fade      obFadeUp 0.35s 0.05s delay      0.40s
+progress bar   width 0.4s                      0.40s
+step dots      width 0.42s                     0.42s   <- lands last, by 0.02s
+```
+
+So the dots no longer finish early. **What this does NOT establish** is whether it
+reads correctly to a person — 0.02s is below the threshold anyone would notice, and
+the original complaint was about a *curve* covering its distance early, not only a
+duration. `cubic-bezier(0.33,1,0.68,1)` is easeOutCubic and is far gentler than the
+expo curve it replaced, but that is read, not seen. **The fresh-signup check still
+stands** and is the only thing that closes T6.
+
+**Why this is worth the room:** the claim was verifiable from source in twenty
+minutes and sat unverified for five weeks, during which it was false for nineteen
+hours and then true by coincidence. A "needs a fresh signup" tag on a row can hide a
+half that needs no signup at all.
 
 ### Known-flaky verification methods — don't get fooled
 
