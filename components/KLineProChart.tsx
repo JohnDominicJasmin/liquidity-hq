@@ -11,6 +11,7 @@ import Tip from '@/components/Tip';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
 import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
+import { findIndicator, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -387,6 +388,10 @@ interface Props {
   // toggle: the toggle controls whether markers are drawn, not whether the
   // signal exists.
   onStructure?:  (sig: PASignal | null) => void;
+  /* The strategy panel's selection (#930). ADDITIVE ONLY - see the effect that
+     consumes it for why an empty selection must leave this chart exactly as it
+     was before the panel existed. */
+  indicators?:   readonly string[];
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
@@ -606,7 +611,7 @@ function computeSRLevels(
   return [...resistances, ...supports];
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators }: Props) {
   const mode = useDesignMode();
   /* The init effect below runs once and must not re-run when the design mode
      resolves - re-creating the chart would throw away its data. So it reads
@@ -2151,6 +2156,65 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (typeof id === 'string') liqClusterIds.current.push(id);
     }
   }, [liqClusters, showLiq, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── The strategy selection's klinecharts indicators (#930) ─────────────────
+   *
+   * ADDITIVE, AND THAT IS A PRODUCT DECISION RATHER THAN A SHORTCUT. The
+   * overlays this chart already draws - the EMA ribbon, liquidation clusters,
+   * S/R and GEX lines - are driven by their own props and are on today for
+   * everyone. Gating those on the selection would mean an empty selection shows
+   * a bare chart, and an empty selection is the DEFAULT ("let the read choose").
+   * So selecting an overlay-backed indicator is currently a no-op: it is
+   * already drawn. Selecting a builtin adds it.
+   *
+   * WHICH ENTRIES DO SOMETHING HERE, said plainly because the panel offers 21
+   * and this handles a subset:
+   *
+   *   source: 'builtin'  createIndicator - SMA, SAR, RSI, MACD, BOLL
+   *   source: 'overlay'  already drawn from its own prop, nothing to do
+   *   source: 'new'      NOT IMPLEMENTED - no calculation exists yet
+   *
+   * A `new` entry selected today draws nothing. That is visible to the user as
+   * "I picked Supertrend and no line appeared", which is worse than the chip
+   * being absent - but the chip list is the owner-approved design and inventing
+   * a different one here would be the larger wrong. Recorded rather than hidden.
+   *
+   * `pane` comes from the registry and is not cosmetic: klinecharts folds every
+   * indicator's values into its pane's auto Y-range, which is why a long EMA on
+   * the candle pane once dragged the axis ~11x wider than the visible range. An
+   * entry marked `own` gets its own pane for that reason. */
+  const activeIndicatorIds = useRef<Map<string, string>>(new Map());
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+
+    const wanted = new Map<string, IndicatorEntry>();
+    for (const id of indicators ?? []) {
+      const entry = findIndicator(id);
+      if (entry && entry.source === 'builtin') wanted.set(id, entry);
+    }
+
+    // Remove what is no longer selected.
+    for (const [id, paneId] of [...activeIndicatorIds.current.entries()]) {
+      if (wanted.has(id)) continue;
+      try { chart.removeIndicator({ paneId }); } catch { /* already gone */ }
+      activeIndicatorIds.current.delete(id);
+    }
+
+    // Add what is newly selected.
+    for (const [id, entry] of wanted) {
+      if (activeIndicatorIds.current.has(id)) continue;
+      const paneId = `strat_${id.toLowerCase()}`;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (chart as any).createIndicator(
+          { name: entry.id },
+          entry.pane === 'own' ? { pane: { id: paneId, height: 90, minHeight: 30 } } : { id: 'candle_pane' },
+        );
+        activeIndicatorIds.current.set(id, entry.pane === 'own' ? paneId : 'candle_pane');
+      } catch { /* an unknown builtin name is a registry bug, not a render error */ }
+    }
+  }, [indicators, chartReady]);
 
   // ── Restore user-drawn lines for this coin, and swap them out on coin change ──
   useEffect(() => {

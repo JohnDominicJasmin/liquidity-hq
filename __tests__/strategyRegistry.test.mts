@@ -142,3 +142,36 @@ test('CONTROL: an unknown id is dropped rather than named', () => {
   assert.equal(describeSelection(['NOT_AN_INDICATOR']), null);
   assert.equal(describeSelection(['NOT_AN_INDICATOR', 'RSI']), 'RSI');
 });
+
+test('the chart can only render the builtin entries today, and the registry says which', () => {
+  /* KLineProChart's indicator effect handles `builtin` by calling
+     createIndicator. `overlay` entries are already drawn from their own props,
+     and `new` entries have no calculation yet - selecting one draws nothing.
+
+     Pinned so the counts cannot drift silently: if someone implements a `new`
+     entry and forgets to flip its source, or adds a builtin the chart has never
+     been told about, this fails rather than the chip quietly doing nothing. */
+  const bySource = (s: string) => INDICATORS.filter(i => i.source === s).map(i => i.id).sort();
+  assert.deepEqual(bySource('builtin'), ['BOLL', 'MACD', 'RSI', 'SAR', 'SMA']);
+  assert.deepEqual(bySource('overlay'), ['EMA_RIBBON', 'GEX', 'LIQ_CLUSTERS', 'SR']);
+  assert.equal(bySource('new').length, 12);
+  assert.equal(bySource('builtin').length + bySource('overlay').length + bySource('new').length, 21);
+});
+
+test('every builtin id is a real klinecharts indicator name', () => {
+  /* createIndicator({ name }) silently does nothing for a name klinecharts does
+     not know, so a typo here is a chip that renders no line and no error. The
+     27 names are read off node_modules/klinecharts/dist/index.esm.js. */
+  const KLINECHARTS = new Set([
+    'AO','AVP','BBI','BIAS','BOLL','BRAR','CCI','CR','DMA','DMI','EMA','EMV','KDJ','MA',
+    'MACD','MTM','OBV','PSY','PVT','ROC','RSI','SAR','SMA','TRIX','VOL','VR','WR',
+  ]);
+  for (const i of INDICATORS) {
+    if (i.source === 'builtin') {
+      assert.ok(KLINECHARTS.has(i.id), `${i.id} is marked builtin but klinecharts ships no such name`);
+    }
+    if (i.basis) {
+      assert.ok(KLINECHARTS.has(i.basis), `${i.id} derives from ${i.basis}, which klinecharts does not ship`);
+    }
+  }
+});
