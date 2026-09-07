@@ -374,6 +374,50 @@ was reverted the same day this section was written (`f1325264`) and the entry ha
 to come back out — **the author of this paragraph had already hit the direction
 it did not cover.**
 
+### 3f. A monitor's filter must not match its own project's passing output
+
+**Added 2026-09-07, after three sessions armed monitors within one hour and every
+one fired falsely — Dev's three times running, on three different words.**
+
+Section 3d is about a check that **cannot fail**. This is its mirror: **a watch
+that cannot stay quiet.** Both end the same way — nobody reads it.
+
+| session | filter | what it actually matched |
+|---|---|---|
+| Dev, 1st | bare `error` / `fail` | this suite's own **passing** output: `[env] ERROR NEXT_PUBLIC_APP_ENV...`, `CONTROL: the values this replaced really do fail there` |
+| Dev, 2nd | `FATAL` | the env-check suite's passing fixture line `[env] FATAL NEXT_PUBLIC_SUPABASE_URL: points at the PRODUCTION Supabase...`, immediately followed by a tick |
+| QA | `Error:` | ESLint **rule descriptions**, which contain the word |
+| PM/DevOps | 7-char SHA vs `git rev-parse --short` (8 here) | every service, reported as **"0 commit(s) behind"** |
+
+**Dev's summary is the one to remember:** *"cover the failure signatures" has to
+mean specific signatures, not the word itself, in a codebase whose own passing
+tests contain it.*
+
+**And notice where that noise comes from.** This project deliberately writes
+negative-case tests — a control proving a check *can* fail, per section 3d — so
+`fail`, `ERROR` and `FATAL` all appear in output that is working perfectly.
+**The better the section 3d discipline, the noisier a naive filter gets. Good
+practice in one place manufactures false positives in the other.**
+
+So:
+
+- **Match exit-code markers and specific signatures, never a bare word.** Dev's
+  third attempt is the shape that held: `FATAL ERROR: ` with the trailing
+  colon-space V8 actually emits, `JavaScript heap out of memory`, `npm ERR!`,
+  real tsc and eslint error counts — plus one or two success anchors.
+- **Baseline before comparing.** A watch armed over existing logs treats every
+  historical byte as new. Record each file's size on first sight; emit on growth.
+- **Watch the first minute after arming.** All of these were visible immediately.
+  Two sessions caught their own; one noticed only because it fired three times in
+  front of its author.
+- **Narrowing is not filtering to the happy path.** A monitor matching only the
+  success line stays silent through a crashloop — **and silence is
+  indistinguishable from still-running.**
+
+**A monitor that floods is stopped automatically, which is worse than never
+arming it** — you go on believing something is watching.
+
+
 **Three documents have now under-stated this, each caught by a different reader.**
 It was missing from the Dev role doc, missing from QA's, and half-stated here.
 **A rule three authors independently got smaller than it is, is one the next
