@@ -115,7 +115,10 @@ const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', read
 
 
 /* ── Result cache ── */
-interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep' }
+// #985 gap 3: selectionAtAnalysis is optional because entries persisted to
+// localStorage before this shipped won't have it - treated as [] on read,
+// which only matters if the trader currently has a non-empty selection.
+interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[] }
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
 const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours - older results are discarded
@@ -1278,7 +1281,7 @@ function ArenaContent() {
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
-      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode } }));
+      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: strategySelection } }));
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
@@ -1955,6 +1958,20 @@ function ArenaContent() {
           prevQuickSignal &&
           prevQuickSignal !== result.signal
         );
+        /* #985 gap 3: this read was built from the selection at request time
+           and nothing else watches strategySelection to invalidate it, so a
+           trader who changes indicators keeps reading a recommendation
+           computed from the set they no longer have selected, with nothing
+           on screen saying so. Marked stale rather than re-run - a re-run
+           spends a Grok call the trader did not ask for, and they already
+           have Quick/Deep to ask for a fresh one once they see this.
+           Order-independent: re-selecting the same indicators in a different
+           click order is not a change. */
+        const selectionChanged = (() => {
+          const before = [...(cacheEntry?.selectionAtAnalysis ?? [])].sort().join(' ');
+          const now = [...strategySelection].sort().join(' ');
+          return before !== now;
+        })();
         const secsDiff = Math.floor((nowMs - result.analyzedAt) / 1000);
         const freshness = secsDiff < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secsDiff < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secsDiff/60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secsDiff/3600) });
         // Live invalidation/target-hit check - the entry/stop/target grid used to be a
@@ -2006,6 +2023,15 @@ function ArenaContent() {
               <div className="arena-override-notice">
                 {t('ARENA_OVERRIDE_NOTICE_PRE')}{' '}
                 <strong>{prevQuickSignal}</strong> {t('ARENA_OVERRIDE_NOTICE_TO')} <strong>{result.signal}</strong>{t('ARENA_OVERRIDE_NOTICE_POST')}
+              </div>
+            )}
+
+            {/* #985 gap 3: selection changed since this read was computed */}
+            {selectionChanged && (
+              <div className="arena-override-notice">
+                {describeSelection(strategySelection)
+                  ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(strategySelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
+                  : t('ARENA_STALE_SELECTION_CLEARED')}
               </div>
             )}
 
