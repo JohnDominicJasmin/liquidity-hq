@@ -1192,6 +1192,18 @@ body[data-rpm-level="high"]::before {
 }
 
 /* ── NAV MORE DROPDOWN ── */
+/* #986: current design only, structurally. NavDropdown (the component that
+   carries this class) and TerminalNav's own .tnav-dropdown render in the
+   same design-value branch, mutually exclusive by construction - there is no
+   state, viewport or theme where terminal design emits .nav-more-dropdown.
+   Confirmed inert rather than assumed: QA traced both components' render
+   branches, and separately confirmed .tnav-dropdown has parity (both import
+   the same route arrays from lib/navRoutes.ts, so this isn't a feature gap
+   hiding behind a dead rule). Left in place, not deleted - it is live for
+   the current design, reachable via ?design=current, and removing rules a
+   design audit could plausibly flag as "unstyled under terminal" is exactly
+   the kind of correct-against-the-stylesheet, changes-nothing-on-screen fix
+   this issue exists to head off before someone spends a measurement on it. */
 .nav-more-wrap     { position: relative; }
 .nav-more-btn      { cursor: pointer; background: none; border: none; font-family: inherit; font-size: inherit; }
 .nav-more-dropdown {
