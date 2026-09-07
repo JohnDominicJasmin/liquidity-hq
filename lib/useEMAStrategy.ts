@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
 import {
-  emaArr, smaArr, smaNMArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
+  emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
   SPREAD_MIN_BY_TF,
@@ -310,14 +310,31 @@ export function useEMAStrategy(
            ruled a selected indicator must be able to MOVE verdict, not just
            describe it - this is the first one that does.
 
-           SMA(12,2) is klinecharts' actual "SMA" formula, not a rolling
-           mean - see smaNMArr's doc in strategyCore.ts, verified against the
-           compiled source and hand-derived against the published recursive
-           definition, not against the chart's own rendered line (checking a
-           number against the line the same code drew is one instrument
-           twice). Registry defaults (length 12, weight 2): selection carries
-           indicator ids only, no per-indicator params, same limitation RSI
-           already documented.
+           #1007 - CHANGED FROM smaNMArr(cl4, 12, 2) TO A GENUINE ROLLING
+           MEAN (smaArr, already in strategyCore.ts for the 200D gate). The
+           original gating used klinecharts' own recursive "SMA" formula at
+           its registry default (length 12, weight 2), which is algebraically
+           identical to EMA(12) (verified to 5.68e-14) - so selecting SMA
+           duplicated an input the ribbon already runs on, and once MACD
+           shipped (whose fast line is the SAME EMA(12)) a trader could
+           select two chips believing they added two signals while adding
+           one. The owner's ruling on #1007: make the indicator genuinely
+           different rather than relabel the collision. A true rolling mean
+           is the only value smaNMArr can never produce at any (N,M) - its
+           recursive form is EMA-family for every M, just with a different
+           decay constant - so this is not a parameter tweak, it is a
+           different formula.
+
+           THE COST, STATED RATHER THAN HIDDEN: klinecharts' own "SMA"
+           indicator (what #1016's panel wiring actually draws on the chart
+           when a trader selects this chip) is UNCHANGED - it still renders
+           the recursive SMA(N,M) line, calcParams unaffected by this file.
+           So the gating condition below and the line on the chart no longer
+           compute the same thing when SMA is selected - a deliberate
+           divergence, not an oversight, because the alternative (leaving
+           gating on smaNMArr) is the redundancy #1007 exists to fix. The
+           checklist row's own label says "rolling mean" rather than
+           "SMA(12,2)" so this isn't silently different from what it says.
 
            GATING, DELIBERATELY ONE-DIRECTIONAL: can only make verdict more
            conservative, never invent or flip a direction the ribbon did not
@@ -328,17 +345,17 @@ export function useEMAStrategy(
            manufacture a BUY/SELL that was not already there, which is the
            safer failure direction for anything gating a trade call. */
         const smaSelected = selection.includes('SMA');
-        const smaLast = smaSelected ? smaNMArr(cl4, 12, 2).at(-1) : undefined;
+        const smaLast = smaSelected ? smaArr(cl4, 12).at(-1) : undefined;
         const smaValid = smaSelected && smaLast != null && isFinite(smaLast);
         let verdictChangedBySelection = false;
         if (smaValid) {
           if (verdict === 'LONG_SETUP' && price <= smaLast!) {
             verdict = 'TRENDING_LONG';
-            phase   = 'Selected SMA disagrees with the entry - price at or below SMA(12,2), waiting';
+            phase   = 'Selected SMA disagrees with the entry - price at or below the 12-period rolling mean, waiting';
             verdictChangedBySelection = true;
           } else if (verdict === 'SHORT_SETUP' && price >= smaLast!) {
             verdict = 'TRENDING_SHORT';
-            phase   = 'Selected SMA disagrees with the entry - price at or above SMA(12,2), waiting';
+            phase   = 'Selected SMA disagrees with the entry - price at or above the 12-period rolling mean, waiting';
             verdictChangedBySelection = true;
           }
         }
@@ -579,7 +596,7 @@ export function useEMAStrategy(
               : (ribbonBull ? price > smaLast! : ribbonBear ? price < smaLast! : null),
             detail: !smaValid
               ? 'SMA unavailable'
-              : `SMA(12,2) ${smaLast!.toFixed(4)} - ${ribbonBull
+              : `SMA(12) rolling mean ${smaLast!.toFixed(4)} - ${ribbonBull
                   ? (price > smaLast! ? 'price above, agrees with the bullish ribbon' : 'price at or below, disagrees with the bullish ribbon - setup downgraded if it was one')
                   : ribbonBear
                     ? (price < smaLast! ? 'price below, agrees with the bearish ribbon' : 'price at or above, disagrees with the bearish ribbon - setup downgraded if it was one')
