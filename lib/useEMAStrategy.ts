@@ -125,8 +125,14 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
 async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
   const bnSym = BINANCE_SYMS[coin];
   const bySym = BYBIT_SYMS[coin];
-  if (bnSym) return fetchBinanceFuturesKlines(bnSym, bnInterval, limit);
+  /* #1059: Bybit primary, Binance fallback - reversed from Binance-primary.
+     Binance futures is rate-limiting/blocking this server's egress IP (502,
+     418) while Bybit answers normally from the same IP, for BTC/ETH/SOL/DOGE/
+     XRP/HYPE and both 1000x meme coins Binance doesn't even list. Bybit's
+     public limit (600 req/5s per IP) is orders of magnitude above what this
+     hook needs. fetchBybitKlines already applies bybitSymbolPriceFactor. */
   if (bySym) return fetchBybitKlines(bySym, bybitInterval, limit);
+  if (bnSym) return fetchBinanceFuturesKlines(bnSym, bnInterval, limit);
   throw new Error(`No symbol for ${coin}`);
 }
 
@@ -754,6 +760,10 @@ export function useEMAStrategy(
         });
     } catch (err) {
       if (!mountedRef.current) return;
+      // #1058: the real error, before it's collapsed to an opaque string the
+      // UI can't distinguish from any other failure - this is what "Signal
+      // unavailable right now" was hiding.
+      console.error('[useEMAStrategy] compute failed:', err);
       setSig({ ...STRATEGY_LOADING, loading: false, error: String(err) });
     }
   };
@@ -817,6 +827,8 @@ export function useEMAStrategy(
         return true;
       } catch (err) {
         if (!mountedRef.current) return false;
+        // #1058: same as the compute-path catch above - log before stringifying.
+        console.error('[useEMAStrategy] kline fetch failed:', err);
         setSig({ ...STRATEGY_LOADING, loading: false, error: String(err) });
         return false;
       }
