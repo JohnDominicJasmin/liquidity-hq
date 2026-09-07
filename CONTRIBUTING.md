@@ -821,14 +821,47 @@ agreeing it first — several rules here assume the gap exists.
 
 ### When QA writes code — the reverse handoff
 
-QA owns its own tooling and may write it:
+**QA owns EVERY test in this repository. Dev writes application code and does not
+write tests. Owner ruling, 2026-09-07.**
 
 | QA may author | QA may not author |
 |---|---|
 | `qa/` — specs, plans, fixtures | `app/`, `components/`, `lib/` |
-| `playwright.config.ts` | Anything shipped to users |
-| `.github/workflows/` test jobs | API routes, migrations |
+| **`__tests__/` — every unit test** | Anything shipped to users |
+| `playwright.config.ts` | API routes, migrations |
+| `.github/workflows/` test jobs | |
 | QA docs and findings | |
+
+**`__tests__/` was added on 2026-09-07 and the reason is worth keeping.** This
+table previously listed `qa/`, `playwright.config.ts`, test workflows and QA
+docs — and **said nothing at all about `__tests__/`.** So dev wrote unit tests
+alongside features, which is what most engineers would do with no rule saying
+otherwise: `strategyRegistry.test.mts` across four Arena commits,
+`terminalOnlyConstants.test.mts`, `libImportable.test.mts`.
+
+**The owner closed the gap rather than catching anyone out:** *"Writing tests
+should be QA's job. Not the dev … make sure the dev is working on development.
+That's why it's called dev. And QA is writing tests, running it, and verifying
+it."*
+
+**Nothing already merged was reverted.** Existing `__tests__/` files are working
+coverage and belong to QA from here.
+
+**When dev's change needs coverage, the PR says what should be asserted and
+why — and QA writes it.** Same shape as the auth-gate rule above: a gap you
+cannot close from your own seat becomes a QA step, not a caveat parked in Risk
+level.
+
+> **The sequencing hazard this creates, named rather than discovered later.**
+> `.githooks/pre-push` runs `npm test`, so **dev's own gate now depends on tests
+> dev does not write.** If a feature merges and its coverage arrives afterwards,
+> there is a window where the gate passes on tests that do not exercise the new
+> code — **a check that cannot fail, arriving by org chart rather than by a piped
+> exit code.** That is §3d's shape with a process as the mechanism.
+>
+> **The obvious fix is the one that creates the window:** write the test after
+> the merge. Prefer the coverage request landing with the PR so QA can write it
+> against an open branch, and say plainly in the PR body what is not yet covered.
 
 Everything else about the flow **reverses**, and that is the point — the author
 never verifies their own work:
