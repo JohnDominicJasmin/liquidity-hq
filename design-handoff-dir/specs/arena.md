@@ -1,56 +1,61 @@
-> # ⚠️ NOT A BUILD TARGET UNTIL ADJUSTED — owner ruling, 2026-09-08
+> # ⛔ REJECTED TWICE — production carries the APPROVED Arena UI
 >
-> **The Arena page running in PRODUCTION is the UI reference. This file is a
-> design to be ADJUSTED against it — not abandoned, and not built as written.**
+> **Owner ruling, 2026-09-08:** *"the approved UI is now in the production"*, and
+> *"the arena page in prod that should be the UI reference"*.
 >
-> The owner's words, in order: *"the one in staging arena page is wrong and in
-> prod liquidity hq is correct"*, then *"the arena page in prod that should be
-> the UI reference"*, then — correcting an earlier, harsher version of this
-> banner — ***"I mean, adjust the design."***
+> **This design has been built three times and rejected twice. It has never been
+> approved.** Do not rebuild it without the owner saying so explicitly, in those
+> words, on the day.
 >
-> **So the instruction is revision, not deletion.** An earlier draft of this
-> banner called the file history and its criteria void. That went further than
-> the owner asked and is corrected here rather than quietly rewritten.
+> | When | What |
+> |---|---|
+> | **2026-08-16 03:09** | built and wired in (`6942ec94`) |
+> | **2026-08-27 03:54** | **reverted** (`dd39c9bb`) — 11 days later |
+> | **2026-09-06 19:36** | rebuilt (`b6a0b403`) |
+> | **2026-09-06 20:34** | **reverted** (`5621d241`) — **58 minutes later** |
+> | **2026-09-07 21:09** | rebuilt a third time (`97f07277`, #853 / PR #1039) |
+> | **2026-09-08** | reverted (#1053), on the owner's call |
 >
-> ## What happened, because a spec that hides its own failure teaches nothing
+> ## Why it kept coming back, which is the part worth fixing
 >
-> The rebuild this file specifies was restored on 2026-09-07 (#853 / PR #1039)
-> and **introduced five defects in six hours**:
+> **Neither revert says why.** Both messages are bare `This reverts commit …`
+> with no reason, no decision, nothing. So the ticket stayed open and read as
+> *unfinished work* rather than *a rejected change*, and the next person picked it
+> up in good faith. **An open ticket outlives an unrecorded "no" every time.**
 >
-> 1. the chart canvas painting over every panel, **at every width swept, 768 to 1440**
+> A 58-minute revert is not a forgotten cleanup. It is somebody looking at the
+> result and saying no. That was never written down anywhere a reader would find
+> it — until this banner.
+>
+> ## What the third attempt cost, in six hours
+>
+> 1. the chart canvas painting over every panel, **at every width from 768 to 1440**
 > 2. `1d` unreachable on mobile, with the `NEED PRO` hint that explains the gated chips
 > 3. `LiqFeed` never mounting — Liquidation Clusters **permanently** empty (#925)
 > 4. **a Pro subscriber resolving as free** (#1049) — a paying customer shown an
 >    upgrade prompt on the page they pay for
-> 5. **the on-the-fly strategy switch gone entirely** — the owner noticed this one
->    themselves on staging, and it is the requirement they have been clearest
->    about across the whole project
+> 5. **the on-the-fly strategy switch gone entirely** — the owner found this one
+>    themselves, and it is the requirement they have been clearest about across
+>    the whole project. **This file's 15-module inventory does not list the
+>    Strategy Panel at all**, so the omission is in the design, not the build.
 >
-> Two were fixed, two were unexplained, and the fifth was not noticed by anyone
-> on the team. Reverted the same day in #1053.
+> ## If this is ever revisited
 >
-> ## What has to change before this is a target again
+> **Production is the reference. Any future Arena design adjusts from what runs
+> there** — panel by panel, nothing silently dropped. The terminal tree replaced
+> the classic page wholesale rather than restyling it, and every one of the five
+> defects is a version of that: a component that does not mount, a guard that does
+> not resolve, a feature simply absent from the new tree.
 >
-> **The terminal tree replaced the classic page wholesale rather than restyling
-> it**, and that is where every one of the five came from — a component that does
-> not mount, a guard that does not resolve, a feature that simply is not in the
-> new tree. **A design that reaches production has to be reachable from what runs
-> there now**, panel by panel, with nothing silently dropped.
->
-> **Specifically: this file's 15-module inventory does not include the Strategy
-> Panel**, and production has it. That omission is not a detail — it is defect 5.
->
-> ## What to carry forward regardless
->
-> These are good and would otherwise be thrown out with the rest:
+> ## Two things worth carrying forward regardless
 >
 > - **"Colour is data"** — a value is coloured because that signal *fired*, and
 >   direction is not the sign of the number. Crowded-long funding is positive and
->   red. Two of eight evidence rows carry colour; colouring the quiet ones green
->   would look better, be wrong, and pass every automated check.
+>   **red**. Colouring the quiet rows green would look better, be wrong, and pass
+>   every automated check.
 > - **The entitlement check belongs at the call site**, not inside the component.
->   Moving a panel moves its markup and leaves its guard behind — that shipped as
->   a real bug once before this file was written, and #1049 is the same family.
+>   Moving a panel moves its markup and leaves its guard behind — that shipped as a
+>   real bug once before this file was written, and #1049 is the same family.
 >
 > ## The lesson that is not about this design
 >
