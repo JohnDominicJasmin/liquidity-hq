@@ -99,17 +99,6 @@ function constantTypographyCount(file: string): number {
 
 /** Measured 2026-09-04. These only go DOWN. */
 const BASELINE: Record<string, number> = {
-  /* #853 - added 2026-09-07 by dev, mechanically, ONLY to unblock the
-     pre-push hook this same file's own ratchet enforces (adding
-     ArenaTerminal.tsx without a baseline entry fails "the file set is the
-     one the baseline was measured against"; the file did not exist on any
-     branch until this PR, so QA could not add it ahead of time either).
-     Value computed by running this file's own constantTypographyCount()
-     against the restored components/ArenaTerminal.tsx, read-only, no test
-     logic authored - matches the original PR's own commit name verbatim
-     ("ArenaTerminal enters the terminal-only ratchet at 0"). QA: please
-     confirm rather than trust this line on my say-so. */
-  'components/ArenaTerminal.tsx': 0,
   'components/BriefingTerminal.tsx': 43,
   'components/CorrelationTerminal.tsx': 9,
   'components/DashboardTerminal.tsx': 16,
