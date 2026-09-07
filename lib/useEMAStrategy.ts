@@ -8,7 +8,8 @@ import {
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
   SPREAD_MIN_BY_TF,
 } from './strategyCore.ts';
-import { detectRSIDivergence } from './divergence.ts';
+import { detectRSIDivergence, rsiArr } from './divergence.ts';
+import { describeSelection } from './strategyRegistry.ts';
 import { simulateTrades } from './backtestEngine.ts';
 import { TF_MS, CLOSE_SKEW_MS, dropForming, msUntilNextClose, sameCandle } from './candles.ts';
 import { getWaveTrendConfirmation } from './waveTrend.ts';
@@ -71,6 +72,12 @@ export interface StrategySignal {
   // confirmation candle moved the needle, because a genuine EMA50 breakout is by
   // definition already near the edge of its own recent range).
   weakEdge: boolean;
+  // #985 gap 1: null when nothing is selected (the standard, unpersonalised
+  // signal - same as what Telegram/push alerts fire on). Non-null names what
+  // the trader chose, via the same describeSelection helper QUICK/DEEP/
+  // LiquidityAI already use, so this signal's own display can say plainly
+  // that it may now differ from an alert for the same coin.
+  selectionLabel: string | null;
 }
 
 interface OHLCV { time: number; open: number; high: number; low: number; close: number; volume: number }
@@ -128,6 +135,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   reversalWarnings: [],
   recentStats: null,
   weakEdge: false,
+  selectionLabel: null,
 };
 
 /* ── Module-level kline cache - survives component unmount/remount ───────── */
@@ -155,6 +163,22 @@ export function useEMAStrategy(
   fundingRate:  number | null,
   oiPct:        number | null,
   filterParams: SignalFilterParams = DEFAULT_FILTER_PARAMS,
+  /* #985 gap 1: the chart's own signal, client-side only per the owner's
+     ruling - Telegram/push alerts (checkEMASignal in
+     app/api/telegram/alert/route.ts) are untouched and keep firing on the
+     standard rule regardless of what a trader has selected here. Advisory
+     only - added as one more row in `conditions`, the same way funding, open
+     interest, volume and WaveTrend already are (none of those gate `verdict`
+     either; only the ribbon/200D/value-zone core does). Scoped to indicators
+     this hook can actually compute a value for without inventing new
+     indicator math - RSI today, since it is already computed elsewhere in
+     this file at the same period the registry defaults to (14). SMA is
+     deliberately NOT wired to the panel's SMA chip: the 200-period SMA this
+     hook already uses is a different, hardcoded core gate (above200D), and
+     the registry's SMA chip defaults to a 12-period length nothing here
+     computes - labelling the existing 200D condition as if it reflected a
+     user-configurable SMA would be wrong, not incomplete. */
+  selection: readonly string[] = [],
 ): StrategySignal {
   const { spreadMinPct, atrMult, persistBoost } = filterParams;
   const [sig, setSig] = useState<StrategySignal>(STRATEGY_LOADING);
@@ -165,12 +189,14 @@ export function useEMAStrategy(
   // fetch-effect dependencies (that caused a full candle refetch + LOADING flash on
   // every funding update). They live in refs; a recompute-from-cache effect below
   // re-derives the signal when they change.
-  const frRef      = useRef(fundingRate);
-  const oiRef      = useRef(oiPct);
-  const paramsRef  = useRef(filterParams);
-  frRef.current     = fundingRate;
-  oiRef.current     = oiPct;
-  paramsRef.current = filterParams;
+  const frRef        = useRef(fundingRate);
+  const oiRef        = useRef(oiPct);
+  const paramsRef    = useRef(filterParams);
+  const selectionRef = useRef(selection);
+  frRef.current        = fundingRate;
+  oiRef.current         = oiPct;
+  paramsRef.current     = filterParams;
+  selectionRef.current  = selection;
 
   const candlesRef = useRef<{ coin: CoinId; tf: string; cRibbon: OHLCV[]; c1d: OHLCV[] } | null>(null);
 
@@ -184,6 +210,7 @@ export function useEMAStrategy(
     const fundingRate  = frRef.current;
     const oiPct        = oiRef.current;
     const filterParams = paramsRef.current;
+    const selection    = selectionRef.current;
     const { spreadMinPct, atrMult } = filterParams;
     try {
         const cl4  = cRibbon.map(c => c.close);
@@ -278,6 +305,16 @@ export function useEMAStrategy(
           (verdict === 'SHORT_SETUP' || verdict === 'TRENDING_SHORT') ? 'short' : null;
         const wtConfirm = getWaveTrendConfirmation(cRibbon, wtDir);
 
+        // #985 gap 1: RSI as an advisory condition, only when the trader has
+        // selected it on the Strategy panel. Same period (14) the registry
+        // defaults to and this file already uses for divergence detection -
+        // not a second, differently-configured RSI. >50/<50 is a directional
+        // lean, not the overbought/oversold thresholds - this is asking
+        // "does momentum agree with the ribbon's direction", the same
+        // question WaveTrend confirmation above already asks a different way.
+        const rsiSelected = selection.includes('RSI');
+        const rsiLast = rsiSelected ? rsiArr(cl4, 14).at(-1) : undefined;
+
         // SL / TP (0.5% buffer beyond 50 EMA)
         const BUF = 0.005;
         let sl: number | null = null;
@@ -366,6 +403,21 @@ export function useEMAStrategy(
             pass:  wtConfirm.pass,
             detail: wtConfirm.detail,
           },
+          // #985 gap 1: only present when the trader has RSI selected -
+          // absence from this list, not a null/failing row, is how "not
+          // selected" is represented.
+          ...(rsiSelected ? [{
+            label: 'RSI Confirming',
+            pass: (rsiLast == null || !isFinite(rsiLast)) ? null
+              : (ribbonBull ? rsiLast > 50 : ribbonBear ? rsiLast < 50 : null),
+            detail: (rsiLast == null || !isFinite(rsiLast))
+              ? 'RSI unavailable'
+              : `RSI(14) ${rsiLast.toFixed(1)} - ${ribbonBull
+                  ? (rsiLast > 50 ? 'above 50, agrees with the bullish ribbon' : 'below 50, disagrees with the bullish ribbon')
+                  : ribbonBear
+                    ? (rsiLast < 50 ? 'below 50, agrees with the bearish ribbon' : 'above 50, disagrees with the bearish ribbon')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
         ];
 
         // Find most recent candle where EMA 9/20 crossed AND close confirmed above/below EMA 50
@@ -477,6 +529,7 @@ export function useEMAStrategy(
           reversalWarnings,
           atrLast, ema50Slope,
           recentStats, weakEdge,
+          selectionLabel: describeSelection(selection),
         });
     } catch (err) {
       if (!mountedRef.current) return;
@@ -585,7 +638,7 @@ export function useEMAStrategy(
      cached candles - no refetch, no LOADING flash, chart markers stay put. */
   useEffect(() => {
     computeRef.current();
-  }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost]);
+  }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost, selection]);
 
   return sig;
 }

@@ -1527,6 +1527,14 @@ async function checkEMASignal(
             `${latest.dir === 'long' ? '🟢' : '🔴'} <b>${label}/USDT ${dirWord} (${tfLabel})</b>\n\n` +
             `Entry: <b>$${fmtP(latest.entryPrice)}</b>\n` +
             `SL: $${fmtP(latest.sl)} · TP: $${fmtP(latest.tp)} (2:1)` +
+            // #985 gap 1: the chart's own signal now reflects a trader's
+            // Strategy panel selection; this alert deliberately does not (see
+            // the comment above checkEMASignal's MODES table, and
+            // app/arena/page.tsx around useEMAStrategy's call site). Said
+            // here so a trader who sees their chart disagree with an alert
+            // for the same coin has the reason in the message that could
+            // otherwise read as a bug.
+            `\n<i>Standard EMA ribbon signal - not your chart's indicator selection.</i>` +
             `\n\n<i>${stamp}</i>`,
         });
         fired.push(`${label} ${dirWord} signal (${tfLabel})`);
@@ -1585,8 +1593,12 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
         const eligible = entries.filter(e =>
           isEligibleFor(mutedByUser, sub.user_id, e) && passesThreshold(e, thresholdsByUser.get(sub.user_id)));
         if (eligible.length === 0) return;
+        // #985 gap 1: "standard EMA" on the single-signal case only - the
+        // multi-signal line already covers several rule types (not just
+        // ema_signal_*) and naming one of them here would misrepresent it as
+        // covering the whole notification the way the single-signal body does.
         const body = eligible.length === 1
-          ? `${label}: ${eligible[0].title}`
+          ? `${label}: ${eligible[0].title}${eligible[0].ruleKey.startsWith('ema_signal_') ? ' · standard EMA' : ''}`
           : `${label}: ${eligible.length} signals aligned`;
         const payload = JSON.stringify({ title: 'LiquidityHQ', body, tag: `lhq-${coin}`, url: '/' });
         try {

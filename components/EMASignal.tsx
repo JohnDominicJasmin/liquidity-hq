@@ -160,6 +160,23 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
+      {/* #985 gap 1: honest-labels - this signal can now differ from a
+          Telegram/push alert for the same coin, on purpose, and that is only
+          fair to say here rather than leave a trader to notice a disagreement
+          and read it as a bug. Absent (not "None") when nothing is selected -
+          the unpersonalised case matches what an alert would fire on, so
+          there is nothing to disclose. */}
+      {!signal.loading && signal.verdict !== 'LOADING' && signal.selectionLabel && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 'var(--fs-micro)', color: 'var(--amber)',
+          marginBottom: 10, lineHeight: 1.4,
+        }}>
+          <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)', flexShrink: 0 }} />
+          <span>Reflects your selection ({signal.selectionLabel}) - a Telegram/push alert for {coin ? coin.toUpperCase() : 'this coin'} uses the standard EMA rule and may disagree.</span>
+        </div>
+      )}
+
       {/* Conditions grid - each chip clickable to explain */}
       {signal.conditions.length > 0 && (
         <div style={{
