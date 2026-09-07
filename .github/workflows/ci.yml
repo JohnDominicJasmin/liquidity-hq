@@ -477,7 +477,23 @@ jobs:
           QA_INTERCEPT_UPSTREAM: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && 'count' || '' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.E2E_TURNSTILE_SITE_KEY }}
+
+          # #1021/#1027-hang root cause: this used to be secrets.E2E_TURNSTILE_SITE_KEY
+          # - the real, Managed-mode production widget. Managed mode can present an
+          # interactive challenge no automated session can pass, so no token ever
+          # arrived, app/login/page.tsx's submit button never enabled, and a
+          # sign-in-dependent test waited until CI killed it - measured directly:
+          # 91 minutes, zero tests reported, not slow, stuck.
+          #
+          # Cloudflare's own published always-pass TEST key, not a secret - no
+          # hostname restriction, always issues a token, safe to hardcode in a
+          # public workflow file. Owner already approved a test-mode key on
+          # non-production. Chosen over leaving this empty (which the app already
+          # treats as "no captcha", widget unrendered) because a real token still
+          # has to flow through Supabase's captchaToken option this way - the
+          # empty-key path would stop the suite from ever exercising that code at
+          # all, not just avoid the interactive challenge.
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA'
 
           # Selects the lhq_dev_ table prefix. NOT optional, and not a nicety:
           # lib/tables.ts reads
