@@ -821,14 +821,99 @@ agreeing it first — several rules here assume the gap exists.
 
 ### When QA writes code — the reverse handoff
 
-QA owns its own tooling and may write it:
+**QA owns EVERY test in this repository. Dev writes application code and does not
+write tests. Owner ruling, 2026-09-07.**
 
 | QA may author | QA may not author |
 |---|---|
 | `qa/` — specs, plans, fixtures | `app/`, `components/`, `lib/` |
-| `playwright.config.ts` | Anything shipped to users |
-| `.github/workflows/` test jobs | API routes, migrations |
+| **`__tests__/` — every unit test** | Anything shipped to users |
+| `playwright.config.ts` | API routes, migrations |
+| `.github/workflows/` test jobs | |
 | QA docs and findings | |
+
+**`__tests__/` was added on 2026-09-07 and the reason is worth keeping.** This
+table previously listed `qa/`, `playwright.config.ts`, test workflows and QA
+docs — and **said nothing at all about `__tests__/`.** So dev wrote unit tests
+alongside features, which is what most engineers would do with no rule saying
+otherwise: `strategyRegistry.test.mts` across four Arena commits,
+`terminalOnlyConstants.test.mts`, `libImportable.test.mts`.
+
+**The owner closed the gap rather than catching anyone out:** *"Writing tests
+should be QA's job. Not the dev … make sure the dev is working on development.
+That's why it's called dev. And QA is writing tests, running it, and verifying
+it."*
+
+**Nothing already merged was reverted.** Existing `__tests__/` files are working
+coverage and belong to QA from here.
+
+**When dev's change needs coverage, the PR says what should be asserted and
+why — and QA writes it.** Same shape as the auth-gate rule above: a gap you
+cannot close from your own seat becomes a QA step, not a caveat parked in Risk
+level.
+
+> **The sequencing hazard this creates, named rather than discovered later.**
+> `.githooks/pre-push` runs `npm test`, so **dev's own gate now depends on tests
+> dev does not write.** If a feature merges and its coverage arrives afterwards,
+> there is a window where the gate passes on tests that do not exercise the new
+> code — **a check that cannot fail, arriving by org chart rather than by a piped
+> exit code.** That is §3d's shape with a process as the mechanism.
+>
+> **The obvious fix is the one that creates the window:** write the test after
+> the merge. Prefer the coverage request landing with the PR so QA can write it
+> against an open branch, and say plainly in the PR body what is not yet covered.
+
+**And "QA writes it against an open branch" needs a mechanism, because without
+one the rule is impossible to follow.** QA found this within the hour, trying to
+do exactly what the rule asks:
+
+> *"the test is legitimately red until `smaNMArr` exists — that's the point. I
+> can't push a red test as its own branch without either bypassing the pre-push
+> hook or writing the implementation myself — both wrong for QA to do
+> unilaterally."*
+
+**A test written before its implementation is red, and `.githooks/pre-push` runs
+`npm test`.** So a QA-authored test-first branch cannot be pushed at all. The
+three ways out were **bypass the hook**, **write the implementation**, or **wait
+until after the merge** — the first two break the rules and the third opens the
+window above.
+
+**So the order is fixed, and the order is the whole mechanism:**
+
+| # | Who | What | Suite state |
+|---|---|---|---|
+| 1 | **Dev** | writes the implementation, **pushes the feature branch**, names what needs asserting | green — no new test yet |
+| 2 | **QA** | checks out **that branch**, commits the test onto it, pushes | green — the implementation is already there |
+| 3 | **Dev** | reviews the whole thing and merges | green |
+
+**Step 1 pushing FIRST is not a detail — it is the thing that makes step 2
+possible at all.** A test cannot be pushed before the code it tests exists
+somewhere pushable, because the hook runs `npm test` on **every** push regardless
+of whose branch it is. **The implementation being on the remote is what makes
+QA's test green rather than red.**
+
+**Be honest about what this does and does not buy.** It guarantees **no merge
+without coverage**. It does **not** give you test-first TDD — a genuinely
+red-first test cannot be pushed by anyone under this hook. **If someone wants
+TDD, that is a change to the hook and a separate decision**, not something to
+improvise with `--no-verify`.
+
+**Never `--no-verify` to get a red test pushed.** The hook is the only automated
+gate this project has while CI is off, and an exception carved for one case is an
+exception available to every case.
+
+**This is not a new kind of exception.** The reverse already exists and is
+documented: **dev commits directly into `qa/` when a dev-side revert makes a QA
+fixture assert something false** — `4c11930a` and `f1325264`, both narrow, both
+"the person who knows at the moment it changes is the one who fixes it".
+
+**Cross-seat commits on a branch are fine. Cross-seat ownership is not.** QA
+still writes only tests; dev still writes only application code. **What moves is
+the branch they share, not the boundary.**
+
+**If the implementation is already merged before the coverage exists, say so in
+the test PR** — that is the window, and it should be visible rather than
+implied.
 
 Everything else about the flow **reverses**, and that is the point — the author
 never verifies their own work:

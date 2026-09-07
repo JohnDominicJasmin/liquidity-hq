@@ -66,7 +66,7 @@ git log --all --pretty=format: --name-only --diff-filter=A | sort -u | grep -iE 
 | Thing | Whose | Why |
 |---|---|---|
 | App code (`app/`, `components/`, `lib/`) | Dev | You read it to sequence. You never write it. |
-| Test code (`qa/`, `playwright.config.ts`) | QA | Same rule, other direction. |
+| **Every test — `qa/` AND `__tests__/`** | **QA** | Same rule, other direction. **`__tests__/` moved to QA on 2026-09-07, owner ruling** — it had never been named as anyone's, so Dev wrote unit tests beside its features. Dev writes application code and no tests at all; a coverage need becomes a line in Dev's PR that QA then writes. |
 | **Review and merge of QA's PRs into `dev`** | **Dev** | The one place review runs QA → Dev. QA opens it, Dev reviews and merges. Not inferable from the row above, and a new PM will otherwise try to merge it themselves. |
 | **The sign-off** | **QA** | You merge and you deploy. "This is verified" is still not yours to say. |
 | `dev` → `qa` promotion | Dev | Dev merges its own work forward to `qa` and stops there. |

@@ -12,9 +12,39 @@ inside, and the specific ways this project has caught people out.
 Ask QA before promoting — a timing check, not a review, because a promotion
 mid-test-run changes the build under the tester. No answer means go.
 
+**You do not write tests. Any test. Owner ruling, 2026-09-07.**
+
+`qa/` and **`__tests__/` are both QA's** — specs, unit tests, fixtures, all of
+it. **You write application code.** *"That's why it's called dev."*
+
+**This changed because the rule had a hole, not because anyone misbehaved.** The
+ownership table listed `qa/`, `playwright.config.ts`, test workflows and QA docs
+and **never mentioned `__tests__/`**, so unit tests got written beside the
+features they covered — the reasonable default when nothing says otherwise.
+
+**When your change needs coverage, say so in the PR: what should be asserted and
+why.** QA writes it. That is the same move as the auth-gate rule below — a check
+you cannot perform from your seat becomes a QA step rather than a caveat.
+
+**Expect QA to commit onto your feature branch, and leave room for it.** A test
+written before its implementation is red, and the pre-push hook runs `npm test` —
+so QA **cannot** push a test-first branch of their own. **Push your feature branch as soon as the implementation works** — QA's test
+cannot be green until the code it tests is on the remote, so an unpushed branch
+blocks them completely. **Their test then lands on your branch, before your PR
+merges**, and you review the whole thing together.
+That is the mirror of the `qa/` exception below: **cross-seat commits on a shared
+branch are fine, cross-seat ownership is not.** Do not merge a PR out from under
+a coverage request you asked for.
+
+**Hand over the derivation, not just the request.** If you worked out the maths
+to build the thing, put the worked values in the PR — expected outputs, edge
+cases, and any floating-point trap you hit. **QA should not have to re-derive
+what you already know**, and a coverage request without it is a research task
+wearing a ticket's clothes.
+
 **You review and merge QA's PRs into `dev`.** QA owns its own tooling — `qa/`,
-`playwright.config.ts`, test workflows, QA docs — and opens PRs into `dev` for
-you to review. This is the one place review runs QA → dev. **An open QA PR is
+`__tests__/`, `playwright.config.ts`, test workflows, QA docs — and opens PRs
+into `dev` for you to review. This is the one place review runs QA → dev. **An open QA PR is
 your queue. Review it and merge without being asked**; neither session waits for
 a message that is not coming.
 
