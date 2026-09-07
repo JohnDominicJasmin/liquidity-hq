@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { gotoSignedIn, signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
-import { killTransitions, snapshotCanvases, chartChanged } from './_chart';
+import { killTransitions, snapshotCanvases, quietSnapshot, chartChanged } from './_chart';
 
 /**
  * Pins #1008's fix (Pro subscribers edit indicator parameters and the chart
@@ -58,7 +58,13 @@ test.describe('indicator parameter edits reach the chart (#1008)', () => {
       const lengthInput = paramsSection.locator('input').first();
       await expect(lengthInput).toHaveValue('20'); // registry default — confirms the editor actually rendered
 
-      const before = await snapshotCanvases(page);
+      /* quietSnapshot, not snapshotCanvases — the chart redraws on its own
+       * from live price ticks (Dev measured 3 of 5 idle samples changing
+       * over 2s), and chartChanged can't tell a tick from the edit it's
+       * meant to detect. A single-sample baseline risks a false pass on
+       * noise, not a false fail — the dangerous direction. See _chart.ts's
+       * file header. */
+      const before = await quietSnapshot(page);
 
       await lengthInput.fill('5');
       await lengthInput.dispatchEvent('change');
