@@ -233,6 +233,23 @@ failed on exactly this bug. Not a replacement for the pixel-diff plan — a
 cheap, immediately-writable check for the specific overflow shape this
 regression turned out to be.
 
+**A second example, from the same rebuild, that this section's own framing
+doesn't fully cover.** The terminal Arena also shipped without the Strategy
+Panel — the on-the-fly strategy switch, the requirement the owner has been
+clearest about across the whole project — and nobody on the team caught it.
+The owner did, on staging, after both #853's criteria and this section's own
+pixel-overlap fix had already passed. This one wasn't a rendering bug: the
+component genuinely, correctly rendered everything `design-handoff-dir/specs/arena.md`'s
+15-module inventory listed — the spec's own inventory never listed the
+Strategy Panel in the first place. **No structural criterion could have
+caught this, and neither could a pixel check** — both only ever verify
+against what the spec named. A feature the spec forgot is invisible to
+every kind of automated check this section has proposed, cheap or expensive,
+because none of them independently know what production actually contains.
+The only thing that would have caught it is comparing the rebuild against
+the live reference it was replacing, panel for panel, rather than against
+its own written spec — which is a process gap, not a missing test.
+
 ---
 
 ## ✅ 3. Light theme — CLOSED 2026-08-09
