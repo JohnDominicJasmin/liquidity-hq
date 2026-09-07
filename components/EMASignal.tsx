@@ -160,12 +160,14 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
-      {/* #985 gap 1: honest-labels - this signal can now differ from a
-          Telegram/push alert for the same coin, on purpose, and that is only
-          fair to say here rather than leave a trader to notice a disagreement
-          and read it as a bug. Absent (not "None") when nothing is selected -
-          the unpersonalised case matches what an alert would fire on, so
-          there is nothing to disclose. */}
+      {/* #985 gap 1/#997: honest-labels, precisely scoped to what actually
+          moves today - PM caught the first wording overclaiming this
+          ("Reflects your selection... may disagree" read as the CALL itself
+          being personalised, when only the checklist's reasoning is; the
+          verdict word is still the standard EMA rule for every trader,
+          selection or not, until the indicators below this one gain their
+          own gating math). Absent (not "None") when nothing is selected -
+          the unpersonalised case has nothing to disclose. */}
       {!signal.loading && signal.verdict !== 'LOADING' && signal.selectionLabel && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
@@ -173,7 +175,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           marginBottom: 10, lineHeight: 1.4,
         }}>
           <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)', flexShrink: 0 }} />
-          <span>Reflects your selection ({signal.selectionLabel}) - a Telegram/push alert for {coin ? coin.toUpperCase() : 'this coin'} uses the standard EMA rule and may disagree.</span>
+          <span>The checklist below now weighs your selection ({signal.selectionLabel}). The BUY/SELL call itself does not yet - it is still the standard EMA rule, same as any Telegram/push alert for {coin ? coin.toUpperCase() : 'this coin'}.</span>
         </div>
       )}
 
