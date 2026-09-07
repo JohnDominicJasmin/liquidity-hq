@@ -113,7 +113,7 @@ below is the first time it is written down.
 
 | Deploy | Who | Notes |
 |---|---|---|
-| `liquidity-hq-dev` | **unassigned** — see below | dev is held; nobody has deployed it since 2026-09-03 |
+| `liquidity-hq-dev` | **PM/DevOps** — see below | assigned 2026-09-07; nobody had deployed it since 2026-09-03 |
 | `liquidity-hq-qa` | **QA** | QA deploys after dev promotes, and says so |
 | `liquidity-hq-staging` | **QA** | QA promotes and deploys both |
 | `liquidity-hq-prod` | **PM/DevOps**, owner-approved **each time** | never dev |
@@ -139,12 +139,22 @@ environment without the owner's go each time — **stands, and nothing on this p
 supersedes it.** It is a separate instruction from this document and outlives any
 table here.
 
-**`liquidity-hq-dev` is genuinely unassigned and that is stated rather than
-guessed.** Dev held it, dev is held, and no session has been named to take it.
-Nobody has needed it — local verification is the default and the service carries
-a ~500 build-hour/month cap prod does not. Ask the owner before deploying it.
-Written as an open gap because inventing a holder here is exactly the mistake
-this section already made once.
+**`liquidity-hq-dev` belongs to PM/DevOps. Assigned by the owner on
+2026-09-07, and this paragraph used to say the opposite.** It read "genuinely
+unassigned … ask the owner before deploying it", and that was accurate for four
+days: dev held the service, dev came under a standing instruction not to deploy
+any environment on 2026-09-03, and nobody was named to replace them.
+
+**It stayed unassigned because nothing was looking for it.** The owner's
+instruction was aimed at production and this was collateral — an orphan created
+by a sentence meant differently. It surfaced only when the owner asked what they
+might be blocking without knowing, which is now tracked in
+`docs/OWNER-BLOCKERS.md`.
+
+**Assignment is not a reason to use it.** Local verification is still the
+default, and the service carries a ~500 build-hour/month cap production does
+not. Deploy it when a deployed check is genuinely needed, not by habit — no
+per-deploy approval, but the cap is real and the owner pays for it.
 
 **Production changed holder, not gate.** The owner approves every production
 release separately — #856 is a record of who deploys, never a standing yes to

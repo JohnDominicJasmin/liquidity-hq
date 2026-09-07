@@ -808,7 +808,7 @@ resting on a wrong premise is worth knowing about even after it is replaced.
 
 | Service | Deployed by |
 |---|---|
-| `liquidity-hq-dev` | **unassigned** — dev held it, dev is held, nobody named. Ask the owner |
+| `liquidity-hq-dev` | **PM/DevOps** — owner assigned it 2026-09-07. Local verification stays the default |
 | `liquidity-hq-qa` | **QA**, after dev promotes |
 | `liquidity-hq-staging` | **QA**, straight after promoting — both halves |
 | `liquidity-hq-prod` | **PM/DevOps, owner-approved each time. Never dev.** |
@@ -833,7 +833,7 @@ Merging is not the deploy. **No** Render service auto-deploys; all three are
 | `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **PM/DevOps**, owner-approved each time — never dev |
 | `liquidity-hq-staging` → liquidity-hq-staging.onrender.com | `staging` | **no** | **QA** |
 | `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **no** | **QA** |
-| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | **unassigned** — ask the owner |
+| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | **PM/DevOps** — assigned 2026-09-07, no per-deploy approval needed |
 
 So **merging to `main` ships nothing on its own.** Production keeps serving the
 previous build until someone triggers a deploy. QA must do both:
