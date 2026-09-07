@@ -87,6 +87,20 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   {
     id: 'SMA', label: 'SMA', group: 'trend', source: 'builtin', pane: 'candle',
     paramSchema: [period('length', 'Length', 12), period('weight', 'Weight', 2, 1, 10)],
+    // id is correctly 'SMA' - klinecharts does ship an indicator by that
+    // name (unlike ADX/STOCH, this is not a basis mismatch). The surprise is
+    // one level deeper: what klinecharts' 'SMA' actually COMPUTES is not a
+    // rolling mean - it's a recursive SMA(N,M) formula, verified against the
+    // compiled source (node_modules/klinecharts/dist/index.esm.js,
+    // simpleMovingAverage.calc). This file separately has a real rolling
+    // mean (strategyCore.ts's smaArr, used for the 200D core gate) that a
+    // reader could easily assume this chip shares. It does not. See
+    // smaNMArr's doc in strategyCore.ts for the formula and the reasoning.
+    // Found while wiring #985's SMA condition; not relabelled here since
+    // that's design's call, not a wiring one.
+    note: "klinecharts' SMA is SMA(N,M), recursive - not the rolling mean smaArr "
+        + 'computes elsewhere in this codebase for the 200D gate. See the '
+        + 'comment above and smaNMArr in strategyCore.ts.',
   },
   {
     id: 'SUPERTREND', label: 'Supertrend', group: 'trend', source: 'new', pane: 'candle',
