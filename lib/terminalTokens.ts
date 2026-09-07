@@ -195,6 +195,7 @@ export const TERMINAL_ALIASES = [
   '--bg3', '--bg4',
   '--blue', '--blue-bdr', '--blue-bg',
   '--font-sans',
+  '--glow-amber', '--glow-green', '--glow-purple', '--glow-red',
   '--green-2', '--green-bdr', '--green-bg', '--green-soft',
   '--on-accent',
   '--radius-card', '--radius-chip', '--radius-data', '--radius-pill', '--radius-sharp',

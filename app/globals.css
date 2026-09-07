@@ -2235,7 +2235,19 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   width: 64px; height: 64px; border-radius: 50%;
   background: var(--accent-bg);
   border: 0.5px solid var(--accent-bdr);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.8), var(--glow-accent);
+  /* #970: was `0 4px 24px rgba(0,0,0,0.8), var(--glow-accent)`. --glow-accent
+     is `none` in every context that reaches this rule (dark by :root, and
+     light never gives it a value at all - confirmed by #970's census), and
+     composing a `none` custom property into a comma-separated box-shadow
+     list invalidates the WHOLE declaration, not just that one layer - so the
+     black drop shadow was dropping too, dead since whichever change zeroed
+     --glow-accent. Restoring the black shadow is not a design decision, it's
+     what this line has always asked for; a second accent-glow layer is not
+     restorable without inventing a value nothing on record specifies (the
+     :hover state below hardcodes its own glow rather than tokenizing it, so
+     there is no existing resting-state figure to reuse) - left for #970's
+     open question on whether --glow-accent gets a light value at all. */
+  box-shadow: 0 4px 24px rgba(0,0,0,0.8);
   cursor: pointer; transition: opacity 0.15s, transform 0.15s, box-shadow 0.2s, background 0.2s, border-color 0.2s;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
 }
@@ -6088,6 +6100,21 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      replacing --font-sans globally. Same reason as the colours: a screen opts
      in, the rest of the app does not move. */
   --font-sans: var(--font-sans-terminal), 'Segoe UI', system-ui, sans-serif;
+
+  /* #970, named here only for #561's name-parity test - the value is a
+     no-op, since :root already gives every --glow-* token `none` and this
+     block never overrode that. Declared anyway because the light block
+     below now must null these explicitly (light theme's own [data-theme=
+     "light"] block gives them real values terminal does not want), and
+     #561's test requires both terminal blocks to name the same tokens even
+     where the values differ - "the values differ by design, the names must
+     not." --glow-accent is not listed: :root already reads `none` and
+     nothing anywhere ever gives it another value, so it needs no override
+     in either terminal block. */
+  --glow-green:  none;
+  --glow-red:    none;
+  --glow-purple: none;
+  --glow-amber:  none;
 }
 
 /* ── Monochrome Terminal: LIGHT theme (#561) ───────────────────────────────
@@ -6243,6 +6270,20 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --radius-pill: 0;
   --radius-sharp: 0;
   --font-sans: var(--font-sans-terminal), 'Segoe UI', system-ui, sans-serif;
+
+  /* #970: terminal design is "no shadows, full stop" (ratified, not a new
+     decision) - but nothing scoped these away from terminal before this
+     line. [data-theme="light"] (unscoped by design, above) gives green/red/
+     purple/amber a real glow value, and neither terminal block mentioned
+     any --glow-* token, so terminal+light silently inherited light theme's
+     glow verbatim - confirmed by measuring it byte-identical to current
+     design's light glow on all nine standalone --glow-* usage sites.
+     --glow-accent is not listed: it has no non-none value in ANY context
+     today, so it needs nothing here to already read `none`. */
+  --glow-green:  none;
+  --glow-red:    none;
+  --glow-purple: none;
+  --glow-amber:  none;
 }
 
 /* ── Monochrome Terminal: navigation (#413) ───────────────────────────────
