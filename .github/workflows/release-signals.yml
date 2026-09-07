@@ -415,6 +415,118 @@ jobs:
           else
             gh issue create --repo "$REPO" --label release-drift \
               --title "Production is not running \`main\`" --body-file /tmp/drift.md
+
+      # ── qa and staging: the branch moved, the service did not ─────────────
+      #
+      # #984. The check above covers production ONLY, and production is the one
+      # environment that does not need it: there the same session merges to
+      # `main` and presses deploy. On `qa` and `staging` the two acts belong to
+      # DIFFERENT sessions - dev promotes `dev` -> `qa` and hands the deploy to
+      # QA; QA promotes `qa` -> `staging` and deploys it - and nothing watches
+      # the join. That handoff is the only unwatched step in the chain, and it
+      # failed twice on 2026-09-07 alone. The second time, three PRs were about
+      # to be tested against a build that predated all three, which would have
+      # produced three clean failures for the wrong reason.
+      #
+      # In the same job as the production check on purpose: `prod-drift` already
+      # runs daily, on push to main and on demand, and is deliberately exempt
+      # from the workflow disabling. Two extra curls on a runner that is already
+      # up cost seconds, where a new scheduled workflow costs a billable minute
+      # every day - and Actions spend is the owner's decision (#885).
+      #
+      # UNREACHABLE IS NOT DRIFT, and the reason is stronger here than for prod.
+      # Both non-prod services are on the free plan and SLEEP when idle; a cold
+      # start measured ~45 seconds on 2026-09-07. Sleeping is their NORMAL state,
+      # so treating a timeout as "behind" would raise a false alarm every time
+      # nobody had visited the site. A failed measurement is not evidence.
+      - name: Compare qa and staging against their branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          : > /tmp/nonprod.md
+
+          check_env() {
+            BRANCH="$1"; URL="$2"
+            HEAD=$(git rev-parse "origin/$BRANCH")
+            HEAD_SHORT=${HEAD:0:7}
+
+            # 90s: free tier cold start was ~45s when measured. Generous rather
+            # than fast - a timeout here is a false alarm, not a finding.
+            LIVE=$(curl -s --max-time 90 "$URL/api/version" | jq -r '.commit // "unreachable"' || echo unreachable)
+
+            if [ "$LIVE" = "unreachable" ] || [ "$LIVE" = "unknown" ] || [ -z "$LIVE" ]; then
+              echo "$BRANCH: could not read - reporting nothing"
+              return 0
+            fi
+            if [ "$LIVE" = "$HEAD_SHORT" ]; then
+              echo "$BRANCH: current ($LIVE)"
+              return 0
+            fi
+
+            # How far behind, so a one-commit gap reads differently from a
+            # sixty-two-commit one. `git rev-list` needs the full sha; the
+            # endpoint gives seven characters, so resolve it first. If the
+            # commit is not in this checkout - force-push, or a build from a
+            # branch since rewritten - say so instead of printing a wrong count.
+            if FULL=$(git rev-parse --verify --quiet "$LIVE^{commit}"); then
+              BEHIND=$(git rev-list --count "$FULL..origin/$BRANCH")
+              WHEN=$(git log -1 --format=%cI "$FULL")
+              printf -- '- **`%s` is serving `%s`, but the branch is `%s` — %s commit(s) behind.** The deployed commit landed %s. Render dashboard -> the service -> Manual Deploy.\n' \
+                "$BRANCH" "$LIVE" "$HEAD_SHORT" "$BEHIND" "$WHEN" >> /tmp/nonprod.md
+            else
+              printf -- '- **`%s` is serving `%s`, which is not in this checkout.** The branch is `%s`. A force-push or a build from a rewritten branch would explain it; the gap size cannot be computed.\n' \
+                "$BRANCH" "$LIVE" "$HEAD_SHORT" >> /tmp/nonprod.md
+            fi
+          }
+
+          check_env qa      https://liquidity-hq-qa.onrender.com
+          check_env staging https://liquidity-hq-staging.onrender.com
+
+          gh label create nonprod-drift --repo "$REPO" --color FBCA04 \
+            --description "a qa or staging service is behind its branch" 2>/dev/null || true
+          OPEN=$(gh issue list --repo "$REPO" --label nonprod-drift --state open \
+                   --json number --jq '.[0].number // empty' 2>/dev/null || true)
+
+          if [ ! -s /tmp/nonprod.md ]; then
+            if [ -n "$OPEN" ]; then
+              gh issue close "$OPEN" --repo "$REPO" \
+                --comment "Both non-prod services now match their branches. Closing automatically."
+            fi
+            echo "qa and staging are current, or could not be measured"
+            exit 0
+          fi
+
+          {
+            echo "**Automated check** — a non-production service is behind its branch."
+            echo
+            cat /tmp/nonprod.md
+            echo
+            echo "**This is normal for a few minutes after a promotion and a problem after that.**"
+            echo "The gap size and the deployed commit's date above are what tell them apart."
+            echo
+            echo "**Why this is not caught by anyone noticing.** On \`qa\` and \`staging\` the"
+            echo "promotion and the deploy belong to different sessions — dev promotes"
+            echo "\`dev\` -> \`qa\` and hands the deploy to QA; QA promotes \`qa\` -> \`staging\`"
+            echo "and deploys it. Nothing watches the join, and the site serves old code"
+            echo "while every commit says the fix shipped."
+            echo
+            echo "Read from each service's \`/api/version\`, so it reflects what is actually"
+            echo "running rather than what was merged. An unreachable service is reported as"
+            echo "nothing rather than as drift — the free plan sleeps, and a failed"
+            echo "measurement is not evidence."
+            echo
+            echo "Closes itself once both services match their branches."
+          } > /tmp/nonprod-body.md
+
+          if [ -n "$OPEN" ]; then
+            gh issue edit "$OPEN" --repo "$REPO" --body-file /tmp/nonprod-body.md
+          else
+            gh issue create --repo "$REPO" --label nonprod-drift \
+              --title "A non-production service is behind its branch" --body-file /tmp/nonprod-body.md
+          fi
           fi
 
   # ── If the release PR could not be opened, do not fail into silence ────────
