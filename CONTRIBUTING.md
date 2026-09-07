@@ -1355,6 +1355,25 @@ exists to catch what dev could not see — a different machine, a real
 environment, a user's path through the product — not to be the first person who
 looks.
 
+**One class of check dev structurally cannot run: anything behind the auth
+gate.** Added 2026-09-07. **Dev has no test credentials; QA has a confirmed-PRO
+fixture account.** Both sessions stated this of themselves, first-hand, on the
+same day — dev while reporting that `sendMsg`'s auth check returns before any of
+their new code executes, QA while clearing the entitled/pro branch of
+`TEST_GAPS.md` §2 with that account.
+
+So *"I could not exercise this"* on an authenticated path is **not a gap in dev's
+diligence — it is a property of the seats.** It should not be written up as a
+caveat and left sitting in Risk level. **Write it as a QA step in "How to test"**,
+where it becomes work someone can do, rather than a limitation someone has to
+notice.
+
+**Watch the accumulation, which is the real hazard.** One PR carrying an
+unverified auth path is a known gap. Three merged on top of each other, each
+correctly declaring it, is a release resting on nobody having signed in — and
+every individual PR was honest. **The caveats are per-PR; the risk is
+cumulative**, and nothing adds them up unless a person does.
+
 Before opening a PR, dev has:
 
 - **Run the gates.** `npm run verify` runs all four in order — lint (0 errors),
