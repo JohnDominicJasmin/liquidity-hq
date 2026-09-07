@@ -7553,8 +7553,30 @@ main.app-content[data-chrome="none"] {
   }
   [data-design="terminal"] .at-vlevel { padding: 12px 14px; }
   [data-design="terminal"] .at-vlevelval { font-size: 15px; }
-  [data-design="terminal"] .at-tfrow { height: 40px; padding: 0 14px; }
-  [data-design="terminal"] .at-tf { padding: 6px 10px; }
+  /* Second Arena regression, same PR as #853's canvas fix, different cause:
+     8 timeframe buttons + the gated-state hint span need ~376px+ at their
+     min-content width; the mobile row only has 330px. flex-shrink can't
+     rescue it - these buttons already sit at min-content. overflow:hidden
+     (arena.md's own spec: "40, horizontal overflow hidden") silently clipped
+     the overflow instead of the row breaking - 1d and the hint span moved
+     past the clip edge, un-paintable and un-clickable, not just visually
+     tight. QA's overlap gate flagged this as ".at-tfrow overlaps .at-verdict"
+     - that specific claim is a false positive (getBoundingClientRect ignores
+     the ancestor clip; screenshots at 390 on local dev and staging show no
+     visible overlap) but it was pointing at a real defect: 1d was silently
+     unreachable, the same "hidden nobody notices" shape as the canvas bug.
+     arena.md's hint text is spec-required ("Gated must be legible without
+     colour") so shrinking it away isn't on the table. Fix: let the row
+     scroll instead of clip, so every timeframe stays reachable. */
+  [data-design="terminal"] .at-tfrow {
+    height: 40px; padding: 0 14px; overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent);
+            mask-image: linear-gradient(90deg, #000 90%, transparent);
+  }
+  [data-design="terminal"] .at-tfrow::-webkit-scrollbar { display: none; }
+  [data-design="terminal"] .at-tf { padding: 6px 10px; flex-shrink: 0; }
+  [data-design="terminal"] .at-tfhint { white-space: nowrap; flex-shrink: 0; }
   /* #598 D2: this was .at-mchart, a class the JSX never applies (only
      .at-chart is used at any viewport) - so the mobile chart stayed 430px
      tall instead of 210, and the two suppression rules below stayed dead
