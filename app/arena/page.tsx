@@ -32,7 +32,7 @@ import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, D
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
-import StrategyPanel from '@/components/StrategyPanel';
+import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
 import { describeSelection } from '@/lib/strategyRegistry';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
@@ -1341,6 +1341,43 @@ function ArenaContent() {
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
   }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache, liqClusters]);
 
+  /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
+     below and StrategyPanel's own copies of the same three buttons cannot
+     drift into two different behaviours for what reads as one action. Was
+     inline per-button before this - StrategyPanel's buttons called
+     onRun?.(...) with nothing ever passed for onRun, a well-formed no-op
+     (#996, filed as three dead buttons: no error, no console warning,
+     nothing). Takes `selection` as an argument rather than closing over
+     strategySelection so it matches exactly what the caller had at click
+     time, even though today the two are always the same value. */
+  const runStrategy = (kind: RunKind, selection: readonly string[]) => {
+    if (kind === 'ask') {
+      window.dispatchEvent(new CustomEvent('grok-chat', {
+        detail: {
+          coin: selectedCoin,
+          selection,
+          prompt: (result
+            ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
+                coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
+                entryZone: '-',  // #260: no levels; ARENA_CHAT_PROMPT_WITH_RESULT still names one - needs a DB row edit
+                reasoning: result.reasoning,
+              })
+            : t('ARENA_CHAT_PROMPT_NO_RESULT', { coin: selectedCoin.toUpperCase() }))
+            + (describeSelection(selection)
+                ? ['', '', 'I am weighing these indicators: '
+                    + describeSelection(selection) + '.'].join('\n')
+                : ''),
+        },
+      }));
+      return;
+    }
+    if (!user) { window.location.href = '/login'; return; }
+    const entry = resultsCache[selectedCoin];
+    const force = !!(entry && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
+    readMarket(kind, force);
+    window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
+  };
+
   /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
   const scannerRows = COINS
@@ -1708,13 +1745,7 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn arena-quick-btn${!user ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
-          onClick={() => {
-            if (!user) { window.location.href = '/login'; return; }
-            const entry = resultsCache[selectedCoin];
-            const force = !!(entry && entry.mode === 'quick' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-            readMarket('quick', force);
-            window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
-          }}
+          onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
@@ -1735,13 +1766,7 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
-          onClick={() => {
-            if (!user) { window.location.href = '/login'; return; }
-            const entry = resultsCache[selectedCoin];
-            const force = !!(entry && entry.mode === 'deep' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-            readMarket('deep', force);
-            window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
-          }}
+          onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
@@ -1772,28 +1797,7 @@ function ArenaContent() {
         <button
           className="arena-ask-grok-btn"
           style={{ width: 'auto', marginBottom: 0 }}
-          onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
-            detail: {
-              coin: selectedCoin,
-              // #985 gap 2: seeds GrokChat's own live-tracked copy - see the
-              // strategy-selection-changed effect below for what keeps it
-              // aligned after this.
-              selection: strategySelection,
-              prompt: (result
-                ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
-                    coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
-                    entryZone: '-',  // #260: no levels; ARENA_CHAT_PROMPT_WITH_RESULT still names one - needs a DB row edit
-                    reasoning: result.reasoning,
-                  })
-                : t('ARENA_CHAT_PROMPT_NO_RESULT', { coin: selectedCoin.toUpperCase() }))
-                /* Same sentence, same helper as the QUICK/DEEP prompts above -
-                   one source so the three cannot drift. */
-                + (describeSelection(strategySelection)
-                    ? ['', '', 'I am weighing these indicators: '
-                        + describeSelection(strategySelection) + '.'].join('\n')
-                    : ''),
-            },
-          }))}
+          onClick={() => runStrategy('ask', strategySelection)}
         >
           {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
         </button>
@@ -2276,7 +2280,7 @@ function ArenaContent() {
           wired, and that is deliberately a separate change. One selection
           driving a chart plus three AI actions is the part that goes wrong
           quietly, and it should not land inside a layout diff. */}
-      <StrategyPanel selected={strategySelection} onSelectedChange={setStrategySelection} />
+      <StrategyPanel selected={strategySelection} onSelectedChange={setStrategySelection} onRun={runStrategy} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
