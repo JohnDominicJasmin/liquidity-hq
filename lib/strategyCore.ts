@@ -101,6 +101,85 @@ export function bollingerBandsArr(
   return result;
 }
 
+/* Parabolic SAR, matching klinecharts' actual `stopAndReverse.calc`
+ * (node_modules/klinecharts/dist/index.esm.js) rather than a textbook
+ * writeup - same discipline as smaNMArr/bollingerBandsArr, and worth it
+ * here specifically: klinecharts' SAR has a real asymmetry between its two
+ * branches that a from-memory implementation would not reproduce.
+ *
+ * `startAf`/`step`/`maxAf` are TRUE UNITS here (0.02/0.02/0.2, the
+ * registry's own defaults) - NOT klinecharts' internal calcParams, which
+ * are those same values x100 (`createIndicator`'s `stopAndReverse.calc`
+ * divides by 100 before using them - see `toCalcParams` in
+ * strategyRegistry.ts and #1007/#1008). Passing true units straight in
+ * here is what keeps this function's output matching what the chart draws
+ * when a trader has PSAR selected via the panel - the whole point of
+ * porting the exact algorithm rather than a cleaner equivalent one.
+ *
+ * THE ASYMMETRY, PRESERVED RATHER THAN "FIXED": on a bullish-to-bearish
+ * reversal the acceleration factor resets to `startAf` (uptrend branch);
+ * on a bearish-to-bullish reversal it resets to 0, not `startAf`
+ * (downtrend branch, `af = 0` in the compiled source). This looks like a
+ * copy-paste bug in klinecharts itself - but per the owner's ruling on
+ * #985 gap 1, klinecharts is the SPECIFICATION for what its own indicators
+ * compute, not a reference to improve on. A "corrected" symmetric version
+ * would silently disagree with the actual line the chart draws for the
+ * same selected indicator, which is a worse defect than reproducing an
+ * upstream quirk. The first-bar-advances-af-once quirk (`ep === -100`
+ * triggers immediately at i=0, so `af` is already `startAf + step` by the
+ * time the first SAR value is emitted) is preserved the same way. */
+export function psarArr(
+  candles: OHLCV[], startAf = 0.02, step = 0.02, maxAf = 0.2,
+): number[] {
+  const result = new Array<number>(candles.length).fill(NaN);
+  if (!candles.length) return result;
+
+  let af = startAf;
+  let ep = -100;          // sentinel: "not yet set", matching klinecharts' own -100
+  let isIncreasing = false;
+  let sar = 0;
+
+  for (let i = 0; i < candles.length; i++) {
+    const preSar = sar;
+    const { high, low } = candles[i];
+    const prev = candles[Math.max(1, i) - 1]; // candles[i-1], or candles[0] at i=0
+
+    if (isIncreasing) {
+      if (ep === -100 || ep < high) {
+        ep = high;
+        af = Math.min(af + step, maxAf);
+      }
+      sar = preSar + af * (ep - preSar);
+      const lowMin = Math.min(prev.low, low);
+      if (sar > low) {
+        sar = ep;
+        af = startAf;
+        ep = -100;
+        isIncreasing = !isIncreasing;
+      } else if (sar > lowMin) {
+        sar = lowMin;
+      }
+    } else {
+      if (ep === -100 || ep > low) {
+        ep = low;
+        af = Math.min(af + step, maxAf);
+      }
+      sar = preSar + af * (ep - preSar);
+      const highMax = Math.max(prev.high, high);
+      if (sar < high) {
+        sar = ep;
+        af = 0; // klinecharts' own asymmetry - see the doc comment above
+        ep = -100;
+        isIncreasing = !isIncreasing;
+      } else if (sar < highMax) {
+        sar = highMax;
+      }
+    }
+    result[i] = sar;
+  }
+  return result;
+}
+
 export function volMA(volumes: number[], period = 20): number {
   const slice = volumes.slice(-period).filter(v => !isNaN(v));
   return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 0;

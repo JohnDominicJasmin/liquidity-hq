@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
 import {
-  emaArr, smaArr, smaNMArr, bollingerBandsArr, volMA, atrArr, detectEMASignals,
+  emaArr, smaArr, smaNMArr, bollingerBandsArr, psarArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
   SPREAD_MIN_BY_TF,
@@ -376,6 +376,41 @@ export function useEMAStrategy(
           }
         }
 
+        /* #985 gap 1, fourth indicator (RSI advisory, SMA + Bollinger gating).
+           PSAR is genuinely independent of both - pure recursive high/low-
+           extreme recursion (psarArr in strategyCore.ts), no moving average
+           anywhere, matching klinecharts' actual `stopAndReverse.calc`
+           including its own asymmetric acceleration-factor reset between the
+           two reversal branches (see psarArr's doc comment) rather than a
+           textbook-symmetric rewrite - so a PSAR selection here reads exactly
+           the dot the chart draws when the same indicator is also selected on
+           the panel (#1016). Registry defaults (start/step/max = 0.02/0.02/
+           0.2, true units - klinecharts' own x100 internal scaling is a
+           createIndicator/calcParams concern, not a psarArr one).
+
+           A trailing dot BELOW price is PSAR's own bullish reading (an
+           uptrend, not yet stopped-and-reversed); above price is bearish.
+           Same one-directional gating shape as SMA/Bollinger: a SETUP
+           downgrades to its matching TRENDING state when PSAR disagrees;
+           TRENDING/FREEZE are unchanged. Three gating indicators can each
+           independently fire on the same verdict - checked in registration
+           order, whichever fires first sets both the verdict and
+           verdictChangedBySelection. */
+        const psarSelected = selection.includes('SAR');
+        const psarLast = psarSelected ? psarArr(cRibbon, 0.02, 0.02, 0.2).at(-1) : undefined;
+        const psarValid = psarSelected && psarLast != null && isFinite(psarLast);
+        if (psarValid) {
+          if (verdict === 'LONG_SETUP' && price <= psarLast!) {
+            verdict = 'TRENDING_LONG';
+            phase   = 'Selected PSAR disagrees with the entry - dot at or above price, waiting';
+            verdictChangedBySelection = true;
+          } else if (verdict === 'SHORT_SETUP' && price >= psarLast!) {
+            verdict = 'TRENDING_SHORT';
+            phase   = 'Selected PSAR disagrees with the entry - dot at or below price, waiting';
+            verdictChangedBySelection = true;
+          }
+        }
+
         // WaveTrend (Cipher B) confirmation - cross-from-extreme or divergence agreeing
         // with the verdict direction. A separate, orthogonal momentum confirmation
         // layered on top of the EMA ribbon, not a replacement for it.
@@ -523,6 +558,18 @@ export function useEMAStrategy(
                   ? (price > bollLast!.mid ? 'price above, agrees with the bullish ribbon' : 'price at or below, disagrees with the bullish ribbon - setup downgraded if it was one')
                   : ribbonBear
                     ? (price < bollLast!.mid ? 'price below, agrees with the bearish ribbon' : 'price at or above, disagrees with the bearish ribbon - setup downgraded if it was one')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
+          ...(psarSelected ? [{
+            label: 'PSAR Confirming',
+            pass: !psarValid ? null
+              : (ribbonBull ? price > psarLast! : ribbonBear ? price < psarLast! : null),
+            detail: !psarValid
+              ? 'PSAR unavailable'
+              : `PSAR ${psarLast!.toFixed(4)} - ${ribbonBull
+                  ? (price > psarLast! ? 'dot below price, agrees with the bullish ribbon' : 'dot at or above price, disagrees with the bullish ribbon - setup downgraded if it was one')
+                  : ribbonBear
+                    ? (price < psarLast! ? 'dot above price, agrees with the bearish ribbon' : 'dot at or below price, disagrees with the bearish ribbon - setup downgraded if it was one')
                     : 'ribbon not aligned either way'}`,
           }] : []),
         ];
