@@ -1,3 +1,38 @@
+> # ⛔ SUPERSEDED AS THE UI REFERENCE — owner ruling, 2026-09-08
+>
+> **The Arena page running in PRODUCTION is the UI reference. Not this file.**
+> The owner's words: *"the arena page in prod that should be the UI reference"*,
+> after confirming *"the one in staging arena page is wrong and in prod
+> liquidity hq is correct"*.
+>
+> **Why this happened.** The terminal rebuild this file specifies was restored on
+> 2026-09-07 (#853 / PR #1039) and **introduced four defects in six hours**: the
+> chart canvas painting over every panel at every width, the `1d` timeframe
+> unreachable on mobile, `LiqFeed` never mounting so the Liquidation Clusters
+> panel was permanently empty (#925), and — worst — **a Pro subscriber resolving
+> as free** (#1049), which would have shown a paying customer an upgrade prompt on
+> the page they pay for. Two were fixed; two were still unexplained when the owner
+> called it. The rebuild was reverted the same day.
+>
+> **What this file is now.** A record of a design that was specified, attempted
+> and withdrawn. **Read it for history, not as a target.** Its acceptance criteria
+> are not a definition of done for anything, and nothing should be built to match
+> it without the owner re-opening that decision explicitly.
+>
+> **Two things it got right that outlived it**, and are worth keeping wherever
+> Arena work happens next: *"colour is data"* — a value is coloured because that
+> signal fired, and direction is not the sign of the number; and **the
+> entitlement check belongs at the call site**, not inside the component, because
+> moving a panel moves its markup and leaves its guard behind. That one shipped as
+> a real bug once before this file was written.
+>
+> **The deeper lesson, which is not about this design.** The rebuild was a restyle
+> — no new features, no new data, nothing a user had asked for — and it was
+> measured against structural criteria (node counts, chart-instance counts, text
+> presence) that **all passed on a page that was visibly broken**. Verification
+> that cannot see what the user sees is not verification. `qa/TEST_GAPS.md` §2 had
+> said so for weeks before this proved it.
+
 # Arena — `Arena 1a.dc.html · 1a`
 
 ## Source
