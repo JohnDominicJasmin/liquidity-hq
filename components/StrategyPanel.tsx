@@ -40,8 +40,14 @@ interface Props {
    *  belongs above both of them. */
   selected: readonly string[];
   onSelectedChange: (next: readonly string[]) => void;
-  /** Fired when a run button is pressed. The page owns what running means. */
-  onRun?: (kind: RunKind, selection: readonly string[]) => void;
+  /** Fired when a run button is pressed. The page owns what running means.
+   *  Required, not optional (#996): QUICK/DEEP/ASK AI are the panel's own
+   *  reason to have run buttons at all, and an optional prop called as
+   *  `onRun?.(...)` is a well-formed no-op when nothing is passed - no type
+   *  error, no runtime error, just three dead buttons, which is exactly how
+   *  this went unnoticed until QA hit it by hand. Required turns a future
+   *  instance of the same mistake into a compile error instead. */
+  onRun: (kind: RunKind, selection: readonly string[]) => void;
 }
 
 function ParamRow({ spec, value, readOnly, onChange }: {
@@ -336,9 +342,9 @@ export default function StrategyPanel({ selected, onSelectedChange, onRun }: Pro
           {/* Never gated on a selection. Zero indicators is the default state and
               all three actions work in it - that is what "let the read choose"
               means. */}
-          <button type="button" className="strat-btn pri" onClick={() => onRun?.('quick', selected)}>QUICK</button>
-          <button type="button" className="strat-btn" onClick={() => onRun?.('deep', selected)}>DEEP</button>
-          <button type="button" className="strat-btn" onClick={() => onRun?.('ask', selected)}>ASK AI</button>
+          <button type="button" className="strat-btn pri" onClick={() => onRun('quick', selected)}>QUICK</button>
+          <button type="button" className="strat-btn" onClick={() => onRun('deep', selected)}>DEEP</button>
+          <button type="button" className="strat-btn" onClick={() => onRun('ask', selected)}>ASK AI</button>
         </div>
       </div>
     </div>
