@@ -15,6 +15,7 @@ import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
+import { describeSelection } from '@/lib/strategyRegistry';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
 
@@ -289,6 +290,12 @@ export default function GrokChat() {
   const [liveSearch,     setLiveSearch]     = useState(false);
   const [histView,       setHistView]       = useState(false);
   const [coin,           setCoin]           = useState<CoinId>('btc');
+  /* #985 gap 2: seeded from the 'grok-chat' open event, then kept aligned by
+     a live 'strategy-selection-changed' event Arena fires on every change -
+     not just captured once at open. Read fresh into the system context on
+     every sendMsg call, so a mid-conversation change reaches the very next
+     turn without resending anything into the visible transcript. */
+  const [chatSelection,  setChatSelection]  = useState<readonly string[]>([]);
   // Structure read needs candles, which this component otherwise has no reason
   // to hold. Fetched once per coin selection rather than per message - the
   // answer only changes on a new hourly close, so re-fetching on every send
@@ -470,9 +477,19 @@ export default function GrokChat() {
 
       // Smart context: educational + no search = minimal (~20 tokens)
       // Anything with live search = full context so Grok can correlate web findings with live data
-      const sysCtx = (isEducational(text) && !useSearch)
+      const baseCtx = (isEducational(text) && !useSearch)
         ? buildMinimalCtx(store, activeCoin)
         : buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents, structureLine);
+      /* #985 gap 2: read fresh from chatSelection (not baked into a stored
+         string) so every turn - not just the opening one - reasons from
+         whatever is selected right now. Same sentence and helper as the
+         QUICK/DEEP prompts and the opening message, so wording cannot drift
+         across the four surfaces. */
+      const watching = describeSelection(chatSelection);
+      const sysCtx = watching
+        ? baseCtx + '\n\nThe trader is currently weighing these indicators: ' + watching
+          + '. Give them more weight in your answer, and say plainly if they disagree with what the rest of the data shows.'
+        : baseCtx;
 
       // Cap at last 8 messages (4 pairs) - prevents token cost growing unbounded
       const apiMsgs  = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
@@ -559,13 +576,14 @@ export default function GrokChat() {
       setLoading(false);
       setPendingText(null);
     }
-  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, usage, setUsage]);
+  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, usage, setUsage, chatSelection]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
     const handler = (e: Event) => {
-      const ev = e as CustomEvent<{ coin: CoinId; prompt?: string }>;
+      const ev = e as CustomEvent<{ coin: CoinId; prompt?: string; selection?: readonly string[] }>;
       setCoin(ev.detail.coin);
+      setChatSelection(ev.detail.selection ?? []);
       setOpen(true);
       setHistView(false);
       if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, ev.detail.coin), 200);
@@ -573,6 +591,22 @@ export default function GrokChat() {
     window.addEventListener('grok-chat', handler);
     return () => window.removeEventListener('grok-chat', handler);
   }, [sendMsg]);
+
+  /* #985 gap 2: kept aligned, not just seeded. Arena fires this on every
+     strategySelection change, mount-time included, so a conversation open
+     when the trader changes indicators reasons from the new set on its very
+     next turn - not the set the panel had when the chat was opened. Listens
+     unconditionally (this component is always mounted, per AppShell) rather
+     than only while the panel is open, since the selection can change before
+     the panel is ever opened for this session too. */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ selection: readonly string[] }>;
+      setChatSelection(ev.detail.selection);
+    };
+    window.addEventListener('strategy-selection-changed', handler);
+    return () => window.removeEventListener('strategy-selection-changed', handler);
+  }, []);
 
   /* ── History actions ── */
   function newChat() {

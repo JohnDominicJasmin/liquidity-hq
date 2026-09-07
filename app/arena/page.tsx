@@ -305,6 +305,15 @@ function ArenaContent() {
      would freeze it at whatever it was when the callback was created. */
   const perpSpotRef = useRef(perpSpot);
   useEffect(() => { perpSpotRef.current = perpSpot; }, [perpSpot]);
+  /* #985 gap 2: GrokChat is mounted globally (AppShell), not inside this
+     page's tree, so a prop can't reach it - this is the same event channel
+     that already opens it, extended to fire on every change rather than
+     only at open. Fires on mount too (the effect always runs once with
+     whatever the initial value is, [] included), which is a harmless no-op
+     for a chat that isn't open yet and correct for one that is. */
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('strategy-selection-changed', { detail: { selection: strategySelection } }));
+  }, [strategySelection]);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* Whether the scanner was opened by hover rather than by a click. Only a
@@ -1766,6 +1775,10 @@ function ArenaContent() {
           onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
             detail: {
               coin: selectedCoin,
+              // #985 gap 2: seeds GrokChat's own live-tracked copy - see the
+              // strategy-selection-changed effect below for what keeps it
+              // aligned after this.
+              selection: strategySelection,
               prompt: (result
                 ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
                     coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
