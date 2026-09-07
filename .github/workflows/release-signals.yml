@@ -264,8 +264,34 @@ jobs:
             echo "no staging branch - nothing to park"; exit 0; }
 
           AHEAD=$(git rev-list --count origin/main..origin/staging)
-          PRS=$(git log --format=%s origin/main..origin/staging \
+          # `--merges` on BOTH counts, so they describe the same population.
+          # Dev Team spotted the asymmetry reviewing this: PRS_UNMATCHED
+          # filtered to merges and PRS did not, so "matched plus unmatched" was
+          # not a total of anything. Measured before changing it — 53 either
+          # way on origin/main..origin/staging, and 0 non-merge commits match
+          # the pattern — so this is a correctness fix, not a number change.
+          # Also strictly righter: a revert or cherry-pick whose subject begins
+          # "Merge pull request #N" is not a merged PR.
+          PRS=$(git log --merges --format=%s origin/main..origin/staging \
                   | grep -cE '^Merge (pull request |PR )?#[0-9]+' || true)
+          # #978. This was the one merge-subject regex in the file with NO
+          # reconciliation. The two aggregation sites build an "unmatched" list
+          # and print it by name; this one counted and moved on, so a fourth
+          # merge-subject format would silently subtract one here while the
+          # other two named it.
+          #
+          # Severity is genuinely low and worth stating rather than inflating:
+          # this count only feeds a display string. The warning fires on AHEAD
+          # and OPEN_RELEASE, neither of which touches a regex - so a wrong
+          # number here is a wrong number someone reads, not a warning that
+          # fails to appear. A regex feeding a DECISION is a silent skip; a
+          # regex feeding a DISPLAY is a wrong figure. Different bugs.
+          #
+          # Backstopped anyway because three formats have already existed
+          # (#896, #897, #977) and the pattern has been wrong for every one of
+          # them. The count is the durable half; the regex is not.
+          PRS_UNMATCHED=$(git log --merges --format=%s origin/main..origin/staging \
+                  | grep -cvE '^Merge (pull request |PR )?#[0-9]+' || true)
 
           # A FAILED QUERY MUST NOT BECOME AN ALARM.
           #
@@ -321,6 +347,9 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| \`staging\` is ahead of \`main\` by | **$AHEAD commit(s)**, $PRS PR(s) |"
+            if [ "$PRS_UNMATCHED" -gt 0 ]; then
+              echo "| merges this count could NOT read a PR number from | **$PRS_UNMATCHED** — the \`$PRS\` above is a floor, not a total |"
+            fi
             echo "| open \`staging\` -> \`main\` PR | **none** |"
             echo
             echo "\`CONTRIBUTING.md\` calls the release PR the aggregation point — the"
@@ -471,13 +500,22 @@ jobs:
             # endpoint gives seven characters, so resolve it first. If the
             # commit is not in this checkout - force-push, or a build from a
             # branch since rewritten - say so instead of printing a wrong count.
-            if FULL=$(git rev-parse --verify --quiet "$LIVE^{commit}"); then
+            # `--is-ancestor` as well as `--verify`, and the difference is not
+            # pedantic. A commit can exist in this checkout and NOT be on this
+            # branch — a build from a sibling branch, or one that lost its
+            # branch to a force-push. `git rev-list --count "$FULL..origin/X"`
+            # answers happily in that case and its answer is meaningless: it
+            # counts what X has that the deployed commit lacks, which is not
+            # "how far behind" when the two are on different lineages.
+            # Found by Dev Team reviewing #1003.
+            if FULL=$(git rev-parse --verify --quiet "$LIVE^{commit}") \
+               && git merge-base --is-ancestor "$FULL" "origin/$BRANCH"; then
               BEHIND=$(git rev-list --count "$FULL..origin/$BRANCH")
               WHEN=$(git log -1 --format=%cI "$FULL")
               printf -- '- **`%s` is serving `%s`, but the branch is `%s` — %s commit(s) behind.** The deployed commit landed %s. Render dashboard -> the service -> Manual Deploy.\n' \
                 "$BRANCH" "$LIVE" "$HEAD_SHORT" "$BEHIND" "$WHEN" >> /tmp/nonprod.md
             else
-              printf -- '- **`%s` is serving `%s`, which is not in this checkout.** The branch is `%s`. A force-push or a build from a rewritten branch would explain it; the gap size cannot be computed.\n' \
+              printf -- '- **`%s` is serving `%s`, which is not on that branch.** The branch is `%s`. Either the commit is not in this checkout at all, or it exists but sits on a different lineage — a build from a sibling branch, or one that lost its branch to a force-push. **No gap size is given, because any number here would be measuring two different lineages against each other.**\n' \
                 "$BRANCH" "$LIVE" "$HEAD_SHORT" >> /tmp/nonprod.md
             fi
           }
@@ -487,8 +525,20 @@ jobs:
 
           gh label create nonprod-drift --repo "$REPO" --color FBCA04 \
             --description "a qa or staging service is behind its branch" 2>/dev/null || true
-          OPEN=$(gh issue list --repo "$REPO" --label nonprod-drift --state open \
-                   --json number --jq '.[0].number // empty' 2>/dev/null || true)
+          # `2>/dev/null || true` collapsed "no open issue" and "the API call
+          # failed" into the same empty string — so a rate-limit blip reads as
+          # "nothing open" and files a DUPLICATE.
+          #
+          # The comment on OPEN_ISSUE, two hundred lines above in this same
+          # file, names this exact failure — *"on failure it reads as no
+          # existing issue and opens a duplicate"* — and I wrote it anyway.
+          # Bail rather than guess, like every other query here.
+          # Found by Dev Team reviewing #1003.
+          if ! OPEN=$(gh issue list --repo "$REPO" --label nonprod-drift --state open \
+                        --json number --jq '.[0].number // empty'); then
+            echo "could not list nonprod-drift issues - reporting nothing rather than guessing"
+            exit 0
+          fi
 
           if [ ! -s /tmp/nonprod.md ]; then
             if [ -n "$OPEN" ]; then
