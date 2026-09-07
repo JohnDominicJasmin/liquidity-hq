@@ -788,7 +788,10 @@ export function useEMAStrategy(
         const cRibbon = dropForming(rawRibbon, intervalMs, nowMs);
         const c1d     = dropForming(raw1d, TF_MS['1d'], nowMs);
         if (cRibbon.length < 55 || c1d.length < 5) {
-          setSig({ ...STRATEGY_LOADING, loading: false, error: 'Not enough candle data', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
+          /* A stable sentinel, not display text (#1024) - EMASignal.tsx maps
+             this to a translated label, the same shape OnChainScore already
+             uses for its own known-error codes. */
+          setSig({ ...STRATEGY_LOADING, loading: false, error: 'INSUFFICIENT_DATA', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
           return false;
         }
         klineCache.set(cacheKey, { cRibbon, c1d, fetchedAt: Date.now() });

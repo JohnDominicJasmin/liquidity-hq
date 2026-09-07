@@ -1467,6 +1467,8 @@
   "ALERT_OUTCOMES_RULE_DISTRIBUTION": "Distribution",
   "ALERT_OUTCOMES_RULE_RSI": "RSI Overbought/Oversold",
   "ALERT_OUTCOMES_RULE_WHALES": "Whale Trades",
+  "EMA_SIGNAL_FAILED": "Signal unavailable right now",
+  "EMA_SIGNAL_INSUFFICIENT_DATA": "Not enough candle history yet for this coin/timeframe",
   "ABSORPTION_DETECTOR_LOADING_SR": "Loading…",
   "ABSORPTION_DETECTOR_TITLE": "Absorption Detector · 15M",
   "ABSORPTION_DETECTOR_FAILED": "Failed",
