@@ -67,7 +67,21 @@ function intersects(a: Rect, b: Rect): boolean {
  * a correct 430px tall, while its `.klc-canvas` child rendered 800px tall
  * and spilled into three siblings' worth of space below it). So each
  * child's rect here is the UNION of its own box and every descendant's box -
- * its actual rendered footprint, not just what its own CSS declares. */
+ * its actual rendered footprint, not just what its own CSS declares.
+ *
+ * CLIP-AWARE, 2026-09-08 - the union-with-descendants approach's own first
+ * false positive. `.at-tfrow` (`overflow: hidden`) clips its overflowing
+ * timeframe-button row before it ever paints outside the row's own box, so
+ * a plain union reported `.at-tfrow overlaps .at-verdict/.at-mchart` on
+ * mobile 390 with nothing actually visible - `getBoundingClientRect()`
+ * reports an element's full geometry regardless of ancestor clipping, only
+ * paint respects it. Each descendant's rect is now intersected against
+ * every ancestor between it and the page root that clips
+ * (`overflow`/`overflow-x`/`overflow-y` of hidden/clip/scroll/auto) before
+ * it enters the union - clipped-away geometry contributes nothing, same as
+ * what a user actually sees. The canvas bug still reproduces: nothing
+ * between `.klc-canvas` and `.at-chart` clips, so the overflow is real and
+ * still visible, and still fails this check. */
 async function findOverlappingChildren(
   page: import('@playwright/test').Page,
   selector: string,
@@ -79,12 +93,39 @@ async function findOverlappingChildren(
       (el.className && typeof el.className === 'string' && el.className.trim())
         ? `.${el.className.trim().split(/\s+/)[0]}`
         : `${el.tagName.toLowerCase()}[${i}]`;
+    const CLIP = /hidden|clip|scroll|auto/;
+    const clips = (el: Element) => {
+      const cs = getComputedStyle(el);
+      return CLIP.test(cs.overflow) || CLIP.test(cs.overflowX) || CLIP.test(cs.overflowY);
+    };
+    /** The element's rect as actually visible, after intersecting against
+     *  every clipping ancestor up to the document root. Null if fully
+     *  clipped away - such an element paints nothing, anywhere. */
+    const visibleRect = (el: Element) => {
+      const own = el.getBoundingClientRect();
+      let rect = { left: own.left, top: own.top, right: own.right, bottom: own.bottom };
+      let node = el.parentElement;
+      while (node) {
+        if (clips(node)) {
+          const cr = node.getBoundingClientRect();
+          rect = {
+            left: Math.max(rect.left, cr.left),
+            top: Math.max(rect.top, cr.top),
+            right: Math.min(rect.right, cr.right),
+            bottom: Math.min(rect.bottom, cr.bottom),
+          };
+          if (rect.right <= rect.left || rect.bottom <= rect.top) return null;
+        }
+        node = node.parentElement;
+      }
+      return rect;
+    };
     const unionRect = (el: Element) => {
       const all = [el, ...el.querySelectorAll('*')];
       let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
       for (const node of all) {
-        const r = node.getBoundingClientRect();
-        if (r.width === 0 && r.height === 0) continue;
+        const r = visibleRect(node);
+        if (!r) continue;
         left = Math.min(left, r.left); top = Math.min(top, r.top);
         right = Math.max(right, r.right); bottom = Math.max(bottom, r.bottom);
       }
@@ -92,8 +133,9 @@ async function findOverlappingChildren(
     };
     const children = [...container.children]
       .map((el, i) => ({ el, label: describe(el, i), rect: unionRect(el) }))
-      // A zero-size child (nothing rendered - e.g. a gated panel returning
-      // null) cannot overlap anything and isn't a candidate.
+      // A zero-size child (nothing rendered, or everything in it clipped
+      // away - e.g. a gated panel returning null) cannot overlap anything
+      // and isn't a candidate.
       .filter(c => c.rect.width > 0 && c.rect.height > 0 && Number.isFinite(c.rect.left));
     const bad: string[] = [];
     for (let i = 0; i < children.length; i++) {
