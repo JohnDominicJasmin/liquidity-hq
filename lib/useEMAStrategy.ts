@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
 import {
-  emaArr, smaArr, smaNMArr, bollingerBandsArr, psarArr, volMA, atrArr, detectEMASignals,
+  emaArr, smaArr, smaNMArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
   SPREAD_MIN_BY_TF,
@@ -411,6 +411,43 @@ export function useEMAStrategy(
           }
         }
 
+        /* #985 gap 1, fifth and last indicator (RSI advisory, SMA + Bollinger
+           + PSAR gating). MACD is built entirely from the EMA family - its
+           fast/slow lines use the exact same recursive SMA(N,2) formula
+           (macdArr in strategyCore.ts, matching klinecharts' actual
+           movingAverageConvergenceDivergence.calc) that SMA's own registry
+           entry uses. Named explicitly because it is NOT independent the way
+           PSAR and Bollinger are: MACD's fast line (period 12) is
+           SMA(12,2) - numerically identical to SMA's own registry default.
+           Selecting both SMA and MACD is one signal doubled, not two
+           independent ones (#1007) - real, worth knowing, and not a reason to
+           block either: a trader who selects both gets a redundant vote, not
+           a wrong one, and the panel does not currently warn about
+           indicator-family overlap for any pair.
+
+           DIF (the fast-minus-slow line) above DEA (its own signal-line
+           smoothing) is MACD's bullish reading; below is bearish - the
+           standard interpretation, and what `macd` (the histogram, `(dif-
+           dea)*2`) already encodes in its sign. Same one-directional gating
+           shape as the other three: a SETUP downgrades to its matching
+           TRENDING state when MACD disagrees; TRENDING/FREEZE unchanged.
+           Four gating indicators can now each independently fire - checked
+           in registration order, whichever fires first wins. */
+        const macdSelected = selection.includes('MACD');
+        const macdLast = macdSelected ? macdArr(cl4, 12, 26, 9).at(-1) : undefined;
+        const macdValid = macdSelected && macdLast != null && isFinite(macdLast.dif) && isFinite(macdLast.dea);
+        if (macdValid) {
+          if (verdict === 'LONG_SETUP' && macdLast!.dif <= macdLast!.dea) {
+            verdict = 'TRENDING_LONG';
+            phase   = 'Selected MACD disagrees with the entry - DIF at or below DEA, waiting';
+            verdictChangedBySelection = true;
+          } else if (verdict === 'SHORT_SETUP' && macdLast!.dif >= macdLast!.dea) {
+            verdict = 'TRENDING_SHORT';
+            phase   = 'Selected MACD disagrees with the entry - DIF at or above DEA, waiting';
+            verdictChangedBySelection = true;
+          }
+        }
+
         // WaveTrend (Cipher B) confirmation - cross-from-extreme or divergence agreeing
         // with the verdict direction. A separate, orthogonal momentum confirmation
         // layered on top of the EMA ribbon, not a replacement for it.
@@ -570,6 +607,18 @@ export function useEMAStrategy(
                   ? (price > psarLast! ? 'dot below price, agrees with the bullish ribbon' : 'dot at or above price, disagrees with the bullish ribbon - setup downgraded if it was one')
                   : ribbonBear
                     ? (price < psarLast! ? 'dot above price, agrees with the bearish ribbon' : 'dot at or below price, disagrees with the bearish ribbon - setup downgraded if it was one')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
+          ...(macdSelected ? [{
+            label: 'MACD Confirming',
+            pass: !macdValid ? null
+              : (ribbonBull ? macdLast!.dif > macdLast!.dea : ribbonBear ? macdLast!.dif < macdLast!.dea : null),
+            detail: !macdValid
+              ? 'MACD unavailable'
+              : `MACD DIF ${macdLast!.dif.toFixed(4)} / DEA ${macdLast!.dea.toFixed(4)} - ${ribbonBull
+                  ? (macdLast!.dif > macdLast!.dea ? 'DIF above DEA, agrees with the bullish ribbon' : 'DIF at or below DEA, disagrees with the bullish ribbon - setup downgraded if it was one')
+                  : ribbonBear
+                    ? (macdLast!.dif < macdLast!.dea ? 'DIF below DEA, agrees with the bearish ribbon' : 'DIF at or above DEA, disagrees with the bearish ribbon - setup downgraded if it was one')
                     : 'ribbon not aligned either way'}`,
           }] : []),
         ];

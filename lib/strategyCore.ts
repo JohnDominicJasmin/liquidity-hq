@@ -180,6 +180,71 @@ export function psarArr(
   return result;
 }
 
+export interface MACDResult { dif: number; dea: number; macd: number }
+
+/* MACD, matching klinecharts' actual `movingAverageConvergenceDivergence.calc`
+ * (node_modules/klinecharts/dist/index.esm.js) rather than a textbook
+ * writeup - same discipline as smaNMArr/bollingerBandsArr/psarArr.
+ *
+ * NOT COMPOSED FROM smaNMArr, even though `emaShort`/`emaLong` are that exact
+ * SMA(N,2) recursion (confirmed by reading both side by side - same bootstrap,
+ * same recursive step, M=2 hardcoded). `dea` is the same recursion again but
+ * applied to the `dif` series, and `dif` itself does not exist for the first
+ * `maxPeriod-1` bars - composing via smaNMArr(difArray, signalPeriod, 2) would
+ * feed its bootstrap a slice containing those leading undefined entries and
+ * corrupt the sum. klinecharts avoids this with a running `difSum` that only
+ * starts accumulating once `dif` does; this port matches that shape directly
+ * rather than papering over the gap with a slice.
+ *
+ *   emaShort[i] = SMA(fastPeriod, 2) of closes   (bootstrap: mean of first N)
+ *   emaLong[i]  = SMA(slowPeriod, 2) of closes
+ *   dif[i]      = emaShort[i] - emaLong[i]                    (once both exist)
+ *   dea[i]      = SMA(signalPeriod, 2) of the dif series       (once dif exists)
+ *   macd[i]     = (dif[i] - dea[i]) * 2
+ *
+ * Returns `null` per index until `dea` exists (mirrors bollingerBandsArr's
+ * null-not-NaN shape) - a `dif`-only window exists in klinecharts' own output
+ * between `maxPeriod-1` and `maxPeriod+signalPeriod-2`, deliberately not
+ * exposed here since every consumer needs dif AND dea to compare. */
+export function macdArr(
+  closes: number[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9,
+): Array<MACDResult | null> {
+  const result = new Array<MACDResult | null>(closes.length).fill(null);
+  const maxPeriod = Math.max(fastPeriod, slowPeriod);
+  let closeSum = 0;
+  let emaShort = 0;
+  let emaLong = 0;
+  let dif = 0;
+  let difSum = 0;
+  let dea = 0;
+
+  for (let i = 0; i < closes.length; i++) {
+    const close = closes[i];
+    closeSum += close;
+    if (i >= fastPeriod - 1) {
+      emaShort = i > fastPeriod - 1
+        ? (2 * close + (fastPeriod - 1) * emaShort) / (fastPeriod + 1)
+        : closeSum / fastPeriod;
+    }
+    if (i >= slowPeriod - 1) {
+      emaLong = i > slowPeriod - 1
+        ? (2 * close + (slowPeriod - 1) * emaLong) / (slowPeriod + 1)
+        : closeSum / slowPeriod;
+    }
+    if (i >= maxPeriod - 1) {
+      dif = emaShort - emaLong;
+      difSum += dif;
+      if (i >= maxPeriod + signalPeriod - 2) {
+        dea = i > maxPeriod + signalPeriod - 2
+          ? (dif * 2 + dea * (signalPeriod - 1)) / (signalPeriod + 1)
+          : difSum / signalPeriod;
+        result[i] = { dif, dea, macd: (dif - dea) * 2 };
+      }
+    }
+  }
+  return result;
+}
+
 export function volMA(volumes: number[], period = 20): number {
   const slice = volumes.slice(-period).filter(v => !isNaN(v));
   return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 0;

@@ -140,6 +140,10 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   {
     id: 'MACD', label: 'MACD', group: 'momentum', source: 'builtin', pane: 'own',
     paramSchema: [period('fast', 'Fast', 12), period('slow', 'Slow', 26), period('signal', 'Signal', 9)],
+    note: "MACD's fast line (period 12) is SMA(12,2), the exact same recursive formula "
+        + "and period as this registry's own SMA entry at its default - selecting both is "
+        + 'one signal doubled, not two independent ones (#1007). See macdArr in '
+        + 'strategyCore.ts.',
   },
   {
     id: 'STOCH', label: 'Stoch', group: 'momentum', source: 'new', basis: 'KDJ', pane: 'own',
