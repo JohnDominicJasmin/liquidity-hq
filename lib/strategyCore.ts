@@ -25,6 +25,43 @@ export function smaArr(values: number[], period: number): number[] {
   });
 }
 
+/* SMA(N,M) - NOT the plain rolling mean smaArr above computes, and this is a
+ * real distinction, not a naming nitpick: it is the formula klinecharts'
+ * own "SMA" builtin actually renders (node_modules/klinecharts/dist/
+ * index.esm.js, `simpleMovingAverage.calc`, verified against the compiled
+ * source rather than assumed from the name - the same discipline #981
+ * applied to the overlay/indicator store question).
+ *
+ * Recursive, not a rolling window:
+ *   smaValue[N-1] = mean of the first N values                    (bootstrap)
+ *   smaValue[i]   = (value[i]*M + smaValue[i-1]*(N-M+1)) / (N+1)   for i > N-1
+ *
+ * At M=2 this is algebraically identical to a standard EMA: the coefficient
+ * on the new value is 2/(N+1), which is EMA's own smoothing factor for
+ * period N. SMA(N,M) is the general form; EMA is the M=2 special case. The
+ * registry's SMA chip exposes M as "Weight" (1-10, default 2) precisely
+ * because the two only coincide at the default - a trader who changes it
+ * gets a genuinely different smoothing, not a cosmetic one.
+ *
+ * WHY THIS MATTERS HERE: the registry's SMA entry has no `basis` field today,
+ * which the codebase otherwise uses specifically to flag "the displayed name
+ * is not what is computed" (ADX/STOCH). It should - "SMA" reads as the
+ * textbook rolling mean smaArr computes, and is not that. Not fixed in this
+ * commit (a registry/labelling change is its own decision); named here so it
+ * is not silently compounded by a condition that also uses the wrong
+ * formula for what the chart draws when this chip is selected. */
+export function smaNMArr(values: number[], n: number, m: number): number[] {
+  const result = new Array<number>(values.length).fill(NaN);
+  if (values.length < n) return result;
+  let sma = values.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  result[n - 1] = sma;
+  for (let i = n; i < values.length; i++) {
+    sma = (values[i] * m + sma * (n - m + 1)) / (n + 1);
+    result[i] = sma;
+  }
+  return result;
+}
+
 export function volMA(volumes: number[], period = 20): number {
   const slice = volumes.slice(-period).filter(v => !isNaN(v));
   return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 0;

@@ -160,14 +160,16 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
-      {/* #985 gap 1/#997: honest-labels, precisely scoped to what actually
-          moves today - PM caught the first wording overclaiming this
-          ("Reflects your selection... may disagree" read as the CALL itself
-          being personalised, when only the checklist's reasoning is; the
-          verdict word is still the standard EMA rule for every trader,
-          selection or not, until the indicators below this one gain their
-          own gating math). Absent (not "None") when nothing is selected -
-          the unpersonalised case has nothing to disclose. */}
+      {/* #985 gap 1: honest-labels, precisely scoped to what actually
+          happened THIS render, not what a selected indicator is capable of.
+          #997 (RSI, advisory-only) could truthfully say the call never
+          moves. Now that SMA can gate it, "the call doesn't move" would be
+          false exactly when it just did, and "your selection can move this"
+          would overclaim on every render where it simply agreed with the
+          ribbon and changed nothing - two different wrong claims, so this
+          branches on verdictChangedBySelection rather than picking one
+          sentence for every state. Absent entirely when nothing is
+          selected - the unpersonalised case has nothing to disclose. */}
       {!signal.loading && signal.verdict !== 'LOADING' && signal.selectionLabel && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
@@ -175,7 +177,11 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           marginBottom: 10, lineHeight: 1.4,
         }}>
           <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)', flexShrink: 0 }} />
-          <span>The checklist below now weighs your selection ({signal.selectionLabel}). The BUY/SELL call itself does not yet - it is still the standard EMA rule, same as any Telegram/push alert for {coin ? coin.toUpperCase() : 'this coin'}.</span>
+          {signal.verdictChangedBySelection ? (
+            <span>Your selection ({signal.selectionLabel}) changed this call - see the checklist below for which condition disagreed. A Telegram/push alert for {coin ? coin.toUpperCase() : 'this coin'} still uses the standard EMA rule and may show a different call right now.</span>
+          ) : (
+            <span>The checklist below now weighs your selection ({signal.selectionLabel}). It has not changed the BUY/SELL call this time - see the checklist for whether each part agrees.</span>
+          )}
         </div>
       )}
 

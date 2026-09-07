@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
 import {
-  emaArr, smaArr, volMA, atrArr, detectEMASignals,
+  emaArr, smaArr, smaNMArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
   SPREAD_MIN_BY_TF,
@@ -75,9 +75,17 @@ export interface StrategySignal {
   // #985 gap 1: null when nothing is selected (the standard, unpersonalised
   // signal - same as what Telegram/push alerts fire on). Non-null names what
   // the trader chose, via the same describeSelection helper QUICK/DEEP/
-  // LiquidityAI already use, so this signal's own display can say plainly
-  // that it may now differ from an alert for the same coin.
+  // LiquidityAI already use. Naming the selection is not the same claim as
+  // the call having moved - see verdictChangedBySelection below for that.
   selectionLabel: string | null;
+  // #997/SMA (second indicator): true only when a gating indicator (SMA
+  // today) actually downgraded a SETUP to its matching TRENDING state THIS
+  // render - not "a gating-capable indicator is selected", which could be
+  // selected and simply agree with the ribbon, changing nothing. The
+  // distinction matters for what EMASignal.tsx is allowed to say: "your
+  // selection changed this call" is only true when this is true, and RSI
+  // alone (advisory-only) can never make it true.
+  verdictChangedBySelection: boolean;
 }
 
 interface OHLCV { time: number; open: number; high: number; low: number; close: number; volume: number }
@@ -136,6 +144,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   recentStats: null,
   weakEdge: false,
   selectionLabel: null,
+  verdictChangedBySelection: false,
 };
 
 /* ── Module-level kline cache - survives component unmount/remount ───────── */
@@ -297,6 +306,43 @@ export function useEMAStrategy(
             : `Daily below 200 SMA but ${tfLabel} ribbon not bearish - wait for EMA alignment`;
         }
 
+        /* #985 gap 1, second indicator (#997 was RSI, advisory-only). Owner
+           ruled a selected indicator must be able to MOVE verdict, not just
+           describe it - this is the first one that does.
+
+           SMA(12,2) is klinecharts' actual "SMA" formula, not a rolling
+           mean - see smaNMArr's doc in strategyCore.ts, verified against the
+           compiled source and hand-derived against the published recursive
+           definition, not against the chart's own rendered line (checking a
+           number against the line the same code drew is one instrument
+           twice). Registry defaults (length 12, weight 2): selection carries
+           indicator ids only, no per-indicator params, same limitation RSI
+           already documented.
+
+           GATING, DELIBERATELY ONE-DIRECTIONAL: can only make verdict more
+           conservative, never invent or flip a direction the ribbon did not
+           already establish. A SETUP downgrades to its matching TRENDING
+           state when price disagrees with SMA; TRENDING and FREEZE are
+           unchanged, both already non-entry. A wrong SMA value under this
+           design can make a real setup look merely trending - never
+           manufacture a BUY/SELL that was not already there, which is the
+           safer failure direction for anything gating a trade call. */
+        const smaSelected = selection.includes('SMA');
+        const smaLast = smaSelected ? smaNMArr(cl4, 12, 2).at(-1) : undefined;
+        const smaValid = smaSelected && smaLast != null && isFinite(smaLast);
+        let verdictChangedBySelection = false;
+        if (smaValid) {
+          if (verdict === 'LONG_SETUP' && price <= smaLast!) {
+            verdict = 'TRENDING_LONG';
+            phase   = 'Selected SMA disagrees with the entry - price at or below SMA(12,2), waiting';
+            verdictChangedBySelection = true;
+          } else if (verdict === 'SHORT_SETUP' && price >= smaLast!) {
+            verdict = 'TRENDING_SHORT';
+            phase   = 'Selected SMA disagrees with the entry - price at or above SMA(12,2), waiting';
+            verdictChangedBySelection = true;
+          }
+        }
+
         // WaveTrend (Cipher B) confirmation - cross-from-extreme or divergence agreeing
         // with the verdict direction. A separate, orthogonal momentum confirmation
         // layered on top of the EMA ribbon, not a replacement for it.
@@ -418,6 +464,22 @@ export function useEMAStrategy(
                     ? (rsiLast < 50 ? 'below 50, agrees with the bearish ribbon' : 'above 50, disagrees with the bearish ribbon')
                     : 'ribbon not aligned either way'}`,
           }] : []),
+          // #985 gap 1: SMA is gating (see the verdict block above) as well
+          // as advisory - this row is what lets a trader see WHY a setup
+          // downgraded to trending rather than only seeing the downgrade
+          // happen. Present whenever selected, not only when it fires.
+          ...(smaSelected ? [{
+            label: 'SMA Confirming',
+            pass: !smaValid ? null
+              : (ribbonBull ? price > smaLast! : ribbonBear ? price < smaLast! : null),
+            detail: !smaValid
+              ? 'SMA unavailable'
+              : `SMA(12,2) ${smaLast!.toFixed(4)} - ${ribbonBull
+                  ? (price > smaLast! ? 'price above, agrees with the bullish ribbon' : 'price at or below, disagrees with the bullish ribbon - setup downgraded if it was one')
+                  : ribbonBear
+                    ? (price < smaLast! ? 'price below, agrees with the bearish ribbon' : 'price at or above, disagrees with the bearish ribbon - setup downgraded if it was one')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
         ];
 
         // Find most recent candle where EMA 9/20 crossed AND close confirmed above/below EMA 50
@@ -530,6 +592,7 @@ export function useEMAStrategy(
           atrLast, ema50Slope,
           recentStats, weakEdge,
           selectionLabel: describeSelection(selection),
+          verdictChangedBySelection,
         });
     } catch (err) {
       if (!mountedRef.current) return;
