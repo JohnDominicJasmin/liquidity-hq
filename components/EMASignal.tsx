@@ -160,6 +160,25 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
+      {/* #985 gap 1/#997: honest-labels, precisely scoped to what actually
+          moves today - PM caught the first wording overclaiming this
+          ("Reflects your selection... may disagree" read as the CALL itself
+          being personalised, when only the checklist's reasoning is; the
+          verdict word is still the standard EMA rule for every trader,
+          selection or not, until the indicators below this one gain their
+          own gating math). Absent (not "None") when nothing is selected -
+          the unpersonalised case has nothing to disclose. */}
+      {!signal.loading && signal.verdict !== 'LOADING' && signal.selectionLabel && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 'var(--fs-micro)', color: 'var(--amber)',
+          marginBottom: 10, lineHeight: 1.4,
+        }}>
+          <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)', flexShrink: 0 }} />
+          <span>The checklist below now weighs your selection ({signal.selectionLabel}). The BUY/SELL call itself does not yet - it is still the standard EMA rule, same as any Telegram/push alert for {coin ? coin.toUpperCase() : 'this coin'}.</span>
+        </div>
+      )}
+
       {/* Conditions grid - each chip clickable to explain */}
       {signal.conditions.length > 0 && (
         <div style={{

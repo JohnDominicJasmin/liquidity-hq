@@ -246,13 +246,28 @@ function ArenaContent() {
   );
   const absDataRef    = useRef<AbsorptionData | null>(null);
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
+  /* The strategy selection lives here rather than inside StrategyPanel
+     because five things need it and four of them are outside that component:
+     the chart's overlays, the QUICK / DEEP / ASK AI prompts, and - #985 gap 1
+     - useEMAStrategy just below. That last one is why this moved above the
+     EMA signal block rather than staying with the other page state further
+     down: a hook call reading it has to come after its declaration. */
+  const [strategySelection, setStrategySelection] = useState<readonly string[]>([]);
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
   // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
   // in lib/strategyCore.ts for the numbers. Server-synced (settings.anti_chop_enabled,
-  // not local-only state) so Telegram/push EMA signal alerts can fire under the exact
-  // same filter this chart is drawing with - see checkEMASignal in
-  // app/api/telegram/alert/route.ts.
+  // not local-only state) so Telegram/push EMA signal alerts apply the same anti-chop
+  // rule this chart does - see checkEMASignal in app/api/telegram/alert/route.ts.
+  //
+  // #985 gap 1: that is now the ONLY thing alerts still share with this chart's
+  // signal, and it is stated that narrowly on purpose. strategySelection below is
+  // NOT sent to the alert route - the owner's ruling was client-side only, alerts
+  // keep firing on the standard EMA-ribbon rule regardless of what a trader has
+  // selected here. So the chart and an alert for the same coin can now disagree,
+  // deliberately: the chart's read is personal, the alert's is the shared baseline,
+  // and neither is wrong. See the two labels below and StrategyPanel for how that
+  // difference is surfaced rather than left implicit.
   const antiChopEnabled = settings.anti_chop_enabled;
   const filterParams = antiChopEnabled ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS;
   const emaSignal     = useEMAStrategy(
@@ -261,6 +276,7 @@ function ArenaContent() {
     store.coins[selectedCoin]?.fundingRate ?? null,
     oi1h.pct,
     filterParams,
+    strategySelection,
   );
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
@@ -277,11 +293,6 @@ function ArenaContent() {
   // clear ran when the read STARTED, so a dismiss during the load survived into
   // the result and suppressed it. The user spent a Grok call and saw nothing
   // (#278). Clearing on finish is what makes the sentence true.
-  /* The strategy selection lives here rather than inside StrategyPanel
-     because four things need it and three of them are outside that
-     component: the chart's overlays, and the QUICK / DEEP / ASK AI
-     prompts. State two consumers read belongs above both. */
-  const [strategySelection, setStrategySelection] = useState<readonly string[]>([]);
   const [dismissedResults, setDismissedResults] = useState<Set<CoinId>>(new Set());
   const [history, setHistory]         = useState<HistItem[]>([]);
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
