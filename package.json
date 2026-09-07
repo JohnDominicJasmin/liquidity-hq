@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build",
     "prepare": "git config core.hooksPath .githooks || true",
+    "postinstall": "node scripts/check-deps.mjs",
     "labels:regen": "node scripts/regen-label-defaults.mjs"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "@supabase/supabase-js": "^2.106.2",
     "gsap": "^3.15.0",
     "import-in-the-middle": "^3.0.0",
+    "require-in-the-middle": "^8.0.0",
     "klinecharts": "^10.0.0-beta3",
     "motion": "^12.42.2",
     "next": "16.2.6",
