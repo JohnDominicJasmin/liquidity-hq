@@ -1218,6 +1218,49 @@ matter impossible to find, and it is not obvious from the name which are live.
 `main`, `dev`, `qa`, `staging` and anything with an open PR are the only
 branches that should exist.
 
+**`Closes #N` does not close anything in this flow.** Added 2026-09-07, after an
+issue sat open for a day while its fix was live on `staging`.
+
+GitHub's closing keywords fire **only when a PR merges into the repository's
+default branch**. Feature PRs here merge into `dev`, and **nothing reaches `main`
+except a release** — so the keyword is inert at merge time and takes effect weeks
+later, if the release PR happens to carry it forward, or never.
+
+**So the board drifts open by default**, and silently: nothing reports a keyword
+that did not fire. #968 was written correctly, merged correctly, verified by QA
+and live on `staging`, and still read as outstanding.
+
+Two consequences:
+
+- **Closing is a manual step.** Whoever verifies the fix closes the issue, on the
+  verification — not on the merge, and not by waiting for automation that
+  structurally cannot run here.
+- **Open count is not a work count.** Reading the board as a backlog overstates
+  it by however many verified-and-shipped items nobody closed by hand.
+
+Keep writing `Closes #N` — it records the link, and it does fire on the release
+merge. Just never treat having written it as having closed the issue.
+
+**One branch is never safe to delete on merge: the base of another open PR.**
+Added 2026-09-07, after it closed one.
+
+When PR B targets PR A's branch and A is merged with *Delete branch*, GitHub
+**closes B**. It does not retarget it onto A's base. The branch and its commits
+survive on the remote, so nothing is lost — but B is gone from the open list,
+its review thread stops, and **from the reviewer's side the work reads as
+abandoned rather than finished.** #967 sat closed with its fix already committed
+while QA had it filed as a blocked item.
+
+So when PRs are stacked, either **merge the head first**, or **retarget the
+dependent PR onto `dev` before merging its base** — `gh pr edit <B> --base dev`.
+Do that as a deliberate step, not as cleanup afterwards.
+
+**The reason this is written down rather than just fixed:** the instruction that
+caused it asserted the opposite as a platform guarantee — *"merging the base
+retargets it automatically"* — in the message whose entire point was the order of
+operations. **A claim about a tool's behaviour is a measurement like any other**,
+and this one was never taken. See §3d.
+
 **If a merge to `main` is ever reverted**, note that the reverted commits stay
 in `main`'s history. Git treats them as already merged, so a later `dev` →
 `main` merge will **not** bring their changes back — it will look like a clean
