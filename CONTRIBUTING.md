@@ -878,15 +878,29 @@ three ways out were **bypass the hook**, **write the implementation**, or **wait
 until after the merge** — the first two break the rules and the third opens the
 window above.
 
-**So: QA commits the test onto DEV'S FEATURE BRANCH, before that PR merges.**
-Test and implementation land in the same push, the hook passes on a green suite,
-and no window opens.
+**So the order is fixed, and the order is the whole mechanism:**
 
-| | |
-|---|---|
-| Dev | writes the code, opens the PR, names what needs asserting |
-| QA | commits the test onto **that branch** |
-| Dev | reviews the whole thing and merges |
+| # | Who | What | Suite state |
+|---|---|---|---|
+| 1 | **Dev** | writes the implementation, **pushes the feature branch**, names what needs asserting | green — no new test yet |
+| 2 | **QA** | checks out **that branch**, commits the test onto it, pushes | green — the implementation is already there |
+| 3 | **Dev** | reviews the whole thing and merges | green |
+
+**Step 1 pushing FIRST is not a detail — it is the thing that makes step 2
+possible at all.** A test cannot be pushed before the code it tests exists
+somewhere pushable, because the hook runs `npm test` on **every** push regardless
+of whose branch it is. **The implementation being on the remote is what makes
+QA's test green rather than red.**
+
+**Be honest about what this does and does not buy.** It guarantees **no merge
+without coverage**. It does **not** give you test-first TDD — a genuinely
+red-first test cannot be pushed by anyone under this hook. **If someone wants
+TDD, that is a change to the hook and a separate decision**, not something to
+improvise with `--no-verify`.
+
+**Never `--no-verify` to get a red test pushed.** The hook is the only automated
+gate this project has while CI is off, and an exception carved for one case is an
+exception available to every case.
 
 **This is not a new kind of exception.** The reverse already exists and is
 documented: **dev commits directly into `qa/` when a dev-side revert makes a QA
