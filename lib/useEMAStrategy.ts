@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
 import {
-  emaArr, smaArr, smaNMArr, volMA, atrArr, detectEMASignals,
+  emaArr, smaArr, smaNMArr, bollingerBandsArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
   SPREAD_MIN_BY_TF,
@@ -343,6 +343,39 @@ export function useEMAStrategy(
           }
         }
 
+        /* #985 gap 1, third indicator (RSI advisory, SMA gating). Bollinger
+           is genuinely independent of the ribbon, unlike SMA - its middle
+           band is a plain rolling mean (bollingerBandsArr in
+           strategyCore.ts), not an EMA anywhere, verified against
+           klinecharts' actual bollingerBands.calc rather than a
+           from-memory textbook writeup. Registry defaults (length 20,
+           mult 2) - same per-indicator-param limitation as SMA and RSI.
+
+           Same one-directional gating shape as SMA, same reason: a SETUP
+           downgrades to its matching TRENDING state when price disagrees
+           with the middle band's implied direction; TRENDING/FREEZE are
+           unchanged. Two gating indicators can each independently
+           downgrade the same verdict - checked in registration order,
+           whichever fires first sets both the verdict and
+           verdictChangedBySelection, and a second disagreement on an
+           already-downgraded TRENDING state has nothing left to do (the
+           condition rows below still show each one's own agree/disagree
+           read regardless of who actually moved the verdict). */
+        const bollSelected = selection.includes('BOLL');
+        const bollLast = bollSelected ? bollingerBandsArr(cl4, 20, 2).at(-1) : undefined;
+        const bollValid = bollSelected && bollLast != null;
+        if (bollValid) {
+          if (verdict === 'LONG_SETUP' && price <= bollLast!.mid) {
+            verdict = 'TRENDING_LONG';
+            phase   = 'Selected Bollinger disagrees with the entry - price at or below the middle band, waiting';
+            verdictChangedBySelection = true;
+          } else if (verdict === 'SHORT_SETUP' && price >= bollLast!.mid) {
+            verdict = 'TRENDING_SHORT';
+            phase   = 'Selected Bollinger disagrees with the entry - price at or above the middle band, waiting';
+            verdictChangedBySelection = true;
+          }
+        }
+
         // WaveTrend (Cipher B) confirmation - cross-from-extreme or divergence agreeing
         // with the verdict direction. A separate, orthogonal momentum confirmation
         // layered on top of the EMA ribbon, not a replacement for it.
@@ -478,6 +511,18 @@ export function useEMAStrategy(
                   ? (price > smaLast! ? 'price above, agrees with the bullish ribbon' : 'price at or below, disagrees with the bullish ribbon - setup downgraded if it was one')
                   : ribbonBear
                     ? (price < smaLast! ? 'price below, agrees with the bearish ribbon' : 'price at or above, disagrees with the bearish ribbon - setup downgraded if it was one')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
+          ...(bollSelected ? [{
+            label: 'Bollinger Confirming',
+            pass: !bollValid ? null
+              : (ribbonBull ? price > bollLast!.mid : ribbonBear ? price < bollLast!.mid : null),
+            detail: !bollValid
+              ? 'Bollinger unavailable'
+              : `Bollinger(20,2) mid ${bollLast!.mid.toFixed(4)} - ${ribbonBull
+                  ? (price > bollLast!.mid ? 'price above, agrees with the bullish ribbon' : 'price at or below, disagrees with the bullish ribbon - setup downgraded if it was one')
+                  : ribbonBear
+                    ? (price < bollLast!.mid ? 'price below, agrees with the bearish ribbon' : 'price at or above, disagrees with the bearish ribbon - setup downgraded if it was one')
                     : 'ribbon not aligned either way'}`,
           }] : []),
         ];

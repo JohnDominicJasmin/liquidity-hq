@@ -62,6 +62,45 @@ export function smaNMArr(values: number[], n: number, m: number): number[] {
   return result;
 }
 
+/* Bollinger Bands, matching klinecharts' actual `bollingerBands.calc`
+ * (node_modules/klinecharts/dist/index.esm.js) rather than a from-memory
+ * textbook writeup - read the same way smaNMArr's formula was, and unlike
+ * SMA this one turned out to BE the textbook definition: a plain rolling
+ * mean (not smaNMArr's recursive SMA(N,M), and not an EMA anywhere), plus
+ * or minus `mult` times the POPULATION standard deviation (divide by N, not
+ * N-1 - the convention Bollinger Bands specifically use).
+ *
+ *   mid[i] = mean of the trailing N closes ending at i
+ *   md[i]  = sqrt( mean( (close - mid[i])^2 ) over the same N closes )
+ *   up[i]  = mid[i] + mult * md[i]
+ *   dn[i]  = mid[i] - mult * md[i]
+ *
+ * `mid` is accumulated as a ROLLING sum (add the new close, subtract the one
+ * leaving the window) rather than re-summed from scratch each index, and
+ * `md` is recomputed fresh from the window each index rather than tracked
+ * incrementally - both match klinecharts' own calc shape exactly, not just
+ * its result, since an incremental-variance formula can diverge from a
+ * fresh one in floating point even when both are algebraically correct. */
+export function bollingerBandsArr(
+  closes: number[], length: number, mult: number,
+): Array<{ mid: number; up: number; dn: number } | null> {
+  const result = new Array<{ mid: number; up: number; dn: number } | null>(closes.length).fill(null);
+  const p = length - 1;
+  let closeSum = 0;
+  for (let i = 0; i < closes.length; i++) {
+    closeSum += closes[i];
+    if (i >= p) {
+      const mid = closeSum / length;
+      const window = closes.slice(i - p, i + 1);
+      const sqDiffSum = window.reduce((a, c) => a + (c - mid) * (c - mid), 0);
+      const md = Math.sqrt(Math.abs(sqDiffSum) / length);
+      result[i] = { mid, up: mid + mult * md, dn: mid - mult * md };
+      closeSum -= closes[i - p];
+    }
+  }
+  return result;
+}
+
 export function volMA(volumes: number[], period = 20): number {
   const slice = volumes.slice(-period).filter(v => !isNaN(v));
   return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 0;
