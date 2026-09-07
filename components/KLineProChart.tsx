@@ -2540,6 +2540,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
       {/* Chart canvas */}
       <div
+        className="klc-canvas-wrap"
         style={{ position: 'relative' }}
         onMouseMove={(e) => {
           const chart = chartRef.current;
