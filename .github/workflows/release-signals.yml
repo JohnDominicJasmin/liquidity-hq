@@ -264,7 +264,15 @@ jobs:
             echo "no staging branch - nothing to park"; exit 0; }
 
           AHEAD=$(git rev-list --count origin/main..origin/staging)
-          PRS=$(git log --format=%s origin/main..origin/staging \
+          # `--merges` on BOTH counts, so they describe the same population.
+          # Dev Team spotted the asymmetry reviewing this: PRS_UNMATCHED
+          # filtered to merges and PRS did not, so "matched plus unmatched" was
+          # not a total of anything. Measured before changing it — 53 either
+          # way on origin/main..origin/staging, and 0 non-merge commits match
+          # the pattern — so this is a correctness fix, not a number change.
+          # Also strictly righter: a revert or cherry-pick whose subject begins
+          # "Merge pull request #N" is not a merged PR.
+          PRS=$(git log --merges --format=%s origin/main..origin/staging \
                   | grep -cE '^Merge (pull request |PR )?#[0-9]+' || true)
           # #978. This was the one merge-subject regex in the file with NO
           # reconciliation. The two aggregation sites build an "unmatched" list
