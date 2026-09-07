@@ -230,6 +230,209 @@ rather than letting it merge with the release.
 Related: #899, #883, #885 — the same shape one level up, where an absence
 produces no artefact and looks identical to nothing being there.
 
+### 3d. A check that cannot fail is not a check — run the control
+
+**Added 2026-09-06, after the fifth instance in one day.**
+
+Every one of these produced a plausible value, no error, and nobody looking
+further:
+
+| instrument | reported | actually |
+|---|---|---|
+| `qa/audit-handoff.mjs` | `readme: true` | resolved the *landing* README for Arena, for the five days the Arena one did not exist |
+| `gh workflow list` | `active` | had not fired in 22 days while 700 commits landed |
+| Ready-for-QA issue | `6 PR(s)` | nine merges in range; the pattern matched one of two merge-subject formats |
+| `gh run view --json conclusion` | `success` | the job under test **skipped** — run-level success means "finished", not "your change ran" |
+| `arena-structure.spec.ts` | **passing** | **skipped entirely** — `/arena` was absent from `CONVERTED_ROUTES`, so criteria 1–4 and 7 had never run |
+
+**The rule: before trusting a green result, make it go red once.**
+
+Assert `353` where the answer is `352`. Point the lookup at a repository that
+does not exist. Delete the file the check is supposed to find. **If you cannot
+make it fail, you have not learned anything from it passing** — and *"passed"*
+and *"skipped"* are the same line in a summary.
+
+This is not the same as [[the caveat rule above]]. There the author knew what
+they had not verified and wrote it down. Here **the author believes the thing
+was verified**, and the instrument agrees with them.
+
+**Ask what question the status actually answers.** `success`, `active`, `true`,
+a count — each answers *something*, rarely the thing you want. Drop one level:
+`--json jobs`, the resolved path, the matched list itself, the skip reason.
+
+**Three species of this are worth naming separately, because they need different
+defences.** The first two were built by the same session in one afternoon, the
+second while writing up the first. The third arrived from a different direction
+a day later and is the one that leaves no trace at all.
+
+**1. A check whose exit code you never see.**
+
+```sh
+npx tsc --noEmit 2>&1 | grep -v "^npm warn" | head -10; echo done
+```
+
+**The exit status of that line belongs to `echo`.** `tsc` failed with seven
+errors, `head` printed them, and the completion notice said exit 0 — true of the
+pipeline, meaningless about `tsc`. Run twice, read twice, believed twice.
+
+**Capture the status of the command you care about, not the line it sits in:**
+
+```sh
+npx tsc --noEmit > /tmp/tsc.txt 2>&1; echo "TSC_EXIT=$?"
+```
+
+Then **read the output even when the code is 0.**
+
+**2. A check whose success is silent.** This is the sharper half and it explains
+why `tsc` was the gate that broke rather than the others:
+
+| gate | says on success | fallback if you misread the code |
+|---|---|---|
+| `npm test` | `730/730` | the count |
+| `next build` | the route table | **the table is printed only *after* success** |
+| `tsc --noEmit` | **nothing at all** | **none** |
+
+**The build row is the strongest of the three and the distinction is worth having
+exactly.** Its fallback is not "a table is present" — it is that `next build`
+prints the route table **only after it succeeds**, and a failed build ends at
+`Failed to compile` with no table at all. That makes the table **positive
+evidence of success**, not merely the absence of an error. It is what let a
+scope question be closed from artefacts rather than from exit codes, after the
+exit codes had already proved untrustworthy.
+
+**Silence and unread failure are identical.** Tests and builds have a second
+signal that survives a misread exit code; `tsc` has one signal and it is the code.
+**The gate with no success output is the one that needs the redirect most, and it
+is the one that gets it least** — precisely because there is nothing to read when
+it works.
+
+**And a summary line can hide the thing it reports.** `230 problems (1 error, 229
+warnings)` puts a blocking result and a non-blocking one in the same number. The
+only thing that pointed at the real error was the count moving from 0 on `dev` to
+1 on the branch. **The pre-push hook, running bare commands under `set -e`, would
+have failed that push without ambiguity — the summary was less informative than
+the gate.**
+
+**3. A gate switched off on the one line that needed it.** Added 2026-09-07,
+after QA found three chart indicators rendering into a phantom pane:
+
+```ts
+(chart as any).createIndicator(
+  { name: entry.id },
+  entry.pane === 'own' ? { pane: { id: paneId } } : { id: 'candle_pane' },
+);
+```
+
+The second argument is typed `CreateIndicatorOptions`, which has `isStack`,
+`pane` and `yAxis` — **and no `id`.** So `{ id: 'candle_pane' }` set nothing, the
+library allocated a fresh pane, and removal later filtered on a pane the
+indicator was never in. **TypeScript's excess property checking rejects that
+object outright. The `as any` is on the call it would have rejected.**
+
+**This is the inverse of the first two species and needs the opposite defence.**
+There the gate ran and its answer was misread. Here the answer was never
+computed — and unlike a skipped spec, **nothing anywhere reports a skip.** `tsc`
+passes, and it is right to: you asked it not to look.
+
+So: **a cast is a claim that you have checked what the compiler no longer will.**
+Narrow it to the expression that genuinely needs it rather than the whole call,
+and say in the PR what it is covering. `(chart as any).createIndicator(a, b)`
+disables checking on **both** arguments to buy whatever the first one needed.
+
+**The tell is that the correct shape was one ternary arm away**, in the same
+expression, written by the same hand in the same minute. **A silenced gate does
+not make a mistake more likely — it makes an ordinary one permanent.**
+
+### 3e. Converting a screen arms its own tests — same PR, no handoff
+
+**Added 2026-09-06, after `/arena` shipped with its acceptance test dormant.**
+
+`qa/e2e/_design-tokens.ts`'s `CONVERTED_ROUTES` gates the per-screen structure
+specs. A route absent from that list makes its spec **skip**, silently.
+
+`/arena` was rebuilt, verified by hand in a browser, and merged — with criteria
+1, 2, 3, 4 and 7 having never executed against it. The spec's own comment says
+it *"arms itself in the PR that converts the screen."* **That PR was Dev's and
+the file is QA's, so the step belonged to two roles and therefore to neither.**
+
+**Whoever changes whether a screen is converted — in either direction — updates
+`CONVERTED_ROUTES` in the same PR.** Yes, that means Dev editing a `qa/` file for
+one array entry. That is the smaller cost, and it is an exception to "Dev never
+writes QA tooling".
+
+**Both directions, because the removal is the more dangerous one.** This section
+said "adds it" until 2026-09-06 and covered only half the problem:
+
+| | what the list does | what you get |
+|---|---|---|
+| **conversion**, entry missing | spec **skips** | silence — nothing runs, nothing says so |
+| **revert**, entry stale | spec **runs** | **a false green** — it asserts the screen is converted on a route that has just stopped being converted |
+
+**Silence is bad; a false green is worse.** The first tells you nothing, the second
+tells you something untrue and does it in the colour that means "safe". `/arena`
+was reverted the same day this section was written (`f1325264`) and the entry had
+to come back out — **the author of this paragraph had already hit the direction
+it did not cover.**
+
+### 3f. A monitor's filter must not match its own project's passing output
+
+**Added 2026-09-07, after three sessions armed monitors within one hour and every
+one fired falsely — Dev's three times running, on three different words.**
+
+Section 3d is about a check that **cannot fail**. This is its mirror: **a watch
+that cannot stay quiet.** Both end the same way — nobody reads it.
+
+| session | filter | what it actually matched |
+|---|---|---|
+| Dev, 1st | bare `error` / `fail` | this suite's own **passing** output: `[env] ERROR NEXT_PUBLIC_APP_ENV...`, `CONTROL: the values this replaced really do fail there` |
+| Dev, 2nd | `FATAL` | the env-check suite's passing fixture line `[env] FATAL NEXT_PUBLIC_SUPABASE_URL: points at the PRODUCTION Supabase...`, immediately followed by a tick |
+| QA | `Error:` | ESLint **rule descriptions**, which contain the word — e.g. `warning  Error: Calling setState synchronously...` |
+| QA, 2nd axis | no baseline | every historical byte of every pre-existing log, replayed as new the moment it armed |
+| PM/DevOps | 7-char SHA vs `git rev-parse --short` (8 here) | every service, reported as **"0 commit(s) behind"** |
+
+**QA's instance had two causes and the table now shows both**, because it would
+otherwise read as a regex problem alone: the filter matched the wrong text **and**
+the watch had no baseline, so it replayed history as news. **Either alone would
+have flooded it.** A monitor can be wrong about *what* it matches and about *when*
+it starts, and those are separate mistakes.
+
+**Dev's summary is the one to remember:** *"cover the failure signatures" has to
+mean specific signatures, not the word itself, in a codebase whose own passing
+tests contain it.*
+
+**And notice where that noise comes from.** This project deliberately writes
+negative-case tests — a control proving a check *can* fail, per section 3d — so
+`fail`, `ERROR` and `FATAL` all appear in output that is working perfectly.
+**The better the section 3d discipline, the noisier a naive filter gets. Good
+practice in one place manufactures false positives in the other.**
+
+So:
+
+- **Match exit-code markers and specific signatures, never a bare word.** Dev's
+  third attempt is the shape that held: `FATAL ERROR: ` with the trailing
+  colon-space V8 actually emits, `JavaScript heap out of memory`, `npm ERR!`,
+  real tsc and eslint error counts — plus one or two success anchors.
+- **Baseline before comparing.** A watch armed over existing logs treats every
+  historical byte as new. Record each file's size on first sight; emit on growth.
+- **Watch the first minute after arming.** All of these were visible immediately.
+  Two sessions caught their own; one noticed only because it fired three times in
+  front of its author.
+- **Narrowing is not filtering to the happy path.** A monitor matching only the
+  success line stays silent through a crashloop — **and silence is
+  indistinguishable from still-running.**
+
+**A monitor that floods is stopped automatically, which is worse than never
+arming it** — you go on believing something is watching.
+
+**Three documents have now under-stated this, each caught by a different reader.**
+It was missing from the Dev role doc, missing from QA's, and half-stated here.
+**A rule three authors independently got smaller than it is, is one the next
+author will get smaller too** — which is the argument for the table rather than
+a sentence.
+
+**Then run the control from §3d before believing the result.** A newly armed
+spec that passes on its first run and a spec still skipping look identical.
+
 ### 3a. Say which side you are — one account, two roles
 
 **Open every PR body, issue and comment with `**Dev Team**` or `**QA Team**`.**
@@ -668,14 +871,99 @@ agreeing it first — several rules here assume the gap exists.
 
 ### When QA writes code — the reverse handoff
 
-QA owns its own tooling and may write it:
+**QA owns EVERY test in this repository. Dev writes application code and does not
+write tests. Owner ruling, 2026-09-07.**
 
 | QA may author | QA may not author |
 |---|---|
 | `qa/` — specs, plans, fixtures | `app/`, `components/`, `lib/` |
-| `playwright.config.ts` | Anything shipped to users |
-| `.github/workflows/` test jobs | API routes, migrations |
+| **`__tests__/` — every unit test** | Anything shipped to users |
+| `playwright.config.ts` | API routes, migrations |
+| `.github/workflows/` test jobs | |
 | QA docs and findings | |
+
+**`__tests__/` was added on 2026-09-07 and the reason is worth keeping.** This
+table previously listed `qa/`, `playwright.config.ts`, test workflows and QA
+docs — and **said nothing at all about `__tests__/`.** So dev wrote unit tests
+alongside features, which is what most engineers would do with no rule saying
+otherwise: `strategyRegistry.test.mts` across four Arena commits,
+`terminalOnlyConstants.test.mts`, `libImportable.test.mts`.
+
+**The owner closed the gap rather than catching anyone out:** *"Writing tests
+should be QA's job. Not the dev … make sure the dev is working on development.
+That's why it's called dev. And QA is writing tests, running it, and verifying
+it."*
+
+**Nothing already merged was reverted.** Existing `__tests__/` files are working
+coverage and belong to QA from here.
+
+**When dev's change needs coverage, the PR says what should be asserted and
+why — and QA writes it.** Same shape as the auth-gate rule above: a gap you
+cannot close from your own seat becomes a QA step, not a caveat parked in Risk
+level.
+
+> **The sequencing hazard this creates, named rather than discovered later.**
+> `.githooks/pre-push` runs `npm test`, so **dev's own gate now depends on tests
+> dev does not write.** If a feature merges and its coverage arrives afterwards,
+> there is a window where the gate passes on tests that do not exercise the new
+> code — **a check that cannot fail, arriving by org chart rather than by a piped
+> exit code.** That is §3d's shape with a process as the mechanism.
+>
+> **The obvious fix is the one that creates the window:** write the test after
+> the merge. Prefer the coverage request landing with the PR so QA can write it
+> against an open branch, and say plainly in the PR body what is not yet covered.
+
+**And "QA writes it against an open branch" needs a mechanism, because without
+one the rule is impossible to follow.** QA found this within the hour, trying to
+do exactly what the rule asks:
+
+> *"the test is legitimately red until `smaNMArr` exists — that's the point. I
+> can't push a red test as its own branch without either bypassing the pre-push
+> hook or writing the implementation myself — both wrong for QA to do
+> unilaterally."*
+
+**A test written before its implementation is red, and `.githooks/pre-push` runs
+`npm test`.** So a QA-authored test-first branch cannot be pushed at all. The
+three ways out were **bypass the hook**, **write the implementation**, or **wait
+until after the merge** — the first two break the rules and the third opens the
+window above.
+
+**So the order is fixed, and the order is the whole mechanism:**
+
+| # | Who | What | Suite state |
+|---|---|---|---|
+| 1 | **Dev** | writes the implementation, **pushes the feature branch**, names what needs asserting | green — no new test yet |
+| 2 | **QA** | checks out **that branch**, commits the test onto it, pushes | green — the implementation is already there |
+| 3 | **Dev** | reviews the whole thing and merges | green |
+
+**Step 1 pushing FIRST is not a detail — it is the thing that makes step 2
+possible at all.** A test cannot be pushed before the code it tests exists
+somewhere pushable, because the hook runs `npm test` on **every** push regardless
+of whose branch it is. **The implementation being on the remote is what makes
+QA's test green rather than red.**
+
+**Be honest about what this does and does not buy.** It guarantees **no merge
+without coverage**. It does **not** give you test-first TDD — a genuinely
+red-first test cannot be pushed by anyone under this hook. **If someone wants
+TDD, that is a change to the hook and a separate decision**, not something to
+improvise with `--no-verify`.
+
+**Never `--no-verify` to get a red test pushed.** The hook is the only automated
+gate this project has while CI is off, and an exception carved for one case is an
+exception available to every case.
+
+**This is not a new kind of exception.** The reverse already exists and is
+documented: **dev commits directly into `qa/` when a dev-side revert makes a QA
+fixture assert something false** — `4c11930a` and `f1325264`, both narrow, both
+"the person who knows at the moment it changes is the one who fixes it".
+
+**Cross-seat commits on a branch are fine. Cross-seat ownership is not.** QA
+still writes only tests; dev still writes only application code. **What moves is
+the branch they share, not the boundary.**
+
+**If the implementation is already merged before the coverage exists, say so in
+the test PR** — that is the window, and it should be visible rather than
+implied.
 
 Everything else about the flow **reverses**, and that is the point — the author
 never verifies their own work:
@@ -980,6 +1268,49 @@ matter impossible to find, and it is not obvious from the name which are live.
 `main`, `dev`, `qa`, `staging` and anything with an open PR are the only
 branches that should exist.
 
+**`Closes #N` does not close anything in this flow.** Added 2026-09-07, after an
+issue sat open for a day while its fix was live on `staging`.
+
+GitHub's closing keywords fire **only when a PR merges into the repository's
+default branch**. Feature PRs here merge into `dev`, and **nothing reaches `main`
+except a release** — so the keyword is inert at merge time and takes effect weeks
+later, if the release PR happens to carry it forward, or never.
+
+**So the board drifts open by default**, and silently: nothing reports a keyword
+that did not fire. #968 was written correctly, merged correctly, verified by QA
+and live on `staging`, and still read as outstanding.
+
+Two consequences:
+
+- **Closing is a manual step.** Whoever verifies the fix closes the issue, on the
+  verification — not on the merge, and not by waiting for automation that
+  structurally cannot run here.
+- **Open count is not a work count.** Reading the board as a backlog overstates
+  it by however many verified-and-shipped items nobody closed by hand.
+
+Keep writing `Closes #N` — it records the link, and it does fire on the release
+merge. Just never treat having written it as having closed the issue.
+
+**One branch is never safe to delete on merge: the base of another open PR.**
+Added 2026-09-07, after it closed one.
+
+When PR B targets PR A's branch and A is merged with *Delete branch*, GitHub
+**closes B**. It does not retarget it onto A's base. The branch and its commits
+survive on the remote, so nothing is lost — but B is gone from the open list,
+its review thread stops, and **from the reviewer's side the work reads as
+abandoned rather than finished.** #967 sat closed with its fix already committed
+while QA had it filed as a blocked item.
+
+So when PRs are stacked, either **merge the head first**, or **retarget the
+dependent PR onto `dev` before merging its base** — `gh pr edit <B> --base dev`.
+Do that as a deliberate step, not as cleanup afterwards.
+
+**The reason this is written down rather than just fixed:** the instruction that
+caused it asserted the opposite as a platform guarantee — *"merging the base
+retargets it automatically"* — in the message whose entire point was the order of
+operations. **A claim about a tool's behaviour is a measurement like any other**,
+and this one was never taken. See §3d.
+
 **If a merge to `main` is ever reverted**, note that the reverted commits stay
 in `main`'s history. Git treats them as already merged, so a later `dev` →
 `main` merge will **not** bring their changes back — it will look like a clean
@@ -1116,6 +1447,25 @@ arrives at `qa` already verified**, and the PR says how it was verified. QA
 exists to catch what dev could not see — a different machine, a real
 environment, a user's path through the product — not to be the first person who
 looks.
+
+**One class of check dev structurally cannot run: anything behind the auth
+gate.** Added 2026-09-07. **Dev has no test credentials; QA has a confirmed-PRO
+fixture account.** Both sessions stated this of themselves, first-hand, on the
+same day — dev while reporting that `sendMsg`'s auth check returns before any of
+their new code executes, QA while clearing the entitled/pro branch of
+`TEST_GAPS.md` §2 with that account.
+
+So *"I could not exercise this"* on an authenticated path is **not a gap in dev's
+diligence — it is a property of the seats.** It should not be written up as a
+caveat and left sitting in Risk level. **Write it as a QA step in "How to test"**,
+where it becomes work someone can do, rather than a limitation someone has to
+notice.
+
+**Watch the accumulation, which is the real hazard.** One PR carrying an
+unverified auth path is a known gap. Three merged on top of each other, each
+correctly declaring it, is a release resting on nobody having signed in — and
+every individual PR was honest. **The caveats are per-PR; the risk is
+cumulative**, and nothing adds them up unless a person does.
 
 Before opening a PR, dev has:
 

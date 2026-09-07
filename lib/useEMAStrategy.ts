@@ -1,20 +1,21 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore';
-import { bybitSymbolPriceFactor } from './coins';
+import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
+import { bybitSymbolPriceFactor } from './coins.ts';
 import {
-  emaArr, smaArr, volMA, atrArr, detectEMASignals,
+  emaArr, smaArr, smaNMArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
   SPREAD_MIN_BY_TF,
-} from './strategyCore';
-import { detectRSIDivergence } from './divergence';
-import { simulateTrades } from './backtestEngine';
-import { TF_MS, CLOSE_SKEW_MS, dropForming, msUntilNextClose, sameCandle } from './candles';
-import { getWaveTrendConfirmation } from './waveTrend';
+} from './strategyCore.ts';
+import { detectRSIDivergence, rsiArr } from './divergence.ts';
+import { describeSelection } from './strategyRegistry.ts';
+import { simulateTrades } from './backtestEngine.ts';
+import { TF_MS, CLOSE_SKEW_MS, dropForming, msUntilNextClose, sameCandle } from './candles.ts';
+import { getWaveTrendConfirmation } from './waveTrend.ts';
 
-export type { SignalFilterParams } from './strategyCore';
-export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore';
+export type { SignalFilterParams } from './strategyCore.ts';
+export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore.ts';
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 export type StrategyVerdict =
@@ -71,6 +72,20 @@ export interface StrategySignal {
   // confirmation candle moved the needle, because a genuine EMA50 breakout is by
   // definition already near the edge of its own recent range).
   weakEdge: boolean;
+  // #985 gap 1: null when nothing is selected (the standard, unpersonalised
+  // signal - same as what Telegram/push alerts fire on). Non-null names what
+  // the trader chose, via the same describeSelection helper QUICK/DEEP/
+  // LiquidityAI already use. Naming the selection is not the same claim as
+  // the call having moved - see verdictChangedBySelection below for that.
+  selectionLabel: string | null;
+  // #997/SMA (second indicator): true only when a gating indicator (SMA
+  // today) actually downgraded a SETUP to its matching TRENDING state THIS
+  // render - not "a gating-capable indicator is selected", which could be
+  // selected and simply agree with the ribbon, changing nothing. The
+  // distinction matters for what EMASignal.tsx is allowed to say: "your
+  // selection changed this call" is only true when this is true, and RSI
+  // alone (advisory-only) can never make it true.
+  verdictChangedBySelection: boolean;
 }
 
 interface OHLCV { time: number; open: number; high: number; low: number; close: number; volume: number }
@@ -128,6 +143,8 @@ export const STRATEGY_LOADING: StrategySignal = {
   reversalWarnings: [],
   recentStats: null,
   weakEdge: false,
+  selectionLabel: null,
+  verdictChangedBySelection: false,
 };
 
 /* ── Module-level kline cache - survives component unmount/remount ───────── */
@@ -155,6 +172,22 @@ export function useEMAStrategy(
   fundingRate:  number | null,
   oiPct:        number | null,
   filterParams: SignalFilterParams = DEFAULT_FILTER_PARAMS,
+  /* #985 gap 1: the chart's own signal, client-side only per the owner's
+     ruling - Telegram/push alerts (checkEMASignal in
+     app/api/telegram/alert/route.ts) are untouched and keep firing on the
+     standard rule regardless of what a trader has selected here. Advisory
+     only - added as one more row in `conditions`, the same way funding, open
+     interest, volume and WaveTrend already are (none of those gate `verdict`
+     either; only the ribbon/200D/value-zone core does). Scoped to indicators
+     this hook can actually compute a value for without inventing new
+     indicator math - RSI today, since it is already computed elsewhere in
+     this file at the same period the registry defaults to (14). SMA is
+     deliberately NOT wired to the panel's SMA chip: the 200-period SMA this
+     hook already uses is a different, hardcoded core gate (above200D), and
+     the registry's SMA chip defaults to a 12-period length nothing here
+     computes - labelling the existing 200D condition as if it reflected a
+     user-configurable SMA would be wrong, not incomplete. */
+  selection: readonly string[] = [],
 ): StrategySignal {
   const { spreadMinPct, atrMult, persistBoost } = filterParams;
   const [sig, setSig] = useState<StrategySignal>(STRATEGY_LOADING);
@@ -165,12 +198,14 @@ export function useEMAStrategy(
   // fetch-effect dependencies (that caused a full candle refetch + LOADING flash on
   // every funding update). They live in refs; a recompute-from-cache effect below
   // re-derives the signal when they change.
-  const frRef      = useRef(fundingRate);
-  const oiRef      = useRef(oiPct);
-  const paramsRef  = useRef(filterParams);
-  frRef.current     = fundingRate;
-  oiRef.current     = oiPct;
-  paramsRef.current = filterParams;
+  const frRef        = useRef(fundingRate);
+  const oiRef        = useRef(oiPct);
+  const paramsRef    = useRef(filterParams);
+  const selectionRef = useRef(selection);
+  frRef.current        = fundingRate;
+  oiRef.current         = oiPct;
+  paramsRef.current     = filterParams;
+  selectionRef.current  = selection;
 
   const candlesRef = useRef<{ coin: CoinId; tf: string; cRibbon: OHLCV[]; c1d: OHLCV[] } | null>(null);
 
@@ -184,6 +219,7 @@ export function useEMAStrategy(
     const fundingRate  = frRef.current;
     const oiPct        = oiRef.current;
     const filterParams = paramsRef.current;
+    const selection    = selectionRef.current;
     const { spreadMinPct, atrMult } = filterParams;
     try {
         const cl4  = cRibbon.map(c => c.close);
@@ -270,6 +306,148 @@ export function useEMAStrategy(
             : `Daily below 200 SMA but ${tfLabel} ribbon not bearish - wait for EMA alignment`;
         }
 
+        /* #985 gap 1, second indicator (#997 was RSI, advisory-only). Owner
+           ruled a selected indicator must be able to MOVE verdict, not just
+           describe it - this is the first one that does.
+
+           SMA(12,2) is klinecharts' actual "SMA" formula, not a rolling
+           mean - see smaNMArr's doc in strategyCore.ts, verified against the
+           compiled source and hand-derived against the published recursive
+           definition, not against the chart's own rendered line (checking a
+           number against the line the same code drew is one instrument
+           twice). Registry defaults (length 12, weight 2): selection carries
+           indicator ids only, no per-indicator params, same limitation RSI
+           already documented.
+
+           GATING, DELIBERATELY ONE-DIRECTIONAL: can only make verdict more
+           conservative, never invent or flip a direction the ribbon did not
+           already establish. A SETUP downgrades to its matching TRENDING
+           state when price disagrees with SMA; TRENDING and FREEZE are
+           unchanged, both already non-entry. A wrong SMA value under this
+           design can make a real setup look merely trending - never
+           manufacture a BUY/SELL that was not already there, which is the
+           safer failure direction for anything gating a trade call. */
+        const smaSelected = selection.includes('SMA');
+        const smaLast = smaSelected ? smaNMArr(cl4, 12, 2).at(-1) : undefined;
+        const smaValid = smaSelected && smaLast != null && isFinite(smaLast);
+        let verdictChangedBySelection = false;
+        if (smaValid) {
+          if (verdict === 'LONG_SETUP' && price <= smaLast!) {
+            verdict = 'TRENDING_LONG';
+            phase   = 'Selected SMA disagrees with the entry - price at or below SMA(12,2), waiting';
+            verdictChangedBySelection = true;
+          } else if (verdict === 'SHORT_SETUP' && price >= smaLast!) {
+            verdict = 'TRENDING_SHORT';
+            phase   = 'Selected SMA disagrees with the entry - price at or above SMA(12,2), waiting';
+            verdictChangedBySelection = true;
+          }
+        }
+
+        /* #985 gap 1, third indicator (RSI advisory, SMA gating). Bollinger
+           is genuinely independent of the ribbon, unlike SMA - its middle
+           band is a plain rolling mean (bollingerBandsArr in
+           strategyCore.ts), not an EMA anywhere, verified against
+           klinecharts' actual bollingerBands.calc rather than a
+           from-memory textbook writeup. Registry defaults (length 20,
+           mult 2) - same per-indicator-param limitation as SMA and RSI.
+
+           Same one-directional gating shape as SMA, same reason: a SETUP
+           downgrades to its matching TRENDING state when price disagrees
+           with the middle band's implied direction; TRENDING/FREEZE are
+           unchanged. Two gating indicators can each independently
+           downgrade the same verdict - checked in registration order,
+           whichever fires first sets both the verdict and
+           verdictChangedBySelection, and a second disagreement on an
+           already-downgraded TRENDING state has nothing left to do (the
+           condition rows below still show each one's own agree/disagree
+           read regardless of who actually moved the verdict). */
+        const bollSelected = selection.includes('BOLL');
+        const bollLast = bollSelected ? bollingerBandsArr(cl4, 20, 2).at(-1) : undefined;
+        const bollValid = bollSelected && bollLast != null;
+        if (bollValid) {
+          if (verdict === 'LONG_SETUP' && price <= bollLast!.mid) {
+            verdict = 'TRENDING_LONG';
+            phase   = 'Selected Bollinger disagrees with the entry - price at or below the middle band, waiting';
+            verdictChangedBySelection = true;
+          } else if (verdict === 'SHORT_SETUP' && price >= bollLast!.mid) {
+            verdict = 'TRENDING_SHORT';
+            phase   = 'Selected Bollinger disagrees with the entry - price at or above the middle band, waiting';
+            verdictChangedBySelection = true;
+          }
+        }
+
+        /* #985 gap 1, fourth indicator (RSI advisory, SMA + Bollinger gating).
+           PSAR is genuinely independent of both - pure recursive high/low-
+           extreme recursion (psarArr in strategyCore.ts), no moving average
+           anywhere, matching klinecharts' actual `stopAndReverse.calc`
+           including its own asymmetric acceleration-factor reset between the
+           two reversal branches (see psarArr's doc comment) rather than a
+           textbook-symmetric rewrite - so a PSAR selection here reads exactly
+           the dot the chart draws when the same indicator is also selected on
+           the panel (#1016). Registry defaults (start/step/max = 0.02/0.02/
+           0.2, true units - klinecharts' own x100 internal scaling is a
+           createIndicator/calcParams concern, not a psarArr one).
+
+           A trailing dot BELOW price is PSAR's own bullish reading (an
+           uptrend, not yet stopped-and-reversed); above price is bearish.
+           Same one-directional gating shape as SMA/Bollinger: a SETUP
+           downgrades to its matching TRENDING state when PSAR disagrees;
+           TRENDING/FREEZE are unchanged. Three gating indicators can each
+           independently fire on the same verdict - checked in registration
+           order, whichever fires first sets both the verdict and
+           verdictChangedBySelection. */
+        const psarSelected = selection.includes('SAR');
+        const psarLast = psarSelected ? psarArr(cRibbon, 0.02, 0.02, 0.2).at(-1) : undefined;
+        const psarValid = psarSelected && psarLast != null && isFinite(psarLast);
+        if (psarValid) {
+          if (verdict === 'LONG_SETUP' && price <= psarLast!) {
+            verdict = 'TRENDING_LONG';
+            phase   = 'Selected PSAR disagrees with the entry - dot at or above price, waiting';
+            verdictChangedBySelection = true;
+          } else if (verdict === 'SHORT_SETUP' && price >= psarLast!) {
+            verdict = 'TRENDING_SHORT';
+            phase   = 'Selected PSAR disagrees with the entry - dot at or below price, waiting';
+            verdictChangedBySelection = true;
+          }
+        }
+
+        /* #985 gap 1, fifth and last indicator (RSI advisory, SMA + Bollinger
+           + PSAR gating). MACD is built entirely from the EMA family - its
+           fast/slow lines use the exact same recursive SMA(N,2) formula
+           (macdArr in strategyCore.ts, matching klinecharts' actual
+           movingAverageConvergenceDivergence.calc) that SMA's own registry
+           entry uses. Named explicitly because it is NOT independent the way
+           PSAR and Bollinger are: MACD's fast line (period 12) is
+           SMA(12,2) - numerically identical to SMA's own registry default.
+           Selecting both SMA and MACD is one signal doubled, not two
+           independent ones (#1007) - real, worth knowing, and not a reason to
+           block either: a trader who selects both gets a redundant vote, not
+           a wrong one, and the panel does not currently warn about
+           indicator-family overlap for any pair.
+
+           DIF (the fast-minus-slow line) above DEA (its own signal-line
+           smoothing) is MACD's bullish reading; below is bearish - the
+           standard interpretation, and what `macd` (the histogram, `(dif-
+           dea)*2`) already encodes in its sign. Same one-directional gating
+           shape as the other three: a SETUP downgrades to its matching
+           TRENDING state when MACD disagrees; TRENDING/FREEZE unchanged.
+           Four gating indicators can now each independently fire - checked
+           in registration order, whichever fires first wins. */
+        const macdSelected = selection.includes('MACD');
+        const macdLast = macdSelected ? macdArr(cl4, 12, 26, 9).at(-1) : undefined;
+        const macdValid = macdSelected && macdLast != null && isFinite(macdLast.dif) && isFinite(macdLast.dea);
+        if (macdValid) {
+          if (verdict === 'LONG_SETUP' && macdLast!.dif <= macdLast!.dea) {
+            verdict = 'TRENDING_LONG';
+            phase   = 'Selected MACD disagrees with the entry - DIF at or below DEA, waiting';
+            verdictChangedBySelection = true;
+          } else if (verdict === 'SHORT_SETUP' && macdLast!.dif >= macdLast!.dea) {
+            verdict = 'TRENDING_SHORT';
+            phase   = 'Selected MACD disagrees with the entry - DIF at or above DEA, waiting';
+            verdictChangedBySelection = true;
+          }
+        }
+
         // WaveTrend (Cipher B) confirmation - cross-from-extreme or divergence agreeing
         // with the verdict direction. A separate, orthogonal momentum confirmation
         // layered on top of the EMA ribbon, not a replacement for it.
@@ -277,6 +455,16 @@ export function useEMAStrategy(
           (verdict === 'LONG_SETUP' || verdict === 'TRENDING_LONG') ? 'long' :
           (verdict === 'SHORT_SETUP' || verdict === 'TRENDING_SHORT') ? 'short' : null;
         const wtConfirm = getWaveTrendConfirmation(cRibbon, wtDir);
+
+        // #985 gap 1: RSI as an advisory condition, only when the trader has
+        // selected it on the Strategy panel. Same period (14) the registry
+        // defaults to and this file already uses for divergence detection -
+        // not a second, differently-configured RSI. >50/<50 is a directional
+        // lean, not the overbought/oversold thresholds - this is asking
+        // "does momentum agree with the ribbon's direction", the same
+        // question WaveTrend confirmation above already asks a different way.
+        const rsiSelected = selection.includes('RSI');
+        const rsiLast = rsiSelected ? rsiArr(cl4, 14).at(-1) : undefined;
 
         // SL / TP (0.5% buffer beyond 50 EMA)
         const BUF = 0.005;
@@ -366,6 +554,73 @@ export function useEMAStrategy(
             pass:  wtConfirm.pass,
             detail: wtConfirm.detail,
           },
+          // #985 gap 1: only present when the trader has RSI selected -
+          // absence from this list, not a null/failing row, is how "not
+          // selected" is represented.
+          ...(rsiSelected ? [{
+            label: 'RSI Confirming',
+            pass: (rsiLast == null || !isFinite(rsiLast)) ? null
+              : (ribbonBull ? rsiLast > 50 : ribbonBear ? rsiLast < 50 : null),
+            detail: (rsiLast == null || !isFinite(rsiLast))
+              ? 'RSI unavailable'
+              : `RSI(14) ${rsiLast.toFixed(1)} - ${ribbonBull
+                  ? (rsiLast > 50 ? 'above 50, agrees with the bullish ribbon' : 'below 50, disagrees with the bullish ribbon')
+                  : ribbonBear
+                    ? (rsiLast < 50 ? 'below 50, agrees with the bearish ribbon' : 'above 50, disagrees with the bearish ribbon')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
+          // #985 gap 1: SMA is gating (see the verdict block above) as well
+          // as advisory - this row is what lets a trader see WHY a setup
+          // downgraded to trending rather than only seeing the downgrade
+          // happen. Present whenever selected, not only when it fires.
+          ...(smaSelected ? [{
+            label: 'SMA Confirming',
+            pass: !smaValid ? null
+              : (ribbonBull ? price > smaLast! : ribbonBear ? price < smaLast! : null),
+            detail: !smaValid
+              ? 'SMA unavailable'
+              : `SMA(12,2) ${smaLast!.toFixed(4)} - ${ribbonBull
+                  ? (price > smaLast! ? 'price above, agrees with the bullish ribbon' : 'price at or below, disagrees with the bullish ribbon - setup downgraded if it was one')
+                  : ribbonBear
+                    ? (price < smaLast! ? 'price below, agrees with the bearish ribbon' : 'price at or above, disagrees with the bearish ribbon - setup downgraded if it was one')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
+          ...(bollSelected ? [{
+            label: 'Bollinger Confirming',
+            pass: !bollValid ? null
+              : (ribbonBull ? price > bollLast!.mid : ribbonBear ? price < bollLast!.mid : null),
+            detail: !bollValid
+              ? 'Bollinger unavailable'
+              : `Bollinger(20,2) mid ${bollLast!.mid.toFixed(4)} - ${ribbonBull
+                  ? (price > bollLast!.mid ? 'price above, agrees with the bullish ribbon' : 'price at or below, disagrees with the bullish ribbon - setup downgraded if it was one')
+                  : ribbonBear
+                    ? (price < bollLast!.mid ? 'price below, agrees with the bearish ribbon' : 'price at or above, disagrees with the bearish ribbon - setup downgraded if it was one')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
+          ...(psarSelected ? [{
+            label: 'PSAR Confirming',
+            pass: !psarValid ? null
+              : (ribbonBull ? price > psarLast! : ribbonBear ? price < psarLast! : null),
+            detail: !psarValid
+              ? 'PSAR unavailable'
+              : `PSAR ${psarLast!.toFixed(4)} - ${ribbonBull
+                  ? (price > psarLast! ? 'dot below price, agrees with the bullish ribbon' : 'dot at or above price, disagrees with the bullish ribbon - setup downgraded if it was one')
+                  : ribbonBear
+                    ? (price < psarLast! ? 'dot above price, agrees with the bearish ribbon' : 'dot at or below price, disagrees with the bearish ribbon - setup downgraded if it was one')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
+          ...(macdSelected ? [{
+            label: 'MACD Confirming',
+            pass: !macdValid ? null
+              : (ribbonBull ? macdLast!.dif > macdLast!.dea : ribbonBear ? macdLast!.dif < macdLast!.dea : null),
+            detail: !macdValid
+              ? 'MACD unavailable'
+              : `MACD DIF ${macdLast!.dif.toFixed(4)} / DEA ${macdLast!.dea.toFixed(4)} - ${ribbonBull
+                  ? (macdLast!.dif > macdLast!.dea ? 'DIF above DEA, agrees with the bullish ribbon' : 'DIF at or below DEA, disagrees with the bullish ribbon - setup downgraded if it was one')
+                  : ribbonBear
+                    ? (macdLast!.dif < macdLast!.dea ? 'DIF below DEA, agrees with the bearish ribbon' : 'DIF at or above DEA, disagrees with the bearish ribbon - setup downgraded if it was one')
+                    : 'ribbon not aligned either way'}`,
+          }] : []),
         ];
 
         // Find most recent candle where EMA 9/20 crossed AND close confirmed above/below EMA 50
@@ -477,6 +732,8 @@ export function useEMAStrategy(
           reversalWarnings,
           atrLast, ema50Slope,
           recentStats, weakEdge,
+          selectionLabel: describeSelection(selection),
+          verdictChangedBySelection,
         });
     } catch (err) {
       if (!mountedRef.current) return;
@@ -585,7 +842,7 @@ export function useEMAStrategy(
      cached candles - no refetch, no LOADING flash, chart markers stay put. */
   useEffect(() => {
     computeRef.current();
-  }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost]);
+  }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost, selection]);
 
   return sig;
 }

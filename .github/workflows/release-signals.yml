@@ -123,12 +123,12 @@ jobs:
           # A release PR built from the narrow pattern silently omits the "How to
           # test" and "Risk level" of every PR merged the other way - in a document
           # whose entire purpose is to be the complete list.
-          grep -oE '^Merge (pull request|PR) #[0-9]+' /tmp/subjects.txt \
+          grep -oE '^Merge (pull request |PR )?#[0-9]+' /tmp/subjects.txt \
             | grep -oE '[0-9]+' | sort -u > /tmp/prs.txt || true
 
           # Merges the pattern could not claim, counted independently of it.
           git log --merges --format=%s origin/main..origin/staging > /tmp/merges.txt || true
-          grep -vE '^Merge (pull request|PR) #[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
+          grep -vE '^Merge (pull request |PR )?#[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
 
           {
             echo "**QA Team** — opened automatically when \`staging\` moved."
@@ -264,8 +264,34 @@ jobs:
             echo "no staging branch - nothing to park"; exit 0; }
 
           AHEAD=$(git rev-list --count origin/main..origin/staging)
-          PRS=$(git log --format=%s origin/main..origin/staging \
-                  | grep -cE '^Merge (pull request|PR) #[0-9]+' || true)
+          # `--merges` on BOTH counts, so they describe the same population.
+          # Dev Team spotted the asymmetry reviewing this: PRS_UNMATCHED
+          # filtered to merges and PRS did not, so "matched plus unmatched" was
+          # not a total of anything. Measured before changing it — 53 either
+          # way on origin/main..origin/staging, and 0 non-merge commits match
+          # the pattern — so this is a correctness fix, not a number change.
+          # Also strictly righter: a revert or cherry-pick whose subject begins
+          # "Merge pull request #N" is not a merged PR.
+          PRS=$(git log --merges --format=%s origin/main..origin/staging \
+                  | grep -cE '^Merge (pull request |PR )?#[0-9]+' || true)
+          # #978. This was the one merge-subject regex in the file with NO
+          # reconciliation. The two aggregation sites build an "unmatched" list
+          # and print it by name; this one counted and moved on, so a fourth
+          # merge-subject format would silently subtract one here while the
+          # other two named it.
+          #
+          # Severity is genuinely low and worth stating rather than inflating:
+          # this count only feeds a display string. The warning fires on AHEAD
+          # and OPEN_RELEASE, neither of which touches a regex - so a wrong
+          # number here is a wrong number someone reads, not a warning that
+          # fails to appear. A regex feeding a DECISION is a silent skip; a
+          # regex feeding a DISPLAY is a wrong figure. Different bugs.
+          #
+          # Backstopped anyway because three formats have already existed
+          # (#896, #897, #977) and the pattern has been wrong for every one of
+          # them. The count is the durable half; the regex is not.
+          PRS_UNMATCHED=$(git log --merges --format=%s origin/main..origin/staging \
+                  | grep -cvE '^Merge (pull request |PR )?#[0-9]+' || true)
 
           # A FAILED QUERY MUST NOT BECOME AN ALARM.
           #
@@ -321,6 +347,9 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| \`staging\` is ahead of \`main\` by | **$AHEAD commit(s)**, $PRS PR(s) |"
+            if [ "$PRS_UNMATCHED" -gt 0 ]; then
+              echo "| merges this count could NOT read a PR number from | **$PRS_UNMATCHED** — the \`$PRS\` above is a floor, not a total |"
+            fi
             echo "| open \`staging\` -> \`main\` PR | **none** |"
             echo
             echo "\`CONTRIBUTING.md\` calls the release PR the aggregation point — the"
@@ -415,6 +444,139 @@ jobs:
           else
             gh issue create --repo "$REPO" --label release-drift \
               --title "Production is not running \`main\`" --body-file /tmp/drift.md
+
+      # ── qa and staging: the branch moved, the service did not ─────────────
+      #
+      # #984. The check above covers production ONLY, and production is the one
+      # environment that does not need it: there the same session merges to
+      # `main` and presses deploy. On `qa` and `staging` the two acts belong to
+      # DIFFERENT sessions - dev promotes `dev` -> `qa` and hands the deploy to
+      # QA; QA promotes `qa` -> `staging` and deploys it - and nothing watches
+      # the join. That handoff is the only unwatched step in the chain, and it
+      # failed twice on 2026-09-07 alone. The second time, three PRs were about
+      # to be tested against a build that predated all three, which would have
+      # produced three clean failures for the wrong reason.
+      #
+      # In the same job as the production check on purpose: `prod-drift` already
+      # runs daily, on push to main and on demand, and is deliberately exempt
+      # from the workflow disabling. Two extra curls on a runner that is already
+      # up cost seconds, where a new scheduled workflow costs a billable minute
+      # every day - and Actions spend is the owner's decision (#885).
+      #
+      # UNREACHABLE IS NOT DRIFT, and the reason is stronger here than for prod.
+      # Both non-prod services are on the free plan and SLEEP when idle; a cold
+      # start measured ~45 seconds on 2026-09-07. Sleeping is their NORMAL state,
+      # so treating a timeout as "behind" would raise a false alarm every time
+      # nobody had visited the site. A failed measurement is not evidence.
+      - name: Compare qa and staging against their branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          : > /tmp/nonprod.md
+
+          check_env() {
+            BRANCH="$1"; URL="$2"
+            HEAD=$(git rev-parse "origin/$BRANCH")
+            HEAD_SHORT=${HEAD:0:7}
+
+            # 90s: free tier cold start was ~45s when measured. Generous rather
+            # than fast - a timeout here is a false alarm, not a finding.
+            LIVE=$(curl -s --max-time 90 "$URL/api/version" | jq -r '.commit // "unreachable"' || echo unreachable)
+
+            if [ "$LIVE" = "unreachable" ] || [ "$LIVE" = "unknown" ] || [ -z "$LIVE" ]; then
+              echo "$BRANCH: could not read - reporting nothing"
+              return 0
+            fi
+            if [ "$LIVE" = "$HEAD_SHORT" ]; then
+              echo "$BRANCH: current ($LIVE)"
+              return 0
+            fi
+
+            # How far behind, so a one-commit gap reads differently from a
+            # sixty-two-commit one. `git rev-list` needs the full sha; the
+            # endpoint gives seven characters, so resolve it first. If the
+            # commit is not in this checkout - force-push, or a build from a
+            # branch since rewritten - say so instead of printing a wrong count.
+            # `--is-ancestor` as well as `--verify`, and the difference is not
+            # pedantic. A commit can exist in this checkout and NOT be on this
+            # branch — a build from a sibling branch, or one that lost its
+            # branch to a force-push. `git rev-list --count "$FULL..origin/X"`
+            # answers happily in that case and its answer is meaningless: it
+            # counts what X has that the deployed commit lacks, which is not
+            # "how far behind" when the two are on different lineages.
+            # Found by Dev Team reviewing #1003.
+            if FULL=$(git rev-parse --verify --quiet "$LIVE^{commit}") \
+               && git merge-base --is-ancestor "$FULL" "origin/$BRANCH"; then
+              BEHIND=$(git rev-list --count "$FULL..origin/$BRANCH")
+              WHEN=$(git log -1 --format=%cI "$FULL")
+              printf -- '- **`%s` is serving `%s`, but the branch is `%s` — %s commit(s) behind.** The deployed commit landed %s. Render dashboard -> the service -> Manual Deploy.\n' \
+                "$BRANCH" "$LIVE" "$HEAD_SHORT" "$BEHIND" "$WHEN" >> /tmp/nonprod.md
+            else
+              printf -- '- **`%s` is serving `%s`, which is not on that branch.** The branch is `%s`. Either the commit is not in this checkout at all, or it exists but sits on a different lineage — a build from a sibling branch, or one that lost its branch to a force-push. **No gap size is given, because any number here would be measuring two different lineages against each other.**\n' \
+                "$BRANCH" "$LIVE" "$HEAD_SHORT" >> /tmp/nonprod.md
+            fi
+          }
+
+          check_env qa      https://liquidity-hq-qa.onrender.com
+          check_env staging https://liquidity-hq-staging.onrender.com
+
+          gh label create nonprod-drift --repo "$REPO" --color FBCA04 \
+            --description "a qa or staging service is behind its branch" 2>/dev/null || true
+          # `2>/dev/null || true` collapsed "no open issue" and "the API call
+          # failed" into the same empty string — so a rate-limit blip reads as
+          # "nothing open" and files a DUPLICATE.
+          #
+          # The comment on OPEN_ISSUE, two hundred lines above in this same
+          # file, names this exact failure — *"on failure it reads as no
+          # existing issue and opens a duplicate"* — and I wrote it anyway.
+          # Bail rather than guess, like every other query here.
+          # Found by Dev Team reviewing #1003.
+          if ! OPEN=$(gh issue list --repo "$REPO" --label nonprod-drift --state open \
+                        --json number --jq '.[0].number // empty'); then
+            echo "could not list nonprod-drift issues - reporting nothing rather than guessing"
+            exit 0
+          fi
+
+          if [ ! -s /tmp/nonprod.md ]; then
+            if [ -n "$OPEN" ]; then
+              gh issue close "$OPEN" --repo "$REPO" \
+                --comment "Both non-prod services now match their branches. Closing automatically."
+            fi
+            echo "qa and staging are current, or could not be measured"
+            exit 0
+          fi
+
+          {
+            echo "**Automated check** — a non-production service is behind its branch."
+            echo
+            cat /tmp/nonprod.md
+            echo
+            echo "**This is normal for a few minutes after a promotion and a problem after that.**"
+            echo "The gap size and the deployed commit's date above are what tell them apart."
+            echo
+            echo "**Why this is not caught by anyone noticing.** On \`qa\` and \`staging\` the"
+            echo "promotion and the deploy belong to different sessions — dev promotes"
+            echo "\`dev\` -> \`qa\` and hands the deploy to QA; QA promotes \`qa\` -> \`staging\`"
+            echo "and deploys it. Nothing watches the join, and the site serves old code"
+            echo "while every commit says the fix shipped."
+            echo
+            echo "Read from each service's \`/api/version\`, so it reflects what is actually"
+            echo "running rather than what was merged. An unreachable service is reported as"
+            echo "nothing rather than as drift — the free plan sleeps, and a failed"
+            echo "measurement is not evidence."
+            echo
+            echo "Closes itself once both services match their branches."
+          } > /tmp/nonprod-body.md
+
+          if [ -n "$OPEN" ]; then
+            gh issue edit "$OPEN" --repo "$REPO" --body-file /tmp/nonprod-body.md
+          else
+            gh issue create --repo "$REPO" --label nonprod-drift \
+              --title "A non-production service is behind its branch" --body-file /tmp/nonprod-body.md
+          fi
           fi
 
   # ── If the release PR could not be opened, do not fail into silence ────────

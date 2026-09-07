@@ -20,58 +20,42 @@
  */
 
 import { chromium, devices } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { TERMINAL_ALLOWED, TERMINAL_ALLOWED_LIGHT } from '../lib/terminalTokens.ts';
 
 const url = process.argv[2];
 if (!url) { console.error('usage: node qa/mobile-audit.mjs <url> [--theme dark|light]'); process.exit(1); }
 const theme = (process.argv.includes('--theme') ? process.argv[process.argv.indexOf('--theme') + 1] : 'dark');
 const width = Number(process.argv.includes('--width') ? process.argv[process.argv.indexOf('--width') + 1] : 390);
 
-/* The 16 governed terminal tokens (15 documented + --amber, confirmed on #542). */
-/* The governed palette is DERIVED from lib/terminalTokens.ts, not copied.
-   #641 exposed why this matters twice over. First the list here held only
-   the dark 16, so every light-theme run counted legitimate light tokens as
-   off-palette - about a thousand false entries per route, which is worse
-   than no check because it looked like a measurement. Then the fix for that
-   hand-copied the light values out of app/globals.css and got three of them
-   wrong: the stylesheet documents its own history in place, so a hex-grep
-   over that block picks up #8a5c00 and #5e6266 from comments explaining the
-   values that REPLACED them, plus #d6cab3 which is the /correlation diagonal
-   and not a token at all.
-   A copied list drifts and a stale hex is invisible among live ones - the
-   whole failure is "a plausible hex in a list of hexes". So parse the source
-   of truth instead. terminalTokens.ts is a .ts module and this is a plain
-   .mjs script with no loader, so read and extract rather than import; the
-   shapes below are pinned to that file's actual declarations and throw
-   loudly if it is restructured, rather than silently yielding an empty
-   palette and reporting a screen as perfectly on-token. */
-const tokenSrc = readFileSync(new URL('../lib/terminalTokens.ts', import.meta.url), 'utf8');
-
-/* indexOf/slice rather than a RegExp for the block boundaries: the first
-   version of this used a template-literal regex and the backslashes
-   collapsed, so [\s\S] compiled as [sS] and every lookup silently returned
-   no match. Caught only because the guard below throws instead of returning
-   an empty palette - which would have reported every screen as perfectly
-   on-token. Keep the guard even if the parsing is simplified again. */
-const mapOf = (name) => {
-  const open = tokenSrc.indexOf('export const ' + name + ' = {');
-  if (open === -1) throw new Error('mobile-audit: no ' + name + ' in lib/terminalTokens.ts');
-  const close = tokenSrc.indexOf('\n} as const;', open);
-  if (close === -1) throw new Error('mobile-audit: ' + name + ' has no closing "} as const;"');
-  const hexes = tokenSrc.slice(open, close).match(/'(#[0-9a-fA-F]{6})'/g) || [];
-  if (hexes.length < 10) throw new Error('mobile-audit: ' + name + ' yielded ' + hexes.length + ' colours, expected >= 10');
-  return hexes.map((h) => h.slice(1, -1).toLowerCase());
+/* The governed palette is IMPORTED from lib/terminalTokens.ts, not copied and
+   not scraped. #641 was two different versions of "not copied" going wrong:
+   first a hand-copied dark-only list counted every legitimate light token as
+   off-palette; then a hex-grep over app/globals.css picked up superseded
+   values sitting in comments that explain what replaced them. Scraping
+   terminalTokens.ts's source with regexes (the version this replaced) fixed
+   both, but it was still a hand-maintained mirror of TERMINAL_ALLOWED /
+   TERMINAL_ALLOWED_LIGHT that had to be told about every new export by name -
+   #909 added two (TERMINAL_MTF_NEUTRAL_BAR, TERMINAL_MTF_GRIDLINE) that
+   matched none of the mirror's regexes, so both audits would have reported a
+   real, owner-ruled colour as disallowed the moment #853 renders it.
+   Node (v24 here, and what CI pins) strips a plain `.ts` module's types at
+   import time with no loader, the same mechanism that lets `npm test` run
+   `.mts` specs directly - so importing the real arrays isn't drift-prone the
+   way scraping was: there is nothing left to keep in sync. */
+/* The scrape this replaced threw below 10 colours rather than silently
+   auditing against an empty palette, which would report every screen as
+   perfectly on-token. An import can't half-succeed the way a regex scrape
+   could - it is either the real array or the module failed to load - so
+   `=== 0` is the one threshold an import can actually produce, and the only
+   one that can't go stale the moment a new token lands (a count like 10
+   would, which is exactly what #909 rewrote criterion 19 to avoid). */
+const checkedPalette = (name, list) => {
+  if (list.length === 0) throw new Error(`mobile-audit: ${name} is empty - import failed or the export was renamed`);
+  return list.map((c) => c.toLowerCase());
 };
-const rampHexes = (tokenSrc.match(/color:\s*'(#[0-9a-fA-F]{6})'/g) || [])
-  .map((m) => m.slice(m.indexOf('#'), m.indexOf('#') + 7).toLowerCase());
-const flatCell = (/export const TERMINAL_FLAT_CELL = '(#[0-9a-fA-F]{6})'/.exec(tokenSrc) || [])[1];
-
-/* Mirrors TERMINAL_ALLOWED / TERMINAL_ALLOWED_LIGHT exactly: the magma ramp is
-   shared because the liquidation map is dark-only by design, and
-   TERMINAL_FLAT_CELL has no light value anywhere. */
 const TOKENS = theme === 'light'
-  ? [...mapOf('TERMINAL_COLORS_LIGHT'), ...rampHexes]
-  : [...mapOf('TERMINAL_COLORS'), flatCell, ...rampHexes].filter(Boolean);
+  ? checkedPalette('TERMINAL_ALLOWED_LIGHT', TERMINAL_ALLOWED_LIGHT)
+  : checkedPalette('TERMINAL_ALLOWED', TERMINAL_ALLOWED);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width, height: 844 } });

@@ -240,7 +240,14 @@ export default function MarketStructure({ coin, onData }: Props) {
       {le && (
         <div className="ms-last-event" style={{ borderColor: withAlpha(evCol(le), '33'), background: evBg(le) }}>
           <span className="ms-ev-badge" style={{ background: badgeBg(le), color: evCol(le), border: `0.5px solid ${withAlpha(evCol(le), '44')}` }}>
-            {le.type} <span className="ms-dir-glyph">{le.dir === 'bullish' ? '▲' : '▼'}</span>
+            {/* The direction is in the NAME, not only the glyph (#968). Without it a
+                      screen reader gets "BOS" or "CHoCH" and no direction at all -
+                      worse than the Math.abs sites in #944, which at least left a
+                      magnitude. `le.dir` is already the English word, so this needs
+                      no new copy. */}
+                  <span aria-label={`${le.type} ${le.dir}`}>
+                    {le.type} <span className="ms-dir-glyph" aria-hidden="true">{le.dir === 'bullish' ? '▲' : '▼'}</span>
+                  </span>
           </span>
           <span className="ms-ev-price">${fmtP(le.price)}</span>
           <span className="ms-ev-ago">{fmtAge(le.candlesAgo)}</span>
@@ -272,7 +279,9 @@ export default function MarketStructure({ coin, onData }: Props) {
           {d.events.slice(1, 5).map((ev, i) => (
             <div key={i} className="ms-hist-row">
               <span className="ms-hist-badge" style={{ background: badgeBg(ev), color: evCol(ev) }}>
-                {ev.type} <span className="ms-dir-glyph">{ev.dir === 'bullish' ? '▲' : '▼'}</span>
+                <span aria-label={`${ev.type} ${ev.dir}`}>
+                    {ev.type} <span className="ms-dir-glyph" aria-hidden="true">{ev.dir === 'bullish' ? '▲' : '▼'}</span>
+                  </span>
               </span>
               <span className="ms-hist-price">${fmtP(ev.price)}</span>
               <span className="ms-hist-ago">{fmtAge(ev.candlesAgo)}</span>

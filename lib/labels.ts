@@ -1,11 +1,11 @@
 import { createContext, useContext } from 'react';
-import type { LabelKey } from './labelKeys';
+import type { LabelKey } from './labelKeys.ts';
 
 // The locale list lives in ./locales so server code can import it without
 // dragging this file's React imports across the client/server boundary.
 // Re-exported here so every existing `from '@/lib/labels'` import still works.
-export { SUPPORTED_LOCALES, AVAILABLE_LOCALES, isSupportedLocale, resolveOfferedLocale, type Locale } from './locales';
-import { resolveOfferedLocale, type Locale } from './locales';
+export { SUPPORTED_LOCALES, AVAILABLE_LOCALES, isSupportedLocale, resolveOfferedLocale, type Locale } from './locales.ts';
+import { resolveOfferedLocale, type Locale } from './locales.ts';
 
 export interface LabelsContextValue {
   locale: Locale;

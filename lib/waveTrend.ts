@@ -3,7 +3,7 @@
 // confirming/confluence layer alongside the EMA ribbon strategy. Public-domain
 // formula, originally popularized by LazyBear's WaveTrend script.
 
-import { OHLCV, emaArr, smaArr } from './strategyCore';
+import { OHLCV, emaArr, smaArr } from './strategyCore.ts';
 
 const CHANNEL_LEN = 10;
 const AVG_LEN     = 21;

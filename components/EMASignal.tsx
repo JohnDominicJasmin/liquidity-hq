@@ -4,6 +4,7 @@ import { CoinId } from '@/lib/marketStore';
 import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
+import { activatable } from '@/lib/activatable';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
@@ -159,6 +160,31 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
+      {/* #985 gap 1: honest-labels, precisely scoped to what actually
+          happened THIS render, not what a selected indicator is capable of.
+          #997 (RSI, advisory-only) could truthfully say the call never
+          moves. Now that SMA can gate it, "the call doesn't move" would be
+          false exactly when it just did, and "your selection can move this"
+          would overclaim on every render where it simply agreed with the
+          ribbon and changed nothing - two different wrong claims, so this
+          branches on verdictChangedBySelection rather than picking one
+          sentence for every state. Absent entirely when nothing is
+          selected - the unpersonalised case has nothing to disclose. */}
+      {!signal.loading && signal.verdict !== 'LOADING' && signal.selectionLabel && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 'var(--fs-micro)', color: 'var(--amber)',
+          marginBottom: 10, lineHeight: 1.4,
+        }}>
+          <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)', flexShrink: 0 }} />
+          {signal.verdictChangedBySelection ? (
+            <span>Your selection ({signal.selectionLabel}) changed this call - see the checklist below for which condition disagreed. A Telegram/push alert for {coin ? coin.toUpperCase() : 'this coin'} still uses the standard EMA rule and may show a different call right now.</span>
+          ) : (
+            <span>The checklist below now weighs your selection ({signal.selectionLabel}). It has not changed the BUY/SELL call this time - see the checklist for whether each part agrees.</span>
+          )}
+        </div>
+      )}
+
       {/* Conditions grid - each chip clickable to explain */}
       {signal.conditions.length > 0 && (
         <div style={{
@@ -189,10 +215,15 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             const bg   = pass === true ? 'color-mix(in srgb, var(--green-2) 7%, transparent)' : pass === false ? 'color-mix(in srgb, var(--red) 7%, transparent)' : 'rgba(255,255,255,0.02)';
             const icon = pass === true ? '✓' : pass === false ? '✗' : '-';
             return (
+              /* #939: the explain action was click-only. Spread conditionally -
+                 a row that cannot explain must not advertise a role or take
+                 focus, or the keyboard tab order fills with dead stops. */
               <div
                 key={i}
                 title={canExplain ? `Click to explain "${c.label}" in plain English` : c.detail}
-                onClick={canExplain ? () => fireExplain(buildConditionPrompt(c.label, c.pass, c.detail, coin!, tf), coin!) : undefined}
+                {...(canExplain
+                  ? activatable(() => fireExplain(buildConditionPrompt(c.label, c.pass, c.detail, coin!, tf), coin!))
+                  : {})}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '5px 8px', borderRadius: 6,

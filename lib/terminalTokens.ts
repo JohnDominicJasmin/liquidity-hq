@@ -92,7 +92,12 @@ export const TERMINAL_COLORS = {
  *  `specs/light-theme-tokens.md`. So under terminal+light `var(--flat-cell)`
  *  resolves to nothing and the declaration using it is dropped. Not given a
  *  value here because inventing one would be a design decision; raised on
- *  #602 for design to rule on. */
+ *  #602 for design to rule on.
+ *
+ *  SAME for `TERMINAL_MTF_NEUTRAL_BAR` and `TERMINAL_MTF_GRIDLINE` (#893).
+ *  Neither appears in the terminal-light block, in `:root`, or in
+ *  `specs/light-theme-tokens.md`. Stated rather than left silent, because #893
+ *  asked for exactly this decision and "there is none" is an answer. */
 export const TERMINAL_COLORS_LIGHT = {
   '--bg0':          '#f7f6f3',  // Canvas
   '--bg1':          '#ebe9e6',  // Raised region
@@ -132,6 +137,32 @@ export const TERMINAL_COLORS_LIGHT = {
  * behind it rather than an archaeology exercise. */
 export const TERMINAL_FLAT_CELL = '#1c1f22';
 
+/* The MTF alignment bar in its NEUTRAL state, and the bar's gridlines (#893).
+ *
+ * `specs/arena.md:144` and criterion 18 asked for a bare `#2a2e32` twice. That
+ * is the PRE-amendment `--border-input`, superseded on #526 - so the obvious
+ * reading was stale drift with `#5e646b` waiting as the replacement. It is not:
+ * `grep -c '#2a2e32'` against this file returned ZERO. It was never any token,
+ * amended or original, and every substitution changes what renders -
+ * `--border-input` #5e646b is a component boundary deliberately raised to 3:1
+ * for WCAG 1.4.11 and reads as a border; `--mark-idle` #22262a is nearest and
+ * still not equal; `--bdr` #1f2225 is a structural hairline. The owner ruled on
+ * #893: name it, do not fold it.
+ *
+ * TWO CONSTANTS, NOT ONE, and they hold the same value on purpose. The bar is
+ * a state fill - "this timeframe is neutral". The gridlines are reference marks
+ * at 30% and 70% that the spec explicitly says are NOT signals. Two roles that
+ * currently coincide. Split because the merge is one line and the split is
+ * archaeology - the same reasoning TERMINAL_FLAT_CELL records above for
+ * declining to fold into --mark-idle.
+ *
+ * NO LIGHT COUNTERPART, and that is a statement rather than an omission: this
+ * value appears in no terminal-light block, not in `:root`, and not in
+ * `specs/light-theme-tokens.md`. Inventing one would be a design decision.
+ * Same disposition as TERMINAL_FLAT_CELL, recorded for the same reason. */
+export const TERMINAL_MTF_NEUTRAL_BAR = '#2a2e32';
+export const TERMINAL_MTF_GRIDLINE    = '#2a2e32';
+
 /* ── THE SECOND SOURCE, NAMED (#736) ─────────────────────────────────────
  *
  * The terminal CSS blocks declare 48 custom properties. This file documents
@@ -164,6 +195,7 @@ export const TERMINAL_ALIASES = [
   '--bg3', '--bg4',
   '--blue', '--blue-bdr', '--blue-bg',
   '--font-sans',
+  '--glow-amber', '--glow-green', '--glow-purple', '--glow-red',
   '--green-2', '--green-bdr', '--green-bg', '--green-soft',
   '--on-accent',
   '--radius-card', '--radius-chip', '--radius-data', '--radius-pill', '--radius-sharp',
@@ -200,6 +232,8 @@ export const MAGMA_RAMP = [
 export const TERMINAL_ALLOWED = [
   ...Object.values(TERMINAL_COLORS),
   TERMINAL_FLAT_CELL,
+  TERMINAL_MTF_NEUTRAL_BAR,
+  TERMINAL_MTF_GRIDLINE,
   ...MAGMA_RAMP.map(s => s.color),
 ];
 
@@ -207,7 +241,9 @@ export const TERMINAL_ALLOWED = [
  *  liquidation map is dark-only by design (see the ramp's comment above), so
  *  it renders the same seven stops under either theme rather than having a
  *  light variant. TERMINAL_FLAT_CELL is NOT included - it has no light value
- *  anywhere, see TERMINAL_COLORS_LIGHT's note. */
+ *  anywhere, see TERMINAL_COLORS_LIGHT's note. TERMINAL_MTF_NEUTRAL_BAR and
+ *  TERMINAL_MTF_GRIDLINE are excluded for the same reason and recorded in the
+ *  same place (#893). */
 export const TERMINAL_ALLOWED_LIGHT = [
   ...Object.values(TERMINAL_COLORS_LIGHT),
   ...MAGMA_RAMP.map(s => s.color),

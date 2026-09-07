@@ -10,7 +10,7 @@ import Tip from '@/components/Tip';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
-import { healthGradeA11y } from '@/lib/healthGradeA11y';
+import { healthGradeA11y, healthChipStyle } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
@@ -94,13 +94,26 @@ export default function MarketsTerminal() {
     router.push(`/arena?coin=${id}`);
   }
 
-  const GRADE_STYLE: Record<string, { bg: string; col: string }> = {
-    A: { bg: 'rgba(52,211,153,0.15)',  col: 'var(--green-2)' },
-    B: { bg: 'rgba(96,165,250,0.15)',  col: 'var(--accent-2)' },
-    C: { bg: 'rgba(245,158,11,0.15)',  col: 'var(--amber)' },
-    D: { bg: 'rgba(248,113,113,0.15)', col: 'var(--red)' },
-    F: { bg: 'rgba(239,68,68,0.15)',   col: 'var(--red)' },
-  };
+  /* GRADE_STYLE DELETED (#926). It was a SECOND grade-to-colour mapping,
+     local to this file, and it disagreed with the canonical one in
+     computeCoinHealth on every single grade:
+
+                 canonical            this table
+       A         --amber   gold       --green-2  green
+       B         --green-2 green      --accent-2 blue
+       C         --txt2    gray       --amber    gold
+       D         --orange  orange     --red      red
+       F         --txt2    gray       --red      red     <- same as D
+
+     Two defects, not one. D and F rendered IDENTICALLY here, so the two
+     worst grades were indistinguishable. And the ladder was shifted by one
+     against /dashboard, so gold meant "A" on one screen and "C" on the
+     other - a user comparing coins across two screens read contradictory
+     signals from the same colour.
+
+     Now reads health.color, the value /dashboard and /arena already use.
+     C and F sharing --txt2 there is deliberate and documented at
+     lib/marketStore.ts:395 - the letter separates them, not the ink. */
 
   return (
     <>
@@ -219,7 +232,6 @@ export default function MarketsTerminal() {
           const health = computeCoinHealth(d);
           const sig    = topSignal(d);
           const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
-          const gradeStyle = GRADE_STYLE[health.grade] ?? GRADE_STYLE.F;
           const barCol = tbp >= 55 ? 'var(--green-2)' : tbp <= 45 ? 'var(--red)' : '#555';
           const badgeCol = coinBadgeColor(id);
 
@@ -243,7 +255,7 @@ export default function MarketsTerminal() {
                 width: 22, height: 22, borderRadius: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 'var(--fs-caption)', fontWeight: 800,
-                background: gradeStyle.bg, color: gradeStyle.col,
+                ...healthChipStyle(health.color, health.invert),
                 fontFamily: 'var(--font-mono), monospace',
               }}>
                 {health.grade}
@@ -252,9 +264,24 @@ export default function MarketsTerminal() {
               {/* Coin badge + name */}
               <div style={{ paddingLeft: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                 <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
-                <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
+                {/* THE COIN NAME IS THE CONTROL, not the row (#943).
+
+                    The row keeps its onClick so a mouse still hits anywhere,
+                    but the keyboard path is this button. A row-as-button was
+                    the obvious shape and is the wrong one: its accessible name
+                    is the whole row read out - "BTC 64,213 -2.34% smart buyers"
+                    - which is reachable and unusable, and it puts one tab stop
+                    on every row of a fifty-row table.
+
+                    stopPropagation because the row's own handler would
+                    otherwise fire a second time for the same gesture. */}
+                <button
+                  type="button"
+                  className="mkt-row-btn"
+                  onClick={e => { e.stopPropagation(); goToArena(id); }}
+                >
                   {id.toUpperCase()}
-                </span>
+                </button>
               </div>
 
               {/* Sparkline */}

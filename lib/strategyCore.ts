@@ -25,6 +25,226 @@ export function smaArr(values: number[], period: number): number[] {
   });
 }
 
+/* SMA(N,M) - NOT the plain rolling mean smaArr above computes, and this is a
+ * real distinction, not a naming nitpick: it is the formula klinecharts'
+ * own "SMA" builtin actually renders (node_modules/klinecharts/dist/
+ * index.esm.js, `simpleMovingAverage.calc`, verified against the compiled
+ * source rather than assumed from the name - the same discipline #981
+ * applied to the overlay/indicator store question).
+ *
+ * Recursive, not a rolling window:
+ *   smaValue[N-1] = mean of the first N values                    (bootstrap)
+ *   smaValue[i]   = (value[i]*M + smaValue[i-1]*(N-M+1)) / (N+1)   for i > N-1
+ *
+ * At M=2 this is algebraically identical to a standard EMA: the coefficient
+ * on the new value is 2/(N+1), which is EMA's own smoothing factor for
+ * period N. SMA(N,M) is the general form; EMA is the M=2 special case. The
+ * registry's SMA chip exposes M as "Weight" (1-10, default 2) precisely
+ * because the two only coincide at the default - a trader who changes it
+ * gets a genuinely different smoothing, not a cosmetic one.
+ *
+ * WHY THIS MATTERS HERE: the registry's SMA entry has no `basis` field today,
+ * which the codebase otherwise uses specifically to flag "the displayed name
+ * is not what is computed" (ADX/STOCH). It should - "SMA" reads as the
+ * textbook rolling mean smaArr computes, and is not that. Not fixed in this
+ * commit (a registry/labelling change is its own decision); named here so it
+ * is not silently compounded by a condition that also uses the wrong
+ * formula for what the chart draws when this chip is selected. */
+export function smaNMArr(values: number[], n: number, m: number): number[] {
+  const result = new Array<number>(values.length).fill(NaN);
+  if (values.length < n) return result;
+  let sma = values.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  result[n - 1] = sma;
+  for (let i = n; i < values.length; i++) {
+    sma = (values[i] * m + sma * (n - m + 1)) / (n + 1);
+    result[i] = sma;
+  }
+  return result;
+}
+
+/* Bollinger Bands, matching klinecharts' actual `bollingerBands.calc`
+ * (node_modules/klinecharts/dist/index.esm.js) rather than a from-memory
+ * textbook writeup - read the same way smaNMArr's formula was, and unlike
+ * SMA this one turned out to BE the textbook definition: a plain rolling
+ * mean (not smaNMArr's recursive SMA(N,M), and not an EMA anywhere), plus
+ * or minus `mult` times the POPULATION standard deviation (divide by N, not
+ * N-1 - the convention Bollinger Bands specifically use).
+ *
+ *   mid[i] = mean of the trailing N closes ending at i
+ *   md[i]  = sqrt( mean( (close - mid[i])^2 ) over the same N closes )
+ *   up[i]  = mid[i] + mult * md[i]
+ *   dn[i]  = mid[i] - mult * md[i]
+ *
+ * `mid` is accumulated as a ROLLING sum (add the new close, subtract the one
+ * leaving the window) rather than re-summed from scratch each index, and
+ * `md` is recomputed fresh from the window each index rather than tracked
+ * incrementally - both match klinecharts' own calc shape exactly, not just
+ * its result, since an incremental-variance formula can diverge from a
+ * fresh one in floating point even when both are algebraically correct. */
+export function bollingerBandsArr(
+  closes: number[], length: number, mult: number,
+): Array<{ mid: number; up: number; dn: number } | null> {
+  const result = new Array<{ mid: number; up: number; dn: number } | null>(closes.length).fill(null);
+  const p = length - 1;
+  let closeSum = 0;
+  for (let i = 0; i < closes.length; i++) {
+    closeSum += closes[i];
+    if (i >= p) {
+      const mid = closeSum / length;
+      const window = closes.slice(i - p, i + 1);
+      const sqDiffSum = window.reduce((a, c) => a + (c - mid) * (c - mid), 0);
+      const md = Math.sqrt(Math.abs(sqDiffSum) / length);
+      result[i] = { mid, up: mid + mult * md, dn: mid - mult * md };
+      closeSum -= closes[i - p];
+    }
+  }
+  return result;
+}
+
+/* Parabolic SAR, matching klinecharts' actual `stopAndReverse.calc`
+ * (node_modules/klinecharts/dist/index.esm.js) rather than a textbook
+ * writeup - same discipline as smaNMArr/bollingerBandsArr, and worth it
+ * here specifically: klinecharts' SAR has a real asymmetry between its two
+ * branches that a from-memory implementation would not reproduce.
+ *
+ * `startAf`/`step`/`maxAf` are TRUE UNITS here (0.02/0.02/0.2, the
+ * registry's own defaults) - NOT klinecharts' internal calcParams, which
+ * are those same values x100 (`createIndicator`'s `stopAndReverse.calc`
+ * divides by 100 before using them - see `toCalcParams` in
+ * strategyRegistry.ts and #1007/#1008). Passing true units straight in
+ * here is what keeps this function's output matching what the chart draws
+ * when a trader has PSAR selected via the panel - the whole point of
+ * porting the exact algorithm rather than a cleaner equivalent one.
+ *
+ * THE ASYMMETRY, PRESERVED RATHER THAN "FIXED": on a bullish-to-bearish
+ * reversal the acceleration factor resets to `startAf` (uptrend branch);
+ * on a bearish-to-bullish reversal it resets to 0, not `startAf`
+ * (downtrend branch, `af = 0` in the compiled source). This looks like a
+ * copy-paste bug in klinecharts itself - but per the owner's ruling on
+ * #985 gap 1, klinecharts is the SPECIFICATION for what its own indicators
+ * compute, not a reference to improve on. A "corrected" symmetric version
+ * would silently disagree with the actual line the chart draws for the
+ * same selected indicator, which is a worse defect than reproducing an
+ * upstream quirk. The first-bar-advances-af-once quirk (`ep === -100`
+ * triggers immediately at i=0, so `af` is already `startAf + step` by the
+ * time the first SAR value is emitted) is preserved the same way. */
+export function psarArr(
+  candles: OHLCV[], startAf = 0.02, step = 0.02, maxAf = 0.2,
+): number[] {
+  const result = new Array<number>(candles.length).fill(NaN);
+  if (!candles.length) return result;
+
+  let af = startAf;
+  let ep = -100;          // sentinel: "not yet set", matching klinecharts' own -100
+  let isIncreasing = false;
+  let sar = 0;
+
+  for (let i = 0; i < candles.length; i++) {
+    const preSar = sar;
+    const { high, low } = candles[i];
+    const prev = candles[Math.max(1, i) - 1]; // candles[i-1], or candles[0] at i=0
+
+    if (isIncreasing) {
+      if (ep === -100 || ep < high) {
+        ep = high;
+        af = Math.min(af + step, maxAf);
+      }
+      sar = preSar + af * (ep - preSar);
+      const lowMin = Math.min(prev.low, low);
+      if (sar > low) {
+        sar = ep;
+        af = startAf;
+        ep = -100;
+        isIncreasing = !isIncreasing;
+      } else if (sar > lowMin) {
+        sar = lowMin;
+      }
+    } else {
+      if (ep === -100 || ep > low) {
+        ep = low;
+        af = Math.min(af + step, maxAf);
+      }
+      sar = preSar + af * (ep - preSar);
+      const highMax = Math.max(prev.high, high);
+      if (sar < high) {
+        sar = ep;
+        af = 0; // klinecharts' own asymmetry - see the doc comment above
+        ep = -100;
+        isIncreasing = !isIncreasing;
+      } else if (sar < highMax) {
+        sar = highMax;
+      }
+    }
+    result[i] = sar;
+  }
+  return result;
+}
+
+export interface MACDResult { dif: number; dea: number; macd: number }
+
+/* MACD, matching klinecharts' actual `movingAverageConvergenceDivergence.calc`
+ * (node_modules/klinecharts/dist/index.esm.js) rather than a textbook
+ * writeup - same discipline as smaNMArr/bollingerBandsArr/psarArr.
+ *
+ * NOT COMPOSED FROM smaNMArr, even though `emaShort`/`emaLong` are that exact
+ * SMA(N,2) recursion (confirmed by reading both side by side - same bootstrap,
+ * same recursive step, M=2 hardcoded). `dea` is the same recursion again but
+ * applied to the `dif` series, and `dif` itself does not exist for the first
+ * `maxPeriod-1` bars - composing via smaNMArr(difArray, signalPeriod, 2) would
+ * feed its bootstrap a slice containing those leading undefined entries and
+ * corrupt the sum. klinecharts avoids this with a running `difSum` that only
+ * starts accumulating once `dif` does; this port matches that shape directly
+ * rather than papering over the gap with a slice.
+ *
+ *   emaShort[i] = SMA(fastPeriod, 2) of closes   (bootstrap: mean of first N)
+ *   emaLong[i]  = SMA(slowPeriod, 2) of closes
+ *   dif[i]      = emaShort[i] - emaLong[i]                    (once both exist)
+ *   dea[i]      = SMA(signalPeriod, 2) of the dif series       (once dif exists)
+ *   macd[i]     = (dif[i] - dea[i]) * 2
+ *
+ * Returns `null` per index until `dea` exists (mirrors bollingerBandsArr's
+ * null-not-NaN shape) - a `dif`-only window exists in klinecharts' own output
+ * between `maxPeriod-1` and `maxPeriod+signalPeriod-2`, deliberately not
+ * exposed here since every consumer needs dif AND dea to compare. */
+export function macdArr(
+  closes: number[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9,
+): Array<MACDResult | null> {
+  const result = new Array<MACDResult | null>(closes.length).fill(null);
+  const maxPeriod = Math.max(fastPeriod, slowPeriod);
+  let closeSum = 0;
+  let emaShort = 0;
+  let emaLong = 0;
+  let dif = 0;
+  let difSum = 0;
+  let dea = 0;
+
+  for (let i = 0; i < closes.length; i++) {
+    const close = closes[i];
+    closeSum += close;
+    if (i >= fastPeriod - 1) {
+      emaShort = i > fastPeriod - 1
+        ? (2 * close + (fastPeriod - 1) * emaShort) / (fastPeriod + 1)
+        : closeSum / fastPeriod;
+    }
+    if (i >= slowPeriod - 1) {
+      emaLong = i > slowPeriod - 1
+        ? (2 * close + (slowPeriod - 1) * emaLong) / (slowPeriod + 1)
+        : closeSum / slowPeriod;
+    }
+    if (i >= maxPeriod - 1) {
+      dif = emaShort - emaLong;
+      difSum += dif;
+      if (i >= maxPeriod + signalPeriod - 2) {
+        dea = i > maxPeriod + signalPeriod - 2
+          ? (dif * 2 + dea * (signalPeriod - 1)) / (signalPeriod + 1)
+          : difSum / signalPeriod;
+        result[i] = { dif, dea, macd: (dif - dea) * 2 };
+      }
+    }
+  }
+  return result;
+}
+
 export function volMA(volumes: number[], period = 20): number {
   const slice = volumes.slice(-period).filter(v => !isNaN(v));
   return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 0;

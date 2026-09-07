@@ -12,7 +12,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useOnboarding } from '@/components/OnboardingProvider';
 import {
-  useMarket, COINS, COIN_DEC, fmtPrice,
+  useMarket, COINS, COIN_DEC, fmtPrice, fmtChg,
   computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY,
 } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
@@ -28,7 +28,7 @@ import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
-import { healthGradeA11y } from '@/lib/healthGradeA11y';
+import { healthGradeA11y, healthChipStyle } from '@/lib/healthGradeA11y';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -182,7 +182,23 @@ function TCoinSidebar() {
           >
             <div className="csb2-top">
               <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
-              <span className="csb2-name">{id.toUpperCase()}</span>
+              {/* THE COIN NAME IS THE CONTROL, not the row (#943). The row keeps
+                  its onClick for the mouse; this is the keyboard path.
+
+                  Not a row-as-button: that names the whole row to a screen
+                  reader - "BTC 64,213 -2.34% smart buyers" - which is reachable
+                  and unusable.
+
+                  aria-current rather than aria-pressed: this is "which of the
+                  eight is selected", not a toggle that can be off on its own. */}
+              <button
+                type="button"
+                className="csb2-name csb2-name-btn"
+                aria-current={sel ? 'true' : undefined}
+                onClick={e => { e.stopPropagation(); selectCoin(id); }}
+              >
+                {id.toUpperCase()}
+              </button>
               {/* No fontSize here - it lives in globals.css (#718 revert). The
                   pre-canvas markup set it inline, which outranks the terminal
                   rule's 9.5px and left that rule dead: the shape #660 and #681
@@ -203,8 +219,7 @@ function TCoinSidebar() {
                 style={{
                 fontWeight: 800, lineHeight: 1,
                 padding: '2px 4px', borderRadius: 0,
-                color: health.color,
-                background: withAlpha(health.color, '22'),
+                ...healthChipStyle(health.color, health.invert),
                 border: `1px solid var(--bdr)`,
                 letterSpacing: '.04em', flexShrink: 0,
               }}>
@@ -217,7 +232,7 @@ function TCoinSidebar() {
 
             <div className="csb2-bottom" style={{ '--csb2-spark-w': `${SPARK_W}px` } as React.CSSProperties}>
               <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
-                {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
+                <span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}
               </span>
               <Sparkline24h coin={id} width={SPARK_W} height={14} />
               {sig && (
@@ -478,7 +493,7 @@ function TSelectedCoinCard() {
         <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>
       </div>
       <div className="scc-meta">
-        <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}>{up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%</span>
+        <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>
         <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
       <span className="scc-arrow" aria-hidden="true">›</span>

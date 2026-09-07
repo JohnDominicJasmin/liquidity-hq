@@ -11,6 +11,7 @@ import Tip from '@/components/Tip';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
 import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
+import { findIndicator, toCalcParams, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -387,6 +388,15 @@ interface Props {
   // toggle: the toggle controls whether markers are drawn, not whether the
   // signal exists.
   onStructure?:  (sig: PASignal | null) => void;
+  /* The strategy panel's selection (#930). ADDITIVE ONLY - see the effect that
+     consumes it for why an empty selection must leave this chart exactly as it
+     was before the panel existed. */
+  indicators?:   readonly string[];
+  /* Per-indicator edited parameter values for `indicators` (#1008), keyed by
+     indicator id then param key. An indicator with no entry here uses
+     strategyRegistry's defaultParams - see the sync effect below and
+     `toCalcParams`. */
+  indicatorParams?: Record<string, Record<string, string | number | boolean>>;
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
@@ -606,7 +616,7 @@ function computeSRLevels(
   return [...resistances, ...supports];
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams }: Props) {
   const mode = useDesignMode();
   /* The init effect below runs once and must not re-run when the design mode
      resolves - re-creating the chart would throw away its data. So it reads
@@ -2152,6 +2162,125 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     }
   }, [liqClusters, showLiq, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* ── The strategy selection's klinecharts indicators (#930) ─────────────────
+   *
+   * ADDITIVE, AND THAT IS A PRODUCT DECISION RATHER THAN A SHORTCUT. The
+   * overlays this chart already draws - the EMA ribbon, liquidation clusters,
+   * S/R and GEX lines - are driven by their own props and are on today for
+   * everyone. Gating those on the selection would mean an empty selection shows
+   * a bare chart, and an empty selection is the DEFAULT ("let the read choose").
+   * So selecting an overlay-backed indicator is currently a no-op: it is
+   * already drawn. Selecting a builtin adds it.
+   *
+   * WHICH ENTRIES DO SOMETHING HERE, said plainly because the panel offers 21
+   * and this handles a subset:
+   *
+   *   source: 'builtin'  createIndicator - SMA, SAR, RSI, MACD, BOLL
+   *   source: 'overlay'  already drawn from its own prop, nothing to do
+   *   source: 'new'      NOT IMPLEMENTED - no calculation exists yet
+   *
+   * A `new` entry selected today draws nothing. That is visible to the user as
+   * "I picked Supertrend and no line appeared", which is worse than the chip
+   * being absent - but the chip list is the owner-approved design and inventing
+   * a different one here would be the larger wrong. Recorded rather than hidden.
+   *
+   * `pane` comes from the registry and is not cosmetic: klinecharts folds every
+   * indicator's values into its pane's auto Y-range, which is why a long EMA on
+   * the candle pane once dragged the axis ~11x wider than the visible range. An
+   * entry marked `own` gets its own pane for that reason. */
+  const activeIndicatorIds = useRef<Map<string, string>>(new Map());
+  /* Last calcParams actually applied per active indicator, serialized for a
+     cheap diff (#1008). Lets a param edit on an indicator that stays selected
+     take an `overrideIndicator` path instead of falling through to
+     remove/recreate - see the plan on #1008 for why update-in-place matters
+     here: it is the same reasoning `activeIndicatorIds` already exists for on
+     the selection side, just applied to the params side too. */
+  const activeParamsRef = useRef<Map<string, string>>(new Map());
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+
+    const wanted = new Map<string, IndicatorEntry>();
+    for (const id of indicators ?? []) {
+      const entry = findIndicator(id);
+      if (entry && entry.source === 'builtin') wanted.set(id, entry);
+    }
+
+    /* REMOVE BY THE INDICATOR'S OWN ID, not by pane.
+     *
+     * `createIndicator` returns the id it assigned, and `IndicatorFilter` is
+     * `Partial<Pick<Indicator, 'id' | 'paneId' | 'name'>>` - so an id is both
+     * exact and safe. Removing by `paneId` would have taken out everything in
+     * that pane, which for `candle_pane` means the chart's own overlays. */
+    for (const [key, indicatorId] of [...activeIndicatorIds.current.entries()]) {
+      if (wanted.has(key)) continue;
+      try { chart.removeIndicator({ id: indicatorId }); } catch { /* already gone */ }
+      activeIndicatorIds.current.delete(key);
+      activeParamsRef.current.delete(key);
+    }
+
+    // Add what is newly selected.
+    for (const [key, entry] of wanted) {
+      const calcParams = toCalcParams(entry, indicatorParams?.[key]);
+      const serialized = JSON.stringify(calcParams);
+
+      const existingId = activeIndicatorIds.current.get(key);
+      if (existingId) {
+        /* Already on the chart - only a params edit is new. Compare against
+           the last-applied snapshot rather than overriding unconditionally on
+           every sync: this effect also re-runs for unrelated reasons (e.g.
+           `chartReady` toggling), and an unconditional override would recreate
+           the theme-independent styling churn `overrideIndicator` exists to
+           avoid in the first place. */
+        if (activeParamsRef.current.get(key) !== serialized) {
+          try {
+            /* `name` is the one required field on `IndicatorCreate` (klinecharts'
+               own type - everything else, `id` included, is optional via
+               `ExcludePickPartial`). Passing both `id` and `name` targets this
+               exact instance rather than every indicator sharing the name -
+               relevant for RSI, which also has an always-on pane elsewhere on
+               this chart (line ~997). */
+            chart.overrideIndicator({ id: existingId, name: entry.id, calcParams });
+            activeParamsRef.current.set(key, serialized);
+          } catch { /* leave the stale snapshot - next sync retries */ }
+        }
+        continue;
+      }
+
+      try {
+        /* `CreateIndicatorOptions` is `{ isStack?, pane?: PaneOptions, yAxis? }`
+         * - the pane always goes under a `pane` key, for the candle pane as
+         * much as for a new one.
+         *
+         * QA caught the first version passing `{ id: 'candle_pane' }` here.
+         * `id` is not a key of that type, so it was ignored, klinecharts made a
+         * fresh pane for every candle-pane indicator, and the later remove
+         * targeted a pane the indicator had never been in - one permanent
+         * zombie pane per select/deselect cycle, for SMA, PSAR and Bollinger.
+         *
+         * THE CAST IS WHY IT SHIPPED. `(chart as any)` turned a compile error
+         * into a live defect; without it this never builds. It is gone. */
+        const indicatorId = chart.createIndicator(
+          { name: entry.id, calcParams },
+          entry.pane === 'own'
+            ? { pane: { id: `strat_${key.toLowerCase()}`, height: 90, minHeight: 30 } }
+            : { pane: { id: 'candle_pane' } },
+        );
+        /* NULL, NOT A THROW. `createIndicator` returns `Nullable<string>` and
+         * gives back null for a name klinecharts does not know - it does not
+         * raise. The previous comment here claimed the catch handled that; it
+         * never could, because nothing was thrown. A null simply leaves nothing
+         * in the map, so the next sync does not try to remove an indicator that
+         * was never created. The registry test that checks every builtin id
+         * against the 27 names klinecharts ships is what actually guards it. */
+        if (indicatorId) {
+          activeIndicatorIds.current.set(key, indicatorId);
+          activeParamsRef.current.set(key, serialized);
+        }
+      } catch { /* a genuine render error - leave the map untouched and carry on */ }
+    }
+  }, [indicators, indicatorParams, chartReady]);
+
   // ── Restore user-drawn lines for this coin, and swap them out on coin change ──
   useEffect(() => {
     const chart = chartRef.current;
@@ -2282,7 +2411,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             aria-expanded={drawMenuOpen}
             title="Drawing tools"
           >
-            {activeTool ? (TOOLS.find(t => t.id === activeTool)?.label ?? 'Draw') : 'Draw'} {drawMenuOpen ? '▴' : '▾'}
+            {activeTool ? (TOOLS.find(t => t.id === activeTool)?.label ?? 'Draw') : 'Draw'} <span aria-hidden="true">{drawMenuOpen ? '▴' : '▾'}</span>
           </button>
           {drawMenuOpen && (
             <div className="klc-draw-menu">

@@ -15,7 +15,9 @@ import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
+import { describeSelection } from '@/lib/strategyRegistry';
 import CoinMultiSelect from './CoinMultiSelect';
+import { activatable } from '@/lib/activatable';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -288,6 +290,12 @@ export default function GrokChat() {
   const [liveSearch,     setLiveSearch]     = useState(false);
   const [histView,       setHistView]       = useState(false);
   const [coin,           setCoin]           = useState<CoinId>('btc');
+  /* #985 gap 2: seeded from the 'grok-chat' open event, then kept aligned by
+     a live 'strategy-selection-changed' event Arena fires on every change -
+     not just captured once at open. Read fresh into the system context on
+     every sendMsg call, so a mid-conversation change reaches the very next
+     turn without resending anything into the visible transcript. */
+  const [chatSelection,  setChatSelection]  = useState<readonly string[]>([]);
   // Structure read needs candles, which this component otherwise has no reason
   // to hold. Fetched once per coin selection rather than per message - the
   // answer only changes on a new hourly close, so re-fetching on every send
@@ -469,9 +477,19 @@ export default function GrokChat() {
 
       // Smart context: educational + no search = minimal (~20 tokens)
       // Anything with live search = full context so Grok can correlate web findings with live data
-      const sysCtx = (isEducational(text) && !useSearch)
+      const baseCtx = (isEducational(text) && !useSearch)
         ? buildMinimalCtx(store, activeCoin)
         : buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents, structureLine);
+      /* #985 gap 2: read fresh from chatSelection (not baked into a stored
+         string) so every turn - not just the opening one - reasons from
+         whatever is selected right now. Same sentence and helper as the
+         QUICK/DEEP prompts and the opening message, so wording cannot drift
+         across the four surfaces. */
+      const watching = describeSelection(chatSelection);
+      const sysCtx = watching
+        ? baseCtx + '\n\nThe trader is currently weighing these indicators: ' + watching
+          + '. Give them more weight in your answer, and say plainly if they disagree with what the rest of the data shows.'
+        : baseCtx;
 
       // Cap at last 8 messages (4 pairs) - prevents token cost growing unbounded
       const apiMsgs  = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
@@ -558,13 +576,14 @@ export default function GrokChat() {
       setLoading(false);
       setPendingText(null);
     }
-  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, usage, setUsage]);
+  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, usage, setUsage, chatSelection]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
     const handler = (e: Event) => {
-      const ev = e as CustomEvent<{ coin: CoinId; prompt?: string }>;
+      const ev = e as CustomEvent<{ coin: CoinId; prompt?: string; selection?: readonly string[] }>;
       setCoin(ev.detail.coin);
+      setChatSelection(ev.detail.selection ?? []);
       setOpen(true);
       setHistView(false);
       if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, ev.detail.coin), 200);
@@ -572,6 +591,22 @@ export default function GrokChat() {
     window.addEventListener('grok-chat', handler);
     return () => window.removeEventListener('grok-chat', handler);
   }, [sendMsg]);
+
+  /* #985 gap 2: kept aligned, not just seeded. Arena fires this on every
+     strategySelection change, mount-time included, so a conversation open
+     when the trader changes indicators reasons from the new set on its very
+     next turn - not the set the panel had when the chat was opened. Listens
+     unconditionally (this component is always mounted, per AppShell) rather
+     than only while the panel is open, since the selection can change before
+     the panel is ever opened for this session too. */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ selection: readonly string[] }>;
+      setChatSelection(ev.detail.selection);
+    };
+    window.addEventListener('strategy-selection-changed', handler);
+    return () => window.removeEventListener('strategy-selection-changed', handler);
+  }, []);
 
   /* ── History actions ── */
   function newChat() {
@@ -724,52 +759,6 @@ export default function GrokChat() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {!histView && (
               <>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                  <div className="gchat-mode" role="radiogroup" aria-label="Response mode" onKeyDown={onModeKeys}>
-                    {MODES.map((m, i) => {
-                      const selected = m.live === liveActive;
-                      const disabled = m.live && searchExhausted;
-                      return (
-                        <button
-                          key={m.id}
-                          ref={el => { modeRefs.current[i] = el; }}
-                          role="radio"
-                          aria-checked={selected}
-                          aria-disabled={disabled || undefined}
-                          tabIndex={selected ? 0 : -1}
-                          data-testid={`grok-mode-${m.id}`}
-                          className={`gchat-mode-opt${m.live ? ' live' : ''}${selected ? ' on' : ''}${disabled ? ' off' : ''}`}
-                          onClick={() => selectMode(m.live)}
-                          title={disabled ? `No searches left - resets ${nextResetLocalTime()}` : m.title}
-                        >
-                          {m.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {counterText && (
-                    <span
-                      data-testid="grok-mode-count"
-                      className={`gchat-mode-count${activeRemaining !== null && activeRemaining <= 0 ? ' zero' : ''}`}
-                    >
-                      {activeRemaining === 1 && <Warn size={10} />}
-                      {counterText}
-                    </span>
-                  )}
-                  {/* The escalation the user never consented to. Fast spends a
-                      SEARCH when the text trips a trigger word, so say it while
-                      the message is still editable rather than after the 429. */}
-                  {!liveActive && willSearch && (
-                    <span className="gchat-mode-note" data-testid="grok-auto-search">
-                      This question uses a live search
-                    </span>
-                  )}
-                  {/* Why the Live half is dead. A control that is present and
-                      explains itself beats one that silently refuses. */}
-                  {searchExhausted && !liveActive && !willSearch && (
-                    <span className="gchat-mode-note">No searches left · resets {nextResetLocalTime()}</span>
-                  )}
-                </div>
                 {msgs.length > 0 && (
                   <button className="gchat-icon-btn" onClick={clearChat} title="Clear chat" aria-label="Clear chat">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
@@ -823,10 +812,24 @@ export default function GrokChat() {
             ) : (
               <div className="gchat-hist-list">
                 {convos.map(c => (
+                  /* #939: loading a past conversation was click-only, so the
+                     whole history was unreachable from the keyboard. role and
+                     tabIndex rather than a <button> because the row carries a
+                     delete <button> of its own.
+
+                     aria-label is not decoration here, it is required BECAUSE
+                     of that delete button (QA on #942). Without an explicit
+                     name, accname computes the row's name from its subtree,
+                     which includes the delete button's own
+                     aria-label="Delete conversation" - so the row announced as
+                     "BTC, <title>, 5 messages · 2h ago, Delete conversation",
+                     ending on the label of a DIFFERENT action. Naming the row
+                     explicitly stops the subtree walk. */
                   <div
                     key={c.id}
                     className={`gchat-hist-item${c.id === currentIdRef.current ? ' gchat-hist-item-active' : ''}`}
-                    onClick={() => loadConvo(c)}
+                    aria-label={`${c.coin.toUpperCase()} - ${c.title}`}
+                    {...activatable(() => loadConvo(c))}
                   >
                     <span
                       className="gchat-hist-coin"
@@ -858,6 +861,64 @@ export default function GrokChat() {
         ) : (
           /* ════ CHAT VIEW ════ */
           <>
+            {/* #995: was three stacked strings (mode pill row, quota counter,
+                an escalation note up to "No searches left · resets 4:00 PM"
+                long) crammed into a flex item sharing .gchat-header's row
+                with the title and icon buttons. At panel width that has room
+                for "48 messages" but not "48 messages left", so the note
+                wrapped - and align-items: center on a row whose middle child
+                had just grown taller lifted the pill above the header's own
+                title. Same squeeze #746 already solved once in this exact
+                panel for the coin row: give it the full panel width as its
+                own strip instead of a shared one. */}
+            <div className="gchat-meta-strip">
+              <div className="gchat-meta-row">
+                <div className="gchat-mode" role="radiogroup" aria-label="Response mode" onKeyDown={onModeKeys}>
+                  {MODES.map((m, i) => {
+                    const selected = m.live === liveActive;
+                    const disabled = m.live && searchExhausted;
+                    return (
+                      <button
+                        key={m.id}
+                        ref={el => { modeRefs.current[i] = el; }}
+                        role="radio"
+                        aria-checked={selected}
+                        aria-disabled={disabled || undefined}
+                        tabIndex={selected ? 0 : -1}
+                        data-testid={`grok-mode-${m.id}`}
+                        className={`gchat-mode-opt${m.live ? ' live' : ''}${selected ? ' on' : ''}${disabled ? ' off' : ''}`}
+                        onClick={() => selectMode(m.live)}
+                        title={disabled ? `No searches left - resets ${nextResetLocalTime()}` : m.title}
+                      >
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {counterText && (
+                  <span
+                    data-testid="grok-mode-count"
+                    className={`gchat-mode-count${activeRemaining !== null && activeRemaining <= 0 ? ' zero' : ''}`}
+                  >
+                    {activeRemaining === 1 && <Warn size={10} />}
+                    {counterText}
+                  </span>
+                )}
+              </div>
+              {/* The escalation the user never consented to. Fast spends a
+                  SEARCH when the text trips a trigger word, so say it while
+                  the message is still editable rather than after the 429. */}
+              {!liveActive && willSearch && (
+                <span className="gchat-mode-note" data-testid="grok-auto-search">
+                  This question uses a live search
+                </span>
+              )}
+              {/* Why the Live half is dead. A control that is present and
+                  explains itself beats one that silently refuses. */}
+              {searchExhausted && !liveActive && !willSearch && (
+                <span className="gchat-mode-note">No searches left · resets {nextResetLocalTime()}</span>
+              )}
+            </div>
             {/* DROPDOWN ONLY (#746). Owner: "this coin selection it should be
                 a searchable dropdown not a horizontal list of coin selection."
 

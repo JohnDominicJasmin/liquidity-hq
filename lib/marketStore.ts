@@ -1,11 +1,11 @@
 'use client';
 import { createContext, useContext } from 'react';
-import type { CoinId } from './coins';
-import type { RealYield } from './realYield';
-import { healthLabelKey } from './healthGradeA11y';
-import type { HealthLabelKey } from './healthGradeA11y';
-export type { CoinId } from './coins';
-export { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS } from './coins';
+import type { CoinId } from './coins.ts';
+import type { RealYield } from './realYield.ts';
+import { healthLabelKey } from './healthGradeA11y.ts';
+import type { HealthLabelKey } from './healthGradeA11y.ts';
+export type { CoinId } from './coins.ts';
+export { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS } from './coins.ts';
 
 export interface GexLevel {
   strike: number;
@@ -81,6 +81,24 @@ export interface CoinData {
 export function fmtPrice(p: number, dec: number): string {
   return p.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 }
+/* THE SIGN IS THE DATA. Keep it here rather than in a ▲/▼ glyph beside the
+   number (#939).
+
+   Seven render sites paired `{up ? '▲' : '▼'}` with `Math.abs(chg).toFixed(2)`,
+   which puts direction ONLY in the glyph. A screen reader then reads a
+   magnitude with no direction - "2.34 percent" for a coin that is down 2.34% -
+   which is not a badly worded announcement, it is a different number.
+   `CoinMarketSnapshot.tsx:73` kept the sign the whole time; the other seven did
+   not, and nothing made them disagree loudly.
+   Alignment, which is the objection worth pre-empting, stated precisely rather
+   than reassuringly: under Math.abs BOTH directions rendered without a sign and
+   now both render with one, so up and down stay the same width AS EACH OTHER -
+   which is what a column of numerals needs. The column itself is one character
+   WIDER than before. That is a real change and not a free one; it is the price
+   of the number carrying its own direction.
+   The glyph stays - it is faster to scan than a character - but it is
+   `aria-hidden` at every call site, because it now duplicates the sign rather
+   than carrying it. */
 export function fmtChg(c: number | null | undefined): string {
   if (c == null) return '--%';
   return (c >= 0 ? '+' : '') + c.toFixed(2) + '%';
@@ -308,6 +326,27 @@ export function computeCoinHealth(coin: CoinData | undefined): {
   score: number;
   grade: 'A' | 'B' | 'C' | 'D' | 'F';
   color: string;
+  /* Render the chip inverted - `color` becomes the GROUND and the letter is
+     painted --bg0 - instead of the usual ink-on-13.3%-self-tint.
+
+     WHY THIS EXISTS AND WHY IT IS NOT A COLOUR CHANGE (#926). C and F both
+     resolve to --txt2 and were pixel-identical: measured ΔE 0.0 in both
+     themes, across all ten grade pairs the only collision. It is a side
+     effect of #836 - F moved off --txt3 to clear AA and landed on C's token.
+
+     A sixth hue was the obvious fix and is the wrong one. The light column
+     is tight: A 4.89, C/F 4.64, B 4.26 before this change, three of five
+     within 0.4 of the AA line. And --red is unavailable for F because red is
+     DIRECTION in this app; a red F reads as a short signal rather than a bad
+     setup, which is colour carrying the wrong meaning rather than none.
+
+     So F stops sharing --txt2 by not being a text colour at all. C keeps
+     --txt2 unchanged. Inverted measures 6.12 dark / 6.23 light for the
+     letter, and the block itself sits at 5.6 against the card in both
+     themes, so it reads as a filled chip rather than a tint. This also
+     satisfies the handoff's "colour is never the only carrier" - F is the
+     one grade meaning "do not touch this" and should not depend on hue. */
+  invert: boolean;
   label: string;
   /* A stable discriminator for the label, for #874's accessible name.
      `label` alone cannot carry it: grade F has TWO meanings - "no clear
@@ -318,8 +357,12 @@ export function computeCoinHealth(coin: CoinData | undefined): {
      had to unpick twice. */
   labelKey: HealthLabelKey;
 } {
+  /* --txt2, not the bare #475569 it was: that hex adapts to neither theme nor
+     design, and it is grade F, so it has to invert like the other F. The two
+     F meanings stay distinguishable where it matters - labelKey still
+     separates "no clear setup" from "no data" for the accessible name. */
   const none = {
-    score: 0, grade: 'F' as const, color: '#475569',
+    score: 0, grade: 'F' as const, color: 'var(--txt2)', invert: true,
     label: 'No data', labelKey: healthLabelKey('F', false),
   };
   if (!coin?.price) return none;
@@ -357,7 +400,29 @@ export function computeCoinHealth(coin: CoinData | undefined): {
   // rendered app-wide.
   const color =
     grade === 'A' ? 'var(--amber)' :   // gold
-    grade === 'B' ? 'var(--green-2)' :   // green
+    /* --green-fg, not --green-2 (#926). --green-2 resolves to var(--green)
+       in BOTH terminal blocks, and in terminal light that is #14702c, which
+       measured 4.26:1 on /markets - the badge there self-tints at 13.3% over
+       --bg1, and --green on --bg2 with no tint at all caps near 4.66, so
+       there was never room. /dashboard was already patched for this at
+       globals.css:707 by cutting ITS green tint to 3%; /markets renders a
+       different element with an inline tint and never got the patch. Same
+       shape as #939: the right fix existed once and did not propagate.
+
+       --green-fg is the existing ink token and already carries a darker
+       light value (#0f5a22) for exactly this reason, so this spends no new
+       colour. Measured across every ground grade B lands on:
+
+         /markets   13.3% over --bg0   4.74 -> 6.25
+         /markets   13.3% over --bg1   4.26 -> 5.63   (the failing one)
+         /dashboard  3%   over --bg1   4.91 -> 6.63
+         /dashboard  3%   over --bg2   4.58 -> 6.19   (selected card)
+
+       DARK IS DELIBERATELY UNCHANGED: --green-fg resolves to --green-2 there,
+       so dark B stays #3fb950 at 5.87-6.69 and has no problem to solve. If
+       you are here to "tidy" this back to --green-2 for symmetry, that
+       reinstates 4.26:1 on /markets light. */
+    grade === 'B' ? 'var(--green-fg)' :   // green
     grade === 'C' ? 'var(--txt2)' :   // gray
     grade === 'D' ? 'var(--orange)' :   // orange
                     /* F was --txt3 and measured 4.31-4.46:1 on its own tinted
@@ -407,7 +472,7 @@ export function computeCoinHealth(coin: CoinData | undefined): {
     grade === 'D' ? 'Weak signal' :
                     'No clear setup';
 
-  return { score, grade, color, label, labelKey: healthLabelKey(grade, true) };
+  return { score, grade, color, invert: grade === 'F', label, labelKey: healthLabelKey(grade, true) };
 }
 
 /* ── Fibonacci Levels ── */

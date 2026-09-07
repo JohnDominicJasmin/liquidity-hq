@@ -97,14 +97,47 @@ altering anything, `1` stubs. That measurement retired #114: Binance **0**,
 Bybit **<25**, Supabase 100+ per contrast sweep — the constraint the `workers`
 pin was built around barely exists.
 
+**The user's timezone — closed, `2889463`.** `qa/e2e/clock.spec.ts` composes
+`page.clock` (the instant) with Playwright's `timezoneId` context option (the
+zone) — measured before writing, both compose correctly. Three cases assert
+`/hours` renders the right local time, DST included: `America/New_York` in
+August (EDT, UTC-4) and January (EST, UTC-5), `Australia/Sydney` (next
+calendar day, UTC+10). This section said "needs `timezoneId` contexts and is
+a separate piece of work" after that work had already landed in the same
+file it was describing — the claim just never caught up to the test.
+
 **Still open:**
 
 - **SERVER time.** `page.clock` fakes the browser only, so the 24h/48h alert
-  outcome resolution — a cron — remains untestable.
-- **The user's timezone.** `page.clock` moves the instant, not the zone. A real
-  DST matrix needs `timezoneId` contexts.
-- RSI thresholds and squeeze/flush boundaries have fixtures but no spec asserts
-  against them.
+  outcome resolution — a cron — remains untestable. Genuinely QA's limit, not
+  an oversight: injecting a clock through app code would touch the 217 sites
+  `clock.spec.ts`'s own header counts (146 `Date.now()`, 71 `new Date()`), and
+  app code is not QA's to write.
+- **RSI thresholds — closed, 2026-09-06, and this line was already stale
+  before today.** `__tests__/rsi.test.mts` already pinned `computeRSI14`'s
+  0/50/100 cases and the 14-change window — checked before writing anything,
+  rather than assuming this bullet's "no spec asserts against them" was still
+  true. What was genuinely missing: the exact 30/70 badge cutoffs themselves
+  and one tick past each, now added to the same file. A fixed E2E fixture
+  snapshot can't be relied on to land exactly on a threshold; a unit test can
+  choose to.
+- **Squeeze/flush boundaries — closed, 2026-09-07, and this line was stale
+  before today too.** It named #952 (42 extensionless imports blocking direct
+  `node --test` of `lib/`) as the blocker. #952 closed and the
+  `./healthGradeA11y` import it was about is gone from `marketStore.ts` —
+  checked both directly rather than trusting the issue tracker's state alone
+  — so the file has been importable for a while; this bullet just never
+  caught up. `__tests__/squeezeScore.test.mts` now pins
+  `computeSqueezeScore`'s exact thresholds: the funding-rate, L/S-ratio and
+  taker-ratio tier boundaries (exact values, not "around"), the ≥2-signal
+  gate that keeps a single extreme reading from labelling Flush/Squeeze on
+  its own, the volume bonus's own `dominant > 10` gate, and the 100-point
+  cap. One real trap surfaced writing it: the L/S-ratio signal requires
+  **both** `longRatio` and `shortRatio` non-null to fire at all — a stub
+  setting only one produces zero signal, not a degraded one — caught by
+  checking every expected value against the real function before writing the
+  assertion, the same discipline `rsi.test.mts` and `smaNMArr.test.mts`
+  already established for this file's neighbours.
 
 ---
 
@@ -225,8 +258,9 @@ fallback while claiming to test checkout.
 
 ## 🟡 6. Accessibility is asserted, never heard
 
-**Unchanged.** The suite checks that `aria-live`, `role` and accessible names
-**exist**. It has never checked what a screen reader **announces**.
+**Partly progressed, 2026-09-06 — still open.** The suite checks that `aria-live`,
+`role` and accessible names **exist**. It has never checked what a screen reader
+**announces**, and that half is still unclosed.
 
 An element can have every correct attribute and still be unusable — wrong reading
 order, a name that says "button" and nothing else, a live region that fires on
@@ -235,8 +269,60 @@ every keystroke. Attribute presence is a floor, not a pass.
 Sharpened by §4: `lang` was *present* on every page for the whole life of the
 project. It was present and wrong, and no attribute-presence check can find that.
 
-**To close:** partly unclosable in CI. A real pass needs NVDA or VoiceOver and a
-person. Book it as a manual session rather than pretending automation covers it.
+A tree-reading pass (accessibility tree + source, no NVDA/VoiceOver) found three
+concrete structural gaps without needing a screen reader session — filed as #939:
+a keyboard-inaccessible expand control (`HypothesisTracker.tsx`, plain `<div
+onClick>`, no role/tabIndex/keydown), direction glyphs that are the *only* carrier
+of up/down after `Math.abs()` strips the sign (several dashboard/liq components),
+and disclosure-triangle glyphs baked into accessible names via unwrapped
+`textContent` (four sites; `arena/page.tsx` already has the `aria-hidden` fix
+pattern, just not applied everywhere). None of this proves or disproves what a
+screen reader actually announces — it only shows where the structure is missing
+entirely, which is a floor below "announces the wrong thing."
+
+**2026-09-07 — a fourth sweep (#968/#969) found a fourth batch of the same two
+shapes**, in files the first three passes never reached: the Arena session-history
+row (same unreachable-`<div>` pattern as #939's first finding), and
+`MarketStructure.tsx`'s direction badges — a **worse** case than the `Math.abs()`
+sites, since nothing there carries direction in words at all, not even a stripped
+magnitude. Four widening nets, four non-empty results. **The structural half of
+this gap is not provably complete either** — each pass has found more than the
+last, and there is no reason to expect a fifth pass with an even wider net would
+come back empty. Treat "the tree is correct" as current-best-effort, not settled,
+until a pass finds nothing.
+
+**The verdict on the announcement half, stated plainly rather than deferred
+again: this cannot be verified in this environment, full stop.** No session on
+this project has ever had NVDA, JAWS, VoiceOver, or a person who uses one, in the
+loop. Every pass to date — this one included — has substituted the accessibility
+tree and source reading for an actual listen, and that substitution has a real
+blind spot: reading order, timing, verbosity-setting interactions, and how a
+specific AT actually vocalizes a specific ARIA pattern are exactly the four
+things a static tree cannot show, because they are properties of the AT's own
+runtime behavior, not of the DOM.
+
+**What closing this would actually take**, concretely, not "book a session":
+
+1. **A person, not just the software.** NVDA (free, Windows) is the widest-reach
+   pairing with Chrome/Firefox; VoiceOver (built into macOS/iOS, free) covers
+   Apple; JAWS (commercial, the enterprise/screen-reader-user default) is the one
+   most likely to surface a real-world gap the free tools don't, if budget allows
+   for it. None of the three substitute for each other — they differ in how they
+   handle landmarks, tables, and live regions.
+2. **Task-based, not control-by-control.** Spot-checking one button's
+   announcement at a time is what the tree-reading passes already do adequately.
+   The thing that needs a real AT is a full task run end to end — sign in,
+   run a Quick Research, read the result, open Arena's session history — with
+   the actual announcements transcribed at each step and compared to what the
+   structure was supposed to communicate.
+3. **A written transcript, kept.** "It sounded fine" is not a result. What was
+   announced, in what order, verbatim, against what was intended — the same
+   discipline this file already applies everywhere else.
+
+**To close:** cannot be closed from this session or any session shaped like it.
+Needs the owner to either bring in a person who uses AT day to day, or contract
+an accessibility auditor for a real pass. Recorded as the honest state rather
+than as another tree-reading pass wearing a checkmark.
 
 ---
 
@@ -365,9 +451,18 @@ fragment removed while the path survives.
 proof above is a harness or a bundle inspection. The original finding on this
 section was a 429 quota rejection, which is invisible from outside.
 
-**To close:** raise one deliberate error in production and confirm it appears in
-GlitchTip. It needs the owner's say-so, because it means breaking something on
-purpose on the live site.
+**To close, reframed 2026-09-06:** the question is not "can we trigger an alert",
+it is "has anything ever arrived" — a read, not a write. One number from each
+dashboard: has Sentry received any event from the prod project in the last 30
+days, has PostHog received any event from the prod environment. If yes to
+either, delivery is confirmed and this closes without touching production. If
+no to both, that is the finding, and it is worse than a synthetic test would
+have found: real user errors have been vanishing silently, invisibly, for as
+long as nobody looked. **Neither QA nor PM/DevOps has Sentry or PostHog
+dashboard access as of this note** — checked, not assumed, on both sides. A
+deliberate production error is the fallback only if the read comes back
+negative, and only the owner should trigger it, for the reason already stated
+above.
 
 ---
 

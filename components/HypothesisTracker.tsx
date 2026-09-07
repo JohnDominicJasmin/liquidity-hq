@@ -363,19 +363,43 @@ export default function HypothesisTracker() {
                 overflow: 'hidden',
               }}
             >
-              {/* Card header */}
-              <div
+              {/* Card header.
+
+                  A <button>, not a <div onClick> (#939). It was the second:
+                  no role, no tabIndex, no keydown - so this panel was not
+                  badly announced, it was UNREACHABLE. A keyboard-only user
+                  could not open it at all, screen reader or none.
+
+                  Same shape as arena/page.tsx:1414 - a real button carrying
+                  aria-expanded and filling the bar, so the click target does
+                  not change. That pattern already existed here; it just never
+                  reached this file, which is the whole of #939.
+
+                  The inner containers are <span> with an explicit display
+                  rather than <div>: a button's content model is phrasing
+                  content, so block children are invalid HTML even though
+                  browsers render them. Same layout, valid markup. */}
+              <button
+                type="button"
                 onClick={() => toggleExpand(h.id)}
+                aria-expanded={isExpanded}
+                aria-controls={`hyp-detail-${h.id}`}
                 style={{
                   padding: '11px 14px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: 10,
+                  width: '100%',
+                  background: 'none',
+                  border: 'none',
+                  textAlign: 'left',
+                  color: 'inherit',
+                  font: 'inherit',
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
+                <span style={{ display: 'block', flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
                     <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>{h.title}</span>
                     <span style={{
                       fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
@@ -386,24 +410,26 @@ export default function HypothesisTracker() {
                         ● {h.grok_verdict}
                       </span>
                     )}
-                  </div>
-                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.4 }}>
+                  </span>
+                  <span style={{ display: 'block', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.4 }}>
                     {h.hypothesis.length > 120 ? h.hypothesis.slice(0, 120) + '…' : h.hypothesis}
-                  </div>
-                  <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+                  </span>
+                  <span style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
                     <span>{fmtDate(h.created_at)}</span>
                     {h.target_date && <span>{t('HYPOTHESIS_TRACKER_TARGET_DATE_DISPLAY', { date: h.target_date })}</span>}
                     {h.grok_last_run && <span>{t('HYPOTHESIS_TRACKER_LAST_ANALYSIS', { date: fmtDate(h.grok_last_run) })}</span>}
-                  </div>
-                </div>
-                <span style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', flexShrink: 0, marginTop: 2 }}>
+                  </span>
+                </span>
+                {/* aria-hidden: aria-expanded on the button already says open or
+                    closed, so the glyph would only add "▼" to the name. */}
+                <span aria-hidden="true" style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', flexShrink: 0, marginTop: 2 }}>
                   {isExpanded ? '▲' : '▼'}
                 </span>
-              </div>
+              </button>
 
               {/* Expanded detail */}
               {isExpanded && (
-                <div style={{ borderTop: '0.5px solid var(--bdr)', padding: '14px' }}>
+                <div id={`hyp-detail-${h.id}`} style={{ borderTop: '0.5px solid var(--bdr)', padding: '14px' }}>
                   {/* Full hypothesis */}
                   <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', lineHeight: 1.6, marginBottom: 12 }}>
                     {h.hypothesis}

@@ -105,7 +105,10 @@ const BASELINE: Record<string, number> = {
   'components/FundingTerminal.tsx': 35,
   'components/LandingTerminal.tsx': 169,
   'components/LiqTerminal.tsx': 56,
-  'components/MarketsTerminal.tsx': 33,
+  /* 33 -> 30 with #943: the coin name became a <button> and its three
+     inline typography values moved to .mkt-row-btn in globals.css.
+     Lowered because the ratchet only holds if an improvement resets it. */
+  'components/MarketsTerminal.tsx': 30,
   'components/ScannerTerminal.tsx': 0,
 };
 

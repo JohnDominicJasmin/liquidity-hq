@@ -32,6 +32,8 @@ import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, D
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
+import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
+import { describeSelection } from '@/lib/strategyRegistry';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -113,7 +115,10 @@ const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', read
 
 
 /* ── Result cache ── */
-interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep' }
+// #985 gap 3: selectionAtAnalysis is optional because entries persisted to
+// localStorage before this shipped won't have it - treated as [] on read,
+// which only matters if the trader currently has a non-empty selection.
+interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[] }
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
 const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours - older results are discarded
@@ -241,13 +246,33 @@ function ArenaContent() {
   );
   const absDataRef    = useRef<AbsorptionData | null>(null);
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
+  /* The strategy selection lives here rather than inside StrategyPanel
+     because five things need it and four of them are outside that component:
+     the chart's overlays, the QUICK / DEEP / ASK AI prompts, and - #985 gap 1
+     - useEMAStrategy just below. That last one is why this moved above the
+     EMA signal block rather than staying with the other page state further
+     down: a hook call reading it has to come after its declaration. */
+  const [strategySelection, setStrategySelection] = useState<readonly string[]>([]);
+  /* Per-indicator edited parameter values (#1008) - lives here for the same
+     reason strategySelection does: the chart needs it and lives outside
+     StrategyPanel. Keyed by indicator id then param key; an indicator with
+     no entry yet uses strategyRegistry's defaultParams. */
+  const [strategyParams, setStrategyParams] = useState<Record<string, Record<string, string | number | boolean>>>({});
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
   // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
   // in lib/strategyCore.ts for the numbers. Server-synced (settings.anti_chop_enabled,
-  // not local-only state) so Telegram/push EMA signal alerts can fire under the exact
-  // same filter this chart is drawing with - see checkEMASignal in
-  // app/api/telegram/alert/route.ts.
+  // not local-only state) so Telegram/push EMA signal alerts apply the same anti-chop
+  // rule this chart does - see checkEMASignal in app/api/telegram/alert/route.ts.
+  //
+  // #985 gap 1: that is now the ONLY thing alerts still share with this chart's
+  // signal, and it is stated that narrowly on purpose. strategySelection below is
+  // NOT sent to the alert route - the owner's ruling was client-side only, alerts
+  // keep firing on the standard EMA-ribbon rule regardless of what a trader has
+  // selected here. So the chart and an alert for the same coin can now disagree,
+  // deliberately: the chart's read is personal, the alert's is the shared baseline,
+  // and neither is wrong. See the two labels below and StrategyPanel for how that
+  // difference is surfaced rather than left implicit.
   const antiChopEnabled = settings.anti_chop_enabled;
   const filterParams = antiChopEnabled ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS;
   const emaSignal     = useEMAStrategy(
@@ -256,6 +281,7 @@ function ArenaContent() {
     store.coins[selectedCoin]?.fundingRate ?? null,
     oi1h.pct,
     filterParams,
+    strategySelection,
   );
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
@@ -295,6 +321,15 @@ function ArenaContent() {
      would freeze it at whatever it was when the callback was created. */
   const perpSpotRef = useRef(perpSpot);
   useEffect(() => { perpSpotRef.current = perpSpot; }, [perpSpot]);
+  /* #985 gap 2: GrokChat is mounted globally (AppShell), not inside this
+     page's tree, so a prop can't reach it - this is the same event channel
+     that already opens it, extended to fire on every change rather than
+     only at open. Fires on mount too (the effect always runs once with
+     whatever the initial value is, [] included), which is a harmless no-op
+     for a chat that isn't open yet and correct for one that is. */
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('strategy-selection-changed', { detail: { selection: strategySelection } }));
+  }, [strategySelection]);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* Whether the scanner was opened by hover rather than by a click. Only a
@@ -1218,9 +1253,25 @@ function ArenaContent() {
 
       // Step 3 - ask Grok via server proxy (key hidden, rate-limited)
       setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
-      const prompt = mode === 'quick'
+      /* THE SELECTION REACHES THE READ (#930). Appended at the call site rather
+         than threaded through GrokContext: that type is shared with the other
+         prompt builders, and widening it would make every caller carry a field
+         only this one uses.
+
+         describeSelection returns null for an empty selection, so the default
+         "let the read choose" state adds no sentence at all - which is the
+         behaviour, not an omission. */
+      const base = mode === 'quick'
         ? buildQuickPrompt(ctx, chartData)
         : buildCombinedPrompt(ctx, chartData);
+      const watching = describeSelection(strategySelection);
+      const prompt = watching
+        ? [base, '',
+            'The trader has chosen to weigh these indicators: ' + watching + '.',
+            'Give them more weight in the read, and say plainly if they disagree',
+            'with what the rest of the data shows.',
+          ].join('\n')
+        : base;
       const { result: res, usage } = await callGrokViaProxy(prompt, readTf, ctx.session, mode);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
@@ -1255,7 +1306,7 @@ function ArenaContent() {
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
-      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode } }));
+      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: strategySelection } }));
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
@@ -1305,6 +1356,43 @@ function ArenaContent() {
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
   }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache, liqClusters]);
+
+  /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
+     below and StrategyPanel's own copies of the same three buttons cannot
+     drift into two different behaviours for what reads as one action. Was
+     inline per-button before this - StrategyPanel's buttons called
+     onRun?.(...) with nothing ever passed for onRun, a well-formed no-op
+     (#996, filed as three dead buttons: no error, no console warning,
+     nothing). Takes `selection` as an argument rather than closing over
+     strategySelection so it matches exactly what the caller had at click
+     time, even though today the two are always the same value. */
+  const runStrategy = (kind: RunKind, selection: readonly string[]) => {
+    if (kind === 'ask') {
+      window.dispatchEvent(new CustomEvent('grok-chat', {
+        detail: {
+          coin: selectedCoin,
+          selection,
+          prompt: (result
+            ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
+                coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
+                entryZone: '-',  // #260: no levels; ARENA_CHAT_PROMPT_WITH_RESULT still names one - needs a DB row edit
+                reasoning: result.reasoning,
+              })
+            : t('ARENA_CHAT_PROMPT_NO_RESULT', { coin: selectedCoin.toUpperCase() }))
+            + (describeSelection(selection)
+                ? ['', '', 'I am weighing these indicators: '
+                    + describeSelection(selection) + '.'].join('\n')
+                : ''),
+        },
+      }));
+      return;
+    }
+    if (!user) { window.location.href = '/login'; return; }
+    const entry = resultsCache[selectedCoin];
+    const force = !!(entry && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
+    readMarket(kind, force);
+    window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
+  };
 
   /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
@@ -1673,13 +1761,7 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn arena-quick-btn${!user ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
-          onClick={() => {
-            if (!user) { window.location.href = '/login'; return; }
-            const entry = resultsCache[selectedCoin];
-            const force = !!(entry && entry.mode === 'quick' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-            readMarket('quick', force);
-            window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
-          }}
+          onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
@@ -1700,13 +1782,7 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
-          onClick={() => {
-            if (!user) { window.location.href = '/login'; return; }
-            const entry = resultsCache[selectedCoin];
-            const force = !!(entry && entry.mode === 'deep' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-            readMarket('deep', force);
-            window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
-          }}
+          onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
@@ -1737,18 +1813,7 @@ function ArenaContent() {
         <button
           className="arena-ask-grok-btn"
           style={{ width: 'auto', marginBottom: 0 }}
-          onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
-            detail: {
-              coin: selectedCoin,
-              prompt: result
-                ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
-                    coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
-                    entryZone: '-',  // #260: no levels; ARENA_CHAT_PROMPT_WITH_RESULT still names one - needs a DB row edit
-                    reasoning: result.reasoning,
-                  })
-                : t('ARENA_CHAT_PROMPT_NO_RESULT', { coin: selectedCoin.toUpperCase() }),
-            },
-          }))}
+          onClick={() => runStrategy('ask', strategySelection)}
         >
           {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
         </button>
@@ -1926,6 +1991,20 @@ function ArenaContent() {
           prevQuickSignal &&
           prevQuickSignal !== result.signal
         );
+        /* #985 gap 3: this read was built from the selection at request time
+           and nothing else watches strategySelection to invalidate it, so a
+           trader who changes indicators keeps reading a recommendation
+           computed from the set they no longer have selected, with nothing
+           on screen saying so. Marked stale rather than re-run - a re-run
+           spends a Grok call the trader did not ask for, and they already
+           have Quick/Deep to ask for a fresh one once they see this.
+           Order-independent: re-selecting the same indicators in a different
+           click order is not a change. */
+        const selectionChanged = (() => {
+          const before = [...(cacheEntry?.selectionAtAnalysis ?? [])].sort().join(' ');
+          const now = [...strategySelection].sort().join(' ');
+          return before !== now;
+        })();
         const secsDiff = Math.floor((nowMs - result.analyzedAt) / 1000);
         const freshness = secsDiff < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secsDiff < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secsDiff/60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secsDiff/3600) });
         // Live invalidation/target-hit check - the entry/stop/target grid used to be a
@@ -1977,6 +2056,15 @@ function ArenaContent() {
               <div className="arena-override-notice">
                 {t('ARENA_OVERRIDE_NOTICE_PRE')}{' '}
                 <strong>{prevQuickSignal}</strong> {t('ARENA_OVERRIDE_NOTICE_TO')} <strong>{result.signal}</strong>{t('ARENA_OVERRIDE_NOTICE_POST')}
+              </div>
+            )}
+
+            {/* #985 gap 3: selection changed since this read was computed */}
+            {selectionChanged && (
+              <div className="arena-override-notice">
+                {describeSelection(strategySelection)
+                  ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(strategySelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
+                  : t('ARENA_STALE_SELECTION_CLEARED')}
               </div>
             )}
 
@@ -2065,7 +2153,7 @@ function ArenaContent() {
       <div className="arena-ws">
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} />
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -2201,6 +2289,14 @@ function ArenaContent() {
       </div>
         </div>
         <aside className="arena-ws-rail">
+      {/* ── Strategy (#930) ── First in the rail, per the owner-approved layout.
+
+          It owns the selection and nothing else yet: `onRun` is the seam where
+          the four consumers - chart overlays, QUICK, DEEP and ASK AI - get
+          wired, and that is deliberately a separate change. One selection
+          driving a chart plus three AI actions is the part that goes wrong
+          quietly, and it should not land inside a layout diff. */}
+      <StrategyPanel selected={strategySelection} onSelectedChange={setStrategySelection} params={strategyParams} onParamsChange={setStrategyParams} onRun={runStrategy} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
@@ -2322,25 +2418,36 @@ function ArenaContent() {
 
           {history.map((h, i) => (
             <div key={i}>
-              <div
+              {/* A <button>, not a <div onClick> (#968). Same defect and same
+                  fix as HypothesisTracker's card header in #942, one screen
+                  over - unreachable by keyboard rather than badly announced.
+
+                  Inner containers are <span> with an explicit display: a
+                  button's content model is phrasing content, so block children
+                  are invalid markup even where browsers tolerate them. */}
+              <button
+                type="button"
                 className={`arena-hist-item${detailIdx === i ? ' arena-hist-open' : ''}`}
                 onClick={() => setDetailIdx(detailIdx === i ? null : i)}
+                aria-expanded={detailIdx === i}
                 style={{ cursor: 'pointer' }}
               >
-                <div className="arena-hist-left">
+                <span className="arena-hist-left" style={{ display: 'flex' }}>
                   <span className={`arena-hist-badge tag ${h.signal === 'BULLISH' || h.signal === 'LEAN BULLISH' ? 'tg' : h.signal === 'BEARISH' || h.signal === 'LEAN BEARISH' ? 'tr' : 'tp'}`}>
                     {h.signal === 'BULLISH' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN BULLISH' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'BEARISH' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN BEARISH' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
                   </span>
-                  <div>
-                    <div className="arena-hist-pair">{h.coin}</div>
-                    <div className="arena-hist-time">{h.time}{h.session ? ` · ${h.session}` : ''}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div className="arena-hist-conf">{h.confidence}%</div>
-                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{detailIdx === i ? '▲' : '▼'}</span>
-                </div>
-              </div>
+                  <span style={{ display: 'block' }}>
+                    <span className="arena-hist-pair" style={{ display: 'block' }}>{h.coin}</span>
+                    <span className="arena-hist-time" style={{ display: 'block' }}>{h.time}{h.session ? ` · ${h.session}` : ''}</span>
+                  </span>
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="arena-hist-conf" style={{ display: 'block' }}>{h.confidence}%</span>
+                  {/* aria-hidden: aria-expanded on the button already says open
+                      or closed, so the glyph would only add "▼" to the name. */}
+                  <span aria-hidden="true" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{detailIdx === i ? '▲' : '▼'}</span>
+                </span>
+              </button>
 
               {detailIdx === i && (
                 <div className={`arena-hist-detail sig-${h.signal.toLowerCase().replace(' ', '-')}`}>

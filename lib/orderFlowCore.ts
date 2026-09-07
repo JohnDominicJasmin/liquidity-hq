@@ -4,8 +4,8 @@
 // are deliberately excluded - they require trade-level/positioning data that exchanges
 // don't retain far enough back to backtest meaningfully (see app/backtest page notes).
 
-import { OHLCV } from './strategyCore';
-import { computeFibLevels } from './marketStore';
+import { OHLCV } from './strategyCore.ts';
+import { computeFibLevels } from './marketStore.ts';
 
 /* ── Windowed RSI(14) - matches MarketProvider.tsx's computeRSI14 exactly:
    a fresh average over the last 14 changes each time, not Wilder's continuous

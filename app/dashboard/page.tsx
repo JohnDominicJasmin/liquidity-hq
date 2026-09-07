@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import DashboardTerminal from '@/components/DashboardTerminal';
 import { useOnboarding } from '@/components/OnboardingProvider';
-import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY } from '@/lib/marketStore';
+import { useMarket, COINS, COIN_DEC, fmtPrice, fmtChg, computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
@@ -29,7 +29,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
-import { healthGradeA11y } from '@/lib/healthGradeA11y';
+import { healthGradeA11y, healthChipStyle } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 import PerpSpotCard from '@/components/PerpSpotCard';
 
@@ -188,7 +188,23 @@ function CoinSidebar() {
           >
             <div className="csb2-top">
               <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
-              <span className="csb2-name">{id.toUpperCase()}</span>
+              {/* THE COIN NAME IS THE CONTROL, not the row (#943). The row keeps
+                  its onClick for the mouse; this is the keyboard path.
+
+                  Not a row-as-button: that names the whole row to a screen
+                  reader - "BTC 64,213 -2.34% smart buyers" - which is reachable
+                  and unusable.
+
+                  aria-current rather than aria-pressed: this is "which of the
+                  eight is selected", not a toggle that can be off on its own. */}
+              <button
+                type="button"
+                className="csb2-name csb2-name-btn"
+                aria-current={sel ? 'true' : undefined}
+                onClick={e => { e.stopPropagation(); selectCoin(id); }}
+              >
+                {id.toUpperCase()}
+              </button>
               {/* NOT gated on price (#899). computeCoinHealth returns its `none`
                   branch when there is no price, and that branch carries
                   COIN_HEALTH_NO_DATA - the label #874 added so that "F because
@@ -209,8 +225,7 @@ function CoinSidebar() {
               <span {...healthGradeA11y(health.grade, health.labelKey, t)} style={{
                 fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                 padding: '2px 4px', borderRadius: 4,
-                color: health.color,
-                background: withAlpha(health.color, '22'),
+                ...healthChipStyle(health.color, health.invert),
                 border: `0.5px solid ${withAlpha(health.color, '55')}`,
                 letterSpacing: '.04em', flexShrink: 0,
               }}>
@@ -223,7 +238,7 @@ function CoinSidebar() {
 
             <div className="csb2-bottom" style={{ '--csb2-spark-w': `${SPARK_W}px` } as React.CSSProperties}>
               <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
-                {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
+                <span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}
               </span>
               <Sparkline24h coin={id} width={SPARK_W} height={14} />
               {sig && (
@@ -512,7 +527,7 @@ function SelectedCoinCard() {
         <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>
       </div>
       <div className="scc-meta">
-        <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}>{up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%</span>
+        <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>
         <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
       <span className="scc-arrow" aria-hidden="true">›</span>

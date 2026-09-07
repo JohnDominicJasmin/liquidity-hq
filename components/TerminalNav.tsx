@@ -40,6 +40,8 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import BrandMark from './BrandMark';
 import { useAuth } from './AuthProvider';
+import { track } from '@/lib/analytics';
+import UsageModal from './UsageModal';
 import { useTheme } from '@/lib/theme';
 import { IconSun, IconMoon } from './icons';
 import LanguageNavSwitcher from './LanguageNavSwitcher';
@@ -153,7 +155,7 @@ interface TerminalNavProps {
 export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
   const pathname = usePathname();
   const { t } = useLabels();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [session, setSession] = useState<{ name: string; left: number | null } | null>(null);
 
@@ -164,7 +166,8 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
      Same grouping, same route lists, same disclosure shape as the nav it
      replaced; the labels stay TNAV_* because renaming the five is the owner's
      call and not part of this. */
-  const [openDrop, setOpenDrop] = useState<'scanners' | 'tools' | null>(null);
+  const [openDrop, setOpenDrop] = useState<'scanners' | 'tools' | 'account' | null>(null);
+  const [usageOpen, setUsageOpen] = useState(false);
   useEffect(() => {
     if (!openDrop) return;
     /* Close on any click that is not inside the open menu. The current
@@ -285,7 +288,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                   aria-haspopup="menu"
                   aria-expanded={open}
                 >
-                  {t(d.labelKey)} {open ? '▴' : '▾'}
+                  {t(d.labelKey)} <span aria-hidden="true">{open ? '▴' : '▾'}</span>
                 </button>
                 {open && (
                   <div className="tnav-dropdown" role="menu">
@@ -390,8 +393,75 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
               on `initials` rather than on `user` alone, so a signed-in account
               with no email address drops it too rather than reintroducing the
               same empty box by another route. */}
+          {/* A CONTROL, not a badge (#929). This was a bare <span> with
+              aria-hidden and no handler, so Usage, Settings and Sign out were
+              unreachable from this nav entirely - and since #748 made terminal
+              the default, that is every signed-in user's only top nav. The
+              current design has had the menu at NavDrawer.tsx:410 all along;
+              this is the same three destinations in the dropdown idiom this
+              file already uses for Scanners and Tools, so click-outside and
+              stopPropagation behave identically rather than being reinvented.
+
+              aria-hidden is GONE. It was defensible on a decorative badge and
+              is wrong on a button - it would have hidden the account menu from
+              assistive tech completely. */}
           {!authLoading && initials && (
-            <span className="tnav-avatar" aria-hidden="true">{initials}</span>
+            <div className="tnav-drop-wrap" onClick={e => e.stopPropagation()}>
+              <button
+                type="button"
+                className={`tnav-avatar${openDrop === 'account' ? ' on' : ''}`}
+                onClick={() => setOpenDrop(v => (v === 'account' ? null : 'account'))}
+                aria-haspopup="menu"
+                aria-expanded={openDrop === 'account'}
+                /* No label key exists for this and I am not adding one:
+                   lib/labelDefaults.en.json is regenerated wholesale by
+                   `npm run labels:regen`, so a hand-added entry is lost on the
+                   next run. NavDrawer's equivalent button carries the same
+                   literal - matching it keeps the two designs announcing the
+                   same thing, and the copy decision belongs with whoever owns
+                   the label set. Raised on #929. */
+                aria-label="Account menu"
+                title={user?.email ?? undefined}
+              >
+                {initials}
+              </button>
+              {openDrop === 'account' && (
+                <div className="tnav-dropdown tnav-account-menu" role="menu">
+                  {user?.email && <div className="tnav-drop-email">{user.email}</div>}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="tnav-drop-item"
+                    onClick={() => { setOpenDrop(null); setUsageOpen(true); }}
+                  >
+                    {t('NAV_VIEW_USAGE')}
+                  </button>
+                  <Link
+                    href="/settings"
+                    role="menuitem"
+                    className={`tnav-drop-item${isActive(pathname, '/settings') ? ' on' : ''}`}
+                    onClick={() => setOpenDrop(null)}
+                  >
+                    {t('NAV_SETTINGS_LABEL')}
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="tnav-drop-item"
+                    onClick={async () => {
+                      setOpenDrop(null);
+                      track.signOut();
+                      await signOut();
+                      /* Hard navigation, matching NavDrawer's note on #304 -
+                         a router push leaves stale authed state behind. */
+                      window.location.assign('/login');
+                    }}
+                  >
+                    {t('NAV_SIGN_OUT_MENU')}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -415,6 +485,18 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
       </header>
 
       {tabs}
+
+      {/* The modal itself, which #929 forgot. The import, the state and the
+          onClick all landed; nothing rendered the component, so setUsageOpen
+          flipped a boolean nobody read and View Usage silently did nothing.
+
+          That is the SAME defect #929 existed to fix - a control that looks
+          right and does not work - reintroduced one menu item over, in the
+          change that fixed it. Source review could not catch it: every line
+          you would check was present and correct. QA caught it by clicking.
+
+          Sibling of NavDrawer.tsx:465, which has always rendered it here. */}
+      <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
     </>
   );
 }

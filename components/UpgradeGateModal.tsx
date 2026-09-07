@@ -17,6 +17,25 @@ interface Props {
 // In-place stand-in rendered where a Pro-only card would normally sit, so the
 // page layout keeps its rhythm instead of sections silently vanishing for
 // free users. Clicking it opens the full UpgradeGateModal via onUnlock.
+/* TERMINAL SURFACE TREATMENT (#926).
+ *
+ * Until now the only terminal-scoped rule reaching these three panels was
+ * `border-radius: 0 !important` from globals.css - measured across all 22
+ * `*-term-wrap` families, every one of which declared radius and nothing
+ * else. Square corners over the current design is not a conversion.
+ *
+ * These stay INLINE rather than moving to CSS, and the distinction is #663's
+ * rule 2 rather than a preference: this is a DUAL-DESIGN component, so inline
+ * is for computed values - and `mode === 'terminal' ? a : b` is exactly that.
+ * The auth pages in the same pass went the other way because they are
+ * class-styled and terminal-only there.
+ *
+ * Terminal is flat: no gradient, no shadow, 1px hairline. The gradient is the
+ * thing that reads as "current design" even once the corners are square. */
+const surface = (terminal: boolean) => terminal
+  ? { background: 'var(--bg1)', border: '1px solid var(--bdr)', boxShadow: 'none' }
+  : { background: 'linear-gradient(180deg, var(--bg2), var(--bg1))' };
+
 export function LockedFeatureCard({ title, description, onUnlock }: {
   title: string;
   description: string;
@@ -40,8 +59,8 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
      * check would break on the very commit it exists to catch. An explicit
      * hook survives both. */
     <div data-testid="locked-feature" className={mode === 'terminal' ? 'locked-card-term-wrap' : undefined} style={{
-      background: 'linear-gradient(180deg, var(--bg2), var(--bg1))',
-      border: '0.5px solid var(--bdr)',
+      ...surface(mode === 'terminal'),
+      border: mode === 'terminal' ? '1px solid var(--bdr)' : '0.5px solid var(--bdr)',
       borderRadius: 'var(--radius-card, 12px)',
       padding: '18px 20px',
       display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
@@ -96,8 +115,8 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
     <div className={mode === 'terminal' ? 'upgrade-gate-term-wrap' : undefined} style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{
         width: '100%', maxWidth: 480,
-        background: 'linear-gradient(180deg, var(--bg2), var(--bg1))',
-        border: '0.5px solid var(--bdr2)',
+        ...surface(mode === 'terminal'),
+        border: mode === 'terminal' ? '1px solid var(--bdr)' : '0.5px solid var(--bdr2)',
         borderRadius: 'var(--radius-card, 12px)',
         padding: '34px 34px 30px',
       }}>
@@ -169,8 +188,10 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
       className={mode === 'terminal' ? 'upgrade-modal-term-wrap' : undefined}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        background: 'rgba(4, 6, 12, 0.72)',
-        backdropFilter: 'blur(6px)',
+        /* Bare rgba never adapted to theme - the pair was never measured
+           together. Terminal uses the page ground at opacity instead. */
+        background: mode === 'terminal' ? 'color-mix(in srgb, var(--bg0) 82%, transparent)' : 'rgba(4, 6, 12, 0.72)',
+        backdropFilter: mode === 'terminal' ? 'none' : 'blur(6px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 20,
       }}
@@ -179,11 +200,11 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
         onClick={e => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 440,
-          background: 'linear-gradient(180deg, var(--bg2), var(--bg1))',
-          border: '0.5px solid var(--bdr2)',
+          ...surface(mode === 'terminal'),
+          border: mode === 'terminal' ? '1px solid var(--bdr)' : '0.5px solid var(--bdr2)',
           borderRadius: 'var(--radius-card, 12px)',
           padding: '30px 30px 26px',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+          boxShadow: mode === 'terminal' ? 'none' : '0 24px 80px rgba(0,0,0,0.6)',
         }}
       >
         {/* Micro-label */}

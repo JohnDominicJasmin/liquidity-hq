@@ -9,7 +9,7 @@
 // Deliberately built from data the app already has (CoinMarketCap dominance +
 // alt-season score, Binance/Bybit volume and open interest) rather than from
 // Coinglass exchange flow, which is a separate and currently broken source.
-import type { MarketStore, CoinId } from './marketStore';
+import type { MarketStore, CoinId } from './marketStore.ts';
 
 // Same buckets CoinHeatmap uses. Majors are the benchmark rather than the
 // subject: "is capital rotating into alts" is not a meaningful question to ask

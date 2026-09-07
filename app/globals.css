@@ -1192,6 +1192,18 @@ body[data-rpm-level="high"]::before {
 }
 
 /* ── NAV MORE DROPDOWN ── */
+/* #986: current design only, structurally. NavDropdown (the component that
+   carries this class) and TerminalNav's own .tnav-dropdown render in the
+   same design-value branch, mutually exclusive by construction - there is no
+   state, viewport or theme where terminal design emits .nav-more-dropdown.
+   Confirmed inert rather than assumed: QA traced both components' render
+   branches, and separately confirmed .tnav-dropdown has parity (both import
+   the same route arrays from lib/navRoutes.ts, so this isn't a feature gap
+   hiding behind a dead rule). Left in place, not deleted - it is live for
+   the current design, reachable via ?design=current, and removing rules a
+   design audit could plausibly flag as "unstyled under terminal" is exactly
+   the kind of correct-against-the-stylesheet, changes-nothing-on-screen fix
+   this issue exists to head off before someone spends a measurement on it. */
 .nav-more-wrap     { position: relative; }
 .nav-more-btn      { cursor: pointer; background: none; border: none; font-family: inherit; font-size: inherit; }
 .nav-more-dropdown {
@@ -2235,7 +2247,19 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   width: 64px; height: 64px; border-radius: 50%;
   background: var(--accent-bg);
   border: 0.5px solid var(--accent-bdr);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.8), var(--glow-accent);
+  /* #970: was `0 4px 24px rgba(0,0,0,0.8), var(--glow-accent)`. --glow-accent
+     is `none` in every context that reaches this rule (dark by :root, and
+     light never gives it a value at all - confirmed by #970's census), and
+     composing a `none` custom property into a comma-separated box-shadow
+     list invalidates the WHOLE declaration, not just that one layer - so the
+     black drop shadow was dropping too, dead since whichever change zeroed
+     --glow-accent. Restoring the black shadow is not a design decision, it's
+     what this line has always asked for; a second accent-glow layer is not
+     restorable without inventing a value nothing on record specifies (the
+     :hover state below hardcodes its own glow rather than tokenizing it, so
+     there is no existing resting-state figure to reuse) - left for #970's
+     open question on whether --glow-accent gets a light value at all. */
+  box-shadow: 0 4px 24px rgba(0,0,0,0.8);
   cursor: pointer; transition: opacity 0.15s, transform 0.15s, box-shadow 0.2s, background 0.2s, border-color 0.2s;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
 }
@@ -2387,12 +2411,24 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-mode-opt.off { opacity: 0.4; cursor: not-allowed; }
 .gchat-mode-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
+/* #995: own full-width strip, not a flex item sharing .gchat-header's row
+   with the title and icon buttons - #746's fix for the coin row's identical
+   squeeze, applied here. Row layout matches .gchat-header's own padding so
+   the strip reads as part of the same header block, not a new one. */
+.gchat-meta-strip { padding: 0 14px 8px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
+.gchat-meta-row { display: flex; align-items: center; gap: 8px; }
 .gchat-mode-count {
   font-size: var(--fs-caption); color: var(--txt3);
   font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 3px;
+  white-space: nowrap;
 }
 .gchat-mode-count.zero { color: var(--red-soft); }
-.gchat-mode-note { font-size: var(--fs-micro); color: var(--txt3); }
+/* nowrap trades wrapping for overflow - deliberate (#995). The full-width
+   strip has room for every state measured (mode pill + counter + this note),
+   but if a future translation or a narrower panel ever doesn't, clipping one
+   line reads as a minor rough edge; wrapping broke the whole header's
+   vertical alignment. */
+.gchat-mode-note { font-size: var(--fs-micro); color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The coin bar is the dropdown, full width (#746). It was a row of quick
    buttons plus a trigger; the buttons are gone, so the wrapper exists only to
    carry the padding and the divider the row used to draw. */
@@ -6088,6 +6124,21 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      replacing --font-sans globally. Same reason as the colours: a screen opts
      in, the rest of the app does not move. */
   --font-sans: var(--font-sans-terminal), 'Segoe UI', system-ui, sans-serif;
+
+  /* #970, named here only for #561's name-parity test - the value is a
+     no-op, since :root already gives every --glow-* token `none` and this
+     block never overrode that. Declared anyway because the light block
+     below now must null these explicitly (light theme's own [data-theme=
+     "light"] block gives them real values terminal does not want), and
+     #561's test requires both terminal blocks to name the same tokens even
+     where the values differ - "the values differ by design, the names must
+     not." --glow-accent is not listed: :root already reads `none` and
+     nothing anywhere ever gives it another value, so it needs no override
+     in either terminal block. */
+  --glow-green:  none;
+  --glow-red:    none;
+  --glow-purple: none;
+  --glow-amber:  none;
 }
 
 /* ── Monochrome Terminal: LIGHT theme (#561) ───────────────────────────────
@@ -6243,6 +6294,20 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --radius-pill: 0;
   --radius-sharp: 0;
   --font-sans: var(--font-sans-terminal), 'Segoe UI', system-ui, sans-serif;
+
+  /* #970: terminal design is "no shadows, full stop" (ratified, not a new
+     decision) - but nothing scoped these away from terminal before this
+     line. [data-theme="light"] (unscoped by design, above) gives green/red/
+     purple/amber a real glow value, and neither terminal block mentioned
+     any --glow-* token, so terminal+light silently inherited light theme's
+     glow verbatim - confirmed by measuring it byte-identical to current
+     design's light glow on all nine standalone --glow-* usage sites.
+     --glow-accent is not listed: it has no non-none value in ANY context
+     today, so it needs nothing here to already read `none`. */
+  --glow-green:  none;
+  --glow-red:    none;
+  --glow-purple: none;
+  --glow-amber:  none;
 }
 
 /* ── Monochrome Terminal: navigation (#413) ───────────────────────────────
@@ -6498,6 +6563,28 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   font-family: var(--font-mono), monospace;
 }
 [data-design="terminal"] .tnav-avatar:hover { color: var(--txt); }
+/* The avatar became a real <button> in #929 - it was a bare aria-hidden span
+   with no handler, so Usage, Settings and Sign out were unreachable from this
+   nav. The rule above already described a control (cursor, border, mono), it
+   just had nothing to control. These three lines are what a button needs and
+   a span did not. */
+[data-design="terminal"] .tnav-avatar { appearance: none; -webkit-appearance: none; }
+[data-design="terminal"] .tnav-avatar.on { border-color: var(--accent); color: var(--accent); }
+
+/* The account menu hangs off the right edge - the Scanners/Tools dropdowns
+   open left-aligned under a nav item, but this sits at the end of the row and
+   would overflow the viewport. */
+[data-design="terminal"] .tnav-account-menu { left: auto; right: 0; }
+[data-design="terminal"] .tnav-drop-email {
+  padding: 6px 10px 7px;
+  border-bottom: 1px solid var(--bdr2);
+  margin-bottom: 4px;
+  color: var(--txt3);
+  font-size: 10px;
+  font-family: var(--font-mono), monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 220px;
+}
 /* The design's one inversion: active nav is amber-filled with #08090a text.
    --bg0 IS #08090a, so this is the token rather than the literal. */
 [data-design="terminal"] .tnav-item.on { background: var(--accent); color: var(--bg0); font-weight: 700; }
@@ -7776,6 +7863,94 @@ main.app-content[data-chrome="none"] {
 /* login / forgot-password / reset-password terminal (#413) */
 [data-design="terminal"] .login-term-wrap,
 [data-design="terminal"] .login-term-wrap * { border-radius: 0 !important; }
+/* The submit caption was the one thing on these screens that did not follow
+   the handoff (#926). Measured by QA in both themes: `.login-field-label`
+   computes IBM Plex Mono, uppercase, 1.32px tracking - correct - while the
+   button beside it computed Plex Sans at -0.1px. So the form mixed a mono
+   label with a sans caption.
+
+   The handoff is explicit that a primary CTA is the same type as the ghost
+   button beside it - "SIGN IN as a ghost button (11.5px mono, .12em)" and
+   "GET STARTED as the primary (same type at 700)". A button caption is a
+   label, not prose.
+
+   NO text-transform, deliberately. The same handoff line says "Uppercase is
+   REAL TEXT, not text-transform." Casing belongs to the label copy in
+   lib/labelDefaults.en.json, and that file is regenerated wholesale by
+   `npm run labels:regen` - so anything set here by hand would be lost and
+   anything set there is a copy decision, not a styling one. Type and tracking
+   are the parts that are ours; the casing is raised on #926 for whoever owns
+   copy.
+
+   Everything else on these three routes was already conformant - the pages
+   are written in tokens and the tokens already fall through. I added a
+   98-line block assuming otherwise and reverted it; this is what was actually
+   wrong. */
+[data-design="terminal"] .login-email-btn {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .12em;
+}
+
+/* The shared modal shell - UsageModal and every settings modal use .smod-*
+   (#926). It had NO terminal rules at all: zero matches for
+   `[data-design="terminal"] .smod`. The panel already draws on --bg0 and
+   --bdr, so the palette was never wrong; what was wrong is an 18px radius, a
+   0.5px hairline and a blurred black backdrop, none of which the handoff
+   allows once terminal is active.
+
+   The backdrop was `rgba(0,0,0,0.55)` plus a 4px blur - a literal, so it
+   never adapted to theme, and in light terminal it dimmed a light page with
+   black. Using the page ground at opacity keeps the relationship in tokens. */
+[data-design="terminal"] .smod-panel {
+  border: 1px solid var(--bdr);
+  border-radius: 0;
+  /* The base rule's `0 24px 80px rgba(0,0,0,0.5)` at :3841 survives unless
+     this says otherwise - I wrote border and radius and forgot the third
+     property, and QA caught it with getComputedStyle rather than by eye.
+     The handoff's "no shadows" is unconditional; an override that fixes two
+     of three properties is the same partial-conversion shape #926 is about,
+     one rule smaller. */
+  box-shadow: none;
+}
+[data-design="terminal"] .smod-backdrop {
+  background: color-mix(in srgb, var(--bg0) 82%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-design="terminal"] .smod-header { border-bottom: 1px solid var(--bdr); }
+[data-design="terminal"] .smod-title {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .1em;
+}
+
+/* .auth-gate - the signed-out panel AuthGate renders in place of a Pro
+   surface (#926). Zero terminal rules existed. It already draws on --bg1 and
+   --bdr, and --nm-raise is `none` in dark, so only the radius, the hairline
+   weight and the button's type were current-design. */
+[data-design="terminal"] .auth-gate {
+  border: 1px solid var(--bdr);
+  border-radius: 0;
+  box-shadow: none;
+}
+[data-design="terminal"] .auth-gate-btn {
+  border-radius: 0;
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .12em;
+}
+[data-design="terminal"] .auth-gate-title {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: .04em;
+}
+
+/* SpotlightTour (#926). The component is 100% inline-style with no CSS
+   classes, so it picked up no stylesheet at all - not [data-theme="light"]
+   originally, and not [data-design="terminal"] ever. Colour and type are
+   handled by a third palette object inside the component, next to the DARK
+   and LIGHT ones it already had. This handles the 18 inline radius numbers,
+   which a palette cannot carry. */
+[data-design="terminal"] .tour-term-wrap,
+[data-design="terminal"] .tour-term-wrap * { border-radius: 0 !important; }
+
 /* upgrade-gate / locked-feature-card / full-page-upgrade-gate terminal (#413) */
 [data-design="terminal"] .locked-card-term-wrap,
 [data-design="terminal"] .locked-card-term-wrap * { border-radius: 0 !important; }
@@ -7974,3 +8149,204 @@ main.app-content[data-chrome="none"] {
    #587: MarketRead no longer renders on any terminal route. */
 [data-design="terminal"] .av-rail-panel { --_c8-tag: av-rail-panel; border-radius: 0 !important; }
 [data-design="terminal"] .skel-bar { --_c8-tag: skel-bar; border-radius: 0 !important; }
+
+
+/* ── Arena strategy panel (#930) ─────────────────────────────────────────────
+   Built from the owner-approved layout. Every value here is measured off that
+   drawing rather than chosen, which is why the sizes are odd numbers: 9px and
+   9.5px and 8.5px are what the artifact specifies.
+
+   TERMINAL-ONLY, so rule 1 of #663 applies and the constants live here rather
+   than inline in the component. Worth saying explicitly because the component
+   is named StrategyPanel.tsx, not *Terminal.tsx, so
+   __tests__/terminalOnlyConstants.test.mts does not sweep it - that test warns
+   in its own header that a terminal-only component under another name is
+   silently exempt. Exempt by name, compliant by choice.
+
+   The artifact's own tokens map onto ours one for one except --accent-fg, which
+   is --on-accent here.
+
+   SCOPED TO [data-design="terminal"], and not for tidiness. __tests__/onAccent
+   caught the unscoped version: `.strat-chip.on` paints var(--on-accent) on
+   var(--accent), which is 8.95:1 in terminal and 3.98:1 in the current design
+   where --on-accent is white and --accent is #1a7aff. Unscoped, those rules are
+   reachable by a design they were never measured against. The scope is what
+   makes the pairing true rather than merely intended.
+ */
+
+[data-design="terminal"] .strat-panel { background: var(--bg1); border: 1px solid var(--bdr); }
+
+[data-design="terminal"] .strat-head {
+  height: 28px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 9px; border-bottom: 1px solid var(--bdr);
+  font-family: var(--font-mono), monospace; font-size: 10px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--txt);
+}
+[data-design="terminal"] .strat-aux { color: var(--txt4); font-size: 9px; letter-spacing: .1em; }
+
+[data-design="terminal"] .strat-sect { padding: 10px 9px; border-bottom: 1px solid var(--bdr3); }
+[data-design="terminal"] .strat-sect:last-child { border-bottom: 0; }
+
+[data-design="terminal"] .strat-lbl {
+  font-family: var(--font-mono), monospace; font-size: 9px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
+  display: flex; justify-content: space-between; margin-bottom: 6px;
+}
+[data-design="terminal"] .strat-cap { color: var(--txt4); }
+
+[data-design="terminal"] .strat-sel {
+  width: 100%; height: 26px; background: var(--bg2);
+  border: 1px solid var(--border-input); border-radius: 0;
+  font-family: var(--font-mono), monospace; font-size: 11px;
+  color: var(--txt); padding: 0 7px;
+}
+
+[data-design="terminal"] .strat-grp { margin-bottom: 7px; }
+[data-design="terminal"] .strat-grp:last-of-type { margin-bottom: 0; }
+[data-design="terminal"] .strat-gname {
+  font-family: var(--font-mono), monospace; font-size: 8.5px;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt4);
+  margin-bottom: 3px;
+}
+
+[data-design="terminal"] .strat-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+[data-design="terminal"] .strat-chip {
+  font-family: var(--font-mono), monospace; font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 5px; border: 1px solid var(--bdr); border-radius: 0;
+  background: none; color: var(--txt3); cursor: pointer;
+  display: inline-flex; gap: 3px; align-items: center;
+}
+[data-design="terminal"] .strat-chip.on {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--on-accent); font-weight: 600;
+}
+/* Past the limit. Dimmed, still focusable, still says why on hover - a
+   `disabled` chip would leave the tab order and a keyboard user would never
+   find out what stopped them. */
+[data-design="terminal"] .strat-chip.blocked { color: var(--txt4); border-color: var(--bdr3); cursor: default; }
+[data-design="terminal"] .strat-n {
+  background: var(--on-accent); color: var(--accent);
+  width: 11px; height: 11px; display: inline-flex;
+  align-items: center; justify-content: center;
+  font-size: 7.5px; font-weight: 700;
+}
+
+/* The default state's one line, where the params box would be. Plex Sans, not
+   mono: it is a sentence, not a value. */
+[data-design="terminal"] .strat-auto {
+  margin-top: 7px; font-size: 11px; line-height: 1.5; color: var(--txt3);
+}
+
+[data-design="terminal"] .strat-trunc {
+  margin-top: 7px; padding: 5px 6px;
+  border: 1px solid var(--bdr3); background: var(--bg2);
+  font-size: 10.5px; line-height: 1.45; color: var(--txt3);
+}
+
+[data-design="terminal"] .strat-chip.notyet {
+  color: var(--txt4); border-color: var(--bdr3);
+  border-style: dashed; cursor: default;
+}
+[data-design="terminal"] .strat-notyet-note {
+  margin-top: 7px; font-size: 10.5px; line-height: 1.4; color: var(--txt4);
+}
+
+[data-design="terminal"] .strat-limit {
+  margin-top: 7px; padding: 4px 6px;
+  border: 1px solid var(--bdr3); background: var(--bg2);
+  font-size: 10.5px; line-height: 1.4; color: var(--txt3);
+}
+
+[data-design="terminal"] .strat-params {
+  margin-top: 7px; border: 1px solid var(--bdr3);
+  background: var(--bg2); padding: 7px;
+}
+[data-design="terminal"] .strat-params-h {
+  font-family: var(--font-mono), monospace; font-size: 8.5px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
+  margin-bottom: 5px;
+}
+[data-design="terminal"] .strat-prow {
+  display: grid; grid-template-columns: 1fr 54px; gap: 5px; align-items: center;
+  font-family: var(--font-mono), monospace; font-size: 10px;
+  color: var(--txt2); padding: 2px 0;
+}
+[data-design="terminal"] .strat-pv {
+  border: 1px solid var(--border-input); border-radius: 0;
+  background: var(--bg1); color: var(--txt);
+  text-align: right; padding: 0 4px;
+  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-variant-numeric: tabular-nums; width: 100%;
+}
+[data-design="terminal"] .strat-pv:disabled { color: var(--txt3); }
+[data-design="terminal"] .strat-ro {
+  margin-top: 5px; font-family: var(--font-mono), monospace; font-size: 8.5px;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--txt4);
+}
+
+[data-design="terminal"] .strat-actions { display: flex; gap: 3px; }
+[data-design="terminal"] .strat-btn {
+  flex: 1; height: 26px; border: 1px solid var(--bdr); border-radius: 0;
+  background: var(--bg2); color: var(--txt2); cursor: pointer;
+  font-family: var(--font-mono), monospace; font-size: 9.5px;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+[data-design="terminal"] .strat-btn.pri {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--on-accent); font-weight: 600;
+}
+
+
+/* ── The coin-row keyboard controls (#943) ───────────────────────────────────
+   The rows on /markets and the dashboard rail were mouse-only: a click handler
+   on a <div> with no role, no tabIndex and no keydown, so selecting a coin and
+   opening its Arena were unreachable from a keyboard entirely.
+
+   THE ROW IS NOT THE CONTROL. Making it one was the obvious fix and is the
+   wrong one twice over: its accessible name becomes the whole row read aloud -
+   "BTC 64,213 -2.34% smart buyers" - which is reachable and unusable, and it
+   puts a tab stop on every row of a fifty-row table.
+
+   So the coin's own name carries the action, and these rules make a <button>
+   look exactly like the <span> it replaced. The row keeps its onClick, so
+   nothing changes for a mouse. */
+.mkt-row-btn,
+.csb2-name-btn {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; letter-spacing: inherit;
+  cursor: pointer; text-align: left;
+}
+.mkt-row-btn {
+  font-size: var(--fs-caption); font-weight: 700;
+  color: var(--txt); letter-spacing: .02em;
+}
+
+
+/* ── The last four box-shadows the terminal design never dropped (#926) ───────
+   The handoff's rule is flat: no shadows. Twenty-something surfaces were
+   converted and these four were missed, and they were missed for a reason worth
+   recording - they were found by sweeping for the PROPERTY, not by reading the
+   terminal overrides. An override that sets `border` and `border-radius` and
+   never mentions `box-shadow` looks complete; the defect is what the rule does
+   not say, and reading it can never show that.
+
+   `.gchat-fab` is the one that matters. It carries `var(--glow-accent)` - a
+   glow, on a design whose whole premise is that surfaces do not glow - and it
+   renders on EVERY route, so it was the most visible unconverted thing left.
+
+   Scoped to both attributes rather than to `[data-design="terminal"]` alone so
+   these beat the `[data-theme="light"]` variants on their own specificity
+   rather than on source order. Source order would work today and would break
+   the first time someone moves a block. */
+[data-design="terminal"] .gchat-fab,
+[data-design="terminal"] .gchat-fab:hover,
+[data-design="terminal"][data-theme="light"] .gchat-fab,
+[data-design="terminal"][data-theme="light"] .gchat-fab:hover,
+[data-design="terminal"] .nav-menu,
+[data-design="terminal"] .nav-more-dropdown,
+[data-design="terminal"][data-theme="light"] .nav-more-dropdown,
+[data-design="terminal"] .ob-checklist,
+[data-design="terminal"][data-theme="light"] .ob-checklist {
+  box-shadow: none;
+}

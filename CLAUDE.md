@@ -46,10 +46,18 @@ folder and is asked to write *application* code — anything under `app/`,
 `components/` or `lib/` — say so instead of doing it.**
 
 **QA-authored code — the reverse handoff.** QA owns its own tooling and may
-write it: `qa/`, `playwright.config.ts`, test CI workflows, QA docs. Never app
-code. QA opens a PR **into `dev`** (not `main`), **dev reviews it**, dev
-merges. This is the one case where review runs QA → dev. If a fix needs an
-app-code change, QA reports it as a finding — dev writes it.
+write it: `qa/`, **`__tests__/`**, `playwright.config.ts`, test CI workflows, QA
+docs. Never app code. QA opens a PR **into `dev`** (not `main`), **dev reviews
+it**, dev merges. This is the one case where review runs QA → dev. If a fix needs
+an app-code change, QA reports it as a finding — dev writes it.
+
+**QA owns EVERY test, and dev writes none. Owner ruling, 2026-09-07.** This list
+did not include `__tests__/` until then, so dev wrote unit tests beside its
+features — reasonably, since no rule said otherwise. The owner closed the gap:
+*"Writing tests should be QA's job. Not the dev … That's why it's called dev."*
+**When dev's change needs coverage, the PR says what to assert and why; QA writes
+it.** Nothing already merged was reverted. Full rule and the sequencing hazard it
+creates: `CONTRIBUTING.md` → *When QA writes code*.
 
 **Who MERGES — QA, never dev, from `qa` onward.**
 **PM/DevOps owns the last two hops: `staging` → `main`, and the production

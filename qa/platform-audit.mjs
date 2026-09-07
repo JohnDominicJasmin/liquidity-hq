@@ -14,8 +14,8 @@
  * time triples the wall clock for no isolation benefit here.
  */
 
-import { readFileSync } from 'node:fs';
 import { chromium, devices } from '@playwright/test';
+import { TERMINAL_ALLOWED, TERMINAL_ALLOWED_LIGHT } from '../lib/terminalTokens.ts';
 
 const arg = (name, dflt) => {
   const i = process.argv.indexOf(name);
@@ -53,7 +53,8 @@ const DEFAULT_ROUTES = [
 ];
 const ROUTES = arg('--routes', '') ? arg('--routes', '').split(',') : DEFAULT_ROUTES;
 
-/* The governed palette is DERIVED from lib/terminalTokens.ts, not copied.
+/* The governed palette is IMPORTED from lib/terminalTokens.ts, not copied and
+ * not scraped.
  *
  * It used to be two hand-written arrays, and by 2026-09-03 both had drifted
  * from the source of truth - the light one badly enough to INVERT the check:
@@ -69,39 +70,35 @@ const ROUTES = arg('--routes', '') ? arg('--routes', '').split(',') : DEFAULT_RO
  * `--green` light #1a7f37 measured 3.89:1. So the audit was passing the values
  * that fail and flagging the values that fixed them. A check that points the
  * wrong way is worse than no check: acting on its output means reverting a
- * correctness fix. The dark list had drifted less - two missing tokens
- * (--fr-slight-long, --txt-dash) and no stale extras - but by the same
- * mechanism.
+ * correctness fix.
  *
- * qa/mobile-audit.mjs already derives its palette for exactly this reason
- * (#641); this file was not updated with it. Same approach, same guards: a
- * copied list drifts, and a stale hex is invisible among live ones.
+ * The fix after that (#641, then mirrored here) scraped terminalTokens.ts's
+ * source with regexes instead of copying by hand - better, but still a
+ * hand-maintained mirror of TERMINAL_ALLOWED / TERMINAL_ALLOWED_LIGHT that had
+ * to be told about every new export by name. #909 added two
+ * (TERMINAL_MTF_NEUTRAL_BAR, TERMINAL_MTF_GRIDLINE) that matched none of the
+ * mirror's regexes, so this would have reported a real, owner-ruled colour as
+ * disallowed the moment #853 renders it - the same failure shape as
+ * 2026-09-03, smaller blast radius, still wrong.
  *
- * terminalTokens.ts is a .ts module and this is a plain .mjs script with no
- * loader, so read and extract rather than import. The shapes below are pinned
- * to that file's actual declarations and throw loudly if it is restructured,
- * rather than silently yielding an empty palette and reporting every screen as
- * perfectly on-token. */
-const tokenSrc = readFileSync(new URL('../lib/terminalTokens.ts', import.meta.url), 'utf8');
-
-const mapOf = (name) => {
-  const open = tokenSrc.indexOf('export const ' + name + ' = {');
-  if (open === -1) throw new Error('platform-audit: no ' + name + ' in lib/terminalTokens.ts');
-  const close = tokenSrc.indexOf('\n} as const;', open);
-  if (close === -1) throw new Error('platform-audit: ' + name + ' has no closing "} as const;"');
-  const hexes = tokenSrc.slice(open, close).match(/'(#[0-9a-fA-F]{6})'/g) || [];
-  if (hexes.length < 10) throw new Error('platform-audit: ' + name + ' yielded ' + hexes.length + ' colours, expected >= 10');
-  return hexes.map((h) => h.slice(1, -1).toLowerCase());
+ * Node (v24 here, and what CI pins) strips a plain `.ts` module's types at
+ * import time with no loader, the same mechanism `npm test` already relies on
+ * for `.mts` specs - so importing the real arrays isn't drift-prone the way
+ * scraping was: there is nothing left to keep in sync. */
+/* The scrape this replaced threw below 10 colours rather than silently
+   auditing against an empty palette, which would report every screen as
+   perfectly on-token. An import can't half-succeed the way a regex scrape
+   could - it is either the real array or the module failed to load - so
+   `=== 0` is the one threshold an import can actually produce, and the only
+   one that can't go stale the moment a new token lands (a count like 10
+   would, which is exactly what #909 rewrote criterion 19 to avoid). */
+const checkedPalette = (name, list) => {
+  if (list.length === 0) throw new Error(`platform-audit: ${name} is empty - import failed or the export was renamed`);
+  return list.map((c) => c.toLowerCase());
 };
-const rampHexes = (tokenSrc.match(/color:\s*'(#[0-9a-fA-F]{6})'/g) || [])
-  .map((m) => m.slice(m.indexOf('#'), m.indexOf('#') + 7).toLowerCase());
-const flatCell = (/export const TERMINAL_FLAT_CELL = '(#[0-9a-fA-F]{6})'/.exec(tokenSrc) || [])[1];
+const DARK = checkedPalette('TERMINAL_ALLOWED', TERMINAL_ALLOWED);
+const LIGHT = checkedPalette('TERMINAL_ALLOWED_LIGHT', TERMINAL_ALLOWED_LIGHT);
 
-/* Mirrors TERMINAL_ALLOWED / TERMINAL_ALLOWED_LIGHT, same as mobile-audit:
-   the magma ramp is shared because the liquidation map is dark-only by design,
-   and TERMINAL_FLAT_CELL has no light value anywhere. */
-const DARK = [...mapOf('TERMINAL_COLORS'), flatCell, ...rampHexes].filter(Boolean);
-const LIGHT = [...mapOf('TERMINAL_COLORS_LIGHT'), ...rampHexes];
 
 /* The one definition of "this field has no value". Lives here, not inside
    PAGE_EVAL and not duplicated in the settle poll below - two copies of a
