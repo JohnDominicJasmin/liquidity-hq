@@ -34,16 +34,16 @@
 -- CREATE with `using (auth.uid() = user_id)` in place of
 -- `using ((select auth.uid()) = user_id)`. Every policy below cites its
 -- source file; the original clause is a copy from that file, not
--- archaeology. No data changes, no column changes - only the six DEV
--- policies below are touched, and each is a single independent statement.
+-- archaeology. No data changes, no column changes - only the policies
+-- below are touched, and each is a single independent statement.
 --
 -- SCOPE - what this covers and what it deliberately does not:
 --
 -- Covers 6 of the 8 previously-prepared tables, DEV ONLY
 -- (wdtjhrilakoitfcezxpx): lhq_dev_user_settings, lhq_dev_hypotheses,
 -- lhq_dev_hypothesis_evidence, lhq_dev_push_subscriptions,
--- lhq_dev_muted_alerts, lhq_dev_trades, lhq_dev_user_subscriptions - all
--- with current policy text confirmed from a migration file in this repo.
+-- lhq_dev_muted_alerts, lhq_dev_trades - all with current policy text
+-- confirmed from a migration file in this repo.
 --
 -- Does NOT cover lhq_grok_usage (either project) in this pass. Prod's
 -- policy was hardened in 20260807a (grok_usage_select_own, select-only)
@@ -56,6 +56,21 @@
 -- one, and it needs its own check before either project's grok_usage
 -- policy is touched here. Still flagged on #1025, not silently
 -- rewritten around.
+--
+-- Does NOT cover lhq_dev_user_subscriptions in this pass either. QA caught
+-- this: no migration in this repo actually CREATEs that table or its
+-- policy under the lhq_dev_ prefix. 20260616_user_subscriptions.sql
+-- creates bare `public.user_subscriptions` (pre-prefix-convention, prod
+-- only in effect); 20260804h_trial_and_grants_hardening.sql's comment
+-- says the file's fixes were "applied live to both Supabase projects", but
+-- that is a claim about the dashboard, not a CREATE statement for the dev
+-- table - no migration shows one. So dev's actual current policy text for
+-- this table is unconfirmed, same class of gap as user_status/price_alerts
+-- below. Needs the real text pulled from the dashboard
+-- (`select * from pg_policies where tablename = 'lhq_dev_user_subscriptions'`)
+-- before a safe rewrite can be written for it too. Prod's own
+-- lhq_user_subscriptions entry below is unaffected either way - it stays
+-- commented/deferred regardless of this table's dev-side uncertainty.
 --
 -- Does NOT cover lhq_user_status or lhq_price_alerts, both named by the
 -- advisor. Neither has a CREATE POLICY statement anywhere in
@@ -71,8 +86,9 @@
 --
 -- Also does not cover whatever the advisor lists "below the fold" - PM's
 -- comment named 9 tables explicitly and said there were more; only those 9
--- (minus grok_usage and the two dashboard-only tables above) were ever
--- scoped, and only the dev side of 7 of those 9 is applied here.
+-- were ever scoped, and only the dev side of 6 of those 9 is applied here
+-- (grok_usage, user_status, price_alerts and now user_subscriptions all
+-- excluded for the reasons above).
 --
 -- BEFORE / AFTER: measure the Disk IO budget percentage before applying
 -- and again afterward. The whole claim is that per-row auth.uid()
@@ -134,10 +150,10 @@ create policy "owner_all_trades" on lhq_dev_trades
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 
--- ── lhq_dev_user_subscriptions (20260616_user_subscriptions.sql) ────────────
-drop policy if exists "sub_select_own" on lhq_dev_user_subscriptions;
-create policy "sub_select_own" on lhq_dev_user_subscriptions
-  for select using ((select auth.uid()) = user_id);
+-- lhq_dev_user_subscriptions intentionally absent here - see "Does NOT
+-- cover lhq_dev_user_subscriptions" above (QA caught this, 2026-09-07):
+-- no migration in this repo creates that table or policy under the
+-- lhq_dev_ prefix, so its current text is unconfirmed, not just unwrapped.
 
 
 -- ══════════════════════════════════════════════════════════════════════════
