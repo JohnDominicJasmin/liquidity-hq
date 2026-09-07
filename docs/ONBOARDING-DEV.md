@@ -26,6 +26,14 @@ features they covered — the reasonable default when nothing says otherwise.
 why.** QA writes it. That is the same move as the auth-gate rule below — a check
 you cannot perform from your seat becomes a QA step rather than a caveat.
 
+**Expect QA to commit onto your feature branch, and leave room for it.** A test
+written before its implementation is red, and the pre-push hook runs `npm test` —
+so QA **cannot** push a test-first branch of their own. **Their test lands on
+your branch, before your PR merges**, and you review the whole thing together.
+That is the mirror of the `qa/` exception below: **cross-seat commits on a shared
+branch are fine, cross-seat ownership is not.** Do not merge a PR out from under
+a coverage request you asked for.
+
 **Hand over the derivation, not just the request.** If you worked out the maths
 to build the thing, put the worked values in the PR — expected outputs, edge
 cases, and any floating-point trap you hit. **QA should not have to re-derive

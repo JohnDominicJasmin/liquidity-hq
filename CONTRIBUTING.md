@@ -863,6 +863,44 @@ level.
 > the merge. Prefer the coverage request landing with the PR so QA can write it
 > against an open branch, and say plainly in the PR body what is not yet covered.
 
+**And "QA writes it against an open branch" needs a mechanism, because without
+one the rule is impossible to follow.** QA found this within the hour, trying to
+do exactly what the rule asks:
+
+> *"the test is legitimately red until `smaNMArr` exists — that's the point. I
+> can't push a red test as its own branch without either bypassing the pre-push
+> hook or writing the implementation myself — both wrong for QA to do
+> unilaterally."*
+
+**A test written before its implementation is red, and `.githooks/pre-push` runs
+`npm test`.** So a QA-authored test-first branch cannot be pushed at all. The
+three ways out were **bypass the hook**, **write the implementation**, or **wait
+until after the merge** — the first two break the rules and the third opens the
+window above.
+
+**So: QA commits the test onto DEV'S FEATURE BRANCH, before that PR merges.**
+Test and implementation land in the same push, the hook passes on a green suite,
+and no window opens.
+
+| | |
+|---|---|
+| Dev | writes the code, opens the PR, names what needs asserting |
+| QA | commits the test onto **that branch** |
+| Dev | reviews the whole thing and merges |
+
+**This is not a new kind of exception.** The reverse already exists and is
+documented: **dev commits directly into `qa/` when a dev-side revert makes a QA
+fixture assert something false** — `4c11930a` and `f1325264`, both narrow, both
+"the person who knows at the moment it changes is the one who fixes it".
+
+**Cross-seat commits on a branch are fine. Cross-seat ownership is not.** QA
+still writes only tests; dev still writes only application code. **What moves is
+the branch they share, not the boundary.**
+
+**If the implementation is already merged before the coverage exists, say so in
+the test PR** — that is the window, and it should be visible rather than
+implied.
+
 Everything else about the flow **reverses**, and that is the point — the author
 never verifies their own work:
 
