@@ -36,56 +36,42 @@ the wrong item.
 
 ## Dev lane
 
-**Scope locked by the owner, 2026-09-07:** *"list it down ... make sure to work on
-these remaining items. stop checking other items and trying to make more issues.
-If if you find more issues within this current items, then get it tested and
-audited by the other team member."*
+**Scope still locked by the owner (2026-09-07).** Nothing gets added, and a problem
+found inside a current item does **not** become a new issue — it goes on the parent
+and QA audits it there.
 
-**So: nothing gets added to this lane, and a problem found inside one of these
-items does NOT become a new issue.** It goes on the parent issue and QA tests and
-audits it there. The open count is not allowed to grow. The rows for #1008 and
-#985 are gone because both closed today, not because they were dropped.
+**One sanctioned exception so far:** #1042, filed from GlitchTip with the owner's
+explicit "go do it". It was live on production and user-facing. Findings that are
+neither do not earn an issue — see D2.
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| D1 | **#994 — `--glow-accent` has no light-theme value** | ~hours | In flight. **PM ruled it an OVERSIGHT rather than sending it back to the owner (2026-09-07): add the value.** The glow fires in dark and has never fired in light; the absence reads as a bug. QA audits the result. If the ruling is wrong that is PM/DevOps's error, not Dev's. The census stands from before: **1 of 11 sites composes into a list, not the three originally claimed.** Also scope terminal's light glows away — the "terminal has no shadows" rule was never enforced in light theme and only held because nobody ran it. |
-| D2 | **#925 — `LiqFeed`'s `liq_events` backfill does not fire** | ~hours | **CONFIRMED REAL by QA on deployed `qa`, 2026-09-07**, after PM pushed back once on a first report that could be read two ways. Not "fires and returns nothing" — **nothing reaches the wire at all**: no request to any supabase.co host for `liq_events` across two captured loads, with the observer proven live on the same loads by catching other real requests including 503s. **Reconcile the environment difference FIRST** — it fires on Dev's local dev and not on a deployed build, so the cause is environmental or build-time and chasing handler logic wastes the day. QA's lead, worth taking: env inlining, `NODE_ENV`-gated code, or StrictMode masking a dev-only firing. **The dedup question is a dead end and must not be re-derived** — the handler dedupes on read with a `ts+coin+price+side+source` key before the panel's threshold is computed, so the 72% row duplication is wasted IO, not a distorted density figure. **Not a release blocker**: it predates all 195 commits in #1030. |
-| D3 | **#949 + #1025 — one root cause, two issues** | ~half day | The dev Supabase project is at **91% of its Disk IO budget** and E2E sign-ins time out. The driver is our own test sign-ins: `qa/e2e/_auth.ts`'s `signedInContext()` mints a fresh password-grant session per call, used by QA's specs and Dev's verification scripts alike. **PM ruling: cut the churn, do NOT upgrade the plan — no money is being spent on this.** Session reuse is the fix. **The file is QA's**, so Dev supplies any app-side change only and QA writes the tooling change. Close both when the load drops. |
-| D4 | **#1021 — no session can complete a signup** | ~hours | Nothing gated on a new account is testable; `docs/HANDOVER.md` T6 is the visible instance. **The owner already approved the test-mode key on non-production** — no decision is owed. If the fix lands in `qa/` it is QA's to write and Dev supplies the app-side change only. |
-| D5 | **#1020 — strategy selection and edited params vanish on reload** | ~1 day | **The owner ruled it must SYNC ACROSS DEVICES**, explicitly rejecting browser-local storage: *"What if the user has multiple devices?"* Account-level store, **additive migration only**. **WRITE the migration, do NOT apply it** — a shared-database write is one of the three things that go to the owner directly. |
-| D6 | **#853 — rebuild `ArenaTerminal.tsx`** | ~1 week | **LAST, deliberately, and this supersedes an earlier PM message calling it top priority.** That contradiction was PM/DevOps's and is recorded rather than quietly corrected. Reasoning: everything above closes today, this is a week — six closures plus a started rebuild beats a started rebuild and nothing closed. **REOPENED on the owner's instruction, 2026-09-07**, the same day it was reported closed; the closure was PM/DevOps's error and was voided within the day. `components/ArenaTerminal.tsx` exists on no branch. Restore `arenaEvidence.ts` and `useViewport.ts` from `dd39c9bb^`. **Re-integration, not `git revert`** — `app/arena/page.tsx` has moved a long way. **One tree, not two**: select with `useSyncExternalStore` over `matchMedia('(min-width: 768px)')`; rendering both layouts and hiding one means two `KLineProChart` instances and two candle subscriptions, which already shipped once. QA writes the tests. |
+| D1 | **#1042 — `Notification.requestPermission` is not a function** | ~hours | PR **#1044**, with QA. An anti-fingerprinting extension replaces `Notification` with a stub lacking `requestPermission`, and the call is unguarded, so push permission dies silently — no error surfaced, the prompt never appears. **Dev found it is three call sites, not one, and byte-identical on `9f9c88f` and today's `main`** — so it is live on v2026.09.07 and was not fixed by the release. The fix is feature-detecting the **method**, not the object: `'Notification' in window` is true in this case. |
+| D2 | **Two `ReferenceError` crashes GlitchTip has been recording** | ~hours | `isGodTier is not defined` and `LanguageNavSwitcher is not defined`. About a month old, one event each, **test environments only — not production.** Never reported because nobody browses `qa` or `staging` casually and nothing was reading the error stream until 2026-09-07. **No issue is being filed** — one PR, GlitchTip cited as the source, environments named. **A `ReferenceError` is a component that died where it stood**, so QA may have been testing around a broken region without knowing. Establish two things the issue-less route would otherwise lose: whether each is still reachable on the current build, and whether the same identifier appears on any production path — `isGodTier` sounds like an entitlement check, and one that throws deserves a known blast radius before it is called test-only. |
+| D3 | **#1020 — strategy selection and edited params vanish on reload** | ~1 day | **PARKED on the owner, not on you.** PR **#1037** carries the migration and its write code together with a DO NOT MERGE banner, because shipping the write ahead of the schema reintroduces #1020's own bug — a silent failure, since `flushToDb`'s error surfaces on `/settings` and never on `/arena`. QA caught that bundled into #1039; Dev traced it to a branch cut from the wrong base and rebased it out. Both halves land in one step when the owner applies the migration. |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
 waiting for an answer.
 
-**Merged today, open only until they reach `qa`:** #1007 (SMA is now a genuine
-rolling mean — the new threshold disagrees with the old EMA(12) on 2 of 10 real
-coins, and DOGE/4h flips `LONG SETUP` → `TRENDING LONG`) and #1027 (clicking an
-already-selected chip reopens its params instead of deselecting it). **Both are
-blocked from closing by the release, not by anyone's work** — QA correctly froze
-`qa` → `staging` while #1030 is open, so nothing verifies on `qa` until the
-release ships.
+**Cleared 2026-09-07:** #994 (light-theme glow), #1021 (signup captcha), #853 (the
+Arena rebuild — reopened at 11am after PM/DevOps closed it in error, shipped and
+verified on the deployed build by 3pm), #1007, #1027, #1024. The RLS rewrite for
+#1025 is merged and awaiting application by PM/DevOps.
 
 ## QA lane
 
-Same locked scope as the Dev lane above. No new issues; findings go on the parent.
+Same locked scope. No new issues; findings go on the parent.
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| Q1 | **#950 — `layout.spec.ts` and a live run disagree about `/briefing`'s CTA** | ~hours | **TIME-LIMITED. CI is ON as of 2026-09-07 and gets switched off again after the production deploy**, so the Linux datapoint this needs exists only while that window is open. QA has already established the contradiction was **two different tests in different consent states**, not a real disagreement, and that the button's Y-position is genuinely data-dependent under the file's own Windows/Linux font-metric policy. **Record here rather than as a new issue:** the full `layout.spec.ts` sweep hangs 12+ minutes against a deployed remote URL at near-zero CPU while the site itself is fast via curl; a minimal targeted script runs in 3-5s. |
-| Q2 | **Audit Dev's rulings as they land** | ~hours | #994 (PM ruled the missing light value an oversight — say so on the issue if that ruling is wrong), #1021, #949 + #1025, and #1007's coverage. **QA's "not ready" outranks any PM sequencing**, including these. |
-| Q3 | **`TEST_GAPS.md` §10 — monitoring delivery is unconfirmed** | ~half day | **BLOCKED, owner-only.** Neither QA nor PM/DevOps has Sentry or PostHog dashboard access. Needs the owner to check one number on each. Raised with the owner on 2026-09-07; the recommendation was to grant the team read access rather than answer it once. |
-| Q4 | **`TEST_GAPS.md` §6 — accessibility is asserted, never heard** | ~1 day | axe passes and the tree is inspected; no real assistive-technology pass has ever happened. #883, #899 and #902 all turned on what a screen reader would announce and were all verified by reading the tree. **"Cannot be verified in this environment, and here is what would be needed" IS an acceptable result** — more useful than another tree inspection labelled as a pass. |
-| Q5 | **`TEST_GAPS.md` §2 criteria 12-19** | blocked | A **#853 dependency** again after the reopen. `lib/arenaEvidence.ts` and `components/ArenaTerminal.tsx` exist on no branch, so whether evidence arrives as an injectable prop or a hookless read cannot be decided and the stub cannot be scoped. Everything else in §2 is done: geometry measured, all 45 live `at-*` classes matched to a rule, colour-as-data confirmed against a real fired signal versus a real non-firing positive value, mobile 390 unblocked via Playwright's own context viewport, entitled/Pro view cleared. |
-| Q6 | **`TEST_GAPS.md` §1 — server time is not controllable** | ~half day | Data and clock are pinnable; server time is not, so anything time-dependent is untestable at boundaries. |
-
-**Closed today and kept off the lane deliberately:** #1024 (verified on deployed
-`qa` 582fdfb by source inspection — the live error could not be reproduced because
-all 8 coins currently have full history), #990 (**the audit found no result was
-ever contaminated**: the committed suite never used `resize_window`, every closed
-mobile bug was found by working checks, and nothing needs retracting — Playwright's
-context viewport is the method of record), and #925's audit, handed to Dev as D2.
+| Q1 | **#949 + #1025 — the sign-in churn fix** | ~half day | **Highest-value item on the board that needs nobody's permission.** `qa/e2e/_auth.ts`'s `signedInContext()` mints a fresh password grant per call against a database at 91% of its IO budget. Your file, Dev has already traced it, no owner gate touches it. **It also unblocks what you currently cannot do** — until it lands, running the full suite makes the problem it is measuring worse. Session reuse first, full sweep second; that ordering is why the suite has not run clean since 2026-09-05. **Measure before and after**, because the RLS rewrite is landing separately and two fixes with one measurement is how a wrong hypothesis survives. |
+| Q2 | **#925 — the decisive measurement** | ~hours | **Yours because your instrument works and PM/DevOps's does not.** A probe of deployed staging returned no Supabase request, matching your two captures — **but it is not reported as confirmation**: `/api/cmc` read `pending` across two reads seconds apart and the console returned zero messages after an armed reload, which is an observer arming late rather than a silent page. **Already established, do not redo:** the code survives the production build (minified chunk read directly — `getSupabase()`, the `if (s)` guard and the select are all present), and the client cannot be null on that build because you signed in on deployed staging for #1027 using the same client. **Three facts cannot all be true.** The untested one: whether the effect **throws before reaching the Supabase block** — `connectBN()`/`connectBB()` run first in the same effect and a synchronous `new WebSocket(...)` throw aborts the rest invisibly. The tell: the 30-second `rebuild` interval is set in that same effect *before* the Supabase call, so if it never fires either, the effect died early and the Supabase call was never the problem. |
+| Q3 | **Review #1044** | minutes | Dev's open PR, ahead of your own specs in the standing blocker order. |
+| Q4 | **`TEST_GAPS.md` §10 — monitoring delivery** | ~hours | **UNBLOCKED 2026-09-07.** It was owner-only for weeks; the owner granted access and it is answered: **both work.** PostHog has real data (10 users the week of 30 Aug, 0% returning, ~0 this week — the live site genuinely has no traffic). GlitchTip has **24 unresolved issues, 9 of them production**, and produced a real defect within the hour (#1042). What is left of this item is writing the finding up properly, not chasing access. |
+| Q5 | **`TEST_GAPS.md` §6 — accessibility is asserted, never heard** | ~1 day | axe passes and the tree is inspected; no real assistive-technology pass has ever happened. **"Cannot be verified in this environment, and here is what would be needed" IS an acceptable result** — more useful than another tree inspection labelled a pass. |
+| Q6 | **#950 — `layout.spec.ts` vs a live run** | blocked | Needs CI, which is off. You established the contradiction was two tests in different consent states, not a real disagreement. The Linux datapoint arrives with the next release PR. Also recorded here rather than as its own issue: the full sweep hangs 12+ minutes against a deployed remote URL at near-zero CPU while the site is fast via curl. |
+| Q7 | **`TEST_GAPS.md` §1 — server time is not controllable** | ~half day | Data and clock are pinnable; server time is not, so anything time-dependent is untestable at boundaries. |
 
 ## Unassigned — take with a reason
 
