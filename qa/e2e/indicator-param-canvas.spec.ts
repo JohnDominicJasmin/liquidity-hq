@@ -35,7 +35,16 @@ test.describe('indicator parameter edits reach the chart (#1008)', () => {
        * toDataURL(); a real loaded chart measures ~350k. 100k is comfortably
        * between the two. Without this, `before` can be taken against a blank
        * canvas that stays blank after the edit too — `chartChanged` would
-       * then fail for a reason that has nothing to do with #1008. */
+       * then fail for a reason that has nothing to do with #1008.
+       *
+       * NOT A FLAKE MITIGATION — the same shape as the hollow-node_modules
+       * detector: "a canvas exists" passes on a thing that is present and
+       * empty, same as "a directory exists". Both look like a pass while
+       * measuring nothing. This wait is the difference between baselining
+       * a chart and baselining an empty canvas; without it `_chart.ts` — now
+       * load-bearing for #1008 — could report `chartChanged` green for the
+       * wrong reason indefinitely against a warm deployed build, which is
+       * worse than failing loud against a cold local one. */
       await expect.poll(
         async () => (await snapshotCanvases(page)).len,
         { timeout: 15_000, message: 'chart candles never loaded (canvas stayed near-blank)' },
