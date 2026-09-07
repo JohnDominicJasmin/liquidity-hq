@@ -2257,8 +2257,15 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
      what this line has always asked for; a second accent-glow layer is not
      restorable without inventing a value nothing on record specifies (the
      :hover state below hardcodes its own glow rather than tokenizing it, so
-     there is no existing resting-state figure to reuse) - left for #970's
-     open question on whether --glow-accent gets a light value at all. */
+     there is no existing resting-state figure to reuse) - left open at the
+     time as #970's open question.
+
+     #994 answered that question for a DIFFERENT consumer (.gchat-send's own
+     hover, owner-ruled an oversight and fixed) - --glow-accent now has a
+     real light-theme value. That does not retroactively answer whether THIS
+     rule should compose it in; the "nothing on record specifies a resting-
+     state figure" reasoning above is unchanged and this stays black-shadow-
+     only until that's asked and answered on its own. */
   box-shadow: 0 4px 24px rgba(0,0,0,0.8);
   cursor: pointer; transition: opacity 0.15s, transform 0.15s, box-shadow 0.2s, background 0.2s, border-color 0.2s;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
@@ -2924,6 +2931,19 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --glow-red:    0 0 16px rgba(185,28,28,0.12);
   --glow-purple: 0 0 16px rgba(0,82,204,0.12);
   --glow-amber:  0 0 16px rgba(180,83,9,0.12);
+  /* #994 - oversight, per the owner: the other four glow tokens all got a
+     light-theme value here and this one was missed. Same formula (0 0 16px,
+     0.12 alpha), same rgb this file's own --accent resolves to in light
+     mode (#0052CC = 0,82,204 - identical to --glow-purple's rgb, since
+     .arena-ask-grok-btn's "purple" glow was already this app's accent blue
+     under a legacy name, not a separate hue). Correcting the issue's own
+     framing while fixing it: measured directly, .gchat-send's hover glow is
+     `none` in EVERY context today, not light-only - dark's :root default is
+     also `none`, matching all four siblings, which only ever get a real
+     value here. This is consistent with that established pattern, not a
+     partial fix - dark intentionally has no box-shadow glows for this chip,
+     same as its siblings. */
+  --glow-accent: 0 0 16px rgba(0,82,204,0.12);
 }
 
 /* #706: `html`, not ` html`. This read `[data-theme="light"] html`, which asks
@@ -6130,15 +6150,19 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      block never overrode that. Declared anyway because the light block
      below now must null these explicitly (light theme's own [data-theme=
      "light"] block gives them real values terminal does not want), and
-     #561's test requires both terminal blocks to name the same tokens even
-     where the values differ - "the values differ by design, the names must
-     not." --glow-accent is not listed: :root already reads `none` and
-     nothing anywhere ever gives it another value, so it needs no override
-     in either terminal block. */
+     #561's test requires both terminal blocks to name the SAME token SET
+     even where the values differ - "the values differ by design, the names
+     must not." --glow-accent IS listed for that reason alone: it has a real
+     value now (#994, in the [data-theme="light"] block below), but this
+     selector is `:not([data-theme="light"])` - it can never match an
+     element that rule also matches, so that value can never reach here and
+     :root's `none` is already the answer. Declared as a no-op, same as its
+     four siblings always were, purely so both blocks name the same set. */
   --glow-green:  none;
   --glow-red:    none;
   --glow-purple: none;
   --glow-amber:  none;
+  --glow-accent: none;
 }
 
 /* ── Monochrome Terminal: LIGHT theme (#561) ───────────────────────────────
@@ -6302,12 +6326,19 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      any --glow-* token, so terminal+light silently inherited light theme's
      glow verbatim - confirmed by measuring it byte-identical to current
      design's light glow on all nine standalone --glow-* usage sites.
-     --glow-accent is not listed: it has no non-none value in ANY context
-     today, so it needs nothing here to already read `none`. */
+     --glow-accent was the same story as this block was first written (no
+     non-none value anywhere, nothing to null) but #994 gave it a real
+     [data-theme="light"] value - and this selector, [data-design="terminal"]
+     [data-theme="light"], is MORE specific than that bare one but does not
+     itself redeclare --glow-accent, so the more-specific rule does not block
+     it: the property still resolves from [data-theme="light"], same
+     mechanism this whole comment describes for its four siblings. Listed
+     now for the same reason they are. */
   --glow-green:  none;
   --glow-red:    none;
   --glow-purple: none;
   --glow-amber:  none;
+  --glow-accent: none;
 }
 
 /* ── Monochrome Terminal: navigation (#413) ───────────────────────────────
