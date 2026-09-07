@@ -1,3 +1,70 @@
+> # ⛔ REJECTED TWICE — production carries the APPROVED Arena UI
+>
+> **Owner ruling, 2026-09-08:** *"the approved UI is now in the production"*, and
+> *"the arena page in prod that should be the UI reference"*.
+>
+> **This design has been built three times and rejected twice. It has never been
+> approved.** Do not rebuild it without the owner saying so explicitly, in those
+> words, on the day.
+>
+> | When | What |
+> |---|---|
+> | **2026-08-16 03:09** | built and wired in (`6942ec94`) |
+> | **2026-08-27 03:54** | **reverted** (`dd39c9bb`) — 11 days later |
+> | **2026-09-06 19:36** | rebuilt (`b6a0b403`) |
+> | **2026-09-06 20:34** | **reverted** (`5621d241`) — **58 minutes later** |
+> | **2026-09-07 21:09** | rebuilt a third time (`97f07277`, #853 / PR #1039) |
+> | **2026-09-08** | reverted (#1053), on the owner's call |
+>
+> ## Why it kept coming back, which is the part worth fixing
+>
+> **Neither revert says why.** Both messages are bare `This reverts commit …`
+> with no reason, no decision, nothing. So the ticket stayed open and read as
+> *unfinished work* rather than *a rejected change*, and the next person picked it
+> up in good faith. **An open ticket outlives an unrecorded "no" every time.**
+>
+> A 58-minute revert is not a forgotten cleanup. It is somebody looking at the
+> result and saying no. That was never written down anywhere a reader would find
+> it — until this banner.
+>
+> ## What the third attempt cost, in six hours
+>
+> 1. the chart canvas painting over every panel, **at every width from 768 to 1440**
+> 2. `1d` unreachable on mobile, with the `NEED PRO` hint that explains the gated chips
+> 3. `LiqFeed` never mounting — Liquidation Clusters **permanently** empty (#925)
+> 4. **a Pro subscriber resolving as free** (#1049) — a paying customer shown an
+>    upgrade prompt on the page they pay for
+> 5. **the on-the-fly strategy switch gone entirely** — the owner found this one
+>    themselves, and it is the requirement they have been clearest about across
+>    the whole project. **This file's 15-module inventory does not list the
+>    Strategy Panel at all**, so the omission is in the design, not the build.
+>
+> ## If this is ever revisited
+>
+> **Production is the reference. Any future Arena design adjusts from what runs
+> there** — panel by panel, nothing silently dropped. The terminal tree replaced
+> the classic page wholesale rather than restyling it, and every one of the five
+> defects is a version of that: a component that does not mount, a guard that does
+> not resolve, a feature simply absent from the new tree.
+>
+> ## Two things worth carrying forward regardless
+>
+> - **"Colour is data"** — a value is coloured because that signal *fired*, and
+>   direction is not the sign of the number. Crowded-long funding is positive and
+>   **red**. Colouring the quiet rows green would look better, be wrong, and pass
+>   every automated check.
+> - **The entitlement check belongs at the call site**, not inside the component.
+>   Moving a panel moves its markup and leaves its guard behind — that shipped as a
+>   real bug once before this file was written, and #1049 is the same family.
+>
+> ## The lesson that is not about this design
+>
+> A restyle nobody asked for was measured against structural criteria — node
+> counts, chart-instance counts, text presence — that **all passed on a visibly
+> broken page**, and none of them noticed a missing feature. `qa/TEST_GAPS.md` §2
+> had said *"geometry is checked, appearance is not"* for weeks. This is what that
+> sentence cost.
+
 # Arena — `Arena 1a.dc.html · 1a`
 
 ## Source
