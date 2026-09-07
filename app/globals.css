@@ -2399,12 +2399,24 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-mode-opt.off { opacity: 0.4; cursor: not-allowed; }
 .gchat-mode-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
+/* #995: own full-width strip, not a flex item sharing .gchat-header's row
+   with the title and icon buttons - #746's fix for the coin row's identical
+   squeeze, applied here. Row layout matches .gchat-header's own padding so
+   the strip reads as part of the same header block, not a new one. */
+.gchat-meta-strip { padding: 0 14px 8px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
+.gchat-meta-row { display: flex; align-items: center; gap: 8px; }
 .gchat-mode-count {
   font-size: var(--fs-caption); color: var(--txt3);
   font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 3px;
+  white-space: nowrap;
 }
 .gchat-mode-count.zero { color: var(--red-soft); }
-.gchat-mode-note { font-size: var(--fs-micro); color: var(--txt3); }
+/* nowrap trades wrapping for overflow - deliberate (#995). The full-width
+   strip has room for every state measured (mode pill + counter + this note),
+   but if a future translation or a narrower panel ever doesn't, clipping one
+   line reads as a minor rough edge; wrapping broke the whole header's
+   vertical alignment. */
+.gchat-mode-note { font-size: var(--fs-micro); color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The coin bar is the dropdown, full width (#746). It was a row of quick
    buttons plus a trigger; the buttons are gone, so the wrapper exists only to
    carry the padding and the divider the row used to draw. */
