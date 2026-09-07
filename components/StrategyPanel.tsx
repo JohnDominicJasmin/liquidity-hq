@@ -40,6 +40,12 @@ interface Props {
    *  belongs above both of them. */
   selected: readonly string[];
   onSelectedChange: (next: readonly string[]) => void;
+  /** Per-indicator edited parameter values, keyed by indicator id then param
+   *  key. CONTROLLED, same reasoning as `selected` (#1008): the chart is the
+   *  other consumer, and it lives outside this component. An indicator with
+   *  no entry here yet falls back to `defaultParams`. */
+  params: Record<string, Record<string, string | number | boolean>>;
+  onParamsChange: (next: Record<string, Record<string, string | number | boolean>>) => void;
   /** Fired when a run button is pressed. The page owns what running means.
    *  Required, not optional (#996): QUICK/DEEP/ASK AI are the panel's own
    *  reason to have run buttons at all, and an optional prop called as
@@ -106,7 +112,7 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   );
 }
 
-export default function StrategyPanel({ selected, onSelectedChange, onRun }: Props) {
+export default function StrategyPanel({ selected, onSelectedChange, params, onParamsChange, onRun }: Props) {
   const { entitled } = useAuth();
   const design = useDesignMode();
   const limitNoteId = useId();
@@ -117,7 +123,7 @@ export default function StrategyPanel({ selected, onSelectedChange, onRun }: Pro
      list rather than a Set: the chip badge shows the position in the selection,
      which the artifact draws as 1 and 2, so order is data and a Set would throw
      it away. */
-  const [params, setParams] = useState<Record<string, Record<string, string | number | boolean>>>({});
+  /* `params` is a prop too, as of #1008 - see Props. */
   /* Which indicator's parameters the box is showing. The artifact draws one
      params box, not one per selected indicator. */
   const [focused, setFocused] = useState<string | null>(null);
@@ -325,10 +331,10 @@ export default function StrategyPanel({ selected, onSelectedChange, onRun }: Pro
                 /* Free keeps the defaults and can see them. Hiding the values
                    would make the tier difference look like missing data. */
                 readOnly={!entitled}
-                onChange={v => setParams(prev => ({
-                  ...prev,
+                onChange={v => onParamsChange({
+                  ...params,
                   [focusedEntry.id]: { ...paramsFor(focusedEntry), [spec.key]: v },
-                }))}
+                })}
               />
             ))}
             {!entitled && <div className="strat-ro">Defaults on free · editable on Pro</div>}

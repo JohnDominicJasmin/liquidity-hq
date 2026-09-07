@@ -252,6 +252,42 @@ export function defaultParams(entry: IndicatorEntry): Record<string, string | nu
   return out;
 }
 
+/** Per-indicator adapters from this registry's params shape to klinecharts'
+ *  `calcParams` array, for the entries that need a conversion beyond schema
+ *  order. Keyed by `entry.id` so adding an eighth wired indicator later
+ *  touches one new case here, not a shared conditional. Currently one row:
+ *
+ *  klinecharts divides PSAR's three params by 100 internally
+ *  (`stopAndReverse.calc`: `startAf = params[0] / 100`, `step = params[1] /
+ *  100`, `maxAf = params[2] / 100` - verified against the compiled source,
+ *  #1007). This registry's displayed/edited values (0.02/0.02/0.2) are true
+ *  units, matching what a trader reading "Start 0.02" expects them to mean -
+ *  so this multiplies back up before the values reach `createIndicator` or
+ *  `overrideIndicator`. Left silent here would mean the first parameter edit
+ *  a trader makes to PSAR runs it 100x too slow: a trail that hugs price and
+ *  never flips, reading as a calm market rather than a bug (#1008). */
+const CALC_PARAM_ADAPTERS: Partial<Record<string, (raw: number[]) => number[]>> = {
+  SAR: raw => raw.map(v => v * 100),
+};
+
+/** Converts this entry's edited (or default) params into the `calcParams`
+ *  array klinecharts' `createIndicator`/`overrideIndicator` expect, in the
+ *  order `paramSchema` declares - see #1008 (Pro parameter edits reaching
+ *  nothing) and the wiring plan on that issue. Only meaningful for a
+ *  `source: 'builtin'` entry; harmless to call on anything else since it just
+ *  reads `paramSchema`, which may be empty. */
+export function toCalcParams(
+  entry: IndicatorEntry,
+  params?: Record<string, string | number | boolean>,
+): number[] {
+  const p = params ?? defaultParams(entry);
+  const raw = entry.paramSchema.map(spec => {
+    const v = p[spec.key] ?? spec.default;
+    return typeof v === 'number' ? v : Number(v);
+  });
+  return CALC_PARAM_ADAPTERS[entry.id]?.(raw) ?? raw;
+}
+
 /* The strategy sets offered by the dropdown.
  *
  * `auto` IS FIRST AND IS THE DEFAULT, and it is a real state rather than an

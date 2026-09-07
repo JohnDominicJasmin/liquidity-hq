@@ -253,6 +253,11 @@ function ArenaContent() {
      EMA signal block rather than staying with the other page state further
      down: a hook call reading it has to come after its declaration. */
   const [strategySelection, setStrategySelection] = useState<readonly string[]>([]);
+  /* Per-indicator edited parameter values (#1008) - lives here for the same
+     reason strategySelection does: the chart needs it and lives outside
+     StrategyPanel. Keyed by indicator id then param key; an indicator with
+     no entry yet uses strategyRegistry's defaultParams. */
+  const [strategyParams, setStrategyParams] = useState<Record<string, Record<string, string | number | boolean>>>({});
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
   // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
@@ -2148,7 +2153,7 @@ function ArenaContent() {
       <div className="arena-ws">
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} />
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -2291,7 +2296,7 @@ function ArenaContent() {
           wired, and that is deliberately a separate change. One selection
           driving a chart plus three AI actions is the part that goes wrong
           quietly, and it should not land inside a layout diff. */}
-      <StrategyPanel selected={strategySelection} onSelectedChange={setStrategySelection} onRun={runStrategy} />
+      <StrategyPanel selected={strategySelection} onSelectedChange={setStrategySelection} params={strategyParams} onParamsChange={setStrategyParams} onRun={runStrategy} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>

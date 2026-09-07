@@ -11,7 +11,7 @@ import Tip from '@/components/Tip';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
 import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
-import { findIndicator, type IndicatorEntry } from '@/lib/strategyRegistry';
+import { findIndicator, toCalcParams, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -392,6 +392,11 @@ interface Props {
      consumes it for why an empty selection must leave this chart exactly as it
      was before the panel existed. */
   indicators?:   readonly string[];
+  /* Per-indicator edited parameter values for `indicators` (#1008), keyed by
+     indicator id then param key. An indicator with no entry here uses
+     strategyRegistry's defaultParams - see the sync effect below and
+     `toCalcParams`. */
+  indicatorParams?: Record<string, Record<string, string | number | boolean>>;
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
@@ -611,7 +616,7 @@ function computeSRLevels(
   return [...resistances, ...supports];
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams }: Props) {
   const mode = useDesignMode();
   /* The init effect below runs once and must not re-run when the design mode
      resolves - re-creating the chart would throw away its data. So it reads
@@ -2184,6 +2189,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
    * the candle pane once dragged the axis ~11x wider than the visible range. An
    * entry marked `own` gets its own pane for that reason. */
   const activeIndicatorIds = useRef<Map<string, string>>(new Map());
+  /* Last calcParams actually applied per active indicator, serialized for a
+     cheap diff (#1008). Lets a param edit on an indicator that stays selected
+     take an `overrideIndicator` path instead of falling through to
+     remove/recreate - see the plan on #1008 for why update-in-place matters
+     here: it is the same reasoning `activeIndicatorIds` already exists for on
+     the selection side, just applied to the params side too. */
+  const activeParamsRef = useRef<Map<string, string>>(new Map());
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
@@ -2204,11 +2216,37 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (wanted.has(key)) continue;
       try { chart.removeIndicator({ id: indicatorId }); } catch { /* already gone */ }
       activeIndicatorIds.current.delete(key);
+      activeParamsRef.current.delete(key);
     }
 
     // Add what is newly selected.
     for (const [key, entry] of wanted) {
-      if (activeIndicatorIds.current.has(key)) continue;
+      const calcParams = toCalcParams(entry, indicatorParams?.[key]);
+      const serialized = JSON.stringify(calcParams);
+
+      const existingId = activeIndicatorIds.current.get(key);
+      if (existingId) {
+        /* Already on the chart - only a params edit is new. Compare against
+           the last-applied snapshot rather than overriding unconditionally on
+           every sync: this effect also re-runs for unrelated reasons (e.g.
+           `chartReady` toggling), and an unconditional override would recreate
+           the theme-independent styling churn `overrideIndicator` exists to
+           avoid in the first place. */
+        if (activeParamsRef.current.get(key) !== serialized) {
+          try {
+            /* `name` is the one required field on `IndicatorCreate` (klinecharts'
+               own type - everything else, `id` included, is optional via
+               `ExcludePickPartial`). Passing both `id` and `name` targets this
+               exact instance rather than every indicator sharing the name -
+               relevant for RSI, which also has an always-on pane elsewhere on
+               this chart (line ~997). */
+            chart.overrideIndicator({ id: existingId, name: entry.id, calcParams });
+            activeParamsRef.current.set(key, serialized);
+          } catch { /* leave the stale snapshot - next sync retries */ }
+        }
+        continue;
+      }
+
       try {
         /* `CreateIndicatorOptions` is `{ isStack?, pane?: PaneOptions, yAxis? }`
          * - the pane always goes under a `pane` key, for the candle pane as
@@ -2223,7 +2261,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
          * THE CAST IS WHY IT SHIPPED. `(chart as any)` turned a compile error
          * into a live defect; without it this never builds. It is gone. */
         const indicatorId = chart.createIndicator(
-          { name: entry.id },
+          { name: entry.id, calcParams },
           entry.pane === 'own'
             ? { pane: { id: `strat_${key.toLowerCase()}`, height: 90, minHeight: 30 } }
             : { pane: { id: 'candle_pane' } },
@@ -2235,10 +2273,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
          * in the map, so the next sync does not try to remove an indicator that
          * was never created. The registry test that checks every builtin id
          * against the 27 names klinecharts ships is what actually guards it. */
-        if (indicatorId) activeIndicatorIds.current.set(key, indicatorId);
+        if (indicatorId) {
+          activeIndicatorIds.current.set(key, indicatorId);
+          activeParamsRef.current.set(key, serialized);
+        }
       } catch { /* a genuine render error - leave the map untouched and carry on */ }
     }
-  }, [indicators, chartReady]);
+  }, [indicators, indicatorParams, chartReady]);
 
   // ── Restore user-drawn lines for this coin, and swap them out on coin change ──
   useEffect(() => {

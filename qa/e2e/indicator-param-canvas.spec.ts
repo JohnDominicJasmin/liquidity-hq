@@ -1,28 +1,22 @@
 import { test, expect } from '@playwright/test';
 import { gotoSignedIn, signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
-import { killTransitions, snapshotCanvases, chartUnchanged } from './_chart';
+import { killTransitions, snapshotCanvases, chartChanged } from './_chart';
 
 /**
- * Pins #1008 (Pro subscribers edit indicator parameters and the edits reach
- * nothing) as a canvas-level regression check, using the same instrument
- * that found it by hand: `qa/e2e/_chart.ts`'s hash, not a screenshot.
+ * Pins #1008's fix (Pro subscribers edit indicator parameters and the chart
+ * now redraws) as a canvas-level regression check, using the same instrument
+ * that found the original bug by hand: `qa/e2e/_chart.ts`'s hash, not a
+ * screenshot.
  *
- * THIS TEST DOCUMENTS TODAY'S KNOWN-BROKEN BEHAVIOUR, THE SAME WAY
- * `rsi.test.mts`'s "a flat series is also 100" pins a quirk rather than
- * endorsing it. It asserts `chartUnchanged` — editing Bollinger's Length
- * from 20 to 5 currently changes zero pixels, confirmed live on canvas hash
- * in the #1008 investigation. **When #1008's fix lands, this assertion
- * inverts**: swap `chartUnchanged` for `chartChanged` (same import, same
- * baseline) — a failure here after that fix ships is the fix working, not
- * a regression. Left failing-on-purpose the day the fix merges is exactly
- * the stale-assertion shape this project keeps finding in `TEST_GAPS.md`;
- * this comment is the marker so it doesn't happen here too.
+ * Was `chartUnchanged` (pinning the bug); swapped to `chartChanged` here on
+ * feature/strategy-panel-params-wiring alongside the real fix, so `dev`
+ * never carries a knowingly-wrong assertion — same import, same baseline.
  */
 
 test.describe('indicator parameter edits reach the chart (#1008)', () => {
   test.skip(!AUTH_READY, AUTH_SKIP_REASON);
 
-  test('Bollinger Length 20→5: canvas is unchanged (known bug, #1008)', async ({ browser }) => {
+  test('Bollinger Length 20→5: canvas changes (#1008 fixed)', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a', { viewport: { width: 1440, height: 900 } });
     await ctx.addInitScript(() => {
       try { localStorage.setItem('lhq-design-mode', 'terminal'); } catch { /* private mode */ }
@@ -32,6 +26,29 @@ test.describe('indicator parameter edits reach the chart (#1008)', () => {
     try {
       await gotoSignedIn(page, '/arena?coin=btc&tf=1h');
       await killTransitions(page); // before the baseline, not after
+
+      /* Wait for the chart's OWN first paint, not just the panel's readiness.
+       * Found this the hard way running locally against a cold `next start`:
+       * candles fetch through /api/market/klines server-side and take a beat
+       * on a cold cache (warm on the deployed qa build, so this never showed
+       * there) — a canvas with only chrome/no candles measures ~30k chars of
+       * toDataURL(); a real loaded chart measures ~350k. 100k is comfortably
+       * between the two. Without this, `before` can be taken against a blank
+       * canvas that stays blank after the edit too — `chartChanged` would
+       * then fail for a reason that has nothing to do with #1008.
+       *
+       * NOT A FLAKE MITIGATION — the same shape as the hollow-node_modules
+       * detector: "a canvas exists" passes on a thing that is present and
+       * empty, same as "a directory exists". Both look like a pass while
+       * measuring nothing. This wait is the difference between baselining
+       * a chart and baselining an empty canvas; without it `_chart.ts` — now
+       * load-bearing for #1008 — could report `chartChanged` green for the
+       * wrong reason indefinitely against a warm deployed build, which is
+       * worse than failing loud against a cold local one. */
+      await expect.poll(
+        async () => (await snapshotCanvases(page)).len,
+        { timeout: 15_000, message: 'chart candles never loaded (canvas stayed near-blank)' },
+      ).toBeGreaterThan(100_000);
 
       // Custom strategy set, so the Bollinger chip's own param editor renders.
       await page.locator('select').first().selectOption('custom');
@@ -47,11 +64,10 @@ test.describe('indicator parameter edits reach the chart (#1008)', () => {
       await lengthInput.dispatchEvent('change');
       await page.waitForTimeout(500); // give a real redraw every chance to happen before asserting it didn't
 
-      await chartUnchanged(
+      await chartChanged(
         page,
         before,
-        'Bollinger Length 20→5 changed the chart canvases — if #1008 is fixed, ' +
-        'update this test to assert chartChanged instead (see file header).',
+        'Bollinger Length 20→5 did not change the chart canvases — #1008 regressed.',
       );
     } finally {
       await ctx.close();
