@@ -1,37 +1,64 @@
-> # ⛔ SUPERSEDED AS THE UI REFERENCE — owner ruling, 2026-09-08
+> # ⚠️ NOT A BUILD TARGET UNTIL ADJUSTED — owner ruling, 2026-09-08
 >
-> **The Arena page running in PRODUCTION is the UI reference. Not this file.**
-> The owner's words: *"the arena page in prod that should be the UI reference"*,
-> after confirming *"the one in staging arena page is wrong and in prod
-> liquidity hq is correct"*.
+> **The Arena page running in PRODUCTION is the UI reference. This file is a
+> design to be ADJUSTED against it — not abandoned, and not built as written.**
 >
-> **Why this happened.** The terminal rebuild this file specifies was restored on
-> 2026-09-07 (#853 / PR #1039) and **introduced four defects in six hours**: the
-> chart canvas painting over every panel at every width, the `1d` timeframe
-> unreachable on mobile, `LiqFeed` never mounting so the Liquidation Clusters
-> panel was permanently empty (#925), and — worst — **a Pro subscriber resolving
-> as free** (#1049), which would have shown a paying customer an upgrade prompt on
-> the page they pay for. Two were fixed; two were still unexplained when the owner
-> called it. The rebuild was reverted the same day.
+> The owner's words, in order: *"the one in staging arena page is wrong and in
+> prod liquidity hq is correct"*, then *"the arena page in prod that should be
+> the UI reference"*, then — correcting an earlier, harsher version of this
+> banner — ***"I mean, adjust the design."***
 >
-> **What this file is now.** A record of a design that was specified, attempted
-> and withdrawn. **Read it for history, not as a target.** Its acceptance criteria
-> are not a definition of done for anything, and nothing should be built to match
-> it without the owner re-opening that decision explicitly.
+> **So the instruction is revision, not deletion.** An earlier draft of this
+> banner called the file history and its criteria void. That went further than
+> the owner asked and is corrected here rather than quietly rewritten.
 >
-> **Two things it got right that outlived it**, and are worth keeping wherever
-> Arena work happens next: *"colour is data"* — a value is coloured because that
-> signal fired, and direction is not the sign of the number; and **the
-> entitlement check belongs at the call site**, not inside the component, because
-> moving a panel moves its markup and leaves its guard behind. That one shipped as
-> a real bug once before this file was written.
+> ## What happened, because a spec that hides its own failure teaches nothing
 >
-> **The deeper lesson, which is not about this design.** The rebuild was a restyle
-> — no new features, no new data, nothing a user had asked for — and it was
-> measured against structural criteria (node counts, chart-instance counts, text
-> presence) that **all passed on a page that was visibly broken**. Verification
-> that cannot see what the user sees is not verification. `qa/TEST_GAPS.md` §2 had
-> said so for weeks before this proved it.
+> The rebuild this file specifies was restored on 2026-09-07 (#853 / PR #1039)
+> and **introduced five defects in six hours**:
+>
+> 1. the chart canvas painting over every panel, **at every width swept, 768 to 1440**
+> 2. `1d` unreachable on mobile, with the `NEED PRO` hint that explains the gated chips
+> 3. `LiqFeed` never mounting — Liquidation Clusters **permanently** empty (#925)
+> 4. **a Pro subscriber resolving as free** (#1049) — a paying customer shown an
+>    upgrade prompt on the page they pay for
+> 5. **the on-the-fly strategy switch gone entirely** — the owner noticed this one
+>    themselves on staging, and it is the requirement they have been clearest
+>    about across the whole project
+>
+> Two were fixed, two were unexplained, and the fifth was not noticed by anyone
+> on the team. Reverted the same day in #1053.
+>
+> ## What has to change before this is a target again
+>
+> **The terminal tree replaced the classic page wholesale rather than restyling
+> it**, and that is where every one of the five came from — a component that does
+> not mount, a guard that does not resolve, a feature that simply is not in the
+> new tree. **A design that reaches production has to be reachable from what runs
+> there now**, panel by panel, with nothing silently dropped.
+>
+> **Specifically: this file's 15-module inventory does not include the Strategy
+> Panel**, and production has it. That omission is not a detail — it is defect 5.
+>
+> ## What to carry forward regardless
+>
+> These are good and would otherwise be thrown out with the rest:
+>
+> - **"Colour is data"** — a value is coloured because that signal *fired*, and
+>   direction is not the sign of the number. Crowded-long funding is positive and
+>   red. Two of eight evidence rows carry colour; colouring the quiet ones green
+>   would look better, be wrong, and pass every automated check.
+> - **The entitlement check belongs at the call site**, not inside the component.
+>   Moving a panel moves its markup and leaves its guard behind — that shipped as
+>   a real bug once before this file was written, and #1049 is the same family.
+>
+> ## The lesson that is not about this design
+>
+> A restyle nobody asked for was measured against structural criteria — node
+> counts, chart-instance counts, text presence — that **all passed on a visibly
+> broken page**, and none of them noticed a missing feature. `qa/TEST_GAPS.md` §2
+> had said *"geometry is checked, appearance is not"* for weeks. This is what that
+> sentence cost.
 
 # Arena — `Arena 1a.dc.html · 1a`
 
