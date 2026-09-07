@@ -149,12 +149,35 @@ async function findOverlappingChildren(
   }, selector);
 }
 
+/**
+ * #1053, 2026-09-08: the owner reverted the terminal Arena rebuild this gate
+ * was built for (production's classic Arena was correct; the rebuild carried
+ * this file's own regression plus two others). `.at-root`/`.at-main`/
+ * `.at-rail` no longer exist anywhere in the DOM - `document.querySelector`
+ * returns null, `findOverlappingChildren`'s early return hands back `[]`,
+ * and `expect([]).toEqual([])` passes. That is a green run that checked
+ * NOTHING, not a green run that found the page clean - the exact "false
+ * clean" shape this project has paid for before (`settle()`/`gotoSignedIn()`
+ * exist for the same reason on the signed-in suite). Skip honestly instead:
+ * a named, dated skip reason is worth more than a checkmark that lies about
+ * what it measured. Re-enable by removing this guard if the terminal Arena
+ * is ever rebuilt - the detection logic itself needs no change, it was never
+ * the part that broke. */
+async function terminalArenaAbsent(page: import('@playwright/test').Page): Promise<boolean> {
+  return page.evaluate(() => document.querySelectorAll('.at-root').length === 0);
+}
+const TERMINAL_ARENA_REVERTED =
+  '#1053: the terminal Arena rebuild was reverted 2026-09-08 (owner-directed) - ' +
+  '.at-root/.at-main/.at-rail no longer exist. Skipping rather than reporting a ' +
+  'false pass against selectors that no longer match anything.';
+
 test.describe('Arena terminal — no two main-column siblings visually overlap', () => {
   for (const width of WIDTHS_DESKTOP) {
     test(`at ${width}px`, async ({ browser }) => {
       const ctx = await browser.newContext({ viewport: { width, height: 900 } });
       const page = await ctx.newPage();
       await settle(page, '/arena?design=terminal');
+      test.skip(await terminalArenaAbsent(page), TERMINAL_ARENA_REVERTED);
       // klinecharts renders asynchronously after mount - give it room to
       // reach its natural (possibly overflowing) size before measuring.
       await page.waitForTimeout(2000);
@@ -173,6 +196,7 @@ test('Arena terminal mobile 390 — no two top-level children visually overlap',
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage();
   await settle(page, '/arena?design=terminal');
+  test.skip(await terminalArenaAbsent(page), TERMINAL_ARENA_REVERTED);
   await page.waitForTimeout(2000);
 
   const overlaps = await findOverlappingChildren(page, '[data-layout="mobile"]');
