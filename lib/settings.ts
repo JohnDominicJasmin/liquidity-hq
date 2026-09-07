@@ -42,6 +42,12 @@ export interface UserSettings {
   // each subscriber's own local time. Null = not detected yet; the alert route
   // falls back to UTC. See components/TimezoneSync.tsx.
   timezone:         string | null;
+  // Arena Strategy Panel - which indicators are selected and any edited calc
+  // params, so a Pro user's setup survives reload and syncs across devices
+  // (#1020). Null = never saved: empty selection, registry defaults for every
+  // param - identical to this app's pre-#1020 in-memory-only behaviour.
+  strategy_selection: string[] | null;
+  strategy_params:    Record<string, Record<string, string | number | boolean>> | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -71,6 +77,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   watchlist:          ['btc', 'eth', 'sol'],
   language:           null,
   timezone:           null,
+  strategy_selection: null,
+  strategy_params:    null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -170,5 +178,11 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     watchlist:          Array.isArray(row.watchlist) ? row.watchlist as string[] : DEFAULT_SETTINGS.watchlist,
     language:           (row.language as string | null) ?? null,
     timezone:           (row.timezone as string | null) ?? null,
+    strategy_selection: Array.isArray(row.strategy_selection)
+      ? (row.strategy_selection as unknown[]).filter((v): v is string => typeof v === 'string')
+      : null,
+    strategy_params: (row.strategy_params && typeof row.strategy_params === 'object' && !Array.isArray(row.strategy_params))
+      ? row.strategy_params as Record<string, Record<string, string | number | boolean>>
+      : null,
   };
 }

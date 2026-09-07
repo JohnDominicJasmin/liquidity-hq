@@ -65,6 +65,7 @@ export async function PATCH(req: NextRequest) {
     'beginner_mode', 'trading_experience', 'trading_style', 'how_heard', 'watchlist',
     'display_name', 'country', 'trading_challenge', 'language',
     'timezone',
+    'strategy_selection', 'strategy_params',
   ];
   const payload: Record<string, unknown> = { user_id: user.id, updated_at: new Date().toISOString() };
   for (const key of ALLOWED) {
@@ -83,6 +84,25 @@ export async function PATCH(req: NextRequest) {
       payload.timezone = null;
     } else if (typeof tz !== 'string' || !isValidTimeZone(tz)) {
       return NextResponse.json({ error: 'Invalid timezone' }, { status: 400 });
+    }
+  }
+
+  // strategy_selection/strategy_params are jsonb - reject anything that isn't
+  // the shape app/arena/page.tsx actually produces, rather than storing
+  // garbage that would later crash StrategyPanel/useEMAStrategy on read.
+  if ('strategy_selection' in payload) {
+    const sel = payload.strategy_selection;
+    if (sel !== null && !(Array.isArray(sel) && sel.every(v => typeof v === 'string'))) {
+      return NextResponse.json({ error: 'Invalid strategy_selection' }, { status: 400 });
+    }
+  }
+  if ('strategy_params' in payload) {
+    const p = payload.strategy_params;
+    const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+      typeof v === 'object' && v !== null && !Array.isArray(v);
+    const valid = p === null || (isPlainObject(p) && Object.values(p).every(isPlainObject));
+    if (!valid) {
+      return NextResponse.json({ error: 'Invalid strategy_params' }, { status: 400 });
     }
   }
 

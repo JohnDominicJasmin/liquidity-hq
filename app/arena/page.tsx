@@ -258,6 +258,19 @@ function ArenaContent() {
      StrategyPanel. Keyed by indicator id then param key; an indicator with
      no entry yet uses strategyRegistry's defaultParams. */
   const [strategyParams, setStrategyParams] = useState<Record<string, Record<string, string | number | boolean>>>({});
+  /* #1020: persist on the user's own action, not via an effect watching
+     strategySelection/strategyParams - an effect would also fire on the
+     seed effect's OWN setStrategySelection/setStrategyParams calls above,
+     echoing the just-read value straight back to the server on every load.
+     Passed to StrategyPanel below in place of the raw setters. */
+  const handleStrategySelectionChange = useCallback((next: readonly string[]) => {
+    setStrategySelection(next);
+    update({ strategy_selection: next as string[] });
+  }, [update]);
+  const handleStrategyParamsChange = useCallback((next: Record<string, Record<string, string | number | boolean>>) => {
+    setStrategyParams(next);
+    update({ strategy_params: next });
+  }, [update]);
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
   // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
@@ -521,8 +534,14 @@ function ArenaContent() {
       if (!urlParams.has('tf') && ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'].includes(settings.default_tf)) {
         setReadTf(settings.default_tf as ChartTf);
       }
+      // #1020: seed the Strategy Panel selection from the account, once, the
+      // same way coin/tf are seeded above. Uses the raw setters, not the
+      // update()-wrapped handlers below - this is a read, not a user edit,
+      // and must not immediately echo the just-read value back to the server.
+      if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);
+      if (settings.strategy_params) setStrategyParams(settings.strategy_params);
     }
-  }, [settings.default_coin, settings.default_tf]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Pro gate: fast timeframes ──
      Intercepts every timeframe switch (chart toolbar buttons come through
@@ -2296,7 +2315,7 @@ function ArenaContent() {
           wired, and that is deliberately a separate change. One selection
           driving a chart plus three AI actions is the part that goes wrong
           quietly, and it should not land inside a layout diff. */}
-      <StrategyPanel selected={strategySelection} onSelectedChange={setStrategySelection} params={strategyParams} onParamsChange={setStrategyParams} onRun={runStrategy} />
+      <StrategyPanel selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
