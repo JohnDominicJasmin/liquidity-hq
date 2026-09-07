@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { CoinId } from '@/lib/marketStore';
-import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, bybitSymbolPriceFactor } from '@/lib/coins';
 import Tip from './Tip';
 import { Warn } from './icons';
 import { withAlpha } from '@/lib/color';
@@ -37,14 +37,19 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
         const bn = BINANCE_SYMS[coin];
         const by = BYBIT_SYMS[coin];
         let closes: number[] = [];
-        if (bn) {
+        // #1059: Bybit primary, Binance fallback. This only ever compares two
+        // closes as a ratio, so bybitSymbolPriceFactor is a no-op here (both
+        // sides scale identically) - applied anyway per the coins.ts rule that
+        // any new code reading a price off BYBIT_SYMS applies the factor.
+        if (by) {
+          const r = await fetch(`/api/market/klines?source=bybit&symbol=${by}&interval=240&limit=${LOOKBACK_BARS + 1}`);
+          const d = await r.json() as { result?: { list?: string[][] } };
+          const pf = bybitSymbolPriceFactor(by);
+          closes = [...(d?.result?.list ?? [])].reverse().map(k => +k[4] * pf);
+        } else if (bn) {
           const r = await fetch(`/api/market/klines?source=binance-futures&symbol=${bn}&interval=4h&limit=${LOOKBACK_BARS + 1}`);
           const raw = await r.json() as (string | number)[][];
           closes = raw.map(k => +k[4]);
-        } else if (by) {
-          const r = await fetch(`/api/market/klines?source=bybit&symbol=${by}&interval=240&limit=${LOOKBACK_BARS + 1}`);
-          const d = await r.json() as { result?: { list?: string[][] } };
-          closes = [...(d?.result?.list ?? [])].reverse().map(k => +k[4]);
         }
         if (closes.length < LOOKBACK_BARS + 1) return;
         const now = closes[closes.length - 1], then = closes[closes.length - 1 - LOOKBACK_BARS];
