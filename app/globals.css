@@ -7475,6 +7475,42 @@ main.app-content[data-chrome="none"] {
 }
 [data-design="terminal"] .at-rail { flex: 0 0 352px; display: flex; flex-direction: column; }
 [data-design="terminal"] .at-chart { height: 430px; padding: 16px 62px 24px 16px; }
+/* #853 layout regression, owner-reported: KLineProChart's .klc-canvas is a
+   self-sizing standalone dashboard card - flat `height: 800px` (globals.css
+   ~2198), its own mobile media queries, nothing tying it to an ancestor's
+   height. .klc-wrap (its flex-column root) has no height of its own either,
+   so it sizes to content: toolbar + that 800px canvas + resize handle, well
+   past .at-chart's 430px. .at-chart's `overflow: visible` never clips
+   anything, so the excess ~370-420px of chart painted straight over the
+   Confluence panel below it - reproduced at EVERY width tested (768 through
+   1440, the spec's own canonical desktop width), not a tablet-only gap.
+   klinecharts' own resize logic caught a mid-layout height of 614px on
+   staging in one measurement - neither the CSS default (800) nor the
+   target (430), a real number that means nothing on its own; recorded here
+   so the next person who finds 614 in a screenshot does not re-derive it.
+
+   Fix: make the chart adapt to the slot rather than the other way around.
+   .at-chart's 430px is UNCHANGED - this makes that number finally take
+   effect. Chained height through .klc-wrap so klc-canvas's flex:1 has an
+   actual constrained space to fill instead of an implicit 800px default.
+   Scoped to [data-design="terminal"] .at-chart specifically so the
+   dashboard's own standalone chart keeps its current self-sizing behavior
+   untouched - this is not a change to klinecharts' base sizing model.
+
+   One more link than expected: .klc-canvas is not klc-wrap's direct flex
+   child. It sits inside an unnamed positioning div (KLineProChart.tsx, the
+   canvas/resize-handle/tooltip wrapper) that was not itself a flex
+   container - so klc-canvas's flex:1 had no flex context to grow inside
+   and collapsed toward zero instead of filling the slot. Gave that div a
+   name (.klc-canvas-wrap) purely as a CSS hook - no behavior change - and
+   chained the same flex treatment through it. Found by measuring the
+   first attempt's result rather than assuming it worked: klc-canvas
+   rendered at 26px, not the expected ~350px, which is what exposed this. */
+[data-design="terminal"] .at-chart .klc-wrap { height: 100%; }
+[data-design="terminal"] .at-chart .klc-canvas-wrap {
+  flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+[data-design="terminal"] .at-chart .klc-canvas { flex: 1; height: auto; min-height: 0; }
 /* The two paired rows: each half flex:1, divided by one structural hairline. */
 [data-design="terminal"] .at-pair { display: flex; align-items: stretch; border-bottom: 1px solid var(--bdr); }
 [data-design="terminal"] .at-pair > * { flex: 1; min-width: 0; }
@@ -7517,8 +7553,30 @@ main.app-content[data-chrome="none"] {
   }
   [data-design="terminal"] .at-vlevel { padding: 12px 14px; }
   [data-design="terminal"] .at-vlevelval { font-size: 15px; }
-  [data-design="terminal"] .at-tfrow { height: 40px; padding: 0 14px; }
-  [data-design="terminal"] .at-tf { padding: 6px 10px; }
+  /* Second Arena regression, same PR as #853's canvas fix, different cause:
+     8 timeframe buttons + the gated-state hint span need ~376px+ at their
+     min-content width; the mobile row only has 330px. flex-shrink can't
+     rescue it - these buttons already sit at min-content. overflow:hidden
+     (arena.md's own spec: "40, horizontal overflow hidden") silently clipped
+     the overflow instead of the row breaking - 1d and the hint span moved
+     past the clip edge, un-paintable and un-clickable, not just visually
+     tight. QA's overlap gate flagged this as ".at-tfrow overlaps .at-verdict"
+     - that specific claim is a false positive (getBoundingClientRect ignores
+     the ancestor clip; screenshots at 390 on local dev and staging show no
+     visible overlap) but it was pointing at a real defect: 1d was silently
+     unreachable, the same "hidden nobody notices" shape as the canvas bug.
+     arena.md's hint text is spec-required ("Gated must be legible without
+     colour") so shrinking it away isn't on the table. Fix: let the row
+     scroll instead of clip, so every timeframe stays reachable. */
+  [data-design="terminal"] .at-tfrow {
+    height: 40px; padding: 0 14px; overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; touch-action: pan-x pan-y;
+    -webkit-mask-image: linear-gradient(90deg, #000 55%, transparent 100%);
+            mask-image: linear-gradient(90deg, #000 55%, transparent 100%);
+  }
+  [data-design="terminal"] .at-tfrow::-webkit-scrollbar { display: none; }
+  [data-design="terminal"] .at-tf { padding: 6px 10px; flex-shrink: 0; }
+  [data-design="terminal"] .at-tfhint { white-space: nowrap; flex-shrink: 0; }
   /* #598 D2: this was .at-mchart, a class the JSX never applies (only
      .at-chart is used at any viewport) - so the mobile chart stayed 430px
      tall instead of 210, and the two suppression rules below stayed dead
