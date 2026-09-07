@@ -270,8 +270,49 @@ pattern, just not applied everywhere). None of this proves or disproves what a
 screen reader actually announces — it only shows where the structure is missing
 entirely, which is a floor below "announces the wrong thing."
 
-**To close:** still partly unclosable in CI. A real pass needs NVDA or VoiceOver and a
-person. Book it as a manual session rather than pretending automation covers it.
+**2026-09-07 — a fourth sweep (#968/#969) found a fourth batch of the same two
+shapes**, in files the first three passes never reached: the Arena session-history
+row (same unreachable-`<div>` pattern as #939's first finding), and
+`MarketStructure.tsx`'s direction badges — a **worse** case than the `Math.abs()`
+sites, since nothing there carries direction in words at all, not even a stripped
+magnitude. Four widening nets, four non-empty results. **The structural half of
+this gap is not provably complete either** — each pass has found more than the
+last, and there is no reason to expect a fifth pass with an even wider net would
+come back empty. Treat "the tree is correct" as current-best-effort, not settled,
+until a pass finds nothing.
+
+**The verdict on the announcement half, stated plainly rather than deferred
+again: this cannot be verified in this environment, full stop.** No session on
+this project has ever had NVDA, JAWS, VoiceOver, or a person who uses one, in the
+loop. Every pass to date — this one included — has substituted the accessibility
+tree and source reading for an actual listen, and that substitution has a real
+blind spot: reading order, timing, verbosity-setting interactions, and how a
+specific AT actually vocalizes a specific ARIA pattern are exactly the four
+things a static tree cannot show, because they are properties of the AT's own
+runtime behavior, not of the DOM.
+
+**What closing this would actually take**, concretely, not "book a session":
+
+1. **A person, not just the software.** NVDA (free, Windows) is the widest-reach
+   pairing with Chrome/Firefox; VoiceOver (built into macOS/iOS, free) covers
+   Apple; JAWS (commercial, the enterprise/screen-reader-user default) is the one
+   most likely to surface a real-world gap the free tools don't, if budget allows
+   for it. None of the three substitute for each other — they differ in how they
+   handle landmarks, tables, and live regions.
+2. **Task-based, not control-by-control.** Spot-checking one button's
+   announcement at a time is what the tree-reading passes already do adequately.
+   The thing that needs a real AT is a full task run end to end — sign in,
+   run a Quick Research, read the result, open Arena's session history — with
+   the actual announcements transcribed at each step and compared to what the
+   structure was supposed to communicate.
+3. **A written transcript, kept.** "It sounded fine" is not a result. What was
+   announced, in what order, verbatim, against what was intended — the same
+   discipline this file already applies everywhere else.
+
+**To close:** cannot be closed from this session or any session shaped like it.
+Needs the owner to either bring in a person who uses AT day to day, or contract
+an accessibility auditor for a real pass. Recorded as the honest state rather
+than as another tree-reading pass wearing a checkmark.
 
 ---
 
