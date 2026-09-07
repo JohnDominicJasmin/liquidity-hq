@@ -650,7 +650,12 @@ function ArenaContent() {
   }, []);
 
   const enableNotifications = async () => {
-    if (!('Notification' in window)) { alert(t('ARENA_ALERT_NOTIFS_UNSUPPORTED')); return; }
+    // #1042: an anti-fingerprinting extension's Notification stub passes
+    // 'Notification' in window but has no requestPermission method - feature-
+    // detect the method too, not just the object, same as NewsProvider.tsx.
+    if (!('Notification' in window) || typeof Notification.requestPermission !== 'function') {
+      alert(t('ARENA_ALERT_NOTIFS_UNSUPPORTED')); return;
+    }
     if (Notification.permission === 'granted') { setNotifEnabled(true); return; }
     const perm = await Notification.requestPermission();
     if (perm === 'granted') setNotifEnabled(true);
