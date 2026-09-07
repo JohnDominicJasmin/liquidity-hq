@@ -121,13 +121,23 @@ file it was describing — the claim just never caught up to the test.
   and one tick past each, now added to the same file. A fixed E2E fixture
   snapshot can't be relied on to land exactly on a threshold; a unit test can
   choose to.
-- **Squeeze/flush boundaries — still open, now for a named reason.**
-  `computeSqueezeScore` (`lib/marketStore.ts`) is where these live, and that
-  file can't be unit-tested directly yet: it imports `./healthGradeA11y` with
-  no `.ts` extension, which Next.js's bundler resolves but Node's native
-  TypeScript support (what `node --test` uses) does not. See #952 — 42 such
-  imports across 18 `lib/` files, a mechanical Dev-owned fix, not QA's to
-  make. Blocked, not forgotten.
+- **Squeeze/flush boundaries — closed, 2026-09-07, and this line was stale
+  before today too.** It named #952 (42 extensionless imports blocking direct
+  `node --test` of `lib/`) as the blocker. #952 closed and the
+  `./healthGradeA11y` import it was about is gone from `marketStore.ts` —
+  checked both directly rather than trusting the issue tracker's state alone
+  — so the file has been importable for a while; this bullet just never
+  caught up. `__tests__/squeezeScore.test.mts` now pins
+  `computeSqueezeScore`'s exact thresholds: the funding-rate, L/S-ratio and
+  taker-ratio tier boundaries (exact values, not "around"), the ≥2-signal
+  gate that keeps a single extreme reading from labelling Flush/Squeeze on
+  its own, the volume bonus's own `dominant > 10` gate, and the 100-point
+  cap. One real trap surfaced writing it: the L/S-ratio signal requires
+  **both** `longRatio` and `shortRatio` non-null to fire at all — a stub
+  setting only one produces zero signal, not a degraded one — caught by
+  checking every expected value against the real function before writing the
+  assertion, the same discipline `rsi.test.mts` and `smaNMArr.test.mts`
+  already established for this file's neighbours.
 
 ---
 
