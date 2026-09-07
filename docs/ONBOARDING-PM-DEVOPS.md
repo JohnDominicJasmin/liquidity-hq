@@ -188,12 +188,12 @@ curl -s https://liquidity-hq.com/api/version
 |---|---|---|---|
 | `liquidity-hq-qa` | `srv-d9p42ke1egvs73f8car0` | `qa` | **QA** |
 | `liquidity-hq-staging` | `srv-d9qskniju40c73brtqgg` | `staging` | **QA** |
-| `liquidity-hq-dev` | `srv-d8prs6po3t8c739aepdg` | `dev` | **unassigned** — ask the owner. ~500 build-hour/month cap |
+| `liquidity-hq-dev` | `srv-d8prs6po3t8c739aepdg` | `dev` | **yours** — assigned 2026-09-07. ~500 build-hour/month cap, so deploy it only when a deployed check is needed |
 | `liquidity-hq-prod` | `srv-d8aluf6l51nc73e1ijp0` | `main` | **YOURS**, owner-approved each release |
 
 Workspace `tea-d6e4ecv5r7bs73be1t10`.
 
-**`liquidity-hq-dev` is genuinely unassigned**, not an oversight. Dev held it; dev is under a standing owner instruction not to deploy any environment; nobody has been named to take it. Written as an open gap because inventing a holder is the mistake this table already made once.
+**`liquidity-hq-dev` is yours as of 2026-09-07**, and it was an orphan for four days before that. Dev held it; dev came under a standing owner instruction not to deploy any environment on 2026-09-03; nobody was named to replace them, and nobody noticed, because local verification covers almost everything. It surfaced only when the owner asked what they might be blocking without realising — the register of those is `docs/OWNER-BLOCKERS.md`, and this row was one of six. **Being assigned it is not a reason to use it**: the ~500 build-hour cap is real and the owner pays it.
 
 **The handshake you must not drop, and it exists because of the split.** Before 2026-09-05 one session merged, deployed and verified, so there was no gap. There is one now: **you deploy production and QA verifies it**, and QA cannot verify a build it does not know is live. So the moment `/api/version` confirms the new commit, tell them — and quote the endpoint rather than saying "deployed".
 
