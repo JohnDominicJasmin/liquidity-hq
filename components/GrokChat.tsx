@@ -759,52 +759,6 @@ export default function GrokChat() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {!histView && (
               <>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                  <div className="gchat-mode" role="radiogroup" aria-label="Response mode" onKeyDown={onModeKeys}>
-                    {MODES.map((m, i) => {
-                      const selected = m.live === liveActive;
-                      const disabled = m.live && searchExhausted;
-                      return (
-                        <button
-                          key={m.id}
-                          ref={el => { modeRefs.current[i] = el; }}
-                          role="radio"
-                          aria-checked={selected}
-                          aria-disabled={disabled || undefined}
-                          tabIndex={selected ? 0 : -1}
-                          data-testid={`grok-mode-${m.id}`}
-                          className={`gchat-mode-opt${m.live ? ' live' : ''}${selected ? ' on' : ''}${disabled ? ' off' : ''}`}
-                          onClick={() => selectMode(m.live)}
-                          title={disabled ? `No searches left - resets ${nextResetLocalTime()}` : m.title}
-                        >
-                          {m.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {counterText && (
-                    <span
-                      data-testid="grok-mode-count"
-                      className={`gchat-mode-count${activeRemaining !== null && activeRemaining <= 0 ? ' zero' : ''}`}
-                    >
-                      {activeRemaining === 1 && <Warn size={10} />}
-                      {counterText}
-                    </span>
-                  )}
-                  {/* The escalation the user never consented to. Fast spends a
-                      SEARCH when the text trips a trigger word, so say it while
-                      the message is still editable rather than after the 429. */}
-                  {!liveActive && willSearch && (
-                    <span className="gchat-mode-note" data-testid="grok-auto-search">
-                      This question uses a live search
-                    </span>
-                  )}
-                  {/* Why the Live half is dead. A control that is present and
-                      explains itself beats one that silently refuses. */}
-                  {searchExhausted && !liveActive && !willSearch && (
-                    <span className="gchat-mode-note">No searches left · resets {nextResetLocalTime()}</span>
-                  )}
-                </div>
                 {msgs.length > 0 && (
                   <button className="gchat-icon-btn" onClick={clearChat} title="Clear chat" aria-label="Clear chat">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
@@ -907,6 +861,64 @@ export default function GrokChat() {
         ) : (
           /* ════ CHAT VIEW ════ */
           <>
+            {/* #995: was three stacked strings (mode pill row, quota counter,
+                an escalation note up to "No searches left · resets 4:00 PM"
+                long) crammed into a flex item sharing .gchat-header's row
+                with the title and icon buttons. At panel width that has room
+                for "48 messages" but not "48 messages left", so the note
+                wrapped - and align-items: center on a row whose middle child
+                had just grown taller lifted the pill above the header's own
+                title. Same squeeze #746 already solved once in this exact
+                panel for the coin row: give it the full panel width as its
+                own strip instead of a shared one. */}
+            <div className="gchat-meta-strip">
+              <div className="gchat-meta-row">
+                <div className="gchat-mode" role="radiogroup" aria-label="Response mode" onKeyDown={onModeKeys}>
+                  {MODES.map((m, i) => {
+                    const selected = m.live === liveActive;
+                    const disabled = m.live && searchExhausted;
+                    return (
+                      <button
+                        key={m.id}
+                        ref={el => { modeRefs.current[i] = el; }}
+                        role="radio"
+                        aria-checked={selected}
+                        aria-disabled={disabled || undefined}
+                        tabIndex={selected ? 0 : -1}
+                        data-testid={`grok-mode-${m.id}`}
+                        className={`gchat-mode-opt${m.live ? ' live' : ''}${selected ? ' on' : ''}${disabled ? ' off' : ''}`}
+                        onClick={() => selectMode(m.live)}
+                        title={disabled ? `No searches left - resets ${nextResetLocalTime()}` : m.title}
+                      >
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {counterText && (
+                  <span
+                    data-testid="grok-mode-count"
+                    className={`gchat-mode-count${activeRemaining !== null && activeRemaining <= 0 ? ' zero' : ''}`}
+                  >
+                    {activeRemaining === 1 && <Warn size={10} />}
+                    {counterText}
+                  </span>
+                )}
+              </div>
+              {/* The escalation the user never consented to. Fast spends a
+                  SEARCH when the text trips a trigger word, so say it while
+                  the message is still editable rather than after the 429. */}
+              {!liveActive && willSearch && (
+                <span className="gchat-mode-note" data-testid="grok-auto-search">
+                  This question uses a live search
+                </span>
+              )}
+              {/* Why the Live half is dead. A control that is present and
+                  explains itself beats one that silently refuses. */}
+              {searchExhausted && !liveActive && !willSearch && (
+                <span className="gchat-mode-note">No searches left · resets {nextResetLocalTime()}</span>
+              )}
+            </div>
             {/* DROPDOWN ONLY (#746). Owner: "this coin selection it should be
                 a searchable dropdown not a horizontal list of coin selection."
 
