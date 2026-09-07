@@ -183,6 +183,56 @@ screenshots of data-heavy routes will need the fixtures that already exist.
 **Cost:** ~1 day, most of it CI plumbing rather than test code.
 **Value:** high, but no longer the highest — the unusable cases are caught.
 
+**A concrete example, not a hypothetical — 2026-09-08, the Arena regression.**
+`.klc-canvas`'s base rule (`app/globals.css:2198`) is a flat `height: 800px`,
+carried over from its life as a standalone dashboard card. The terminal
+design's `.at-chart` container (`:7477`) constrains its own box to `430px`
+(`210px` at mobile), but nothing overrides `.klc-canvas` itself for
+`[data-design="terminal"]` — checked directly, no such rule exists. So the
+canvas renders at its full 800px regardless of the 430px box around it,
+and paints over every panel below it, at every desktop width.
+
+**Two things had already checked this exact page and both passed, correctly,
+for what they check:**
+
+- **QA's #853 sign-off** (this file's own author) verified criteria 24–27:
+  `[data-layout]` node counts, exactly-one-chart-instance, and text presence
+  for the free-tier locked card. All true. None of them read a bounding
+  rect — a canvas rendering 370px taller than its container changes no
+  node's existence and no chart's instance count, so there was nothing in
+  scope for those criteria to catch.
+- **`layout.spec.ts`'s own obscured-control check**, which already runs
+  against `/arena` in terminal mode (there is already a
+  `KNOWN_OBSCURED_BY_DESIGN` entry for it — `klc-tool-btn` under
+  `gchat-fab`) — also passed, for a narrower and more specific reason than
+  "centre doesn't land on it." Its candidate set (`querySelectorAll('button,
+  a[href], input, select, textarea')`, line 105) is INTERACTIVE CONTROLS
+  ONLY. The panels the canvas painted over — Liquidation Clusters, Evidence,
+  the verdict band — are static text and numbers, not controls, so they
+  were never candidates for the check to run `elementFromPoint` against in
+  the first place. A panel with zero buttons or links inside its covered
+  area is invisible to this detector regardless of how much of it is
+  covered, which is a narrower gap than "the centre missed" — the element
+  never entered the sweep at all.
+
+**Neither check was wrong about what it measured.** Both are accurate
+instruments pointed at a question this bug doesn't live in. The gap this
+section names — appearance, not geometry — is exactly where it landed, and
+this is what it costs when it lands: a real, visible-to-every-user defect
+that shipped through a deployed-build sign-off with all its stated criteria
+genuinely passing.
+
+**What would have caught it, cheaper than the full pixel-diff plan above:**
+a bounding-rect containment check between a small, explicitly-named set of
+parent/child pairs that are supposed to nest — `expect(canvasRect.bottom)
+.toBeLessThanOrEqual(containerRect.bottom)` for `.klc-canvas` inside
+`.at-chart`, and whatever else has a similar fixed-height-child-in-a-sized-box
+relationship. Far narrower than a screenshot baseline (no platform-suffix
+problem, nothing to regenerate on every visual change), and it would have
+failed on exactly this bug. Not a replacement for the pixel-diff plan — a
+cheap, immediately-writable check for the specific overflow shape this
+regression turned out to be.
+
 ---
 
 ## ✅ 3. Light theme — CLOSED 2026-08-09
