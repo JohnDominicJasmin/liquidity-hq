@@ -386,8 +386,15 @@ that cannot stay quiet.** Both end the same way — nobody reads it.
 |---|---|---|
 | Dev, 1st | bare `error` / `fail` | this suite's own **passing** output: `[env] ERROR NEXT_PUBLIC_APP_ENV...`, `CONTROL: the values this replaced really do fail there` |
 | Dev, 2nd | `FATAL` | the env-check suite's passing fixture line `[env] FATAL NEXT_PUBLIC_SUPABASE_URL: points at the PRODUCTION Supabase...`, immediately followed by a tick |
-| QA | `Error:` | ESLint **rule descriptions**, which contain the word |
+| QA | `Error:` | ESLint **rule descriptions**, which contain the word — e.g. `warning  Error: Calling setState synchronously...` |
+| QA, 2nd axis | no baseline | every historical byte of every pre-existing log, replayed as new the moment it armed |
 | PM/DevOps | 7-char SHA vs `git rev-parse --short` (8 here) | every service, reported as **"0 commit(s) behind"** |
+
+**QA's instance had two causes and the table now shows both**, because it would
+otherwise read as a regex problem alone: the filter matched the wrong text **and**
+the watch had no baseline, so it replayed history as news. **Either alone would
+have flooded it.** A monitor can be wrong about *what* it matches and about *when*
+it starts, and those are separate mistakes.
 
 **Dev's summary is the one to remember:** *"cover the failure signatures" has to
 mean specific signatures, not the word itself, in a codebase whose own passing
@@ -416,7 +423,6 @@ So:
 
 **A monitor that floods is stopped automatically, which is worse than never
 arming it** — you go on believing something is watching.
-
 
 **Three documents have now under-stated this, each caught by a different reader.**
 It was missing from the Dev role doc, missing from QA's, and half-stated here.
