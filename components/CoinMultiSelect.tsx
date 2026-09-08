@@ -4,6 +4,7 @@
 // coordinates (same technique as Tip.tsx) so the panel isn't clipped when this sits
 // inside a scrollable container like SettingsModal's body.
 import { useState, useRef, useCallback, useEffect, useId } from 'react';
+import { createPortal } from 'react-dom';
 import { CoinId, COINS } from '@/lib/marketStore';
 import { useLabels } from '@/lib/labels';
 
@@ -160,7 +161,17 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
         </span>
       </button>
 
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
+        // Portalled to document.body - NOT rendered inline. Same reasoning as
+        // Tip.tsx: `position: fixed` is only viewport-relative if every
+        // ancestor is untransformed, and any ancestor with a transform
+        // creates a new containing block that silently repositions a nested
+        // fixed element relative to THAT box instead. GrokChat's own panel
+        // (.gchat-panel) keeps `transform: scale(1) translateY(0)` even at
+        // rest when open - visually identity, but still a transform - so
+        // this popover's viewport-computed coords were resolving against the
+        // 360x560 chat panel and getting clipped by its `overflow: hidden`
+        // on top of that. Portalling out to body-level sidesteps both.
         <div
           ref={panelRef}
           className="cms-panel"
@@ -227,7 +238,8 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
               {t('COIN_SELECT_CLEAR_ALL', { count: value.length })}
             </button>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
