@@ -358,6 +358,35 @@ last, and there is no reason to expect a fifth pass with an even wider net would
 come back empty. Treat "the tree is correct" as current-best-effort, not settled,
 until a pass finds nothing.
 
+**2026-09-08 — a fifth sweep (#1072), and it DID come back empty for the two
+established shapes.** Checked every `<div onClick>` lacking `role`/`tabIndex`/
+`onKeyDown` in `components/`+`app/` (14 candidates, after fixing a regex bug in
+the sweep script itself where `=>` arrows were truncating the match before the
+real attributes) and every direction/disclosure glyph outside an `aria-hidden`
+wrapper. Every genuine candidate for the first shape already carries #943's
+fix (a real nested `<button>` as the keyboard path) — present in **both**
+design variants everywhere a component has one (`dashboard`/`DashboardTerminal`,
+`markets`/`MarketsTerminal`), which is itself worth recording: the "fixed on
+one variant, missed on its twin" failure this file has documented elsewhere
+did not recur here. `ConfluenceScore.tsx`'s glyph-only-direction bug — flagged
+in its OWN code comment as the #939 shape — is also already fixed, with an
+explicit `+`/`-` sign carrying direction in text now, not just the arrow.
+
+**What it found instead was a different, milder shape**, not a fifth batch of
+the same two: four purely decorative, `pointerEvents: none` positional glyphs
+(a custom dropdown-arrow over a native `<select>`, duplicated in two design
+variants; a timeline position marker; a peak-window marker) with no
+`aria-hidden`, inconsistent with how every other decorative chevron in the
+codebase is handled. Lower severity than the established shape — none sit
+inside a labelled control's accessible name, so nothing's name is corrupted,
+and the information they reinforce is encoded in inline positioning that
+isn't AT-readable regardless of the glyph. Filed as #1072.
+
+**So: the structural half may now actually be closing**, at least for the two
+shapes four prior passes kept re-finding. One clean pass on a shape that
+previously returned non-empty every time is real evidence, not proof — the
+same caution the fourth sweep entry gives itself applies here too.
+
 **The verdict on the announcement half, stated plainly rather than deferred
 again: this cannot be verified in this environment, full stop.** No session on
 this project has ever had NVDA, JAWS, VoiceOver, or a person who uses one, in the
