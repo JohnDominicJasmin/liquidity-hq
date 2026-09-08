@@ -653,6 +653,62 @@ and recording the result here — not waiting for a pipeline that is off on purp
 
 ---
 
+## 🟡 12. A removal's own reservation is invisible to every check that only looks at what exists
+
+**Added 2026-09-08, after the second confirmed instance in five days.** Different
+shape from §2: §2 is about something present rendering wrong. This is about
+something **absent** — reverted, or never wired — that left CSS or config still
+reserving space or a mount point for it. No structural criterion catches this,
+because every one of them checks "does what's there behave correctly," and the
+defect is precisely that nothing is there to check.
+
+**Instance 1 — `#1063`, 2026-09-08.** `PriceTickerStrip`'s JSX mount was removed
+in `b2bba511` ("revert(dashboard): drop the canvas-mirror rebuild," 2026-09-03).
+`grep -rn "PriceTickerStrip" app/ components/` finds zero JSX mounts anywhere in
+the tree — only comments, one of which (`LandingTicker.tsx:5`) says outright
+"that component no longer exists." But `[data-design="terminal"] { --strip-h:
+34px; }` kept reserving the space for four days, on every page, on production,
+because nothing about that CSS rule references whether `PriceTickerStrip` is
+actually mounted — it just declares a constant. Five consumers
+(`.app-content`, `.nav-drawer`, `.news-ticker`, `.breaking-alert` ×2) all
+inherited the dead reservation as a visible gap under the nav bar. Verified
+independently, not just taken from the PR: confirmed the zero-JSX-mount claim
+by grep, confirmed `b2bba511` is a real commit, confirmed via a second grep that
+`--strip-h` has exactly one definition point in `globals.css` so there was no
+override masking the bug.
+
+**Instance 2 — `#1053`'s revert, 2026-09-08.** Reverting the terminal Arena
+rebuild removed every component that mounted an `.at-*` class. It did not
+remove the CSS. Measured directly: `grep -oE '\.at-[a-zA-Z0-9_-]+'
+app/globals.css | sort -u | wc -l` returns **70** distinct selectors still in
+the file, and a repo-wide grep for the same class names outside `globals.css`
+and `.spec.ts` files turns up nothing but one stale comment in
+`KLineProChart.tsx`. Harmless on its own — dead CSS with no matching element
+doesn't render anything wrong — but it is exactly the kind of debris a future
+change could collide with (a new class that happens to start `.at-` and
+silently inherits rules meant for a component that's been gone for days).
+
+**A related but distinct shape, not double-counted as a third instance:** #925,
+found earlier this same night, was `LiqFeed` never mounting under terminal
+mode — but that was the terminal rebuild's own wiring gap (a component that
+was supposed to be mounted and never was), not a revert leaving a dead
+reservation behind. Same family — CSS/config exists for a component that
+isn't there — opposite direction: built-but-never-wired instead of
+wired-then-removed. Worth knowing they're siblings, not the same bug.
+
+**What would catch this, and what wouldn't.** A screenshot diff might have
+caught instance 1 (a visible gap) but not instance 2 (dead CSS with nothing to
+render). No structural/node-count check catches either, by construction — they
+only ever assert against what a spec says should exist, and the defect here is
+what survives after removal, not what's missing from what's built. The only
+thing that reliably catches this shape: **when reverting or removing a
+component, grep its name across the CSS and config it touched, not just
+delete the JSX** — a process discipline, not a new test. Recording it here
+because it has now cost a live production defect (instance 1) and would have
+cost nothing to check for at revert time.
+
+---
+
 ## Suggested order
 
 Rewritten 2026-08-09, revised 2026-08-10. **Three of eleven closed, five
