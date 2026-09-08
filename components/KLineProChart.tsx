@@ -10,7 +10,7 @@ import { Warn } from '@/components/icons';
 import Tip from '@/components/Tip';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
-import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
+import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
@@ -1415,8 +1415,32 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
            __tests__/liqClusters.test.mts asserts it stays there. A line that
            silently changes tense is confidently wrong with nothing to reveal
            it.
-           Dotted rather than dashed, and thinner than the GEX pair, because
-           eight of them share the plot with the candles they are context for. */
+
+           #1075, owner-directed: this used to sit on the LEFT edge as a wide
+           `REALIZED LIQ $79,000 · $130K` chip, opposite S/R's compact right-edge
+           `R $80,139` chips - two visual languages for the same kind of thing
+           (a horizontal price level), and the loudest one carried the least
+           actionable data. Now it matches srLevelLine's chip POSITION exactly
+           (right edge, same padding/background/radius) but not its content.
+           S/R prints price because for a support/resistance line the price IS
+           the fact; the line's own y-position already says where a liq band
+           is, twice over (position plus the axis) - printing price a third
+           time would say nothing S/R doesn't already say better, and would
+           make an $81K band and a $13K band read identically. The dollar
+           total is the one thing on this label nothing else on screen shows,
+           so it survives and price doesn't: `REALIZED $81K`, not
+           `REALIZED $79,400`.
+           `REALIZED` (not `REALIZED LIQ`) - "LIQ" was redundant with the `Liq`
+           toggle that controls this whole layer; REALIZED is the one word
+           that must survive any further shortening.
+
+           KNOWN GAP, not fixed in #1075: S/R and this now compute their own
+           vertical label-stack offsets independently (`computeLabelOffsets`
+           is called once per overlay type, same as it already was for S/R vs
+           GEX). Sharing the right edge makes a collision between an S/R chip
+           and a Liq band chip more likely than it was when they were on
+           opposite edges. Not unified here - flagged for the owner's
+           localhost look. */
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (kc as any).registerOverlay({
           name: 'liqClusterLine',
@@ -1426,7 +1450,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { price, total, labelYOffset } = overlay.extendData as { price: number; total: number; labelYOffset?: number };
+            const { total, labelYOffset } = overlay.extendData as { price: number; total: number; count: number; labelYOffset?: number };
             const y = coordinates[0]?.y;
             if (y == null || !isFinite(y) || y < 0) return [];
             const rightX = (bounding?.width ?? 9999);
@@ -1440,7 +1464,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: 6, y: labelY, text: `REALIZED LIQ $${fmtPx(price)} · ${fmtLiqUsd(total)}`, align: 'left', baseline: 'bottom' },
+                attrs: { x: rightX - 6, y: labelY, text: `REALIZED ${fmtLiqUsd(total)}`, align: 'right', baseline: 'bottom' },
                 styles: {
                   color: ink.text, size: 9, weight: '700',
                   paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
@@ -2246,24 +2270,33 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      keyless streams, lifted through the page - see app/arena/page.tsx.
      The slice is defensive: the caller already limits to LIQ_CLUSTER_LINES,
      but this effect is what actually decides how much ink lands on the chart,
-     so it enforces the ruling itself rather than trusting its input. */
+     so it enforces the ruling itself rather than trusting its input.
+
+     #1075: `mergeLiqBands` runs AFTER the eight-heaviest selection below, not
+     instead of it - #766's "eight" still means the eight heaviest raw
+     clusters, same as before. What changes is that those eight no longer
+     draw one line each unconditionally: clusters within
+     `LIQ_BAND_MERGE_BUCKETS` bucket-widths of a neighbour collapse into one band, so the
+     chart can show anywhere from 2 to 8 lines depending on how clustered the
+     heaviest eight happen to be at that moment. */
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
     liqClusterIds.current.forEach(id => chart.removeOverlay({ id }));
     liqClusterIds.current = [];
     if (!showLiq || !liqClusters?.length) return;
-    const lines = liqClusters
+    const heaviest = liqClusters
       .filter(l => Number.isFinite(l.price) && l.price > 0)
       .slice(0, LIQ_CLUSTER_LINES);
-    const labelOffsets = computeLabelOffsets(lines);
-    for (const l of lines) {
+    const bands = mergeLiqBands(heaviest);
+    const labelOffsets = computeLabelOffsets(bands);
+    for (const b of bands) {
       const id = chart.createOverlay({
         name: 'liqClusterLine',
         groupId: 'liq_clusters',
         lock: true,
-        extendData: { price: l.price, total: l.total, labelYOffset: labelOffsets.get(l.price) ?? 0 },
-        points: [{ value: l.price }],
+        extendData: { price: b.price, total: b.total, count: b.count, labelYOffset: labelOffsets.get(b.price) ?? 0 },
+        points: [{ value: b.price }],
       } as OverlayCreate);
       if (typeof id === 'string') liqClusterIds.current.push(id);
     }
