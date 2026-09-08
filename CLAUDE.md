@@ -322,10 +322,31 @@ Pushing to `staging` closes it. Computed from the `staging..qa` range rather
 than the push event, so it survives force-pushes, re-runs and several
 promotions in a row.
 
-**The `staging` → `main` release PR opens itself** on any push to `staging`
-(`.github/workflows/release-signals.yml`) — QA no longer has to remember. If one
-is already open it is commented on, never rewritten, since QA reports failures
-in that thread. It aggregates the
+**The `staging` → `main` release PR is opened BY HAND. It does not open
+itself, and this line said it did until 2026-09-08.**
+
+The automation exists (`.github/workflows/release-signals.yml`) and the job is
+real, but it is gated on `vars.RELEASE_PR_PAUSED`, which has been set to `1`
+since **2026-08-09** and never unset — so the job has skipped every push to
+`staging` for a month. It skipped four times on 2026-09-08 alone. The pause is
+deliberate: a release PR's head IS its base branch, so every promotion fires
+`synchronize` and re-runs the full browser suite, billing a gate run per push
+for a release nobody intended to ship yet. `CONTRIBUTING.md` has carried the
+correct version with the `if:` condition and the fix since 2026-09-05; **this
+file did not, which is the only reason it is worth a commit** — CLAUDE.md is
+what a session reads first, so the contradiction resolved the wrong way.
+
+**So: whoever pushes `staging` checks that a release PR exists and opens one if
+not.** Unset or delete the variable to resume; the next push then opens one for
+everything piled up since. Do not diagnose a missing release PR as "Actions are
+off" — the other jobs in that same workflow run fine.
+
+`docs/OWNER-BLOCKERS.md` names the failure mode this is an instance of: **an
+instruction with no expiry.** The pause was correct on the day it was set and
+nothing was watching the date.
+
+If one is already open it is commented on, never rewritten, since QA reports
+failures in that thread. It aggregates the
 "How to test" steps for the whole release,
 ends with merge/deploy/re-check/tag, and collects every "could not verify
 locally" caveat in Risk level. Promoting without it is deploying into silence.
