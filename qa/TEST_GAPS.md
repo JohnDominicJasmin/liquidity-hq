@@ -380,12 +380,33 @@ variants; a timeline position marker; a peak-window marker) with no
 codebase is handled. Lower severity than the established shape — none sit
 inside a labelled control's accessible name, so nothing's name is corrupted,
 and the information they reinforce is encoded in inline positioning that
-isn't AT-readable regardless of the glyph. Filed as #1072.
+isn't AT-readable regardless of the glyph.
+
+**Filed as #1072, then closed under the 2026-09-07 scope lock** (a problem
+found inside a current item goes on the parent, not its own issue — #1042's
+live-production case is the only exception so far, owner-approved). Not a
+verdict on the finding, a sequencing call: the result stays here instead.
+**Named to-do for whenever scope reopens** — `aria-hidden="true"` on all four,
+minutes of work, can't ship before then anyway since `staging` is frozen
+behind #1069: `components/LiqTerminal.tsx:390`, `app/liq/page.tsx:395`
+(identical duplicated span over a native `<select>`, both design variants),
+`app/hours/page.tsx:275` (current-time marker), `components/CycleDayCounter.tsx:104`
+(peak-window marker).
 
 **So: the structural half may now actually be closing**, at least for the two
 shapes four prior passes kept re-finding. One clean pass on a shape that
 previously returned non-empty every time is real evidence, not proof — the
 same caution the fourth sweep entry gives itself applies here too.
+
+**What this means for the item, stated plainly rather than implying a sixth
+sweep is the obvious next step: source-and-tree reading may be exhausted.**
+Five widening nets, and the fifth returned nothing in the two shapes the prior
+four kept finding — a milder, different-family gap instead. The remaining
+defects in this section are plausibly the kind only a real assistive-technology
+session surfaces now, not the kind a wider grep finds. "Cannot be verified in
+this environment, here is what would be needed" (below) may already be this
+item's honest, finished answer for the structural half too — not a failure to
+find more, a sixth sweep would likely just tell us what the fifth did.
 
 **The verdict on the announcement half, stated plainly rather than deferred
 again: this cannot be verified in this environment, full stop.** No session on
