@@ -6352,7 +6352,23 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    at the top of this file. Without it those five stay pinned to the
    current design's 52px and terminal renders an 8px dead band under a bar
    that is not there. */
-[data-design="terminal"] { --appbar-h: 44px; --strip-h: 34px; }
+/* Owner-reported (screenshots, prod liquidity-hq.com): a ~34px empty band
+   between the nav bar and the news ticker on every page. --strip-h: 34px
+   reserves space for PriceTickerStrip, whose CSS is still below
+   (.price-ticker-strip) but whose JSX mount was removed in b2bba511
+   ("revert(dashboard): drop the canvas-mirror rebuild") - `git log -S
+   PriceTickerStrip` shows no commit since has re-added it anywhere. Nothing
+   occupies the reserved 34px on any page, desktop included, so every
+   consumer of --strip-h (.app-content padding, .nav-drawer, .news-ticker,
+   .breaking-alert x2) was reserving space for a component that is not
+   there - same shape as the mobile override below already fixes for the
+   same reason (#628), just not applied to desktop until now. --strip-h: 0px
+   here, matching mobile, until PriceTickerStrip (or its replacement) is
+   actually mounted again - at which point this reverts alongside that,
+   not before. .price-ticker-strip's own CSS below is left alone: harmless
+   while nothing renders that class, and the fix if the component returns
+   is re-adding the JSX, not touching this rule. */
+[data-design="terminal"] { --appbar-h: 44px; --strip-h: 0px; }
 @media (max-width: 767px) {
   /* Mobile drops the strip entirely - arena.md's region table line 51 lists
      it absent below 768, replaced by a 44px symbol row that is a separate
