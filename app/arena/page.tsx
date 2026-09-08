@@ -2285,6 +2285,15 @@ function ArenaContent() {
           the explanation of the chart's own Buy/Sell markers, not a stray card
           four sections down. */}
       <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
+      {/* Owner-directed (screenshots, "put the multi timeframe inside of it"):
+          the rail (.arena-ws-rail) runs longer than this left column - Strategy
+          panel, market snapshot, Confluence Score - and .arena-ws uses
+          align-items: start, so the columns don't stretch to match. That left
+          a large empty gap below EMASignal, beside the rail's overflow.
+          Moved here from the full-width section below (was directly after the
+          pullback warning) to fill that gap - not a redesign, the grid and the
+          rail are untouched. */}
+      <MultiTFAlignment coin={selectedCoin} />
       {/* Data collectors - run hooks for Grok context, render nothing.
           AbsorptionDetector is Pro-only: for free users it is not mounted at
           all, so its data never reaches the AI context either. */}
@@ -2400,9 +2409,9 @@ function ArenaContent() {
       })()}
       {/* ── Full breakdown - always visible (was collapsible, user asked for it
           up front rather than an extra click to drill in). Granular technical
-          cards (multi-timeframe alignment, higher-timeframe context, stop
-          zone) plus the AI's long-form reasoning/patterns. ── */}
-      <MultiTFAlignment coin={selectedCoin} />
+          cards (higher-timeframe context, stop zone) plus the AI's long-form
+          reasoning/patterns. Multi-timeframe alignment moved up into the
+          .arena-ws-chart column above - see the comment there. ── */}
       {/* StopLossZone ("Order Flow Setup" card) stays removed - its stop + R:R
           duplicated the AI read card's own STOP and R:R cells. Component kept in
           the codebase, just not mounted here. */}
