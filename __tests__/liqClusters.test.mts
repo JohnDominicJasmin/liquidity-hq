@@ -80,10 +80,22 @@ test('the overlay label says REALIZED, and no drawing path can omit it', () => {
      a forward magnet - and the two are indistinguishable once drawn. So the
      word is asserted against the source rather than trusted to survive an
      edit. Both the overlay text and the toggle's tooltip are checked, because
-     a user who never hovers reads only the first. */
+     a user who never hovers reads only the first.
+
+     Loose about everything after the word, strict about the word itself
+     (2026-09-08, #1075) - the label shrank from `REALIZED LIQ $<price> ·
+     $<total>` to `REALIZED $<total>` (redundant with the Liq toggle), and a
+     literal match on the old suffix failed on a change that preserved
+     everything this test exists to protect. The load-bearing property is
+     that the drawn text STARTS with REALIZED, not the exact string after
+     it - matching only the prefix still catches the one real regression
+     this guards against: `LIQ $81K` alone, or a shortening to something
+     that reads as a forward prediction, neither of which starts with
+     REALIZED. `text: \`REALIZED` as a literal prefix also naturally rejects
+     UNREALIZED - the R has to be the character right after the backtick. */
   const chart = readFileSync(path.join(ROOT, 'components', 'KLineProChart.tsx'), 'utf8');
-  const drawText = chart.match(/text: `REALIZED LIQ [^`]*`/);
-  assert.ok(drawText, 'the liqClusterLine label no longer starts with REALIZED LIQ');
+  const drawText = chart.match(/text: `REALIZED[^`]*`/);
+  assert.ok(drawText, 'the liqClusterLine label no longer starts with REALIZED');
   assert.ok(/not predicted liquidation levels/i.test(chart),
     'the Liq toggle tooltip no longer says these are not predicted levels');
   assert.ok(!/PREDICTED LIQ|predicted level[s]? at|liquidation magnet/i.test(drawText[0]),
