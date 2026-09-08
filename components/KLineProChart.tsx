@@ -684,7 +684,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const lastBarTsRef   = useRef<number>(0);
   /* Which feed produced the chart's history. The gap backfill reads it so a
      recovery never mixes feeds - see the note at the getBars fallback (#359). */
-  const histSourceRef  = useRef<'binance' | 'binance-futures'>('binance');
+  const histSourceRef  = useRef<'binance' | 'binance-futures' | 'bybit'>('bybit');
   const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
@@ -1504,10 +1504,63 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           const c   = coinRef.current;
           const bnSym    = BINANCE_SYMS[c] as string | undefined;
           const bybitSym = BYBIT_SYMS[c]   as string | undefined;
+          const applyBars = (bars: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[]) => {
+            if (bars.length) {
+              lastCloseRef.current = bars[bars.length - 1].close;
+              srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
+              // Cap at the most recent few: a long window can hold a dozen
+              // structure breaks, and older ones are history rather than
+              // actionable - showing them all just recreates the chart clutter
+              // the Arena signal-overload pass removed.
+              paSetRef.current(detectStructureSignals(bars).slice(-PA_MAX));
+              emaBarsRef.current = bars;
+              syncEmaRibbon();
+            }
+            callback(bars, false);
+          };
           try {
-            if (bnSym) {
+            /* #1059: Bybit primary, Binance fallback - reversed from
+               Binance-primary. Measured against staging directly: Binance
+               futures was rate-limiting/blocking this server's egress IP
+               (502, HTTP 418) while Bybit answered normally from the same
+               IP. `fet` is the one coin genuinely absent from Bybit's linear
+               perps (lib/coins.ts BYBIT_SYMS comment) - everything else
+               reaches this branch. */
+            let handled = false;
+            if (bybitSym) {
+              const iv = periodToBybitInterval(period);
+              const r  = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1000`);
+              const d  = await r.json() as { result?: { list?: string[][] } };
+              if (stale()) return; // superseded by a newer switch - drop it
+              const list = [...(d?.result?.list ?? [])].reverse();
+              // Raw contract price, NOT converted to per-token. See
+              // chartDisplaySymbol in lib/coins: klinecharts cannot render a
+              // 2e-8 candle range and degenerates into a zero-centred axis with
+              // negative ticks. The chart label carries the 1000 prefix so the
+              // scale is stated rather than implied. A no-op for every coin
+              // that isn't 1000x-denominated - only pepe/bonk carry that prefix.
+              const bars = list.map(k => ({
+                timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+                low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
+              }));
+              if (bars.length) {
+                histSourceRef.current = 'bybit';
+                applyBars(bars);
+                handled = true;
+              } else if (!bnSym) {
+                // Bybit answered but had nothing, and there's no Binance
+                // fallback for this coin - empty chart rather than hanging.
+                applyBars([]);
+                handled = true;
+              }
+              // else: Bybit answered but had nothing - fall through to
+              // Binance below rather than a blank chart, same resilience the
+              // old Binance-primary order gave the other way.
+            }
+
+            if (!handled && bnSym) {
               const iv = periodToBnInterval(period);
-              // Futures FIRST, then spot, then Bybit.
+              // Futures FIRST, then spot.
               //
               // This used to hit api.binance.com (spot) only, with no fallback,
               // and a `catch` that silently called back with an empty array. If
@@ -1566,66 +1619,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               }
               raw = raw ?? [];
               if (stale()) return; // superseded by a newer switch - drop it
-              let bars = raw.map(k => ({
+              const bars = raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
               }));
-              // Last resort: this coin also exists on Bybit, which is a wholly
-              // different host and so survives a Binance-specific block.
-              if (!bars.length && bybitSym) {
-                const bIv = periodToBybitInterval(period);
-                try {
-                  const rb = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${bIv}&limit=1000`);
-                  const db = await rb.json() as { result?: { list?: string[][] } };
-                  if (stale()) return;
-                  bars = [...(db?.result?.list ?? [])].reverse().map(k => ({
-                    timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
-                    low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
-                  }));
-                } catch { /* fall through to the empty-chart path below */ }
-              }
               if (!bars.length) console.error('[chart] no kline source reachable for', bnSym, iv);
-              if (bars.length) {
-                lastCloseRef.current = bars[bars.length - 1].close;
-                srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
-                // Cap at the most recent few: a long window can hold a dozen
-                // structure breaks, and older ones are history rather than
-                // actionable - showing them all just recreates the chart clutter
-                // the Arena signal-overload pass removed.
-                paSetRef.current(detectStructureSignals(bars).slice(-PA_MAX));
-                emaBarsRef.current = bars;
-                syncEmaRibbon();
-              }
-              callback(bars, false);
-            } else if (bybitSym) {
-              const iv = periodToBybitInterval(period);
-              const r  = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1000`);
-              const d  = await r.json() as { result?: { list?: string[][] } };
-              if (stale()) return; // superseded by a newer switch - drop it
-              const list = [...(d?.result?.list ?? [])].reverse();
-              // Raw contract price, NOT converted to per-token. See
-              // chartDisplaySymbol in lib/coins: klinecharts cannot render a
-              // 2e-8 candle range and degenerates into a zero-centred axis with
-              // negative ticks. The chart label carries the 1000 prefix so the
-              // scale is stated rather than implied.
-              const bars = list.map(k => ({
-                timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
-                low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
-              }));
-              if (bars.length) {
-                lastCloseRef.current = bars[bars.length - 1].close;
-                srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
-                // Cap at the most recent few: a long window can hold a dozen
-                // structure breaks, and older ones are history rather than
-                // actionable - showing them all just recreates the chart clutter
-                // the Arena signal-overload pass removed.
-                paSetRef.current(detectStructureSignals(bars).slice(-PA_MAX));
-                emaBarsRef.current = bars;
-                syncEmaRibbon();
-              }
-              callback(bars, false);
-            } else {
-              callback([], false);
+              applyBars(bars);
+            } else if (!handled) {
+              applyBars([]);
             }
             endFade();
           } catch { if (!stale()) { callback([], false); endFade(); } }
@@ -1638,7 +1639,134 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           const bybitSym = BYBIT_SYMS[c]   as string | undefined;
           wsRef.current?.close();
 
-          if (bnSym) {
+          /* #1059: Bybit primary, Binance fallback - matching getBars above,
+             per #359 (history and live ticks must come from the same
+             exchange, or the chart's feed silently changes mid-session).
+             This used to be a 5s REST poll (Bybit had no WebSocket client
+             here yet) while Binance got a real WS - the one visible
+             asymmetry a straight primary/fallback flip would have shipped
+             quietly. Real WS client instead, adapted from the exact pattern
+             already proven in LiqFeed.tsx's connectBB: v5 public stream,
+             host alternation between stream.bybit.com and its bytick.com
+             mirror (extensions/networks that block one often allow the
+             other), reconnect with the same exponential backoff and
+             `online`-listener shortcut this file's own Binance branch
+             already established for #306. */
+          if (bybitSym) {
+            const iv = periodToBybitInterval(period);
+
+            let attempt = 0;
+            /* Host alternation persists across reconnects independent of the
+               backoff counter - LiqFeed's bbRetriesRef2 does the same, so a
+               run of failures keeps trying BOTH domains rather than only
+               ever the first one `attempt` resets back to. */
+            let hostTry = 0;
+            let timer: ReturnType<typeof setTimeout> | null = null;
+            let cancelled = false;
+            let live: WebSocket | null = null;
+            let reconnected = false;
+
+            /* Same shape and purpose as the Binance branch's backfillGap
+               below, but Bybit's REST kline response is `{result:{list}}`
+               newest-first, not a flat oldest-first array - different
+               enough to duplicate rather than force through one parser. */
+            const backfillGapBybit = async (
+              sym: string, interval: string,
+              cb: (bar: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }) => void,
+            ) => {
+              const since = lastBarTsRef.current;
+              if (!since) return;
+              try {
+                const r = await fetch(
+                  `/api/market/klines?source=bybit&symbol=${sym}&interval=${interval}&limit=500`,
+                  { signal: AbortSignal.timeout(12_000) },
+                );
+                if (!r.ok || cancelled) return;
+                const d = await r.json() as { result?: { list?: string[][] } };
+                if (cancelled) return;
+                const rows = [...(d?.result?.list ?? [])].reverse();
+                const missed = barsAfter(
+                  rows.map(k => ({ timestamp: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })),
+                  since,
+                );
+                for (const bar of missed) {
+                  lastBarTsRef.current = bar.timestamp;
+                  lastCloseRef.current = bar.close;
+                  upsertEmaBar(bar);
+                  cb(bar);
+                }
+              } catch { /* the stream is already live; a failed backfill leaves
+                           the gap rather than breaking the chart */ }
+            };
+
+            const connect = () => {
+              if (cancelled) return;
+              // bytick.com is Bybit's alternate domain - less likely to be
+              // blocked by the same extension/network filter as the primary.
+              const host = hostTry % 2 === 0
+                ? 'wss://stream.bybit.com/v5/public/linear'
+                : 'wss://stream.bytick.com/v5/public/linear';
+              const ws = new WebSocket(host);
+              live = ws;
+              ws.onopen = () => {
+                attempt = 0;
+                setWsStatus('live');
+                ws.send(JSON.stringify({ op: 'subscribe', args: [`kline.${iv}.${bybitSym}`] }));
+                if (reconnected) void backfillGapBybit(bybitSym, iv, callback);
+                reconnected = true;
+              };
+              ws.onerror = () => setWsStatus('error');
+              ws.onclose = (e) => {
+                if (cancelled || e.wasClean) return;
+                setWsStatus('connecting');
+                attempt += 1;
+                hostTry += 1;
+                const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+                if (timer) clearTimeout(timer);
+                timer = setTimeout(connect, delay);
+              };
+              ws.onmessage = (e: MessageEvent) => {
+                try {
+                  const msg = JSON.parse(e.data as string) as { op?: string; topic?: string; data?: Array<Record<string, string | number>> };
+                  if (msg.op === 'subscribe') return; // subscription ack, not a bar
+                  if (!msg.topic?.startsWith('kline.') || !Array.isArray(msg.data)) return;
+                  const k = msg.data[0];
+                  if (!k) return;
+                  // Raw, matching the history load above - the live bar must
+                  // be on the same scale as the candles it is appended to
+                  // (see the "raw contract price" note in getBars).
+                  const bar = {
+                    timestamp: Number(k.start), open: Number(k.open), high: Number(k.high),
+                    low: Number(k.low), close: Number(k.close), volume: Number(k.volume),
+                  };
+                  lastCloseRef.current = bar.close;
+                  lastBarTsRef.current = bar.timestamp;
+                  upsertEmaBar(bar);
+                  callback(bar);
+                } catch { /* malformed frame - wait for the next one */ }
+              };
+            };
+
+            const onOnline = () => {
+              if (cancelled) return;
+              if (live && live.readyState === WebSocket.OPEN) return;
+              attempt = 0;
+              if (timer) clearTimeout(timer);
+              connect();
+            };
+            window.addEventListener('online', onOnline);
+
+            connect();
+
+            wsRef.current = {
+              close: () => {
+                cancelled = true;
+                window.removeEventListener('online', onOnline);
+                if (timer) clearTimeout(timer);
+                live?.close();
+              },
+            };
+          } else if (bnSym) {
             const iv = periodToBnInterval(period);
 
             /* RECONNECT (#306).
@@ -1648,16 +1776,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
              * connected - so the chart froze at the last bar and stayed there
              * until the user reloaded. The dot was honest and permanent.
              *
-             * Why only some things came back: the Bybit branch below polls on a
-             * setInterval, which survives an outage and simply succeeds again,
-             * and six other endpoints recover the same incidental way. The
-             * WebSocket had no such loop, which is why the owner saw the chart
-             * specifically stop while the rest of the page carried on.
-             *
              * Backoff so a server-side rejection cannot become a reconnect
              * storm, capped so a long outage still recovers promptly. `online`
              * short-circuits the wait: the browser knows the network returned
-             * before any timer would have fired. */
+             * before any timer would have fired.
+             *
+             * This branch is Binance-only now (#1059): every coin with a
+             * Bybit symbol takes the branch above instead. `fet` is the one
+             * coin on Binance with no Bybit linear perp (lib/coins.ts), so
+             * this path stays reachable rather than becoming dead code. */
             let attempt = 0;
             let timer: ReturnType<typeof setTimeout> | null = null;
             let cancelled = false;
@@ -1762,26 +1889,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 live?.close();
               },
             };
-          } else if (bybitSym) {
-            // Bybit: 5s polling
-            setWsStatus('live');
-            const iv = periodToBybitInterval(period);
-            const timer = setInterval(async () => {
-              try {
-                const r = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1`);
-                const d = await r.json() as { result?: { list?: string[][] } };
-                const k = d?.result?.list?.[0];
-                if (k) {
-                  // Raw, matching the history load above - the live bar must be
-                  // on the same scale as the candles it is appended to.
-                  lastCloseRef.current = Number(k[4]);
-                  const bar = { timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) };
-                  upsertEmaBar(bar);
-                  callback(bar);
-                }
-              } catch { /* silent */ }
-            }, 5000);
-            wsRef.current = { close: () => clearInterval(timer) };
           }
         },
 
