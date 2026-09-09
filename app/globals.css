@@ -4221,6 +4221,39 @@ html[data-theme="light"] { background: var(--bg0); }
 }
 .gchat-login-close:hover { background: rgba(255,255,255,0.14); color: var(--txt); }
 
+/* ── PLAN BADGE - persistent account-state indicator (#1089) ─────────────────
+   Weight, not colour, separates the three states - red/green stay reserved
+   for market direction throughout this product (PlanBadge.tsx's own doc
+   comment has the full reasoning). Written in shared tokens rather than
+   [data-design="terminal"]-scoped rules because it renders identically in
+   both designs by construction: --radius-data is already 0 in terminal and
+   4px in current, so one rule set adapts correctly rather than needing two. */
+.plan-badge {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; line-height: 1;
+  padding: 3px 7px; border-radius: var(--radius-data);
+  flex-shrink: 0; white-space: nowrap;
+}
+.plan-badge-free {
+  color: var(--txt2); background: transparent; border: 1px solid var(--bdr2);
+}
+.plan-badge-trial {
+  color: var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 22%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.plan-badge-pro {
+  /* Filled, not outlined - the one paid state is unmistakable at a glance.
+     Text colour is intentionally NOT a token: this sits on a solid amber
+     fill regardless of app theme, and amber is bright enough in both light
+     and dark that only a near-black ink keeps it readable - the same reason
+     a caution sign prints black text on yellow regardless of the room's own
+     lighting. Every other property still reads from tokens. */
+  color: #0a0a0a; background: var(--amber); border: 1px solid var(--amber);
+  font-weight: 700; letter-spacing: 0.14em;
+}
+
 /* ── AUTH - Avatar button & Sign In ───────────────────────────────────────── */
 .auth-wrap { position: relative; flex-shrink: 0; }
 

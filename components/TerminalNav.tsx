@@ -45,6 +45,7 @@ import UsageModal from './UsageModal';
 import { useTheme } from '@/lib/theme';
 import { IconSun, IconMoon } from './icons';
 import LanguageNavSwitcher from './LanguageNavSwitcher';
+import PlanBadge from './PlanBadge';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 /* The SAME arrays the current design's nav renders, imported rather than
@@ -358,6 +359,8 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
           </button>
 
           <LanguageNavSwitcher />
+
+          <PlanBadge />
 
           {/* Sign In. Absent until now, so a signed-out visitor on a terminal
               app screen had no way to authenticate from the bar - the avatar
