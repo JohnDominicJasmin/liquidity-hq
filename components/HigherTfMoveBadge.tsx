@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import type { CoinId } from '@/lib/marketStore';
 import { BINANCE_SYMS, BYBIT_SYMS, bybitSymbolPriceFactor } from '@/lib/coins';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import Tip from './Tip';
 import { Warn } from './icons';
 import { withAlpha } from '@/lib/color';
@@ -42,8 +43,13 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
         // sides scale identically) - applied anyway per the coins.ts rule that
         // any new code reading a price off BYBIT_SYMS applies the factor.
         if (by) {
-          const r = await fetch(`/api/market/klines?source=bybit&symbol=${by}&interval=240&limit=${LOOKBACK_BARS + 1}`);
-          const d = await r.json() as { result?: { list?: string[][] } };
+          // #1080: retry shared with every other Bybit-klines caller (see
+          // lib/bybitKlines.ts). Exhaustion is unchanged - `d === null` falls
+          // through the same way an empty result already did (closes stays
+          // [], the length check below bails, the badge just doesn't render -
+          // it's informational only, so silence on failure was already
+          // correct and stays correct).
+          const d = await fetchBybitKlinesRetry(by, '240', LOOKBACK_BARS + 1);
           const pf = bybitSymbolPriceFactor(by);
           closes = [...(d?.result?.list ?? [])].reverse().map(k => +k[4] * pf);
         } else if (bn) {
