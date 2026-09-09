@@ -10,6 +10,7 @@ import { Warn } from '@/components/icons';
 import Tip from '@/components/Tip';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
@@ -1541,29 +1542,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             let handled = false;
             if (bybitSym) {
               const iv = periodToBybitInterval(period);
-              /* #1073: retry the initial fetch. app/api/market/klines/route.ts
-                 returns a non-2xx (502, upstream status attached) rather than a
-                 fake-empty 200 when Bybit refuses - QA measured that refusal
-                 happening on PRODUCTION too, roughly half of one capture, not
-                 something specific to this server. The OLD 5s poll never showed
-                 it: a failed poll was invisible, the next one 5s later just
-                 worked - accidental resilience through sheer repetition. This
-                 one-shot fetch replacing it had none, so a single 502 left the
-                 chart with zero bars for the rest of the session. 3 attempts,
-                 short fixed backoff - long enough to ride out one bad response,
-                 short enough not to make a real outage feel hung. `r.ok` is
-                 checked explicitly (the old code never did - it happily parsed
-                 a 502's `{error:...}` body as `{result:{list:undefined}}` and
-                 silently treated it as "zero candles"). */
-              let json: { result?: { list?: string[][] } } | null = null;
-              for (let attempt = 0; attempt < 3 && !stale(); attempt++) {
-                if (attempt > 0) await new Promise(res => setTimeout(res, attempt === 1 ? 500 : 1500));
-                if (stale()) break;
-                try {
-                  const r = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1000`);
-                  if (r.ok) { json = await r.json(); break; }
-                } catch { /* network error - fall through to the next attempt */ }
-              }
+              // #1073/#1080: retry lives in lib/bybitKlines.ts, shared with
+              // every other Bybit-klines caller rather than a private copy -
+              // see that file's own comment for why (#1079's whole defect
+              // was the old 5s poll's incidental retry-through-repetition
+              // going away with nothing replacing it).
+              const json = await fetchBybitKlinesRetry(bybitSym, iv, 1000, { isStale: stale });
               if (stale()) return; // superseded by a newer switch - drop it
               const list = [...(json?.result?.list ?? [])].reverse();
               // Raw contract price, NOT converted to per-token. See
