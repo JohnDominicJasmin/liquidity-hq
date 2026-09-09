@@ -1,5 +1,6 @@
 'use client';
 import { BINANCE_SYMS, BYBIT_SYMS } from './coins.ts';
+import { fetchBybitKlinesRetry } from './bybitKlines.ts';
 
 // Real 24h hourly close series per coin - same public REST endpoints already
 // used client-side by KLineProChart, just a much smaller request (24 candles).
@@ -23,9 +24,14 @@ async function fetchKlines(coin: string): Promise<number[]> {
       }
     }
     if (bbSym) {
-      const res = await fetch(`/api/market/klines?source=bybit&symbol=${bbSym}&interval=60&limit=24`, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json() as { result?: { list?: string[][] } };
+      // #1080: retry shared with every other Bybit-klines caller (see
+      // lib/bybitKlines.ts) rather than a private one-shot fetch. Exhaustion
+      // behavior below is UNCHANGED - still falls through to `return []`,
+      // which ensureSparkline24h already treats as "keep the stale cache,
+      // try again next refresh" rather than a blank sparkline. The retry
+      // only makes that fallback less often necessary.
+      const data = await fetchBybitKlinesRetry(bbSym, '60', 24);
+      if (data) {
         const list = data.result?.list ?? [];
         const closes = list.map(k => parseFloat(k[4])).reverse().filter(n => isFinite(n));
         if (closes.length >= 2) return closes;
