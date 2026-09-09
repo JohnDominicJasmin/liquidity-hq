@@ -3,6 +3,7 @@
 // so backtest results can never silently diverge from what fires on the live chart.
 
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
+import { bybitSymbolPriceFactor } from './coins.ts';
 import {
   OHLCV, SignalEvent, SignalFilterParams,
   DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, detectEMASignals,
@@ -79,7 +80,11 @@ async function fetchBybitKlinesRange(sym: string, interval: string, startTime: n
     const d = await r.json() as { result?: { list?: string[][] } };
     const list = [...(d?.result?.list ?? [])].reverse(); // Bybit returns newest-first
     if (!list.length) break;
-    const batch = list.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
+    // #1059: 1000PEPEUSDT/1000BONKUSDT are quoted per 1000 tokens - without
+    // this, a backtest on either coin simulated trades at 1000x the real
+    // price. See bybitPriceFactor in lib/coins.ts.
+    const pf = bybitSymbolPriceFactor(sym);
+    const batch = list.map(k => ({ time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5] }));
     out.push(...batch);
     const lastTime = batch[batch.length - 1].time;
     if (lastTime <= cursor) break;
@@ -156,8 +161,9 @@ export async function fetchHistoricalOHLCV(coin: CoinId, tf: string, yearsBack: 
   const startTime = endTime - yearsBack * 365 * 24 * 3_600_000;
   const bnSym = BINANCE_SYMS[coin];
   const bySym = BYBIT_SYMS[coin];
-  if (bnSym) return fetchBinanceFuturesKlinesRange(bnSym, bnInterval, startTime, endTime);
+  // #1059: Bybit primary, Binance fallback.
   if (bySym) return fetchBybitKlinesRange(bySym, byInterval, startTime, endTime);
+  if (bnSym) return fetchBinanceFuturesKlinesRange(bnSym, bnInterval, startTime, endTime);
   throw new Error(`No symbol for ${coin}`);
 }
 

@@ -88,19 +88,34 @@ export const INDICATORS: readonly IndicatorEntry[] = [
     id: 'SMA', label: 'SMA', group: 'trend', source: 'builtin', pane: 'candle',
     paramSchema: [period('length', 'Length', 12), period('weight', 'Weight', 2, 1, 10)],
     // id is correctly 'SMA' - klinecharts does ship an indicator by that
-    // name (unlike ADX/STOCH, this is not a basis mismatch). The surprise is
-    // one level deeper: what klinecharts' 'SMA' actually COMPUTES is not a
-    // rolling mean - it's a recursive SMA(N,M) formula, verified against the
-    // compiled source (node_modules/klinecharts/dist/index.esm.js,
-    // simpleMovingAverage.calc). This file separately has a real rolling
-    // mean (strategyCore.ts's smaArr, used for the 200D core gate) that a
-    // reader could easily assume this chip shares. It does not. See
-    // smaNMArr's doc in strategyCore.ts for the formula and the reasoning.
-    // Found while wiring #985's SMA condition; not relabelled here since
-    // that's design's call, not a wiring one.
-    note: "klinecharts' SMA is SMA(N,M), recursive - not the rolling mean smaArr "
-        + 'computes elsewhere in this codebase for the 200D gate. See the '
-        + 'comment above and smaNMArr in strategyCore.ts.',
+    // name (unlike ADX/STOCH, this is not a basis mismatch). What klinecharts'
+    // 'SMA' actually COMPUTES for the CHART LINE is still not a rolling mean
+    // - it's a recursive SMA(N,M) formula, verified against the compiled
+    // source (node_modules/klinecharts/dist/index.esm.js,
+    // simpleMovingAverage.calc), and at this entry's own default (length 12,
+    // weight 2) that formula is algebraically identical to EMA(12) - see
+    // smaNMArr's doc in strategyCore.ts. #1016's panel wiring still draws
+    // that exact line when this chip is selected; nothing here changes it.
+    //
+    // #1007 - THE GATING CONDITION IS DIFFERENT FROM THE LINE, DELIBERATELY.
+    // The original #985 gap 1 wiring pointed the verdict-gating condition at
+    // the same SMA(12,2)=EMA(12) value the chart draws, which meant
+    // selecting SMA duplicated an input the ribbon already runs on - and
+    // once MACD shipped (fast line also EMA(12)), a trader selecting both
+    // believed they added two signals while adding one. The owner ruled:
+    // make it genuinely different rather than relabel the collision. There
+    // is no (N,M) at which smaNMArr becomes a true rolling mean - it is
+    // EMA-family at every M - so useEMAStrategy.ts's gating now calls
+    // smaArr(cl4, 12) (the real rolling mean already in this file, used for
+    // the 200D core gate) instead. The cost: what gates the verdict and what
+    // the chart draws for this one chip are no longer the same computation -
+    // named in the checklist row's own label ("rolling mean"), not hidden.
+    note: "klinecharts' SMA line is still SMA(N,M), recursive (=EMA(12) at the "
+        + 'default) - but as of #1007 the verdict-gating condition uses a genuine '
+        + 'rolling mean (smaArr) instead, specifically so it stops duplicating the '
+        + "ribbon/MACD's EMA(12). The chart line and the gating condition are "
+        + 'deliberately different computations for this one chip. See '
+        + 'useEMAStrategy.ts and smaNMArr/smaArr in strategyCore.ts.',
   },
   {
     id: 'SUPERTREND', label: 'Supertrend', group: 'trend', source: 'new', pane: 'candle',
@@ -140,10 +155,20 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   {
     id: 'MACD', label: 'MACD', group: 'momentum', source: 'builtin', pane: 'own',
     paramSchema: [period('fast', 'Fast', 12), period('slow', 'Slow', 26), period('signal', 'Signal', 9)],
-    note: "MACD's fast line (period 12) is SMA(12,2), the exact same recursive formula "
-        + "and period as this registry's own SMA entry at its default - selecting both is "
-        + 'one signal doubled, not two independent ones (#1007). See macdArr in '
-        + 'strategyCore.ts.',
+    // #1007 resolved the GATING half of this collision (SMA's verdict
+    // condition no longer uses SMA(12,2)=EMA(12) - see the SMA entry above).
+    // The CHART LINE half is unchanged and still real: MACD's fast line is
+    // still SMA(12,2), the same recursive formula and period SMA's chip
+    // still draws by default, since klinecharts' own MACD/SMA math is fixed
+    // and #1007 only touched the gating condition, not what either
+    // indicator renders. A trader selecting both chips still sees two
+    // panels agree on the same underlying EMA(12) line - visual overlap,
+    // not a verdict-doubling one any more.
+    note: "MACD's fast line (period 12) is still SMA(12,2) - the same recursive formula "
+        + "and period the SMA chip still draws by default. As of #1007 this is a chart-line "
+        + 'overlap only, not a verdict one - the two conditions gate on different things '
+        + '(SMA on a genuine rolling mean, MACD on DIF vs DEA). See macdArr in '
+        + 'strategyCore.ts and the SMA entry above.',
   },
   {
     id: 'STOCH', label: 'Stoch', group: 'momentum', source: 'new', basis: 'KDJ', pane: 'own',

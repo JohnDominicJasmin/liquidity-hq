@@ -183,6 +183,73 @@ screenshots of data-heavy routes will need the fixtures that already exist.
 **Cost:** ~1 day, most of it CI plumbing rather than test code.
 **Value:** high, but no longer the highest — the unusable cases are caught.
 
+**A concrete example, not a hypothetical — 2026-09-08, the Arena regression.**
+`.klc-canvas`'s base rule (`app/globals.css:2198`) is a flat `height: 800px`,
+carried over from its life as a standalone dashboard card. The terminal
+design's `.at-chart` container (`:7477`) constrains its own box to `430px`
+(`210px` at mobile), but nothing overrides `.klc-canvas` itself for
+`[data-design="terminal"]` — checked directly, no such rule exists. So the
+canvas renders at its full 800px regardless of the 430px box around it,
+and paints over every panel below it, at every desktop width.
+
+**Two things had already checked this exact page and both passed, correctly,
+for what they check:**
+
+- **QA's #853 sign-off** (this file's own author) verified criteria 24–27:
+  `[data-layout]` node counts, exactly-one-chart-instance, and text presence
+  for the free-tier locked card. All true. None of them read a bounding
+  rect — a canvas rendering 370px taller than its container changes no
+  node's existence and no chart's instance count, so there was nothing in
+  scope for those criteria to catch.
+- **`layout.spec.ts`'s own obscured-control check**, which already runs
+  against `/arena` in terminal mode (there is already a
+  `KNOWN_OBSCURED_BY_DESIGN` entry for it — `klc-tool-btn` under
+  `gchat-fab`) — also passed, for a narrower and more specific reason than
+  "centre doesn't land on it." Its candidate set (`querySelectorAll('button,
+  a[href], input, select, textarea')`, line 105) is INTERACTIVE CONTROLS
+  ONLY. The panels the canvas painted over — Liquidation Clusters, Evidence,
+  the verdict band — are static text and numbers, not controls, so they
+  were never candidates for the check to run `elementFromPoint` against in
+  the first place. A panel with zero buttons or links inside its covered
+  area is invisible to this detector regardless of how much of it is
+  covered, which is a narrower gap than "the centre missed" — the element
+  never entered the sweep at all.
+
+**Neither check was wrong about what it measured.** Both are accurate
+instruments pointed at a question this bug doesn't live in. The gap this
+section names — appearance, not geometry — is exactly where it landed, and
+this is what it costs when it lands: a real, visible-to-every-user defect
+that shipped through a deployed-build sign-off with all its stated criteria
+genuinely passing.
+
+**What would have caught it, cheaper than the full pixel-diff plan above:**
+a bounding-rect containment check between a small, explicitly-named set of
+parent/child pairs that are supposed to nest — `expect(canvasRect.bottom)
+.toBeLessThanOrEqual(containerRect.bottom)` for `.klc-canvas` inside
+`.at-chart`, and whatever else has a similar fixed-height-child-in-a-sized-box
+relationship. Far narrower than a screenshot baseline (no platform-suffix
+problem, nothing to regenerate on every visual change), and it would have
+failed on exactly this bug. Not a replacement for the pixel-diff plan — a
+cheap, immediately-writable check for the specific overflow shape this
+regression turned out to be.
+
+**A second example, from the same rebuild, that this section's own framing
+doesn't fully cover.** The terminal Arena also shipped without the Strategy
+Panel — the on-the-fly strategy switch, the requirement the owner has been
+clearest about across the whole project — and nobody on the team caught it.
+The owner did, on staging, after both #853's criteria and this section's own
+pixel-overlap fix had already passed. This one wasn't a rendering bug: the
+component genuinely, correctly rendered everything `design-handoff-dir/specs/arena.md`'s
+15-module inventory listed — the spec's own inventory never listed the
+Strategy Panel in the first place. **No structural criterion could have
+caught this, and neither could a pixel check** — both only ever verify
+against what the spec named. A feature the spec forgot is invisible to
+every kind of automated check this section has proposed, cheap or expensive,
+because none of them independently know what production actually contains.
+The only thing that would have caught it is comparing the rebuild against
+the live reference it was replacing, panel for panel, rather than against
+its own written spec — which is a process gap, not a missing test.
+
 ---
 
 ## ✅ 3. Light theme — CLOSED 2026-08-09
@@ -290,6 +357,56 @@ this gap is not provably complete either** — each pass has found more than the
 last, and there is no reason to expect a fifth pass with an even wider net would
 come back empty. Treat "the tree is correct" as current-best-effort, not settled,
 until a pass finds nothing.
+
+**2026-09-08 — a fifth sweep (#1072), and it DID come back empty for the two
+established shapes.** Checked every `<div onClick>` lacking `role`/`tabIndex`/
+`onKeyDown` in `components/`+`app/` (14 candidates, after fixing a regex bug in
+the sweep script itself where `=>` arrows were truncating the match before the
+real attributes) and every direction/disclosure glyph outside an `aria-hidden`
+wrapper. Every genuine candidate for the first shape already carries #943's
+fix (a real nested `<button>` as the keyboard path) — present in **both**
+design variants everywhere a component has one (`dashboard`/`DashboardTerminal`,
+`markets`/`MarketsTerminal`), which is itself worth recording: the "fixed on
+one variant, missed on its twin" failure this file has documented elsewhere
+did not recur here. `ConfluenceScore.tsx`'s glyph-only-direction bug — flagged
+in its OWN code comment as the #939 shape — is also already fixed, with an
+explicit `+`/`-` sign carrying direction in text now, not just the arrow.
+
+**What it found instead was a different, milder shape**, not a fifth batch of
+the same two: four purely decorative, `pointerEvents: none` positional glyphs
+(a custom dropdown-arrow over a native `<select>`, duplicated in two design
+variants; a timeline position marker; a peak-window marker) with no
+`aria-hidden`, inconsistent with how every other decorative chevron in the
+codebase is handled. Lower severity than the established shape — none sit
+inside a labelled control's accessible name, so nothing's name is corrupted,
+and the information they reinforce is encoded in inline positioning that
+isn't AT-readable regardless of the glyph.
+
+**Filed as #1072, then closed under the 2026-09-07 scope lock** (a problem
+found inside a current item goes on the parent, not its own issue — #1042's
+live-production case is the only exception so far, owner-approved). Not a
+verdict on the finding, a sequencing call: the result stays here instead.
+**Named to-do for whenever scope reopens** — `aria-hidden="true"` on all four,
+minutes of work, can't ship before then anyway since `staging` is frozen
+behind #1069: `components/LiqTerminal.tsx:390`, `app/liq/page.tsx:395`
+(identical duplicated span over a native `<select>`, both design variants),
+`app/hours/page.tsx:275` (current-time marker), `components/CycleDayCounter.tsx:104`
+(peak-window marker).
+
+**So: the structural half may now actually be closing**, at least for the two
+shapes four prior passes kept re-finding. One clean pass on a shape that
+previously returned non-empty every time is real evidence, not proof — the
+same caution the fourth sweep entry gives itself applies here too.
+
+**What this means for the item, stated plainly rather than implying a sixth
+sweep is the obvious next step: source-and-tree reading may be exhausted.**
+Five widening nets, and the fifth returned nothing in the two shapes the prior
+four kept finding — a milder, different-family gap instead. The remaining
+defects in this section are plausibly the kind only a real assistive-technology
+session surfaces now, not the kind a wider grep finds. "Cannot be verified in
+this environment, here is what would be needed" (below) may already be this
+item's honest, finished answer for the structural half too — not a failure to
+find more, a sixth sweep would likely just tell us what the fifth did.
 
 **The verdict on the announcement half, stated plainly rather than deferred
 again: this cannot be verified in this environment, full stop.** No session on
@@ -583,6 +700,62 @@ count on every run for exactly that reason.
 
 **Closing this gap now means** running the uncovered specs against a deployed host
 and recording the result here — not waiting for a pipeline that is off on purpose.
+
+---
+
+## 🟡 12. A removal's own reservation is invisible to every check that only looks at what exists
+
+**Added 2026-09-08, after the second confirmed instance in five days.** Different
+shape from §2: §2 is about something present rendering wrong. This is about
+something **absent** — reverted, or never wired — that left CSS or config still
+reserving space or a mount point for it. No structural criterion catches this,
+because every one of them checks "does what's there behave correctly," and the
+defect is precisely that nothing is there to check.
+
+**Instance 1 — `#1063`, 2026-09-08.** `PriceTickerStrip`'s JSX mount was removed
+in `b2bba511` ("revert(dashboard): drop the canvas-mirror rebuild," 2026-09-03).
+`grep -rn "PriceTickerStrip" app/ components/` finds zero JSX mounts anywhere in
+the tree — only comments, one of which (`LandingTicker.tsx:5`) says outright
+"that component no longer exists." But `[data-design="terminal"] { --strip-h:
+34px; }` kept reserving the space for four days, on every page, on production,
+because nothing about that CSS rule references whether `PriceTickerStrip` is
+actually mounted — it just declares a constant. Five consumers
+(`.app-content`, `.nav-drawer`, `.news-ticker`, `.breaking-alert` ×2) all
+inherited the dead reservation as a visible gap under the nav bar. Verified
+independently, not just taken from the PR: confirmed the zero-JSX-mount claim
+by grep, confirmed `b2bba511` is a real commit, confirmed via a second grep that
+`--strip-h` has exactly one definition point in `globals.css` so there was no
+override masking the bug.
+
+**Instance 2 — `#1053`'s revert, 2026-09-08.** Reverting the terminal Arena
+rebuild removed every component that mounted an `.at-*` class. It did not
+remove the CSS. Measured directly: `grep -oE '\.at-[a-zA-Z0-9_-]+'
+app/globals.css | sort -u | wc -l` returns **70** distinct selectors still in
+the file, and a repo-wide grep for the same class names outside `globals.css`
+and `.spec.ts` files turns up nothing but one stale comment in
+`KLineProChart.tsx`. Harmless on its own — dead CSS with no matching element
+doesn't render anything wrong — but it is exactly the kind of debris a future
+change could collide with (a new class that happens to start `.at-` and
+silently inherits rules meant for a component that's been gone for days).
+
+**A related but distinct shape, not double-counted as a third instance:** #925,
+found earlier this same night, was `LiqFeed` never mounting under terminal
+mode — but that was the terminal rebuild's own wiring gap (a component that
+was supposed to be mounted and never was), not a revert leaving a dead
+reservation behind. Same family — CSS/config exists for a component that
+isn't there — opposite direction: built-but-never-wired instead of
+wired-then-removed. Worth knowing they're siblings, not the same bug.
+
+**What would catch this, and what wouldn't.** A screenshot diff might have
+caught instance 1 (a visible gap) but not instance 2 (dead CSS with nothing to
+render). No structural/node-count check catches either, by construction — they
+only ever assert against what a spec says should exist, and the defect here is
+what survives after removal, not what's missing from what's built. The only
+thing that reliably catches this shape: **when reverting or removing a
+component, grep its name across the CSS and config it touched, not just
+delete the JSX** — a process discipline, not a new test. Recording it here
+because it has now cost a live production defect (instance 1) and would have
+cost nothing to check for at revert time.
 
 ---
 

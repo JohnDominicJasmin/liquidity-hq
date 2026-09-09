@@ -156,24 +156,88 @@ export const ACCOUNT_C_SKIP_REASON =
   'see #239/#243. Skipping rather than failing: the LemonSqueezy real-purchase ' +
   'harness cannot run without it, and that is a fixture gap, not a product defect.';
 
-/** Password grant against the dev project. Throws loudly - a silent auth failure
- *  would make every cross-account assertion trivially "pass". */
-export async function signIn(email: string, password: string): Promise<string> {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body.access_token) {
-    throw new Error(
-      `sign-in failed for ${email}: HTTP ${res.status} ${JSON.stringify(body).slice(0, 200)}. ` +
-      `If this is 500 "Database error querying schema", the auth.users row has NULL ` +
-      `token columns - GoTrue scans them into non-nullable Go strings. See the ` +
-      `seeded-accounts issue for the coalesce fix.`,
-    );
+/**
+ * #949/#1025: every call used to be its own `/auth/v1/token?grant_type=password`
+ * POST - a real GoTrue password-grant, bcrypt verification and session-row
+ * write included, against a database that was sitting at 91% of its Disk IO
+ * budget. 34 call sites across the suite, most for account A, each minting a
+ * session nobody was going to use for more than a few minutes. Session reuse
+ * within a run costs nothing correctness-wise - the comment on `signIn`
+ * already established that a stale token across CI RUNS is the failure mode
+ * to avoid, not a stale token within one.
+ *
+ * Cached by email so `signIn()` and `signedInContext()` share one mint per
+ * account per worker process, and the admin/account-C paths that go through
+ * `signIn()` directly benefit too, not just the fixture letters.
+ *
+ * The cache holds a PROMISE, not the resolved session, so two calls for the
+ * same email that land before the first mint resolves share the one in-flight
+ * request instead of racing two mints - the concurrent-test-functions case in
+ * files that don't serialise their signed-in setups.
+ */
+interface CachedSession {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  user: unknown;
+  mintedAtMs: number;
+}
+
+const sessionCache = new Map<string, Promise<CachedSession>>();
+
+// Refresh this many seconds before actual expiry, so a test that runs long
+// never hands the app a token that dies mid-request instead of getting a
+// fresh one up front.
+const EXPIRY_SAFETY_MARGIN_SECONDS = 120;
+
+function mintSession(email: string, password: string): Promise<CachedSession> {
+  return (async () => {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.access_token) {
+      // Remove the failed attempt so a transient failure doesn't poison every
+      // later call for this email with a permanently-rejected cache entry.
+      sessionCache.delete(email);
+      throw new Error(
+        `sign-in failed for ${email}: HTTP ${res.status} ${JSON.stringify(body).slice(0, 200)}. ` +
+        `If this is 500 "Database error querying schema", the auth.users row has NULL ` +
+        `token columns - GoTrue scans them into non-nullable Go strings. See the ` +
+        `seeded-accounts issue for the coalesce fix.`,
+      );
+    }
+    return {
+      access_token: body.access_token as string,
+      refresh_token: body.refresh_token as string,
+      expires_in: body.expires_in as number,
+      user: body.user,
+      mintedAtMs: Date.now(),
+    };
+  })();
+}
+
+async function getOrMintSession(email: string, password: string): Promise<CachedSession> {
+  const cached = sessionCache.get(email);
+  if (cached) {
+    const session = await cached;
+    const ageSeconds = (Date.now() - session.mintedAtMs) / 1000;
+    if (ageSeconds < session.expires_in - EXPIRY_SAFETY_MARGIN_SECONDS) return session;
   }
-  return body.access_token as string;
+  const fresh = mintSession(email, password);
+  sessionCache.set(email, fresh);
+  return fresh;
+}
+
+/** Password grant against the dev project, reused across calls for the same
+ *  email within this worker process (see #949/#1025 above). Throws loudly -
+ *  a silent auth failure would make every cross-account assertion trivially
+ *  "pass". */
+export async function signIn(email: string, password: string): Promise<string> {
+  const session = await getOrMintSession(email, password);
+  return session.access_token;
 }
 
 /**
@@ -205,31 +269,27 @@ export async function signedInContext(
   const email = who === 'a' ? FIXTURES.aEmail : who === 'b' ? FIXTURES.bEmail : FIXTURES.cEmail;
   const password = who === 'a' ? FIXTURES.aPassword : who === 'b' ? FIXTURES.bPassword : FIXTURES.cPassword;
 
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  const session = await res.json().catch(() => ({}));
-  if (!session.access_token) {
-    throw new Error(`signedInContext: sign-in failed for ${email}: HTTP ${res.status}`);
-  }
+  const session = await getOrMintSession(email, password);
 
   // supabase-js v2 reads sb-<projectRef>-auth-token from localStorage.
   const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0];
   const ctx = await browser.newContext({ viewport: opts.viewport ?? { width: 1440, height: 900 } });
   await ctx.addInitScript(
-    ([ref, s]: [string, Record<string, unknown>]) => {
+    ([ref, s]: [string, CachedSession]) => {
       localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify({
         access_token: s.access_token,
         refresh_token: s.refresh_token,
         expires_in: s.expires_in,
-        expires_at: Math.floor(Date.now() / 1000) + (s.expires_in as number),
+        // Derived from when the session was actually MINTED, not from now -
+        // a reused session from the cache is already partway through its
+        // life, and computing "now + expires_in" here would tell the client
+        // it has longer left than it really does.
+        expires_at: Math.floor(s.mintedAtMs / 1000) + s.expires_in,
         token_type: 'bearer',
         user: s.user,
       }));
     },
-    [projectRef, session] as [string, Record<string, unknown>],
+    [projectRef, session] as [string, CachedSession],
   );
   return ctx;
 }

@@ -2257,8 +2257,15 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
      what this line has always asked for; a second accent-glow layer is not
      restorable without inventing a value nothing on record specifies (the
      :hover state below hardcodes its own glow rather than tokenizing it, so
-     there is no existing resting-state figure to reuse) - left for #970's
-     open question on whether --glow-accent gets a light value at all. */
+     there is no existing resting-state figure to reuse) - left open at the
+     time as #970's open question.
+
+     #994 answered that question for a DIFFERENT consumer (.gchat-send's own
+     hover, owner-ruled an oversight and fixed) - --glow-accent now has a
+     real light-theme value. That does not retroactively answer whether THIS
+     rule should compose it in; the "nothing on record specifies a resting-
+     state figure" reasoning above is unchanged and this stays black-shadow-
+     only until that's asked and answered on its own. */
   box-shadow: 0 4px 24px rgba(0,0,0,0.8);
   cursor: pointer; transition: opacity 0.15s, transform 0.15s, box-shadow 0.2s, background 0.2s, border-color 0.2s;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
@@ -2924,6 +2931,19 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --glow-red:    0 0 16px rgba(185,28,28,0.12);
   --glow-purple: 0 0 16px rgba(0,82,204,0.12);
   --glow-amber:  0 0 16px rgba(180,83,9,0.12);
+  /* #994 - oversight, per the owner: the other four glow tokens all got a
+     light-theme value here and this one was missed. Same formula (0 0 16px,
+     0.12 alpha), same rgb this file's own --accent resolves to in light
+     mode (#0052CC = 0,82,204 - identical to --glow-purple's rgb, since
+     .arena-ask-grok-btn's "purple" glow was already this app's accent blue
+     under a legacy name, not a separate hue). Correcting the issue's own
+     framing while fixing it: measured directly, .gchat-send's hover glow is
+     `none` in EVERY context today, not light-only - dark's :root default is
+     also `none`, matching all four siblings, which only ever get a real
+     value here. This is consistent with that established pattern, not a
+     partial fix - dark intentionally has no box-shadow glows for this chip,
+     same as its siblings. */
+  --glow-accent: 0 0 16px rgba(0,82,204,0.12);
 }
 
 /* #706: `html`, not ` html`. This read `[data-theme="light"] html`, which asks
@@ -6130,15 +6150,19 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      block never overrode that. Declared anyway because the light block
      below now must null these explicitly (light theme's own [data-theme=
      "light"] block gives them real values terminal does not want), and
-     #561's test requires both terminal blocks to name the same tokens even
-     where the values differ - "the values differ by design, the names must
-     not." --glow-accent is not listed: :root already reads `none` and
-     nothing anywhere ever gives it another value, so it needs no override
-     in either terminal block. */
+     #561's test requires both terminal blocks to name the SAME token SET
+     even where the values differ - "the values differ by design, the names
+     must not." --glow-accent IS listed for that reason alone: it has a real
+     value now (#994, in the [data-theme="light"] block below), but this
+     selector is `:not([data-theme="light"])` - it can never match an
+     element that rule also matches, so that value can never reach here and
+     :root's `none` is already the answer. Declared as a no-op, same as its
+     four siblings always were, purely so both blocks name the same set. */
   --glow-green:  none;
   --glow-red:    none;
   --glow-purple: none;
   --glow-amber:  none;
+  --glow-accent: none;
 }
 
 /* ── Monochrome Terminal: LIGHT theme (#561) ───────────────────────────────
@@ -6302,12 +6326,19 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      any --glow-* token, so terminal+light silently inherited light theme's
      glow verbatim - confirmed by measuring it byte-identical to current
      design's light glow on all nine standalone --glow-* usage sites.
-     --glow-accent is not listed: it has no non-none value in ANY context
-     today, so it needs nothing here to already read `none`. */
+     --glow-accent was the same story as this block was first written (no
+     non-none value anywhere, nothing to null) but #994 gave it a real
+     [data-theme="light"] value - and this selector, [data-design="terminal"]
+     [data-theme="light"], is MORE specific than that bare one but does not
+     itself redeclare --glow-accent, so the more-specific rule does not block
+     it: the property still resolves from [data-theme="light"], same
+     mechanism this whole comment describes for its four siblings. Listed
+     now for the same reason they are. */
   --glow-green:  none;
   --glow-red:    none;
   --glow-purple: none;
   --glow-amber:  none;
+  --glow-accent: none;
 }
 
 /* ── Monochrome Terminal: navigation (#413) ───────────────────────────────
@@ -6321,7 +6352,23 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    at the top of this file. Without it those five stay pinned to the
    current design's 52px and terminal renders an 8px dead band under a bar
    that is not there. */
-[data-design="terminal"] { --appbar-h: 44px; --strip-h: 34px; }
+/* Owner-reported (screenshots, prod liquidity-hq.com): a ~34px empty band
+   between the nav bar and the news ticker on every page. --strip-h: 34px
+   reserves space for PriceTickerStrip, whose CSS is still below
+   (.price-ticker-strip) but whose JSX mount was removed in b2bba511
+   ("revert(dashboard): drop the canvas-mirror rebuild") - `git log -S
+   PriceTickerStrip` shows no commit since has re-added it anywhere. Nothing
+   occupies the reserved 34px on any page, desktop included, so every
+   consumer of --strip-h (.app-content padding, .nav-drawer, .news-ticker,
+   .breaking-alert x2) was reserving space for a component that is not
+   there - same shape as the mobile override below already fixes for the
+   same reason (#628), just not applied to desktop until now. --strip-h: 0px
+   here, matching mobile, until PriceTickerStrip (or its replacement) is
+   actually mounted again - at which point this reverts alongside that,
+   not before. .price-ticker-strip's own CSS below is left alone: harmless
+   while nothing renders that class, and the fix if the component returns
+   is re-adding the JSX, not touching this rule. */
+[data-design="terminal"] { --appbar-h: 44px; --strip-h: 0px; }
 @media (max-width: 767px) {
   /* Mobile drops the strip entirely - arena.md's region table line 51 lists
      it absent below 768, replaced by a 44px symbol row that is a separate
@@ -7444,6 +7491,42 @@ main.app-content[data-chrome="none"] {
 }
 [data-design="terminal"] .at-rail { flex: 0 0 352px; display: flex; flex-direction: column; }
 [data-design="terminal"] .at-chart { height: 430px; padding: 16px 62px 24px 16px; }
+/* #853 layout regression, owner-reported: KLineProChart's .klc-canvas is a
+   self-sizing standalone dashboard card - flat `height: 800px` (globals.css
+   ~2198), its own mobile media queries, nothing tying it to an ancestor's
+   height. .klc-wrap (its flex-column root) has no height of its own either,
+   so it sizes to content: toolbar + that 800px canvas + resize handle, well
+   past .at-chart's 430px. .at-chart's `overflow: visible` never clips
+   anything, so the excess ~370-420px of chart painted straight over the
+   Confluence panel below it - reproduced at EVERY width tested (768 through
+   1440, the spec's own canonical desktop width), not a tablet-only gap.
+   klinecharts' own resize logic caught a mid-layout height of 614px on
+   staging in one measurement - neither the CSS default (800) nor the
+   target (430), a real number that means nothing on its own; recorded here
+   so the next person who finds 614 in a screenshot does not re-derive it.
+
+   Fix: make the chart adapt to the slot rather than the other way around.
+   .at-chart's 430px is UNCHANGED - this makes that number finally take
+   effect. Chained height through .klc-wrap so klc-canvas's flex:1 has an
+   actual constrained space to fill instead of an implicit 800px default.
+   Scoped to [data-design="terminal"] .at-chart specifically so the
+   dashboard's own standalone chart keeps its current self-sizing behavior
+   untouched - this is not a change to klinecharts' base sizing model.
+
+   One more link than expected: .klc-canvas is not klc-wrap's direct flex
+   child. It sits inside an unnamed positioning div (KLineProChart.tsx, the
+   canvas/resize-handle/tooltip wrapper) that was not itself a flex
+   container - so klc-canvas's flex:1 had no flex context to grow inside
+   and collapsed toward zero instead of filling the slot. Gave that div a
+   name (.klc-canvas-wrap) purely as a CSS hook - no behavior change - and
+   chained the same flex treatment through it. Found by measuring the
+   first attempt's result rather than assuming it worked: klc-canvas
+   rendered at 26px, not the expected ~350px, which is what exposed this. */
+[data-design="terminal"] .at-chart .klc-wrap { height: 100%; }
+[data-design="terminal"] .at-chart .klc-canvas-wrap {
+  flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+[data-design="terminal"] .at-chart .klc-canvas { flex: 1; height: auto; min-height: 0; }
 /* The two paired rows: each half flex:1, divided by one structural hairline. */
 [data-design="terminal"] .at-pair { display: flex; align-items: stretch; border-bottom: 1px solid var(--bdr); }
 [data-design="terminal"] .at-pair > * { flex: 1; min-width: 0; }
@@ -7486,8 +7569,30 @@ main.app-content[data-chrome="none"] {
   }
   [data-design="terminal"] .at-vlevel { padding: 12px 14px; }
   [data-design="terminal"] .at-vlevelval { font-size: 15px; }
-  [data-design="terminal"] .at-tfrow { height: 40px; padding: 0 14px; }
-  [data-design="terminal"] .at-tf { padding: 6px 10px; }
+  /* Second Arena regression, same PR as #853's canvas fix, different cause:
+     8 timeframe buttons + the gated-state hint span need ~376px+ at their
+     min-content width; the mobile row only has 330px. flex-shrink can't
+     rescue it - these buttons already sit at min-content. overflow:hidden
+     (arena.md's own spec: "40, horizontal overflow hidden") silently clipped
+     the overflow instead of the row breaking - 1d and the hint span moved
+     past the clip edge, un-paintable and un-clickable, not just visually
+     tight. QA's overlap gate flagged this as ".at-tfrow overlaps .at-verdict"
+     - that specific claim is a false positive (getBoundingClientRect ignores
+     the ancestor clip; screenshots at 390 on local dev and staging show no
+     visible overlap) but it was pointing at a real defect: 1d was silently
+     unreachable, the same "hidden nobody notices" shape as the canvas bug.
+     arena.md's hint text is spec-required ("Gated must be legible without
+     colour") so shrinking it away isn't on the table. Fix: let the row
+     scroll instead of clip, so every timeframe stays reachable. */
+  [data-design="terminal"] .at-tfrow {
+    height: 40px; padding: 0 14px; overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; touch-action: pan-x pan-y;
+    -webkit-mask-image: linear-gradient(90deg, #000 55%, transparent 100%);
+            mask-image: linear-gradient(90deg, #000 55%, transparent 100%);
+  }
+  [data-design="terminal"] .at-tfrow::-webkit-scrollbar { display: none; }
+  [data-design="terminal"] .at-tf { padding: 6px 10px; flex-shrink: 0; }
+  [data-design="terminal"] .at-tfhint { white-space: nowrap; flex-shrink: 0; }
   /* #598 D2: this was .at-mchart, a class the JSX never applies (only
      .at-chart is used at any viewport) - so the mobile chart stayed 430px
      tall instead of 210, and the two suppression rules below stayed dead

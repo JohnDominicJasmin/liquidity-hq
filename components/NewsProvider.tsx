@@ -293,7 +293,15 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   }, []);
 
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default' && !_notifRequested) {
+    /* #1042: an anti-fingerprinting extension replaces `Notification` with a
+       stub that has no `requestPermission` - `'Notification' in window` is
+       still true for that stub, so it passed the old guard and threw
+       (TypeError: Notification.requestPermission is not a function) on
+       every affected visitor's first navigation, prod only, silently
+       killing push permission with no fallback. Feature-detect the METHOD,
+       not just the object. */
+    if ('Notification' in window && typeof Notification.requestPermission === 'function'
+        && Notification.permission === 'default' && !_notifRequested) {
       _notifRequested = true;
       Notification.requestPermission();
     }

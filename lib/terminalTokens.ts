@@ -165,8 +165,9 @@ export const TERMINAL_MTF_GRIDLINE    = '#2a2e32';
 
 /* ── THE SECOND SOURCE, NAMED (#736) ─────────────────────────────────────
  *
- * The terminal CSS blocks declare 48 custom properties. This file documents
- * 18 of them. The other 28 are ALIASES - tokens the current design owns that
+ * The terminal CSS blocks declare 49 custom properties (#994 added
+ * --glow-accent as a name-parity no-op, see globals.css). This file
+ * documents 18 of them. The other 29 are ALIASES - tokens the current design owns that
  * terminal re-points at its own palette (`--green-2: var(--green)`), plus the
  * radius and surface overrides that make terminal square and flat.
  *
@@ -195,7 +196,7 @@ export const TERMINAL_ALIASES = [
   '--bg3', '--bg4',
   '--blue', '--blue-bdr', '--blue-bg',
   '--font-sans',
-  '--glow-amber', '--glow-green', '--glow-purple', '--glow-red',
+  '--glow-accent', '--glow-amber', '--glow-green', '--glow-purple', '--glow-red',
   '--green-2', '--green-bdr', '--green-bg', '--green-soft',
   '--on-accent',
   '--radius-card', '--radius-chip', '--radius-data', '--radius-pill', '--radius-sharp',

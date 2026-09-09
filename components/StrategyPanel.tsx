@@ -156,9 +156,20 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
        arguing against - it would look exactly like a working chip. */
     if (!canRender(entry)) return;
     if (selected.includes(entry.id)) {
-      const next = selected.filter(id => id !== entry.id);
-      setFocused(next[next.length - 1] ?? null);
-      onSelectedChange(next);
+      /* #1027 - with 2+ selected, clicking an EARLIER chip meant "show its
+         params again", not "remove it". The two gestures only look the same
+         with exactly one selected (where the clicked chip is always already
+         the focused one, so this branch and the old unconditional-remove
+         behavior agree). Only deselect when re-clicking the chip that is
+         ALREADY showing its params - the explicit "I'm done with this one"
+         gesture - otherwise just bring its params back into view. */
+      if (focused !== entry.id) {
+        setFocused(entry.id);
+      } else {
+        const next = selected.filter(id => id !== entry.id);
+        setFocused(next[next.length - 1] ?? null);
+        onSelectedChange(next);
+      }
     } else if (selected.length < limit) {
       setFocused(entry.id);
       onSelectedChange([...selected, entry.id]);

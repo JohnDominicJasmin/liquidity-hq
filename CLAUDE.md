@@ -113,7 +113,7 @@ below is the first time it is written down.
 
 | Deploy | Who | Notes |
 |---|---|---|
-| `liquidity-hq-dev` | **unassigned** — see below | dev is held; nobody has deployed it since 2026-09-03 |
+| `liquidity-hq-dev` | **PM/DevOps** — see below | assigned 2026-09-07; nobody had deployed it since 2026-09-03 |
 | `liquidity-hq-qa` | **QA** | QA deploys after dev promotes, and says so |
 | `liquidity-hq-staging` | **QA** | QA promotes and deploys both |
 | `liquidity-hq-prod` | **PM/DevOps**, owner-approved **each time** | never dev |
@@ -139,12 +139,22 @@ environment without the owner's go each time — **stands, and nothing on this p
 supersedes it.** It is a separate instruction from this document and outlives any
 table here.
 
-**`liquidity-hq-dev` is genuinely unassigned and that is stated rather than
-guessed.** Dev held it, dev is held, and no session has been named to take it.
-Nobody has needed it — local verification is the default and the service carries
-a ~500 build-hour/month cap prod does not. Ask the owner before deploying it.
-Written as an open gap because inventing a holder here is exactly the mistake
-this section already made once.
+**`liquidity-hq-dev` belongs to PM/DevOps. Assigned by the owner on
+2026-09-07, and this paragraph used to say the opposite.** It read "genuinely
+unassigned … ask the owner before deploying it", and that was accurate for four
+days: dev held the service, dev came under a standing instruction not to deploy
+any environment on 2026-09-03, and nobody was named to replace them.
+
+**It stayed unassigned because nothing was looking for it.** The owner's
+instruction was aimed at production and this was collateral — an orphan created
+by a sentence meant differently. It surfaced only when the owner asked what they
+might be blocking without knowing, which is now tracked in
+`docs/OWNER-BLOCKERS.md`.
+
+**Assignment is not a reason to use it.** Local verification is still the
+default, and the service carries a ~500 build-hour/month cap production does
+not. Deploy it when a deployed check is genuinely needed, not by habit — no
+per-deploy approval, but the cap is real and the owner pays for it.
 
 **Production changed holder, not gate.** The owner approves every production
 release separately — #856 is a record of who deploys, never a standing yes to
@@ -312,10 +322,31 @@ Pushing to `staging` closes it. Computed from the `staging..qa` range rather
 than the push event, so it survives force-pushes, re-runs and several
 promotions in a row.
 
-**The `staging` → `main` release PR opens itself** on any push to `staging`
-(`.github/workflows/release-signals.yml`) — QA no longer has to remember. If one
-is already open it is commented on, never rewritten, since QA reports failures
-in that thread. It aggregates the
+**The `staging` → `main` release PR is opened BY HAND. It does not open
+itself, and this line said it did until 2026-09-08.**
+
+The automation exists (`.github/workflows/release-signals.yml`) and the job is
+real, but it is gated on `vars.RELEASE_PR_PAUSED`, which has been set to `1`
+since **2026-08-09** and never unset — so the job has skipped every push to
+`staging` for a month. It skipped four times on 2026-09-08 alone. The pause is
+deliberate: a release PR's head IS its base branch, so every promotion fires
+`synchronize` and re-runs the full browser suite, billing a gate run per push
+for a release nobody intended to ship yet. `CONTRIBUTING.md` has carried the
+correct version with the `if:` condition and the fix since 2026-09-05; **this
+file did not, which is the only reason it is worth a commit** — CLAUDE.md is
+what a session reads first, so the contradiction resolved the wrong way.
+
+**So: whoever pushes `staging` checks that a release PR exists and opens one if
+not.** Unset or delete the variable to resume; the next push then opens one for
+everything piled up since. Do not diagnose a missing release PR as "Actions are
+off" — the other jobs in that same workflow run fine.
+
+`docs/OWNER-BLOCKERS.md` names the failure mode this is an instance of: **an
+instruction with no expiry.** The pause was correct on the day it was set and
+nothing was watching the date.
+
+If one is already open it is commented on, never rewritten, since QA reports
+failures in that thread. It aggregates the
 "How to test" steps for the whole release,
 ends with merge/deploy/re-check/tag, and collects every "could not verify
 locally" caveat in Risk level. Promoting without it is deploying into silence.

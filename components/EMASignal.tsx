@@ -5,6 +5,7 @@ import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtest
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { activatable } from '@/lib/activatable';
+import { useLabels } from '@/lib/labels';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
@@ -78,6 +79,7 @@ function buildConditionPrompt(label: string, pass: boolean | null, detail: strin
 interface Props { signal: StrategySignal; tf?: string; coin?: CoinId }
 
 export default function EMASignal({ signal, tf = '4h', coin }: Props) {
+  const { t } = useLabels();
   const v   = signal.verdict;
   const isSetup = v === 'LONG_SETUP' || v === 'SHORT_SETUP';
   // Downgrade the badge instead of the entry itself - testing showed that filtering
@@ -350,7 +352,16 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
       )}
 
       {signal.error && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 6 }}>{signal.error}</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 6 }}>
+          {/* #1024 - was the raw exception/message, unlike AbsorptionDetector/
+              MarketStructure (translated label only) or OnChainScore (known
+              sentinels get labels, only a genuinely unrecognized error falls
+              through raw). useEMAStrategy has exactly one known sentinel
+              ('INSUFFICIENT_DATA') and otherwise sets `String(err)` from a
+              caught exception - never a clean server message - so unlike
+              OnChainScore, the fallback here is also translated, not raw. */}
+          {signal.error === 'INSUFFICIENT_DATA' ? t('EMA_SIGNAL_INSUFFICIENT_DATA') : t('EMA_SIGNAL_FAILED')}
+        </div>
       )}
     </div>
   );
