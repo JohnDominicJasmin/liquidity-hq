@@ -4,6 +4,7 @@
 
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
+import { fetchBybitKlinesRetry } from './bybitKlines.ts';
 import {
   OHLCV, SignalEvent, SignalFilterParams,
   DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, detectEMASignals,
@@ -74,10 +75,16 @@ async function fetchBybitKlinesRange(sym: string, interval: string, startTime: n
   let guard = 0;
   while (cursor < endTime && guard < 500) {
     guard++;
-    const url = `/api/market/klines?source=bybit&symbol=${sym}&interval=${interval}&start=${cursor}&end=${endTime}&limit=${PAGE}`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    if (!r.ok) throw new Error(`Bybit klines ${r.status}`);
-    const d = await r.json() as { result?: { list?: string[][] } };
+    // #1080: retry shared with every other Bybit-klines caller (see
+    // lib/bybitKlines.ts). Exhaustion still throws, same as the single !r.ok
+    // check it replaces - a backtest that silently returned a truncated
+    // range would produce wrong stats with no sign anything was missing,
+    // which is worse than the loud failure this preserves.
+    const d = await fetchBybitKlinesRetry(sym, interval, PAGE, {
+      extraParams: { start: String(cursor), end: String(endTime) },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (d === null) throw new Error('Bybit klines failed after retry');
     const list = [...(d?.result?.list ?? [])].reverse(); // Bybit returns newest-first
     if (!list.length) break;
     // #1059: 1000PEPEUSDT/1000BONKUSDT are quoted per 1000 tokens - without
