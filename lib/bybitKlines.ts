@@ -32,7 +32,11 @@ export interface FetchBybitKlinesRetryOptions {
   isStale?: () => boolean;
   /** Passed straight to `fetch()`. For callers already using
    *  `AbortSignal.timeout(...)` (useEMAStrategy, backfillGapBybit) as an
-   *  overall ceiling on the whole sequence, not a per-attempt budget. */
+   *  overall ceiling on the whole sequence, not a per-attempt budget. Once
+   *  it fires, `aborted` is checked the same way `isStale` is (see below) -
+   *  a signal is permanently tripped, so a fetch reusing it after that point
+   *  rejects instantly anyway; the check just skips the backoff sleep ahead
+   *  of an attempt that cannot succeed. */
   signal?: AbortSignal;
 }
 
@@ -67,9 +71,14 @@ export async function fetchBybitKlinesRetry(
   const params = new URLSearchParams({
     source: 'bybit', symbol, interval, limit: String(limit), ...extraParams,
   });
-  for (let attempt = 0; attempt < 3 && !(isStale?.() ?? false); attempt++) {
+  // Bundles both bail-out checks so neither the loop condition nor the
+  // post-sleep check drifts out of sync with the other, the way the
+  // pre-fix version's `signal.aborted` gap did - only `isStale` was
+  // checked in both places, `signal` in neither.
+  const bailed = () => (isStale?.() ?? false) || (signal?.aborted ?? false);
+  for (let attempt = 0; attempt < 3 && !bailed(); attempt++) {
     if (attempt > 0) await new Promise(res => setTimeout(res, attempt === 1 ? 500 : 1500));
-    if (isStale?.()) break;
+    if (bailed()) break;
     try {
       const r = await fetch(`/api/market/klines?${params.toString()}`, signal ? { signal } : undefined);
       if (r.ok) return await r.json() as BybitKlinesResponse;
