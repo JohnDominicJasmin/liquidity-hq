@@ -16,6 +16,7 @@ import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
 import { describeSelection } from '@/lib/strategyRegistry';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
 
@@ -360,9 +361,14 @@ export default function GrokChat() {
           if (!r.ok) throw new Error('binance');
           raw = await r.json();
         } else if (by) {
-          const r = await fetch(`/api/market/klines?source=bybit&symbol=${by}&interval=60&limit=300`);
-          if (!r.ok) throw new Error('bybit');
-          raw = [...((await r.json())?.result?.list ?? [])].reverse();
+          // #1080: retry shared with every other Bybit-klines caller (see
+          // lib/bybitKlines.ts). Exhaustion throws into the existing catch
+          // below, same as the old !r.ok check did - setStructureLine('-')
+          // already handles it, matching this effect's own "fails silently
+          // to '-'" design.
+          const d = await fetchBybitKlinesRetry(by, '60', 300);
+          if (d === null) throw new Error('bybit');
+          raw = [...(d.result?.list ?? [])].reverse();
         } else return;
         if (cancelled) return;
         const candles = raw.map(k => ({
