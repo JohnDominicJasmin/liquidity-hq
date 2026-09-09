@@ -1207,11 +1207,15 @@ function ArenaContent() {
         // #1080: retry shared with every other Bybit-klines caller (see
         // lib/bybitKlines.ts). Exhaustion throws into this function's
         // existing catch, same as the old !r.ok check did.
-        // Non-null: the guard above this handler already ensures at least
-        // one of binanceSym/bybitSym is set, and this is the !binanceSym
-        // branch - TS can't carry that cross-variable guarantee, the
-        // template-literal version this replaces didn't need to.
-        const d = await fetchBybitKlinesRetry(bybitSym!, bybitInterval, 300);
+        // The guard above this handler (`if (!binanceSym && !bybitSym) return`)
+        // already ensures bybitSym is set whenever this branch runs, but it's
+        // a cross-variable guarantee TS can't carry into this `else` - the
+        // template-literal fetch this replaces tolerated `undefined` silently,
+        // a typed argument doesn't. Narrowing here (rather than asserting
+        // `bybitSym!`) so a future edit to that guard fails loudly at this
+        // call instead of silently reaching `undefined` inside a URL again.
+        if (!bybitSym) throw new Error(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() }));
+        const d = await fetchBybitKlinesRetry(bybitSym, bybitInterval, 300);
         if (d === null) throw new Error(t('ARENA_ERROR_BYBIT_API'));
         raw = [...(d.result?.list ?? [])].reverse(); // oldest-first to match Binance
       }
