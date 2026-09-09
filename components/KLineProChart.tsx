@@ -1730,8 +1730,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   upsertEmaBar(bar);
                   cb(bar);
                 }
-              } catch { /* the stream is already live; a failed backfill leaves
-                           the gap rather than breaking the chart */ }
+              } catch { /* The stream is already live, so a failed backfill
+                           doesn't break the chart - but the gap it leaves is
+                           PERMANENT, not deferred to the next reconnect.
+                           onmessage below advances lastBarTsRef on every
+                           live bar regardless of whether this backfill ever
+                           ran, so `since` marches past the hole within
+                           seconds and no later attempt can reach it again.
+                           A chart missing candles doesn't look damaged - the
+                           time axis just closes up and reads as continuous.
+                           Retry (#1080) makes this rarer; it doesn't change
+                           what happens on the attempts that still fail, and
+                           forcing a full history reload here is more
+                           machinery than a rare, now-retried failure justifies. */ }
             };
 
             const connect = () => {
@@ -1878,8 +1889,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   upsertEmaBar(bar);
                   cb(bar);
                 }
-              } catch { /* the stream is already live; a failed backfill leaves
-                           the gap rather than breaking the chart */ }
+              } catch { /* The stream is already live, so a failed backfill
+                           doesn't break the chart - but the gap it leaves is
+                           PERMANENT, not deferred to the next reconnect.
+                           onmessage below advances lastBarTsRef on every
+                           live bar regardless of whether this backfill ever
+                           ran, so `since` marches past the hole within
+                           seconds and no later attempt can reach it again.
+                           A chart missing candles doesn't look damaged - the
+                           time axis just closes up and reads as continuous.
+                           Retry (#1080) makes this rarer; it doesn't change
+                           what happens on the attempts that still fail, and
+                           forcing a full history reload here is more
+                           machinery than a rare, now-retried failure justifies. */ }
             };
 
             const connect = () => {
