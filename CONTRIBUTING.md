@@ -791,6 +791,50 @@ purpose — whoever merges is asserting the "How to test" steps passed, and they
 are asserting it on QA's word, not instead of it. **A merge past a QA "not
 ready" removes the only independent check the project has.**
 
+## What "closed" means — the owner's definition, 2026-09-10
+
+**An issue is CLOSED only when all four are true:**
+
+1. **QA tested it.**
+2. **QA audited it.**
+3. **It passed manual testing.**
+4. **PM/DevOps audited it.**
+5. **If it is VISUAL — anything the owner sees — the OWNER approved it.**
+
+**Step 5 is the owner's, added the same day and not delegable.** Layout,
+spacing, labels, colour, what a panel says, where it sits, what a chart draws.
+**Nobody else can sign off on how the product looks**, because nobody else is
+the person who knows what it should feel like. QA can confirm a panel renders;
+only the owner can say it renders *right*.
+
+**When in doubt, it is visual.** The cost of asking is one message; the cost of
+guessing is the Arena redesign, which was built three times and rejected three
+times because sessions kept deciding for themselves what the owner would accept.
+
+**The owner set this after finding PM/DevOps closing issues on QA's report
+alone.** Step 4 was not being done. Closing on a report is not auditing a
+report — it is forwarding one, and a forwarded claim has had exactly one pair
+of eyes on it while looking like it has had two.
+
+**What step 4 actually requires**, so it cannot decay back into a rubber stamp:
+PM/DevOps reads what QA measured, checks the claim against the artifact rather
+than against the summary of it, and states on the issue what was audited. If
+PM/DevOps cannot name what was measured, where, and by whom, **the issue does
+not close.**
+
+**This does not move the sign-off.** QA still decides what "verified" means and
+whether something is done — see the section above, which is unchanged. Step 4
+is a second reader on a decision QA has already made, not a veto over it and
+not a substitute for it. **A PM/DevOps audit that overrides a QA "not ready" is
+the same failure as merging past one.**
+
+**Why this is written here rather than agreed in chat.** This project has three
+recorded cases of a decision that lived only in a conversation and was gone by
+the next session — the Arena redesign rebuilt twice against two unrecorded
+rejections, `RELEASE_PR_PAUSED` outliving the reason it was set, and the deploy
+table disagreeing with reality for two days. **A rule nobody can find is a rule
+that gets re-litigated.**
+
 **Dev's authority stops at `dev` and `qa` for branches, and nowhere for
 deploys.** Dev may merge its own feature branches into `dev` and may promote
 `dev` → `qa`. It never promotes into `staging`, never merges to `main`, and
