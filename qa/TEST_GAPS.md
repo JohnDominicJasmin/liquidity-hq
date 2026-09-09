@@ -106,13 +106,46 @@ calendar day, UTC+10). This section said "needs `timezoneId` contexts and is
 a separate piece of work" after that work had already landed in the same
 file it was describing — the claim just never caught up to the test.
 
-**Still open:**
+**Still open, and narrowed 2026-09-10 rather than left as one flat claim —
+checked against current source, not assumed still true:**
 
-- **SERVER time.** `page.clock` fakes the browser only, so the 24h/48h alert
-  outcome resolution — a cron — remains untestable. Genuinely QA's limit, not
-  an oversight: injecting a clock through app code would touch the 217 sites
-  `clock.spec.ts`'s own header counts (146 `Date.now()`, 71 `new Date()`), and
-  app code is not QA's to write.
+- **SERVER time, precisely scoped.** `page.clock` fakes the browser only, so
+  a genuine clock-injection fix would touch the 217 sites `clock.spec.ts`'s
+  own header counts (146 `Date.now()`, 71 `new Date()`) - that part of the
+  claim holds and app code is not QA's to write. But "the 24h/48h alert
+  outcome resolution is untestable" turns out to bundle two different things,
+  and only one of them actually needs a clock.
+
+  `app/api/alert-outcomes/resolve/route.ts`'s `resolveWindow` does two jobs:
+  **which rows are due** (`cutoff = new Date(Date.now() - hours * 3_600_000)`,
+  a direct `Date.now()` read, genuinely untestable at the boundary without
+  server clock control) and **what the outcome number is**
+  (`outcomePct(dir, entry, current)` - three numbers in, one number out, no
+  time dependency at all, same shape as `computeRSI14` or
+  `computeSqueezeScore`, both already unit-tested). The boundary decision
+  needs a clock; the arithmetic that runs once a row IS selected does not,
+  and nothing about it is untestable in principle.
+
+  **The only reason QA can't test `outcomePct` today: it isn't exported.**
+  `function outcomePct(...)`, not `export function outcomePct(...)` - a
+  route.ts internal, unreachable from `__tests__/` the way `lib/candles.ts`'s
+  functions are. That's a one-word, zero-risk ask for dev (adding `export`
+  changes nothing about runtime behavior), not the 217-site problem the old
+  wording implied.
+
+  **And this codebase already has the pattern that would close the boundary
+  half too, proven and unit-tested**: `lib/candles.ts`'s `closedCandleTtl`
+  and `msUntilNextClose` take `nowMs` as an explicit parameter instead of
+  reading `Date.now()` internally - `__tests__/candles.test.mts` pins exact
+  boundary instants (`nowMs` one second before a close, exactly at a close)
+  with zero server clock injection, because the function never reads the
+  clock itself, the caller does, once, at the edge. If `resolveWindow`'s
+  cutoff math were extracted the same way - a pure function taking `nowMs`
+  and `fired_at` and returning "is this row due" - the boundary case (a fire
+  logged at 23h59m vs 24h00m) becomes exactly as testable as a candle close
+  is now. Not proposing the refactor here (app code); naming that the "server
+  time is untestable" framing undersold what's actually possible, because a
+  working proof of the fix already exists three files away.
 - **RSI thresholds — closed, 2026-09-06, and this line was already stale
   before today.** `__tests__/rsi.test.mts` already pinned `computeRSI14`'s
   0/50/100 cases and the 14-change window — checked before writing anything,
