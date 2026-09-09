@@ -7,6 +7,7 @@ import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
 import UsageModal from './UsageModal';
 import LanguageNavSwitcher from './LanguageNavSwitcher';
+import PlanBadge from './PlanBadge';
 import TerminalNav from './TerminalNav';
 import { useDesignMode } from './DesignModeProvider';
 import { getCurrentWindow } from '@/lib/session';
@@ -403,6 +404,8 @@ export default function NavDrawer() {
             </button>
 
             <LanguageNavSwitcher />
+
+            <PlanBadge />
 
             {!authLoading && (
               user ? (
