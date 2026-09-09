@@ -50,6 +50,15 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
           // it's informational only, so silence on failure was already
           // correct and stays correct).
           const d = await fetchBybitKlinesRetry(by, '240', LOOKBACK_BARS + 1);
+          // #1085 audit: the badge's normal resting state IS invisible (most
+          // 4h windows don't clear MOVE_THRESHOLD_PCT), so a silent UI is
+          // right - but that means "no qualifying move" and "retry exhausted"
+          // now render identically, with nothing to tell them apart later.
+          // console.warn, not a user-facing change, so the next person asking
+          // "why didn't the badge fire during that pump" has an answer.
+          if (d === null) {
+            console.warn(`HigherTfMoveBadge: Bybit klines retry exhausted for ${by}/${coin}`);
+          }
           const pf = bybitSymbolPriceFactor(by);
           closes = [...(d?.result?.list ?? [])].reverse().map(k => +k[4] * pf);
         } else if (bn) {
