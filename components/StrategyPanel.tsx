@@ -256,7 +256,13 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
                        announces identically to a working one is the mouse-only
                        `title` problem again, one screen over - and `title` is
                        what clobbered every blocked chip's name on #959. */
-                    aria-label={usable ? undefined : `${entry.label} - not available yet`}
+                    /* "Not available yet" reads as a plan question - upgrade
+                       and it appears. It never does: canRender is keyed on
+                       `source`, not on entitlement, so this is identical on
+                       every plan. Naming that explicitly here too, not just
+                       in the visible note, since a screen reader user only
+                       ever gets this string. */
+                    aria-label={usable ? undefined : `${entry.label} - not wired up to the chart yet, same on every plan`}
                     /* The reason is a DESCRIPTION, and it points at the visible
                        line below rather than at hidden text or a `title`.
 
@@ -302,9 +308,18 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
             tree is its own defect. */}
         {/* One line for the dimmed chips, visible rather than hidden, for the
             same reason the limit note is: a sighted user should not have to
-            hover to find out why a third of the list is greyed out. */}
+            hover to find out why a third of the list is greyed out.
+
+            "Not available yet" was the original wording and it is wrong in a
+            freemium panel: sitting next to the PRO/FREE tag above, a Free
+            reader takes it as "upgrade to unlock" and a Pro reader takes it
+            as "something's broken, I paid for this". Neither is true -
+            canRender is keyed on `source` (whether the indicator is wired
+            into the chart at all), not on entitlement, so it is identical
+            for every plan. Saying so directly removes the misread instead
+            of relying on the reader not to make it. */}
         <div className="strat-notyet-note">
-          Dimmed indicators are not available yet.
+          Dimmed indicators aren&apos;t wired up to the chart yet - same on every plan.
         </div>
 
         {atLimit && (
