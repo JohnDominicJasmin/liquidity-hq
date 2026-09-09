@@ -10,6 +10,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import CorrelationTerminal from '@/components/CorrelationTerminal';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 
 /* ── constants ── */
 
@@ -41,16 +42,19 @@ async function fetchCloses(id: CoinId, interval: string, limit: number): Promise
   }
 
   if (bbSym) {
-    try {
-      const bbInt = interval === '1h' ? '60' : '240';
-      const res   = await fetch(
-        `/api/market/klines?source=bybit&symbol=${bbSym}&interval=${bbInt}&limit=${limit}`,
-      );
-      const data  = await res.json();
-      return ((data?.result?.list ?? []) as string[][])
+    // #1080: shared retry (lib/bybitKlines.ts) - this call had NO `r.ok`
+    // check at all, same #1079 shape as CorrelationTerminal.tsx's identical
+    // fetchCloses (#1100, this page's own terminal-design twin, rendered
+    // directly below when mode === 'terminal'). Degrades the same safe way:
+    // a refusal returns [], closes.length >= 5 excludes the coin, the
+    // matrix's `!ra || !rb` renders the dash cellColor/cellBg already use
+    // for null - never a wrong number, pearson() floors at 5 points regardless.
+    const d = await fetchBybitKlinesRetry(bbSym, interval === '1h' ? '60' : '240', limit);
+    if (d !== null) {
+      return ((d.result?.list ?? []) as string[][])
         .map(c => parseFloat(c[4]))
         .reverse();
-    } catch { /* fall through */ }
+    }
   }
 
   return [];
