@@ -7,6 +7,7 @@ import { useDesignMode } from '@/components/DesignModeProvider';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { detectStructureSignals, structureState, type PACandle } from '@/lib/priceAction';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number }
@@ -158,14 +159,17 @@ export default function MarketStructure({ coin, onData }: Props) {
         const raw = await r.json() as (string | number)[][];
         candles = raw.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
       } else if (bytSym) {
-        const r = await fetch(`/api/market/klines?source=bybit&symbol=${bytSym}&interval=240&limit=100`);
-        if (!r.ok) throw new Error('Bybit 4H fetch failed');
+        // #1080: retry shared with every other Bybit-klines caller (see
+        // lib/bybitKlines.ts). Exhaustion throws into this function's
+        // existing catch, same as the old !r.ok check did - the error state
+        // below already surfaces it.
+        const d = await fetchBybitKlinesRetry(bytSym, '240', 100);
+        if (d === null) throw new Error('Bybit klines failed after retry');
         // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
         // broken level and both swing levels as dollar prices, so without the
         // factor they read 1000x against the ticker right above them.
         const pf = bybitSymbolPriceFactor(bytSym);
-        const raw = await r.json() as { result?: { list?: string[][] } };
-        candles = [...(raw?.result?.list ?? [])].reverse().map(k => ({
+        candles = [...(d.result?.list ?? [])].reverse().map(k => ({
           t: +k[0], o: +k[1] * pf, h: +k[2] * pf, l: +k[3] * pf, c: +k[4] * pf, v: +k[5],
         }));
       } else {
