@@ -793,7 +793,7 @@ ready" removes the only independent check the project has.**
 
 ## What "closed" means — the owner's definition, 2026-09-10
 
-**An issue is CLOSED only when all four are true:**
+**An issue is CLOSED only when ALL FIVE are true:**
 
 1. **QA tested it.**
 2. **QA audited it.**
