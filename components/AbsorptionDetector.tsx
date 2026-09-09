@@ -4,6 +4,7 @@ import { CoinId, BINANCE_SYMS, BYBIT_SYMS, computeFibLevels, useMarket } from '@
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number; takerBuy: number }
@@ -214,13 +215,15 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
       } else if (bytSym) {
         // Bybit klines don't include per-candle taker buy - use 50/50 split (still useful for body+vol)
         const toC = (k: string[]) => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], takerBuy: +k[5] * 0.5 });
-        const [r15, r1h] = await Promise.all([
-          fetch(`/api/market/klines?source=bybit&symbol=${bytSym}&interval=15&limit=50`),
-          fetch(`/api/market/klines?source=bybit&symbol=${bytSym}&interval=60&limit=20`),
+        // #1080: retry shared with every other Bybit-klines caller (see
+        // lib/bybitKlines.ts). Exhaustion still throws into this function's
+        // existing try/catch, same as the old !r.ok check did - the error
+        // state below already surfaces it, so no new UI path needed.
+        const [raw15, raw1h] = await Promise.all([
+          fetchBybitKlinesRetry(bytSym, '15', 50),
+          fetchBybitKlinesRetry(bytSym, '60', 20),
         ]);
-        if (!r15.ok || !r1h.ok) throw new Error('Bybit fetch failed');
-        const raw15 = await r15.json() as { result?: { list?: string[][] } };
-        const raw1h = await r1h.json() as { result?: { list?: string[][] } };
+        if (raw15 === null || raw1h === null) throw new Error('Bybit klines failed after retry');
         c15 = [...(raw15?.result?.list ?? [])].reverse().map(toC);
         c1h = [...(raw1h?.result?.list ?? [])].reverse().map(toC);
       } else {
