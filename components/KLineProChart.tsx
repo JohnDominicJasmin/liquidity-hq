@@ -1705,14 +1705,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const since = lastBarTsRef.current;
               if (!since) return;
               try {
-                const r = await fetch(
-                  `/api/market/klines?source=bybit&symbol=${sym}&interval=${interval}&limit=500`,
-                  { signal: AbortSignal.timeout(12_000) },
-                );
-                if (!r.ok || cancelled) return;
-                const d = await r.json() as { result?: { list?: string[][] } };
-                if (cancelled) return;
-                const rows = [...(d?.result?.list ?? [])].reverse();
+                // #1080 (PM/DevOps whole-migration audit): this reconnect
+                // backfill runs precisely when the socket has already proved
+                // unreliable, and had no retry at all - missed by the
+                // original site sweep because that was a grep for a literal
+                // "source=bybit" in a URL, and this one already matched that
+                // literally but was still overlooked being inside the chart
+                // component #1079 was filed against rather than a separate
+                // call site. Same helper, same isStale pattern getBars above
+                // already uses for the initial history load.
+                const d = await fetchBybitKlinesRetry(sym, interval, 500, {
+                  isStale: () => cancelled,
+                  signal: AbortSignal.timeout(12_000),
+                });
+                if (d === null || cancelled) return;
+                const rows = [...(d.result?.list ?? [])].reverse();
                 const missed = barsAfter(
                   rows.map(k => ({ timestamp: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })),
                   since,
@@ -1836,13 +1843,31 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const since = lastBarTsRef.current;
               if (!since) return;                       // nothing streamed yet - getBars owns it
               try {
-                const r = await fetch(
-                  `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
-                  { signal: AbortSignal.timeout(12_000) },
-                );
-                if (!r.ok || cancelled) return;
-                const rows = (await r.json()) as Array<[number, string, string, string, string, string]>;
-                if (cancelled) return;
+                // #1080 (PM/DevOps whole-migration audit): histSourceRef
+                // defaults to 'bybit' (declared above) and getBars can leave
+                // it there, so this reconnect backfill can hit Bybit despite
+                // living inside the Binance WS reconnect block below -
+                // missed by the original sweep because the source came from
+                // a ref, not a literal "source=bybit" in the URL. Binance /
+                // binance-futures stay a single attempt: no shared retry
+                // helper exists for them yet (#1107).
+                let rows: (string | number)[][];
+                if (histSourceRef.current === 'bybit') {
+                  const d = await fetchBybitKlinesRetry(sym, interval, 500, {
+                    isStale: () => cancelled,
+                    signal: AbortSignal.timeout(12_000),
+                  });
+                  if (d === null || cancelled) return;
+                  rows = [...(d.result?.list ?? [])].reverse();
+                } else {
+                  const r = await fetch(
+                    `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
+                    { signal: AbortSignal.timeout(12_000) },
+                  );
+                  if (!r.ok || cancelled) return;
+                  rows = await r.json();
+                  if (cancelled) return;
+                }
                 const missed = barsAfter(
                   rows.map(k => ({ timestamp: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })),
                   since,
