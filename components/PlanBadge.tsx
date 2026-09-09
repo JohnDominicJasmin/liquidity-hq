@@ -20,11 +20,17 @@ import { useNow } from '@/lib/useNow';
  * that also survives greyscale and colour-blindness where colour alone
  * would not. Do not substitute colours for weights here.
  *
- * Renders nothing while auth is loading or signed out - there is no plan to
- * show for a visitor who has not signed in, and the avatar/Sign-In link
- * already make that state clear on their own. */
+ * Renders nothing while auth is loading, signed out, OR the subscription
+ * read is still in flight (`entitlementsLoading`) - there is no plan to show
+ * for a visitor who has not signed in, and `role` defaults to 'free' before
+ * that read settles. Skipping the third check would paint every Pro and
+ * Trial account as FREE for one frame on each cold load: a paying customer
+ * watching their own badge say the wrong thing, on the one component whose
+ * entire job is saying this correctly (QA caught it testing #1090). An
+ * absent badge for a moment is invisible; a wrong one is alarming - so this
+ * waits rather than guesses. */
 export default function PlanBadge() {
-  const { user, loading, role, isTrial, trialEndsAt } = useAuth();
+  const { user, loading, role, isTrial, trialEndsAt, entitlementsLoading } = useAuth();
   /* isTrial itself already flips off a live clock inside AuthProvider (one
      scheduled setTimeout at exactly trialEndsAt, not a poll) - every
      consumer of the context re-renders when that happens, this component
@@ -35,7 +41,7 @@ export default function PlanBadge() {
      60s interval TrialBanner already uses for the identical number. */
   const now = useNow(60_000);
 
-  if (loading || !user) return null;
+  if (loading || !user || entitlementsLoading) return null;
 
   if (isTrial) {
     const daysLeft = trialEndsAt != null

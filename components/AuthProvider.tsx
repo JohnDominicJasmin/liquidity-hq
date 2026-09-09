@@ -14,6 +14,16 @@ interface AuthCtx {
   isTrial: boolean;        // inside the 14-day signup trial (Pro features, Free AI caps)
   entitled: boolean;       // isPro || isTrial - the gate for Pro FEATURES
   trialEndsAt: number | null; // ms epoch the trial ends, for the countdown banner
+  // True from the moment `user` resolves until the user_subscriptions read
+  // below settles. `role` defaults to 'free' before that read completes, so
+  // a consumer that paints on `role` alone (rather than gating like the three
+  // `authLoading || entitled` call sites do) shows a real Pro/Trial account
+  // as Free for one frame on every cold load (#1090's nav badge, caught by
+  // QA). Existing consumers don't need this - they gate on `entitled`, which
+  // is already correct while unresolved (false is the safe default to fail
+  // toward). This exists for the one kind of consumer that paints `role`
+  // itself and cannot afford to show the wrong tier even briefly.
+  entitlementsLoading: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -25,6 +35,7 @@ const AuthContext = createContext<AuthCtx>({
   isTrial: false,
   entitled: false,
   trialEndsAt: null,
+  entitlementsLoading: true,
   signOut: async () => {},
 });
 
@@ -65,6 +76,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<'free' | 'pro'>('free');
   const [trialEndsAt, setTrialEndsAt] = useState<number | null>(null);
+  // Starts true, same reasoning as `loading`: unknown until proven otherwise,
+  // never a default that happens to read as correct.
+  const [entitlementsLoading, setEntitlementsLoading] = useState(true);
 
   useEffect(() => {
     const sb = getSupabase();
@@ -220,9 +234,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // Fetch subscription role + trial window whenever user changes
   useEffect(() => {
-    if (!user) { setRole('free'); setTrialEndsAt(null); return; }
+    if (!user) { setRole('free'); setTrialEndsAt(null); setEntitlementsLoading(false); return; }
     const sb = getSupabase();
-    if (!sb) return;
+    if (!sb) { setEntitlementsLoading(false); return; }
+    // Set even though the initial state is already `true` - this effect also
+    // reruns on a user SWITCH (sign-out then a different sign-in in the same
+    // tab), where the previous user's fetch already flipped it false.
+    setEntitlementsLoading(true);
     sb.from(T.user_subscriptions)
       .select('role, trial_ends_at')
       .eq('user_id', user.id)
@@ -231,6 +249,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         setRole(data?.role === 'pro' ? 'pro' : 'free');
         const t = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : null;
         setTrialEndsAt(t);
+        setEntitlementsLoading(false);
       });
   }, [user]);
 
@@ -275,6 +294,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     <AuthContext.Provider value={{
       user, loading, role,
       isPro, isTrial, entitled: isPro || isTrial, trialEndsAt,
+      entitlementsLoading,
       signOut,
     }}>
       {children}
