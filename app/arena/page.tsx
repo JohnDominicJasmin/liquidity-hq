@@ -29,6 +29,7 @@ import LiqFeed, { type Bucket } from '@/components/LiqFeed';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
@@ -1203,10 +1204,16 @@ function ArenaContent() {
       } else {
         // Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first
         const bybitInterval = readTf === '1m' ? '1' : readTf === '5m' ? '5' : readTf === '30m' ? '30' : readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '2h' ? '120' : readTf === '4h' ? '240' : 'D';
-        const r = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
-        if (!r.ok) throw new Error(t('ARENA_ERROR_BYBIT_API'));
-        const data = await r.json();
-        raw = [...(data?.result?.list ?? [])].reverse(); // oldest-first to match Binance
+        // #1080: retry shared with every other Bybit-klines caller (see
+        // lib/bybitKlines.ts). Exhaustion throws into this function's
+        // existing catch, same as the old !r.ok check did.
+        // Non-null: the guard above this handler already ensures at least
+        // one of binanceSym/bybitSym is set, and this is the !binanceSym
+        // branch - TS can't carry that cross-variable guarantee, the
+        // template-literal version this replaces didn't need to.
+        const d = await fetchBybitKlinesRetry(bybitSym!, bybitInterval, 300);
+        if (d === null) throw new Error(t('ARENA_ERROR_BYBIT_API'));
+        raw = [...(d.result?.list ?? [])].reverse(); // oldest-first to match Binance
       }
       // k[0]=time k[1]=open k[2]=high k[3]=low k[4]=close k[5]=vol - same index for both
       const candles = raw.map(k => ({ t: Number(k[0]), o: Number(k[1]), h: Number(k[2]), l: Number(k[3]), c: Number(k[4]), v: Number(k[5]) }));
@@ -1244,9 +1251,16 @@ function ArenaContent() {
           const dv = calcRSI(dc, 14).at(-1);
           if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
         } else if (bybitSym) {
-          const dr = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=D&limit=20`);
-          const dd = await dr.json() as { result?: { list?: string[][] } };
-          const dc = [...(dd?.result?.list ?? [])].reverse().map(k => parseFloat(k[4]));
+          // #1080: retry shared with every other Bybit-klines caller (see
+          // lib/bybitKlines.ts). Exhaustion throws into this block's own
+          // immediately-enclosing catch below - stays "silent fail" exactly
+          // as before, rsiDailyStr just stays '-'. NOT a plain `return` -
+          // this block sits inside the same function as the outer try at
+          // the top of this handler, so `return` here would exit the whole
+          // read early instead of just skipping the daily-RSI line.
+          const d = await fetchBybitKlinesRetry(bybitSym, 'D', 20);
+          if (d === null) throw new Error('Bybit daily RSI klines failed after retry');
+          const dc = [...(d.result?.list ?? [])].reverse().map(k => parseFloat(k[4]));
           const dv = calcRSI(dc, 14).at(-1);
           if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
         }
