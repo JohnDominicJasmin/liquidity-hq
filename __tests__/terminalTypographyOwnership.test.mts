@@ -295,8 +295,12 @@ const WIDE_PROPS: Array<[css: string, jsx: string]> = [
 ];
 
 const WIDE_BASELINE = [
-  'app/correlation/page.tsx: .card — inline background kills the terminal rule\'s background',
-  'app/correlation/page.tsx: .card — inline border kills the terminal rule\'s border',
+  /* REMOVED 2026-09-10 (#1111 Pattern A, #1137): app/correlation/page.tsx
+     collapsed to a wrapper around CorrelationTerminal - the dead
+     current-design branch that carried these two inline colours is gone,
+     so the collision is gone with it. Flagged as stale by t.diagnostic()
+     (#1127) on the next run after #1137 landed - confirmed live before
+     deleting, not assumed. */
   /* REMOVED 2026-09-10 (#1111 Pattern A, #1128): app/dashboard/page.tsx
      collapsed to a 12-line wrapper around DashboardTerminal - the dead
      current-design branch that carried these two inline colours is gone,
