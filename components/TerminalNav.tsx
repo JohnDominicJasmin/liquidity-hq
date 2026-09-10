@@ -471,7 +471,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
 
       {/* Mobile 38px header */}
       <header className="tnav-mhead">
-        <BrandMark size={18} tone="dark" radiusPct={0} compact />
+        <BrandMark className="tnav-mlogo" size={18} tone="dark" radiusPct={0} compact />
         <span className="tnav-mbrand">{screenNameFor(pathname, t)}</span>
         <span className="tnav-mscreen" />
         {session && (
@@ -480,6 +480,13 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
             {session.name}
           </span>
         )}
+        {/* Plan indicator (#1089/#1094). Same component as the desktop bar -
+            owner's ruling on placement, PM's on the collision with a long
+            screen name (`.tnav-mbrand` yields via ellipsis, this never does):
+            a badge that can silently disappear here would read as "not Pro"
+            to a paying customer, the exact ambiguity PlanBadge exists to
+            remove. */}
+        <PlanBadge />
         <button type="button" className="tnav-mmore" onClick={onOpenDrawer} aria-label={t('TNAV_MORE_ARIA')}>
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
