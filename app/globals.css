@@ -4224,9 +4224,14 @@ html[data-theme="light"] { background: var(--bg0); }
    4px in current, so one rule set adapts correctly rather than needing two. */
 .plan-badge {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 9.5px; font-weight: 600; letter-spacing: 0.12em;
+  /* Owner: "lets make it more visible" - was 9.5px, below --fs-micro's own
+     documented 11px floor for an uppercase eyebrow label (globals.css:307:
+     "the 11px floor - pair with letter-spacing, don't shrink further").
+     Padding scaled up with it (3px 7px -> 4px 10px) rather than left at the
+     old size around bigger text. */
+  font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.12em;
   text-transform: uppercase; line-height: 1;
-  padding: 3px 7px; border-radius: var(--radius-data);
+  padding: 4px 10px; border-radius: var(--radius-data);
   flex-shrink: 0; white-space: nowrap;
 }
 .plan-badge-free {
