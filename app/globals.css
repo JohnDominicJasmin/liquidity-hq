@@ -4260,12 +4260,24 @@ html[data-theme="light"] { background: var(--bg0); }
 }
 .plan-badge-pro {
   /* Filled, not outlined - the one paid state is unmistakable at a glance.
-     Text colour is intentionally NOT a token: this sits on a solid amber
-     fill regardless of app theme, and amber is bright enough in both light
-     and dark that only a near-black ink keeps it readable - the same reason
-     a caution sign prints black text on yellow regardless of the room's own
-     lighting. Every other property still reads from tokens. */
-  color: #0a0a0a; background: var(--amber); border: 1px solid var(--amber);
+     WAS a hardcoded #0a0a0a - wrong the moment light theme's own --amber
+     stopped being bright. That token is a dark brownish tone in BOTH light
+     variants (current-design #8F4508, terminal #755100), not the vivid
+     #fbbf24 dark theme uses - so near-black-on-amber, correct in dark, was
+     dark-on-dark in light (2.77:1/2.85:1, both well under AA). Owner caught
+     it from a deployed screenshot.
+     Fix is var(--bg0), not a second literal - the same paired-foreground
+     shape --on-accent already uses for terminal dark's gold CTA
+     (`--on-accent: var(--bg0)` above). --bg0 already flips exactly opposite
+     to --amber in every theme this badge renders in (near-black canvas in
+     dark, near-white canvas in light), so one declaration clears AA in all
+     four theme/design combinations without a light-theme override rule:
+     measured contrast, ink-on-fill - dark/root 12.29:1, dark/terminal
+     11.94:1, light/current 5.76:1, light/terminal 6.62:1. currentColor on
+     .plan-badge-pro-star below means the star's fill flips with this same
+     value, no second rule needed. Every other property still reads from
+     tokens. */
+  color: var(--bg0); background: var(--amber); border: 1px solid var(--amber);
   font-weight: 700; letter-spacing: 0.14em;
 }
 /* The option-A emblem (owner ruling) - makes Pro "an object with a mark on
