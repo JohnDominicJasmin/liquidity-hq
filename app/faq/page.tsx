@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-import { useDesignMode } from '@/components/DesignModeProvider';
 
 interface FaqItem { id: string; qKey: LabelKey; aKey: LabelKey }
 interface FaqCategory { titleKey: LabelKey; items: FaqItem[] }
@@ -47,12 +46,11 @@ const CATEGORIES: FaqCategory[] = [
 ];
 
 export default function FaqPage() {
-  const mode = useDesignMode();
   const { t } = useLabels();
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <div className={mode === 'terminal' ? 'faq-term-wrap' : undefined} style={{ maxWidth: 860, margin: '0 auto', padding: '48px 24px 80px' }}>
+    <div className="faq-term-wrap" style={{ maxWidth: 860, margin: '0 auto', padding: '48px 24px 80px' }}>
 
       <div style={{ marginBottom: 40 }}>
         <div style={{
