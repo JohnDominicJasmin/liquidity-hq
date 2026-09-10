@@ -1,34 +1,14 @@
 'use client';
-import CoinHeatmap from '@/components/CoinHeatmap';
-import DrawdownChart from '@/components/DrawdownChart';
-import MultiTFSqueezeView from '@/components/MultiTFSqueezeView';
-import SignalAccuracy from '@/components/SignalAccuracy';
-import SetupScanner from '@/components/SetupScanner';
-import AccumulationTracker from '@/components/AccumulationTracker';
-import DistributionTracker from '@/components/DistributionTracker';
-import PageHint from '@/components/PageHint';
-import { useLabels } from '@/lib/labels';
-import { useDesignMode } from '@/components/DesignModeProvider';
 import ScannerTerminal from '@/components/ScannerTerminal';
 
+/* Terminal is the only design now (#1111, Pattern A). This route used to
+ * branch on useDesignMode() and return one of two full JSX trees - the
+ * current-design one lived here, inline, as a simple composition of
+ * AccumulationTracker/DistributionTracker/CoinHeatmap/etc with no extra
+ * state of its own. ScannerTerminal renders with no props and is fully
+ * self-contained, so this route is now just the wrapper. Real users have
+ * only ever seen ScannerTerminal here since terminal became default
+ * (#748). */
 export default function ScannerPage() {
-  const mode = useDesignMode();
-  const { t } = useLabels();
-  if (mode === 'terminal') return <ScannerTerminal />;
-  return (
-    <div>
-      <PageHint
-        pageKey="scanner"
-        title={t('SCANNER_HINT_TITLE')}
-        body={t('SCANNER_HINT_BODY')}
-      />
-      <AccumulationTracker />
-      <DistributionTracker />
-      <CoinHeatmap />
-      <DrawdownChart />
-      <MultiTFSqueezeView />
-      <SignalAccuracy />
-      <SetupScanner />
-    </div>
-  );
+  return <ScannerTerminal />;
 }
