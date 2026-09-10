@@ -4235,7 +4235,14 @@ html[data-theme="light"] { background: var(--bg0); }
   flex-shrink: 0; white-space: nowrap;
 }
 .plan-badge-free {
-  color: var(--txt2); background: transparent; border: 1px solid var(--bdr2);
+  /* Filled, not outlined (owner: "It's still the same design as the item
+     besides the language and the profile... That's why it's not being
+     highlighted"). An outlined grey badge sat in a row with EN (grey text)
+     and the avatar (a bordered square) and read as one more piece of nav
+     chrome, not a statement about the account - a lighter grey would still
+     be chrome. The distinction this nav actually needs: OUTLINED means
+     control, FILLED means label. FREE is a label. */
+  color: var(--txt); background: var(--bg4); border: 1px solid var(--bdr2);
 }
 .plan-badge-trial {
   color: var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent);
