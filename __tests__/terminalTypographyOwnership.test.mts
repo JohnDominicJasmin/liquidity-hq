@@ -306,7 +306,11 @@ const WIDE_BASELINE = [
      components/DashboardTerminal.tsx's own two entries below are a
      different file, untouched by that change, and still real. */
   'app/funding/page.tsx: .card — inline padding kills the terminal rule\'s padding',
-  'app/liq/page.tsx: .card — inline padding kills the terminal rule\'s padding',
+  /* REMOVED 2026-09-10 (#1111 Pattern A, #1133): app/liq/page.tsx collapsed
+     to a 12-line wrapper around LiqTerminal - the dead current-design
+     branch that carried this inline padding is gone, so the collision is
+     gone with it. Flagged as stale by t.diagnostic() (#1127) on the next
+     run after #1133 landed - confirmed live before deleting, not assumed. */
   'components/BriefingTerminal.tsx: .mb-cvd-chip — inline borderRadius kills the terminal rule\'s border-radius',
   'components/BriefingTerminal.tsx: .mb-event-tag — inline borderRadius kills the terminal rule\'s border-radius',
   'components/CoinMarketSnapshot.tsx: .edge-card-signal — inline color kills the terminal rule\'s color',
