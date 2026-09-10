@@ -578,6 +578,46 @@ Recorded here rather than hidden, because the suite is code and has defects too.
   claim than "production does not overflow", and only one of those
   generalises. Caught by Dev Team, 2026-09-05, an hour after making the same
   distinction correctly for someone else's number.
+- **A test coupled to the INCIDENTAL FORM something currently takes, rather
+  than the property that actually matters, fails when the form changes even
+  though nothing regressed — and it blocks whoever fixes the underlying
+  thing, not whoever wrote the test.** Three instances in one day
+  (2026-09-10), all `#1111`'s design-removal migration exposing the same
+  mistake in three different files:
+    1. `__tests__/liqClusters.test.mts` literal-matched the overlay's exact
+       label text (`REALIZED LIQ `); the text shortened for an unrelated
+       reason (`#1075`) and the assertion broke on a change that preserved
+       the one property it existed to protect (the word REALIZED, present at
+       all). Fixed same day — loosened to a prefix match on the word itself.
+    2. `__tests__/terminalTypographyOwnership.test.mts`'s `WIDE_BASELINE`
+       ratchet hard-failed the moment a listed collision got FIXED (dead code
+       deleted), not just when a NEW one appeared — punishing exactly the
+       outcome the check exists to want, and creating a real deadlock: the
+       app fix and the test's own baseline update each needed the other to
+       land first. Fixed by making a stale entry (one that no longer
+       collides) report via `t.diagnostic()` instead of failing — a
+       ratchet's job is new collisions, not applauding fixed ones by breaking
+       the build.
+    3. `__tests__/liqFeedHeadless.test.mts` grepped `app/liq/page.tsx`'s own
+       source text for a non-headless `<LiqFeed>` tag; the route collapsed to
+       a thin wrapper delegating to `components/LiqTerminal.tsx` and the tag
+       moved with it — the real mount was intact and correct, the test was
+       just pointed at an empty file. Fixed by resolving what the route
+       ACTUALLY composes (one bounded hop through its own import, not a
+       codebase-wide grep — a blind search would match a HEADLESS mount as
+       readily as a visible one, which is precisely the `#925` bug this file
+       exists to prevent) rather than hardcoding either the old shape or the
+       new one.
+
+  **The rule this leaves behind**: assert the property that matters, not the
+  shape it currently happens to take. Before writing a check, ask what would
+  make it fail for a GOOD reason (a real regression) versus a reason that is
+  actually good news (a defect fixed, code moved file, text shortened
+  without losing meaning) — and design the assertion so only the first one
+  is fatal. A check that goes red when something gets fixed will be
+  discovered at the worst possible moment every time: mid-PR, by whoever's
+  change is unrelated to the test, who now has to context-switch into
+  fixing someone else's file to land their own.
 
 ---
 
