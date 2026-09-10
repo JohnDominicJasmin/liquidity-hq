@@ -4239,19 +4239,20 @@ html[data-theme="light"] { background: var(--bg0); }
      spacing doesn't need its own selector. */
   display: inline-flex; align-items: center; gap: 3px;
 }
-/* NOT .plan-badge - deliberately outside the chip. Owner ruling (option A,
-   after seeing three treatments side by side in the real nav): the
-   distance between Free and Pro should come from CATEGORY, not colour or
-   weight - Free is a word, Pro is a marked object, and Free having no chip
-   at all is what says "nothing here", not a duller version of the same
-   chip. #1126 (filled Free, option C) is superseded by this, not merged.
-   --txt2, not --txt3 - the owner's original complaint was that Free wasn't
-   visible; a muted colour that still reads, not a fainter one. */
-.plan-badge-free-text {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.12em;
-  text-transform: uppercase; line-height: 1; color: var(--txt2);
-  flex-shrink: 0; white-space: nowrap;
+/* #1126 REVIVED, not rebuilt - that PR built exactly this (filled chip,
+   --bg4/--txt/--bdr2) and was closed as superseded when the owner first
+   picked option A (Free as plain text, no chip). Seeing A live, the owner
+   asked for a border back: "add some border to it and make it badge
+   style." The earlier close was never wrong for its day - the pick
+   changed, not the assessment. NO AMBER: this is still a NEUTRAL chip -
+   see PlanBadge.tsx's own doc comment for why Free must never pick up any
+   amber now that all three states are chips. Text-on-fill re-measured for
+   this fold-in, since a filled background is a new surface #1142's
+   plain-text version never had: root dark 15.06:1, current light 13.27:1,
+   terminal dark 15.03:1, terminal light 14.71:1 - --txt/--bg4 clear AA
+   with wide margin in all four theme/design combinations. */
+.plan-badge-free {
+  color: var(--txt); background: var(--bg4); border: 1px solid var(--bdr2);
 }
 .plan-badge-trial {
   color: var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent);

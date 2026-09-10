@@ -14,16 +14,21 @@ import { readPlanBadgeCache, writePlanBadgeCache } from '@/lib/planBadgeCache';
  * indicator; TrialBanner keeps its own job (time-bounded, urgent - trial
  * countdown, later a failed payment). Neither replaces the other.
  *
- * CATEGORY, NOT COLOUR OR WEIGHT, separates Free from the paid states
- * (owner ruling, option A - chosen after seeing three built treatments
- * side by side in the real nav). Free is plain text, no chip; Trial and
- * Pro are chips, one outlined with a tabular day count, one filled with a
- * small star emblem. Red and green stay reserved for market direction
- * throughout this product, so account state was never going to lean on
- * colour to separate itself either - the ladder is chip-vs-no-chip first,
- * then outline-vs-filled within the chips. Do not give Free a background,
- * border, or amber anything - the moment it looks like a duller Pro, the
- * distinction this ruling exists to create is gone.
+ * THREE CHIPS, NO AMBER ON FREE - the owner's ruling after seeing option A
+ * (Free as plain text, no chip) live and calling it boring: "add some
+ * border to it and make it badge style." All three states are chips now;
+ * the separation Free vs. paid rests on amber+emblem vs. neutral+nothing,
+ * not on chip-vs-no-chip. Free's neutral fill/border/text (#1126, revived
+ * rather than rebuilt once the owner asked for a border back - it built
+ * exactly this, closed only because option A shipped plain text instead)
+ * still carries no amber - the moment Free picks up any amber, it reads as
+ * a duller Pro rather than a different category, which is the one thing
+ * this ruling has protected across every round. Trial stays outlined with
+ * a tabular day count; Pro stays filled with the star emblem. Red and
+ * green stay reserved for market direction throughout this product, so
+ * account state was never going to lean on colour to separate itself -
+ * amber is Pro/Trial's alone, and Free having none of it is the whole
+ * distinction now that all three are chips.
  *
  * Renders nothing while auth is loading, signed out, OR the subscription
  * read is still in flight (`entitlementsLoading`) - there is no plan to show
@@ -111,6 +116,5 @@ export default function PlanBadge() {
     );
   }
 
-  // Plain text, not .plan-badge - see the CATEGORY, NOT COLOUR comment above.
-  return <span className="plan-badge-free-text" title="Free">FREE</span>;
+  return <span className="plan-badge plan-badge-free" title="Free">FREE</span>;
 }
