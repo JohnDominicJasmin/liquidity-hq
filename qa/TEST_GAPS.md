@@ -657,6 +657,23 @@ Recorded here rather than hidden, because the suite is code and has defects too.
   plainly rather than filing it only as #1144's fault: the review gap was
   mine, and the rule exists so it does not repeat.
 
+- **2026-09-10/11, #1025's follow-up: a zero result is not a measurement
+  until the query is shown to return non-zero somewhere.** PM/DevOps ran a
+  timeout-rate query against `logs.log_attributes['status_code']` on the dev
+  Supabase project and got zero, then correctly did not report "no
+  timeouts" - reported "I don't trust this" instead. Right call: the query
+  was filtering a field path that didn't match this project's actual log
+  schema (QA's own working query used `event_message like '%| 504 |%'`
+  against `source = 'edge_logs'`, not `log_attributes`), so the true answer
+  to "did this query work" was "no", not "yes, and the count is zero" -
+  those look identical from the caller's side and only a known-nonzero
+  control run distinguishes them. Same shape as this file's own §3/§9
+  entries: a check that CAN'T find the thing it's looking for is
+  indistinguishable from a clean pass unless it's been shown to fire at
+  least once. Before trusting any zero from a new query against a source
+  or schema not already proven to work, run it against a window or
+  condition known to contain a hit first.
+
 ---
 
 ## 🟡 10. Monitoring is wired in production; DELIVERY is unconfirmed
