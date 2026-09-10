@@ -1,6 +1,5 @@
 'use client';
 import { useState, useRef, useCallback, useEffect, useId } from 'react';
-import { useDesignMode } from '@/components/DesignModeProvider';
 import { createPortal } from 'react-dom';
 
 interface TipProps {
@@ -30,7 +29,6 @@ interface TipProps {
 }
 
 export default function Tip({ text, body, children, width = 230, iconColor = 'var(--txt3)' }: TipProps) {
-  const terminal = useDesignMode() === 'terminal';
   const [open, setOpen]   = useState(false);
   const [above, setAbove] = useState(false);
   const [coords, setCoords] = useState({ top: 0, bottom: 0, left: 0 });
@@ -145,20 +143,15 @@ export default function Tip({ text, body, children, width = 230, iconColor = 'va
             left: coords.left,
             zIndex: 9990,
             width,
-            /* Every value here was a literal - #12152b is a blue-purple that
-               exists in no palette, the border is the current design's purple
-               at 25%, and the text was white at 72% rather than a token. None
-               adapted to design mode or theme, so the tooltip rendered
-               identically on a terminal page where nothing else is purple. */
-            background: terminal ? 'var(--bg1)' : '#12152b',
-            border: terminal ? '1px solid var(--bdr)' : '0.5px solid rgba(122,134,255,0.25)',
-            borderRadius: terminal ? 0 : 10,
+            background: 'var(--bg1)',
+            border: '1px solid var(--bdr)',
+            borderRadius: 0,
             padding: '9px 11px',
-            boxShadow: terminal ? 'none' : '0 8px 28px rgba(0,0,0,0.75)',
+            boxShadow: 'none',
             fontSize: 'var(--fs-caption)',
             lineHeight: 1.55,
-            color: terminal ? 'var(--txt2)' : 'rgba(255,255,255,0.72)',
-            fontFamily: terminal ? 'var(--font-mono), monospace' : 'system-ui, -apple-system, sans-serif',
+            color: 'var(--txt2)',
+            fontFamily: 'var(--font-mono), monospace',
             fontWeight: 400,
             pointerEvents: 'all',
             display: 'block',
