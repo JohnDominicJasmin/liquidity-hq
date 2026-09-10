@@ -66,7 +66,14 @@ test('PlanBadge shows Trial, then flips to Free at trialEndsAt with no reload', 
   // (mobile header, alongside the desktop one), so two DOM nodes now exist
   // at every viewport regardless of which is actually shown. A bare locator
   // strict-mode-violates on that; only one of the two is ever visible.
-  const badge = page.locator('.plan-badge:visible');
+  //
+  // BOTH root classes, not just .plan-badge - #1142 (option A) moved FREE
+  // off the chip entirely: it renders `.plan-badge-free-text`, a plain span
+  // that never carries `.plan-badge`. A locator scoped to `.plan-badge` alone
+  // would resolve to nothing the moment this test crosses into Free below,
+  // and `toContainText` would then time out waiting on an empty locator
+  // instead of failing on the text itself.
+  const badge = page.locator('.plan-badge:visible, .plan-badge-free-text:visible');
   await expect(badge).toContainText('TRIAL', { timeout: 30_000 });
 
   // Cross trialEndsAt. AuthProvider schedules its re-render for (ms + 1000)
