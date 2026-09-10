@@ -169,6 +169,10 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
      call and not part of this. */
   const [openDrop, setOpenDrop] = useState<'scanners' | 'tools' | 'account' | null>(null);
   const [usageOpen, setUsageOpen] = useState(false);
+  // #1149: same reasoning as NavDrawer's signingOut - closing the dropdown
+  // the instant Sign Out is clicked hid the only place feedback could show,
+  // so a slow-but-working network looked identical to a broken button.
+  const [signingOut, setSigningOut] = useState(false);
   useEffect(() => {
     if (!openDrop) return;
     /* Close on any click that is not inside the open menu. The current
@@ -451,16 +455,21 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                     type="button"
                     role="menuitem"
                     className="tnav-drop-item"
+                    disabled={signingOut}
                     onClick={async () => {
-                      setOpenDrop(null);
+                      if (signingOut) return;
+                      setSigningOut(true);
                       track.signOut();
                       await signOut();
                       /* Hard navigation, matching NavDrawer's note on #304 -
-                         a router push leaves stale authed state behind. */
+                         a router push leaves stale authed state behind. Not
+                         closing the dropdown first (#1149) - it would hide
+                         the spinner below for whatever this await took, and
+                         the navigation discards it regardless. */
                       window.location.assign('/login');
                     }}
                   >
-                    {t('NAV_SIGN_OUT_MENU')}
+                    {signingOut ? <span className="login-spinner" /> : t('NAV_SIGN_OUT_MENU')}
                   </button>
                 </div>
               )}
