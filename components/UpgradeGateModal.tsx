@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl, isCheckoutConfigured } from '@/lib/checkout';
 import { useLabels } from '@/lib/labels';
-import { useDesignMode } from '@/components/DesignModeProvider';
 
 interface Props {
   open: boolean;
@@ -17,31 +16,20 @@ interface Props {
 // In-place stand-in rendered where a Pro-only card would normally sit, so the
 // page layout keeps its rhythm instead of sections silently vanishing for
 // free users. Clicking it opens the full UpgradeGateModal via onUnlock.
-/* TERMINAL SURFACE TREATMENT (#926).
- *
- * Until now the only terminal-scoped rule reaching these three panels was
- * `border-radius: 0 !important` from globals.css - measured across all 22
- * `*-term-wrap` families, every one of which declared radius and nothing
- * else. Square corners over the current design is not a conversion.
- *
- * These stay INLINE rather than moving to CSS, and the distinction is #663's
- * rule 2 rather than a preference: this is a DUAL-DESIGN component, so inline
- * is for computed values - and `mode === 'terminal' ? a : b` is exactly that.
- * The auth pages in the same pass went the other way because they are
- * class-styled and terminal-only there.
- *
- * Terminal is flat: no gradient, no shadow, 1px hairline. The gradient is the
- * thing that reads as "current design" even once the corners are square. */
-const surface = (terminal: boolean) => terminal
-  ? { background: 'var(--bg1)', border: '1px solid var(--bdr)', boxShadow: 'none' }
-  : { background: 'linear-gradient(180deg, var(--bg2), var(--bg1))' };
+/* TERMINAL SURFACE TREATMENT (#926, collapsed to terminal-only #1111
+ * Pattern C). Flat: no gradient, no shadow, 1px hairline - the gradient was
+ * the thing that read as "current design" even once the corners went
+ * square. The three `*-term-wrap` classes below still carry a real effect
+ * (`border-radius: 0 !important` in globals.css, `[data-design="terminal"]`
+ * scoped) and stay applied unconditionally now that terminal is the only
+ * design left, rather than being deleted as inert. */
+const SURFACE = { background: 'var(--bg1)', border: '1px solid var(--bdr)', boxShadow: 'none' };
 
 export function LockedFeatureCard({ title, description, onUnlock }: {
   title: string;
   description: string;
   onUnlock: () => void;
 }) {
-  const mode = useDesignMode();
   const { t } = useLabels();
   return (
     /* data-testid so the paywall can be COUNTED per screen (#441).
@@ -58,9 +46,8 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
      * gradient binds it to styling the redesign is actively changing - so the
      * check would break on the very commit it exists to catch. An explicit
      * hook survives both. */
-    <div data-testid="locked-feature" className={mode === 'terminal' ? 'locked-card-term-wrap' : undefined} style={{
-      ...surface(mode === 'terminal'),
-      border: mode === 'terminal' ? '1px solid var(--bdr)' : '0.5px solid var(--bdr)',
+    <div data-testid="locked-feature" className="locked-card-term-wrap" style={{
+      ...SURFACE,
       borderRadius: 'var(--radius-card, 12px)',
       padding: '18px 20px',
       display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
@@ -108,15 +95,13 @@ function useCheckoutHref() {
 // (UpgradeGateModal). Same copy conventions as both - one "Pro Feature"
 // eyebrow + CTA pattern instead of three hand-rolled versions drifting apart.
 export function FullPageUpgradeGate({ title, description }: { title: string; description: string }) {
-  const mode = useDesignMode();
   const ctaHref = useCheckoutHref();
   const { t } = useLabels();
   return (
-    <div className={mode === 'terminal' ? 'upgrade-gate-term-wrap' : undefined} style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div className="upgrade-gate-term-wrap" style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{
         width: '100%', maxWidth: 480,
-        ...surface(mode === 'terminal'),
-        border: mode === 'terminal' ? '1px solid var(--bdr)' : '0.5px solid var(--bdr2)',
+        ...SURFACE,
         borderRadius: 'var(--radius-card, 12px)',
         padding: '34px 34px 30px',
       }}>
@@ -160,7 +145,6 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
 // user's email + id (or falls back to /login?signup=1 while checkout is not
 // configured yet).
 export default function UpgradeGateModal({ open, onClose, feature }: Props) {
-  const mode = useDesignMode();
   const ctaHref = useCheckoutHref();
   const { t } = useLabels();
 
@@ -185,13 +169,10 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label={t('UPGRADE_GATE_CTA')}
-      className={mode === 'terminal' ? 'upgrade-modal-term-wrap' : undefined}
+      className="upgrade-modal-term-wrap"
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        /* Bare rgba never adapted to theme - the pair was never measured
-           together. Terminal uses the page ground at opacity instead. */
-        background: mode === 'terminal' ? 'color-mix(in srgb, var(--bg0) 82%, transparent)' : 'rgba(4, 6, 12, 0.72)',
-        backdropFilter: mode === 'terminal' ? 'none' : 'blur(6px)',
+        background: 'color-mix(in srgb, var(--bg0) 82%, transparent)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 20,
       }}
@@ -200,11 +181,9 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
         onClick={e => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 440,
-          ...surface(mode === 'terminal'),
-          border: mode === 'terminal' ? '1px solid var(--bdr)' : '0.5px solid var(--bdr2)',
+          ...SURFACE,
           borderRadius: 'var(--radius-card, 12px)',
           padding: '30px 30px 26px',
-          boxShadow: mode === 'terminal' ? 'none' : '0 24px 80px rgba(0,0,0,0.6)',
         }}
       >
         {/* Micro-label */}
