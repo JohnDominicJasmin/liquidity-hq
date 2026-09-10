@@ -340,7 +340,14 @@ const WIDE_BASELINE = [
      overrides the terminal rule, it IS the terminal value. The ratchet
      caught this itself and asked for the deletion; removed rather than
      left behind, so the ratchet keeps its new position. */
-  'components/UpgradeGateModal.tsx: .card — inline border kills the terminal rule\'s border',
+  /* REMOVED 2026-09-10 (#1111 Pattern C, #1148): UpgradeGateModal.tsx's
+     .card border went from a computed `mode === 'terminal' ? ... : ...`
+     ternary to a plain terminal-only literal - it no longer overrides the
+     terminal rule, it IS the terminal value now. Flagged stale by this
+     file's own t.diagnostic() (#1127) on the next run after #1148 landed -
+     confirmed live against origin/dev before removing, not assumed. The
+     padding entry right below is a different declaration on the same
+     class, untouched by #1148, and still real. */
   'components/UpgradeGateModal.tsx: .card — inline padding kills the terminal rule\'s padding',
   'components/UpgradeGateModal.tsx: .locked-card-term-wrap — the terminal rule\'s border-radius !important kills inline borderRadius',
 ].sort();
