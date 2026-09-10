@@ -62,7 +62,11 @@ test('PlanBadge shows Trial, then flips to Free at trialEndsAt with no reload', 
 
   await page.goto('/dashboard');
 
-  const badge = page.locator('.plan-badge');
+  // :visible, not a bare .plan-badge - #1120 gave TerminalNav a second mount
+  // (mobile header, alongside the desktop one), so two DOM nodes now exist
+  // at every viewport regardless of which is actually shown. A bare locator
+  // strict-mode-violates on that; only one of the two is ever visible.
+  const badge = page.locator('.plan-badge:visible');
   await expect(badge).toContainText('TRIAL', { timeout: 30_000 });
 
   // Cross trialEndsAt. AuthProvider schedules its re-render for (ms + 1000)

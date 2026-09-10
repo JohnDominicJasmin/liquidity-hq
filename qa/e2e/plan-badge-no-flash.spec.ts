@@ -50,7 +50,13 @@ test('PlanBadge never renders FREE while entitlements are still resolving', asyn
 
   await page.goto('/dashboard');
 
-  const badge = page.locator('.plan-badge');
+  // :visible, not a bare .plan-badge - #1120 gave TerminalNav a second mount
+  // (mobile header, alongside the desktop one), so two DOM nodes exist at
+  // every viewport regardless of which is actually shown; only one is ever
+  // visible. A bare locator strict-mode-violates the assertion below on
+  // that, and .first() in the polling loop would silently read whichever
+  // DOM node happens to come first rather than the one a user can see.
+  const badge = page.locator('.plan-badge:visible');
   const deadline = Date.now() + DELAY_MS + 1_000;
   let sawFree = false;
   let sawAnyBadge = false;
