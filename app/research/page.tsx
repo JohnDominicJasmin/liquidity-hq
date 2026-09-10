@@ -9,13 +9,11 @@ import DryPowder from '@/components/DryPowder';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
 import OnChainScore from '@/components/OnChainScore';
 import { useLabels } from '@/lib/labels';
-import { useDesignMode } from '@/components/DesignModeProvider';
 
 export default function ResearchPage() {
-  const mode = useDesignMode();
   const { t } = useLabels();
   return (
-    <div className={mode === 'terminal' ? 'research-term-wrap' : undefined}>
+    <div className="research-term-wrap">
       <PageHint
         pageKey="research"
         title={t('RESEARCH_HINT_TITLE')}
