@@ -1,6 +1,5 @@
 'use client';
 import { useLabels } from '@/lib/labels';
-import { useDesignMode } from '@/components/DesignModeProvider';
 
 const SECTIONS = [
   { titleKey: 'REFUND_SECTION_NO_REFUNDS_TITLE', bodyKey: 'REFUND_SECTION_NO_REFUNDS_BODY' },
@@ -12,11 +11,10 @@ const SECTIONS = [
 ] as const;
 
 export default function RefundPolicy() {
-  const mode = useDesignMode();
   const { t } = useLabels();
 
   return (
-    <div className={mode === 'terminal' ? 'refund-term-wrap' : undefined} style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px 80px' }}>
+    <div className="refund-term-wrap" style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px 80px' }}>
 
       <div style={{ marginBottom: 48 }}>
         <div style={{
