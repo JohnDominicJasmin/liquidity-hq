@@ -619,6 +619,44 @@ Recorded here rather than hidden, because the suite is code and has defects too.
   change is unrelated to the test, who now has to context-switch into
   fixing someone else's file to land their own.
 
+- **2026-09-10, #1144: `qa/e2e/contrast.spec.ts` (§3, marked CLOSED) sweeps
+  both themes across all 32 routes, but entirely SIGNED OUT** —
+  `_shared.ts:3`'s own docstring says so plainly (*"Public + app routes,
+  signed out"*), and that line was already true when §3 was written.
+  Nobody had stated what it implies: **any auth-gated UI has zero automated
+  contrast coverage, in either theme, full stop** — not "checked and
+  passed", not "checked less often", genuinely never rendered during the
+  sweep. `PlanBadge` only renders `if (user)`, so `.plan-badge-pro`'s
+  hardcoded `#0a0a0a` ink over a `--amber` fill that resolves to a dark
+  brown in terminal-light (2.77:1, real WCAG failure) sat entirely outside
+  a suite whose own heading claims "both themes, all routes." **The CLOSED
+  claim is still true for what it covers** — this isn't the REALIZED/ratchet
+  shape of a check going stale, it's a claim whose scope was always narrower
+  than its heading implied, discovered only when the owner caught the bug
+  live that the suite structurally could not have caught. Same family as
+  [Scope of claim, not arithmetic] in memory: the gap is in WHICH surface
+  was measured, not in a wrong number.
+
+  **Not fixed here — recording the gap, not closing it.** A real fix is
+  extending `contrast.spec.ts` with a signed-in pass (reusing `_auth.ts`'s
+  `signedInContext`, same pattern as the plan-badge e2e specs) over the
+  routes/components that only render for an authenticated user. Scoping
+  that properly — which routes, which account state, whether trial state
+  needs its own pass now that a real trial account exists — is follow-up
+  work, not a one-line patch.
+
+  **Standing rule adopted the same day, for manual review until the harness
+  gap above is closed**: any PR touching `app/globals.css` color values, or
+  introducing new color usage in a component, gets a light-theme contrast
+  check as part of QA's review — not just dark. Scoped, not blanket: a
+  structural-only PR (the eight #1111 Pattern A route collapses, same day)
+  touches zero color values and a light pass on those would review nothing.
+  #1142 (plan badge option A) introduced new color usage and is exactly
+  where it broke — reviewed without a light-theme check, approved, and the
+  owner caught the failure on deployed `qa` minutes later. Recording that
+  plainly rather than filing it only as #1144's fault: the review gap was
+  mine, and the rule exists so it does not repeat.
+
 ---
 
 ## 🟡 10. Monitoring is wired in production; DELIVERY is unconfirmed
