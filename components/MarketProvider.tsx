@@ -9,6 +9,7 @@ import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
@@ -447,12 +448,16 @@ export default function MarketProvider(
     await Promise.allSettled(bybitOnly.map(async (coin) => {
       const sym = BYBIT_SYMS[coin];
       try {
-        const res = await fetch(
-          `/api/market/klines?source=bybit&symbol=${sym}&interval=15&limit=100`
-        );
-        const d = await res.json();
+        // #1080: retry + r.ok shared with every other Bybit-klines caller
+        // (lib/bybitKlines.ts). This had neither before - a refused request's
+        // error body parsed as `d?.result?.list ?? []`, indistinguishable
+        // from "not enough candles yet", the #1079 shape. Bounded by the 3min
+        // poll below either way (a missed cycle just waits for the next one),
+        // but the fix makes that recovery reliable rather than lucky.
+        const d = await fetchBybitKlinesRetry(sym, '15', 100);
+        if (d === null) return;
         // Bybit returns newest-first - reverse to oldest-first
-        const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
+        const klines: string[][] = [...(d.result?.list ?? [])].reverse();
         if (klines.length < 15) return;
 
         // 1000x denomination coins need price scaling to match coin.price set by fetchBybit
@@ -969,12 +974,18 @@ export default function MarketProvider(
     await Promise.allSettled(
       Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
         try {
-          const klRes = await fetch(`/api/market/klines?source=bybit&symbol=${sym}&interval=60&limit=4`);
-          const klData = await klRes.json();
+          // #1080: retry + r.ok, same reasoning as fetchBybitKlines above -
+          // this is a one-shot bootstrap with no interval behind it, so a
+          // refused request here isn't a missed cycle, it's this coin's
+          // oiTrend staying null until the live 8-min poll eventually
+          // builds its own two readings (the wait this bootstrap exists to
+          // avoid in the first place).
+          const klData = await fetchBybitKlinesRetry(sym, '60', 4);
+          if (klData === null) return;
 
           // Both are newest-first - reverse to oldest-first
           const oiList: Array<{ openInterest: string }> = [...(oiAll[sym] ?? [])].reverse();
-          const klList: string[][] = [...(klData?.result?.list ?? [])].reverse();
+          const klList: string[][] = [...(klData.result?.list ?? [])].reverse();
 
           if (oiList.length < 2 || klList.length < 2) return;
 

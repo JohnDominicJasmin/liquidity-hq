@@ -8,6 +8,7 @@ import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
 import { tintPct } from '@/lib/correlationRamp';
 import type { LabelKey } from '@/lib/labelKeys';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 
 const RANGES = [
   { key: '24h', label: '24h', interval: '1h',  limit: 25  },
@@ -32,12 +33,19 @@ async function fetchCloses(id: CoinId, interval: string, limit: number): Promise
     } catch { /* fall through */ }
   }
   if (bbSym) {
-    try {
-      const bbInt = interval === '1h' ? '60' : '240';
-      const res   = await fetch(`/api/market/klines?source=bybit&symbol=${bbSym}&interval=${bbInt}&limit=${limit}`);
-      const data  = await res.json();
-      return ((data?.result?.list ?? []) as string[][]).map(c => parseFloat(c[4])).reverse();
-    } catch { /* fall through */ }
+    // #1080: shared retry (lib/bybitKlines.ts) - this call had NO `r.ok`
+    // check at all, not just no retry. A refused request's error body
+    // parsed as `data?.result?.list ?? []`, indistinguishable from a
+    // genuinely short history - the exact #1079 conflation, just landing
+    // softly here: `closes.length >= 5` already excludes it, the matrix
+    // builder's `!ra || !rb` renders it as the existing dash cell rather
+    // than a wrong number. Still a real gap - a refusal retried zero times
+    // and looked identical to real data insufficiency - just not the
+    // plausible-but-wrong shape #1079 was.
+    const bbInt = interval === '1h' ? '60' : '240';
+    const d = await fetchBybitKlinesRetry(bbSym, bbInt, limit);
+    if (d === null) return [];
+    return ((d.result?.list ?? []) as string[][]).map(c => parseFloat(c[4])).reverse();
   }
   return [];
 }

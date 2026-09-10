@@ -1,10 +1,11 @@
 'use client';
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { forceSignOut } from '@/lib/authSession';
 import type { User } from '@supabase/supabase-js';
 import posthog from 'posthog-js';
 import { T } from '@/lib/tables';
+import { clearPlanBadgeCache } from '@/lib/planBadgeCache';
 
 interface AuthCtx {
   user: User | null;
@@ -14,6 +15,25 @@ interface AuthCtx {
   isTrial: boolean;        // inside the 14-day signup trial (Pro features, Free AI caps)
   entitled: boolean;       // isPro || isTrial - the gate for Pro FEATURES
   trialEndsAt: number | null; // ms epoch the trial ends, for the countdown banner
+  // True from the moment `user` resolves until the user_subscriptions read
+  // below settles. `role` defaults to 'free' before that read completes, so
+  // a consumer that paints on `role` alone (rather than gating like the three
+  // `authLoading || entitled` call sites do) shows a real Pro/Trial account
+  // as Free for one frame on every cold load (#1090's nav badge, caught by
+  // QA). Existing consumers don't need this - they gate on `entitled`, which
+  // is already correct while unresolved (false is the safe default to fail
+  // toward). This exists for the one kind of consumer that paints `role`
+  // itself and cannot afford to show the wrong tier even briefly.
+  entitlementsLoading: boolean;
+  // True when the LAST user_subscriptions attempt (fast error response,
+  // network failure, or the bounded timeout below) did not resolve to a real
+  // answer. `role`/`trialEndsAt` still fall back to their free/null defaults
+  // on this path - unfixed here on purpose, see the fetch effect's own
+  // comment - so a consumer that paints `role` directly needs this to know
+  // "free" is a guess, not a resolved fact. Existing `entitled`-gated
+  // consumers are unaffected either way: false was already their safe
+  // default while unresolved.
+  entitlementsError: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -25,6 +45,8 @@ const AuthContext = createContext<AuthCtx>({
   isTrial: false,
   entitled: false,
   trialEndsAt: null,
+  entitlementsLoading: true,
+  entitlementsError: false,
   signOut: async () => {},
 });
 
@@ -41,6 +63,23 @@ const INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
    enough that a hang does not read as a broken page. The value is a ceiling on
    a failure, not a target: the normal path settles long before it. */
 const SESSION_RESOLVE_MS = 8000;
+/* Same reasoning as SESSION_RESOLVE_MS, different call: QA reproduced the
+   user_subscriptions read hanging indefinitely with no timeout at all
+   (#1089) - entitlementsLoading stuck true forever, badge never appears.
+   #949/#1025 already document this backend's latency behaviour, so this
+   is not a hypothetical.
+
+   NOT reused at SESSION_RESOLVE_MS's own 8s - measured, not assumed:
+   building this fix, a real (uninflated, unmocked) load on this project's
+   shared dev Supabase genuinely took longer than 8s and tripped the abort,
+   which would have been a second, self-inflicted version of the exact bug
+   being fixed - a fast, wrong "error" on a request that was only ever slow.
+   15s cleared every observed run with real headroom to spare. Generous on
+   purpose: this timeout only matters when something is already wrong, so
+   the cost of it being too long is a few extra seconds of `entitlementsLoading`
+   on that already-bad path, while the cost of too short is exactly the false
+   failure just described. */
+const ENTITLEMENTS_FETCH_MS = 15000;
 const LAST_ACTIVE_KEY = 'lhq_last_active';
 // Read by AuthGate - shared here so both sides reference the same literal.
 export const BAN_NOTICE_KEY = 'lhq_ban_notice';
@@ -65,6 +104,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<'free' | 'pro'>('free');
   const [trialEndsAt, setTrialEndsAt] = useState<number | null>(null);
+  // Starts true, same reasoning as `loading`: unknown until proven otherwise,
+  // never a default that happens to read as correct.
+  const [entitlementsLoading, setEntitlementsLoading] = useState(true);
+  const [entitlementsError, setEntitlementsError] = useState(false);
+  // Tracks the CURRENT user id for the sign-out handler below, which fires
+  // with the new (null) session and has no other way to know whose cache
+  // to clear. A ref, not state read in that closure - onAuthStateChange's
+  // callback is created once inside the effect with `[]` deps, so `user`
+  // itself would be permanently stale there.
+  const userIdRef = useRef<string | null>(null);
+  useEffect(() => { userIdRef.current = user?.id ?? null; }, [user]);
 
   useEffect(() => {
     const sb = getSupabase();
@@ -130,6 +180,26 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         setUser(null);
       } else {
         if (sessionUser) touchActivity();
+        /* setEntitlementsLoading(true) alongside setUser, same synchronous
+           block, batched into the same render - a REAL race found while
+           building #1089's cache fix, pre-existing in this file since
+           before it. Without this, there is one render frame where `user`
+           is already the real one but `entitlementsLoading` still reads
+           the stale `false` this effect's own `!user` branch left behind
+           on the very first mount (user starts null, so that branch always
+           runs once before any real session resolves) - the entitlements
+           fetch effect below hasn't re-run yet to flip it back to `true`,
+           because effects run after commit, not synchronously with the
+           state update that changed `user`. A consumer reading `role`
+           during exactly that frame sees the free/null defaults and reads
+           them as resolved, not pending - which is the same shape #1095
+           fixed for `entitlementsLoading` staying true through the initial
+           load, just a narrower, single-frame instance of it neither that
+           fix nor its regression test (#1096/#1104, which widen the window
+           via an artificial fetch delay) were positioned to catch, because
+           the race is in a different pair of effects settling, not in the
+           fetch's own duration. */
+        if (sessionUser) setEntitlementsLoading(true);
         setUser(sessionUser);
       }
     }).finally(() => setLoading(false));
@@ -158,8 +228,23 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // Keep in sync on sign-in / sign-out / token refresh
     const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
+      // Same race, same fix as the initial session resolve above - batched
+      // with setUser so a consumer never sees the new user paired with a
+      // stale `entitlementsLoading=false` left over from before this user
+      // existed. Harmless on a token refresh for the SAME user: the
+      // entitlements-fetch effect already re-runs and re-sets this on every
+      // `user` reference change (which a refresh also produces) - this just
+      // closes the one-frame gap before that effect gets to run.
+      if (u) setEntitlementsLoading(true);
       setUser(u);
-      if (!u) setRole('free');
+      if (!u) {
+        setRole('free');
+        // Cleanup, not a read for a decision: this is the one place PlanBadge's
+        // display-only cache is touched from outside PlanBadge.tsx. A remembered
+        // PRO surviving into the next account signed in on this browser would be
+        // a real defect (#1089), so it goes the moment there is no user.
+        if (userIdRef.current) clearPlanBadgeCache(userIdRef.current);
+      }
       if (u) touchActivity();
       // Identify / reset in PostHog so all events are tied to this user
       try {
@@ -220,17 +305,59 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // Fetch subscription role + trial window whenever user changes
   useEffect(() => {
-    if (!user) { setRole('free'); setTrialEndsAt(null); return; }
+    if (!user) { setRole('free'); setTrialEndsAt(null); setEntitlementsLoading(false); setEntitlementsError(false); return; }
     const sb = getSupabase();
-    if (!sb) return;
-    sb.from(T.user_subscriptions)
-      .select('role, trial_ends_at')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
+    if (!sb) { setEntitlementsLoading(false); return; }
+    // Set even though the initial state is already `true` - this effect also
+    // reruns on a user SWITCH (sign-out then a different sign-in in the same
+    // tab), where the previous user's fetch already flipped it false.
+    setEntitlementsLoading(true);
+    /* #1089: this read had NO bound at all - QA reproduced it hanging
+       indefinitely, entitlementsLoading stuck true forever with no console
+       error. Supabase resolves (rather than rejects) most failures, error
+       field included, but an unbounded fetch can still simply never settle -
+       .abortSignal(...) is what stops that. Called before `.maybeSingle()`:
+       that narrows to a builder type that does not expose `.abortSignal()`.
+       Wrapped in Promise.resolve() below because the builder's own .then()
+       returns a bare PromiseLike with no .catch() at the type level, even
+       though it behaves like a real promise at runtime. */
+    Promise.resolve(
+      sb.from(T.user_subscriptions)
+        .select('role, trial_ends_at')
+        .eq('user_id', user.id)
+        .abortSignal(AbortSignal.timeout(ENTITLEMENTS_FETCH_MS))
+        .maybeSingle(),
+    )
+      .then(({ data, error }) => {
+        /* NOT FIXED HERE, ON PURPOSE - reported, not patched (#1089 audit).
+           On a failed read (fast error response, reset, or the timeout
+           above), `data` is null and this still resolves role to 'free' /
+           trialEndsAt to null exactly as a genuinely-free account would -
+           `error` is available but deliberately not branched on here. That
+           means a real Pro/Trial account can read as `entitled: false`
+           during a backend hiccup, not just show the wrong badge - losing
+           actual Pro FEATURES (Arena's Confluence card, both Alerts
+           sections), not only a cosmetic label. Fixing that is a bigger,
+           separate change (what should every `entitled`-gated consumer do
+           on a failed read? fail open, fail closed, or something needing
+           its own cache the way the badge now has?) and is being decided
+           on #1089 rather than folded into this PR silently. `role`/
+           `trialEndsAt` keep today's exact behaviour; `entitlementsError`
+           below is the only new signal, and only PlanBadge acts on it. */
         setRole(data?.role === 'pro' ? 'pro' : 'free');
         const t = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : null;
         setTrialEndsAt(t);
+        setEntitlementsLoading(false);
+        setEntitlementsError(Boolean(error));
+      })
+      .catch(() => {
+        // Defensive: Supabase resolves rather than rejects on the failures
+        // actually observed (including an abortSignal timeout), but nothing
+        // guarantees every failure mode does - a genuine rejection must not
+        // leave entitlementsLoading stuck true the same way the un-timed-out
+        // hang did before this fix existed.
+        setEntitlementsLoading(false);
+        setEntitlementsError(true);
       });
   }, [user]);
 
@@ -244,7 +371,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
      * Callers hard-navigate afterwards rather than router.push, because /login
      * bounces a signed-in user straight back (app/login/page.tsx:57) and a soft
      * navigation keeps every provider alive to be bounced by. */
-    if (await forceSignOut(sb)) setUser(null);
+    if (await forceSignOut(sb)) {
+      // The success path clears the badge cache via onAuthStateChange's
+      // SIGNED_OUT event above - this is the local-only fallback for when
+      // the network signOut() call itself failed, which never fires that
+      // event, so it needs the same cleanup done explicitly here.
+      if (user) clearPlanBadgeCache(user.id);
+      setUser(null);
+    }
   };
 
   // Trial expiry is compared against a clock held in state rather than a
@@ -275,6 +409,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     <AuthContext.Provider value={{
       user, loading, role,
       isPro, isTrial, entitled: isPro || isTrial, trialEndsAt,
+      entitlementsLoading, entitlementsError,
       signOut,
     }}>
       {children}

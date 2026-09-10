@@ -10,6 +10,7 @@ import { Warn } from '@/components/icons';
 import Tip from '@/components/Tip';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
@@ -669,6 +670,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [activeTool,   setActiveTool]  = useState<string | null>(null);
   const [drawMenuOpen, setDrawMenuOpen] = useState(false);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
+  /* Set only when getBars EXHAUSTS its retries with nothing usable - not for
+     an upstream that answered OK with a genuinely empty coin. #1073's real
+     defect: the old 5s Binance-style poll was accidentally self-healing (a
+     failed poll was invisible, the next one 5s later just worked); the new
+     one-shot Bybit fetch replaced it with no retry, so a single upstream 502
+     (Render->Bybit is flaky in both directions - QA measured it on PRODUCTION
+     too, roughly half of one capture) left the chart blank for the rest of
+     the session with nothing telling the user why. BONK/PEPE hit this hardest
+     - no Binance fallback (lib/coins.ts), so a failed Bybit fetch has nowhere
+     else to go. */
+  const [historyFailed, setHistoryFailed] = useState(false);
   const [fullscreen,   setFullscreen]  = useState(false);
   const [chartReady,   setChartReady]  = useState(false);
   /* Which ink the overlays are drawn with. Only the price-alert line needs it
@@ -1542,6 +1554,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }
             callback(bars, false);
           };
+          setHistoryFailed(false); // clear any previous coin's failure banner immediately
           try {
             /* #1059: Bybit primary, Binance fallback - reversed from
                Binance-primary. Measured against staging directly: Binance
@@ -1553,10 +1566,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             let handled = false;
             if (bybitSym) {
               const iv = periodToBybitInterval(period);
-              const r  = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1000`);
-              const d  = await r.json() as { result?: { list?: string[][] } };
+              // #1073/#1080: retry lives in lib/bybitKlines.ts, shared with
+              // every other Bybit-klines caller rather than a private copy -
+              // see that file's own comment for why (#1079's whole defect
+              // was the old 5s poll's incidental retry-through-repetition
+              // going away with nothing replacing it).
+              const json = await fetchBybitKlinesRetry(bybitSym, iv, 1000, { isStale: stale });
               if (stale()) return; // superseded by a newer switch - drop it
-              const list = [...(d?.result?.list ?? [])].reverse();
+              const list = [...(json?.result?.list ?? [])].reverse();
               // Raw contract price, NOT converted to per-token. See
               // chartDisplaySymbol in lib/coins: klinecharts cannot render a
               // 2e-8 candle range and degenerates into a zero-centred axis with
@@ -1572,14 +1589,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 applyBars(bars);
                 handled = true;
               } else if (!bnSym) {
-                // Bybit answered but had nothing, and there's no Binance
-                // fallback for this coin - empty chart rather than hanging.
+                // Every attempt failed (json === null - a real refusal, not a
+                // coin with genuinely no candles) and there's no Binance
+                // fallback for this coin. This IS the #1073 defect if left
+                // silent - say so rather than a chart with nothing on it and
+                // no explanation.
+                if (json === null) setHistoryFailed(true);
                 applyBars([]);
                 handled = true;
               }
-              // else: Bybit answered but had nothing - fall through to
-              // Binance below rather than a blank chart, same resilience the
-              // old Binance-primary order gave the other way.
+              // else: Bybit had nothing (refused after retries, or genuinely
+              // empty) - fall through to Binance below rather than a blank
+              // chart, same resilience the old Binance-primary order gave the
+              // other way.
             }
 
             if (!handled && bnSym) {
@@ -1647,13 +1669,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
               }));
-              if (!bars.length) console.error('[chart] no kline source reachable for', bnSym, iv);
+              if (!bars.length) {
+                console.error('[chart] no kline source reachable for', bnSym, iv);
+                // #1073: both Bybit (after retry) and Binance spot+futures came
+                // up empty - the same "silent blank chart" defect class, for a
+                // coin that DOES have a fallback. Surface it the same way.
+                setHistoryFailed(true);
+              }
               applyBars(bars);
             } else if (!handled) {
               applyBars([]);
             }
             endFade();
-          } catch { if (!stale()) { callback([], false); endFade(); } }
+          } catch { if (!stale()) { setHistoryFailed(true); callback([], false); endFade(); } }
           void symbol; // suppress unused
         },
 
@@ -1701,14 +1729,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const since = lastBarTsRef.current;
               if (!since) return;
               try {
-                const r = await fetch(
-                  `/api/market/klines?source=bybit&symbol=${sym}&interval=${interval}&limit=500`,
-                  { signal: AbortSignal.timeout(12_000) },
-                );
-                if (!r.ok || cancelled) return;
-                const d = await r.json() as { result?: { list?: string[][] } };
-                if (cancelled) return;
-                const rows = [...(d?.result?.list ?? [])].reverse();
+                // #1080 (PM/DevOps whole-migration audit): this reconnect
+                // backfill runs precisely when the socket has already proved
+                // unreliable, and had no retry at all - missed by the
+                // original site sweep because that was a grep for a literal
+                // "source=bybit" in a URL, and this one already matched that
+                // literally but was still overlooked being inside the chart
+                // component #1079 was filed against rather than a separate
+                // call site. Same helper, same isStale pattern getBars above
+                // already uses for the initial history load.
+                const d = await fetchBybitKlinesRetry(sym, interval, 500, {
+                  isStale: () => cancelled,
+                  signal: AbortSignal.timeout(12_000),
+                });
+                if (d === null || cancelled) return;
+                const rows = [...(d.result?.list ?? [])].reverse();
                 const missed = barsAfter(
                   rows.map(k => ({ timestamp: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })),
                   since,
@@ -1719,8 +1754,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   upsertEmaBar(bar);
                   cb(bar);
                 }
-              } catch { /* the stream is already live; a failed backfill leaves
-                           the gap rather than breaking the chart */ }
+              } catch { /* The stream is already live, so a failed backfill
+                           doesn't break the chart - but the gap it leaves is
+                           PERMANENT, not deferred to the next reconnect.
+                           onmessage below advances lastBarTsRef on every
+                           live bar regardless of whether this backfill ever
+                           ran, so `since` marches past the hole within
+                           seconds and no later attempt can reach it again.
+                           A chart missing candles doesn't look damaged - the
+                           time axis just closes up and reads as continuous.
+                           Retry (#1080) makes this rarer; it doesn't change
+                           what happens on the attempts that still fail, and
+                           forcing a full history reload here is more
+                           machinery than a rare, now-retried failure justifies. */ }
             };
 
             const connect = () => {
@@ -1832,13 +1878,31 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const since = lastBarTsRef.current;
               if (!since) return;                       // nothing streamed yet - getBars owns it
               try {
-                const r = await fetch(
-                  `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
-                  { signal: AbortSignal.timeout(12_000) },
-                );
-                if (!r.ok || cancelled) return;
-                const rows = (await r.json()) as Array<[number, string, string, string, string, string]>;
-                if (cancelled) return;
+                // #1080 (PM/DevOps whole-migration audit): histSourceRef
+                // defaults to 'bybit' (declared above) and getBars can leave
+                // it there, so this reconnect backfill can hit Bybit despite
+                // living inside the Binance WS reconnect block below -
+                // missed by the original sweep because the source came from
+                // a ref, not a literal "source=bybit" in the URL. Binance /
+                // binance-futures stay a single attempt: no shared retry
+                // helper exists for them yet (#1107).
+                let rows: (string | number)[][];
+                if (histSourceRef.current === 'bybit') {
+                  const d = await fetchBybitKlinesRetry(sym, interval, 500, {
+                    isStale: () => cancelled,
+                    signal: AbortSignal.timeout(12_000),
+                  });
+                  if (d === null || cancelled) return;
+                  rows = [...(d.result?.list ?? [])].reverse();
+                } else {
+                  const r = await fetch(
+                    `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
+                    { signal: AbortSignal.timeout(12_000) },
+                  );
+                  if (!r.ok || cancelled) return;
+                  rows = await r.json();
+                  if (cancelled) return;
+                }
                 const missed = barsAfter(
                   rows.map(k => ({ timestamp: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })),
                   since,
@@ -1849,8 +1913,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   upsertEmaBar(bar);
                   cb(bar);
                 }
-              } catch { /* the stream is already live; a failed backfill leaves
-                           the gap rather than breaking the chart */ }
+              } catch { /* The stream is already live, so a failed backfill
+                           doesn't break the chart - but the gap it leaves is
+                           PERMANENT, not deferred to the next reconnect.
+                           onmessage below advances lastBarTsRef on every
+                           live bar regardless of whether this backfill ever
+                           ran, so `since` marches past the hole within
+                           seconds and no later attempt can reach it again.
+                           A chart missing candles doesn't look damaged - the
+                           time axis just closes up and reads as continuous.
+                           Retry (#1080) makes this rarer; it doesn't change
+                           what happens on the attempts that still fail, and
+                           forcing a full history reload here is more
+                           machinery than a rare, now-retried failure justifies. */ }
             };
 
             const connect = () => {
@@ -2789,6 +2864,38 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             textAlign: 'center',
           }}>
             {countdown}
+          </div>
+        )}
+
+        {/* #1073: a retry-exhausted history load must not read as "still
+            loading" or "nothing to show" - both look identical to an empty
+            chart otherwise. Only shown after every attempt (Bybit's 3 retries,
+            then Binance spot+futures where that fallback exists) has come back
+            with nothing; a coin that genuinely has no candles yet, or one
+            still mid-retry, does not trigger this. */}
+        {historyFailed && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(30,30,30,0.88)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 4,
+              padding: '6px 12px',
+              fontSize: 'var(--fs-caption)',
+              color: 'rgba(255,255,255,0.80)',
+            }}>
+              <Warn size={13} />
+              Couldn&apos;t load price history for {coin.toUpperCase()}. Try switching timeframe or reloading.
+            </div>
           </div>
         )}
       </div>
