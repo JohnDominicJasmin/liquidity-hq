@@ -297,8 +297,14 @@ const WIDE_PROPS: Array<[css: string, jsx: string]> = [
 const WIDE_BASELINE = [
   'app/correlation/page.tsx: .card — inline background kills the terminal rule\'s background',
   'app/correlation/page.tsx: .card — inline border kills the terminal rule\'s border',
-  'app/dashboard/page.tsx: .edge-card-signal — inline color kills the terminal rule\'s color',
-  'app/dashboard/page.tsx: .edge-card-value — inline color kills the terminal rule\'s color',
+  /* REMOVED 2026-09-10 (#1111 Pattern A, #1128): app/dashboard/page.tsx
+     collapsed to a 12-line wrapper around DashboardTerminal - the dead
+     current-design branch that carried these two inline colours is gone,
+     so the collision is gone with it. Flagged as stale by this file's own
+     t.diagnostic() mechanism (#1127) on the very next run after #1128
+     landed - confirmed live before deleting, not assumed.
+     components/DashboardTerminal.tsx's own two entries below are a
+     different file, untouched by that change, and still real. */
   'app/funding/page.tsx: .card — inline padding kills the terminal rule\'s padding',
   'app/liq/page.tsx: .card — inline padding kills the terminal rule\'s padding',
   'components/BriefingTerminal.tsx: .mb-cvd-chip — inline borderRadius kills the terminal rule\'s border-radius',
