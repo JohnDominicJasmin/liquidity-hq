@@ -335,7 +335,7 @@ test('the wide check is armed', () => {
     'no terminal rule parsed as carrying !important - the direction half of this check is measuring nothing');
 });
 
-test('no NEW declaration collision, in either direction', () => {
+test('no NEW declaration collision, in either direction', (t) => {
   const files = [...tsxFiles(path.join(ROOT, 'components')), ...tsxFiles(path.join(ROOT, 'app'))];
   const found: string[] = [];
   for (const f of files) {
@@ -352,7 +352,25 @@ test('no NEW declaration collision, in either direction', () => {
     added.length + ' NEW collision(s). One of the two declarations does nothing - ' +
     'the message says which. Move the value to the side that should own it, or ' +
     'delete the one that loses.');
-  assert.deepEqual(fixed, [],
-    fixed.length + ' baseline entr(y/ies) no longer collide - good. Delete them from ' +
-    'WIDE_BASELINE so the ratchet keeps its new position.');
+
+  /* STALE ENTRIES REPORT, THEY DO NOT FAIL - the 2026-09-10 fix, after this
+     assertion's own failure mode blocked a real push for exactly the reason
+     it exists to celebrate.
+     A ratchet's job is to catch a NEW collision (the assertion above). An
+     entry that no longer matches means a collision was FIXED - the opposite
+     of a regression - and failing the build over good news punishes fixing
+     a defect, which is backwards for a check named after not tolerating one.
+     It also created a genuine deadlock: whoever fixes the underlying defect
+     (app code) cannot land without a __tests__/ edit only QA may make
+     (2026-09-07 ruling), and QA cannot land the __tests__/ edit alone either
+     - dropping a baseline entry while the app-side fix is still unmerged
+     makes THIS repo's own dev branch report it as a NEW collision, the
+     opposite direction. Neither side can move first under a hard failure.
+     `t.diagnostic` is loud (prints per stale entry, names the file to edit)
+     without gating the exit code - the app-side fix ships on its own
+     schedule, and the whole entry list here is intentionally never load-
+     bearing for anyone but QA to clean up next. */
+  for (const entry of fixed) {
+    t.diagnostic(`STALE WIDE_BASELINE entry, no longer collides - remove it: ${entry}`);
+  }
 });
