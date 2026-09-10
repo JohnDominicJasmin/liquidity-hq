@@ -56,7 +56,15 @@ test('PlanBadge never renders FREE while entitlements are still resolving', asyn
   // visible. A bare locator strict-mode-violates the assertion below on
   // that, and .first() in the polling loop would silently read whichever
   // DOM node happens to come first rather than the one a user can see.
-  const badge = page.locator('.plan-badge:visible');
+  //
+  // BOTH root classes - #1142 (option A) renders FREE as plain
+  // `.plan-badge-free-text`, not `.plan-badge`. Scoping to `.plan-badge`
+  // alone would make this poll blind to the exact regression it exists to
+  // catch: if entitlementsLoading ever regresses and FREE paints early, that
+  // FREE now carries a class this locator wouldn't see, sawFree would stay
+  // false for the wrong reason, and the test would pass through a real
+  // regression silently.
+  const badge = page.locator('.plan-badge:visible, .plan-badge-free-text:visible');
   const deadline = Date.now() + DELAY_MS + 1_000;
   let sawFree = false;
   let sawAnyBadge = false;
