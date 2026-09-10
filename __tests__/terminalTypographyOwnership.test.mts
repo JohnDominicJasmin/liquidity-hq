@@ -305,7 +305,12 @@ const WIDE_BASELINE = [
      landed - confirmed live before deleting, not assumed.
      components/DashboardTerminal.tsx's own two entries below are a
      different file, untouched by that change, and still real. */
-  'app/funding/page.tsx: .card — inline padding kills the terminal rule\'s padding',
+  /* REMOVED 2026-09-10 (#1111 Pattern A, #1135): app/funding/page.tsx
+     collapsed to a 12-line wrapper around FundingTerminal - the dead
+     current-design branch that carried this inline padding is gone, so the
+     collision is gone with it. Flagged as stale by t.diagnostic() (#1127)
+     on the next run after #1135 landed - confirmed live before deleting,
+     not assumed. */
   /* REMOVED 2026-09-10 (#1111 Pattern A, #1133): app/liq/page.tsx collapsed
      to a 12-line wrapper around LiqTerminal - the dead current-design
      branch that carried this inline padding is gone, so the collision is
