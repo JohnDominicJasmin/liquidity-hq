@@ -4233,9 +4233,25 @@ html[data-theme="light"] { background: var(--bg0); }
   text-transform: uppercase; line-height: 1;
   padding: 4px 10px; border-radius: var(--radius-data);
   flex-shrink: 0; white-space: nowrap;
+  /* inline-flex + gap, not just for .plan-badge-pro's emblem - harmless for
+     the text-only trial badge (a single text child lays out identically
+     either way), and keeping the rule on the shared base means the emblem
+     spacing doesn't need its own selector. */
+  display: inline-flex; align-items: center; gap: 3px;
 }
-.plan-badge-free {
-  color: var(--txt2); background: transparent; border: 1px solid var(--bdr2);
+/* NOT .plan-badge - deliberately outside the chip. Owner ruling (option A,
+   after seeing three treatments side by side in the real nav): the
+   distance between Free and Pro should come from CATEGORY, not colour or
+   weight - Free is a word, Pro is a marked object, and Free having no chip
+   at all is what says "nothing here", not a duller version of the same
+   chip. #1126 (filled Free, option C) is superseded by this, not merged.
+   --txt2, not --txt3 - the owner's original complaint was that Free wasn't
+   visible; a muted colour that still reads, not a fainter one. */
+.plan-badge-free-text {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; line-height: 1; color: var(--txt2);
+  flex-shrink: 0; white-space: nowrap;
 }
 .plan-badge-trial {
   color: var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent);
@@ -4251,6 +4267,17 @@ html[data-theme="light"] { background: var(--bg0); }
      lighting. Every other property still reads from tokens. */
   color: #0a0a0a; background: var(--amber); border: 1px solid var(--amber);
   font-weight: 700; letter-spacing: 0.14em;
+}
+/* The option-A emblem (owner ruling) - makes Pro "an object with a mark on
+   it" rather than just a coloured word, per the same ruling as
+   .plan-badge-free-text above. currentColor so it recolours with the badge
+   text automatically (#0a0a0a on the amber fill) rather than needing its
+   own colour rule that could drift from it. Filled, not stroked - a
+   stroked shape this small (9px) turns to a smudge; solid fill is what
+   stays legible at eyebrow-label size. Own 5-point star geometry, not
+   copied from an icon set. */
+.plan-badge-pro-star {
+  width: 9px; height: 9px; flex-shrink: 0;
 }
 
 /* ── AUTH - Avatar button & Sign In ───────────────────────────────────────── */

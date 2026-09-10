@@ -14,13 +14,16 @@ import { readPlanBadgeCache, writePlanBadgeCache } from '@/lib/planBadgeCache';
  * indicator; TrialBanner keeps its own job (time-bounded, urgent - trial
  * countdown, later a failed payment). Neither replaces the other.
  *
- * WEIGHT, NOT COLOUR separates the three states - the owner's own
- * reasoning: red and green are reserved for market direction throughout
- * this product, so spending them on account state would make a
- * subscription badge read as a price move. Grey outline (Free), amber
- * outline with a tabular day count (Trial), amber filled (Pro) - a ladder
- * that also survives greyscale and colour-blindness where colour alone
- * would not. Do not substitute colours for weights here.
+ * CATEGORY, NOT COLOUR OR WEIGHT, separates Free from the paid states
+ * (owner ruling, option A - chosen after seeing three built treatments
+ * side by side in the real nav). Free is plain text, no chip; Trial and
+ * Pro are chips, one outlined with a tabular day count, one filled with a
+ * small star emblem. Red and green stay reserved for market direction
+ * throughout this product, so account state was never going to lean on
+ * colour to separate itself either - the ladder is chip-vs-no-chip first,
+ * then outline-vs-filled within the chips. Do not give Free a background,
+ * border, or amber anything - the moment it looks like a duller Pro, the
+ * distinction this ruling exists to create is gone.
  *
  * Renders nothing while auth is loading, signed out, OR the subscription
  * read is still in flight (`entitlementsLoading`) - there is no plan to show
@@ -98,8 +101,16 @@ export default function PlanBadge() {
   }
 
   if (displayRole === 'pro') {
-    return <span className="plan-badge plan-badge-pro" title="Pro">PRO</span>;
+    return (
+      <span className="plan-badge plan-badge-pro" title="Pro">
+        <svg className="plan-badge-pro-star" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path d="M10,1 12.06,7.17 18.56,7.22 13.33,11.08 15.29,17.28 10,13.5 4.71,17.28 6.67,11.08 1.44,7.22 7.94,7.17 Z" />
+        </svg>
+        PRO
+      </span>
+    );
   }
 
-  return <span className="plan-badge plan-badge-free" title="Free">FREE</span>;
+  // Plain text, not .plan-badge - see the CATEGORY, NOT COLOUR comment above.
+  return <span className="plan-badge-free-text" title="Free">FREE</span>;
 }
