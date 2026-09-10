@@ -761,7 +761,6 @@ body::after {
 }
 .cascade-dot {
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-  animation: pulse 1s infinite;
 }
 .cascade-body    { flex: 1; min-width: 0; }
 .cascade-title   { font-size: var(--fs-card-title); font-weight: 700; letter-spacing: 0.04em; }
@@ -933,7 +932,6 @@ body::after {
   width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
   background: var(--green);
   box-shadow: 0 0 5px var(--green);
-  animation: pulse 2s infinite;
 }
 
 /* ── CONTEXT SECTION DIVIDER - separates live signals from timing/macro ── */
@@ -1102,9 +1100,9 @@ body::after {
 .chg-up { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
 .chg-dn { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
 .ticker-hl { font-size: var(--fs-caption); color: var(--txt3); margin-top: 3px; }
-.ticker-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); position: absolute; top: 10px; right: 10px; animation: pulse 2s infinite; }
-.ticker-dot.err     { background: var(--red);   box-shadow: 0 0 6px var(--red);   animation: none; }
-.ticker-dot.loading { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: pulse 1s infinite; }
+.ticker-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); position: absolute; top: 10px; right: 10px; }
+.ticker-dot.err     { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+.ticker-dot.loading { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
 .ticker-fund { font-size: var(--fs-caption); margin-top: 4px; font-weight: 700; }
 .fund-pos { color: var(--red); }
 .fund-neg { color: var(--green); }
@@ -1127,8 +1125,6 @@ body::after {
   .ticker-see-all-label { display: block; font-size: var(--fs-micro); font-weight: 800; color: var(--txt3); letter-spacing: .14em; text-transform: uppercase; text-align: center; margin-top: 3px; }
   .ticker-see-all-arrow { display: block; font-size: 0.6875rem; font-weight: 700; color: var(--purple); margin-top: 10px; letter-spacing: .01em; text-align: center; }
 }
-
-@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.2} }
 
 /* ── AMBIENT RAID URGENCY GLOW ── */
 @keyframes rpm-glow-pulse {
@@ -1159,18 +1155,17 @@ body[data-rpm-level="high"]::before {
 }
 .session-pill-dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  animation: pulse 2s infinite;
 }
 /* hide below 1100px - the app-bar-inner is max 700px there, so logo+nav+session pill
    don't fit and the auth button gets clipped. Session pill shows at 1100px+ only. */
 @media (max-width: 1099px) { .session-pill-wrap { display: none; } }
 
 /* ── STATUS DOT ── */
-.status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: 2px; animation: pulse 2s infinite; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: 2px; }
 .dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.dot-connecting { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: pulse 1s infinite; }
+.dot-connecting { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
 .dot-rest       { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
-.dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red);   animation: pulse 0.8s infinite; }
+.dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red); }
 /* Deliberately flat: no glow, no pulse. `Idle` is not a degraded feed, it is a
    page that does not use one (#200), so it must not read as a warning. --txt3 is
    the same dim grey used for inactive controls elsewhere. */
@@ -2600,11 +2595,10 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    in the current design's light block, so both current-design renders are
    byte-identical. */
 .liq-current-bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: color-mix(in srgb, var(--accent-2) 9%, transparent); border-top: 1px solid color-mix(in srgb, var(--accent-2) 28%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--accent-2) 28%, transparent); border-left: 3px solid var(--accent-2); margin: 2px 0; }
-.liq-current-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); flex-shrink: 0; animation: liq-pulse 2s infinite; }
-@keyframes liq-pulse { 0%,100%{box-shadow:0 0 6px var(--purple)} 50%{box-shadow:0 0 16px var(--purple),0 0 4px #fff4} }
+.liq-current-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); flex-shrink: 0; }
 .liq-current-price { font-size: var(--fs-data); font-weight: 700; color: #fff; font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
 .liq-current-chg { font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; }
-.liq-current-tag { font-size: var(--fs-caption); font-weight: 700; color: var(--purple); background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.06em; animation: liq-pulse 2s infinite; }
+.liq-current-tag { font-size: var(--fs-caption); font-weight: 700; color: var(--purple); background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.06em; }
 .liq-current-oi { font-size: var(--fs-caption); color: var(--txt3); margin-left: auto; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 /* THE ONE ON /liq THAT IS NOT AN OPACITY BUG (#836).
  *
@@ -3172,8 +3166,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .liqfeed-dot {
   width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
 }
-.liqfeed-dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
-.liqfeed-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; animation: pulse 1s infinite; }
+.liqfeed-dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.liqfeed-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; }
 .liqfeed-dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red); }
 
 .liqfeed-stats {
@@ -3637,8 +3631,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .wf-wrap        { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); overflow: hidden; margin-bottom: 10px; }
 .wf-header      { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); }
 .wf-dot         { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.wf-dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
-.wf-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; animation: pulse 1s infinite; }
+.wf-dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.wf-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; }
 .wf-dot-error      { background: var(--red); box-shadow: 0 0 6px var(--red); }
 
 /* stats bar */
@@ -5297,8 +5291,7 @@ body.landing {
 .lp-hero-glow   { display: none; }
 .lp-hero-inner  { position: relative; max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 20px; }
 .lp-hero-badge  { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.05); border: 1px solid var(--bdr); border-radius: var(--radius-chip); padding: 5px 14px; letter-spacing: .04em; }
-.lp-live-dot    { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: lp-pulse 2s infinite; }
-@keyframes lp-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.lp-live-dot    { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
 .lp-h1          { font-size: clamp(2.25rem, 6vw, 4rem); font-weight: 900; line-height: 1.08; letter-spacing: -.03em; margin: 0; }
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
