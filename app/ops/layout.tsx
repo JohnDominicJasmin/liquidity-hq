@@ -26,6 +26,9 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
   const { t } = useLabels();
   const [state, setState] = useState<'checking' | 'ok' | 'denied'>('checking');
   const [role, setRole] = useState<'owner' | 'staff' | null>(null);
+  // #1149: forceSignOut's network call can be slow, not just fail - without
+  // this both sign-out buttons gave no indication anything was happening.
+  const [signingOut, setSigningOut] = useState(false);
 
   // Depend on the id, not the user object. Supabase hands back a new user
   // object on every token refresh even when it is the same person, so keying
@@ -58,11 +61,15 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
   }, [userId, loading, isLoginRoute, router]);
 
   async function signOutAndSwitch() {
+    if (signingOut) return;
+    setSigningOut(true);
     // forceSignOut, not sb.auth.signOut directly: a failed logout request used
     // to leave the session in localStorage, so this "sign out and switch
     // account" landed back on a console still authenticated as the old user
     // (#304). Hard navigation for the same reason - router.replace keeps the
     // React tree, and the gate above would re-admit a session that survived.
+    // forceSignOut is itself time-bounded (#1149), so this await settles
+    // even if the network call never answers.
     await forceSignOut(getSupabase());
     window.location.assign('/ops/login');
   }
@@ -82,8 +89,8 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
             {' '}{t('OPS_LAYOUT_DENY_HINT')}
           </p>
           <div className={styles.denyActions}>
-            <button className={styles.pagerBtn} onClick={signOutAndSwitch}>
-              {t('OPS_LAYOUT_SIGN_OUT_SWITCH')}
+            <button className={styles.pagerBtn} disabled={signingOut} onClick={signOutAndSwitch}>
+              {signingOut ? <span className="login-spinner" /> : t('OPS_LAYOUT_SIGN_OUT_SWITCH')}
             </button>
             <Link href="/" className={styles.pagerBtn}>{t('OPS_LAYOUT_BACK_TO_APP')}</Link>
           </div>
@@ -103,7 +110,9 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
           <Link href="/ops/users">{t('OPS_LAYOUT_NAV_USERS')}</Link>
           {role === 'owner' && <Link href="/ops/team">{t('OPS_LAYOUT_NAV_TEAM')}</Link>}
           {role === 'owner' && <Link href="/ops/config">{t('OPS_LAYOUT_NAV_CONFIG')}</Link>}
-          <button className={styles.navBtn} onClick={signOutAndSwitch}>{t('OPS_LAYOUT_NAV_SIGN_OUT')}</button>
+          <button className={styles.navBtn} disabled={signingOut} onClick={signOutAndSwitch}>
+            {signingOut ? <span className="login-spinner" /> : t('OPS_LAYOUT_NAV_SIGN_OUT')}
+          </button>
           <Link href="/">{t('OPS_LAYOUT_BACK_TO_APP')}</Link>
         </nav>
       </header>

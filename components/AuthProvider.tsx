@@ -170,8 +170,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (sessionUser && isSessionExpired()) {
         /* Bounded for the same reason as the read above: signOut() is a network
            call and this branch awaits it, so a hang here would keep `loading`
-           true just as effectively. forceSignOut already clears local storage
-           when the call errors; a timeout is the third case it did not have. */
+           true just as effectively. forceSignOut itself is now also
+           internally time-bounded (#1149, lib/authSession.ts), so this outer
+           withTimeout is redundant rather than load-bearing - kept anyway as
+           a second, independent bound on `loading` specifically, which is
+           what this effect actually promises to resolve. */
         // forceSignOut, not sb.auth.signOut: this path exists to END a session
         // that has outlived its window, so it failing quietly would keep the
         // user signed in past the expiry it is enforcing (#304).

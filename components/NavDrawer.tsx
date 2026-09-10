@@ -81,6 +81,11 @@ export default function NavDrawer() {
   const { t } = useLabels();
   const [drawerOpen, setDrawerOpen]     = useState(false);
   const [navQuery, setNavQuery]         = useState('');
+  // #1149: signOut()'s network call can be slow (not just fail). Without this
+  // the drawer closed the instant Sign Out was tapped, so a slow-but-working
+  // network looked identical to a broken button - nothing on screen for
+  // however long the request took. Kept visible with a spinner instead.
+  const [signingOut, setSigningOut]     = useState(false);
   /* 768px, the same breakpoint .hamburger and .tnav-mmore already use (#731). */
   const isDesktop = useIsDesktop();
   const pathname = usePathname();
@@ -266,15 +271,21 @@ export default function NavDrawer() {
             user ? (
               <button
                 className="nav-item nav-signout"
+                disabled={signingOut}
                 onClick={async () => {
-                  setDrawerOpen(false);
+                  if (signingOut) return;
+                  setSigningOut(true);
                   track.signOut();
                   await signOut();
-                  // Hard navigation - see the note on the Settings control (#304).
+                  // Hard navigation - see the note on the Settings control
+                  // (#304). Not closing the drawer first (#1149) - the
+                  // navigation discards it along with everything else, and
+                  // closing it here would hide the spinner above for
+                  // whatever this await actually took.
                   window.location.assign('/login');
                 }}
               >
-                {t('NAV_SIGN_OUT_DRAWER')}
+                {signingOut ? <span className="login-spinner" /> : t('NAV_SIGN_OUT_DRAWER')}
               </button>
             ) : (
               <Link
