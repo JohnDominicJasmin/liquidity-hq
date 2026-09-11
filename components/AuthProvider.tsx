@@ -126,6 +126,41 @@ const ENTITLEMENTS_FETCH_MS = 15000;
    on attempt 1, same as before this existed. */
 const ENTITLEMENTS_MAX_ATTEMPTS = 3;
 const ENTITLEMENTS_RETRY_BACKOFF_MS = [1000, 2000];
+
+/* QA-only hook, #1119 follow-up. QA's own finding: the retry-EXHAUSTION path
+   (every attempt failing, landing on entitlementStatus 'unknown') had been
+   reasoned about from the code but never actually exercised - a
+   `page.route()`/`window.fetch` override loses the race on a reload (this
+   effect can already be mid-attempt before a test's override installs), and
+   forcing a fresh sign-in to retry hits the login form's Turnstile widget.
+
+   `page.addInitScript()` beats both: Playwright guarantees it runs before ANY
+   page script, on every navigation including a reload, so a global it sets
+   is reliably in place before this effect's first attempt ever checks it -
+   no race to lose. Checked inside `attempt()` itself rather than raced
+   against the real network call, so a positive answer here goes through the
+   EXACT SAME retry loop, backoff and entitlementStatus derivation a real
+   failure would, only the network round trip is skipped.
+
+   FAIL-SAFE BY CONSTRUCTION, not by policy: this can only ever produce
+   `failed: true`, which this file's own derivation resolves to 'unknown' -
+   never 'entitled'. There is no value this flag can hold that grants access,
+   so a test (or, in principle, a hostile page) setting it can only make an
+   account look LESS entitled than it is, never more - the one thing #1119's
+   own ruling requires anyway.
+
+   BUILD-TIME DEAD ON PROD REGARDLESS: NEXT_PUBLIC_APP_ENV is inlined at
+   build time (see AGENTS.md/CONTRIBUTING.md's own warning on this), so
+   `QA_FORCE_ENTITLEMENTS_FAIL_ENABLED` is the literal `false` in a
+   NEXT_PUBLIC_APP_ENV=prod build and the branch below is eliminated from
+   the bundle entirely - not a runtime check a clever caller could flip. */
+const QA_FORCE_ENTITLEMENTS_FAIL_ENABLED = process.env.NEXT_PUBLIC_APP_ENV !== 'prod';
+function qaForcedEntitlementsFailure(): boolean {
+  if (!QA_FORCE_ENTITLEMENTS_FAIL_ENABLED) return false;
+  if (typeof window === 'undefined') return false;
+  return Boolean((window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__);
+}
+
 const LAST_ACTIVE_KEY = 'lhq_last_active';
 // Read by AuthGate - shared here so both sides reference the same literal.
 export const BAN_NOTICE_KEY = 'lhq_ban_notice';
@@ -393,6 +428,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
        runtime. try/catch (not just .catch() below) covers a genuine
        rejection from that same call, for the same reason. */
     async function attempt(n: number): Promise<{ data: { role?: string; trial_ends_at?: string | null } | null; failed: boolean }> {
+      if (qaForcedEntitlementsFailure()) return { data: null, failed: true };
       try {
         const { data, error } = await Promise.resolve(
           sb!.from(T.user_subscriptions)
