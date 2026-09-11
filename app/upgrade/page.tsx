@@ -41,22 +41,23 @@ const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
   ['UPGRADE_PRO_FEATURE_EVERYTHING_FREE'],
   ['UPGRADE_PRO_FEATURE_FAST_TIMEFRAMES'],
   ['UPGRADE_PRO_FEATURE_CONFLUENCE'],
-  /* Backtesting is NOT listed while /backtest is hidden (#273).
+  /* There is no "Full strategy backtesting" entry, on purpose - not a
+   * commented-out placeholder for a feature waiting to ship.
    *
-   * The page was hidden because the feature is not ready (#264), and this list
-   * was still selling "Full strategy backtesting" at $25/mo for a route that
-   * redirects to /dashboard. Someone paying partly for that line would have got
-   * nothing - which is worse than not offering it yet.
+   * /backtest was hidden in #264/#273 on the assumption it was an unfinished
+   * Pro feature. The owner's actual ruling: it's an internal/testing tool
+   * that was never meant to be sold, and got advertised here by accident.
+   * This list was selling "Full strategy backtesting" at $25/mo for a route
+   * that redirects to /dashboard - someone paying partly for that line would
+   * have gotten nothing.
    *
-   * The label key and its default are deliberately left in place. Putting this
-   * back when the feature ships should be uncommenting one array entry, not
-   * re-adding a string across every locale.
+   * If a real customer-facing backtest feature ever ships, that's a new
+   * decision and a new label key - not a restoration of this one, since this
+   * one was never describing something for sale in the first place.
    *
-   *   ['UPGRADE_PRO_FEATURE_BACKTESTING'],
-   *
-   * This has to move in step with the redirect in proxy.ts - same rule as
-   * ROUTES/HIDDEN_ROUTES in the QA suite. If the route comes back and this does
-   * not, we ship a Pro feature nobody is told they are buying. */
+   * The redirect in proxy.ts stays regardless - that block is correct on its
+   * own terms (an internal tool should not be reachable by URL), independent
+   * of this list. */
   ['UPGRADE_PRO_FEATURE_ONCHAIN_MACRO'],
   ['UPGRADE_PRO_FEATURE_TELEGRAM'],
   ['UPGRADE_PRO_FEATURE_UNLIMITED_ALERTS'],
