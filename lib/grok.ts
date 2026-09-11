@@ -1,4 +1,4 @@
-import { getSupabase } from './supabase.ts';
+import { getSupabase, getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 
 export interface GrokUsageInfo {
@@ -46,10 +46,18 @@ export async function callGrokViaProxy(
   return res.json() as Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }>;
 }
 
-/** Fetch today's usage without running an analysis - call on page mount. */
+/** Fetch today's usage without running an analysis - call on page mount.
+ *  getAuthToken(), not a raw getSession() - #1165/#1166 bounded it. This is
+ *  mounted root-wide (GrokUsageProvider, in AppShell) for every signed-in
+ *  visitor on every route, so an unbounded call here hangs the whole app,
+ *  not just this feature. A timed-out token already falls through the same
+ *  `if (!token) return null` path below as a genuinely missing one - the
+ *  provider already renders nothing rather than a false "0 used" for a
+ *  null usage (see GrokUsageProvider.tsx and every consumer's `if (!usage)`
+ *  guard), so there is no silent-empty-quota risk here the way there was
+ *  for loadPriceAlerts. */
 export async function fetchGrokUsage(): Promise<GrokUsageInfo | null> {
-  const sb    = getSupabase();
-  const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
+  const token = await getAuthToken();
   if (!token) return null;
   try {
     const res = await fetch('/api/grok', {
