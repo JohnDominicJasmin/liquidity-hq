@@ -170,12 +170,18 @@ test.describe('sign-out resilience', () => {
         return new Promise<void>(() => { /* intentionally never settles */ });
       });
 
-      const nowMs = Date.now();
-      await page.clock.install({ time: nowMs });
-
       await page.goto('/settings', { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(7000);
       expect((await state(page)).token, 'not signed in before the attempt - this run measured nothing').toBe(true);
+
+      /* Installed HERE, not before goto - installing before navigation froze
+         every timer the app itself needs during initial load (most likely
+         AuthProvider's own bounded session-resolve path), not just the one
+         timer this test means to control, and the page never got past its
+         own loading gate. Real time is what real page load needs; only the
+         sign-out action itself needs the clock under control. */
+      const nowMs = Date.now();
+      await page.clock.install({ time: nowMs });
 
       await page.locator('.st-signout-btn').first().click();
 
@@ -196,13 +202,24 @@ test.describe('sign-out resilience', () => {
       // Past SIGN_OUT_TIMEOUT_MS (8000ms) with margin for the fallback's own setTimeout to fire
       // and the subsequent hard navigation to begin.
       await page.clock.fastForward(9000);
-      await page.waitForTimeout(500);
+      // A HARD navigation (window.location.assign), not a route change - a full
+      // page load of /login takes real wall-clock time the fake clock does not
+      // speed up. 500ms was not enough; waiting for the real network/render to
+      // settle instead of guessing a longer fixed number.
+      await page.waitForURL('**/login**', { timeout: 15_000 }).catch(() => {});
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
 
       const after = await state(page);
       expect(after.token,
         'the session survived a /logout request that never resolved or rejected - forceSignOut\'s ' +
         'timeout must clear locally regardless of whether the network call ever answers').toBe(false);
-      expect(after.emailField, 'did not land on the sign-in form after the timeout fired').toBe(true);
+      /* URL, not `emailField` - confirmed by screenshot that the real sign-in
+         form DOES render here, but /login defaults to its magic-link mode in
+         this run rather than the password mode `emailField`'s selector
+         targets (a "Use password instead" toggle sits between them). Which
+         mode is default isn't this test's concern; landing on /login at all
+         after the timeout fired is. */
+      expect(after.url, 'did not land on /login after the timeout fired').toBe('/login');
     } finally { await ctx.close(); }
   });
 
