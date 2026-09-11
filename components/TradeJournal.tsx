@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { COINS, CoinId } from '@/lib/marketStore';
 import { getLocalNow, getSessionName } from '@/lib/session';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, getAuthToken } from '@/lib/supabase';
 import AuthGate from './AuthGate';
 import { useAuth } from './AuthProvider';
 import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
@@ -325,6 +325,10 @@ function Inner() {
   const [theses,           setTheses]           = useState<TradeThesis[]>(() => loadTheses());
   const [showThesisForm,   setShowThesisForm]   = useState(false);
   const [checkingThesisId, setCheckingThesisId] = useState<string | null>(null);
+  // #1168: checkThesisHealth used to fail silently on a non-403 !res.ok (a
+  // timeout or server error) - same defect family as loadPriceAlerts/#1107.
+  // Keyed by thesis id so one thesis's failure doesn't paint over another's.
+  const [thesisError, setThesisError] = useState<{ id: string; message: string } | null>(null);
   const [thesisFormSymbol,     setThesisFormSymbol]     = useState('');
   const [thesisFormDirection,  setThesisFormDirection]  = useState<'LONG' | 'SHORT'>('LONG');
   const [thesisFormDate,       setThesisFormDate]       = useState(() => new Date().toISOString().slice(0, 10));
@@ -480,8 +484,6 @@ function Inner() {
   }, [trades, violatingTradeIds, rules]);
 
   const runShadowAccount = async () => {
-    const db = getSupabase();
-    if (!db) return;
     // Pro-only server-side, so a free user's click never reaches it - show the
     // locked card instead of burning a round trip on a guaranteed 403.
     // 'unknown' is not intercepted here (#1119) - let the real request answer
@@ -491,7 +493,8 @@ function Inner() {
     setShadowError(null);
     setShadowAnalysis(null);
     try {
-      const token = (await db.auth.getSession()).data.session?.access_token;
+      // getAuthToken(), not a raw getSession() - #1168.
+      const token = await getAuthToken();
       const res = await fetch('/api/shadow-account', {
         method: 'POST',
         headers: {
@@ -520,8 +523,6 @@ function Inner() {
 
   /* Behavioral Bias runner */
   const runBiasAnalysis = async () => {
-    const db = getSupabase();
-    if (!db) return;
     // Pro-only server-side - same skip-the-round-trip reasoning as above.
     // 'unknown' is not intercepted here (#1119) - let the real request answer
     // via the PRO_REQUIRED check below rather than guessing locked.
@@ -530,7 +531,8 @@ function Inner() {
     setBiasError(null);
     setBiasAnalysis(null);
     try {
-      const token = (await db.auth.getSession()).data.session?.access_token;
+      // getAuthToken(), not a raw getSession() - #1168.
+      const token = await getAuthToken();
       const res = await fetch('/api/behavioral-bias', {
         method: 'POST',
         headers: {
@@ -588,15 +590,15 @@ function Inner() {
   };
 
   const checkThesisHealth = async (thesis: TradeThesis) => {
-    const db = getSupabase();
-    if (!db) return;
     // Pro-only server-side - same skip-the-round-trip reasoning as above.
     // 'unknown' is not intercepted here (#1119) - let the real request answer
     // via the PRO_REQUIRED check below rather than guessing locked.
     if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
     setCheckingThesisId(thesis.id);
+    setThesisError(null);
     try {
-      const token = (await db.auth.getSession()).data.session?.access_token;
+      // getAuthToken(), not a raw getSession() - #1168.
+      const token = await getAuthToken();
       const res = await fetch('/api/thesis-check', {
         method: 'POST',
         headers: {
@@ -613,7 +615,13 @@ function Inner() {
       });
       const json = await res.json() as { analysis?: string; error?: string };
       if (res.status === 403 && json.error === 'PRO_REQUIRED') { setProLocked(true); return; }
-      if (!res.ok) return;
+      if (!res.ok) {
+        // #1168: used to `return` here silently - same defect family as
+        // loadPriceAlerts/#1107's Binance work, a non-OK response falling
+        // through with no visible signal instead of its own branch.
+        setThesisError({ id: thesis.id, message: json.error ?? t('TRADE_JOURNAL_ANALYSIS_FAILED') });
+        return;
+      }
       const feedback = json.analysis ?? '';
       const score    = extractScore(feedback);
       const updated  = theses.map(th => th.id === thesis.id
@@ -622,6 +630,8 @@ function Inner() {
       );
       setTheses(updated);
       saveTheses(updated);
+    } catch {
+      setThesisError({ id: thesis.id, message: t('TRADE_JOURNAL_NETWORK_ERROR') });
     } finally {
       setCheckingThesisId(null);
     }
@@ -1879,6 +1889,11 @@ function Inner() {
                       {t('TRADE_JOURNAL_THESIS_DELETE_BUTTON')}
                     </button>
                   </div>
+                  {thesisError?.id === thesis.id && (
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 6 }}>
+                      {thesisError.message}
+                    </div>
+                  )}
                 </div>
               );
             })}

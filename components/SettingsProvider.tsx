@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthProvider';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, getAuthToken } from '@/lib/supabase';
 import {
   UserSettings, SettingsContext,
   DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings, rowToSettings,
@@ -28,12 +28,14 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // costs nothing - it depends on `user`, which is already available here.
   const flushToDb = useCallback(async (partial: Partial<UserSettings>) => {
     if (!user) return;
-    const sb = getSupabase();
-    if (!sb) return;
     setSaveStatus('saving');
     try {
-      const session = await sb.auth.getSession();
-      const token   = session.data.session?.access_token;
+      // getAuthToken(), not a raw getSession() - #1168. Every settings save
+      // in the app runs through this (update() debounces into it), so an
+      // unbounded call here left saveStatus stuck on 'saving' forever on a
+      // degraded auth backend, with the catch below never given a chance to
+      // reset it.
+      const token = await getAuthToken();
       if (!token) throw new Error('no token');
 
       const res = await fetch('/api/settings', {

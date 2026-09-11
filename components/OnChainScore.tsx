@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
 import { useMarket } from '@/lib/marketStore';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 
@@ -94,12 +94,11 @@ export default function OnChainScore() {
     setLoading(true);
     setError('');
     try {
-      const sb = getSupabase();
-      const session = sb ? (await sb.auth.getSession()).data.session : null;
-      const token = session?.access_token ?? '';
+      // getAuthToken(), not a raw getSession() - #1168.
+      const token = await getAuthToken();
 
       const res = await fetch(`/api/onchain?price=${btcPrice}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token ?? ''}` },
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({})) as { error?: string };
