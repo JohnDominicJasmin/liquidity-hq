@@ -674,6 +674,32 @@ Recorded here rather than hidden, because the suite is code and has defects too.
   or schema not already proven to work, run it against a window or
   condition known to contain a hit first.
 
+- **2026-09-11, #1163/#1173 investigation — three method notes from the same
+  day, kept together because they compound.**
+  1. **`read_network_requests` only tracks requests AFTER it is first called
+     on a tab.** Calling it once the page has already loaded silently misses
+     every prior request — no error, just an incomplete list that looks
+     complete. Cost one wrong reported claim ("production doesn't call
+     `/api/cmc`") that a re-check with the tool armed before navigating
+     reversed. Always call it, then navigate — never the other order.
+  2. **A freshly-minted, valid session cannot exercise a failure path by
+     itself — a valid token succeeds by construction.** Testing "what
+     happens when auth is down" against a real, healthy Supabase project
+     means the thing under test almost never fires: waiting for natural
+     flakiness (#1025) to land inside a test window is not a plan. The fix
+     was forcing the condition — an injected `window.fetch` override
+     permanently blocking `/auth/v1/*` and `/rest/v1/*` — which produced a
+     real, reproducible 22.7s-to-`SESSION EXPIRED` result (#1173) instead of
+     an unbounded wait for a real outage.
+  3. **The forced-failure override only works pre-reload.** A hard reload
+     wipes any injected `window.fetch` before the app's own initial fetch
+     fires — confirmed via `document.readyState` already `'complete'` by the
+     time a re-injected override lands — so a genuinely fresh, blocked
+     entitlements read (which requires a reload to re-fetch, since
+     `entitled` persists across client-side SPA navigation) could not be
+     forced this way. Reported as an accepted gap rather than silently
+     skipped or falsely claimed covered.
+
 - **2026-09-11, #1176: `handleAlertMove()`'s drag-revert fix has no
   automated coverage, and it is a scoped, reasoned gap rather than a silent
   one.** `qa/e2e/arena-alert-resilience.spec.ts` covers the OTHER bug fixed
