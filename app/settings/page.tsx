@@ -106,7 +106,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function SettingsPage() {
   const { t } = useLabels();
-  const { user, loading: authLoading, signOut, entitled } = useAuth();
+  const { user, loading: authLoading, signOut, entitlementStatus } = useAuth();
   const { settings, saveStatus, update } = useSettings();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
   const [pushEnabled,  setPushEnabled]  = useState(false);
@@ -450,7 +450,13 @@ export default function SettingsPage() {
               // Fast timeframes are Pro-only. Previously every chip was
               // selectable for everyone, so a free user could save 5m here and
               // Arena would silently clamp it back to 1h on load.
-              const locked = !entitled && isGatedTf(tf);
+              // #1119: 'unknown' stays locked here too - no assertion is made
+              // either way (the tooltip just says "Pro only", true regardless
+              // of which side of entitled a signed-in Free/unknown user is
+              // on), so treating it the same as a confirmed non-entitled
+              // account isn't a guess, it's just not yet granting something
+              // unconfirmed.
+              const locked = entitlementStatus !== 'entitled' && isGatedTf(tf);
               return (
                 <button
                   key={tf}

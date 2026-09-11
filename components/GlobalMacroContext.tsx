@@ -52,7 +52,7 @@ function chgStr(chg: number) {
 export default function GlobalMacroContext() {
   const { t } = useLabels();
   const router = useRouter();
-  const { user, loading: authLoading, entitled, entitlementsLoading } = useAuth();
+  const { user, loading: authLoading, entitlementStatus, entitlementsLoading } = useAuth();
   const [state,  setState]  = useState<LoadState>('loading');
   const [errMsg, setErrMsg] = useState('');
 
@@ -166,13 +166,26 @@ export default function GlobalMacroContext() {
      `prev === 'loading' ? 'locked' : prev` - only fires from the initial
      state. Never stomps 'unauth' (a token-check timeout deserves its own
      message, not a paywall), 'error', already-'locked', or real data -
-     the last of those cannot coexist with `!entitled` anyway (a 200 body
-     server-side already implies entitled), so the guard is a safety net,
-     not a fix for a reachable conflict. */
+     the last of those cannot coexist with a confirmed not_entitled anyway (a
+     200 body server-side already implies entitled), so the guard is a safety
+     net, not a fix for a reachable conflict.
+
+     Fires on a CONFIRMED not_entitled only, never on 'unknown' (#1119) - this
+     accelerator is a GUESS at what the fetch's own PRO_REQUIRED check will
+     say, made early to save the user a flash of the wrong UI. Guessing
+     'locked' for 'unknown' would be exactly the guess the owner's #1119
+     ruling forbids, and unlike the pre-#1119 default it would not even be
+     self-correcting here in the failure case that matters most: the fetch
+     above shares the same degraded backend that made entitlementStatus
+     unknown in the first place, so it is not safe to assume its own real
+     answer will arrive promptly to overwrite this guess. Leaving state on
+     'loading' for 'unknown' is a hold, not a fix for the underlying backend
+     problem - the fetch's own PRO_REQUIRED/success answer still resolves
+     things whenever it lands. */
   useEffect(() => {
-    if (authLoading || entitlementsLoading || entitled) return;
+    if (authLoading || entitlementsLoading || entitlementStatus !== 'not_entitled') return;
     setState(prev => (prev === 'loading' ? 'locked' : prev));
-  }, [authLoading, entitlementsLoading, entitled]);
+  }, [authLoading, entitlementsLoading, entitlementStatus]);
 
   const signalKey = typeof state === 'object' && state !== null
     ? (state.signal.match(/^(RISK_ON|RISK_OFF|NEUTRAL)/)?.[1] ?? 'NEUTRAL')
