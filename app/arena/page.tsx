@@ -9,7 +9,7 @@ import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
@@ -345,6 +345,7 @@ function ArenaContent() {
   const [alertLabel,    setAlertLabel]    = useState('');
   const [alertSaving,   setAlertSaving]   = useState(false);
   const [alertSuccess,  setAlertSuccess]  = useState(false);
+  const [alertError,    setAlertError]    = useState('');
   const [chartAlerts,   setChartAlerts]   = useState<ChartAlert[]>([]);
 
   function openAlertForm() {
@@ -359,18 +360,30 @@ function ArenaContent() {
   async function saveArenaAlert() {
     if (!alertPrice || isNaN(parseFloat(alertPrice)) || !user) return;
     setAlertSaving(true);
+    setAlertError('');
     try {
-      const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
+      // getAuthToken(), not a raw getSession() - #1168. Also fixes a real
+      // bug this had regardless of the timeout: the success UI (and the
+      // 1.5s auto-close) fired unconditionally, even on a failed save - a
+      // 401/500/PRO_REQUIRED response told the user "Alert set" and closed
+      // the form on a request that never reached the database. Same
+      // defect family as #1107/#1166: a non-OK response falling into the
+      // generic (here, the ONLY) path instead of its own.
+      const token = await getAuthToken();
+      if (!token) { setAlertError(t('ALERTS_NETWORK_ERROR')); return; }
       const res = await fetch('/api/price-alerts', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ coin: selectedCoin, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }),
       });
-      window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
-      if (res.ok) {
-        const { alert } = await res.json() as { alert: { id: string } };
-        setChartAlerts(prev => [...prev, { id: alert.id, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }]);
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({} as { error?: string; message?: string }));
+        setAlertError(d.message ?? d.error ?? t('ALERTS_NETWORK_ERROR'));
+        return;
       }
+      const { alert } = await res.json() as { alert: { id: string } };
+      setChartAlerts(prev => [...prev, { id: alert.id, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }]);
+      window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
       setAlertSuccess(true);
       setAlertLabel('');
       setTimeout(() => { setAlertFormOpen(false); setAlertSuccess(false); }, 1500);
@@ -409,7 +422,8 @@ function ArenaContent() {
     if (!user) return;
     let cancelled = false;
     async function load() {
-      const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
+      // getAuthToken(), not a raw getSession() - #1168.
+      const token = await getAuthToken();
       if (!token || cancelled) return;
       const res = await fetch('/api/price-alerts', { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok || cancelled) return;
@@ -420,16 +434,32 @@ function ArenaContent() {
     return () => { cancelled = true; };
   }, [selectedCoin, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Update alert price when user drags a line ── */
+  /* ── Update alert price when user drags a line ──
+     getAuthToken(), not a raw getSession() - #1168. Also fixes a real
+     desync this had regardless of the timeout: the drag update is
+     optimistic (the line moves on screen immediately), but nothing ever
+     rolled it back on failure - a missing token or a failed PATCH left
+     the chart showing a price the server never saved, with no
+     indication and no way to tell without reloading. */
   async function handleAlertMove(id: string, newPrice: number) {
+    const prevPrice = chartAlerts.find(a => a.id === id)?.target_price;
+    const revert = () => {
+      if (prevPrice == null) return;
+      setChartAlerts(prev => prev.map(a => a.id === id ? { ...a, target_price: prevPrice } : a));
+    };
     setChartAlerts(prev => prev.map(a => a.id === id ? { ...a, target_price: newPrice } : a));
-    const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
-    if (!token) return;
-    fetch(`/api/price-alerts?id=${id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body:    JSON.stringify({ target_price: newPrice }),
-    }).catch(() => {});
+    const token = await getAuthToken();
+    if (!token) { revert(); return; }
+    try {
+      const res = await fetch(`/api/price-alerts?id=${id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ target_price: newPrice }),
+      });
+      if (!res.ok) revert();
+    } catch {
+      revert();
+    }
   }
 
   /* Hover over the trigger auto-opens the scanner after 800ms.
@@ -1925,6 +1955,10 @@ function ArenaContent() {
                   style={{ width: '100%', padding: '9px 12px', fontSize: 'var(--fs-label)', borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
                 />
               </div>
+
+              {alertError && (
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{alertError}</div>
+              )}
 
               {/* CTA */}
               <button
