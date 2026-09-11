@@ -17,7 +17,6 @@ import { friendlyAuthError } from '@/lib/authErrors';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
 import { readConsent, writeConsent, onConsentChange, type ConsentState } from '@/lib/consent';
-import { useDesignMode } from '@/components/DesignModeProvider';
 
 
 
@@ -106,7 +105,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 
 export default function SettingsPage() {
-  const mode = useDesignMode();
   const { t } = useLabels();
   const { user, loading: authLoading, signOut, entitled } = useAuth();
   const { settings, saveStatus, update } = useSettings();
@@ -114,6 +112,10 @@ export default function SettingsPage() {
   const [pushEnabled,  setPushEnabled]  = useState(false);
   const [pushWorking,  setPushWorking]  = useState(false);
   const [testResult,   setTestResult]   = useState<'idle' | 'sent' | 'error'>('idle');
+  // #1149: signOut()'s network call can be slow, not just fail - without
+  // this the button gave no indication anything was happening, same shape
+  // as pwLoading below.
+  const [signingOut,   setSigningOut]   = useState(false);
 
   // ── Password (set or change) - the client User object has no reliable
   // "has a password" flag (a magic-link-only account and a password account
@@ -238,7 +240,7 @@ export default function SettingsPage() {
       t('SETTINGS_SECTION_TELEGRAM'),
     ];
     return (
-      <div className={`st-page${mode === 'terminal' ? ' settings-term-wrap' : ''}`} data-testid="settings-page">
+      <div className="st-page settings-term-wrap" data-testid="settings-page">
         <div className="st-header"><h1 className="st-header-title">{t('SETTINGS_PAGE_TITLE')}</h1></div>
 
         <Section title={t('SETTINGS_SECTION_APPEARANCE')}>
@@ -342,7 +344,10 @@ export default function SettingsPage() {
 
         <button
           className="st-signout-btn"
+          disabled={signingOut}
           onClick={async () => {
+            if (signingOut) return;
+            setSigningOut(true);
             track.signOut();
             await signOut();
             /* HARD navigation, not router.push (#304).
@@ -360,7 +365,7 @@ export default function SettingsPage() {
             window.location.assign('/login');
           }}
         >
-          {t('SETTINGS_SIGN_OUT_BUTTON')}
+          {signingOut ? <span className="login-spinner" /> : t('SETTINGS_SIGN_OUT_BUTTON')}
         </button>
       </Section>
 

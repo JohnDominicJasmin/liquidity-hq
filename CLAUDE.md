@@ -352,6 +352,34 @@ ends with merge/deploy/re-check/tag, and collects every "could not verify
 locally" caveat in Risk level. Promoting without it is deploying into silence.
 Keep it open while QA works; failures are reported as comments on it.
 
+**What "closed" means — the owner's definition, 2026-09-10. An issue is CLOSED
+only when ALL FIVE are true:**
+
+1. **QA tested it.**
+2. **QA audited it.**
+3. **It passed manual testing.**
+4. **PM/DevOps audited it.**
+5. **If it is VISUAL — anything the owner sees — the OWNER approved it.**
+
+**Steps 4 and 5 are the new ones.** The owner set this after finding PM/DevOps
+closing issues on QA's report alone. **Closing on a report is not auditing a
+report** — it is forwarding one, and a forwarded claim has had exactly one pair
+of eyes on it while looking like it has had two. Step 4 means reading what QA
+measured, checking the claim against the artifact rather than the summary, and
+saying on the issue what was audited. **If you cannot name what was measured,
+where, and by whom, it does not close.**
+
+**Step 5 is the owner's and is not delegable.** Layout, spacing, labels, colour,
+what a panel says, where it sits, what a chart draws. QA can confirm a panel
+renders; **only the owner can say it renders right.** When in doubt, it is
+visual — asking costs one message, guessing cost this project the Arena
+redesign, built three times and rejected three times because sessions decided
+for themselves what the owner would accept.
+
+**This does not move the sign-off.** QA still decides what "verified" means.
+Step 4 is a second reader on that decision, never a veto over it. Full text and
+reasoning: `CONTRIBUTING.md` → *What "closed" means*.
+
 **When QA finds a failure: dev fixes it, never QA.** New `fix/` branch cut from
 `dev` (never from `qa`), reproduce the bug before fixing it, merge to `dev`,
 re-promote, say so on the release PR. QA then re-tests the failed step plus

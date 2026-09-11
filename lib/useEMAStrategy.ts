@@ -13,6 +13,7 @@ import { describeSelection } from './strategyRegistry.ts';
 import { simulateTrades } from './backtestEngine.ts';
 import { TF_MS, CLOSE_SKEW_MS, dropForming, msUntilNextClose, sameCandle } from './candles.ts';
 import { getWaveTrendConfirmation } from './waveTrend.ts';
+import { fetchBybitKlinesRetry } from './bybitKlines.ts';
 
 export type { SignalFilterParams } from './strategyCore.ts';
 export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore.ts';
@@ -104,12 +105,18 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
 }
 
 async function fetchBybitKlines(sym: string, interval: string, limit: number): Promise<OHLCV[]> {
-  const r = await fetch(
-    `/api/market/klines?source=bybit&symbol=${sym}&interval=${interval}&limit=${limit}&closed=1`,
-    { signal: AbortSignal.timeout(12_000) }
-  );
-  if (!r.ok) throw new Error(`Bybit klines ${r.status}`);
-  const d = await r.json() as { result?: { list?: string[][] } };
+  /* #1080: this used to be a single fetch with no retry - confirmed hitting
+     a real 502 live during #1081's own testing, the same shape that made
+     #1079's chart go silently blank. Retry now shared via lib/bybitKlines.ts
+     rather than a private copy; on exhaustion (null) throws, same as the
+     old `!r.ok` branch did - this file's own existing catch (in `load()`,
+     below) turns that into `sig.error`, which EMASignal.tsx already renders
+     as EMA_SIGNAL_FAILED. No new failure UI needed - reusing what's there. */
+  const d = await fetchBybitKlinesRetry(sym, interval, limit, {
+    extraParams: { closed: '1' },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (d === null) throw new Error('Bybit klines failed after retry');
   const list = [...(d?.result?.list ?? [])].reverse();
   // 1000PEPEUSDT / 1000BONKUSDT are quoted per 1000 tokens. This feeds the
   // Arena EMA Signal card's entry / stop-loss / take-profit, which are shown as

@@ -761,7 +761,6 @@ body::after {
 }
 .cascade-dot {
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-  animation: pulse 1s infinite;
 }
 .cascade-body    { flex: 1; min-width: 0; }
 .cascade-title   { font-size: var(--fs-card-title); font-weight: 700; letter-spacing: 0.04em; }
@@ -933,7 +932,6 @@ body::after {
   width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
   background: var(--green);
   box-shadow: 0 0 5px var(--green);
-  animation: pulse 2s infinite;
 }
 
 /* ── CONTEXT SECTION DIVIDER - separates live signals from timing/macro ── */
@@ -1102,9 +1100,9 @@ body::after {
 .chg-up { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
 .chg-dn { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
 .ticker-hl { font-size: var(--fs-caption); color: var(--txt3); margin-top: 3px; }
-.ticker-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); position: absolute; top: 10px; right: 10px; animation: pulse 2s infinite; }
-.ticker-dot.err     { background: var(--red);   box-shadow: 0 0 6px var(--red);   animation: none; }
-.ticker-dot.loading { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: pulse 1s infinite; }
+.ticker-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); position: absolute; top: 10px; right: 10px; }
+.ticker-dot.err     { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+.ticker-dot.loading { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
 .ticker-fund { font-size: var(--fs-caption); margin-top: 4px; font-weight: 700; }
 .fund-pos { color: var(--red); }
 .fund-neg { color: var(--green); }
@@ -1127,8 +1125,6 @@ body::after {
   .ticker-see-all-label { display: block; font-size: var(--fs-micro); font-weight: 800; color: var(--txt3); letter-spacing: .14em; text-transform: uppercase; text-align: center; margin-top: 3px; }
   .ticker-see-all-arrow { display: block; font-size: 0.6875rem; font-weight: 700; color: var(--purple); margin-top: 10px; letter-spacing: .01em; text-align: center; }
 }
-
-@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.2} }
 
 /* ── AMBIENT RAID URGENCY GLOW ── */
 @keyframes rpm-glow-pulse {
@@ -1159,18 +1155,17 @@ body[data-rpm-level="high"]::before {
 }
 .session-pill-dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  animation: pulse 2s infinite;
 }
 /* hide below 1100px - the app-bar-inner is max 700px there, so logo+nav+session pill
    don't fit and the auth button gets clipped. Session pill shows at 1100px+ only. */
 @media (max-width: 1099px) { .session-pill-wrap { display: none; } }
 
 /* ── STATUS DOT ── */
-.status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: 2px; animation: pulse 2s infinite; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: 2px; }
 .dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.dot-connecting { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: pulse 1s infinite; }
+.dot-connecting { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
 .dot-rest       { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
-.dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red);   animation: pulse 0.8s infinite; }
+.dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red); }
 /* Deliberately flat: no glow, no pulse. `Idle` is not a degraded feed, it is a
    page that does not use one (#200), so it must not read as a warning. --txt3 is
    the same dim grey used for inactive controls elsewhere. */
@@ -2600,11 +2595,10 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    in the current design's light block, so both current-design renders are
    byte-identical. */
 .liq-current-bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: color-mix(in srgb, var(--accent-2) 9%, transparent); border-top: 1px solid color-mix(in srgb, var(--accent-2) 28%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--accent-2) 28%, transparent); border-left: 3px solid var(--accent-2); margin: 2px 0; }
-.liq-current-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); flex-shrink: 0; animation: liq-pulse 2s infinite; }
-@keyframes liq-pulse { 0%,100%{box-shadow:0 0 6px var(--purple)} 50%{box-shadow:0 0 16px var(--purple),0 0 4px #fff4} }
+.liq-current-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); flex-shrink: 0; }
 .liq-current-price { font-size: var(--fs-data); font-weight: 700; color: #fff; font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
 .liq-current-chg { font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; }
-.liq-current-tag { font-size: var(--fs-caption); font-weight: 700; color: var(--purple); background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.06em; animation: liq-pulse 2s infinite; }
+.liq-current-tag { font-size: var(--fs-caption); font-weight: 700; color: var(--purple); background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.06em; }
 .liq-current-oi { font-size: var(--fs-caption); color: var(--txt3); margin-left: auto; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 /* THE ONE ON /liq THAT IS NOT AN OPACITY BUG (#836).
  *
@@ -3172,8 +3166,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .liqfeed-dot {
   width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
 }
-.liqfeed-dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
-.liqfeed-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; animation: pulse 1s infinite; }
+.liqfeed-dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.liqfeed-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; }
 .liqfeed-dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red); }
 
 .liqfeed-stats {
@@ -3637,8 +3631,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .wf-wrap        { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); overflow: hidden; margin-bottom: 10px; }
 .wf-header      { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); }
 .wf-dot         { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.wf-dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
-.wf-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; animation: pulse 1s infinite; }
+.wf-dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.wf-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; }
 .wf-dot-error      { background: var(--red); box-shadow: 0 0 6px var(--red); }
 
 /* stats bar */
@@ -4220,6 +4214,84 @@ html[data-theme="light"] { background: var(--bg0); }
   transition: background 0.15s, color 0.15s;
 }
 .gchat-login-close:hover { background: rgba(255,255,255,0.14); color: var(--txt); }
+
+/* ── PLAN BADGE - persistent account-state indicator (#1089) ─────────────────
+   Weight, not colour, separates the three states - red/green stay reserved
+   for market direction throughout this product (PlanBadge.tsx's own doc
+   comment has the full reasoning). Written in shared tokens rather than
+   [data-design="terminal"]-scoped rules because it renders identically in
+   both designs by construction: --radius-data is already 0 in terminal and
+   4px in current, so one rule set adapts correctly rather than needing two. */
+.plan-badge {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  /* Owner: "lets make it more visible" - was 9.5px, below --fs-micro's own
+     documented 11px floor for an uppercase eyebrow label (globals.css:307:
+     "the 11px floor - pair with letter-spacing, don't shrink further").
+     Padding scaled up with it (3px 7px -> 4px 10px) rather than left at the
+     old size around bigger text. */
+  font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; line-height: 1;
+  padding: 4px 10px; border-radius: var(--radius-data);
+  flex-shrink: 0; white-space: nowrap;
+  /* inline-flex + gap, not just for .plan-badge-pro's emblem - harmless for
+     the text-only trial badge (a single text child lays out identically
+     either way), and keeping the rule on the shared base means the emblem
+     spacing doesn't need its own selector. */
+  display: inline-flex; align-items: center; gap: 3px;
+}
+/* #1126 REVIVED, not rebuilt - that PR built exactly this (filled chip,
+   --bg4/--txt/--bdr2) and was closed as superseded when the owner first
+   picked option A (Free as plain text, no chip). Seeing A live, the owner
+   asked for a border back: "add some border to it and make it badge
+   style." The earlier close was never wrong for its day - the pick
+   changed, not the assessment. NO AMBER: this is still a NEUTRAL chip -
+   see PlanBadge.tsx's own doc comment for why Free must never pick up any
+   amber now that all three states are chips. Text-on-fill re-measured for
+   this fold-in, since a filled background is a new surface #1142's
+   plain-text version never had: root dark 15.06:1, current light 13.27:1,
+   terminal dark 15.03:1, terminal light 14.71:1 - --txt/--bg4 clear AA
+   with wide margin in all four theme/design combinations. */
+.plan-badge-free {
+  color: var(--txt); background: var(--bg4); border: 1px solid var(--bdr2);
+}
+.plan-badge-trial {
+  color: var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 22%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.plan-badge-pro {
+  /* Filled, not outlined - the one paid state is unmistakable at a glance.
+     WAS a hardcoded #0a0a0a - wrong the moment light theme's own --amber
+     stopped being bright. That token is a dark brownish tone in BOTH light
+     variants (current-design #8F4508, terminal #755100), not the vivid
+     #fbbf24 dark theme uses - so near-black-on-amber, correct in dark, was
+     dark-on-dark in light (2.77:1/2.85:1, both well under AA). Owner caught
+     it from a deployed screenshot.
+     Fix is var(--bg0), not a second literal - the same paired-foreground
+     shape --on-accent already uses for terminal dark's gold CTA
+     (`--on-accent: var(--bg0)` above). --bg0 already flips exactly opposite
+     to --amber in every theme this badge renders in (near-black canvas in
+     dark, near-white canvas in light), so one declaration clears AA in all
+     four theme/design combinations without a light-theme override rule:
+     measured contrast, ink-on-fill - dark/root 12.29:1, dark/terminal
+     11.94:1, light/current 5.76:1, light/terminal 6.62:1. currentColor on
+     .plan-badge-pro-star below means the star's fill flips with this same
+     value, no second rule needed. Every other property still reads from
+     tokens. */
+  color: var(--bg0); background: var(--amber); border: 1px solid var(--amber);
+  font-weight: 700; letter-spacing: 0.14em;
+}
+/* The option-A emblem (owner ruling) - makes Pro "an object with a mark on
+   it" rather than just a coloured word, per the same ruling as
+   .plan-badge-free-text above. currentColor so it recolours with the badge
+   text automatically (#0a0a0a on the amber fill) rather than needing its
+   own colour rule that could drift from it. Filled, not stroked - a
+   stroked shape this small (9px) turns to a smudge; solid fill is what
+   stays legible at eyebrow-label size. Own 5-point star geometry, not
+   copied from an icon set. */
+.plan-badge-pro-star {
+  width: 9px; height: 9px; flex-shrink: 0;
+}
 
 /* ── AUTH - Avatar button & Sign In ───────────────────────────────────────── */
 .auth-wrap { position: relative; flex-shrink: 0; }
@@ -5264,8 +5336,7 @@ body.landing {
 .lp-hero-glow   { display: none; }
 .lp-hero-inner  { position: relative; max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 20px; }
 .lp-hero-badge  { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.05); border: 1px solid var(--bdr); border-radius: var(--radius-chip); padding: 5px 14px; letter-spacing: .04em; }
-.lp-live-dot    { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: lp-pulse 2s infinite; }
-@keyframes lp-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.lp-live-dot    { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
 .lp-h1          { font-size: clamp(2.25rem, 6vw, 4rem); font-weight: 900; line-height: 1.08; letter-spacing: -.03em; margin: 0; }
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
@@ -6834,14 +6905,21 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   [data-design="terminal"] .sshell { height: 52px; gap: 12px; padding: 0 12px; }
   [data-design="terminal"] .sshell-brand { font-size: 12px; letter-spacing: .12em; }
 }
-/* Mobile 38px header (README:82) - logo, screen name, status. */
+/* Mobile 38px header - logo, screen name, status. Spec source is the
+   artboards (design_files/Alerts.dc.html:117-123, Dashboard 2a.dc.html:234-240),
+   not README:82 - that line now covers an unrelated Landing-page value and
+   was never this header's real source; rotted quietly the same way #599's
+   note below did. */
 [data-design="terminal"] .tnav-mhead { display: none; }
 /* 767, not 899. #616 moved .tnav to min-width:768 and .tnav-tabs to
    max-width:767 but left this one at 899, so 768-899px matched BOTH the
    desktop bar and the mobile header and would have rendered two navs stacked
-   the moment a component wired these classes. Latent rather than live only
-   because nothing renders .tnav-mhead yet (#599). The three rules now share
-   one boundary, which is the point of having one. */
+   the moment a component wired these classes. TerminalNav.tsx has rendered
+   this header since terminal became the default design (#748), not since
+   #1094 - #1094 only added the plan badge to it. The old note here claiming
+   nothing rendered it yet was itself stale by the time this comment was
+   written; correcting it rather than repeating it. The three rules share one
+   boundary, which is the point of having one. */
 @media (max-width: 767px) {
   [data-design="terminal"] .tnav-mhead {
     display: flex; align-items: center; gap: 10px;
@@ -6852,10 +6930,29 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
     height: 38px; padding: 0 14px;
     background: var(--bg0); border-bottom: 1px solid var(--bdr);
   }
+  [data-design="terminal"] .tnav-mlogo { flex-shrink: 0; }
+  /* SCREEN NAME - the one element in this bar allowed to shrink (#1094). It's
+     the only thing here the user already knows, having just navigated to it;
+     the status and the plan badge both carry information available nowhere
+     else on a mobile screen, so when space runs out this yields and they do
+     not. Some screen names come from a raw route segment rather than a
+     curated label and can run long enough to collide with the status + badge
+     + drawer button that now share this bar - min-width:0 overrides flex's
+     default auto minimum so the box can actually shrink below its text's
+     natural width, and the other three properties turn that shrink into an
+     ellipsis instead of a visual overflow or wrap. */
   [data-design="terminal"] .tnav-mbrand {
     font-family: var(--font-mono), monospace;
     font-size: 11px; font-weight: 700; letter-spacing: .14em; color: var(--txt);
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  /* UNUSED as text (#1094). TerminalNav.tsx mounts this as an empty span -
+     it's the flex:1 spacer pushing status/badge/mmore to the right, not a
+     label. No artboard checked for #1094 (Alerts, Dashboard 2a) puts text
+     here either; the "screen name" text both actually draw is styled like
+     .tnav-mbrand above, not this class - the name is misleading and cost
+     both dev and PM a misread earlier the same day this was written. Kept
+     rather than removed since it still does real layout work as the spacer. */
   [data-design="terminal"] .tnav-mscreen {
     font-family: var(--font-mono), monospace;
     font-size: 10px; letter-spacing: .12em; color: var(--txt3); flex: 1;
@@ -6864,6 +6961,7 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
     display: inline-flex; align-items: center; gap: 5px;
     font-family: var(--font-mono), monospace;
     font-size: 10px; letter-spacing: .1em; color: var(--txt2);
+    flex-shrink: 0; white-space: nowrap;
   }
   /* 5px SQUARE, per the nav spec - the design has no round elements at all. */
   [data-design="terminal"] .tnav-mdot { width: 5px; height: 5px; background: var(--green); }

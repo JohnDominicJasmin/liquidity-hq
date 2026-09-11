@@ -11,7 +11,7 @@ import SessionCountdown from '@/components/SessionCountdown';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { withAlpha } from '@/lib/color';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { nextResetLocalTime, localZoneAbbr } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
 import Tip from '@/components/Tip';
@@ -256,8 +256,11 @@ export default function BriefingTerminal() {
     if (!user) { setBriefErr(t('BRIEFING_SIGN_IN_REQUIRED')); return; }
     setGen(true); setBrief(''); setBriefErr('');
     try {
-      const sb    = getSupabase();
-      const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
+      // getAuthToken(), not a raw getSession() - #1165/#1166 bounded it, so a
+      // hung auth backend surfaces as BRIEFING_SESSION_EXPIRED within 8s
+      // instead of leaving this button spinning (setGen never resolving)
+      // indefinitely.
+      const token = await getAuthToken();
       if (!token) { setBriefErr(t('BRIEFING_SESSION_EXPIRED')); setGen(false); return; }
       const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo, nowMs, jpyUsd);
       const res = await fetch('/api/briefing', {

@@ -49,23 +49,54 @@ export function clearStoredSession(): void {
   }
 }
 
+/* How long the network signOut() call may take before this gives up and
+ * clears locally anyway (#1149). qa/e2e/signout-resilience.spec.ts already
+ * covered a FAILED request (500, aborted connection) - both reject quickly,
+ * so the try/catch below always caught them and this function always
+ * settled. What it never covered, because Playwright's route interception
+ * has no way to express it, is a request that neither resolves nor rejects
+ * at all: the owner's report ("clicked Sign Out, nothing happened") turned
+ * out to be exactly that - not dead, just outstanding for minutes with the
+ * page giving no indication anything was in flight. An unbounded `await`
+ * here waits on that promise forever; the button, the drawer, and the hard
+ * navigation after it all never run.
+ *
+ * Same reasoning and the same value as AuthProvider's SESSION_RESOLVE_MS:
+ * generous enough that a slow-but-working network still gets the real
+ * server-side sign-out, short enough that a hang does not look like a
+ * broken button. A ceiling on a failure, not a target - the normal path
+ * settles in well under this. */
+const SIGN_OUT_TIMEOUT_MS = 8000;
+
 /**
  * Sign out, and guarantee the local session is gone even if the server call
- * fails or rejects.
+ * fails, rejects, or never answers at all.
  *
  * Returns the error rather than swallowing it, so a caller that wants to report
  * or log the failure can - but the local cleanup has already happened either
- * way, because that is the part that must not be optional.
+ * way, because that is the part that must not be optional. A timeout is
+ * reported the same way a real error is: the caller's contract is already
+ * "truthy return means clean up locally", and a hang is exactly the case
+ * that contract exists for.
  *
  * Still calls the server first, deliberately. Clearing locally without asking
  * would leave a live refresh token on the server on every sign-out, which is
  * strictly worse than the bug being fixed - and is precisely the shortcut QA's
  * healthy-path control in qa/e2e/signout-resilience.spec.ts exists to catch.
+ * A hung request is not abandoned either - only this function stops waiting
+ * on it; whatever eventually happens on the wire happens regardless.
  */
 export async function forceSignOut(sb: SignOutCapable | null | undefined): Promise<unknown> {
+  if (!sb) return null;
   let error: unknown = null;
   try {
-    ({ error } = (await sb?.auth.signOut()) ?? { error: null });
+    const result = await Promise.race([
+      sb.auth.signOut(),
+      new Promise<{ error: unknown }>(resolve => {
+        setTimeout(() => resolve({ error: new Error('signOut timed out') }), SIGN_OUT_TIMEOUT_MS);
+      }),
+    ]);
+    error = result.error;
   } catch (e) {
     error = e ?? new Error('signOut rejected');
   }

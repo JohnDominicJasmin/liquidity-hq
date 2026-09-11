@@ -9,13 +9,14 @@ import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { Warn } from '@/components/icons';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
 import { describeSelection } from '@/lib/strategyRegistry';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
 
@@ -80,14 +81,6 @@ function relTime(ts: number): string {
   if (h < 24) return `${h}h ago`;
   if (dy < 7) return `${dy}d ago`;
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-/* ── Auth token helper ─────────────────────────────────────────── */
-async function getAuthToken(): Promise<string | undefined> {
-  const sb = getSupabase();
-  if (!sb) return undefined;
-  const { data } = await sb.auth.getSession();
-  return data.session?.access_token;
 }
 
 /* ── Generate follow-up question chips via Grok (cheap - no search needed) ── */
@@ -360,9 +353,14 @@ export default function GrokChat() {
           if (!r.ok) throw new Error('binance');
           raw = await r.json();
         } else if (by) {
-          const r = await fetch(`/api/market/klines?source=bybit&symbol=${by}&interval=60&limit=300`);
-          if (!r.ok) throw new Error('bybit');
-          raw = [...((await r.json())?.result?.list ?? [])].reverse();
+          // #1080: retry shared with every other Bybit-klines caller (see
+          // lib/bybitKlines.ts). Exhaustion throws into the existing catch
+          // below, same as the old !r.ok check did - setStructureLine('-')
+          // already handles it, matching this effect's own "fails silently
+          // to '-'" design.
+          const d = await fetchBybitKlinesRetry(by, '60', 300);
+          if (d === null) throw new Error('bybit');
+          raw = [...(d.result?.list ?? [])].reverse();
         } else return;
         if (cancelled) return;
         const candles = raw.map(k => ({

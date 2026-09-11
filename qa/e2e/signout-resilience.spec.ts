@@ -135,6 +135,94 @@ test.describe('sign-out resilience', () => {
     } finally { await ctx.close(); }
   });
 
+  test('the session clears when POST /logout hangs forever - neither resolves nor rejects', async ({ browser }) => {
+    /* The genuine shape of #1149, which neither test above actually covers.
+     * `route.abort('connectionfailed')` above rejects near-instantly - GoTrue's
+     * fetch throws fast, and the old unbounded-await code already survived that
+     * (its try/catch caught the rejection). The owner's report was different:
+     * outstanding for MINUTES with nothing visible, which is a request that
+     * never settles at all, not one that fails quickly. #1154's own PR body
+     * names this exact gap and says it tried and could not reproduce a real
+     * hang via injected fetch overrides (supabase-js captures its own fetch
+     * reference before any post-navigation script can intercept it).
+     *
+     * Route interception does not have that problem - a handler that never
+     * calls fulfill/abort/continue leaves Playwright holding the request open
+     * indefinitely, which IS a genuine hang from the page's perspective, not a
+     * simulation of one.
+     *
+     * page.clock, not a real 8-second wall-clock wait, drives past
+     * SIGN_OUT_TIMEOUT_MS (lib/authSession.ts's Promise.race). Same technique
+     * plan-badge-trial-flip.spec.ts already uses and for the same reason: the
+     * clock only fakes the page's own JS timers, never the network, so the
+     * still-pending fetch and the fast-forwarded setTimeout race exactly as
+     * they would with a real 8-second wait - just without spending 8 real
+     * seconds on every CI run. */
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    try {
+      const { session, ref } = await freshSession();
+      await seedSession(page, session, ref);
+
+      let logoutHits = 0;
+      await page.route(LOGOUT, () => {
+        logoutHits++;
+        return new Promise<void>(() => { /* intentionally never settles */ });
+      });
+
+      await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(7000);
+      expect((await state(page)).token, 'not signed in before the attempt - this run measured nothing').toBe(true);
+
+      /* Installed HERE, not before goto - installing before navigation froze
+         every timer the app itself needs during initial load (most likely
+         AuthProvider's own bounded session-resolve path), not just the one
+         timer this test means to control, and the page never got past its
+         own loading gate. Real time is what real page load needs; only the
+         sign-out action itself needs the clock under control. */
+      const nowMs = Date.now();
+      await page.clock.install({ time: nowMs });
+
+      await page.locator('.st-signout-btn').first().click();
+
+      /* CONTROL: the hang was real, not a race this test wins by accident. If
+         the session already cleared before the timeout has had any chance to
+         fire, either the interception missed (logoutHits check below would
+         also catch that) or something other than the timeout cleared it -
+         either way this test would be proving nothing. */
+      await page.waitForTimeout(500);
+      expect((await state(page)).token,
+        'the session cleared before the sign-out timeout could have fired - the hang was not ' +
+        'genuinely exercised, so a pass here would not test the timeout path').toBe(true);
+
+      expect(logoutHits,
+        'POST /logout was never intercepted - the hang was not exercised, so a green result here ' +
+        'says nothing about it').toBeGreaterThan(0);
+
+      // Past SIGN_OUT_TIMEOUT_MS (8000ms) with margin for the fallback's own setTimeout to fire
+      // and the subsequent hard navigation to begin.
+      await page.clock.fastForward(9000);
+      // A HARD navigation (window.location.assign), not a route change - a full
+      // page load of /login takes real wall-clock time the fake clock does not
+      // speed up. 500ms was not enough; waiting for the real network/render to
+      // settle instead of guessing a longer fixed number.
+      await page.waitForURL('**/login**', { timeout: 15_000 }).catch(() => {});
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+
+      const after = await state(page);
+      expect(after.token,
+        'the session survived a /logout request that never resolved or rejected - forceSignOut\'s ' +
+        'timeout must clear locally regardless of whether the network call ever answers').toBe(false);
+      /* URL, not `emailField` - confirmed by screenshot that the real sign-in
+         form DOES render here, but /login defaults to its magic-link mode in
+         this run rather than the password mode `emailField`'s selector
+         targets (a "Use password instead" toggle sits between them). Which
+         mode is default isn't this test's concern; landing on /login at all
+         after the timeout fired is. */
+      expect(after.url, 'did not land on /login after the timeout fired').toBe('/login');
+    } finally { await ctx.close(); }
+  });
+
   test('the OPS console sign-out also clears on a failed logout', async ({ browser }) => {
     /* The second user-pressable sign-out, and #317 did not cover it.
      *

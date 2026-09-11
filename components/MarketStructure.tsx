@@ -3,10 +3,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import { bybitSymbolPriceFactor } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
-import { useDesignMode } from '@/components/DesignModeProvider';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { detectStructureSignals, structureState, type PACandle } from '@/lib/priceAction';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number }
@@ -126,19 +126,6 @@ interface Props { coin: CoinId; onData?: (d: MSData | null) => void }
 
 export default function MarketStructure({ coin, onData }: Props) {
   const { t } = useLabels();
-  /* #644, owner's ruling: in terminal the event badges paint a FLAT --bg1
-     rather than a tint of their own colour, so the text is not sitting on a
-     wash of itself. All six states then clear AA - 8.21/5.24/7.19 dark,
-     6.09/6.65/5.12 light - and the direction colour survives, which is what
-     the alternatives cost.
-     Terminal only. The current design's version of this badge measures
-     1.68-3.52 across its light theme, far worse, but it is a live page on a
-     screen not approved for work - recorded on #644, not changed here.
-     Set inline rather than in CSS because the background is an inline style;
-     a stylesheet rule would lose to it without !important, which is the
-     specificity trap #629 and #630 both hit from opposite directions. */
-  const terminal = useDesignMode() === 'terminal';
-  const badgeBg = (ev: StructureEvent) => (terminal ? 'var(--bg1)' : evBg(ev));
   const [data,    setData]    = useState<MSData | null>(null);
   const [loading, setLoading] = useState(true);
   const [err,     setErr]     = useState('');
@@ -158,14 +145,17 @@ export default function MarketStructure({ coin, onData }: Props) {
         const raw = await r.json() as (string | number)[][];
         candles = raw.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
       } else if (bytSym) {
-        const r = await fetch(`/api/market/klines?source=bybit&symbol=${bytSym}&interval=240&limit=100`);
-        if (!r.ok) throw new Error('Bybit 4H fetch failed');
+        // #1080: retry shared with every other Bybit-klines caller (see
+        // lib/bybitKlines.ts). Exhaustion throws into this function's
+        // existing catch, same as the old !r.ok check did - the error state
+        // below already surfaces it.
+        const d = await fetchBybitKlinesRetry(bytSym, '240', 100);
+        if (d === null) throw new Error('Bybit klines failed after retry');
         // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
         // broken level and both swing levels as dollar prices, so without the
         // factor they read 1000x against the ticker right above them.
         const pf = bybitSymbolPriceFactor(bytSym);
-        const raw = await r.json() as { result?: { list?: string[][] } };
-        candles = [...(raw?.result?.list ?? [])].reverse().map(k => ({
+        candles = [...(d.result?.list ?? [])].reverse().map(k => ({
           t: +k[0], o: +k[1] * pf, h: +k[2] * pf, l: +k[3] * pf, c: +k[4] * pf, v: +k[5],
         }));
       } else {
@@ -239,7 +229,16 @@ export default function MarketStructure({ coin, onData }: Props) {
       {/* ── Last event ── */}
       {le && (
         <div className="ms-last-event" style={{ borderColor: withAlpha(evCol(le), '33'), background: evBg(le) }}>
-          <span className="ms-ev-badge" style={{ background: badgeBg(le), color: evCol(le), border: `0.5px solid ${withAlpha(evCol(le), '44')}` }}>
+          {/* #644, owner's ruling: the event badges paint a FLAT --bg1 rather
+             than a tint of their own colour, so the text is not sitting on a
+             wash of itself. All six states then clear AA - 8.21/5.24/7.19
+             dark, 6.09/6.65/5.12 light - and the direction colour survives,
+             which is what the alternatives cost.
+             Inline rather than CSS because the background is an inline
+             style; a stylesheet rule would lose to it without !important,
+             the specificity trap #629 and #630 both hit from opposite
+             directions. */}
+          <span className="ms-ev-badge" style={{ background: 'var(--bg1)', color: evCol(le), border: `0.5px solid ${withAlpha(evCol(le), '44')}` }}>
             {/* The direction is in the NAME, not only the glyph (#968). Without it a
                       screen reader gets "BOS" or "CHoCH" and no direction at all -
                       worse than the Math.abs sites in #944, which at least left a
@@ -278,7 +277,7 @@ export default function MarketStructure({ coin, onData }: Props) {
         <div className="ms-history">
           {d.events.slice(1, 5).map((ev, i) => (
             <div key={i} className="ms-hist-row">
-              <span className="ms-hist-badge" style={{ background: badgeBg(ev), color: evCol(ev) }}>
+              <span className="ms-hist-badge" style={{ background: 'var(--bg1)', color: evCol(ev) }}>
                 <span aria-label={`${ev.type} ${ev.dir}`}>
                     {ev.type} <span className="ms-dir-glyph" aria-hidden="true">{ev.dir === 'bullish' ? '▲' : '▼'}</span>
                   </span>

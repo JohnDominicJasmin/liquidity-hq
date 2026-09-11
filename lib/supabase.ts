@@ -24,13 +24,44 @@ export function getSupabase(): SupabaseClient | null {
   return _client;
 }
 
+/* How long getSession() may take before this gives up and reports "no
+ * token" (#1165). Same value and reasoning as AuthProvider's
+ * SESSION_RESOLVE_MS / lib/authSession.ts's SIGN_OUT_TIMEOUT_MS: generous
+ * enough that a slow-but-working auth backend still returns the real
+ * token, short enough that a hang does not stall whatever called this.
+ *
+ * getSession() can hang rather than reject when the backend it talks to
+ * degrades - AuthProvider's own comment on #727 documents supabase-js
+ * trying to refresh an expired token on read and never settling either
+ * way. That bound only ever protected AuthProvider's own call; every
+ * caller of THIS function had none, three separate times (see below).
+ *
+ * Falling back to "no token" on timeout is not a new failure mode - this
+ * function's whole contract is already optional (its own doc comment
+ * above), and every caller already handles a missing token by omitting
+ * the Authorization header. A slow answer and a missing session look
+ * identical to the caller either way; this just guarantees an answer
+ * arrives. */
+const AUTH_TOKEN_TIMEOUT_MS = 8000;
+
 // Current session's access token, if any - for attaching an optional
 // Authorization header to unauthenticated-allowed routes (cmc, econ-calendar)
 // so a signed-in caller is attributable, without requiring auth to use them.
+//
+// The ONE place this reads getSession() - app/alerts/page.tsx and
+// components/GrokChat.tsx each carried their own copy of this exact
+// function until #1165, the same "one caller gets a fix, the others keep
+// the defect" shape lib/authSession.ts's forceSignOut doc comment already
+// describes for sign-out. Both now import this one instead.
 export async function getAuthToken(): Promise<string | undefined> {
   const sb = getSupabase();
   if (!sb) return undefined;
-  const { data } = await sb.auth.getSession();
+  const { data } = await Promise.race([
+    sb.auth.getSession(),
+    new Promise<{ data: { session: null }; error: null }>(resolve => {
+      setTimeout(() => resolve({ data: { session: null }, error: null }), AUTH_TOKEN_TIMEOUT_MS);
+    }),
+  ]);
   return data.session?.access_token;
 }
 

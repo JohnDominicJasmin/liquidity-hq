@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { SECRETS, Secret } from '@/lib/secrets';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-import { useDesignMode } from '@/components/DesignModeProvider';
 
 type Cat = 'all' | 'hunt' | 'time' | 'trap' | 'psych' | 'fav';
 
@@ -13,7 +12,6 @@ const CAT_LABEL_KEYS: Record<string, LabelKey> = {
 const CAT_CLS: Record<string, string>    = { hunt: 'cat-hunt', time: 'cat-time', trap: 'cat-trap', psych: 'cat-psych' };
 
 export default function LiquidityPlaybook() {
-  const mode = useDesignMode();
   const { t }                = useLabels();
   const [query, setQuery]   = useState('');
   const [cat, setCat]       = useState<Cat>('all');
@@ -38,7 +36,7 @@ export default function LiquidityPlaybook() {
   });
 
   return (
-    <div className={mode === 'terminal' ? 'playbook-term-wrap' : undefined}>
+    <div className="playbook-term-wrap">
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('PLAYBOOK_PAGE_TITLE')}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('PLAYBOOK_SUBTITLE', { count: SECRETS.length })}</div>

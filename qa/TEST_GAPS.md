@@ -106,13 +106,46 @@ calendar day, UTC+10). This section said "needs `timezoneId` contexts and is
 a separate piece of work" after that work had already landed in the same
 file it was describing — the claim just never caught up to the test.
 
-**Still open:**
+**Still open, and narrowed 2026-09-10 rather than left as one flat claim —
+checked against current source, not assumed still true:**
 
-- **SERVER time.** `page.clock` fakes the browser only, so the 24h/48h alert
-  outcome resolution — a cron — remains untestable. Genuinely QA's limit, not
-  an oversight: injecting a clock through app code would touch the 217 sites
-  `clock.spec.ts`'s own header counts (146 `Date.now()`, 71 `new Date()`), and
-  app code is not QA's to write.
+- **SERVER time, precisely scoped.** `page.clock` fakes the browser only, so
+  a genuine clock-injection fix would touch the 217 sites `clock.spec.ts`'s
+  own header counts (146 `Date.now()`, 71 `new Date()`) - that part of the
+  claim holds and app code is not QA's to write. But "the 24h/48h alert
+  outcome resolution is untestable" turns out to bundle two different things,
+  and only one of them actually needs a clock.
+
+  `app/api/alert-outcomes/resolve/route.ts`'s `resolveWindow` does two jobs:
+  **which rows are due** (`cutoff = new Date(Date.now() - hours * 3_600_000)`,
+  a direct `Date.now()` read, genuinely untestable at the boundary without
+  server clock control) and **what the outcome number is**
+  (`outcomePct(dir, entry, current)` - three numbers in, one number out, no
+  time dependency at all, same shape as `computeRSI14` or
+  `computeSqueezeScore`, both already unit-tested). The boundary decision
+  needs a clock; the arithmetic that runs once a row IS selected does not,
+  and nothing about it is untestable in principle.
+
+  **The only reason QA can't test `outcomePct` today: it isn't exported.**
+  `function outcomePct(...)`, not `export function outcomePct(...)` - a
+  route.ts internal, unreachable from `__tests__/` the way `lib/candles.ts`'s
+  functions are. That's a one-word, zero-risk ask for dev (adding `export`
+  changes nothing about runtime behavior), not the 217-site problem the old
+  wording implied.
+
+  **And this codebase already has the pattern that would close the boundary
+  half too, proven and unit-tested**: `lib/candles.ts`'s `closedCandleTtl`
+  and `msUntilNextClose` take `nowMs` as an explicit parameter instead of
+  reading `Date.now()` internally - `__tests__/candles.test.mts` pins exact
+  boundary instants (`nowMs` one second before a close, exactly at a close)
+  with zero server clock injection, because the function never reads the
+  clock itself, the caller does, once, at the edge. If `resolveWindow`'s
+  cutoff math were extracted the same way - a pure function taking `nowMs`
+  and `fired_at` and returning "is this row due" - the boundary case (a fire
+  logged at 23h59m vs 24h00m) becomes exactly as testable as a candle close
+  is now. Not proposing the refactor here (app code); naming that the "server
+  time is untestable" framing undersold what's actually possible, because a
+  working proof of the fix already exists three files away.
 - **RSI thresholds — closed, 2026-09-06, and this line was already stale
   before today.** `__tests__/rsi.test.mts` already pinned `computeRSI14`'s
   0/50/100 cases and the 14-change window — checked before writing anything,
@@ -545,6 +578,101 @@ Recorded here rather than hidden, because the suite is code and has defects too.
   claim than "production does not overflow", and only one of those
   generalises. Caught by Dev Team, 2026-09-05, an hour after making the same
   distinction correctly for someone else's number.
+- **A test coupled to the INCIDENTAL FORM something currently takes, rather
+  than the property that actually matters, fails when the form changes even
+  though nothing regressed — and it blocks whoever fixes the underlying
+  thing, not whoever wrote the test.** Three instances in one day
+  (2026-09-10), all `#1111`'s design-removal migration exposing the same
+  mistake in three different files:
+    1. `__tests__/liqClusters.test.mts` literal-matched the overlay's exact
+       label text (`REALIZED LIQ `); the text shortened for an unrelated
+       reason (`#1075`) and the assertion broke on a change that preserved
+       the one property it existed to protect (the word REALIZED, present at
+       all). Fixed same day — loosened to a prefix match on the word itself.
+    2. `__tests__/terminalTypographyOwnership.test.mts`'s `WIDE_BASELINE`
+       ratchet hard-failed the moment a listed collision got FIXED (dead code
+       deleted), not just when a NEW one appeared — punishing exactly the
+       outcome the check exists to want, and creating a real deadlock: the
+       app fix and the test's own baseline update each needed the other to
+       land first. Fixed by making a stale entry (one that no longer
+       collides) report via `t.diagnostic()` instead of failing — a
+       ratchet's job is new collisions, not applauding fixed ones by breaking
+       the build.
+    3. `__tests__/liqFeedHeadless.test.mts` grepped `app/liq/page.tsx`'s own
+       source text for a non-headless `<LiqFeed>` tag; the route collapsed to
+       a thin wrapper delegating to `components/LiqTerminal.tsx` and the tag
+       moved with it — the real mount was intact and correct, the test was
+       just pointed at an empty file. Fixed by resolving what the route
+       ACTUALLY composes (one bounded hop through its own import, not a
+       codebase-wide grep — a blind search would match a HEADLESS mount as
+       readily as a visible one, which is precisely the `#925` bug this file
+       exists to prevent) rather than hardcoding either the old shape or the
+       new one.
+
+  **The rule this leaves behind**: assert the property that matters, not the
+  shape it currently happens to take. Before writing a check, ask what would
+  make it fail for a GOOD reason (a real regression) versus a reason that is
+  actually good news (a defect fixed, code moved file, text shortened
+  without losing meaning) — and design the assertion so only the first one
+  is fatal. A check that goes red when something gets fixed will be
+  discovered at the worst possible moment every time: mid-PR, by whoever's
+  change is unrelated to the test, who now has to context-switch into
+  fixing someone else's file to land their own.
+
+- **2026-09-10, #1144: `qa/e2e/contrast.spec.ts` (§3, marked CLOSED) sweeps
+  both themes across all 32 routes, but entirely SIGNED OUT** —
+  `_shared.ts:3`'s own docstring says so plainly (*"Public + app routes,
+  signed out"*), and that line was already true when §3 was written.
+  Nobody had stated what it implies: **any auth-gated UI has zero automated
+  contrast coverage, in either theme, full stop** — not "checked and
+  passed", not "checked less often", genuinely never rendered during the
+  sweep. `PlanBadge` only renders `if (user)`, so `.plan-badge-pro`'s
+  hardcoded `#0a0a0a` ink over a `--amber` fill that resolves to a dark
+  brown in terminal-light (2.77:1, real WCAG failure) sat entirely outside
+  a suite whose own heading claims "both themes, all routes." **The CLOSED
+  claim is still true for what it covers** — this isn't the REALIZED/ratchet
+  shape of a check going stale, it's a claim whose scope was always narrower
+  than its heading implied, discovered only when the owner caught the bug
+  live that the suite structurally could not have caught. Same family as
+  [Scope of claim, not arithmetic] in memory: the gap is in WHICH surface
+  was measured, not in a wrong number.
+
+  **Not fixed here — recording the gap, not closing it.** A real fix is
+  extending `contrast.spec.ts` with a signed-in pass (reusing `_auth.ts`'s
+  `signedInContext`, same pattern as the plan-badge e2e specs) over the
+  routes/components that only render for an authenticated user. Scoping
+  that properly — which routes, which account state, whether trial state
+  needs its own pass now that a real trial account exists — is follow-up
+  work, not a one-line patch.
+
+  **Standing rule adopted the same day, for manual review until the harness
+  gap above is closed**: any PR touching `app/globals.css` color values, or
+  introducing new color usage in a component, gets a light-theme contrast
+  check as part of QA's review — not just dark. Scoped, not blanket: a
+  structural-only PR (the eight #1111 Pattern A route collapses, same day)
+  touches zero color values and a light pass on those would review nothing.
+  #1142 (plan badge option A) introduced new color usage and is exactly
+  where it broke — reviewed without a light-theme check, approved, and the
+  owner caught the failure on deployed `qa` minutes later. Recording that
+  plainly rather than filing it only as #1144's fault: the review gap was
+  mine, and the rule exists so it does not repeat.
+
+- **2026-09-10/11, #1025's follow-up: a zero result is not a measurement
+  until the query is shown to return non-zero somewhere.** PM/DevOps ran a
+  timeout-rate query against `logs.log_attributes['status_code']` on the dev
+  Supabase project and got zero, then correctly did not report "no
+  timeouts" - reported "I don't trust this" instead. Right call: the query
+  was filtering a field path that didn't match this project's actual log
+  schema (QA's own working query used `event_message like '%| 504 |%'`
+  against `source = 'edge_logs'`, not `log_attributes`), so the true answer
+  to "did this query work" was "no", not "yes, and the count is zero" -
+  those look identical from the caller's side and only a known-nonzero
+  control run distinguishes them. Same shape as this file's own §3/§9
+  entries: a check that CAN'T find the thing it's looking for is
+  indistinguishable from a clean pass unless it's been shown to fire at
+  least once. Before trusting any zero from a new query against a source
+  or schema not already proven to work, run it against a window or
+  condition known to contain a hit first.
 
 ---
 

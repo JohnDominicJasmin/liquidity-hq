@@ -10,6 +10,7 @@ import { Warn } from '@/components/icons';
 import Tip from '@/components/Tip';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
+import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
@@ -1541,29 +1542,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             let handled = false;
             if (bybitSym) {
               const iv = periodToBybitInterval(period);
-              /* #1073: retry the initial fetch. app/api/market/klines/route.ts
-                 returns a non-2xx (502, upstream status attached) rather than a
-                 fake-empty 200 when Bybit refuses - QA measured that refusal
-                 happening on PRODUCTION too, roughly half of one capture, not
-                 something specific to this server. The OLD 5s poll never showed
-                 it: a failed poll was invisible, the next one 5s later just
-                 worked - accidental resilience through sheer repetition. This
-                 one-shot fetch replacing it had none, so a single 502 left the
-                 chart with zero bars for the rest of the session. 3 attempts,
-                 short fixed backoff - long enough to ride out one bad response,
-                 short enough not to make a real outage feel hung. `r.ok` is
-                 checked explicitly (the old code never did - it happily parsed
-                 a 502's `{error:...}` body as `{result:{list:undefined}}` and
-                 silently treated it as "zero candles"). */
-              let json: { result?: { list?: string[][] } } | null = null;
-              for (let attempt = 0; attempt < 3 && !stale(); attempt++) {
-                if (attempt > 0) await new Promise(res => setTimeout(res, attempt === 1 ? 500 : 1500));
-                if (stale()) break;
-                try {
-                  const r = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1000`);
-                  if (r.ok) { json = await r.json(); break; }
-                } catch { /* network error - fall through to the next attempt */ }
-              }
+              // #1073/#1080: retry lives in lib/bybitKlines.ts, shared with
+              // every other Bybit-klines caller rather than a private copy -
+              // see that file's own comment for why (#1079's whole defect
+              // was the old 5s poll's incidental retry-through-repetition
+              // going away with nothing replacing it).
+              const json = await fetchBybitKlinesRetry(bybitSym, iv, 1000, { isStale: stale });
               if (stale()) return; // superseded by a newer switch - drop it
               const list = [...(json?.result?.list ?? [])].reverse();
               // Raw contract price, NOT converted to per-token. See
@@ -1721,14 +1705,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const since = lastBarTsRef.current;
               if (!since) return;
               try {
-                const r = await fetch(
-                  `/api/market/klines?source=bybit&symbol=${sym}&interval=${interval}&limit=500`,
-                  { signal: AbortSignal.timeout(12_000) },
-                );
-                if (!r.ok || cancelled) return;
-                const d = await r.json() as { result?: { list?: string[][] } };
-                if (cancelled) return;
-                const rows = [...(d?.result?.list ?? [])].reverse();
+                // #1080 (PM/DevOps whole-migration audit): this reconnect
+                // backfill runs precisely when the socket has already proved
+                // unreliable, and had no retry at all - missed by the
+                // original site sweep because that was a grep for a literal
+                // "source=bybit" in a URL, and this one already matched that
+                // literally but was still overlooked being inside the chart
+                // component #1079 was filed against rather than a separate
+                // call site. Same helper, same isStale pattern getBars above
+                // already uses for the initial history load.
+                const d = await fetchBybitKlinesRetry(sym, interval, 500, {
+                  isStale: () => cancelled,
+                  signal: AbortSignal.timeout(12_000),
+                });
+                if (d === null || cancelled) return;
+                const rows = [...(d.result?.list ?? [])].reverse();
                 const missed = barsAfter(
                   rows.map(k => ({ timestamp: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })),
                   since,
@@ -1739,8 +1730,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   upsertEmaBar(bar);
                   cb(bar);
                 }
-              } catch { /* the stream is already live; a failed backfill leaves
-                           the gap rather than breaking the chart */ }
+              } catch { /* The stream is already live, so a failed backfill
+                           doesn't break the chart - but the gap it leaves is
+                           PERMANENT, not deferred to the next reconnect.
+                           onmessage below advances lastBarTsRef on every
+                           live bar regardless of whether this backfill ever
+                           ran, so `since` marches past the hole within
+                           seconds and no later attempt can reach it again.
+                           A chart missing candles doesn't look damaged - the
+                           time axis just closes up and reads as continuous.
+                           Retry (#1080) makes this rarer; it doesn't change
+                           what happens on the attempts that still fail, and
+                           forcing a full history reload here is more
+                           machinery than a rare, now-retried failure justifies. */ }
             };
 
             const connect = () => {
@@ -1852,13 +1854,31 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const since = lastBarTsRef.current;
               if (!since) return;                       // nothing streamed yet - getBars owns it
               try {
-                const r = await fetch(
-                  `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
-                  { signal: AbortSignal.timeout(12_000) },
-                );
-                if (!r.ok || cancelled) return;
-                const rows = (await r.json()) as Array<[number, string, string, string, string, string]>;
-                if (cancelled) return;
+                // #1080 (PM/DevOps whole-migration audit): histSourceRef
+                // defaults to 'bybit' (declared above) and getBars can leave
+                // it there, so this reconnect backfill can hit Bybit despite
+                // living inside the Binance WS reconnect block below -
+                // missed by the original sweep because the source came from
+                // a ref, not a literal "source=bybit" in the URL. Binance /
+                // binance-futures stay a single attempt: no shared retry
+                // helper exists for them yet (#1107).
+                let rows: (string | number)[][];
+                if (histSourceRef.current === 'bybit') {
+                  const d = await fetchBybitKlinesRetry(sym, interval, 500, {
+                    isStale: () => cancelled,
+                    signal: AbortSignal.timeout(12_000),
+                  });
+                  if (d === null || cancelled) return;
+                  rows = [...(d.result?.list ?? [])].reverse();
+                } else {
+                  const r = await fetch(
+                    `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
+                    { signal: AbortSignal.timeout(12_000) },
+                  );
+                  if (!r.ok || cancelled) return;
+                  rows = await r.json();
+                  if (cancelled) return;
+                }
                 const missed = barsAfter(
                   rows.map(k => ({ timestamp: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })),
                   since,
@@ -1869,8 +1889,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   upsertEmaBar(bar);
                   cb(bar);
                 }
-              } catch { /* the stream is already live; a failed backfill leaves
-                           the gap rather than breaking the chart */ }
+              } catch { /* The stream is already live, so a failed backfill
+                           doesn't break the chart - but the gap it leaves is
+                           PERMANENT, not deferred to the next reconnect.
+                           onmessage below advances lastBarTsRef on every
+                           live bar regardless of whether this backfill ever
+                           ran, so `since` marches past the hole within
+                           seconds and no later attempt can reach it again.
+                           A chart missing candles doesn't look damaged - the
+                           time axis just closes up and reads as continuous.
+                           Retry (#1080) makes this rarer; it doesn't change
+                           what happens on the attempts that still fail, and
+                           forcing a full history reload here is more
+                           machinery than a rare, now-retried failure justifies. */ }
             };
 
             const connect = () => {

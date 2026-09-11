@@ -1,12 +1,11 @@
 ﻿'use client';
-import { useDesignMode } from '@/components/DesignModeProvider';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AuthGate from '@/components/AuthGate';
 import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
 import { Warn, CoinStack } from '@/components/icons';
 import { COINS } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { utcHourToLocalTime } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
@@ -64,7 +63,6 @@ const LINK_POLL_MAX     = 40;
 const LINK_CODE_TTL_SEC = 600;
 
 export default function AlertsPage() {
-  const mode = useDesignMode();
   const { t } = useLabels();
   const { user, entitled, loading: authLoading } = useAuth();
   const { settings, loading: settingsLoading, refresh: refreshSettings } = useSettings();
@@ -131,19 +129,6 @@ export default function AlertsPage() {
   const [paLabel, setPaLabel]         = useState('');
   const [paAdding, setPaAdding]       = useState(false);
   const [paError, setPaError]         = useState('');
-
-  // Declared before the effects that call it. It used to live further down, so
-  // the mount effect below closed over a const declared later - what
-  // react-hooks/immutability means by "accessed before it is declared". It only
-  // worked because effects run after the component body has finished; nothing
-  // about the code said so. It closes over nothing but the imported
-  // getSupabase, so hoisting it is free.
-  const getAuthToken = async (): Promise<string | null> => {
-    const sb = getSupabase();
-    if (!sb) return null;
-    const { data } = await sb.auth.getSession();
-    return data.session?.access_token ?? null;
-  };
 
   useEffect(() => {
     fetch('/api/telegram/bot-info').then(r => r.json())
@@ -330,13 +315,26 @@ export default function AlertsPage() {
     setPaLoading(true);
     try {
       const token = await getAuthToken();
-      const d = await fetch('/api/price-alerts', {
+      const res = await fetch('/api/price-alerts', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }).then(r => r.json());
+      });
+      const d = await res.json();
+      /* !res.ok, not just a bare await - #1165. Missing this meant a 401
+         (no token - signed out, OR a signed-in user whose getAuthToken()
+         call timed out) rendered identically to a genuinely empty list:
+         `d.alerts` is absent on the error body, `?? []` silently supplied
+         one, and a signed-in user with real alerts saw "you have no
+         alerts" with no error, no retry, nothing to report. Every sibling
+         mutation below (add/delete/test/link/preview) already checks this;
+         the one GET did not. */
+      if (!res.ok) throw new Error(d.error ?? t('ALERTS_NETWORK_ERROR'));
       setPriceAlerts(d.alerts ?? []);
-    } catch { /* skip */ }
+      setPaError('');
+    } catch (e) {
+      setPaError(e instanceof Error ? e.message : t('ALERTS_NETWORK_ERROR'));
+    }
     setPaLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => { loadPriceAlerts(); }, [loadPriceAlerts]);
 
@@ -529,7 +527,7 @@ export default function AlertsPage() {
   };
 
   return (
-    <div className={mode === 'terminal' ? 'alerts-term-wrap' : undefined}>
+    <div className="alerts-term-wrap">
       {/* Header */}
       <div className="mb-header">
         <h1 className="mb-title">{t('ALERTS_PAGE_TITLE')}</h1>
