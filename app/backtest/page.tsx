@@ -262,7 +262,14 @@ export default function BacktestPage() {
   // entire page for free users.
   if (authLoading) return <LoadingState message={t('BACKTEST_LOADING')} fullPage />;
   if (entitlementStatus === 'unknown') {
-    return <FullPageEntitlementUnknown title={t('BACKTEST_UPGRADE_TITLE')} onRetry={retryEntitlements} />;
+    // Feature name only, NOT BACKTEST_UPGRADE_TITLE ("Backtesting is part of
+    // Pro.") - that heading asserts the gate FullPageUpgradeGate below shows
+    // for a CONFIRMED non-entitled user. Reusing it here would reintroduce,
+    // through the heading, exactly the conflation the owner's #1119 ruling
+    // removed from the body copy. Same pattern every inline
+    // EntitlementUnknownCard already uses (e.g. Arena's "Confluence Score",
+    // not "Confluence Score is part of Pro").
+    return <FullPageEntitlementUnknown title={t('BACKTEST_PAGE_TITLE')} onRetry={retryEntitlements} />;
   }
   if (entitlementStatus !== 'entitled') {
     return (
