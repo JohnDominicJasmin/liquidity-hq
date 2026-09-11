@@ -36,6 +36,7 @@ import LanguageNavSwitcher from './LanguageNavSwitcher';
 import TimezoneSync from './TimezoneSync';
 import PostHogProvider from './PostHogProvider';
 import SettingsProvider from './SettingsProvider';
+import SettingsSaveToast from './SettingsSaveToast';
 import OnboardingProvider from './OnboardingProvider';
 import OnboardingGate from './OnboardingGate';
 import SetupChecklist from './SetupChecklist';
@@ -135,6 +136,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               {/* Also on the auth screens: analytics fires here too, and this
                   is often the first page a visitor lands on. */}
               <CookieConsent />
+              <SettingsSaveToast />
             </SettingsProvider>
           </AuthProvider>
         </LabelsProvider>
@@ -165,6 +167,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <SetupChecklist />
                     <PWAInstallPrompt />
                     <CookieConsent />
+                    <SettingsSaveToast />
                   </GrokUsageProvider>
                 </OnboardingProvider>
               </NewsProvider>

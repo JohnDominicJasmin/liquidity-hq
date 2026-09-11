@@ -8,6 +8,20 @@ import {
 } from '@/lib/settings';
 import { T } from '@/lib/tables';
 
+/* #1188: retry-with-backoff before declaring a settings save failed, same
+   shape as #1119's entitlements fetch - 3 attempts, 1s then 2s backoff. Not
+   a new pattern invented for this: reusing #1119's exact numbers on purpose,
+   since two different retry shapes in the same codebase is how a third one
+   gets written the next time this comes up. Most saves that would have
+   failed on a transient blip now succeed on attempt 2 or 3 instead of ever
+   reaching the user - this is part 1 of #1188's fix; part 2 (this file's own
+   comment on flushToDb below, and SettingsSaveToast.tsx) makes the ones that
+   still fail visible; the reconciliation gap (a failed save silently
+   overwritten by the next sign-in's read) is NOT fixed by either and stays
+   open on #1188. */
+const SETTINGS_SAVE_MAX_ATTEMPTS = 3;
+const SETTINGS_SAVE_RETRY_BACKOFF_MS = [1000, 2000];
+
 export default function SettingsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [settings,   setSettings]   = useState<UserSettings>(DEFAULT_SETTINGS);
@@ -29,27 +43,47 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   const flushToDb = useCallback(async (partial: Partial<UserSettings>) => {
     if (!user) return;
     setSaveStatus('saving');
-    try {
-      // getAuthToken(), not a raw getSession() - #1168. Every settings save
-      // in the app runs through this (update() debounces into it), so an
-      // unbounded call here left saveStatus stuck on 'saving' forever on a
-      // degraded auth backend, with the catch below never given a chance to
-      // reset it.
-      const token = await getAuthToken();
-      if (!token) throw new Error('no token');
 
-      const res = await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(partial),
-      });
-      if (!res.ok) throw new Error('save failed');
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch {
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 3000);
+    // getAuthToken(), not a raw getSession() - #1168. Every settings save in
+    // the app runs through this (update() debounces into it), so an unbounded
+    // call here left saveStatus stuck on 'saving' forever on a degraded auth
+    // backend, with nothing downstream ever given a chance to reset it.
+    async function attemptSave(): Promise<{ failed: boolean }> {
+      try {
+        const token = await getAuthToken();
+        if (!token) return { failed: true };
+        const res = await fetch('/api/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(partial),
+        });
+        return { failed: !res.ok };
+      } catch {
+        return { failed: true };
+      }
     }
+
+    for (let n = 1; n <= SETTINGS_SAVE_MAX_ATTEMPTS; n++) {
+      const { failed } = await attemptSave();
+      if (!failed) {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+        return;
+      }
+      if (n < SETTINGS_SAVE_MAX_ATTEMPTS) {
+        await new Promise(resolve => setTimeout(resolve, SETTINGS_SAVE_RETRY_BACKOFF_MS[n - 1]));
+      }
+    }
+    /* Every attempt failed. `saveStatus: 'error'` is #1188 part 2's signal -
+       SettingsSaveToast.tsx renders it from anywhere, not just /settings.
+       NOT FIXED HERE, ON PURPOSE: `settings`/localStorage still hold the
+       user's change in memory for the rest of this browser session, but the
+       next sign-in effect below re-reads the DB (which never got this write)
+       and overwrites both with the stale row - silently, with no error at
+       that point either. That reconciliation gap is #1188's still-open part
+       3, not something a retry or a toast can close. */
+    setSaveStatus('error');
+    setTimeout(() => setSaveStatus('idle'), 3000);
   }, [user]);
 
   // ── Initialise from localStorage immediately (no flash of defaults) ──────
