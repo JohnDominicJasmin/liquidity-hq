@@ -52,7 +52,7 @@ function chgStr(chg: number) {
 export default function GlobalMacroContext() {
   const { t } = useLabels();
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, entitled, entitlementsLoading } = useAuth();
   const [state,  setState]  = useState<LoadState>('loading');
   const [errMsg, setErrMsg] = useState('');
 
@@ -136,6 +136,43 @@ export default function GlobalMacroContext() {
     } catch { /* ignore */ }
     fetchData();
   }, [authLoading, user, fetchData]);
+
+  /* Accelerator, not a gate - the fix to the skeleton-flash concern raised
+     on #1172's PR. The fetch above no longer waits for entitled before
+     firing, but the entitlements resolve is still the FASTEST correct
+     source of "this user is not entitled" whenever it lands before the
+     fetch does - today's behaviour restated as a race instead of a
+     dependency, not removed. Whichever of {this, the fetch's own
+     PRO_REQUIRED} arrives first wins; the other is a no-op once state has
+     moved past 'loading'.
+
+     `entitlementsLoading`, not just `entitled` - entitled is `false` by
+     DEFAULT while the read is still in flight (AuthProvider's own
+     documented safe-default), so checking `!entitled` alone here would
+     flash 'locked' at every Pro/Trial user for the entire entitlements
+     window, the exact one-frame-wrong-plan-shape #1090 already burned this
+     codebase on once for the badge. Waiting for entitlementsLoading to
+     clear is what makes `entitled` a final answer instead of a guess.
+
+     Also covers a real gap the state-driven render introduced: a
+     genuinely signed-out visitor never has `user`, so the fetch effect
+     above never runs and fetchData() never gets a chance to set 'locked'
+     itself - before this effect existed, that left `state` stuck at its
+     initial 'loading' forever. entitlementsLoading resolves to false
+     immediately for `!user` (AuthProvider sets it directly, no fetch to
+     wait for), so this effect covers signed-out visitors too, not just
+     the free-but-signed-in case it was added for.
+
+     `prev === 'loading' ? 'locked' : prev` - only fires from the initial
+     state. Never stomps 'unauth' (a token-check timeout deserves its own
+     message, not a paywall), 'error', already-'locked', or real data -
+     the last of those cannot coexist with `!entitled` anyway (a 200 body
+     server-side already implies entitled), so the guard is a safety net,
+     not a fix for a reachable conflict. */
+  useEffect(() => {
+    if (authLoading || entitlementsLoading || entitled) return;
+    setState(prev => (prev === 'loading' ? 'locked' : prev));
+  }, [authLoading, entitlementsLoading, entitled]);
 
   const signalKey = typeof state === 'object' && state !== null
     ? (state.signal.match(/^(RISK_ON|RISK_OFF|NEUTRAL)/)?.[1] ?? 'NEUTRAL')
