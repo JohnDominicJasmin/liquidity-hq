@@ -887,6 +887,52 @@ cost nothing to check for at revert time.
 
 ---
 
+## 🟡 13. #1201's reload-survival fix — mobile viewport untested, environment-blocked
+
+**Desktop and deployed-`qa` results are solid.** Reviewing #1201 (the
+reload-survival fix for #1188 part 3), QA wrote a regression spec
+(`qa/e2e/settings-reload-survives-failed-save.spec.ts`, #1204) and got a
+clean RED against deployed `qa` (pre-fix, value reverted `22345`→`10000` on
+reload) and a clean GREEN on desktop against `fix/settings-save-reconciliation`
+locally. Both are trustworthy, reproducible results.
+
+**Mobile is not settled, and the reason is the machine, not the product -
+recorded so that distinction survives the merge.** Three attempts, three
+different outcomes:
+
+1. **Desktop+mobile run together** (2 Playwright workers, 1 local server):
+   mobile FAILED - a post-reload render timeout waiting for the Account Size
+   field, under real resource competition with desktop for the same server
+   and real market-data proxy traffic.
+2. **Solo mobile retry** (1 worker, to remove the contention variable): killed
+   by system memory pressure mid-build. No result.
+3. **Second solo mobile retry**: killed by system memory pressure mid-build.
+   No result.
+
+**Checked the cheap alternative before accepting "probably contention" on
+faith**: read `app/settings/page.tsx` and `globals.css` for any mobile-specific
+hiding, collapse, or accordion around the Trading Profile section (where
+Account Size lives) at any breakpoint. Found none. The `AuthProvider`/
+`SettingsProvider` code paths #1201 touches have no viewport-conditional
+logic either. So there is no structural reason in the source for mobile to
+behave differently from desktop on this specific fix.
+
+**What this is and isn't.** Not a confirmed mobile-specific bug - the one
+real failure happened under known contention, and the two follow-ups never
+produced a result to either confirm or contradict it. Not a cleared check
+either - nobody has seen this scenario pass on mobile. "Attempted, environment
+could not produce an answer" is the honest state, not "verified."
+
+**To close:** re-run `npx playwright test qa/e2e/settings-reload-survives-failed-save.spec.ts --project=mobile`
+solo, on a machine/session with real memory headroom (this one killed the
+attempt twice in one night alongside several other background tasks -
+worth treating as its own signal about how much this machine can carry
+at once, not just about this one test). If it passes clean, this item
+closes. If it fails again on its own terms (not killed), that's a real
+mobile-specific finding and #1201's fix needs a second look.
+
+---
+
 ## Suggested order
 
 Rewritten 2026-08-09, revised 2026-08-10. **Three of eleven closed, five
