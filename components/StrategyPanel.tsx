@@ -7,12 +7,15 @@
  * three AI actions is the part that goes wrong quietly, and it should not land
  * inside a layout diff. `onRun` is the seam.
  *
- * STYLING LIVES IN globals.css, not here. This renders only under the terminal
- * design, so by rule 1 of #663 a constant has no second design to serve and
- * belongs in a stylesheet. Worth stating because the file is NOT named
- * `*Terminal.tsx`, so __tests__/terminalOnlyConstants.test.mts does not sweep it
- * - that test's own header warns that a terminal-only component under another
- * name is silently exempt. It is exempt by name and compliant by choice.
+ * STYLING LIVES IN globals.css, not here - by rule 1 of #663 a constant has
+ * no second design to serve and belongs in a stylesheet. Was also
+ * self-gated to terminal only (`if (design !== 'terminal') return null`);
+ * that guard is gone as of #1111's Pattern-E slice - terminal is now the
+ * only design that exists, so the check had nothing left to check for. See
+ * #1111 for why this could be removed with an empty render diff: this
+ * component was already unreachable under current design in practice
+ * (near-zero population, bounded by measurement), and it is reachable from
+ * `app/arena/page.tsx`'s shared rail, which the check confirms is unchanged.
  *
  * COPY IS HARDCODED ENGLISH AND THAT IS TEMPORARY. The approved design also
  * replaces trader jargon with plain language ("Crowded long" over "+0.0132%"),
@@ -23,7 +26,6 @@
 
 import { useState, useMemo, useId } from 'react';
 import { useAuth } from './AuthProvider';
-import { useDesignMode } from './DesignModeProvider';
 import {
   GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS,
   AUTO_SET_ID, CUSTOM_SET_ID,
@@ -115,7 +117,6 @@ function ParamRow({ spec, value, readOnly, onChange }: {
 export default function StrategyPanel({ selected, onSelectedChange, params, onParamsChange, onRun }: Props) {
   const { entitlementStatus } = useAuth();
   const entitled = entitlementStatus === 'entitled';
-  const design = useDesignMode();
   const limitNoteId = useId();
   const limit = indicatorLimit(entitled);
 
@@ -183,29 +184,6 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
 
   const groups = useMemo(() => GROUPS.map(g => ({ id: g, entries: byGroup(g) })), []);
   const isAuto = setId === AUTO_SET_ID && selected.length === 0;
-
-  /* SELF-GATED, and this is a fix rather than a flourish. The first version
-     mounted unconditionally in `app/arena/page.tsx`'s shared rail and relied on
-     the CSS being terminal-scoped to hide it. Scoped CSS hides the STYLING; the
-     component still rendered under the current design as a wall of unstyled
-     text - "StrategyFREE · 1", the chip labels run together with no spacing -
-     pushing the rest of the rail down. QA found it; my own test step said "the
-     rail should look exactly as it did before" and I read it as satisfied.
-
-     THE GENERAL SHAPE, because this will happen again: scoping the STYLES to a
-     design while leaving the MOUNT ungated is CSS that knows about a boundary
-     the component does not. It is the same split that produced the dead
-     `*-term-wrap` rules - a stylesheet carrying a design decision that the tree
-     it styles has never heard of. If a component belongs to one design, the
-     component should be the thing that knows it.
-
-     Gated HERE rather than at the call site, which is where the equivalent
-     split lives on /dashboard. That file swaps the whole page, so one `if` at
-     the top covers it. This is one panel inside a tree both designs share, so a
-     call-site gate protects exactly one mount and the next one reintroduces
-     the bug. A component that cannot render in the wrong design cannot be
-     mounted into it by mistake. */
-  if (design !== 'terminal') return null;
 
   return (
     <div className="strat-panel">
