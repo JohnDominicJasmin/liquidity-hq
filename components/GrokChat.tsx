@@ -9,7 +9,7 @@ import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { Warn } from '@/components/icons';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
@@ -81,14 +81,6 @@ function relTime(ts: number): string {
   if (h < 24) return `${h}h ago`;
   if (dy < 7) return `${dy}d ago`;
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-/* ── Auth token helper ─────────────────────────────────────────── */
-async function getAuthToken(): Promise<string | undefined> {
-  const sb = getSupabase();
-  if (!sb) return undefined;
-  const { data } = await sb.auth.getSession();
-  return data.session?.access_token;
 }
 
 /* ── Generate follow-up question chips via Grok (cheap - no search needed) ── */
