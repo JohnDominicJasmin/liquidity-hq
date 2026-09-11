@@ -24,7 +24,7 @@ const SETTINGS_SAVE_MAX_ATTEMPTS = 3;
 const SETTINGS_SAVE_RETRY_BACKOFF_MS = [1000, 2000];
 
 export default function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [settings,   setSettings]   = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading,    setLoading]    = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -103,10 +103,19 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // server-initiated writes like the Telegram webhook, so a poll landing
   // mid-edit on some OTHER field must not clobber that edit either).
   //
-  // Also retries any still-unconfirmed fields once, using their current
-  // local value, now that a fresh signed-in session confirms connectivity -
-  // a bounded, natural moment to try again rather than leaving a permanently
-  // failed field stuck until the user happens to touch it a second time.
+  // Deliberately does NOT re-push unconfirmed fields to the server. An
+  // earlier version retried them automatically on every fresh sign-in, using
+  // their current (stale) local value - QA traced the real consequence: on
+  // device A, a failed save leaves a key unconfirmed with A's OLD value; if
+  // device B then successfully saves a NEWER value for that same key, A's
+  // next sign-in would keep A's stale value locally (correct, this function's
+  // whole job) and then PUSH it back to the server (not this function's job),
+  // silently overwriting B's newer, already-confirmed write - repeating on
+  // every sign-in until it happened to land. Keeping the local value is the
+  // fix; writing it back over someone else's newer change is a different,
+  // unsolved problem (no timestamp exists to decide who actually wins) -
+  // tracked on #1202, not solved here. This function's contract stays
+  // narrow: protect the field locally, touch nothing server-side.
   const applyDbSettings = useCallback((dbSettings: UserSettings) => {
     const unconfirmed = loadUnconfirmedKeys();
     if (unconfirmed.size === 0) {
@@ -116,7 +125,6 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     }
     const current = settingsRef.current;
     const merged: UserSettings = { ...dbSettings };
-    const retryPartial: Partial<UserSettings> = {};
     // Single generic per call, not a Record<string, unknown> cast - keeps
     // dest[key] = src[key] type-checked against UserSettings' real field
     // types instead of erasing them.
@@ -125,14 +133,11 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     }
     for (const key of unconfirmed) {
       if (!(key in merged)) continue; // stale key from a removed field - ignore
-      const k = key as keyof UserSettings;
-      copyKey(merged, k);
-      copyKey(retryPartial, k);
+      copyKey(merged, key as keyof UserSettings);
     }
     setSettings(merged);
     saveLocalSettings(merged);
-    if (Object.keys(retryPartial).length > 0) flushToDb(retryPartial);
-  }, [flushToDb]);
+  }, []);
 
   // ── Initialise from localStorage immediately (no flash of defaults) ──────
   useEffect(() => {
@@ -142,6 +147,17 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
 
   // ── When user signs in: fetch from Supabase and override localStorage ────
   useEffect(() => {
+    // QA caught this, #1119-shaped: `user` starts null on every page load,
+    // before AuthProvider's session check has resolved - `!user` alone
+    // cannot tell "genuinely signed out" from "not known yet" and was
+    // treating the second as the first. That wiped clearUnconfirmedKeys()
+    // against a merely-not-yet-resolved session on every cold reload, before
+    // the protection it exists for ever got a chance to run - reproduced as
+    // 10000 -> 55555 -> reload -> back to 10000, marker already gone. Same
+    // owner ruling as #1119 applies here: unknown is not a negative. Wait
+    // for authLoading to actually settle before treating a null user as a
+    // real sign-out.
+    if (authLoading) return;
     if (!user) {
       // #1188 part 3: a stale unconfirmed key from a PREVIOUS account on a
       // shared browser would wrongly protect that field from the NEXT
@@ -197,7 +213,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
         }
         setLoading(false);
       }, () => setLoading(false));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Re-read from Supabase on demand ───────────────────────────────────────
   // Same read as the sign-in effect above, minus the one-time anti-chop
