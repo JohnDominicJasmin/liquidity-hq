@@ -24,7 +24,15 @@ import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_
 
 const UNKNOWN_CARD = '[data-testid="entitlement-unknown"]';
 const LOCKED_CARD   = '[data-testid="locked-feature"]';
-const REAL_CONTENT  = '[data-testid="confluence-perp-line"]';
+/* ConfluenceScore's root - `.sms-card`, not a data-testid. The component has
+ * no unconditional testid of its own; `confluence-perp-line` (tried first)
+ * only renders under a specific data condition (`!perpCaution && perpLine`
+ * in components/ConfluenceScore.tsx) and is absent on plenty of genuinely
+ * real, entitled renders - a live run against deployed qa hit exactly that:
+ * the card was visibly showing a real verdict ("Neutral Confluence Score")
+ * while this locator still reported not-found, which is the test being
+ * wrong about the app, not the app being wrong. */
+const REAL_CONTENT = '.sms-card';
 
 test.describe('#1119 entitlement retry-exhaustion (#1184 hook)', () => {
   test.skip(!AUTH_READY, AUTH_SKIP_REASON);
