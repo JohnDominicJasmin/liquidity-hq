@@ -674,6 +674,25 @@ Recorded here rather than hidden, because the suite is code and has defects too.
   or schema not already proven to work, run it against a window or
   condition known to contain a hit first.
 
+- **2026-09-11, #1176: `handleAlertMove()`'s drag-revert fix has no
+  automated coverage, and it is a scoped, reasoned gap rather than a silent
+  one.** `qa/e2e/arena-alert-resilience.spec.ts` covers the OTHER bug fixed
+  in the same PR - `saveArenaAlert()`'s success UI firing unconditionally on
+  a failed save - with a real RED-on-old-code, GREEN-on-fixed-code proof
+  (the RED run failed at exactly `'a failed save must never show the
+  success message'`, not on setup). The drag case is different in kind: the
+  alert line is a `klinecharts` canvas overlay, dragged through the
+  library's own pointer-event state machine (`createOverlay` /
+  `onPressedMoveEnd` in `components/KLineProChart.tsx`), with no
+  `data-testid` and no exposed hook. Its on-screen position depends on the
+  chart's internal price-to-pixel mapping, which a black-box Playwright test
+  cannot compute without the app exposing it - forcing pixel-coordinate
+  drag automation here would produce exactly the fragile-test shape this
+  file has warned against elsewhere (§9's own REALIZED/ratchet entries).
+  Closing it for real needs either a stable overlay-position hook exposed
+  for tests, or accepting manual-only coverage for chart-drag interactions
+  generally - a decision for dev/PM, not a one-off workaround here.
+
 ---
 
 ## 🟡 10. Monitoring is wired in production; DELIVERY is unconfirmed
