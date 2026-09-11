@@ -117,3 +117,100 @@ export function topClustersForCoin<T extends { coin: string; price: number; tota
     .sort((a, b) => b.total - a.total)
     .slice(0, Math.max(0, limit));
 }
+
+/** LiqFeed's own price-rounding tier (components/LiqFeed.tsx used to keep a
+ *  private copy of this - moved here so #1075's merge threshold below is
+ *  built from the actual source-data granularity, not a second guess).
+ *  Every raw cluster this file receives was already snapped to one of these
+ *  buckets before it got here, so two clusters a bucket-width apart are, in
+ *  a real sense, already neighbours. */
+export function bucketSz(price: number): number {
+  if (price >= 10000) return 200;
+  if (price >= 1000)  return 20;
+  if (price >= 100)   return 2;
+  if (price >= 10)    return 0.5;
+  if (price >= 1)     return 0.1;
+  return 0.01;
+}
+
+/** How many LiqFeed bucket-widths apart two clusters can be and still read
+ *  as one zone (#1075).
+ *
+ *  FIRST TRY WAS WRONG, AND STAYING WRONG IN A COMMENT SOMEWHERE HELPS NO
+ *  ONE, so it isn't kept - it's summarised here instead. The first version
+ *  defined "close" as a fraction of the whole eight-cluster set's own price
+ *  spread (borrowing `computeLabelOffsets`' 2.5%-of-spread idea). It failed
+ *  the owner's own example the moment realistic outliers were added: with
+ *  $76,000 and $83,000 also among the eight, the spread balloons, 2.5% of
+ *  it shrinks below $200, and the $79,000/$79,200/$79,400 trio the owner
+ *  was pointing at stopped merging. Caught by running the owner's numbers
+ *  through the function before shipping, not by inspection.
+ *
+ *  2 bucket-widths, not 1: the owner's trio was each pairwise gap = exactly
+ *  one bucket ($200 at BTC's price), so a same-bucket-only rule (1) would
+ *  not have merged the example that prompted this issue. 2 bucket-widths at
+ *  BTC's ~$79k price on 2026-09-08 is $400 - about 0.5% of price, matching
+ *  the owner's own eyeballed percentage almost exactly. That is not a
+ *  coincidence to celebrate: LiqFeed's bucket width is *why* the three
+ *  clusters landed $200 apart in the first place, so deriving the merge
+ *  distance from that width keeps "close" traceable to one source instead
+ *  of introducing a second, unrelated definition of it. */
+export const LIQ_BAND_MERGE_BUCKETS = 2;
+
+export interface LiqBand {
+  /** Total-weighted average of the merged clusters' prices. */
+  price: number;
+  /** Sum of the merged clusters' totals. */
+  total: number;
+  /** How many raw clusters merged into this band - 1 means unmerged. */
+  count: number;
+}
+
+/** Collapses clusters that sit within `LIQ_BAND_MERGE_BUCKETS` bucket-widths
+ *  of a neighbour into one band (#1075's owner-directed "merge nearby clusters
+ *  into one band" - three lines 0.5% apart reading as a solid block on the
+ *  chart).
+ *
+ *  CHART-DISPLAY ONLY. Deliberately not folded into `topClustersForCoin` or
+ *  `formatClustersForPrompt` above: the AI prompt path needs every raw
+ *  cluster with its long/short side intact (`formatClustersForPrompt`'s own
+ *  docs), and merging would erase exactly that. A caller applies this to
+ *  clusters already selected for the chart (see KLineProChart.tsx), never to
+ *  what feeds the model.
+ *
+ *  Chained adjacency, same as `computeLabelOffsets`: each cluster is
+ *  compared to its nearest already-merged neighbour, not to the band's
+ *  first member. So $79,000 / $79,200 / $79,400 merge into one band even
+ *  though $79,000-$79,400 alone (0.5%) can exceed the threshold for a wider
+ *  input spread - each individual gap is what's being judged, not the
+ *  total span. */
+export function mergeLiqBands<T extends { price: number; total: number }>(
+  clusters: readonly T[],
+): LiqBand[] {
+  if (clusters.length === 0) return [];
+  const sorted = [...clusters].sort((a, b) => b.price - a.price);
+
+  const bands: LiqBand[] = [];
+  let members: T[] = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prevPrice = members[members.length - 1].price;
+    const curPrice = sorted[i].price;
+    const close = bucketSz((prevPrice + curPrice) / 2) * LIQ_BAND_MERGE_BUCKETS;
+    if (prevPrice - curPrice < close) {
+      members.push(sorted[i]);
+    } else {
+      bands.push(foldLiqBand(members));
+      members = [sorted[i]];
+    }
+  }
+  bands.push(foldLiqBand(members));
+  return bands;
+}
+
+function foldLiqBand<T extends { price: number; total: number }>(members: T[]): LiqBand {
+  const total = members.reduce((s, m) => s + m.total, 0);
+  const price = total > 0
+    ? members.reduce((s, m) => s + m.price * m.total, 0) / total
+    : members.reduce((s, m) => s + m.price, 0) / members.length;
+  return { price, total, count: members.length };
+}
