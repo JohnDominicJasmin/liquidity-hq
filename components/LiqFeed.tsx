@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { bucketSz } from '@/lib/liqClusters';
 import { getSupabase } from '@/lib/supabase';
 import { Warn } from '@/components/icons';
 import { T } from '@/lib/tables';
@@ -62,14 +63,10 @@ function fmtTime(ts: number): string {
 function coinFromSym(sym: string): string {
   return sym.replace(/^\d+/, '').replace(/USDT$|BUSD$|USDC$/, '');
 }
-function bucketSz(price: number): number {
-  if (price >= 10000) return 200;
-  if (price >= 1000)  return 20;
-  if (price >= 100)   return 2;
-  if (price >= 10)    return 0.5;
-  if (price >= 1)     return 0.1;
-  return 0.01;
-}
+// bucketSz moved to lib/liqClusters.ts (#1075) - #1075's chart-side band
+// merge needs this same rounding tier as its "same zone" threshold, and
+// lib/ cannot import from components/, so the shared copy lives in lib and
+// this file imports it back rather than keeping two definitions in sync.
 function snapBucket(price: number): number {
   const sz = bucketSz(price);
   return Math.round(price / sz) * sz;

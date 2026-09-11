@@ -1,14 +1,13 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 
 // Attaches the signed-in user's bearer token to an admin API call. The server
 // route re-checks the token + role (the real gate); this just supplies it.
 // Accepts an optional RequestInit for writes (POST/PATCH/DELETE + body).
 export async function adminFetch(path: string, init?: RequestInit): Promise<Response | null> {
-  const sb = getSupabase();
-  if (!sb) return null;
-  const token = (await sb.auth.getSession()).data.session?.access_token;
+  // getAuthToken(), not a raw getSession() - #1168.
+  const token = await getAuthToken();
   if (!token) return null;
   return fetch(path, {
     ...init,

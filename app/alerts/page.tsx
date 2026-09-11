@@ -1,7 +1,7 @@
 ﻿'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AuthGate from '@/components/AuthGate';
-import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
+import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import { Warn, CoinStack } from '@/components/icons';
 import { COINS } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
@@ -64,7 +64,7 @@ const LINK_CODE_TTL_SEC = 600;
 
 export default function AlertsPage() {
   const { t } = useLabels();
-  const { user, entitled, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
   const { settings, loading: settingsLoading, refresh: refreshSettings } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
@@ -543,7 +543,9 @@ export default function AlertsPage() {
           upgrade pitch. Free users now get a single locked-feature card
           (same component/pattern as Arena's other Pro-gated cards) instead
           of a form they can look at but not touch. */}
-      {!authLoading && !entitled ? (
+      {!authLoading && entitlementStatus === 'unknown' ? (
+        <EntitlementUnknownCard title={t('ALERTS_CONNECT_TELEGRAM_TITLE')} onRetry={retryEntitlements} />
+      ) : !authLoading && entitlementStatus !== 'entitled' ? (
         <LockedFeatureCard
           title={t('ALERTS_CONNECT_TELEGRAM_TITLE')}
           description={t('ALERTS_LOCKED_FEATURE_DESC')}
@@ -797,7 +799,9 @@ export default function AlertsPage() {
         title={t('ALERTS_AUTHGATE_TITLE')}
         desc={t('ALERTS_AUTHGATE_DESC')}
       >
-        {!authLoading && !entitled ? (
+        {!authLoading && entitlementStatus === 'unknown' ? (
+          <EntitlementUnknownCard title={t('ALERTS_PRICE_ALERTS_LABEL')} onRetry={retryEntitlements} />
+        ) : !authLoading && entitlementStatus !== 'entitled' ? (
           /* Price alerts are delivered over Telegram, which the alert cron
              only sends to Pro/trial users. Creation used to be open to
              everyone, so a free user's alert saved and then silently never
@@ -896,7 +900,7 @@ export default function AlertsPage() {
       {/* Locked state already shown once, above (Telegram card) - repeating
           the same "Unlock Pro" pitch here read as a hard sell, not a second
           real gate. Free/signed-out users just don't see this section at all. */}
-      {entitled && (
+      {entitlementStatus === 'entitled' && (
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 4 }}>{t('ALERTS_CONDITIONS_LABEL')}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 10 }}>

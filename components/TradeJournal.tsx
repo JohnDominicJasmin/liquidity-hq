@@ -6,7 +6,7 @@ import { getLocalNow, getSessionName } from '@/lib/session';
 import { getSupabase } from '@/lib/supabase';
 import AuthGate from './AuthGate';
 import { useAuth } from './AuthProvider';
-import { LockedFeatureCard } from './UpgradeGateModal';
+import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
 import Tip from './Tip';
 import { Warn } from './icons';
 import { track } from '@/lib/analytics';
@@ -288,14 +288,20 @@ function Inner() {
   const sp     = useSearchParams();
   const router = useRouter();
   const { t }  = useLabels();
-  const { user, entitled, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
 
   /* Shadow Account, Bias Diagnostics and Thesis Check all run on Pro-only
      endpoints (403 PRO_REQUIRED). Entitlement is one thing for all three, so
      one flag covers the mid-session case (a trial ending while the page is
-     open) and swaps every one of those tabs to the locked card. */
+     open) and swaps every one of those tabs to the locked card.
+
+     #1119: toolsLocked stays a CONFIRMED lock only (a real 403, or a
+     confirmed not_entitled) - toolsUnknown is a separate, later-checked state
+     so 'unknown' gets its own "couldn't verify" card instead of quietly
+     joining the locked branch. */
   const [proLocked, setProLocked] = useState(false);
-  const toolsLocked = (!authLoading && !entitled) || proLocked;
+  const toolsLocked  = proLocked || (!authLoading && entitlementStatus === 'not_entitled');
+  const toolsUnknown = !proLocked && !authLoading && entitlementStatus === 'unknown';
 
   const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'rules' | 'shadow' | 'bias' | 'thesis'>('log');
   const [trades,    setTrades]    = useState<Trade[]>([]);
@@ -478,7 +484,9 @@ function Inner() {
     if (!db) return;
     // Pro-only server-side, so a free user's click never reaches it - show the
     // locked card instead of burning a round trip on a guaranteed 403.
-    if (!entitled) { setProLocked(true); return; }
+    // 'unknown' is not intercepted here (#1119) - let the real request answer
+    // via the PRO_REQUIRED check below rather than guessing locked.
+    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
     setShadowLoading(true);
     setShadowError(null);
     setShadowAnalysis(null);
@@ -515,7 +523,9 @@ function Inner() {
     const db = getSupabase();
     if (!db) return;
     // Pro-only server-side - same skip-the-round-trip reasoning as above.
-    if (!entitled) { setProLocked(true); return; }
+    // 'unknown' is not intercepted here (#1119) - let the real request answer
+    // via the PRO_REQUIRED check below rather than guessing locked.
+    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
     setBiasLoading(true);
     setBiasError(null);
     setBiasAnalysis(null);
@@ -581,7 +591,9 @@ function Inner() {
     const db = getSupabase();
     if (!db) return;
     // Pro-only server-side - same skip-the-round-trip reasoning as above.
-    if (!entitled) { setProLocked(true); return; }
+    // 'unknown' is not intercepted here (#1119) - let the real request answer
+    // via the PRO_REQUIRED check below rather than guessing locked.
+    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
     setCheckingThesisId(thesis.id);
     try {
       const token = (await db.auth.getSession()).data.session?.access_token;
@@ -1554,7 +1566,11 @@ function Inner() {
 
       {/* ──────── SHADOW ACCOUNT TAB ──────── */}
       {tab === 'shadow' && (
-        toolsLocked ? (
+        toolsUnknown ? (
+        <div style={{ padding: '12px 0 16px' }}>
+          <EntitlementUnknownCard title={t('TRADE_JOURNAL_SHADOW_PAGE_TITLE')} onRetry={retryEntitlements} />
+        </div>
+        ) : toolsLocked ? (
         <div style={{ padding: '12px 0 16px' }}>
           <LockedFeatureCard
             title={t('TRADE_JOURNAL_SHADOW_PAGE_TITLE')}
@@ -1608,7 +1624,11 @@ function Inner() {
 
       {/* ──────── BIAS DIAGNOSTICS TAB ──────── */}
       {tab === 'bias' && (
-        toolsLocked ? (
+        toolsUnknown ? (
+        <div style={{ padding: '12px 0 16px' }}>
+          <EntitlementUnknownCard title={t('TRADE_JOURNAL_BIAS_PAGE_TITLE')} onRetry={retryEntitlements} />
+        </div>
+        ) : toolsLocked ? (
         <div style={{ padding: '12px 0 16px' }}>
           <LockedFeatureCard
             title={t('TRADE_JOURNAL_BIAS_PAGE_TITLE')}
@@ -1657,7 +1677,11 @@ function Inner() {
 
       {/* ──────── THESIS TRACKER TAB ──────── */}
       {tab === 'thesis' && (
-        toolsLocked ? (
+        toolsUnknown ? (
+        <div style={{ padding: '12px 0 16px' }}>
+          <EntitlementUnknownCard title={t('TRADE_JOURNAL_THESIS_PAGE_TITLE')} onRetry={retryEntitlements} />
+        </div>
+        ) : toolsLocked ? (
         <div style={{ padding: '12px 0 16px' }}>
           <LockedFeatureCard
             title={t('TRADE_JOURNAL_THESIS_PAGE_TITLE')}

@@ -9,14 +9,14 @@ import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
 import { Warn } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
-import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
+import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import ConfluenceScore from '@/components/ConfluenceScore';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
@@ -183,7 +183,7 @@ function ArenaContent() {
   const nowMs = useNow(30_000);
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
-  const { user, loading: authLoading, entitled } = useAuth();
+  const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const { settings, update } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -345,6 +345,7 @@ function ArenaContent() {
   const [alertLabel,    setAlertLabel]    = useState('');
   const [alertSaving,   setAlertSaving]   = useState(false);
   const [alertSuccess,  setAlertSuccess]  = useState(false);
+  const [alertError,    setAlertError]    = useState('');
   const [chartAlerts,   setChartAlerts]   = useState<ChartAlert[]>([]);
 
   function openAlertForm() {
@@ -359,18 +360,30 @@ function ArenaContent() {
   async function saveArenaAlert() {
     if (!alertPrice || isNaN(parseFloat(alertPrice)) || !user) return;
     setAlertSaving(true);
+    setAlertError('');
     try {
-      const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
+      // getAuthToken(), not a raw getSession() - #1168. Also fixes a real
+      // bug this had regardless of the timeout: the success UI (and the
+      // 1.5s auto-close) fired unconditionally, even on a failed save - a
+      // 401/500/PRO_REQUIRED response told the user "Alert set" and closed
+      // the form on a request that never reached the database. Same
+      // defect family as #1107/#1166: a non-OK response falling into the
+      // generic (here, the ONLY) path instead of its own.
+      const token = await getAuthToken();
+      if (!token) { setAlertError(t('ALERTS_NETWORK_ERROR')); return; }
       const res = await fetch('/api/price-alerts', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ coin: selectedCoin, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }),
       });
-      window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
-      if (res.ok) {
-        const { alert } = await res.json() as { alert: { id: string } };
-        setChartAlerts(prev => [...prev, { id: alert.id, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }]);
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({} as { error?: string; message?: string }));
+        setAlertError(d.message ?? d.error ?? t('ALERTS_NETWORK_ERROR'));
+        return;
       }
+      const { alert } = await res.json() as { alert: { id: string } };
+      setChartAlerts(prev => [...prev, { id: alert.id, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }]);
+      window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
       setAlertSuccess(true);
       setAlertLabel('');
       setTimeout(() => { setAlertFormOpen(false); setAlertSuccess(false); }, 1500);
@@ -409,7 +422,8 @@ function ArenaContent() {
     if (!user) return;
     let cancelled = false;
     async function load() {
-      const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
+      // getAuthToken(), not a raw getSession() - #1168.
+      const token = await getAuthToken();
       if (!token || cancelled) return;
       const res = await fetch('/api/price-alerts', { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok || cancelled) return;
@@ -420,16 +434,32 @@ function ArenaContent() {
     return () => { cancelled = true; };
   }, [selectedCoin, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Update alert price when user drags a line ── */
+  /* ── Update alert price when user drags a line ──
+     getAuthToken(), not a raw getSession() - #1168. Also fixes a real
+     desync this had regardless of the timeout: the drag update is
+     optimistic (the line moves on screen immediately), but nothing ever
+     rolled it back on failure - a missing token or a failed PATCH left
+     the chart showing a price the server never saved, with no
+     indication and no way to tell without reloading. */
   async function handleAlertMove(id: string, newPrice: number) {
+    const prevPrice = chartAlerts.find(a => a.id === id)?.target_price;
+    const revert = () => {
+      if (prevPrice == null) return;
+      setChartAlerts(prev => prev.map(a => a.id === id ? { ...a, target_price: prevPrice } : a));
+    };
     setChartAlerts(prev => prev.map(a => a.id === id ? { ...a, target_price: newPrice } : a));
-    const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
-    if (!token) return;
-    fetch(`/api/price-alerts?id=${id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body:    JSON.stringify({ target_price: newPrice }),
-    }).catch(() => {});
+    const token = await getAuthToken();
+    if (!token) { revert(); return; }
+    try {
+      const res = await fetch(`/api/price-alerts?id=${id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ target_price: newPrice }),
+      });
+      if (!res.ok) revert();
+    } catch {
+      revert();
+    }
   }
 
   /* Hover over the trigger auto-opens the scanner after 800ms.
@@ -530,7 +560,12 @@ function ArenaContent() {
      here via onTfChange). Free users tapping 1m/5m/15m get the upgrade modal
      instead of a switch. */
   const handleTfChange = (tf: ChartTf) => {
-    if (!entitled && GATED_TFS.includes(tf)) {
+    // #1119: 'unknown' is blocked here too, same as a confirmed not_entitled
+    // - this is a click asking for NEW access, not a downgrade of something
+    // already granted, so declining an unconfirmed request isn't the false
+    // assertion the owner's ruling forbids (the modal pitches Pro, it never
+    // claims the user IS on the free plan).
+    if (entitlementStatus !== 'entitled' && GATED_TFS.includes(tf)) {
       setUpgradeGate(t(TF_FEATURE_LABEL_KEYS[tf] ?? 'ARENA_TF_LABEL_FALLBACK'));
       return;
     }
@@ -540,11 +575,18 @@ function ArenaContent() {
   /* Clamp: a free user can still land on a gated timeframe without clicking -
      URL ?tf= param, a saved default from Settings, or a session that was Pro
      when the timeframe was chosen. Once the role is known, bump them to the
-     free fallback rather than serving gated signals. */
+     free fallback rather than serving gated signals.
+
+     #1119: fires on a CONFIRMED not_entitled only, never on 'unknown' - this
+     is exactly the "hold rather than downgrade" case the owner's ruling
+     called out by name. A Pro user already looking at a fast timeframe must
+     not be silently bumped off it because one retry cycle came back unknown;
+     the entitlements effect keeps retrying on its own, and this clamp simply
+     waits for a real answer instead of acting on a guess. */
   useEffect(() => {
-    if (authLoading || entitled) return;
+    if (authLoading || entitlementStatus !== 'not_entitled') return;
     if (GATED_TFS.includes(readTf)) setReadTf(FREE_FALLBACK_TF);
-  }, [authLoading, entitled, readTf]);
+  }, [authLoading, entitlementStatus, readTf]);
 
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -1926,6 +1968,10 @@ function ArenaContent() {
                 />
               </div>
 
+              {alertError && (
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{alertError}</div>
+              )}
+
               {/* CTA */}
               <button
                 onClick={saveArenaAlert}
@@ -2317,7 +2363,7 @@ function ArenaContent() {
           all, so its data never reaches the AI context either. */}
       <div style={{ display: 'none' }}>
         <MarketStructure coin={selectedCoin} onData={handleMsData} />
-        {entitled && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
+        {entitlementStatus === 'entitled' && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
       </div>
         </div>
         <aside className="arena-ws-rail">
@@ -2338,14 +2384,21 @@ function ArenaContent() {
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
           Pro-only: free users get an in-place locked card so the layout holds. */}
       {/* Locked ONLY once we know the user is not entitled (#376).
-          entitled starts false while auth resolves, so gating on it alone
-          renders the paywall to a paying account for as long as that takes -
-          which reads as a broken subscription and costs a support message or a
-          chargeback, not a pixel.
+          entitlementStatus starts 'not_entitled' while auth resolves, so
+          gating on it alone renders the paywall to a paying account for as
+          long as that takes - which reads as a broken subscription and costs
+          a support message or a chargeback, not a pixel.
           Same guard as MultiTFAlignment:120, written for #310 and not carried
-          here at the time. */}
-      {authLoading || entitled ? (
+          here at the time.
+          #1119: this card is #1119's own worked example of what a failed
+          entitlements read used to cost a Pro user (the issue body names it
+          by name), so it gets the full 3-way treatment - 'unknown' shows the
+          "couldn't verify" card, never LockedFeatureCard's confirmed-free
+          copy. */}
+      {authLoading || entitlementStatus === 'entitled' ? (
         <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
+      ) : entitlementStatus === 'unknown' ? (
+        <EntitlementUnknownCard title={t('ARENA_CONFLUENCE_GATE_TITLE')} onRetry={retryEntitlements} />
       ) : (
         <LockedFeatureCard
           title={t('ARENA_CONFLUENCE_GATE_TITLE')}
