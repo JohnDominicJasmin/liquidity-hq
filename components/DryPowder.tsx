@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from './AuthProvider';
-import { LockedFeatureCard } from './UpgradeGateModal';
+import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
 import Tip from './Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -67,7 +67,7 @@ function Sparkline({ series }: { series: number[] }) {
 export default function DryPowder() {
   const { t } = useLabels();
   const router = useRouter();
-  const { entitled, loading: authLoading } = useAuth();
+  const { entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
   const [state, setState]    = useState<LoadState>('loading');
   const [errMsg, setErrMsg]  = useState('');
 
@@ -116,7 +116,9 @@ export default function DryPowder() {
     // Wait for the role to resolve, and skip entirely for a non-entitled
     // user - this is Pro-gated server-side (403 PRO_REQUIRED), so fetching
     // anyway just burns a round trip to show the locked-card branch below.
-    if (authLoading || !entitled) return;
+    // 'unknown' skips too (#1119): we can't confirm access, and the round
+    // trip would 403 anyway if it turns out they really aren't entitled.
+    if (authLoading || entitlementStatus !== 'entitled') return;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
@@ -125,7 +127,7 @@ export default function DryPowder() {
       }
     } catch { /* ignore */ }
     fetchData();
-  }, [authLoading, entitled, fetchData]);
+  }, [authLoading, entitlementStatus, fetchData]);
 
   const signalKey = typeof state === 'object' && state !== null
     ? (state.signal.match(/^(EXPANDING|CONTRACTING|NEUTRAL)/)?.[1] ?? 'NEUTRAL')
@@ -141,7 +143,9 @@ export default function DryPowder() {
         </Tip>
       </div>
 
-      {(!authLoading && !entitled) || state === 'locked' ? (
+      {!authLoading && entitlementStatus === 'unknown' ? (
+        <EntitlementUnknownCard title={t('DRY_POWDER_TITLE')} onRetry={retryEntitlements} />
+      ) : (!authLoading && entitlementStatus !== 'entitled') || state === 'locked' ? (
         <LockedFeatureCard
           title={t('DRY_POWDER_TITLE')}
           description={t('DRY_POWDER_LOCKED_DESC')}

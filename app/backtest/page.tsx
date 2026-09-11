@@ -5,7 +5,7 @@ import { runBacktest, BacktestRunResult, runOrderFlowBacktest, OrderFlowBacktest
 import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
 import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
-import { FullPageUpgradeGate } from '@/components/UpgradeGateModal';
+import { FullPageUpgradeGate, FullPageEntitlementUnknown } from '@/components/UpgradeGateModal';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
@@ -79,7 +79,7 @@ function parseSection(text: string, key: string): string {
 
 export default function BacktestPage() {
   const { t } = useLabels();
-  const { entitled, loading: authLoading } = useAuth();
+  const { entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
   const [tf, setTf]               = useState<TF>('1h');
   const [coinScope, setCoinScope] = useState<'majors' | 'all'>('majors');
   const [running, setRunning]     = useState(false);
@@ -261,7 +261,10 @@ export default function BacktestPage() {
   // resolve so an entitled user never sees a paywall flash, then replace the
   // entire page for free users.
   if (authLoading) return <LoadingState message={t('BACKTEST_LOADING')} fullPage />;
-  if (!entitled) {
+  if (entitlementStatus === 'unknown') {
+    return <FullPageEntitlementUnknown title={t('BACKTEST_UPGRADE_TITLE')} onRetry={retryEntitlements} />;
+  }
+  if (entitlementStatus !== 'entitled') {
     return (
       <FullPageUpgradeGate
         title={t('BACKTEST_UPGRADE_TITLE')}

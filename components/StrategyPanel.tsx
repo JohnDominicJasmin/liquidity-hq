@@ -113,10 +113,11 @@ function ParamRow({ spec, value, readOnly, onChange }: {
 }
 
 export default function StrategyPanel({ selected, onSelectedChange, params, onParamsChange, onRun }: Props) {
-  const { entitled } = useAuth();
+  const { entitlementStatus } = useAuth();
+  const entitled = entitlementStatus === 'entitled';
   const design = useDesignMode();
   const limitNoteId = useId();
-  const limit = indicatorLimit(Boolean(entitled));
+  const limit = indicatorLimit(entitled);
 
   const [setId, setSetId] = useState<string>(AUTO_SET_ID);
   /* `selected` is a prop now, not state - see Props. It is still an ORDERED
@@ -210,7 +211,14 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
     <div className="strat-panel">
       <div className="strat-head">
         <span>Strategy</span>
-        <span className="strat-aux">{entitled ? 'PRO' : `FREE · ${limit}`}</span>
+        {/* #1119: 'unknown' must not read as a confident "FREE" - that is
+            exactly the false assertion the owner's ruling forbids, on the one
+            line in this file that names a plan tier instead of just
+            disabling something. Hardcoded English, same as the rest of this
+            file's copy (see the file-header comment on why). */}
+        <span className="strat-aux" title={entitlementStatus === 'unknown' ? "Couldn't verify your plan" : undefined}>
+          {entitled ? 'PRO' : entitlementStatus === 'unknown' ? '···' : `FREE · ${limit}`}
+        </span>
       </div>
 
       <div className="strat-sect">

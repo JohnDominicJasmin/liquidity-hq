@@ -16,7 +16,7 @@ import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
 import { Warn } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
-import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
+import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import ConfluenceScore from '@/components/ConfluenceScore';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
@@ -183,7 +183,7 @@ function ArenaContent() {
   const nowMs = useNow(30_000);
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
-  const { user, loading: authLoading, entitled } = useAuth();
+  const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const { settings, update } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -530,7 +530,12 @@ function ArenaContent() {
      here via onTfChange). Free users tapping 1m/5m/15m get the upgrade modal
      instead of a switch. */
   const handleTfChange = (tf: ChartTf) => {
-    if (!entitled && GATED_TFS.includes(tf)) {
+    // #1119: 'unknown' is blocked here too, same as a confirmed not_entitled
+    // - this is a click asking for NEW access, not a downgrade of something
+    // already granted, so declining an unconfirmed request isn't the false
+    // assertion the owner's ruling forbids (the modal pitches Pro, it never
+    // claims the user IS on the free plan).
+    if (entitlementStatus !== 'entitled' && GATED_TFS.includes(tf)) {
       setUpgradeGate(t(TF_FEATURE_LABEL_KEYS[tf] ?? 'ARENA_TF_LABEL_FALLBACK'));
       return;
     }
@@ -540,11 +545,18 @@ function ArenaContent() {
   /* Clamp: a free user can still land on a gated timeframe without clicking -
      URL ?tf= param, a saved default from Settings, or a session that was Pro
      when the timeframe was chosen. Once the role is known, bump them to the
-     free fallback rather than serving gated signals. */
+     free fallback rather than serving gated signals.
+
+     #1119: fires on a CONFIRMED not_entitled only, never on 'unknown' - this
+     is exactly the "hold rather than downgrade" case the owner's ruling
+     called out by name. A Pro user already looking at a fast timeframe must
+     not be silently bumped off it because one retry cycle came back unknown;
+     the entitlements effect keeps retrying on its own, and this clamp simply
+     waits for a real answer instead of acting on a guess. */
   useEffect(() => {
-    if (authLoading || entitled) return;
+    if (authLoading || entitlementStatus !== 'not_entitled') return;
     if (GATED_TFS.includes(readTf)) setReadTf(FREE_FALLBACK_TF);
-  }, [authLoading, entitled, readTf]);
+  }, [authLoading, entitlementStatus, readTf]);
 
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -2317,7 +2329,7 @@ function ArenaContent() {
           all, so its data never reaches the AI context either. */}
       <div style={{ display: 'none' }}>
         <MarketStructure coin={selectedCoin} onData={handleMsData} />
-        {entitled && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
+        {entitlementStatus === 'entitled' && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
       </div>
         </div>
         <aside className="arena-ws-rail">
@@ -2338,14 +2350,21 @@ function ArenaContent() {
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
           Pro-only: free users get an in-place locked card so the layout holds. */}
       {/* Locked ONLY once we know the user is not entitled (#376).
-          entitled starts false while auth resolves, so gating on it alone
-          renders the paywall to a paying account for as long as that takes -
-          which reads as a broken subscription and costs a support message or a
-          chargeback, not a pixel.
+          entitlementStatus starts 'not_entitled' while auth resolves, so
+          gating on it alone renders the paywall to a paying account for as
+          long as that takes - which reads as a broken subscription and costs
+          a support message or a chargeback, not a pixel.
           Same guard as MultiTFAlignment:120, written for #310 and not carried
-          here at the time. */}
-      {authLoading || entitled ? (
+          here at the time.
+          #1119: this card is #1119's own worked example of what a failed
+          entitlements read used to cost a Pro user (the issue body names it
+          by name), so it gets the full 3-way treatment - 'unknown' shows the
+          "couldn't verify" card, never LockedFeatureCard's confirmed-free
+          copy. */}
+      {authLoading || entitlementStatus === 'entitled' ? (
         <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
+      ) : entitlementStatus === 'unknown' ? (
+        <EntitlementUnknownCard title={t('ARENA_CONFLUENCE_GATE_TITLE')} onRetry={retryEntitlements} />
       ) : (
         <LockedFeatureCard
           title={t('ARENA_CONFLUENCE_GATE_TITLE')}

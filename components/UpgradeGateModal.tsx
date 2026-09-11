@@ -77,6 +77,93 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
   );
 }
 
+// #1119: rendered where LockedFeatureCard would normally sit, but ONLY when
+// entitlementStatus is 'unknown' - a read that failed after every retry, not
+// a confirmed free account. Deliberately NOT LockedFeatureCard with different
+// copy: that component asserts "you are not entitled", which is exactly the
+// assertion this state must not make (owner ruling, #1119 - neither fail-open
+// nor fail-closed). No upsell CTA, because pitching Pro at someone we cannot
+// even confirm is signed into a real plan is the wrong moment for it. Retry
+// re-runs AuthProvider's entitlements fetch (a fresh sequence of attempts,
+// not just a re-render).
+export function EntitlementUnknownCard({ title, onRetry }: {
+  title: string;
+  onRetry: () => void;
+}) {
+  const { t } = useLabels();
+  return (
+    <div data-testid="entitlement-unknown" className="locked-card-term-wrap" style={{
+      ...SURFACE,
+      borderRadius: 'var(--radius-card, 12px)',
+      padding: '18px 20px',
+      display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+    }}>
+      <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+        <div style={{
+          fontFamily: 'var(--font-mono, monospace)',
+          fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
+          textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6,
+        }}>
+          {t('ENTITLEMENT_UNKNOWN_EYEBROW')}
+        </div>
+        <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{title}</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.6 }}>{t('ENTITLEMENT_UNKNOWN_DESC')}</div>
+      </div>
+      <button
+        onClick={onRetry}
+        style={{
+          background: 'transparent', color: 'var(--txt2)', border: '0.5px solid var(--bdr)', cursor: 'pointer',
+          fontSize: 'var(--fs-label)', fontWeight: 700, padding: '9px 16px', borderRadius: 8,
+          flexShrink: 0,
+        }}
+      >
+        {t('ENTITLEMENT_UNKNOWN_RETRY_BUTTON')}
+      </button>
+    </div>
+  );
+}
+
+// Full-page counterpart to EntitlementUnknownCard, for routes that use
+// FullPageUpgradeGate for a confirmed-free visitor (e.g. /backtest).
+export function FullPageEntitlementUnknown({ title, onRetry }: { title: string; onRetry: () => void }) {
+  const { t } = useLabels();
+  return (
+    <div className="upgrade-gate-term-wrap" style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{
+        width: '100%', maxWidth: 480,
+        ...SURFACE,
+        borderRadius: 'var(--radius-card, 12px)',
+        padding: '34px 34px 30px',
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-mono, monospace)',
+          fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
+          textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 14,
+        }}>
+          {t('ENTITLEMENT_UNKNOWN_EYEBROW')}
+        </div>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 800, color: 'var(--txt)', margin: '0 0 10px', lineHeight: 1.25 }}>
+          {title}
+        </h1>
+        <p style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', lineHeight: 1.7, margin: '0 0 22px' }}>
+          {t('ENTITLEMENT_UNKNOWN_DESC')}
+        </p>
+        <button
+          onClick={onRetry}
+          style={{
+            display: 'block', width: '100%', textAlign: 'center',
+            background: 'transparent', color: 'var(--txt2)', border: '0.5px solid var(--bdr)',
+            fontSize: 'var(--fs-body)', fontWeight: 700,
+            padding: '12px 16px', borderRadius: 8, cursor: 'pointer',
+          }}
+        >
+          {t('ENTITLEMENT_UNKNOWN_RETRY_BUTTON')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Shared by the modal below and FullPageUpgradeGate - while LemonSqueezy
 // checkout is not configured, getCheckoutUrl falls back to the signup page,
 // a dead end for someone already signed in. Send signed-in users to /upgrade

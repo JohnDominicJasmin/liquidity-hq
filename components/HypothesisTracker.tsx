@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
-import { LockedFeatureCard } from './UpgradeGateModal';
+import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
 import { getAuthToken } from '@/lib/supabase';
 import EmptyState from '@/components/EmptyState';
 import { withAlpha } from '@/lib/color';
@@ -68,7 +68,7 @@ async function apiFetch(path: string, opts?: RequestInit) {
 }
 
 export default function HypothesisTracker() {
-  const { user, entitled, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
   const { t } = useLabels();
   const router = useRouter();
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
@@ -209,7 +209,10 @@ export default function HypothesisTracker() {
   const runAnalysis = async (id: string) => {
     // The analysis endpoint is Pro-only (403 PRO_REQUIRED), so a free user's
     // click never reaches it - show the locked card instead of a round trip.
-    if (!entitled) { setProLocked(true); return; }
+    // 'unknown' is NOT intercepted here (#1119): we can't confirm they are
+    // locked out, so the honest thing is to let the real request answer -
+    // the PRO_REQUIRED check two lines down is the safety net either way.
+    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
     setAnalyzingId(id);
     try {
       const res = await apiFetch(`/api/hypotheses/${id}/analyze`, { method: 'POST' });
@@ -501,12 +504,19 @@ export default function HypothesisTracker() {
                   {/* Grok analysis button - the rest of the tracker (creating
                       hypotheses, logging evidence) stays free, only the AI
                       analysis is Pro, so just this control gets locked. */}
-                  {(!authLoading && !entitled) || proLocked ? (
+                  {proLocked || (!authLoading && entitlementStatus === 'not_entitled') ? (
                     <div style={{ marginBottom: 14 }}>
                       <LockedFeatureCard
                         title={t('HYPOTHESIS_TRACKER_ANALYSIS_LOCKED_TITLE')}
                         description={t('HYPOTHESIS_TRACKER_ANALYSIS_LOCKED_DESC')}
                         onUnlock={() => router.push('/upgrade')}
+                      />
+                    </div>
+                  ) : !authLoading && entitlementStatus === 'unknown' ? (
+                    <div style={{ marginBottom: 14 }}>
+                      <EntitlementUnknownCard
+                        title={t('HYPOTHESIS_TRACKER_ANALYSIS_LOCKED_TITLE')}
+                        onRetry={retryEntitlements}
                       />
                     </div>
                   ) : (

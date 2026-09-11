@@ -241,6 +241,12 @@ export const LABEL_KEYS = [
   'UPGRADE_GATE_BODY', 'UPGRADE_GATE_BULLET_1', 'UPGRADE_GATE_BULLET_2',
   'UPGRADE_GATE_BULLET_3', 'UPGRADE_GATE_BULLET_4', 'UPGRADE_GATE_NOT_NOW',
 
+  // EntitlementUnknownCard / FullPageEntitlementUnknown (#1119) - the
+  // "couldn't verify your plan" state, distinct from LockedFeatureCard's
+  // confirmed-free copy on purpose.
+  'ENTITLEMENT_UNKNOWN_EYEBROW', 'ENTITLEMENT_UNKNOWN_DESC',
+  'ENTITLEMENT_UNKNOWN_RETRY_BUTTON',
+
   // UsageMeter, UsageRings
   'USAGE_METER_QUICK_LABEL', 'USAGE_METER_DEEP_LABEL',
   'USAGE_METER_RESET_FACT', 'USAGE_METER_UPGRADE_LINK',
