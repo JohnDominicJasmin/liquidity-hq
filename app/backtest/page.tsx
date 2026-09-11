@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { CoinId, COINS } from '@/lib/marketStore';
 import { runBacktest, BacktestRunResult, runOrderFlowBacktest, OrderFlowBacktestResult, ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { FullPageUpgradeGate } from '@/components/UpgradeGateModal';
 import LoadingState from '@/components/LoadingState';
@@ -125,8 +125,7 @@ export default function BacktestPage() {
     setSrError(null);
     setSrResult(null);
     try {
-      const db = getSupabase();
-      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const token = await getAuthToken();
       const res = await fetch('/api/strategy-research', {
         method: 'POST',
         headers: {
@@ -155,8 +154,7 @@ export default function BacktestPage() {
     setPsResult(null);
     setPsCopied(false);
     try {
-      const db    = getSupabase();
-      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const token = await getAuthToken();
       const res   = await fetch('/api/pine-script', {
         method: 'POST',
         headers: {
@@ -181,8 +179,7 @@ export default function BacktestPage() {
     setSmcError(null);
     setSmcResult(null);
     try {
-      const db    = getSupabase();
-      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const token = await getAuthToken();
       const res   = await fetch('/api/smc-snapshot', {
         method: 'POST',
         headers: {
@@ -207,8 +204,7 @@ export default function BacktestPage() {
     setUlError(null);
     setUlResult(null);
     try {
-      const db    = getSupabase();
-      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const token = await getAuthToken();
       const res   = await fetch('/api/token-unlock', {
         method: 'POST',
         headers: {

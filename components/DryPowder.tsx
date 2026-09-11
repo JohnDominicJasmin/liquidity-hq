@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from './AuthProvider';
 import { LockedFeatureCard } from './UpgradeGateModal';
 import Tip from './Tip';
@@ -74,8 +74,8 @@ export default function DryPowder() {
   const fetchData = useCallback(async () => {
     setState('loading');
     try {
-      const db    = getSupabase();
-      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      // getAuthToken(), not a raw getSession() - #1168.
+      const token = await getAuthToken();
       if (!token) { setState('unauth'); return; }
 
       const res  = await fetch('/api/dry-powder', { headers: { Authorization: `Bearer ${token}` } });

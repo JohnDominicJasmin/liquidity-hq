@@ -12,7 +12,7 @@ import LoadingState from '@/components/LoadingState';
 import { SkeletonBar } from '@/components/Skeleton';
 import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
@@ -160,16 +160,6 @@ export default function SettingsPage() {
     setTimeout(() => setPwSaved(false), 3000);
   }
 
-  async function getToken(): Promise<string | null> {
-    const { createClient } = await import('@supabase/supabase-js');
-    const sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    const { data } = await sb.auth.getSession();
-    return data.session?.access_token ?? null;
-  }
-
   async function handlePushToggle() {
     if (pushWorking) return;
     setPushWorking(true);
@@ -179,7 +169,7 @@ export default function SettingsPage() {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
-          const token = await getToken();
+          const token = await getAuthToken();
           await fetch('/api/push/subscribe', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -206,7 +196,7 @@ export default function SettingsPage() {
           userVisibleOnly: true,
           applicationServerKey: vapidKey,
         });
-        const token = await getToken();
+        const token = await getAuthToken();
         await fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -223,7 +213,7 @@ export default function SettingsPage() {
 
   async function handleTestPush() {
     setTestResult('idle');
-    const token = await getToken();
+    const token = await getAuthToken();
     const res = await fetch('/api/push/test', {
       method: 'POST',
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
