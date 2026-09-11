@@ -25,7 +25,7 @@ interface MacroData {
 const CACHE_KEY = 'lhq_macro_context';
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
-type LoadState = MacroData | null | 'loading' | 'error' | 'unauth';
+type LoadState = MacroData | null | 'loading' | 'error' | 'unauth' | 'locked';
 
 const SIGNAL_META: Record<string, { col: string; bg: string; bdr: string; labelKey: LabelKey }> = {
   RISK_ON:  { col: 'var(--green-2)', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_RISK_ON'  },
@@ -52,7 +52,7 @@ function chgStr(chg: number) {
 export default function GlobalMacroContext() {
   const { t } = useLabels();
   const router = useRouter();
-  const { entitled, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [state,  setState]  = useState<LoadState>('loading');
   const [errMsg, setErrMsg] = useState('');
 
@@ -75,7 +75,16 @@ export default function GlobalMacroContext() {
         analysis?: string; error?: string;
       };
 
-      if (!res.ok) { setErrMsg(json.error ?? ''); setState('error'); return; }
+      /* PRO_REQUIRED is not a generic failure - #1171. Falling through to the
+         'error' branch below would show a free user a raw error message
+         where they should see the same LockedFeatureCard a signed-out
+         visitor's own gate used to show before this route was reachable
+         without one. Checked by value, not a separate `code` field - this
+         route (like price-alerts) puts it in `error` itself. */
+      if (!res.ok) {
+        if (json.error === 'PRO_REQUIRED') { setState('locked'); return; }
+        setErrMsg(json.error ?? ''); setState('error'); return;
+      }
 
       const text = json.analysis ?? '';
       const signal      = parseMacroSection(text, 'MACRO_SIGNAL').replace(/[^A-Z_]/g, '');
@@ -101,10 +110,23 @@ export default function GlobalMacroContext() {
   }, []);
 
   useEffect(() => {
-    // Wait for the role to resolve, and skip entirely for a non-entitled
-    // user - this is Pro-gated server-side (403 PRO_REQUIRED), so fetching
-    // anyway just burns a round trip to show the locked-card branch below.
-    if (authLoading || !entitled) return;
+    /* Gated on user, not entitled - #1171. This used to wait for the
+       entitlements read to resolve `entitled` before firing at all, on the
+       reasoning that fetching anyway "just burns a round trip" for a
+       non-entitled user. That traded a real cost: entitled comes from a
+       SEPARATE, separately-bounded fetch in AuthProvider (up to
+       ENTITLEMENTS_FETCH_MS = 15s), so this component sat behind it doing
+       nothing even though its own request doesn't need the answer - the
+       server already 403s a non-entitled caller before spending anything
+       (see the route's own comment), so the client-side gate was UX-only,
+       not a security or cost requirement. Firing as soon as the session
+       resolves (same timing GrokUsageProvider already uses) runs this
+       concurrent with the entitlements fetch instead of sequential after
+       it. The PRO_REQUIRED branch in fetchData above is what makes this
+       safe to remove: a free user reaches the same LockedFeatureCard they
+       always did, discovered from the server's actual answer instead of
+       the client's own guess at it. */
+    if (authLoading || !user) return;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
@@ -113,7 +135,7 @@ export default function GlobalMacroContext() {
       }
     } catch { /* ignore */ }
     fetchData();
-  }, [authLoading, entitled, fetchData]);
+  }, [authLoading, user, fetchData]);
 
   const signalKey = typeof state === 'object' && state !== null
     ? (state.signal.match(/^(RISK_ON|RISK_OFF|NEUTRAL)/)?.[1] ?? 'NEUTRAL')
@@ -128,14 +150,13 @@ export default function GlobalMacroContext() {
         </Tip>
       </div>
 
-      {!authLoading && !entitled ? (
+      {state === 'locked' && (
         <LockedFeatureCard
           title={t('GLOBAL_MACRO_CONTEXT_TITLE')}
           description={t('GLOBAL_MACRO_CONTEXT_LOCKED_DESC')}
           onUnlock={() => router.push('/upgrade')}
         />
-      ) : (
-      <>
+      )}
       {state === 'loading' && (
         <div style={{ padding: '4px 0' }} role="status" aria-live="polite">
           <span className="sr-only">{t('GLOBAL_MACRO_CONTEXT_FETCHING_SR')}</span>
@@ -232,8 +253,6 @@ export default function GlobalMacroContext() {
           </>
         );
       })()}
-      </>
-      )}
     </div>
   );
 }
