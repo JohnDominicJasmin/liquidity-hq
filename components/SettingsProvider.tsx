@@ -5,6 +5,7 @@ import { getSupabase, getAuthToken } from '@/lib/supabase';
 import {
   UserSettings, SettingsContext,
   DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings, rowToSettings,
+  loadUnconfirmedKeys, saveUnconfirmedKeys, clearUnconfirmedKeys,
 } from '@/lib/settings';
 import { T } from '@/lib/tables';
 
@@ -23,13 +24,18 @@ const SETTINGS_SAVE_MAX_ATTEMPTS = 3;
 const SETTINGS_SAVE_RETRY_BACKOFF_MS = [1000, 2000];
 
 export default function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [settings,   setSettings]   = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading,    setLoading]    = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef  = useRef<Partial<UserSettings> | null>(null);
+  // Mirrors `settings`, read inside applyDbSettings below so that merge can
+  // use the CURRENT local value without putting a side effect (flushToDb)
+  // inside a setState updater callback - #1188 part 3.
+  const settingsRef = useRef(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
 
   // ── Debounced Supabase upsert ─────────────────────────────────────────────
   // Declared before the effects, not after them. The sign-in effect below calls
@@ -66,6 +72,12 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     for (let n = 1; n <= SETTINGS_SAVE_MAX_ATTEMPTS; n++) {
       const { failed } = await attemptSave();
       if (!failed) {
+        // #1188 part 3: this exact partial is now DB-confirmed - clear only
+        // these keys from the unconfirmed set, not the whole thing, since a
+        // different field's own save may still be in flight or failed.
+        const unconfirmed = loadUnconfirmedKeys();
+        for (const key of Object.keys(partial)) unconfirmed.delete(key);
+        saveUnconfirmedKeys(unconfirmed);
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus('idle'), 2000);
         return;
@@ -76,15 +88,56 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     }
     /* Every attempt failed. `saveStatus: 'error'` is #1188 part 2's signal -
        SettingsSaveToast.tsx renders it from anywhere, not just /settings.
-       NOT FIXED HERE, ON PURPOSE: `settings`/localStorage still hold the
-       user's change in memory for the rest of this browser session, but the
-       next sign-in effect below re-reads the DB (which never got this write)
-       and overwrites both with the stale row - silently, with no error at
-       that point either. That reconciliation gap is #1188's still-open part
-       3, not something a retry or a toast can close. */
+       These keys stay in the unconfirmed set (update() already added them
+       before this ever ran) - #1188 part 3's applyDbSettings below is what
+       stops the next sign-in's DB read from silently overwriting them with
+       the stale value this save was trying to replace. */
     setSaveStatus('error');
     setTimeout(() => setSaveStatus('idle'), 3000);
   }, [user]);
+
+  // Applies a DB-confirmed row without letting it silently overwrite a field
+  // this browser has an unconfirmed local write for - #1188 part 3. Shared by
+  // the sign-in effect and refresh() below, which had the identical
+  // unconditional-overwrite bug (refresh() exists specifically for
+  // server-initiated writes like the Telegram webhook, so a poll landing
+  // mid-edit on some OTHER field must not clobber that edit either).
+  //
+  // Deliberately does NOT re-push unconfirmed fields to the server. An
+  // earlier version retried them automatically on every fresh sign-in, using
+  // their current (stale) local value - QA traced the real consequence: on
+  // device A, a failed save leaves a key unconfirmed with A's OLD value; if
+  // device B then successfully saves a NEWER value for that same key, A's
+  // next sign-in would keep A's stale value locally (correct, this function's
+  // whole job) and then PUSH it back to the server (not this function's job),
+  // silently overwriting B's newer, already-confirmed write - repeating on
+  // every sign-in until it happened to land. Keeping the local value is the
+  // fix; writing it back over someone else's newer change is a different,
+  // unsolved problem (no timestamp exists to decide who actually wins) -
+  // tracked on #1202, not solved here. This function's contract stays
+  // narrow: protect the field locally, touch nothing server-side.
+  const applyDbSettings = useCallback((dbSettings: UserSettings) => {
+    const unconfirmed = loadUnconfirmedKeys();
+    if (unconfirmed.size === 0) {
+      setSettings(dbSettings);
+      saveLocalSettings(dbSettings);
+      return;
+    }
+    const current = settingsRef.current;
+    const merged: UserSettings = { ...dbSettings };
+    // Single generic per call, not a Record<string, unknown> cast - keeps
+    // dest[key] = src[key] type-checked against UserSettings' real field
+    // types instead of erasing them.
+    function copyKey<K extends keyof UserSettings>(dest: Partial<UserSettings>, key: K) {
+      dest[key] = current[key];
+    }
+    for (const key of unconfirmed) {
+      if (!(key in merged)) continue; // stale key from a removed field - ignore
+      copyKey(merged, key as keyof UserSettings);
+    }
+    setSettings(merged);
+    saveLocalSettings(merged);
+  }, []);
 
   // ── Initialise from localStorage immediately (no flash of defaults) ──────
   useEffect(() => {
@@ -94,7 +147,26 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
 
   // ── When user signs in: fetch from Supabase and override localStorage ────
   useEffect(() => {
-    if (!user) return;
+    // QA caught this, #1119-shaped: `user` starts null on every page load,
+    // before AuthProvider's session check has resolved - `!user` alone
+    // cannot tell "genuinely signed out" from "not known yet" and was
+    // treating the second as the first. That wiped clearUnconfirmedKeys()
+    // against a merely-not-yet-resolved session on every cold reload, before
+    // the protection it exists for ever got a chance to run - reproduced as
+    // 10000 -> 55555 -> reload -> back to 10000, marker already gone. Same
+    // owner ruling as #1119 applies here: unknown is not a negative. Wait
+    // for authLoading to actually settle before treating a null user as a
+    // real sign-out.
+    if (authLoading) return;
+    if (!user) {
+      // #1188 part 3: a stale unconfirmed key from a PREVIOUS account on a
+      // shared browser would wrongly protect that field from the NEXT
+      // account's real DB value in applyDbSettings' merge - see the comment
+      // on clearUnconfirmedKeys for why this is the one piece of settings
+      // state that must not survive a sign-out even though the rest does.
+      clearUnconfirmedKeys();
+      return;
+    }
     const sb = getSupabase();
     if (!sb) return;
     setLoading(true);
@@ -106,8 +178,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
         if (data) {
           const row = data as Record<string, unknown>;
           const s   = rowToSettings(row);
-          setSettings(s);
-          saveLocalSettings(s);
+          applyDbSettings(s);
 
           // One-time migration: Arena's Anti-Chop Filter toggle used to be a
           // localStorage-only setting the server (Telegram alerts) could
@@ -123,6 +194,13 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
               if (legacy != null) {
                 const legacyVal = legacy === 'true';
                 setSettings(prev => ({ ...prev, anti_chop_enabled: legacyVal }));
+                // #1188 part 3: this is a local write same as any update()
+                // call, so it needs the same unconfirmed-until-saved marker -
+                // otherwise a reload between now and this flush landing would
+                // let applyDbSettings silently revert the migrated value.
+                const unconfirmed = loadUnconfirmedKeys();
+                unconfirmed.add('anti_chop_enabled');
+                saveUnconfirmedKeys(unconfirmed);
                 pendingRef.current = { ...(pendingRef.current ?? {}), anti_chop_enabled: legacyVal };
                 if (debounceRef.current) clearTimeout(debounceRef.current);
                 debounceRef.current = setTimeout(() => {
@@ -135,7 +213,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
         }
         setLoading(false);
       }, () => setLoading(false));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Re-read from Supabase on demand ───────────────────────────────────────
   // Same read as the sign-in effect above, minus the one-time anti-chop
@@ -153,8 +231,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       .maybeSingle();
     if (!data) return;
     const s = rowToSettings(data as Record<string, unknown>);
-    setSettings(s);
-    saveLocalSettings(s);
+    applyDbSettings(s);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = useCallback((partial: Partial<UserSettings>) => {
@@ -164,6 +241,14 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       saveLocalSettings(next);
       return next;
     });
+
+    // #1188 part 3: mark these keys unconfirmed SYNCHRONOUSLY, before the
+    // debounce below even fires - a reload that happens before the save is
+    // ever attempted (not just before it completes) must still protect this
+    // field from applyDbSettings' next DB read.
+    const unconfirmed = loadUnconfirmedKeys();
+    for (const key of Object.keys(partial)) unconfirmed.add(key);
+    saveUnconfirmedKeys(unconfirmed);
 
     // 2. Merge into pending batch and schedule debounced save
     pendingRef.current = { ...(pendingRef.current ?? {}), ...partial };
