@@ -6645,23 +6645,37 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   width: 5px; height: 5px; background: var(--green); flex-shrink: 0;
 }
 /* #1114: .tnav overflows its own container from 768px (its own min-width
-   breakpoint) up to ~945px - measured, not estimated, on the closed issue:
-   177px of overflow at 768px, narrowing linearly to 0 at 950px. Traced to
-   this element as the largest single removable chunk, not confirmed live
-   (no browser check possible while the dev database is degraded - #1025 -
-   since any local server still hits it on mount regardless of the page
-   under test). The reasoning: the longest session name ('Mon Evening') plus
-   ' · Xh XXm' is up to ~21 characters at 11px monospace with .08em tracking,
-   which alone approaches the measured 177px gap at 768px before counting
-   its own dot and gaps.
-   Session status is supplementary (a countdown, not a route or control -
-   every destination this bar reaches stays reachable at every width above
-   767px regardless of this rule), which is why it is the one hidden here
-   rather than a nav item or the plan badge. Scoped to exactly the
-   overflowing band; at 945px and above the bar already fits and this
-   reverts to visible. NEEDS VISUAL CONFIRMATION once the database recovers
-   - see the issue for the follow-up measurement this PR is held on. */
-@media (min-width: 768px) and (max-width: 944px) {
+   breakpoint) up to ~900px. Hiding .tnav-session alone (the original fix
+   here) was NOT enough - PM/DevOps audited the actual screenshots rather
+   than the description and caught SIGN IN pushed fully off-screen at 768px
+   and clipped at 850px, which is worse than the cosmetic overflow this
+   started as: a signed-out visitor could not reach sign-in from the nav.
+   Re-measured live with Playwright rather than re-estimated (see PR #1222):
+   real overflow with .tnav-session already hidden is 101px at 768px, 69px
+   at 800px, 19px at 850px, 0px at 900px+ - a real number this time, not a
+   linear guess from the closed issue.
+   The theme toggle and language switcher are the next two candidates by the
+   same reasoning #1114 used for session status: both are supplementary
+   (a preference, not a route or a control anything else on the page
+   depends on reaching from HERE specifically - the theme toggle and
+   language picker both exist again on /settings), while SIGN IN and every
+   nav destination must stay reachable. Combined width recovered: 28px
+   (icon button) + 36px (language chip) + 2 * 14px (.tnav-right's own gap,
+   now needed for one item instead of three) = 92px - closes the 768px gap
+   to within 9px, comfortably inside the padding trim below. */
+@media (min-width: 768px) and (max-width: 899px) {
+  [data-design="terminal"] .tnav-session { display: none; }
+  [data-design="terminal"] .tnav-icon-btn { display: none; }
+  [data-design="terminal"] .lang-nav-wrap { display: none; }
+  /* The remaining ~9px at 768px specifically: six nav items' own horizontal
+     padding, not the design's own .tnav gap:28 (#599, cited by name in that
+     rule - not touched here). 12px -> 10px per side recovers 2px * 2 sides *
+     6 items = 24px, more than the remainder, without the visibly cramped
+     look a bigger cut would give the five items that were already fitting
+     fine above 900px. */
+  [data-design="terminal"] .tnav-item { padding-left: 10px; padding-right: 10px; }
+}
+@media (min-width: 900px) and (max-width: 944px) {
   [data-design="terminal"] .tnav-session { display: none; }
 }
 [data-design="terminal"] .tnav-kbd {
