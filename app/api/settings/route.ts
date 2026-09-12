@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
 
 function sb(token: string) {
   return createClient(
@@ -125,16 +126,10 @@ export async function PATCH(req: NextRequest) {
    * correctness would need per-field row locking or a stored procedure -
    * only worth it if this race is shown to actually bite in practice.
    *
-   * ACCEPT RULE (PM/DevOps correction on #1202 - the original draft was
-   * wrong): a field's write is accepted iff `server_ts` is null (nobody has
-   * ever confirmed a value for this field - nothing to conflict with) OR
-   * the client's own known-as-of timestamp for that field is present AND
-   * >= `server_ts`. A client with NO known-as-of for a field that the
-   * server already has a timestamp for is REJECTED, not accepted - "I have
-   * never synced this field" is not the same as "there is no conflict",
-   * and treating it as one is exactly the bug this whole mechanism exists
-   * to close (a stale, never-synced local edit stomping a newer confirmed
-   * write from another device). */
+   * ACCEPT RULE lives in shouldAcceptFieldWrite (lib/settingsFieldConcurrency.ts)
+   * - extracted so QA can test it directly (#1223) rather than only through
+   * one live two-device pass. See that file's own comment for the rule
+   * itself and the correction PM/DevOps made to my first draft. */
   const { data: existing } = await client
     .from(T.user_settings)
     .select('field_updated_at')
@@ -149,11 +144,7 @@ export async function PATCH(req: NextRequest) {
   const newFieldTimestamps: Record<string, string> = { ...serverTimestamps };
 
   for (const key of Object.keys(payload)) {
-    const serverTsRaw = serverTimestamps[key];
-    const serverTsMs = serverTsRaw ? Date.parse(serverTsRaw) : NaN;
-    const clientTsRaw = knownAsOf[key];
-    const clientTsMs = clientTsRaw ? Date.parse(clientTsRaw) : NaN;
-    const accept = !Number.isFinite(serverTsMs) || (Number.isFinite(clientTsMs) && clientTsMs >= serverTsMs);
+    const accept = shouldAcceptFieldWrite(serverTimestamps[key], knownAsOf[key]);
     if (accept) {
       accepted.push(key);
       acceptedPayload[key] = payload[key];
