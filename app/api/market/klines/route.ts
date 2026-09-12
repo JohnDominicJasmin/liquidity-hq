@@ -39,9 +39,50 @@ import { intervalToMs, closedCandleTtl } from '@/lib/candles';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
-import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
+import { shouldFailToBybit, canFailoverForRequest, bybitIntervalFor } from '@/lib/klinesFailover';
 
 type Source = 'bybit' | 'binance' | 'binance-futures';
+
+// Reverse of BINANCE_SYMS, for #1077's failover: given the Binance symbol a
+// caller asked for, find which coin it is so BYBIT_SYMS/bybitPriceFactor can
+// answer for it.
+const BN_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
+  Object.entries(BINANCE_SYMS).map(([coin, sym]) => [sym, coin])
+);
+
+/* #1077: reshape a Bybit kline response into the bare-array, oldest-first
+ * shape every caller of source=binance/binance-futures already expects -
+ * never the caller's own requested shape, which is the whole point of a
+ * failover the caller shouldn't have to know happened. Every current caller
+ * (lib/useEMAStrategy.ts, components/KLineProChart.tsx,
+ * components/HigherTfMoveBadge.tsx, lib/backtestEngine.ts,
+ * lib/usePerpSpot.ts) reads only indices 0-5 (time, open, high, low, close,
+ * volume) positionally, so those are the only ones populated - fabricating
+ * Binance-only fields (closeTime, quoteVolume, trade count...) nothing reads
+ * would be inventing data, not converting it.
+ *
+ * Volume is left in Bybit's own units, unconverted - every caller only ever
+ * compares a series against its OWN average/history (see
+ * lib/ribbonCandles.ts's identical reasoning), never against Binance's
+ * absolute volume scale, so there is nothing to convert TO. */
+function bybitKlinesToBinanceShape(body: unknown, priceFactor: number, limitRaw: number): (string | number)[][] | null {
+  const list = (body as { result?: { list?: string[][] } })?.result?.list;
+  if (!Array.isArray(list)) return null;
+  const oldestFirst = [...list].reverse(); // Bybit is newest-first
+  const trimmed = oldestFirst.length > limitRaw ? oldestFirst.slice(-limitRaw) : oldestFirst;
+  return trimmed.map(row => {
+    const [start, open, high, low, close, volume] = row;
+    return [
+      Number(start),
+      String(Number(open) * priceFactor),
+      String(Number(high) * priceFactor),
+      String(Number(low) * priceFactor),
+      String(Number(close) * priceFactor),
+      volume,
+    ];
+  });
+}
 
 /* Closed sets, and that is a memory decision as much as a validation one.
  *
@@ -260,6 +301,65 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     const status = (e as Error & { status?: number }).status;
+
+    /* #1077: try Bybit before giving up. Only for a Binance source with a
+     * fixed limit (never a range request - PM/DevOps's rule: a paginated
+     * backfill assembles many requests into one series client-side, and this
+     * route has no memory of which exchange answered an earlier page of the
+     * same walk, so failing over independently per page could hand back a
+     * series that is part-Binance, part-Bybit with an invisible seam in it).
+     * Only if this symbol+interval actually has a Bybit equivalent - #228's
+     * rule still applies, so a coin/interval with no mapping fails loud here
+     * exactly as it always has, rather than a failover that silently returns
+     * nothing useful. */
+    if (
+      (source === 'binance' || source === 'binance-futures') &&
+      canFailoverForRequest(isRange) &&
+      shouldFailToBybit(status)
+    ) {
+      const coin = BN_SYM_TO_COIN[symbol];
+      const bbInterval = bybitIntervalFor(interval);
+      const bbSymbol = coin ? BYBIT_SYMS[coin] : undefined;
+      if (coin && bbSymbol && bbInterval) {
+        try {
+          const fallbackKey = `klines:${source}:bybit-fallback:${symbol}:${interval}:${limit}`;
+          const fallbackFetch = async () => {
+            const fbUrl = new URL(UPSTREAM.bybit);
+            fbUrl.searchParams.set('category', 'linear');
+            fbUrl.searchParams.set('symbol', bbSymbol);
+            fbUrl.searchParams.set('interval', bbInterval);
+            fbUrl.searchParams.set('limit', String(limit));
+            const r = await fetch(fbUrl, { cache: 'no-store' });
+            if (!r.ok) {
+              const err = new Error(`bybit fallback klines ${r.status}`);
+              (err as Error & { status?: number }).status = r.status;
+              throw err;
+            }
+            return r.json();
+          };
+          // Same TTL policy and cache mechanics as the primary path, so
+          // every caller sharing this bucket during a sustained Binance
+          // outage collapses onto one Bybit fetch rather than each one
+          // hammering Bybit the same way the outage started with Binance.
+          const rawFallback = await cached(fallbackKey, ttlFor(interval), fallbackFetch);
+          const converted = bybitKlinesToBinanceShape(rawFallback, bybitPriceFactor(coin), limitRaw);
+          if (converted) {
+            reportHealth(`${source}:klines-proxy`, 'market', true, `bybit-fallback ${symbol} ${interval}`);
+            return NextResponse.json(converted, {
+              headers: {
+                // #1077: the only way a caller (or QA) can tell this answer
+                // came from the fallback rather than Binance itself - a
+                // header rather than a body-shape change, since every caller
+                // parses the body positionally and must not have to branch
+                // on where it came from to do that.
+                'X-Data-Source': 'bybit-fallback',
+              },
+            });
+          }
+        } catch { /* Bybit fallback also failed - fall through to the original error below */ }
+      }
+    }
+
     reportHealth(`${source}:klines-proxy`, 'market', false, status ? `upstream ${status}` : String(e));
     /* 502 with the upstream status attached: "refused" must be distinguishable
        from "no candles", which is the whole of #228. */
