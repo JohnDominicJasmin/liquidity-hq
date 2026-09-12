@@ -171,36 +171,57 @@ export function saveLocalSettings(s: UserSettings) {
 // success path confirms that exact key was actually written to the DB - never
 // on failure, and never by the sign-in/refresh reads themselves, which must
 // treat this set as read-only input to a merge, not something they clear.
+// #1202 symptom 3: was a single global key, same scope as `lhq_settings_v1`
+// itself. That meant a stale marker surviving a skipped sign-out cleanup (a
+// crash, or any path that doesn't run the effect that calls this) could
+// wrongly protect a field for the NEXT account signed in on a shared
+// browser. Namespacing by user id removes the failure mode at the root:
+// two accounts now simply never share a key, so there is nothing left for a
+// missed cleanup to leak into.
 const UNCONFIRMED_LS_KEY = 'lhq_settings_unconfirmed_v1';
+const unconfirmedKeyFor = (userId: string) => `${UNCONFIRMED_LS_KEY}:${userId}`;
 
-export function loadUnconfirmedKeys(): Set<string> {
+export function loadUnconfirmedKeys(userId: string): Set<string> {
   if (typeof window === 'undefined') return new Set();
   try {
-    const raw = localStorage.getItem(UNCONFIRMED_LS_KEY);
+    const raw = localStorage.getItem(unconfirmedKeyFor(userId));
     if (!raw) return new Set();
     const arr: unknown = JSON.parse(raw);
     return Array.isArray(arr) ? new Set(arr.filter((k): k is string => typeof k === 'string')) : new Set();
   } catch { return new Set(); }
 }
 
-export function saveUnconfirmedKeys(keys: Set<string>) {
+export function saveUnconfirmedKeys(userId: string, keys: Set<string>) {
   try {
-    if (keys.size === 0) { localStorage.removeItem(UNCONFIRMED_LS_KEY); return; }
-    localStorage.setItem(UNCONFIRMED_LS_KEY, JSON.stringify([...keys]));
+    const key = unconfirmedKeyFor(userId);
+    if (keys.size === 0) { localStorage.removeItem(key); return; }
+    localStorage.setItem(key, JSON.stringify([...keys]));
   } catch { /* ignore */ }
 }
 
-// Called on sign-out. Deliberately NOT per-account: `lhq_settings_v1` itself
-// isn't namespaced by user id either (a pre-existing, out-of-scope-for-#1188
-// property of this whole file - the first paint after switching accounts on
-// a shared browser already shows the previous user's cached settings until
-// the sign-in DB read corrects it). Left un-cleared, though, a stale
-// unconfirmed key from a PREVIOUS account would wrongly protect that same
-// field from the NEW account's real DB value during the merge below - worse
-// than the pre-existing behaviour, not just as-bad - so this one specifically
-// must be cleared on sign-out.
-export function clearUnconfirmedKeys() {
-  try { localStorage.removeItem(UNCONFIRMED_LS_KEY); } catch { /* ignore */ }
+// One-time migration from the old global key to this account's namespaced
+// one - called once per sign-in, only after authLoading has settled and a
+// real user id is known (see SettingsProvider's sign-in effect). Migrates
+// rather than drops: a pending edit under the old global key is still a real
+// unconfirmed edit for WHOEVER is signing in right now (the global key could
+// only ever have belonged to one account's browser session at a time, since
+// nothing else touches it), and dropping it during this one-time transition
+// would strip #1201's protection from that edit for no reason. Removes the
+// old key either way so this only ever runs once per browser.
+export function migrateUnconfirmedKeysToUser(userId: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(UNCONFIRMED_LS_KEY);
+    if (raw == null) return;
+    const arr: unknown = JSON.parse(raw);
+    const legacy = Array.isArray(arr) ? arr.filter((k): k is string => typeof k === 'string') : [];
+    if (legacy.length > 0) {
+      const current = loadUnconfirmedKeys(userId);
+      legacy.forEach(k => current.add(k));
+      saveUnconfirmedKeys(userId, current);
+    }
+  } catch { /* ignore */ }
+  finally { try { localStorage.removeItem(UNCONFIRMED_LS_KEY); } catch { /* ignore */ } }
 }
 
 // ── DB row ↔ UserSettings conversion ─────────────────────────────────────

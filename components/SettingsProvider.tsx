@@ -5,7 +5,7 @@ import { getSupabase, getAuthToken } from '@/lib/supabase';
 import {
   UserSettings, SettingsContext,
   DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings, rowToSettings,
-  loadUnconfirmedKeys, saveUnconfirmedKeys, clearUnconfirmedKeys,
+  loadUnconfirmedKeys, saveUnconfirmedKeys, migrateUnconfirmedKeysToUser,
 } from '@/lib/settings';
 import { T } from '@/lib/tables';
 
@@ -75,9 +75,9 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
         // #1188 part 3: this exact partial is now DB-confirmed - clear only
         // these keys from the unconfirmed set, not the whole thing, since a
         // different field's own save may still be in flight or failed.
-        const unconfirmed = loadUnconfirmedKeys();
+        const unconfirmed = loadUnconfirmedKeys(user.id);
         for (const key of Object.keys(partial)) unconfirmed.delete(key);
-        saveUnconfirmedKeys(unconfirmed);
+        saveUnconfirmedKeys(user.id, unconfirmed);
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus('idle'), 2000);
         return;
@@ -116,8 +116,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // unsolved problem (no timestamp exists to decide who actually wins) -
   // tracked on #1202, not solved here. This function's contract stays
   // narrow: protect the field locally, touch nothing server-side.
-  const applyDbSettings = useCallback((dbSettings: UserSettings) => {
-    const unconfirmed = loadUnconfirmedKeys();
+  const applyDbSettings = useCallback((userId: string, dbSettings: UserSettings) => {
+    const unconfirmed = loadUnconfirmedKeys(userId);
     if (unconfirmed.size === 0) {
       setSettings(dbSettings);
       saveLocalSettings(dbSettings);
@@ -159,14 +159,19 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     // real sign-out.
     if (authLoading) return;
     if (!user) {
-      // #1188 part 3: a stale unconfirmed key from a PREVIOUS account on a
-      // shared browser would wrongly protect that field from the NEXT
-      // account's real DB value in applyDbSettings' merge - see the comment
-      // on clearUnconfirmedKeys for why this is the one piece of settings
-      // state that must not survive a sign-out even though the rest does.
-      clearUnconfirmedKeys();
+      // #1202 symptom 3: used to call clearUnconfirmedKeys() here - needed
+      // when the key was global, since a stale marker from THIS account
+      // could otherwise wrongly protect a field for the NEXT account signed
+      // in on a shared browser. Now namespaced by user id, so a different
+      // account's sign-in reads its own key and never sees this one -
+      // nothing left here to protect against.
       return;
     }
+    // #1202 symptom 3: one-time carry-over from the old global key into this
+    // account's namespaced one. Must run before any read/write of the
+    // namespaced key below, and only once user.id is a real, resolved value
+    // (the authLoading guard above already ensures that).
+    migrateUnconfirmedKeysToUser(user.id);
     const sb = getSupabase();
     if (!sb) return;
     setLoading(true);
@@ -178,7 +183,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
         if (data) {
           const row = data as Record<string, unknown>;
           const s   = rowToSettings(row);
-          applyDbSettings(s);
+          applyDbSettings(user.id, s);
 
           // One-time migration: Arena's Anti-Chop Filter toggle used to be a
           // localStorage-only setting the server (Telegram alerts) could
@@ -198,9 +203,9 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
                 // call, so it needs the same unconfirmed-until-saved marker -
                 // otherwise a reload between now and this flush landing would
                 // let applyDbSettings silently revert the migrated value.
-                const unconfirmed = loadUnconfirmedKeys();
+                const unconfirmed = loadUnconfirmedKeys(user.id);
                 unconfirmed.add('anti_chop_enabled');
-                saveUnconfirmedKeys(unconfirmed);
+                saveUnconfirmedKeys(user.id, unconfirmed);
                 pendingRef.current = { ...(pendingRef.current ?? {}), anti_chop_enabled: legacyVal };
                 if (debounceRef.current) clearTimeout(debounceRef.current);
                 debounceRef.current = setTimeout(() => {
@@ -231,7 +236,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       .maybeSingle();
     if (!data) return;
     const s = rowToSettings(data as Record<string, unknown>);
-    applyDbSettings(s);
+    applyDbSettings(user.id, s);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = useCallback((partial: Partial<UserSettings>) => {
@@ -246,9 +251,16 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     // debounce below even fires - a reload that happens before the save is
     // ever attempted (not just before it completes) must still protect this
     // field from applyDbSettings' next DB read.
-    const unconfirmed = loadUnconfirmedKeys();
+    //
+    // #1202 symptom 3: 'anon' is a deliberate shared bucket, not a namespacing
+    // gap - a signed-out edit has no account row to reconcile against yet
+    // (applyDbSettings only ever runs once a real user.id resolves), so there
+    // is nothing for a shared anonymous bucket to wrongly protect. Matches
+    // this key's pre-#1202 behaviour exactly for that one case.
+    const unconfirmedUserId = user?.id ?? 'anon';
+    const unconfirmed = loadUnconfirmedKeys(unconfirmedUserId);
     for (const key of Object.keys(partial)) unconfirmed.add(key);
-    saveUnconfirmedKeys(unconfirmed);
+    saveUnconfirmedKeys(unconfirmedUserId, unconfirmed);
 
     // 2. Merge into pending batch and schedule debounced save
     pendingRef.current = { ...(pendingRef.current ?? {}), ...partial };
@@ -259,7 +271,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
         pendingRef.current = null;
       }
     }, 800);
-  }, [flushToDb]);
+  }, [flushToDb, user?.id]);
 
   // Memoized for the same reason LabelsProvider's is: this provider wraps the
   // whole app, so a fresh object literal here re-rendered every useSettings()
