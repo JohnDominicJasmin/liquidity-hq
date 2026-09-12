@@ -1678,9 +1678,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                    only on the day something else was already broken. */
                 if (result) histSourceRef.current = 'binance-futures';
               }
-              if (result?.viaBybitFallback) setHistoryViaServerBybitFallback(true);
               let raw = result?.data ?? [];
               if (stale()) return; // superseded by a newer switch - drop it
+              // Set only for the load that wins the race above (#1244 fix):
+              // this used to fire before the stale check, so a load for one
+              // interval could tag the label true and then a DIFFERENT,
+              // slower-resolving load for another interval - even one that
+              // ultimately has nothing to do with what's on screen - would
+              // reset it to false at ITS OWN start (see the unconditional
+              // setHistoryViaServerBybitFallback(false) above) and never set
+              // it back if that load's own fallback attempt came back empty.
+              // Tying the true-set to the exact bars this call is about to
+              // apply means the label always matches what's actually drawn.
+              if (result?.viaBybitFallback) setHistoryViaServerBybitFallback(true);
               const bars = raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
