@@ -67,10 +67,19 @@ export async function PATCH(req: NextRequest) {
     'timezone',
     'strategy_selection', 'strategy_params',
   ];
-  const payload: Record<string, unknown> = { user_id: user.id, updated_at: new Date().toISOString() };
+  const payload: Record<string, unknown> = {};
   for (const key of ALLOWED) {
     if (key in body) payload[key] = body[key];
   }
+  // #1202: the client's own last-known server timestamp per field it's
+  // writing - present only for a field this client has previously read a
+  // confirmed value for. Absent (or missing an entry) means "I have never
+  // synced this field," which the accept rule below treats as a real
+  // conflict risk, not a free pass - see that rule's own comment for why.
+  const knownAsOfRaw = body.knownAsOf;
+  const knownAsOf: Record<string, string> = (knownAsOfRaw && typeof knownAsOfRaw === 'object' && !Array.isArray(knownAsOfRaw))
+    ? Object.fromEntries(Object.entries(knownAsOfRaw as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === 'string'))
+    : {};
 
   // timezone is written automatically by components/TimezoneSync.tsx from
   // Intl, not typed by a user, but it still arrives over a PATCH a client
@@ -106,10 +115,71 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  const { error } = await sb(token)
+  const client = sb(token);
+
+  /* #1202: per-field optimistic concurrency. Read-then-write, not a single
+   * atomic UPDATE - a genuinely simultaneous write to the SAME field from two
+   * devices in the same instant has a small residual race. Accepted trade,
+   * named on the issue: this is personal settings, not financial data, and
+   * the baseline before this existed was ZERO arbitration. Full serializable
+   * correctness would need per-field row locking or a stored procedure -
+   * only worth it if this race is shown to actually bite in practice.
+   *
+   * ACCEPT RULE (PM/DevOps correction on #1202 - the original draft was
+   * wrong): a field's write is accepted iff `server_ts` is null (nobody has
+   * ever confirmed a value for this field - nothing to conflict with) OR
+   * the client's own known-as-of timestamp for that field is present AND
+   * >= `server_ts`. A client with NO known-as-of for a field that the
+   * server already has a timestamp for is REJECTED, not accepted - "I have
+   * never synced this field" is not the same as "there is no conflict",
+   * and treating it as one is exactly the bug this whole mechanism exists
+   * to close (a stale, never-synced local edit stomping a newer confirmed
+   * write from another device). */
+  const { data: existing } = await client
     .from(T.user_settings)
-    .upsert(payload, { onConflict: 'user_id' });
+    .select('field_updated_at')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const serverTimestamps = (existing?.field_updated_at ?? {}) as Record<string, string>;
+
+  const accepted: string[] = [];
+  const rejected: string[] = [];
+  const nowIso = new Date().toISOString();
+  const acceptedPayload: Record<string, unknown> = {};
+  const newFieldTimestamps: Record<string, string> = { ...serverTimestamps };
+
+  for (const key of Object.keys(payload)) {
+    const serverTsRaw = serverTimestamps[key];
+    const serverTsMs = serverTsRaw ? Date.parse(serverTsRaw) : NaN;
+    const clientTsRaw = knownAsOf[key];
+    const clientTsMs = clientTsRaw ? Date.parse(clientTsRaw) : NaN;
+    const accept = !Number.isFinite(serverTsMs) || (Number.isFinite(clientTsMs) && clientTsMs >= serverTsMs);
+    if (accept) {
+      accepted.push(key);
+      acceptedPayload[key] = payload[key];
+      newFieldTimestamps[key] = nowIso;
+    } else {
+      rejected.push(key);
+    }
+  }
+
+  if (accepted.length === 0) {
+    // Nothing this request contributed was real - every field lost to a
+    // fresher confirmed write elsewhere. Skip the write entirely (including
+    // the whole-row updated_at) rather than touching the row for no reason.
+    const { data } = await client.from(T.user_settings).select('*').eq('user_id', user.id).maybeSingle();
+    return NextResponse.json({ ok: true, accepted, rejected, settings: data });
+  }
+
+  const { error } = await client
+    .from(T.user_settings)
+    .upsert(
+      { user_id: user.id, updated_at: nowIso, field_updated_at: newFieldTimestamps, ...acceptedPayload },
+      { onConflict: 'user_id' },
+    );
 
   if (error) return apiError('settings', error);
-  return NextResponse.json({ ok: true });
+
+  const { data } = await client.from(T.user_settings).select('*').eq('user_id', user.id).maybeSingle();
+  return NextResponse.json({ ok: true, accepted, rejected, settings: data });
 }

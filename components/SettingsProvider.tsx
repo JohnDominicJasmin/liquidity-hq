@@ -31,6 +31,13 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef  = useRef<Partial<UserSettings> | null>(null);
+  // #1202 core: the last server-confirmed write timestamp per field, as of
+  // the most recent DB read (sign-in fetch, refresh(), or a PATCH response).
+  // Sent back as `knownAsOf` on the next save so the server can tell "I'm
+  // writing based on the version I actually last saw" from "I'm writing
+  // blind" - see app/api/settings/route.ts's own accept-rule comment. A ref,
+  // not state: purely an outgoing-request input, never rendered.
+  const fieldUpdatedAtRef = useRef<Record<string, string>>({});
 
   // ── Debounced Supabase upsert ─────────────────────────────────────────────
   // Declared before the effects, not after them. The sign-in effect below calls
@@ -49,32 +56,78 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     // the app runs through this (update() debounces into it), so an unbounded
     // call here left saveStatus stuck on 'saving' forever on a degraded auth
     // backend, with nothing downstream ever given a chance to reset it.
-    async function attemptSave(): Promise<{ failed: boolean }> {
+    type AttemptResult =
+      | { failed: true }
+      | { failed: false; accepted: string[]; rejected: string[]; settings: Record<string, unknown> | null };
+    async function attemptSave(): Promise<AttemptResult> {
       try {
         const token = await getAuthToken();
         if (!token) return { failed: true };
+        // #1202 core: only send a knownAsOf entry for a field this client has
+        // actually seen a server-confirmed timestamp for - omitting one for a
+        // never-synced field is deliberate, not a gap; see the route's own
+        // accept-rule comment for why sending nothing must not read as "no
+        // conflict".
+        const knownAsOf: Record<string, string> = {};
+        for (const key of Object.keys(partial)) {
+          const ts = fieldUpdatedAtRef.current[key];
+          if (ts) knownAsOf[key] = ts;
+        }
         const res = await fetch('/api/settings', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify(partial),
+          body: JSON.stringify({ ...partial, knownAsOf }),
         });
-        return { failed: !res.ok };
+        if (!res.ok) return { failed: true };
+        const body = await res.json() as { accepted?: string[]; rejected?: string[]; settings?: Record<string, unknown> | null };
+        return { failed: false, accepted: body.accepted ?? [], rejected: body.rejected ?? [], settings: body.settings ?? null };
       } catch {
         return { failed: true };
       }
     }
 
     for (let n = 1; n <= SETTINGS_SAVE_MAX_ATTEMPTS; n++) {
-      const { failed } = await attemptSave();
-      if (!failed) {
-        // #1188 part 3: this exact partial is now DB-confirmed - clear only
-        // these keys from the unconfirmed map, not the whole thing, since a
-        // different field's own save may still be in flight or failed.
+      const result = await attemptSave();
+      if (!result.failed) {
+        // The row the server actually holds now, regardless of which fields
+        // this attempt won - authoritative ground truth for fieldUpdatedAtRef
+        // and for reconciling anything rejected below.
+        const freshRow = result.settings;
+        if (freshRow?.field_updated_at && typeof freshRow.field_updated_at === 'object') {
+          fieldUpdatedAtRef.current = freshRow.field_updated_at as Record<string, string>;
+        }
+
         const unconfirmed = loadUnconfirmed(user.id);
-        for (const key of Object.keys(partial)) delete unconfirmed[key];
+        for (const key of result.accepted) {
+          // #1188 part 3 + PM/DevOps's #1202 catch: only clear the marker if
+          // the stored value still equals what THIS attempt actually sent.
+          // Without this check, a newer edit to the same key made WHILE this
+          // attempt was in flight (update() already overwrote the map entry
+          // with the newer value) would have its protection deleted here by
+          // an older attempt confirming an older value - the newer edit is
+          // then unprotected and never retried.
+          if (JSON.stringify(unconfirmed[key]) === JSON.stringify((partial as Record<string, unknown>)[key])) {
+            delete unconfirmed[key];
+          }
+        }
+        // #1202 core: a rejected field lost to a newer confirmed write on
+        // another device. The conflict is now resolved by an authoritative
+        // answer, not a guess - adopt the server's actual value and release
+        // this device's protection for it, the same way applyDbSettings
+        // would if this had arrived via a fresh sign-in instead.
+        if (result.rejected.length > 0 && freshRow) {
+          for (const key of result.rejected) delete unconfirmed[key];
+          setSettings(prev => {
+            const merged = { ...prev } as Record<string, unknown>;
+            for (const key of result.rejected) if (key in freshRow) merged[key] = freshRow[key];
+            saveLocalSettings(merged as unknown as UserSettings);
+            return merged as unknown as UserSettings;
+          });
+        }
         saveUnconfirmed(user.id, unconfirmed);
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
+
+        setSaveStatus(result.rejected.length > 0 ? 'error' : 'saved');
+        setTimeout(() => setSaveStatus('idle'), result.rejected.length > 0 ? 3000 : 2000);
         return;
       }
       if (n < SETTINGS_SAVE_MAX_ATTEMPTS) {
@@ -188,6 +241,12 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
         if (data) {
           const row = data as Record<string, unknown>;
           const s   = rowToSettings(row);
+          // #1202 core: seed the known-as-of map from this read before
+          // anything else touches it, so the very first save this session
+          // makes already carries real per-field timestamps.
+          if (row.field_updated_at && typeof row.field_updated_at === 'object') {
+            fieldUpdatedAtRef.current = row.field_updated_at as Record<string, string>;
+          }
           applyDbSettings(user.id, s);
 
           // One-time migration: Arena's Anti-Chop Filter toggle used to be a
@@ -240,7 +299,11 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       .eq('user_id', user.id)
       .maybeSingle();
     if (!data) return;
-    const s = rowToSettings(data as Record<string, unknown>);
+    const row = data as Record<string, unknown>;
+    const s = rowToSettings(row);
+    if (row.field_updated_at && typeof row.field_updated_at === 'object') {
+      fieldUpdatedAtRef.current = row.field_updated_at as Record<string, string>;
+    }
     applyDbSettings(user.id, s);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
