@@ -100,7 +100,15 @@ export default function PlanBadge() {
       : null;
     return (
       <span className="plan-badge plan-badge-trial" title="Trial">
-        {`TRIAL${daysLeft != null ? ` · ${daysLeft}D` : ''}`}
+        TRIAL
+        {/* #1222: the day count is its own span so the 768-910px nav band
+            can hide it without touching the badge everywhere else it
+            renders (settings, upgrade). "TRIAL · 14D" (11 chars) is nearly
+            3x "FREE" (4 chars) - PM/DevOps measured it clipping the avatar
+            by over 50px at 768px, not just thin, once the earlier FREE-only
+            fix was in place. `title="Trial"` above already carries the
+            same information for anyone who can't see this span. */}
+        {daysLeft != null && <span className="plan-badge-trial-days">{` · ${daysLeft}D`}</span>}
       </span>
     );
   }

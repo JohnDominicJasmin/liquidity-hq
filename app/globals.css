@@ -6669,7 +6669,7 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    (icon button) + 36px (language chip) + 2 * 14px (.tnav-right's own gap,
    now needed for one item instead of three) = 92px - closes the 768px gap
    to within 9px, comfortably inside the padding trim below. */
-@media (min-width: 768px) and (max-width: 910px) {
+@media (min-width: 768px) and (max-width: 917px) {
   [data-design="terminal"] .tnav-session { display: none; }
   [data-design="terminal"] .tnav-icon-btn { display: none; }
   [data-design="terminal"] .lang-nav-wrap { display: none; }
@@ -6711,9 +6711,37 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      768px signed in was only 2.86px from the edge at gap:8px - too thin.
      14px -> 4px recovers the difference with real margin instead. */
   [data-design="terminal"] .tnav-right { gap: 4px; }
+  /* PM/DevOps caught this measuring the widest badge state, not just FREE:
+     a two-digit-day TRIAL badge ("TRIAL · 14D", 11 characters against
+     FREE's 4) clips the avatar by over 50px at 768px even with the gap fix
+     above - the badge itself is the problem here, not spacing around it.
+     Scoped to `.tnav-right` specifically (not `.plan-badge-trial-days`
+     alone) so the day count still shows everywhere else the badge renders
+     (settings, upgrade) - only this nav, only this band, loses it.
+     `title="Trial"` on the parent span (PlanBadge.tsx) still carries the
+     same information to anyone who can't see this text. */
+  [data-design="terminal"] .tnav-right .plan-badge-trial-days { display: none; }
+  /* Even bare "TRIAL" (5 characters) is enough more than "FREE" (4) to clip
+     the avatar again at 768px once the day count above is gone - measured
+     at -1.47px, i.e. still overflowing, not just thin. `.plan-badge`'s
+     shared 10px horizontal padding (app-wide, owner-specified - see that
+     rule's own comment, not touched globally) is scoped down here to 6px,
+     same "only this nav" pattern as the day-count rule above. Applies to
+     every badge state (FREE/TRIAL/PRO) uniformly rather than singling one
+     out, since all three share the one class this targets. */
+  [data-design="terminal"] .tnav-right .plan-badge { padding-left: 6px; padding-right: 6px; }
 }
-@media (min-width: 911px) and (max-width: 944px) {
+@media (min-width: 918px) and (max-width: 944px) {
   [data-design="terminal"] .tnav-session { display: none; }
+  /* The two-digit-day TRIAL badge clips the avatar here too (theme toggle
+     and language switcher are both back at this width, per the band split
+     above, so there is even less room for it than 768-917px had before its
+     own fixes) - same reasoning and same fix as that band's identical rule. */
+  [data-design="terminal"] .tnav-right .plan-badge-trial-days { display: none; }
+  /* Same reasoning as the 768-917px band's identical rule: bare "TRIAL"
+     alone still clips here (this band has no gap trim of its own, unlike
+     768-917px, so the deficit is larger - measured at -19.84px before this). */
+  [data-design="terminal"] .tnav-right .plan-badge { padding-left: 6px; padding-right: 6px; }
 }
 [data-design="terminal"] .tnav-kbd {
   color: var(--txt3);
