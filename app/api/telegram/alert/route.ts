@@ -11,6 +11,7 @@ import { computeDistributionScore, DistributionInputs } from '@/lib/distribution
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
+import { onCooldown, markSent } from '@/lib/alertCooldown';
 import {
   EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, BYBIT_KLINE_SYMS,
 } from '@/lib/ribbonCandles';
@@ -179,8 +180,10 @@ const WHALE_THRESHOLD: Record<string, number> = {
   // xau/spx excluded - synthetic perps with non-standard trade sizing
 };
 
-/* ── In-memory state ── */
-const lastSent   = new Map<string, number>();
+/* ── In-memory state ──
+   onCooldown/markSent live in lib/alertCooldown.ts (#1227) - a route file
+   can only export the fixed set of names App Router recognizes as handlers,
+   so a testable extraction has to move out, not just export from here. */
 // EMA Buy/Sell Signal dedup - keyed `${coin}_${tf}`, value = the fired
 // signal's own timestamp (its arm/confirm candle). More precise than a time
 // cooldown: re-fires only when a genuinely NEW signal (alternation flipped)
@@ -226,9 +229,6 @@ function getSession(): string {
   if (pht >= 8    && pht < 15)   return '🌏 Asia';
   return '😴 Off';
 }
-const onCooldown = (key: string, ms: number) => { const t = lastSent.get(key); return t !== undefined && Date.now() - t < ms; };
-const markSent   = (key: string) => lastSent.set(key, Date.now());
-
 /* ── Per-recipient alert timestamps ──────────────────────────────────────────
    Message bodies are built once and fanned out to many chat IDs, so the time
    in them can't be baked in per recipient at build time. Instead bodies carry
