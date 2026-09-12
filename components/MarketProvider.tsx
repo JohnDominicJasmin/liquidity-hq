@@ -10,7 +10,7 @@ import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
-import { nextSource, stableEnoughToSwitchBack } from '@/lib/exchangeFailover';
+import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
 
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
@@ -1254,6 +1254,11 @@ export default function MarketProvider(
     // a switch back commits, so a Binance connection that opens then drops
     // within a second or two doesn't bounce the detector between exchanges.
     const BN_STABLE_MS = 3_000;
+    // PR #1228 review (PM/DevOps): a connect attempt this old without an
+    // onopen is treated as failed even if neither onerror nor onclose ever
+    // fires - see components/WhaleTradesFeed.tsx's identical constant for
+    // the full reasoning (blackholed connections, error-without-close).
+    const BN_CONNECT_TIMEOUT_MS = 10_000;
 
     let bnWs: WebSocket | null = null;
     let bbWs: WebSocket | null = null;
@@ -1278,7 +1283,23 @@ export default function MarketProvider(
       if (!alive) return;
       const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
       bnWs = ws;
+      const attemptStartedAt = Date.now();
+      // #1228 review: onerror, onclose and the connect timeout below all
+      // reach the same failure path, and must count as ONE failure - a real
+      // close typically follows error, and the timeout must not double-fire
+      // once one of the others already has.
+      let settled = false;
+
+      const timeoutTimer = setTimeout(() => {
+        if (settled || !connectTimedOut(attemptStartedAt, Date.now(), BN_CONNECT_TIMEOUT_MS)) return;
+        settled = true;
+        try { ws.close(); } catch { /* */ }
+        handleFailure();
+      }, BN_CONNECT_TIMEOUT_MS);
+
       ws.onopen = () => {
+        if (settled) return;
+        clearTimeout(timeoutTimer);
         if (!alive) return;
         bnRetries = 0;
         if (active !== 'bybit') { active = 'binance'; return; }
@@ -1310,7 +1331,26 @@ export default function MarketProvider(
           recordLiq(coin, side, usd);
         } catch { /* */ }
       };
+      // #1228 review: onerror used to only call ws.close() and hope onclose
+      // followed - confirmed live (this PR's own review) that a browser can
+      // fire error without ever following it with close, so error now
+      // drives the failure path directly, guarded the same way the timeout
+      // is rather than depending on a second event that may never come.
+      ws.onerror = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutTimer);
+        try { ws.close(); } catch { /* */ }
+        handleFailure();
+      };
       ws.onclose = () => {
+        if (settled) return; // error or the timeout already handled this attempt
+        settled = true;
+        clearTimeout(timeoutTimer);
+        handleFailure();
+      };
+
+      function handleFailure() {
         if (!alive) return;
         if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
         bnRetries++;
@@ -1331,8 +1371,7 @@ export default function MarketProvider(
           return;
         }
         bnRetryTimer = setTimeout(connectBN, 5_000);
-      };
-      ws.onerror = () => { try { ws.close(); } catch { /* */ } };
+      }
     }
 
     function connectBB() {

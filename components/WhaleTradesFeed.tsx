@@ -4,7 +4,7 @@ import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
-import { nextSource, stableEnoughToSwitchBack } from '@/lib/exchangeFailover';
+import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
 
 /* ── Binance futures combined aggTrade stream, Bybit publicTrade on failover ──
    #1059: client-side failover - a browser that cannot reach Binance (blocked
@@ -33,6 +33,12 @@ const BN_RETRY_WHILE_ON_BB_MS = 60_000; // how often to re-try Binance while par
 // switch back commits, so a Binance connection that opens then drops within
 // a second or two doesn't bounce the feed between exchanges on every blip.
 const BN_STABLE_MS = 3_000;
+// PR #1228 review (PM/DevOps): a connect attempt this old without an onopen
+// is treated as failed even if neither onerror nor onclose ever fires - a
+// blackholed connection (dropped packets, no TCP RST) can otherwise leave
+// the feed dead for as long as the OS's own TCP timeout, far longer than a
+// user should wait for a failover that already exists.
+const BN_CONNECT_TIMEOUT_MS = 10_000;
 
 const MIN_USD  = 50_000;      // $50K  - large trade threshold
 const BIG_USD  = 200_000;     // $200K - whale
@@ -111,7 +117,23 @@ export default function WhaleTradesFeed() {
       if (!alive) return;
       const ws = new WebSocket(BN_WS_URL);
       bnWs = ws;
+      const attemptStartedAt = Date.now();
+      // #1228 review: onerror, onclose and the connect timeout below all
+      // reach the same failure path, and must count as ONE failure, not up
+      // to three - a real close typically follows error, and the timeout
+      // must not double-fire once one of the others already has.
+      let settled = false;
+
+      const timeoutTimer = setTimeout(() => {
+        if (settled || !connectTimedOut(attemptStartedAt, Date.now(), BN_CONNECT_TIMEOUT_MS)) return;
+        settled = true;
+        try { ws.close(); } catch { /* */ }
+        handleFailure();
+      }, BN_CONNECT_TIMEOUT_MS);
+
       ws.onopen = () => {
+        if (settled) return;
+        clearTimeout(timeoutTimer);
         if (!alive) return;
         bnRetries = 0;
         setStatus('live');
@@ -132,8 +154,42 @@ export default function WhaleTradesFeed() {
           if (bbWs) { const old = bbWs; bbWs = null; try { old.close(); } catch { /* */ } }
         }, BN_STABLE_MS);
       };
-      ws.onerror = () => { try { ws.close(); } catch { /* */ } };
+      // #1228 review: onerror used to only call ws.close() and hope onclose
+      // followed. Confirmed live (this PR's own review) that a browser can
+      // fire error without ever following it with close - so error now
+      // drives the failure path directly, guarded by `settled` the same way
+      // the timeout is, rather than depending on a second event that may
+      // never come.
+      ws.onerror = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutTimer);
+        try { ws.close(); } catch { /* */ }
+        handleFailure();
+      };
       ws.onclose = () => {
+        if (settled) return; // error or the timeout already handled this attempt
+        settled = true;
+        clearTimeout(timeoutTimer);
+        handleFailure();
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data as string);
+          const d   = msg?.data;
+          if (d?.e !== 'aggTrade') return;
+          const price  = parseFloat(d.p);
+          const qty    = parseFloat(d.q);
+          const symbol = ((d.s ?? '') as string).toLowerCase();
+          const coin   = BN_COIN_MAP[symbol] ?? symbol.replace('usdt', '').toUpperCase();
+          /* m = true → buyer is maker → aggressor was a SELLER (market sell)
+             m = false → buyer is taker → aggressor was a BUYER  (market buy) */
+          const side: 'BUY' | 'SELL' = d.m ? 'SELL' : 'BUY';
+          addTrade(coin, side, price * qty, price);
+        } catch { /* ignore parse errors */ }
+      };
+
+      function handleFailure() {
         if (!alive) return;
         setStatus('error');
         if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
@@ -156,22 +212,7 @@ export default function WhaleTradesFeed() {
           return;
         }
         setTimeout(connectBN, 2000 * bnRetries);
-      };
-      ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data as string);
-          const d   = msg?.data;
-          if (d?.e !== 'aggTrade') return;
-          const price  = parseFloat(d.p);
-          const qty    = parseFloat(d.q);
-          const symbol = ((d.s ?? '') as string).toLowerCase();
-          const coin   = BN_COIN_MAP[symbol] ?? symbol.replace('usdt', '').toUpperCase();
-          /* m = true → buyer is maker → aggressor was a SELLER (market sell)
-             m = false → buyer is taker → aggressor was a BUYER  (market buy) */
-          const side: 'BUY' | 'SELL' = d.m ? 'SELL' : 'BUY';
-          addTrade(coin, side, price * qty, price);
-        } catch { /* ignore parse errors */ }
-      };
+      }
     }
 
     function connectBB() {
