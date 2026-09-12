@@ -957,6 +957,107 @@ cost nothing to check for at revert time.
 
 ---
 
+## ✅ 13. #1201's reload-survival fix — CLOSED 2026-09-12
+
+**Desktop, mobile, and deployed `qa` all confirmed.** QA wrote a regression
+spec (`qa/e2e/settings-reload-survives-failed-save.spec.ts`, #1204) and ran
+it six times across the review: clean RED against deployed `qa` pre-fix
+(value reverted `22345`→`10000` on reload), clean GREEN on desktop against
+`fix/settings-save-reconciliation` locally, then three deployed-`qa`
+post-merge runs and a local mobile solo run, detailed below.
+
+**The mobile/deployed question that was open as of the previous version of
+this entry is resolved - a named, specific infrastructure failure, not a
+product or viewport defect.** Three deployed-`qa` runs at commit `30b5c91`
+(#1201's merge commit):
+
+1. **Both projects together, first hit after deploy:** both FAILED - Account
+   Size field never rendered, page stuck on `AuthProvider`'s own Loading
+   spinner, before any interaction with the form at all.
+2. **Desktop solo, ~2 minutes later (warm retry):** FAILED again, same shape.
+3. **Desktop solo, with a concurrent `/auth/v1/token` latency probe sampling
+   every 2s:** PASSED clean, 21.9s.
+
+**The full causal chain, confirmed from three independent log sources
+(Render app logs, Supabase `postgrest_logs`, Supabase `realtime_logs` +
+`postgres_logs`), not inferred from symptoms alone:**
+
+1. `08:06:36` - Supabase Realtime wakes a sleeping tenant
+   (`Realtime.Tenants.Connect.GetTenant`, `"Tenant wdtjhrilakoitfcezxpx is
+   initializing"`).
+2. `08:06:37` - reinit runs `"Creating partitions for realtime.messages"` -
+   a schema change (DDL).
+3. `08:06:38-08:06:43` - that DDL fires five `"Received a schema cache
+   reload message on the pgrst channel"` events in four seconds.
+4. `08:06:51` - Postgres: `"canceling statement due to statement timeout"`
+   on the reload query.
+5. `08:07:00` - PostgREST: `"Failed to load the schema cache ... code
+   57014: canceling statement due to statement timeout"`, then continuous
+   `PGRST002 "Could not query the database for the schema cache.
+   Retrying."` through `08:07:34+`.
+6. **PostgREST could not serve any request for 30+ seconds** - including
+   the entitlements/settings reads `AuthProvider` waits on.
+
+Run 2 (the failing warm retry) ended at `08:07:22`, inside that outage.
+Render's app-side logs corroborate the same `PGRST002` message at the same
+timestamp, and that run's authenticated proxy/cmc calls (tagged with the
+test fixture's real user id) didn't fire until ~20+ seconds
+post-navigation - consistent with the outage window, not a generic
+slow-but-working backend. **The "cold start" instinct was right; the cold
+component was Supabase Realtime waking up, not Render** - which is why
+Render's own request logs and a post-hoc auth-latency sample both looked
+healthy without ruling anything out: neither was measuring Realtime.
+
+A 24h histogram of the same schema-cache-reload message on dev shows ~11/hour
+baseline, spiking to 68 at 17:00 the day before (during an owner-approved
+Realtime-publication experiment on the dev database - `ALTER PUBLICATION`
+is DDL too) and 269 at 08:00 this morning, during this review. A second,
+independent auth-latency probe run by PM/DevOps on the same endpoint during
+run 3's window corroborated low variance and no failures, consistent with
+run 3's clean pass landing outside the outage window.
+
+**Checked, and ruled out, the obvious next hypothesis: that QA's own test
+load was tipping a routine reload into a timeout.** Partition creation fires
+reload signals every time, deterministically (one create → exactly 5
+signals, two → exactly 10) - but request volume does not correlate with
+which reloads fail. Dev's busiest hour of the day (14:00, 1,633 requests)
+had a double reload and zero failures; 17:00 (181 requests) and 08:00
+(268 requests, during this review) both failed. Nine times the traffic, in
+the opposite direction. Production receives the identical reload trigger on
+the same schedule and has not failed once in 24 hours, including during its
+own busiest hour. **What distinguishes dev's failing reloads from its clean
+ones - and from production's, which never fail - is not yet identified.**
+One candidate worth naming without asserting it: 17:00 coincided with an
+owner-approved Realtime-publication experiment on the dev database, whose
+`ALTER PUBLICATION` is DDL on top of the partition reload; nothing
+equivalent is known for 08:00. This reframes #1194 (previously closed on
+Realtime's *polling* cost alone, ~58.6s/day - the partition DDL on tenant
+reinit was never measured) and is the leading lead for #1025 (why dev
+intermittently hangs) - tracked on those issues rather than re-derived
+here.
+
+**Mobile itself, separately:** one local solo run against
+`fix/settings-save-reconciliation` (before the deployed runs above) passed
+clean, 1.2m - two earlier solo attempts that night were killed by local
+system memory pressure mid-build, not by the test. Checked source for a
+structural mobile-specific cause (accordion/`display:none` on the Trading
+Profile fields, viewport-conditional logic in `AuthProvider`/
+`SettingsProvider`) and found none - consistent with desktop and mobile both
+failing the *same* way on the deployed runs above, not mobile specifically.
+
+**What remains open, and it is a separate, real finding, not part of
+#1201:** a settings page that cannot render at all for 30+ seconds during a
+PostgREST schema-cache outage is a genuine, user-facing problem regardless
+of whether the underlying fix is correct. Filed against #1173 (auth-timeout
+stacking) with a concrete trigger now, rather than re-opened here.
+
+**Closed by:** `qa/e2e/settings-reload-survives-failed-save.spec.ts` (#1204),
+the three deployed-`qa` runs and concurrent probe above (#1201's PR thread),
+and the solo local mobile GREEN. Six runs, one explained environmental
+cause, zero code-level causes found.
+
+---
+
 ## Suggested order
 
 Rewritten 2026-08-09, revised 2026-08-10. **Three of eleven closed, five
