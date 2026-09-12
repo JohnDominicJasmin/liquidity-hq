@@ -1163,6 +1163,8 @@
   "ALERTS_FIRED_LIST": "Fired: {list}",
   "ALERTS_CONDITIONS_LABEL": "Alert Conditions",
   "ALERTS_MUTE_HINT_PREFIX": "Toggle off to mute.",
+  "ALERTS_MUTE_LOAD_FAILED": "Couldn't load your mute preferences - the toggles below may not reflect your real settings yet.",
+  "ALERTS_MUTE_LOAD_RETRY": "Try again",
   "ALERTS_AI_BADGE_LABEL": "AI",
   "ALERTS_MUTE_HINT_SUFFIX": "= includes LiquidityAI analysis.",
   "ALERTS_MUTED_BADGE": "MUTED",
