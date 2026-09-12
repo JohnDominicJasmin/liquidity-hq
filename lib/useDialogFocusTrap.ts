@@ -13,6 +13,15 @@ import { useEffect, useRef } from 'react';
 export function useDialogFocusTrap<T extends HTMLElement>(
   open: boolean,
   onClose?: () => void,
+  /* QA #1245: document.activeElement is captured in the effect below, which
+   * runs AFTER the click that opened the dialog has already committed. For
+   * UpgradeGateModal that's fine - the button that opened it is still
+   * mounted. UsageModal's opener is a dropdown menu item that the SAME click
+   * unmounts (closing the dropdown), so by the time this effect runs the
+   * browser has already moved activeElement to <body> - there is nothing
+   * left to capture. A caller whose real trigger won't survive its own
+   * click passes it explicitly here instead of relying on the DOM snapshot. */
+  explicitTrigger?: HTMLElement | null,
 ): React.RefObject<T | null> {
   const containerRef = useRef<T | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -25,13 +34,20 @@ export function useDialogFocusTrap<T extends HTMLElement>(
   // alone while Escape still always calls whatever onClose is current.
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  // Same latest-ref reasoning as onCloseRef - read fresh inside the
+  // open-keyed effect below without adding it to that effect's deps.
+  const explicitTriggerRef = useRef(explicitTrigger);
+  useEffect(() => { explicitTriggerRef.current = explicitTrigger; }, [explicitTrigger]);
 
   useEffect(() => {
     if (!open) return;
     // The element focus returns to on close - captured fresh each time the
     // dialog opens, since a different control can open the same dialog from
-    // different pages/states.
-    triggerRef.current = document.activeElement as HTMLElement | null;
+    // different pages/states. Prefer the caller's explicit trigger (a
+    // control guaranteed to survive its own click) over document.activeElement
+    // (which, for a trigger that unmounts as part of opening this dialog, has
+    // already moved to <body> by the time this effect runs).
+    triggerRef.current = explicitTriggerRef.current ?? (document.activeElement as HTMLElement | null);
 
     const container = containerRef.current;
     if (!container) return;

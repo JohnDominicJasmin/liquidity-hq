@@ -4,12 +4,21 @@ import UsageRings from '@/components/UsageRings';
 import { useLabels } from '@/lib/labels';
 import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 
-interface Props { open: boolean; onClose: () => void; }
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  /* QA #1245: the "View Usage" menu item that opens this modal unmounts in
+   * the same click (closing its own dropdown), so useDialogFocusTrap's usual
+   * document.activeElement capture finds nothing to return focus to on
+   * close. The caller passes a control that survives - here, the avatar
+   * button that owns the dropdown - as the trigger instead. */
+  triggerEl?: HTMLElement | null;
+}
 
-export default function UsageModal({ open, onClose }: Props) {
+export default function UsageModal({ open, onClose, triggerEl }: Props) {
   const { t } = useLabels();
   const { usage } = useGrokUsage();
-  const dialogRef = useDialogFocusTrap<HTMLDivElement>(open, onClose);
+  const dialogRef = useDialogFocusTrap<HTMLDivElement>(open, onClose, triggerEl);
 
   if (!open) return null;
 
