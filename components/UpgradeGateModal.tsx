@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl, isCheckoutConfigured } from '@/lib/checkout';
 import { useLabels } from '@/lib/labels';
+import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 
 interface Props {
   open: boolean;
@@ -234,24 +235,24 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
 export default function UpgradeGateModal({ open, onClose, feature }: Props) {
   const ctaHref = useCheckoutHref();
   const { t } = useLabels();
+  // #1243: focus-in/trap/restore. Escape is now handled inside this hook -
+  // the window keydown listener below is body-scroll-lock only.
+  const dialogRef = useDialogFocusTrap<HTMLDivElement>(open, onClose);
 
-  // Escape closes; body scroll locks while open
+  // Body scroll locks while open
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [open, onClose]);
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
 
   if (!open) return null;
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
