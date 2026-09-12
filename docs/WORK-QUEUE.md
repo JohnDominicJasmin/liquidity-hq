@@ -89,6 +89,34 @@ anything you touch.
 
 ---
 
+## Release and loop guardrails
+
+**Added 2026-09-12 with the owner's go-ahead**, adapted from a proposed "swarm guardrails"
+doc. Both tools are read-only.
+
+**1. Before every release, check that its migrations are applied.** Run
+`node scripts/migration-check.mjs --range origin/main..origin/staging --absent-only`, then
+run the SQL it prints through the Supabase tool's `execute_sql` on production. Do the same
+with `--env dev` on dev. **Every object must be present before the deploy that needs
+it.** Paste the result into the release PR. A migration file that's merged but not applied
+isn't done: applying it goes to the owner first, because it's a write to the shared
+database, and it must be additive, because production has no backups. Leaving out
+`--range` audits every migration file, not just the release's.
+
+**2. Three failed QA rounds on one PR: freeze that PR, not the team.** QA starts a
+failing verdict with `**QA: not ready**`. Before sending a PR back to Dev, the PM runs
+`node scripts/qa-rounds.mjs <PR>`, which exits 3 once a PR has had 3 failed rounds. When
+it does: say on the PR that it's frozen, add it to `docs/OWNER-BLOCKERS.md`, and move Dev
+and QA to their next items. **Nobody stops.** The "never idle" rule outranks any single PR.
+
+**Not adopted from that doc, and why:**
+- A drift check that needs a local Supabase stack (there isn't one on this machine) and
+  generates migrations itself. A generated diff can contain DROPs.
+- A circuit breaker that halts every session.
+- Scripts that carry Slack or Telegram tokens. Secrets stay in the git-ignored `.env.local`.
+
+Visual sign-off stays with the owner (condition 5).
+
 ## Owner-only — do not queue these
 
 **#861 and #243** (payments — four steps on production, and a real purchase to prove
