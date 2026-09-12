@@ -489,30 +489,50 @@ async function flushSignals(
 interface BNTicker { symbol: string; lastFundingRate: string }
 interface BBTicker  { symbol: string; fundingRate: string }
 
+/* #1266: the owner's rule ("if bybit can do the job then remove binance")
+ * applied in full. Bybit is now the PRIMARY (only) source for every coin
+ * whose funding interval matches Binance's - verified live against both
+ * APIs for all 43 shared coins: 42 matched exactly (mostly 8h, several
+ * genuine 4h symbols agreeing on both venues), one didn't. GMT is that one
+ * exception (Binance 4h, Bybit 8h) - a Bybit-sourced rate for GMT is an
+ * independently-formed number from a market on a different settlement
+ * cadence, not a scaled version of Binance's, so it is not safe to splice
+ * in. FET has no Bybit linear perp at all (lib/coins.ts). Both exceptions
+ * read Binance instead, same "documented single-coin exception" shape as
+ * checkWhales/checkOISpike's own FET branch (#1287). No fallback either
+ * way, on purpose: this is a source SWITCH, not primary+backup - a partial
+ * fallback here would reintroduce the exact cross-venue splicing #1240's
+ * shape exists to avoid. */
+const BINANCE_ONLY_FR_COINS = new Set(['gmt', 'fet']);
+
 async function fetchAllFR(skipCounts: SkipCounts): Promise<Record<string, number | null>> {
   const result: Record<string, number | null> = {};
   COINS.forEach(c => (result[c] = null));
-  const [bnR, bbR] = await Promise.allSettled([
-    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+  const [bbR, bnR] = await Promise.allSettled([
     fetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
   ]);
-  if (bnR.status === 'fulfilled' && bnR.value.ok) {
-    const d = await bnR.value.json() as BNTicker[];
-    for (const item of d) {
-      const coin = Object.entries(BINANCE_PERP).find(([, s]) => s === item.symbol)?.[0];
-      if (coin) result[coin] = parseFloat(item.lastFundingRate);
-    }
-  } else {
-    // One shared upstream call feeding every coin's funding rate - a single
-    // event, not one per coin, same as fetchSpotPrices below.
-    noteSkip(skipCounts, 'binance');
-  }
   if (bbR.status === 'fulfilled' && bbR.value.ok) {
     const d = await bbR.value.json() as { result?: { list?: BBTicker[] } };
     for (const item of d.result?.list ?? []) {
       const coin = Object.entries(BYBIT_PERP).find(([, s]) => s === item.symbol)?.[0];
-      if (coin && result[coin] == null && item.fundingRate) result[coin] = parseFloat(item.fundingRate);
+      if (coin && !BINANCE_ONLY_FR_COINS.has(coin) && item.fundingRate) result[coin] = parseFloat(item.fundingRate);
     }
+  } else {
+    // One shared upstream call feeding every migrated coin's funding rate -
+    // a single event, not one per coin, same as fetchSpotPrices below.
+    noteSkip(skipCounts, 'bybit');
+  }
+  if (bnR.status === 'fulfilled' && bnR.value.ok) {
+    const d = await bnR.value.json() as BNTicker[];
+    for (const item of d) {
+      const coin = Object.entries(BINANCE_PERP).find(([, s]) => s === item.symbol)?.[0];
+      if (coin && BINANCE_ONLY_FR_COINS.has(coin)) result[coin] = parseFloat(item.lastFundingRate);
+    }
+  } else {
+    // GMT and FET's only source - a Binance failure here is a real skip for
+    // exactly those two coins, not covered by Bybit at all.
+    noteSkip(skipCounts, 'binance');
   }
   return result;
 }
@@ -992,7 +1012,13 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
     try {
       const [kRes, tvRes] = await Promise.allSettled([
         fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=2`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
-        fetch(`https://fapi.binance.com/futures/data/takerBuySellVol?symbol=${sym}&period=5m&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+        // #1266: was /futures/data/takerBuySellVol - that's the COIN-M (dapi)
+        // path, which 404s on fapi (USD-M) for every symbol, every time.
+        // Confirmed live: this was a 100% failure, not intermittent - CVD
+        // never actually ran. /futures/data/takerlongshortRatio is the
+        // correct USD-M path, verified live to return the same buyVol/
+        // sellVol/timestamp shape TakerVolItem already expects below.
+        fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${sym}&period=5m&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
       ]);
       // One skip per coin if either leg failed, not one per endpoint - both
       // legs feed the SAME check for this coin, so counting each separately
