@@ -474,6 +474,31 @@ Needs the owner to either bring in a person who uses AT day to day, or contract
 an accessibility auditor for a real pass. Recorded as the honest state rather
 than as another tree-reading pass wearing a checkmark.
 
+**2026-09-12 — a targeted delta check, not a sixth blanket sweep.** The fifth
+sweep's own reasoning (above) argues against re-running the same net over the
+whole codebase again — a clean result would likely just repeat the fifth's.
+What it doesn't cover: **new code written since**. Checked every `.tsx` file
+changed since 2026-09-08 (16 files, all from #1119/#1168/#1188/#1195) against
+the same two established shapes, not a wider search. **Found three real
+instances and one milder one** — filed as #1200: `app/alerts/page.tsx:851`
+(direction glyph, sole carrier of "above/below", no `aria-hidden` or text),
+`app/alerts/page.tsx:854` (delete button's accessible name is the raw "✕"
+glyph — inconsistent with the *same file*, where every sibling form control
+correctly carries `aria-label`), `components/HypothesisTracker.tsx:561`
+(evidence-type glyph with no label, while the *same file* has the correct
+`{icon} {label}` pattern for the identical icon set 60 lines away, just not
+applied here). One milder, lower-priority case (`components/DryPowder.tsx:223`,
+a decorative icon redundant with adjacent text, not the sole carrier).
+
+**The lesson, stated plainly:** a clean sweep is a snapshot, not a standing
+guarantee. New code can reintroduce an already-fixed defect class faster than
+a "we already checked this" assumption tracks it — `HypothesisTracker.tsx`
+proves it inside a single file, correct in one place and missing 60 lines
+away. **Worth repeating this delta-only check (new/changed files since the
+last pass, against shapes already proven real) after any batch of feature
+work, rather than either a full re-sweep or assuming a past-clean result
+still holds.**
+
 ---
 
 ## 🟡 7. `staging` and `dev` share one database
