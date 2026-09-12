@@ -41,12 +41,22 @@ export function useOI1h(coin: CoinId): OI1hData {
             { cache: 'no-store' }
           );
           if (r.ok) {
-            const d = await r.json() as Array<{ sumOpenInterest: string; sumOpenInterestValue: string }>;
+            const d = await r.json() as Array<{ sumOpenInterest: string; sumOpenInterestValue?: string }>;
             if (d.length >= 2) {
               const newest = parseFloat(d[d.length - 1].sumOpenInterest);
               const oldest = parseFloat(d[0].sumOpenInterest);
+              // #1238: sumOpenInterestValue is absent, not just unparseable,
+              // when this came back via the proxy's Bybit fallback - Bybit's
+              // open-interest endpoint has no USD-notional field to source
+              // it from, and fabricating one (e.g. openInterest * a separate
+              // ticker fetch's markPrice) was rejected as more machinery and
+              // more assumptions than one display number is worth. `pct` is
+              // unaffected either way - it's computed from sumOpenInterest,
+              // which the fallback DOES populate. Absent beats a NaN
+              // rendering as the literal string "NaN" in the UI.
+              const rawUsd = parseFloat(d[d.length - 1].sumOpenInterestValue ?? '');
               result = {
-                oiUsd: parseFloat(d[d.length - 1].sumOpenInterestValue),
+                oiUsd: Number.isFinite(rawUsd) ? rawUsd : null,
                 pct:   oldest > 0 ? (newest - oldest) / oldest * 100 : null,
               };
             }

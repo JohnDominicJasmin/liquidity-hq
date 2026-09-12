@@ -1055,20 +1055,34 @@ export default function MarketProvider(
     try {
       const res = await fetch('/api/proxy?type=premium-index', { cache: 'no-store' });
       if (!res.ok) return;
+      // #1238: on a Binance outage, /api/proxy's fallback answers from
+      // Bybit's own already-computed predicted-funding figure rather than
+      // Binance's mark/index/interest inputs (Bybit has no interestRate
+      // equivalent to reconstruct the formula from - see that route's own
+      // comment). `lastFundingRate` carries it in that case; `interestRate`
+      // is absent, not a fabricated value, so the formula branch below is
+      // skipped entirely rather than run on inputs that don't exist.
+      const viaFallback = res.headers.get('X-Data-Source') === 'bybit-fallback';
       const data: Array<{
         symbol: string; markPrice: string; indexPrice: string;
-        interestRate: string; nextFundingTime: number;
+        interestRate?: string; lastFundingRate?: string; nextFundingTime: number;
       }> = await res.json();
       if (!Array.isArray(data)) return;
       data.forEach(item => {
         const id = SYM_MAP[item.symbol];
         if (!id) return;
+        if (viaFallback) {
+          const nextFrEstimate = parseFloat(item.lastFundingRate ?? '');
+          if (!Number.isFinite(nextFrEstimate)) return;
+          updateCoin(id, { nextFrEstimate, nextFundingTime: item.nextFundingTime });
+          return;
+        }
         const mark  = parseFloat(item.markPrice);
         const index = parseFloat(item.indexPrice);
         if (!mark || !index || index === 0) return;
         // Binance: FR = P + clamp(interestRate − P, −0.05%, +0.05%)
         const P  = (mark - index) / index;
-        const ir = parseFloat(item.interestRate);
+        const ir = parseFloat(item.interestRate ?? '');
         const nextFrEstimate = P + Math.max(-0.0005, Math.min(0.0005, ir - P));
         updateCoin(id, { nextFrEstimate, nextFundingTime: item.nextFundingTime });
       });
