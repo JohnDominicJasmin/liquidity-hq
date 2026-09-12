@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
 
 function sb(token: string) {
   return createClient(
@@ -67,10 +68,19 @@ export async function PATCH(req: NextRequest) {
     'timezone',
     'strategy_selection', 'strategy_params',
   ];
-  const payload: Record<string, unknown> = { user_id: user.id, updated_at: new Date().toISOString() };
+  const payload: Record<string, unknown> = {};
   for (const key of ALLOWED) {
     if (key in body) payload[key] = body[key];
   }
+  // #1202: the client's own last-known server timestamp per field it's
+  // writing - present only for a field this client has previously read a
+  // confirmed value for. Absent (or missing an entry) means "I have never
+  // synced this field," which the accept rule below treats as a real
+  // conflict risk, not a free pass - see that rule's own comment for why.
+  const knownAsOfRaw = body.knownAsOf;
+  const knownAsOf: Record<string, string> = (knownAsOfRaw && typeof knownAsOfRaw === 'object' && !Array.isArray(knownAsOfRaw))
+    ? Object.fromEntries(Object.entries(knownAsOfRaw as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === 'string'))
+    : {};
 
   // timezone is written automatically by components/TimezoneSync.tsx from
   // Intl, not typed by a user, but it still arrives over a PATCH a client
@@ -106,10 +116,61 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  const { error } = await sb(token)
+  const client = sb(token);
+
+  /* #1202: per-field optimistic concurrency. Read-then-write, not a single
+   * atomic UPDATE - a genuinely simultaneous write to the SAME field from two
+   * devices in the same instant has a small residual race. Accepted trade,
+   * named on the issue: this is personal settings, not financial data, and
+   * the baseline before this existed was ZERO arbitration. Full serializable
+   * correctness would need per-field row locking or a stored procedure -
+   * only worth it if this race is shown to actually bite in practice.
+   *
+   * ACCEPT RULE lives in shouldAcceptFieldWrite (lib/settingsFieldConcurrency.ts)
+   * - extracted so QA can test it directly (#1223) rather than only through
+   * one live two-device pass. See that file's own comment for the rule
+   * itself and the correction PM/DevOps made to my first draft. */
+  const { data: existing } = await client
     .from(T.user_settings)
-    .upsert(payload, { onConflict: 'user_id' });
+    .select('field_updated_at')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const serverTimestamps = (existing?.field_updated_at ?? {}) as Record<string, string>;
+
+  const accepted: string[] = [];
+  const rejected: string[] = [];
+  const nowIso = new Date().toISOString();
+  const acceptedPayload: Record<string, unknown> = {};
+  const newFieldTimestamps: Record<string, string> = { ...serverTimestamps };
+
+  for (const key of Object.keys(payload)) {
+    const accept = shouldAcceptFieldWrite(serverTimestamps[key], knownAsOf[key]);
+    if (accept) {
+      accepted.push(key);
+      acceptedPayload[key] = payload[key];
+      newFieldTimestamps[key] = nowIso;
+    } else {
+      rejected.push(key);
+    }
+  }
+
+  if (accepted.length === 0) {
+    // Nothing this request contributed was real - every field lost to a
+    // fresher confirmed write elsewhere. Skip the write entirely (including
+    // the whole-row updated_at) rather than touching the row for no reason.
+    const { data } = await client.from(T.user_settings).select('*').eq('user_id', user.id).maybeSingle();
+    return NextResponse.json({ ok: true, accepted, rejected, settings: data });
+  }
+
+  const { error } = await client
+    .from(T.user_settings)
+    .upsert(
+      { user_id: user.id, updated_at: nowIso, field_updated_at: newFieldTimestamps, ...acceptedPayload },
+      { onConflict: 'user_id' },
+    );
 
   if (error) return apiError('settings', error);
-  return NextResponse.json({ ok: true });
+
+  const { data } = await client.from(T.user_settings).select('*').eq('user_id', user.id).maybeSingle();
+  return NextResponse.json({ ok: true, accepted, rejected, settings: data });
 }

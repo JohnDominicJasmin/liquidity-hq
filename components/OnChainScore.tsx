@@ -166,7 +166,12 @@ export default function OnChainScore() {
         </div>
         <button
           onClick={analyze}
-          disabled={loading || !user}
+          // #1107: bare `!user` read as "signed out" during AuthProvider's
+          // transient pre-resolve null too, greying out this button for a
+          // signed-in user on every cold load. authLoading distinguishes
+          // "not yet known" from "confirmed signed out" - analyze() itself
+          // already no-ops safely on a real signed-out click either way.
+          disabled={loading || (!authLoading && !user)}
           style={{
             background: loading ? 'rgba(26,122,255,0.15)' : 'rgba(26,122,255,0.2)',
             border: '0.5px solid rgba(26,122,255,0.4)',
@@ -175,8 +180,8 @@ export default function OnChainScore() {
             fontSize: 'var(--fs-caption)',
             fontWeight: 700,
             color: 'var(--accent)',
-            cursor: loading || !user ? 'default' : 'pointer',
-            opacity: !user ? 0.5 : 1,
+            cursor: loading || (!authLoading && !user) ? 'default' : 'pointer',
+            opacity: !authLoading && !user ? 0.5 : 1,
             whiteSpace: 'nowrap',
           }}
         >

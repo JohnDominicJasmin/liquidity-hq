@@ -36,22 +36,17 @@ the wrong item.
 
 ## Dev lane
 
-**Rewritten 2026-09-12 after a full triage of all 40 open issues.** The previous
-lanes were five days stale — they named the Arena rebuild (rejected by the owner,
-third time), #1049 and #925 (superseded), and listed #1020 as "parked on the owner"
-after the owner applied its migration on 2026-09-11. **A queue that names finished
-work is worse than an empty one: it costs a session the time to discover it is wrong.**
+**Rewritten a second time on 2026-09-12: the morning's D1–D7 all merged into `dev`
+the same day.** #1188 via #1198, #1201 and #1215. #1187. #1177 via #1206 and #1216.
+#1192 via #1207. #1167. #1107 via #1212 and #1213, which found a live
+fabricated-zero CVD alert. **A queue that names finished work is worse than an
+empty one: it costs a session the time to discover it is wrong.**
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| D1 | **#1188 — settings saves fail silently AND are then overwritten** | ~1 day | **The most serious thing on the board.** `flushToDb` sets `saveStatus: 'error'`, but only `app/settings/page.tsx` mounts `SaveToast` — **eight other call sites show the user nothing.** Worse: the sign-in effect overwrites local state from the database on the next load, so **a silently-failed save is clobbered back to the stale value.** A user changes a setting, watches it apply, and loses it tomorrow with nothing ever telling them. **Order: (1) retry with backoff, reusing #1119's exact shape — do not invent a second one; (2) an app-wide visible failure; (3) the reconciliation fix.** **The data-loss path stays open until (3) lands** — do not let (1) and (2) shipping be read as "fixed". |
-| D2 | **#1187 — close out #1168's remaining `getSession()` sites** | open PR | In QA's review. `OnChainScore`, `TradeJournal` ×3 including the `checkThesisHealth` silent failure, plus two found by sweeping rather than working the list: `lib/grok.ts`'s `callGrokViaProxy` and `SettingsProvider`'s `flushToDb`. |
-| D3 | **#1177 — `AuthProvider` fires `setUser()` 3× with distinct object references** | ~half day | The root cause behind the tripled entitlements fetch, the tripled `/api/grok` call, and the ban channel subscribing three times per load. **Fixed per-consumer so far by keying on `user?.id`; the source still produces three references.** The trap stays armed for the next component anyone writes, and the only thing protecting them is a comment in `ops/layout.tsx`. **Stabilising at source is the real fix — but check first whether anything legitimately needs a new object when fields change.** |
-| D4 | **#1173 — auth timeouts stack: 22.7s to report an expired session** | ~half day | **Proven by controlled experiment**, not inferred: `/auth/v1/token` blocked outright, correct "Session expired" message, 22.7 s to deliver it. **The degrade is honest; it is just slow.** Trace `generateBriefing`'s own chain before fixing — **do not assume it is the same three stages documented for `GlobalMacroContext`.** **Do not shorten `ENTITLEMENTS_FETCH_MS`**: 15 s was measured, not guessed, and shortening it reintroduces #1089's false failures. |
-| D5 | **#1192 — `/api/cmc` and `/api/macro` fetched twice on every page load** | ~hours | `setTimeout(fetchCMCGlobal, 12_000)` is unconditional. The comment says "retry"; the code never asks whether the first attempt succeeded. **Does not block rendering** — fires ~12 s after `loadEventEnd` at 780 ms. Make it conditional; **do not delete the timers**, cold-start misses are real. Sweep the file for the same shape while there. |
-| D6 | **#1167 — mute preferences cannot tell "signed out" from "timed out"** | ~hours | Named and deliberately excluded from #1166. Smaller consequence than #1188 (a default mute state, not lost data), same class. |
-| D7 | **#1107 — the `r.ok` sweep** | ~half day | **Treat as one sweep with the silent-failure class, not a separate Binance task.** Four instances found in two days were all the same defect: a non-OK response falling into a generic path. |
-| D8 | **#1114 nav overflow 768–945px · #1121 route slugs as screen names · #1147 signup skeleton · #1113 tour rework** | mixed | Small, real, none urgent. #1121 is ~15 pages showing a lowercase URL slug where a designed label exists. |
+| D1 | **#1202: per-field `field_updated_at`, optimistic concurrency on settings writes** | ~1 day | **CLAIMED Dev 2026-09-12. PR #1217 is open and unmerged: it's waiting on a live read/write pass, which waits on the dev database recovering.** The design is on the issue. **Use the corrected accept rule:** `server_ts is null` OR (`client_ts` present AND `client_ts >= server_ts`). A client that never confirmed a read must not win. **Fold in the `flushToDb` race:** on success, delete the marker only if it still equals the value that flush sent. **The column is on the dev database. On production it goes in just before the release carrying this deploys** (`docs/OWNER-BLOCKERS.md` row 7). **Put the prod migration file in the PR, and write "requires prod migration before deploy" in Risk.** |
+| D2 | **#1025: our own servers amplify dev outages** | ~half day | During the 2026-09-12 outage, `service_role` clients sent **~280 `POST /rpc/lhq_dev_record_api_health` in ~8 s**, plus hundreds of `lhq_dev_labels` and `lhq_dev_app_config` reads, all 503/504. **`lib/apiHealth.ts`'s `shouldWrite` is meant to coalesce to one write per source per 30 s, so find what defeated it:** many processes, dynamic source keys, or flapping state. **Add backoff on 5xx to the labels and app-config reads.** This helps production too. |
+| D3 | **#1114 nav overflow 768–945px · #1121 route slugs as screen names · #1147 signup skeleton · #1113 tour rework** | mixed | Small, real, none urgent. #1121 is ~15 pages showing a lowercase URL slug where a designed label exists. **All visual, so the owner sees each one before it ships.** |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
@@ -59,25 +54,31 @@ waiting for an answer; apply the visual rule — **bordered outlines only for th
 that respond to a click; one corner radius for containers, one for controls** — to
 anything you touch.
 
+**Machine rules, added 2026-09-12 after two memory kills and a 30-minute dev outage:**
+- **One local `next build` at a time, across all folders.** Check for another `next` process before starting.
+- **Stop local servers you aren't using.** Each one is ~0.5–1 GB, and it joins the retry storm whenever the dev database degrades.
+- **No DDL on the dev database while QA has a pass running.** Any DDL fires a PostgREST schema reload, and on 2026-09-12 one additive column caused 30+ minutes of degradation. See #1025.
+
 ## QA lane
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| Q1 | **Review #1187** | hours | Dev's open PR — ahead of your own specs per the standing blocker order. **`flushToDb` deserves the hardest look:** it is a write path, and #1188 came out of tracing it. |
-| Q2 | **#1171 — the ~2.5 s nobody can account for** | ~half day | **Two causes have been disproved: the triple `/api/grok` call (re-measured, no improvement) and the entitlements read (measured on the wrong environment, by PM/DevOps's instruction).** What survives: network is quiet by ~4.5 s, content settles ~7 s. **The gap is AFTER network activity ends** — client-side render cost, or a WebSocket feed Resource Timing cannot see. **Measurement noise on these dynos exceeds the effect**; either take many samples or say the environment cannot settle it. |
-| Q3 | **Verify the next release on production** | per release | Four fixes sit on `qa` awaiting promotion: #1037 (Strategy Panel), #1181 (entitlement tri-state), #1078 (Arena liq labels), #1195 (backtest de-advertising + Option C copy). **Their issues close when production is verified, not when they merge.** |
-| Q4 | **`TEST_GAPS.md` §6 — accessibility asserted, never heard** | ~1 day | No real assistive-technology pass has ever happened. **"Cannot be verified here, and here is what would be needed" is an acceptable result.** |
-| Q5 | **`TEST_GAPS.md` §1 — server time is not controllable** | ~half day | Anything time-dependent is untestable at boundaries. |
-| Q6 | **#950 — `layout.spec.ts` vs a live run** | blocked | Needs CI, which is off by owner cost decision. |
+| Q1 | **Release #1210: the staging pass, then production verification** | hours | **The owner approved the production deploy on condition of your sign-off**, so your "ready" is the last gate. **Void from 09:16Z on 2026-09-12**: the dev database outage. Re-run from a clean window, check `PGRST00x` for any failure, and record which windows were clean. **After deploy, the release's issues close when production is verified, not when they merge.** |
+| Q2 | **Review and verify the next `qa` promotion** | ~half day | #1207 (#1192), #1167, #1212 and #1213 (the #1107 sweep, including HYPE CVD: **does the held reading show as stale?**), **#1214 + #1215 (per-account unconfirmed settings: test with two accounts holding different values in the same field, and assert A's own value comes back after B's session)**, #1216 (#1177 source fix in `AuthProvider`: ban enforcement and Grok usage still work). |
+| Q3 | **#1173: isolate what removed the 13 s** | ~1 hour | Run the corrected method on **`30b5c911`** (pre-#1206) on localhost. **~22 s means #1206 was the fix. ~9 s means the 22.7 s came from the setup.** One local build at a time. |
+| Q4 | **#1171: the ~2.5 s nobody can account for** | ~half day | **Two causes have been disproved: the triple `/api/grok` call (re-measured, no improvement) and the entitlements read (measured on the wrong environment, by PM/DevOps's instruction).** What survives: network is quiet by ~4.5 s, content settles ~7 s. **The gap is AFTER network activity ends**: client-side render cost, or a WebSocket feed Resource Timing cannot see. **Measurement noise on these dynos exceeds the effect**, so either take many samples or say the environment cannot settle it. |
+| Q5 | **`TEST_GAPS.md` §6: accessibility asserted, never heard** | ~1 day | No real assistive-technology pass has ever happened. **"Cannot be verified here, and here is what would be needed" is an acceptable result.** |
+| Q6 | **`TEST_GAPS.md` §1: server time is not controllable** | ~half day | Anything time-dependent is untestable at boundaries. |
+| Q7 | **#950: `layout.spec.ts` against a live run** | read-only | **CI is switched on for release #1210**, so its E2E run is the one live result available. Read `layout.spec.ts`'s outcome there before CI goes back off. |
 
 ## Unassigned — take with a reason
 
 | Item | Why it is here |
 |---|---|
-| **#1025 — why the dev Supabase project hangs** | **Still unknown, and a credible answer was announced then retracted on 2026-09-11.** Realtime is exonerated — 58.6 sec/day, #1194, closed. `pg_stat_statements` says it is not query execution time on either project, so the cost is somewhere those counters do not look. **Access token expiry is 600 s against Supabase's recommended 3600**, so every client hits the failing path six times an hour — a plausible contributor, not a cause. |
+| **#1025: why the dev Supabase project hangs** | **The trigger is known. Why dev can't absorb it is still a candidate.** Any DDL fires PostgREST schema reloads, including Realtime's hourly partition DDL and, on 2026-09-12, **one additive column at 09:16:24Z, which caused 30+ minutes of degradation**: `PGRST002` loops, `PGRST003` pool exhaustion, and PostgREST backends idle-in-transaction on `ClientRead`. **Postgres itself was idle, and PostgREST was the stalled side.** Two live candidates, not exclusive: **memory headroom** (dev at 99.77% of its commit limit) and **our own servers' retry storm** (D2). The **dashboard memory graph for 09:16–09:50Z** would confirm or kill the first. Production has never failed on a reload, and a manual DDL there under traffic has not been measured. |
 | **#1152 — the FREE plan described differently in two places** | **Root cause identified:** two independent sources. The landing page reads `dict.pricing.*` in `lib/i18n/dictionaries.ts`; the upgrade screen reads `UPGRADE_*` label keys. Nothing links them. **Editing both to match leaves the mechanism and they drift again.** The fix is one source — and it touches user-visible pricing, so the owner approves before anyone builds. |
 | **#1185 — the visual rule's remaining instances** | Corner consistency and the scroll affordance. The rule is adopted; these are what it applies to. **Owner approves anything visual.** |
-| **#1059 / #1077 — Binance to Bybit** | Client-side failover and server-side egress. Distinct scopes, deliberately not merged. |
+| **#1059 / #1077 — Binance to Bybit** | Client-side failover and server-side egress. Distinct scopes. **#1059 merged into `dev` (PR #1228) and #1077's `klines`/`ribbonCandles` piece merged (PR #1240)** - both code-reviewed and unit-tested by QA, but **the live failover pass is still pending** (blocking the Binance hosts locally, checking source labels and alert suppression). **Gates the next `dev` → `qa` promotion** - don't promote until that pass is done. #1077's remaining routes are filed as their own issues: #1233 (agg-trades), #1234 (funding-rate), #1235 (rsi), #1236 (snapshot), #1237 (proxy ticker+depth), #1238 (proxy futures-derivatives). |
 | **#1157 — five unindexed foreign keys** | From the database audit. Mechanical, low risk, and the cost grows with usage. |
 | **`TEST_GAPS.md` §11 / §7** | CI being off is the owner's cost decision; the shared dev/staging database is a Supabase free-tier structural limit. Neither is actionable without a purchase. |
 

@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendTrialEndingEmail } from '@/lib/email';
+import { trialReminderCutoff } from '@/lib/trialReminder';
 import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
   try {
     const admin = getSupabaseAdmin();
     const now = Date.now();
-    const cutoff = new Date(now + WINDOW_DAYS * 86_400_000).toISOString();
+    const cutoff = trialReminderCutoff(now, WINDOW_DAYS);
 
     // role <> 'pro' so someone who already upgraded mid-trial is never nagged.
     // trial_reminder_sent_at null is only a pre-filter - the atomic claim below

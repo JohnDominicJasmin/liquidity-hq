@@ -15,6 +15,24 @@ export const dynamic = 'force-dynamic';
 const TTL_MS = 60_000;
 const cache = new Map<string, { data: Record<string, string>; expires: number }>();
 
+// #1025: separate from the success cache above, and for a different reason.
+// The success cache is deliberately never populated on failure (see the
+// comment near the bottom of this route) so a transient blip does not get
+// mistaken for the real answer and served to everyone for 60s. That was the
+// right call for a blip, but it also meant a SUSTAINED outage got retried
+// on literally the next incoming request, forever, with no floor at all -
+// during the 2026-09-12 PostgREST outage this route alone accounted for a
+// chunk of the "hundreds of reads, all 503/504" measured on #1025, because
+// LabelsProvider fires on every page load and nothing stopped each one from
+// re-hitting a service already known to be down.
+//
+// This tracks only "don't retry yet" - it is never served as an answer, and
+// it does not change what a caller receives (still the same fail-open {}
+// with the same no-store header). A short window: it exists to stop
+// hammering a confirmed-down upstream, not to hide a real recovery.
+const FAILURE_BACKOFF_MS = 10_000;
+const lastFailure = new Map<string, number>();
+
 // Let Cloudflare serve this instead of every visitor reaching the origin.
 //
 // The payload is public and byte-identical for everybody on a given locale -
@@ -53,6 +71,13 @@ export async function GET(req: NextRequest) {
   const hit = cache.get(locale);
   if (hit && hit.expires > Date.now()) {
     return NextResponse.json(hit.data, { headers: { 'Cache-Control': CACHE_CONTROL } });
+  }
+
+  const failedAt = lastFailure.get(locale);
+  if (failedAt != null && Date.now() - failedAt < FAILURE_BACKOFF_MS) {
+    // Still inside the backoff window from this locale's last failure - fail
+    // open without re-querying an upstream already known to be down.
+    return NextResponse.json({}, { headers: { 'Cache-Control': 'no-store' } });
   }
 
   let data: Record<string, string> = {};
@@ -102,11 +127,14 @@ export async function GET(req: NextRequest) {
   // stored at the edge it would be served to EVERY visitor for 60s, turning a
   // transient Supabase blip into a site-wide flash of untranslated copy. So the
   // failure path is explicitly no-store, and the in-memory cache skips it too -
-  // the next request retries instead of being told the outage is the truth.
+  // the next request retries (after FAILURE_BACKOFF_MS, not immediately -
+  // #1025) instead of being told the outage is the truth.
   if (Object.keys(data).length === 0) {
+    lastFailure.set(locale, Date.now());
     return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } });
   }
 
+  lastFailure.delete(locale);
   cache.set(locale, { data, expires: Date.now() + TTL_MS });
   return NextResponse.json(data, { headers: { 'Cache-Control': CACHE_CONTROL } });
 }

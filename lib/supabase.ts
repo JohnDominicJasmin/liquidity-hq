@@ -56,13 +56,22 @@ const AUTH_TOKEN_TIMEOUT_MS = 8000;
 export async function getAuthToken(): Promise<string | undefined> {
   const sb = getSupabase();
   if (!sb) return undefined;
-  const { data } = await Promise.race([
-    sb.auth.getSession(),
-    new Promise<{ data: { session: null }; error: null }>(resolve => {
-      setTimeout(() => resolve({ data: { session: null }, error: null }), AUTH_TOKEN_TIMEOUT_MS);
-    }),
-  ]);
-  return data.session?.access_token;
+  // The timeout timer is never cleared when getSession() itself resolves
+  // first, which keeps a plain `node --test` process alive until it fires
+  // (same shape as lib/rateLimit.ts's sweep interval and
+  // lib/authSession.ts's forceSignOut, both QA found the same way).
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const { data } = await Promise.race([
+      sb.auth.getSession(),
+      new Promise<{ data: { session: null }; error: null }>(resolve => {
+        timer = setTimeout(() => resolve({ data: { session: null }, error: null }), AUTH_TOKEN_TIMEOUT_MS);
+      }),
+    ]);
+    return data.session?.access_token;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export interface Signal {

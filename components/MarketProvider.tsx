@@ -10,6 +10,7 @@ import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
+import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
 
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
@@ -142,6 +143,11 @@ export default function MarketProvider(
   const lastAggIdRef = useRef<Partial<Record<CoinId, number>>>({});
   /* OI Trend: sliding window of last 4 OI + price readings per coin */
   const oiHistRef = useRef<Partial<Record<CoinId, Array<{ oi: number; price: number }>>>>({});
+  // #1192: the 12s mount-time retries for CMC/macro below only make sense
+  // when the first attempt actually missed (Render cold start) - these track
+  // that so the retry can check instead of firing unconditionally.
+  const cmcOkRef = useRef(false);
+  const macroOkRef = useRef(false);
   /* CVD Divergence alerts: last known divergence + 30-min cooldown */
   const cvdDivStateRef    = useRef<Partial<Record<string, 'bullish' | 'bearish' | null>>>({});
   const cvdAlertCooldown  = useRef<Record<string, number>>({});
@@ -675,9 +681,19 @@ export default function MarketProvider(
             '/api/proxy?type=recent-trade&symbol=HYPEUSDT&limit=200',
             { cache: 'no-store' }
           );
+          // #1107: neither of these was checked before. A refused/failed
+          // request (or a malformed result.list) fell through to `?? []`,
+          // which computed buyVol=sellVol=0 same as a real quiet market -
+          // that fabricated zero then overwrote the real CVD, entered the
+          // 5-snapshot divergence window as if it were a genuine
+          // observation, and could fire a real Telegram alert off data
+          // that was never real. Mirrors the Binance branch's own
+          // `!Array.isArray(trades)` guard above.
+          if (!res.ok) return;
           const data = await res.json();
           // Bybit linear recent-trade fields: price, size, side (NOT p/v/S - those are spot fields)
-          const trades: Array<{ side: string; size: string; price: string }> = data.result?.list ?? [];
+          const trades: Array<{ side: string; size: string; price: string }> = data.result?.list;
+          if (!Array.isArray(trades)) return;
           let buyVol = 0, sellVol = 0;
           trades.forEach(t => {
             const qty = parseFloat(t.size);
@@ -1084,6 +1100,11 @@ export default function MarketProvider(
         // `unknown` state is information we want to keep rather than skip.
         ...(d.real10y ? { real10y: d.real10y } : {}),
       }));
+      // Reached only once the request and response both succeeded - a miss
+      // (cold start, network error, non-ok status) never sets this, which is
+      // what #1192's 12s retry below checks. Individual null fields above are
+      // real, confirmed data (see the real10y comment) and are not a miss.
+      macroOkRef.current = true;
     } catch { /* fail silently */ }
   }, []);
 
@@ -1154,6 +1175,9 @@ export default function MarketProvider(
           btcDomHistory:[...s.btcDomHistory.slice(-9), parseFloat(dom.toFixed(2))],
           ethDom:       ethDom != null ? parseFloat(ethDom.toFixed(2)) : s.ethDom,
         }));
+        // #1192: real dominance data means this attempt did not miss - the
+        // 12s retry below only needs to fire when this never happens.
+        cmcOkRef.current = true;
       }
     } catch { /* */ }
   }, []);
@@ -1203,20 +1227,97 @@ export default function MarketProvider(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── Liquidation Cascade Detector - Binance futures all-symbols stream ── */
+  /* ── Liquidation Cascade Detector - Binance futures all-symbols stream,
+     Bybit allLiquidation on failover ──
+     #1059: client-side failover - a browser that cannot reach Binance
+     (blocked region, 451/403, refused handshake) still feeds the cascade
+     detector instead of it going permanently silent for the tab's life, which
+     is what the plain 5s-forever retry below used to do. Mirrors
+     LiqFeed.tsx's connectBB (same topic, same bytick.com failover host) -
+     server-side egress failover is #1077, a separate scope. None of these 7
+     coins are Bybit's 1000x-prefixed symbols, so usd = price * qty needs no
+     factor here either. */
   useEffect(() => {
     if (!enabled) return;          // #200 - no socket on data-free routes
     const FUTURES_MAP: Record<string, string> = {
       BTCUSDT: 'BTC', ETHUSDT: 'ETH', SOLUSDT: 'SOL',
       XRPUSDT: 'XRP', BNBUSDT: 'BNB', NEARUSDT: 'NEAR', SUIUSDT: 'SUI',
     };
-    let ws: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    const CASCADE_COIN_IDS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'near', 'sui'] as const;
+    const BB_LIQ_SYM_MAP: Record<string, string> = Object.fromEntries(
+      CASCADE_COIN_IDS.map(c => [BYBIT_SYMS[c], c.toUpperCase()])
+    );
+    const BB_LIQ_TOPICS = CASCADE_COIN_IDS.map(c => `allLiquidation.${BYBIT_SYMS[c]}`);
+    const BN_MAX_RETRIES = 5;
+    const BN_RETRY_WHILE_ON_BB_MS = 60_000;
+    // PR #1228 / QA's hysteresis ask: Binance must stay open this long before
+    // a switch back commits, so a Binance connection that opens then drops
+    // within a second or two doesn't bounce the detector between exchanges.
+    const BN_STABLE_MS = 3_000;
+    // PR #1228 review (PM/DevOps): a connect attempt this old without an
+    // onopen is treated as failed even if neither onerror nor onclose ever
+    // fires - see components/WhaleTradesFeed.tsx's identical constant for
+    // the full reasoning (blackholed connections, error-without-close).
+    const BN_CONNECT_TIMEOUT_MS = 10_000;
+
+    let bnWs: WebSocket | null = null;
+    let bbWs: WebSocket | null = null;
+    let bnRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let bbRetryTimer: ReturnType<typeof setInterval> | null = null;
+    let confirmTimer: ReturnType<typeof setTimeout> | null = null;
+    let bnRetries = 0;
+    let bbHostIdx = 0;
+    let active: 'binance' | 'bybit' = 'binance';
     let alive = true;
 
-    function connect() {
+    function recordLiq(coin: string, side: 'LONG' | 'SHORT', usd: number) {
+      if (!isFinite(usd) || usd <= 0) return;
+      const now = Date.now();
+      liqBufferRef.current.push({ coin, side, usd, ts: now });
+      // Keep rolling buffer covering both the 60s cascade window and the
+      // longer liquidation-delta window (LIQ_DELTA_WINDOW_MS) below.
+      liqBufferRef.current = liqBufferRef.current.filter(l => l.ts > now - (LIQ_DELTA_WINDOW_MS + 60_000));
+    }
+
+    function connectBN() {
       if (!alive) return;
-      ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+      const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+      bnWs = ws;
+      const attemptStartedAt = Date.now();
+      // #1228 review: onerror, onclose and the connect timeout below all
+      // reach the same failure path, and must count as ONE failure - a real
+      // close typically follows error, and the timeout must not double-fire
+      // once one of the others already has.
+      let settled = false;
+
+      const timeoutTimer = setTimeout(() => {
+        if (settled || !connectTimedOut(attemptStartedAt, Date.now(), BN_CONNECT_TIMEOUT_MS)) return;
+        settled = true;
+        try { ws.close(); } catch { /* */ }
+        handleFailure();
+      }, BN_CONNECT_TIMEOUT_MS);
+
+      ws.onopen = () => {
+        if (settled) return;
+        clearTimeout(timeoutTimer);
+        if (!alive) return;
+        bnRetries = 0;
+        if (active !== 'bybit') { active = 'binance'; return; }
+        // Recovering from Bybit - don't commit the switch back immediately
+        // (PR #1228 hysteresis ask). Bybit keeps feeding the detector until
+        // Binance has proven stable for BN_STABLE_MS; a drop before then
+        // just cancels the pending switch and leaves Bybit active.
+        const openedAt = Date.now();
+        if (confirmTimer) clearTimeout(confirmTimer);
+        confirmTimer = setTimeout(() => {
+          confirmTimer = null;
+          if (!alive || bnWs !== ws) return; // this socket is no longer current
+          if (!stableEnoughToSwitchBack(openedAt, Date.now(), BN_STABLE_MS)) return;
+          active = 'binance';
+          if (bbRetryTimer) { clearInterval(bbRetryTimer); bbRetryTimer = null; }
+          if (bbWs) { const old = bbWs; bbWs = null; try { old.close(); } catch { /* */ } }
+        }, BN_STABLE_MS);
+      };
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
@@ -1227,19 +1328,103 @@ export default function MarketProvider(
           // S:"SELL" = long position liquidated (forced sell); S:"BUY" = short liquidated
           const side: 'LONG' | 'SHORT' = order.S === 'SELL' ? 'LONG' : 'SHORT';
           const usd = parseFloat(order.ap || order.p || '0') * parseFloat(order.z || order.q || '0');
-          if (!isFinite(usd) || usd <= 0) return;
-          const now = Date.now();
-          liqBufferRef.current.push({ coin, side, usd, ts: now });
-          // Keep rolling buffer covering both the 60s cascade window and the
-          // longer liquidation-delta window (LIQ_DELTA_WINDOW_MS) below.
-          liqBufferRef.current = liqBufferRef.current.filter(l => l.ts > now - (LIQ_DELTA_WINDOW_MS + 60_000));
+          recordLiq(coin, side, usd);
         } catch { /* */ }
       };
-      ws.onclose = () => { if (alive) reconnectTimer = setTimeout(connect, 5_000); };
-      ws.onerror = () => { try { ws?.close(); } catch { /* */ } };
+      // #1228 review: onerror used to only call ws.close() and hope onclose
+      // followed - confirmed live (this PR's own review) that a browser can
+      // fire error without ever following it with close, so error now
+      // drives the failure path directly, guarded the same way the timeout
+      // is rather than depending on a second event that may never come.
+      ws.onerror = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutTimer);
+        try { ws.close(); } catch { /* */ }
+        handleFailure();
+      };
+      ws.onclose = () => {
+        if (settled) return; // error or the timeout already handled this attempt
+        settled = true;
+        clearTimeout(timeoutTimer);
+        handleFailure();
+      };
+
+      function handleFailure() {
+        if (!alive) return;
+        if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
+        bnRetries++;
+        // #1059: Binance exhausted its retries - fail over to Bybit for the
+        // same coins rather than the detector going silent. Keep retrying
+        // Binance in the background so a recovered connection takes back over.
+        const decided = nextSource(active, bnRetries, BN_MAX_RETRIES);
+        if (decided === 'bybit') {
+          if (active !== 'bybit') {
+            active = 'bybit';
+            connectBB();
+            if (!bbRetryTimer) {
+              bbRetryTimer = setInterval(() => { bnRetries = 0; connectBN(); }, BN_RETRY_WHILE_ON_BB_MS);
+            }
+          }
+          // else: already parked on Bybit - the background bbRetryTimer owns
+          // the next attempt, so don't also fast-retry here.
+          return;
+        }
+        bnRetryTimer = setTimeout(connectBN, 5_000);
+      }
     }
 
-    connect();
+    function connectBB() {
+      if (!alive || active !== 'bybit') return;
+      // bytick.com is Bybit's alternative domain - same failover host pattern
+      // as LiqFeed.tsx's connectBB, which this mirrors.
+      const host = bbHostIdx % 2 === 0
+        ? 'wss://stream.bybit.com/v5/public/linear'
+        : 'wss://stream.bytick.com/v5/public/linear';
+      const ws = new WebSocket(host);
+      bbWs = ws;
+      ws.onopen = () => {
+        if (!alive) return;
+        ws.send(JSON.stringify({ op: 'subscribe', args: BB_LIQ_TOPICS }));
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.op === 'subscribe') return; // subscription ack, not a liquidation
+          if (!msg.topic?.startsWith('allLiquidation.') || !msg.data) return;
+          const items = Array.isArray(msg.data) ? msg.data : [msg.data];
+          items.forEach((d: Record<string, string>) => {
+            const coin = BB_LIQ_SYM_MAP[d.s ?? ''];
+            if (!coin) return;
+            const price = parseFloat(d.p ?? '0');
+            const qty   = parseFloat(d.v ?? '0');
+            // allLiquidation's S is the LIQUIDATED POSITION's own side, not the
+            // taker's - a different field semantic from publicTrade.S below
+            // (WhaleTradesFeed.tsx), which IS the taker's side. Bybit's own
+            // v5 docs: "S string: Position side. Buy, Sell. When you receive
+            // a Buy update, this means that a long position has been
+            // liquidated." https://bybit-exchange.github.io/docs/v5/websocket/public/all-liquidation
+            // Confirmed against the raw doc page, not a summary (PM/DevOps,
+            // PR #1228) - three liquidation/trade streams in this codebase
+            // use three different S conventions and this one looks inverted
+            // against the other two while being correct. Do not "fix" it.
+            const side: 'LONG' | 'SHORT' = d.S === 'Buy' ? 'LONG' : 'SHORT';
+            recordLiq(coin, side, price * qty);
+          });
+        } catch { /* */ }
+      };
+      ws.onclose = () => {
+        // Torn down deliberately by connectBN's onopen once Binance recovers -
+        // `active` already flipped back before that close(), so this must not
+        // reconnect a fallback that is no longer wanted.
+        if (!alive || active !== 'bybit') return;
+        bbHostIdx++;
+        setTimeout(connectBB, 5_000);
+      };
+      ws.onerror = () => { try { ws.close(); } catch { /* */ } };
+    }
+
+    connectBN();
 
     // Cascade analyzer - check every 5s
     const analyzer = setInterval(() => {
@@ -1255,24 +1440,35 @@ export default function MarketProvider(
         else                 { byCoin[coin].s += usd; mktS += usd; }
       });
 
-      let fired = false;
-      for (const [coin, { l: lUsd, s: sUsd }] of Object.entries(byCoin)) {
-        const thr = LIQ_CASCADE_THRESHOLDS[coin] ?? LIQ_CASCADE_THRESHOLDS.DEFAULT;
-        if (lUsd >= thr || sUsd >= thr) {
-          const side: 'LONG' | 'SHORT' | 'MIXED' =
-            (lUsd >= thr && sUsd >= thr) ? 'MIXED' : lUsd >= thr ? 'LONG' : 'SHORT';
-          setStore(s => ({ ...s, cascadeAlert: { coin, side, totalUsd: lUsd + sUsd, ts: now } }));
-          sendCascadeAlert(coin, side, lUsd + sUsd, cascadeCooldown.current);
-          fired = true; break;
+      /* PR #1228 (PM/DevOps + QA, merge blocker): these thresholds were tuned
+         against Binance forceOrder volumes. Bybit's liquidation stream has
+         different coverage and size, so on the fallback the same thresholds
+         could undercount a real cascade or misfire on a normal one - and
+         nothing would tell anyone which, since this detector has no UI.
+         Keep collecting (the buffer feed and liqDelta stats below are
+         unaffected) but suppress the ALERT decision itself while parked on
+         Bybit, until the thresholds are checked against Bybit volumes. An
+         unknown calibration is not a "yes" - same rule as the HYPE CVD fix. */
+      if (active !== 'bybit') {
+        let fired = false;
+        for (const [coin, { l: lUsd, s: sUsd }] of Object.entries(byCoin)) {
+          const thr = LIQ_CASCADE_THRESHOLDS[coin] ?? LIQ_CASCADE_THRESHOLDS.DEFAULT;
+          if (lUsd >= thr || sUsd >= thr) {
+            const side: 'LONG' | 'SHORT' | 'MIXED' =
+              (lUsd >= thr && sUsd >= thr) ? 'MIXED' : lUsd >= thr ? 'LONG' : 'SHORT';
+            setStore(s => ({ ...s, cascadeAlert: { coin, side, totalUsd: lUsd + sUsd, ts: now } }));
+            sendCascadeAlert(coin, side, lUsd + sUsd, cascadeCooldown.current);
+            fired = true; break;
+          }
         }
-      }
-      if (!fired) {
-        const mktTotal = mktL + mktS;
-        if (mktTotal >= MARKET_CASCADE_THRESHOLD) {
-          const side: 'LONG' | 'SHORT' | 'MIXED' =
-            mktL > mktS * 1.5 ? 'LONG' : mktS > mktL * 1.5 ? 'SHORT' : 'MIXED';
-          setStore(s => ({ ...s, cascadeAlert: { coin: 'MARKET', side, totalUsd: mktTotal, ts: now } }));
-          sendCascadeAlert('MARKET', side, mktTotal, cascadeCooldown.current);
+        if (!fired) {
+          const mktTotal = mktL + mktS;
+          if (mktTotal >= MARKET_CASCADE_THRESHOLD) {
+            const side: 'LONG' | 'SHORT' | 'MIXED' =
+              mktL > mktS * 1.5 ? 'LONG' : mktS > mktL * 1.5 ? 'SHORT' : 'MIXED';
+            setStore(s => ({ ...s, cascadeAlert: { coin: 'MARKET', side, totalUsd: mktTotal, ts: now } }));
+            sendCascadeAlert('MARKET', side, mktTotal, cascadeCooldown.current);
+          }
         }
       }
 
@@ -1293,8 +1489,11 @@ export default function MarketProvider(
     return () => {
       alive = false;
       clearInterval(analyzer);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      try { ws?.close(); } catch { /* */ }
+      if (bnRetryTimer) clearTimeout(bnRetryTimer);
+      if (bbRetryTimer) clearInterval(bbRetryTimer);
+      if (confirmTimer) clearTimeout(confirmTimer);
+      try { bnWs?.close(); } catch { /* */ }
+      try { bbWs?.close(); } catch { /* */ }
     };
   }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1327,9 +1526,13 @@ export default function MarketProvider(
     fetchStablecoinFlows();
     // CB Premium needs BTC price first - wait 3s for WS/REST to populate
     setTimeout(fetchCoinbasePremium, 3000);
-    // Retry server-proxied APIs that may miss on Render cold start
-    setTimeout(fetchCMCGlobal, 12_000);
-    setTimeout(fetchMacro, 12_000);
+    // Retry server-proxied APIs that may miss on Render cold start - #1192:
+    // conditional on the mount attempt above having actually missed, not
+    // unconditional. Every visitor was making 2 extra calls to /api/cmc
+    // (CoinMarketCap-backed, real quota behind it) and /api/macro regardless
+    // of whether the first pair already succeeded.
+    setTimeout(() => { if (!cmcOkRef.current) fetchCMCGlobal(); }, 12_000);
+    setTimeout(() => { if (!macroOkRef.current) fetchMacro(); }, 12_000);
     // OI bootstrap - gives immediate trend signal without waiting for two 8-min Bybit polls
     bootstrapOITrend();
 
