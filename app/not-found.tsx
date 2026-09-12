@@ -14,13 +14,32 @@ export const dynamic = 'force-dynamic';
  *
  * Warn level, not error: a 404 render is not, by itself, a server fault.
  * Pathname only - `x-lhq-pathname` is set from `request.nextUrl.pathname`
- * in proxy.ts, which excludes the query string by construction - and
- * `referer` (when a browser sends one) is a URL, not anything that
- * identifies a person. Nothing else about the request is logged. */
+ * in proxy.ts, which excludes the query string by construction.
+ *
+ * The referer is NEVER logged raw (PM caught this in review). next.config.ts
+ * sets `Referrer-Policy: strict-origin-when-cross-origin`, which only trims
+ * the referer on CROSS-origin navigation - a same-origin navigation (the
+ * common case for a 404 reached by clicking a stale in-app link) still sends
+ * the full previous URL, query string included. That previous page could be
+ * an auth callback (`?code=`), a password reset, or a checkout link - any of
+ * those tokens would land in production logs the moment the next request
+ * happens to 404. `refererOrigin` below keeps only the scheme+host+pathname
+ * via `new URL()`, which drops the query and hash by construction, and never
+ * throws into the render path if the referer isn't a parseable URL. */
+function safeRefererOriginAndPath(referer: string | null): string | null {
+  if (!referer) return null;
+  try {
+    const u = new URL(referer);
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return '(unparseable referer)';
+  }
+}
+
 export default async function NotFound() {
   const h = await headers();
   const pathname = h.get('x-lhq-pathname') ?? '(unknown path)';
-  const referer = h.get('referer');
+  const referer = safeRefererOriginAndPath(h.get('referer'));
   console.warn('[not-found]', pathname, referer ? `referer=${referer}` : '(no referer)');
   return <NotFoundContent />;
 }
