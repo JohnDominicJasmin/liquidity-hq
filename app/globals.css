@@ -6508,6 +6508,12 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
   padding: 6px 12px; color: var(--txt3); text-decoration: none;
   transition: color .12s;
+  /* PM/DevOps's #1222 audit: SCANNERS/TOOLS wrapped their own caret onto a
+     second line at 768px once the padding trim below narrowed the button.
+     A nav item's label and its own disclosure indicator are one unit -
+     wrapping was never intended at any width, just never visible before
+     because there was always enough room to avoid it by accident. */
+  white-space: nowrap;
 }
 [data-design="terminal"] .tnav-item:hover { color: var(--txt2); }
 
@@ -6667,13 +6673,16 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   [data-design="terminal"] .tnav-session { display: none; }
   [data-design="terminal"] .tnav-icon-btn { display: none; }
   [data-design="terminal"] .lang-nav-wrap { display: none; }
-  /* The remaining ~9px at 768px specifically: six nav items' own horizontal
-     padding, not the design's own .tnav gap:28 (#599, cited by name in that
-     rule - not touched here). 12px -> 10px per side recovers 2px * 2 sides *
-     6 items = 24px, more than the remainder, without the visibly cramped
-     look a bigger cut would give the five items that were already fitting
-     fine above 900px. */
-  [data-design="terminal"] .tnav-item { padding-left: 10px; padding-right: 10px; }
+  /* Nav items' own horizontal padding, not the design's own .tnav gap:28
+     (#599, cited by name in that rule - not touched here). 12px -> 8px per
+     side recovers 4px * 2 sides * 6 items = 48px.
+     This got wider, not narrower, after the caret-wrap fix above: forcing
+     SCANNERS/TOOLS onto one line (correct - the wrap was a real defect, not
+     a way to save width) means each dropdown button now needs its full
+     "label + caret" width every time instead of sometimes rendering just
+     the shorter wrapped label, re-opening a ~16px gap at 768px that this
+     covers along with the original ~9px this was sized for. */
+  [data-design="terminal"] .tnav-item { padding-left: 8px; padding-right: 8px; }
 }
 @media (min-width: 900px) and (max-width: 944px) {
   [data-design="terminal"] .tnav-session { display: none; }
