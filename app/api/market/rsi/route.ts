@@ -38,7 +38,7 @@ import { apiError } from '@/lib/apiError';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
-import { runPool, HttpStatusError } from '@/lib/pool';
+import { runPool, HttpStatusError, isRateLimitStatus } from '@/lib/pool';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { computeRSI14 } from '@/lib/rsi';
 
@@ -106,6 +106,15 @@ const BB_TIMEFRAMES = [
 
 type RsiField = (typeof BN_TIMEFRAMES)[number]['field'];
 type RsiMap   = Record<string, Partial<Record<RsiField, number>>>;
+
+/* #1235: BB_TIMEFRAMES above was hype-only (its own dedicated jobs, always
+ * Bybit, unconditionally). This is the same table indexed by field so a
+ * Binance-listed coin's FAILOVER jobs can look up the matching Bybit
+ * interval+limit for whatever field its Binance job didn't answer for -
+ * reusing the table rather than a second copy of it. */
+const BB_TIMEFRAME_FOR: Record<RsiField, { interval: string; limit: number }> =
+  Object.fromEntries(BB_TIMEFRAMES.map(tf => [tf.field, { interval: tf.interval, limit: tf.limit }])) as
+    Record<RsiField, { interval: string; limit: number }>;
 
 /* The fast group is 5m alone; the slow group is everything else. Splitting on
    the field keeps the two lists in sync with BN_TIMEFRAMES automatically. */
@@ -244,7 +253,65 @@ async function resolveEndpoint(): Promise<Endpoint | null> {
   return null;
 }
 
-async function buildGroup(fast: boolean): Promise<RsiMap> {
+/* #1235 (#1077 split): whatever a Binance-listed coin didn't get from the
+ * primary pass - `ep` unreachable/banned entirely, or one job individually
+ * missing - gets a Bybit retry for that exact (coin, field). Same "missing
+ * is missing, regardless of why" reasoning as #1233's symbolFanout fallback:
+ * a ban stopping the PRIMARY pool early must not turn into every remaining
+ * (coin, field) trying the banned host again before falling back, so this
+ * runs as its own bounded pool over only what's still missing, using
+ * Bybit's own stop condition (`isRateLimitStatus`, which also treats 403 as
+ * fatal for Bybit - deliberately NOT `isBinanceBackoff`, which is correct
+ * for Binance's own 418/429 but would never fire on a Bybit 403). hype is
+ * excluded - it already has no Binance path, and its own jobs above are
+ * unconditionally Bybit already, untouched by `ep` or this pass.
+ *
+ * NO PRICE FACTOR: RSI is scale-invariant. computeRSI14 derives its value
+ * from the RATIO of average gains to average losses across the closes it is
+ * given - multiplying every close by the same positive constant (exactly
+ * what a price-factor conversion would do) changes every gain and loss by
+ * that same factor and cancels out of the ratio, leaving RSI identical. So
+ * `bybitPriceFactor()` has nothing to correct here even in principle, unlike
+ * #1233/#1234 where an actual price or rate crosses into the response body.
+ * (Moot in practice too, same as those two: no coin reachable via
+ * BINANCE_SYMS has a 1000x BYBIT_SYMS entry.) */
+async function fallbackMissing(
+  out: RsiMap, fast: boolean,
+): Promise<string[]> {
+  const wanted = (f: RsiField) => FAST_FIELDS.has(f) === fast;
+  const missing: Job[] = [];
+
+  for (const coin of Object.keys(BINANCE_SYMS)) {
+    const bbSym = BYBIT_SYMS[coin];
+    if (!bbSym) continue; // fet - no Bybit linear perp (lib/coins.ts)
+    for (const tf of BN_TIMEFRAMES) {
+      if (!wanted(tf.field)) continue;
+      if (out[coin]?.[tf.field] != null) continue;
+      const bbTf = BB_TIMEFRAME_FOR[tf.field];
+      missing.push({
+        coin, field: tf.field, bybit: true,
+        url: () => `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bbSym}&interval=${bbTf.interval}&limit=${bbTf.limit}`,
+      });
+    }
+  }
+  if (missing.length === 0) return [];
+
+  const viaFallback = new Set<string>();
+  await runPool(missing, CONCURRENCY, async (job) => {
+    // `ep` is irrelevant to a bybit job - fetchCloses's url closure ignores
+    // it, same as hype's existing jobs already do above.
+    const closes = await fetchCloses(job, BN_ENDPOINTS[0]);
+    if (!closes || closes.length < 15) return;
+    const rsi = computeRSI14(closes);
+    if (rsi === null) return;
+    (out[job.coin] ??= {})[job.field] = rsi;
+    viaFallback.add(job.coin);
+  }, isRateLimitStatus);
+
+  return [...viaFallback];
+}
+
+async function buildGroup(fast: boolean): Promise<{ out: RsiMap; viaFallback: string[] }> {
   const out: RsiMap = {};
   const ep = await resolveEndpoint();
 
@@ -255,6 +322,7 @@ async function buildGroup(fast: boolean): Promise<RsiMap> {
   const jobs = ep ? allJobs : allJobs.filter(j => j.bybit);
 
   const { ok, banned } = await runRsiPool(jobs, ep ?? BN_ENDPOINTS[0], out);
+  const viaFallback = await fallbackMissing(out, fast);
 
   /* Reported per group so a partial outage is visible: the slow group failing
      while the fast one succeeds means Binance is rate-limiting the heavier
@@ -268,13 +336,14 @@ async function buildGroup(fast: boolean): Promise<RsiMap> {
   reportHealth(
     `binance:rsi-${fast ? 'fast' : 'slow'}`, 'market',
     ok > 0 && !banned && ep !== null,
-    !ep      ? `no reachable Binance endpoint - ${ok} Bybit-only series`
+    (!ep      ? `no reachable Binance endpoint - ${ok} Bybit-only series`
     : banned ? `418/429 on ${ep.label} after ${ok}/${allJobs.length} series - batch aborted`
-             : `${ok}/${allJobs.length} series via ${ep.label}`,
+             : `${ok}/${allJobs.length} series via ${ep.label}`)
+      + (viaFallback.length ? `, ${viaFallback.length} coins via bybit-fallback` : ''),
     ok,
   );
 
-  return out;
+  return { out, viaFallback };
 }
 
 export async function GET(req: NextRequest) {
@@ -298,14 +367,27 @@ export async function GET(req: NextRequest) {
     }
 
     const rsi: RsiMap = {};
+    const viaFallback = new Set<string>();
     for (const res of [slowRes, fastRes]) {
       if (res.status !== 'fulfilled') continue;
-      for (const [coin, fields] of Object.entries(res.value)) {
+      for (const [coin, fields] of Object.entries(res.value.out)) {
         Object.assign(rsi[coin] ??= {}, fields);
       }
+      for (const coin of res.value.viaFallback) viaFallback.add(coin);
     }
 
-    return NextResponse.json({ rsi, ts: Date.now() }, {
+    /* #1235: which coins had at least one field served from Bybit rather
+       than Binance this response - additive, omitted when empty so an
+       all-Binance response's shape is unchanged, same convention #1233's
+       agg-trades and #1234's funding-rate use. Per-coin rather than
+       per-(coin,field): the six RSI fields for one coin already merge into
+       one object above, and a caller wanting exchange provenance at that
+       granularity would need a shape change beyond what #1235 asks for. */
+    return NextResponse.json({
+      rsi,
+      ...(viaFallback.size ? { viaFallback: [...viaFallback] } : {}),
+      ts: Date.now(),
+    }, {
       /* Public, visitor-independent, and already only as fresh as FAST_TTL.
          Letting any shared cache in front of this serve it costs nothing and
          removes the origin hit entirely for the common case. */
