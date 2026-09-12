@@ -172,6 +172,47 @@ checked against current source, not assumed still true:**
   assertion, the same discipline `rsi.test.mts` and `smaNMArr.test.mts`
   already established for this file's neighbours.
 
+**2026-09-12 — systematic audit of every server-side time-dependent
+decision**, per PM/DevOps's request while the dev database was down (a
+code-only task, deliberately chosen for that window). Mapped every genuine
+time-gated *decision* (not a display timestamp) against the five named
+categories - trial expiry, alert cooldowns, rate-limit windows, health-write
+coalescing, market-hours logic - and one bucket: testable today with no code
+change, testable today because it's already exported/parameterized right,
+or genuinely blocked on a bare `Date.now()`/`new Date()` with no seam.
+
+- **Testable today, no seam needed:** `lib/rateLimit.ts`'s `rateLimit(key,
+  limit, windowMs)` - already exported, reads `Date.now()` internally with
+  no parameter, same shape as `shouldWrite` below. No test exists yet; none
+  is blocked from existing either. `market-hours` logic itself has no
+  separate server-side gate to find - it's client-rendered on `/hours` and
+  already covered by `clock.spec.ts`'s three pinned instants (see above).
+- **Testable today because already exported/parameterized correctly:**
+  `lib/apiHealth.ts`'s `shouldWrite` (health-write coalescing, the named
+  30s/5s floors) - now unit-tested directly (#1226, `node:test`'s built-in
+  `Date` mock, no real sleeps), closing what was an open item as of this
+  morning. `lib/candles.ts`'s `closedCandleTtl`/`msUntilNextClose` remain
+  the standing proof this pattern works (cited above).
+- **Genuinely blocked - bare `Date.now()`/`new Date()`, no seam, named fix:**
+  - `app/api/trial-reminder/route.ts:32` - `const now = Date.now(); const
+    cutoff = new Date(now + WINDOW_DAYS * 86_400_000)...` gates which
+    trial-ending-soon rows get a reminder email. Same shape as
+    `resolveWindow`'s cutoff above: extract the boundary check itself into
+    a pure function taking `nowMs` and `trial_ends_at`, same pattern as
+    `closedCandleTtl`. Not proposing the change here - app code.
+  - `app/api/telegram/alert/route.ts:229-230` - `onCooldown`/`markSent`, a
+    module-level `Map` + bare `Date.now()` gating whether an alert re-fires
+    within its cooldown window. Pure function, same shape as `shouldWrite` -
+    the **only** reason it isn't testable today is that it isn't exported.
+    Same one-word, zero-risk ask as `outcomePct` above: `export function
+    onCooldown` / `export function markSent`, no behavior change.
+
+Everything else the `Date.now()`/`new Date()` grep across `app/api/` turned
+up (40 files) was either a display/audit timestamp with no gating decision
+behind it, or a route already covered above. Not listing all 40 - the two
+new named gaps and the one already-exportable-today function are what's
+actionable; the rest is noise for this section's purpose.
+
 ---
 
 ## 🟡 2. Geometry is checked now; APPEARANCE still is not
