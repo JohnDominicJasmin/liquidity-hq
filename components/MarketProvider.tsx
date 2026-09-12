@@ -680,9 +680,19 @@ export default function MarketProvider(
             '/api/proxy?type=recent-trade&symbol=HYPEUSDT&limit=200',
             { cache: 'no-store' }
           );
+          // #1107: neither of these was checked before. A refused/failed
+          // request (or a malformed result.list) fell through to `?? []`,
+          // which computed buyVol=sellVol=0 same as a real quiet market -
+          // that fabricated zero then overwrote the real CVD, entered the
+          // 5-snapshot divergence window as if it were a genuine
+          // observation, and could fire a real Telegram alert off data
+          // that was never real. Mirrors the Binance branch's own
+          // `!Array.isArray(trades)` guard above.
+          if (!res.ok) return;
           const data = await res.json();
           // Bybit linear recent-trade fields: price, size, side (NOT p/v/S - those are spot fields)
-          const trades: Array<{ side: string; size: string; price: string }> = data.result?.list ?? [];
+          const trades: Array<{ side: string; size: string; price: string }> = data.result?.list;
+          if (!Array.isArray(trades)) return;
           let buyVol = 0, sellVol = 0;
           trades.forEach(t => {
             const qty = parseFloat(t.size);
