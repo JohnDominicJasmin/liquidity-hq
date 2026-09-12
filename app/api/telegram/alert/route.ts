@@ -11,7 +11,7 @@ import { computeDistributionScore, DistributionInputs } from '@/lib/distribution
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
-import { onCooldown, markSent } from '@/lib/alertCooldown';
+import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
 import {
   EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, BYBIT_KLINE_SYMS,
 } from '@/lib/ribbonCandles';
@@ -2019,6 +2019,56 @@ async function persistEMASignalDedup(): Promise<void> {
   } catch { /* best-effort - a missed persist just re-derives correctly next run */ }
 }
 
+/* ── Alert cooldown persistence (app_config) ── #1278
+ * lib/alertCooldown.ts's ledger is a plain in-memory Map - every restart
+ * wipes it, so the next tick could resend anything that had fired minutes
+ * earlier and was still on cooldown from a user's perspective. Same failure
+ * mode, same fix, as hydrateEMASignalDedup/persistEMASignalDedup above (the
+ * 2026-07-27 restart storm that motivated those) - applied here to the
+ * ledger that gates EVERY check in this file, not just EMA signals.
+ *
+ * DELIBERATELY STRICTER than that pattern's "fail open" on a read failure.
+ * EMA/structure dedup covers one rule each; a bad read there means one
+ * rule's worth of possible resends, which was judged an acceptable risk
+ * against just proceeding. This ledger is shared by every check - a failed
+ * hydrate here risks a full-alert-engine resend burst, not one rule's
+ * worth, so `hydrateAlertCooldown` returns whether it actually knows the
+ * real cooldown state, and `runAlerts` skips the ENTIRE run when it does
+ * not, rather than alert from a map it cannot vouch for. "Unknown is not
+ * no": failing to confirm what's already on cooldown is not the same fact
+ * as nothing being on cooldown, and guessing the latter risks the exact
+ * burst this exists to prevent. */
+let cooldownHydrated = false;
+let cooldownHydrateOk = false;
+
+async function hydrateAlertCooldown(): Promise<boolean> {
+  if (cooldownHydrated) return cooldownHydrateOk;
+  cooldownHydrated = true; // set first - a failed read must never retry every tick
+  try {
+    const admin = getSupabaseAdmin();
+    const { data, error } = await admin.from(T.app_config).select('value').eq('key', 'alert_cooldown').maybeSingle();
+    if (error) throw error;
+    const saved = data?.value as Record<string, number> | undefined;
+    if (saved) importCooldownState(saved);
+    cooldownHydrateOk = true;
+  } catch {
+    cooldownHydrateOk = false; // no prior row (first-ever run) is NOT this branch - only a thrown read is
+  }
+  return cooldownHydrateOk;
+}
+
+async function persistAlertCooldown(): Promise<void> {
+  try {
+    const admin = getSupabaseAdmin();
+    await admin.from(T.app_config).upsert(
+      { key: 'alert_cooldown', value: exportCooldownState() },
+      { onConflict: 'key' },
+    );
+  } catch { /* best-effort - a missed persist here just means the NEXT restart
+               (not this run) risks the resend this feature exists to stop;
+               this run's own sends already went out correctly either way. */ }
+}
+
 export async function GET(req: NextRequest) {
   // Fail-closed: spams every connected Telegram chat and force-deactivates
   // price alerts if left reachable by anyone who finds the URL. See
@@ -2122,6 +2172,19 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // Same restart problem, same DB-backed fix - a fresh process must not treat
   // an existing structure break as brand new and re-announce it.
   await hydrateStructureDedup();
+  // #1278: unlike the two above, a failed read here aborts the WHOLE run -
+  // see hydrateAlertCooldown's own comment for why this ledger gets the
+  // stricter rule. Every check below reads onCooldown, so this must resolve
+  // before any of them run, not merely before the first one that uses it.
+  if (!(await hydrateAlertCooldown())) {
+    // 503, not the 200 an earlier draft of this had - __tests__/telegramStatusCodes.test.mts
+    // enforces exactly this convention repo-wide: `ok: false` with no status
+    // answers 200, and any caller checking `res.ok` reads the failure as success.
+    return NextResponse.json({
+      ok: false, fired: [],
+      note: 'cooldown state unavailable - run skipped rather than risk resending everything on cooldown',
+    }, { status: 503 });
+  }
 
   // #1266 step 1: one counter for this whole run, mutated in place by every
   // check below that talks to Binance directly - see its own declaration for
@@ -2188,6 +2251,10 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // hydrates from here instead of starting empty - see hydrateEMASignalDedup.
   await persistEMASignalDedup();
   await persistStructureDedup();
+  // #1278: every markSent() call from the checks above already landed in
+  // lib/alertCooldown.ts's in-memory ledger by this point - persist it so a
+  // restart between now and the next tick hydrates from here.
+  await persistAlertCooldown();
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert.
   // Per-recipient coin:/dir:/ruleKey eligibility is decided inside.
