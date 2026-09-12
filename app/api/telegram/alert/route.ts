@@ -24,6 +24,49 @@ import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, OHLCV } 
 
 export const dynamic = 'force-dynamic';
 
+/* #1266 step 1: a shared, per-run counter for checks that returned early
+ * because their OWN upstream fetch failed - not a business-logic skip
+ * (below threshold, muted, on cooldown). One object, created once per
+ * `runAlerts()` call and passed into every check function that talks to
+ * Binance directly, so `formatAlertTally` can put a real count next to
+ * `fired=0` instead of a silence that reads the same as a quiet market.
+ * `Record<string, number>` rather than a fixed `{ binance: number }` -
+ * step 2 adds a Bybit failover per check, at which point a SWITCHED check
+ * is not the same event as a fully SKIPPED one, and this shape already has
+ * room for that key without another interface change. */
+type SkipCounts = Record<string, number>;
+function noteSkip(counts: SkipCounts, source: string): void {
+  counts[source] = (counts[source] ?? 0) + 1;
+}
+
+/* PM caught this in review: a bare `await fetch(...)` followed by
+ * `if (!res.ok) { noteSkip(...); return; }`, inside a try block whose catch
+ * ALSO guards unrelated per-item logic (cooldown checks, queue pushes),
+ * misses the case where the fetch itself throws - `AbortSignal.timeout`
+ * firing, DNS failure, a TCP reset. That exception skips straight past the
+ * `!res.ok` check into the outer catch, which this file deliberately does
+ * NOT instrument (see the scoping note on each check function - counting
+ * that catch would misattribute an unrelated bug in the business logic as
+ * an upstream skip). A real block that manifests as timeouts rather than
+ * clean 4xx/5xx responses would then log `skipped=0` while alerts silently
+ * stop - exactly the failure #1266 exists to make visible.
+ *
+ * Fix: isolate JUST the fetch call in its own try/catch, so a throw AT
+ * THAT POINT counts as a skip, while an exception from the surrounding
+ * per-item logic still falls through to the outer catch uninstrumented, on
+ * purpose. Returns null on any failure (network throw or non-2xx) so the
+ * caller's existing `if (!res) return;` shape barely changes. */
+async function fetchOrSkip(url: string, opts: RequestInit, skipCounts: SkipCounts, source: string): Promise<Response | null> {
+  try {
+    const res = await fetch(url, opts);
+    if (!res.ok) { noteSkip(skipCounts, source); return null; }
+    return res;
+  } catch {
+    noteSkip(skipCounts, source);
+    return null;
+  }
+}
+
 // Telegram's parse_mode:HTML treats any of these characters as markup -
 // user-supplied free text (e.g. a saved price alert's label) must be escaped
 // before insertion into a message body, or it can inject its own tags
@@ -419,7 +462,7 @@ async function flushSignals(
 interface BNTicker { symbol: string; lastFundingRate: string }
 interface BBTicker  { symbol: string; fundingRate: string }
 
-async function fetchAllFR(): Promise<Record<string, number | null>> {
+async function fetchAllFR(skipCounts: SkipCounts): Promise<Record<string, number | null>> {
   const result: Record<string, number | null> = {};
   COINS.forEach(c => (result[c] = null));
   const [bnR, bbR] = await Promise.allSettled([
@@ -432,6 +475,10 @@ async function fetchAllFR(): Promise<Record<string, number | null>> {
       const coin = Object.entries(BINANCE_PERP).find(([, s]) => s === item.symbol)?.[0];
       if (coin) result[coin] = parseFloat(item.lastFundingRate);
     }
+  } else {
+    // One shared upstream call feeding every coin's funding rate - a single
+    // event, not one per coin, same as fetchSpotPrices below.
+    noteSkip(skipCounts, 'binance');
   }
   if (bbR.status === 'fulfilled' && bbR.value.ok) {
     const d = await bbR.value.json() as { result?: { list?: BBTicker[] } };
@@ -443,10 +490,10 @@ async function fetchAllFR(): Promise<Record<string, number | null>> {
   return result;
 }
 
-async function fetchSpotPrices(): Promise<Record<string, number>> {
+async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, number>> {
+  const res = await fetchOrSkip('https://api.binance.com/api/v3/ticker/price', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+  if (!res) return {};
   try {
-    const res  = await fetch('https://api.binance.com/api/v3/ticker/price', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-    if (!res.ok) return {};
     const data = await res.json() as Array<{ symbol: string; price: string }>;
     const out: Record<string, number> = {};
     for (const item of data) {
@@ -490,7 +537,7 @@ function computeRSI(closes: number[], period = 14): number {
   return 100 - 100 / (1 + ag / al);
 }
 
-async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipient[], thresholdsByUser: Map<string, UserThresholds>): Promise<string[]> {
+async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipient[], thresholdsByUser: Map<string, UserThresholds>, skipCounts: SkipCounts): Promise<string[]> {
   const fired: string[] = [];
   // Loosest (most sensitive) threshold across current recipients - a push
   // happens whenever ANYONE would want it; exact per-recipient delivery is
@@ -508,8 +555,8 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
         // TradingView/Bybit show - 20 candles only gives ~5 smoothing iterations
         // past the initial seed, nowhere near enough. 300 matches what the
         // Arena chart reader uses for the same calculation.
-        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-        if (!res.ok) return;
+        const res = await fetchOrSkip(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+        if (!res) return;
         const data = await res.json() as Array<unknown[]>;
         closes = data.map(c => parseFloat(c[4] as string));
       } else if (BYBIT_KLINE_SYMS[coin]) {
@@ -548,7 +595,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
 /* ════════════════════════════════════════
    3c. RAPID PRICE MOVE (5m / 1H / 4H)
    ════════════════════════════════════════ */
-async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<string[]> {
+async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: SkipCounts): Promise<string[]> {
   const fired: string[] = [];
   const FRAMES = [
     { interval: '5m',  bybitInterval: '5',   threshold: 4,  cd: 'move5m', tfLabel: '5m' },
@@ -563,11 +610,12 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
           let prevClose: number, currClose: number;
           let patternStr = '';
           if (BINANCE_SPOT[coin]) {
-            const res = await fetch(
+            const res = await fetchOrSkip(
               `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=${interval}&limit=25`,
-              { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
+              { cache: 'no-store', signal: AbortSignal.timeout(7_000) },
+              skipCounts, 'binance',
             );
-            if (!res.ok) return;
+            if (!res) return;
             const data = await res.json() as Array<unknown[]>;
             if (data.length < 2) return;
             prevClose = parseFloat(data[data.length - 2][4] as string);
@@ -619,7 +667,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
    ════════════════════════════════════════ */
 interface AggTrade { T: number; p: string; q: string; m: boolean }
 
-async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[]> {
+async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: SkipCounts): Promise<string[]> {
   const fired: string[] = [];
   const since = Date.now() - 5 * 60_000;
   await runBatched([
@@ -628,8 +676,8 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
       const threshold = WHALE_THRESHOLD[coin];
       if (!threshold) return;
       try {
-        const res    = await fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-        if (!res.ok) return;
+        const res    = await fetchOrSkip(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+        if (!res) return;
         const trades = await res.json() as AggTrade[];
         const label  = LABELS[coin];
         for (const t of trades) {
@@ -735,14 +783,14 @@ async function checkNews(
    ════════════════════════════════════════ */
 interface OIHistItem { sumOpenInterest: string; timestamp: number }
 
-async function checkOISpike(stamp: string, prices: Record<string, number>, queue: SignalEntry[]): Promise<string[]> {
+async function checkOISpike(stamp: string, prices: Record<string, number>, queue: SignalEntry[], skipCounts: SkipCounts): Promise<string[]> {
   const fired: string[] = [];
   await runBatched([
     // ── Binance perp coins ──
     ...Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
     try {
-      const res = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-      if (!res.ok) return;
+      const res = await fetchOrSkip(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+      if (!res) return;
       const data  = await res.json() as OIHistItem[];
       if (data.length < 12) return;
       const oldest = parseFloat(data[0].sumOpenInterest);
@@ -812,7 +860,7 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
    ════════════════════════════════════════ */
 interface TakerVolItem { buyVol: string; sellVol: string; timestamp: number }
 
-async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> {
+async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCounts): Promise<string[]> {
   const fired: string[] = [];
   await runBatched(Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
     try {
@@ -820,8 +868,13 @@ async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> 
         fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=2`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
         fetch(`https://fapi.binance.com/futures/data/takerBuySellVol?symbol=${sym}&period=5m&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
       ]);
-      if (kRes.status !== 'fulfilled' || !kRes.value.ok) return;
-      if (tvRes.status !== 'fulfilled' || !tvRes.value.ok) return;
+      // One skip per coin if either leg failed, not one per endpoint - both
+      // legs feed the SAME check for this coin, so counting each separately
+      // would double-count a single skipped CVD check as two.
+      if (kRes.status !== 'fulfilled' || !kRes.value.ok || tvRes.status !== 'fulfilled' || !tvRes.value.ok) {
+        noteSkip(skipCounts, 'binance');
+        return;
+      }
 
       const klines  = await kRes.value.json() as Array<unknown[]>;
       const tvData  = await tvRes.value.json() as TakerVolItem[];
@@ -1091,7 +1144,7 @@ interface LSItem { longShortRatio: string; longAccount: string; shortAccount: st
 
 async function checkSentimentExtremes(
   token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
-  frMap: Record<string, number | null>
+  frMap: Record<string, number | null>, skipCounts: SkipCounts,
 ): Promise<string[]> {
   const fired: string[] = [];
   const chatId = recipientChatIds(recipients, mutedByUser, 'sentiment_extremes');
@@ -1106,8 +1159,9 @@ async function checkSentimentExtremes(
       fetch('https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
     ]);
 
+    // fngR (alternative.me) is not Binance - only lsR's failure counts here.
     if (fngR.status !== 'fulfilled' || !fngR.value.ok) return [];
-    if (lsR.status  !== 'fulfilled' || !lsR.value.ok)  return [];
+    if (lsR.status  !== 'fulfilled' || !lsR.value.ok)  { noteSkip(skipCounts, 'binance'); return []; }
 
     const fngJson = await fngR.value.json() as { data: FNGData[] };
     const fng     = parseInt(fngJson.data?.[0]?.value ?? '50');
@@ -1160,18 +1214,19 @@ async function checkSentimentExtremes(
    Fires when funding rate + L/S ratio both scream overcrowding (score ≥ 70)
    ════════════════════════════════════════ */
 
-async function fetchAllLSR(): Promise<Record<string, number | null>> {
+async function fetchAllLSR(skipCounts: SkipCounts): Promise<Record<string, number | null>> {
   const result: Record<string, number | null> = {};
   COINS.forEach(c => (result[c] = null));
   await Promise.all([
     // Binance perp L/S ratio
     ...Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
       try {
-        const res = await fetch(
+        const res = await fetchOrSkip(
           `https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`,
-          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
+          { cache: 'no-store', signal: AbortSignal.timeout(7_000) },
+          skipCounts, 'binance',
         );
-        if (!res.ok) return;
+        if (!res) return;
         const d = await res.json() as Array<{ longAccount: string }>;
         if (d?.[0]) result[coin] = parseFloat(d[0].longAccount);
       } catch { /* skip */ }
@@ -1308,6 +1363,7 @@ async function checkDistribution(
   frMap: Record<string, number | null>,
   queue: SignalEntry[],
   fullyMutedCoins: Set<string>,
+  skipCounts: SkipCounts,
 ): Promise<string[]> {
   const fired: string[] = [];
 
@@ -1324,7 +1380,10 @@ async function checkDistribution(
           fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=1h&limit=1`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
         ]);
-        if (kRes.status !== 'fulfilled' || !kRes.value.ok) return;
+        // klines is the load-bearing leg here - oiRes/topRes degrade their own
+        // fields gracefully below (see oiTrend's own `if` guard) rather than
+        // bailing the whole check, so only klines failing counts as a skip.
+        if (kRes.status !== 'fulfilled' || !kRes.value.ok) { noteSkip(skipCounts, 'binance'); return; }
         const kl = await kRes.value.json() as Array<unknown[]>;
         if (kl.length < 26) return;
 
@@ -1938,9 +1997,14 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // an existing structure break as brand new and re-announce it.
   await hydrateStructureDedup();
 
+  // #1266 step 1: one counter for this whole run, mutated in place by every
+  // check below that talks to Binance directly - see its own declaration for
+  // why a shared object rather than each function returning its own count.
+  const skipCounts: SkipCounts = {};
+
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
-    fetchAllFR(), fetchSpotPrices(), fetchAllLSR(), fetchMutedKeysByUser(), fetchThresholdsByUser(),
+    fetchAllFR(skipCounts), fetchSpotPrices(skipCounts), fetchAllLSR(skipCounts), fetchMutedKeysByUser(), fetchThresholdsByUser(),
   ]);
 
   // Coins muted by every single recipient - the only case it's safe to skip
@@ -1978,18 +2042,18 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const signalQueue: SignalEntry[] = [];
 
   const results = await Promise.allSettled([
-    checkRSI(stamp, signalQueue, recipients, thresholdsByUser),
-    checkRapidMove(stamp, signalQueue),
-    checkWhales(stamp, signalQueue),
+    checkRSI(stamp, signalQueue, recipients, thresholdsByUser, skipCounts),
+    checkRapidMove(stamp, signalQueue, skipCounts),
+    checkWhales(stamp, signalQueue, skipCounts),
     checkNews(token, recipients, mutedByUser, stamp),                     // global - sends directly
     checkFearGreed(token, recipients, mutedByUser, stamp),                // global - sends directly
     checkDailySummary(token, recipients, mutedByUser, stamp, frMap),      // global - sends directly
-    checkOISpike(stamp, prices, signalQueue),
-    checkCVD(stamp, signalQueue),
+    checkOISpike(stamp, prices, signalQueue, skipCounts),
+    checkCVD(stamp, signalQueue, skipCounts),
     checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds),       // already per-user (own table)
-    checkSentimentExtremes(token, recipients, mutedByUser, stamp, frMap), // global - sends directly
+    checkSentimentExtremes(token, recipients, mutedByUser, stamp, frMap, skipCounts), // global - sends directly
     checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue, recipients, thresholdsByUser),
-    checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins),
+    checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins, skipCounts),
     ...EMA_SIGNAL_TFS.map(tf => checkEMASignal(stamp, signalQueue, fullyMutedTfs, tf)),
     ...STRUCTURE_TFS.map(tf => checkStructureSignal(stamp, signalQueue, tf, unusedStructureTfs)),
   ]);
@@ -2116,6 +2180,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     sent:       sendTally.ok,
     failed:     sendTally.failed,
     recipients: recipients.length,
+    skipped:    skipCounts,
   }));
 
   return NextResponse.json({
@@ -2123,6 +2188,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     recipients: recipients.length,
     mutedUsers: mutedByUser.size,
     delivery: { queued: signalQueue.length, eligible, sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] },
+    skipped: skipCounts,
     checked: [
       'RSI', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD',
       'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'Distribution',
