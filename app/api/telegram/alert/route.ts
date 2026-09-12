@@ -2040,6 +2040,7 @@ async function persistEMASignalDedup(): Promise<void> {
  * burst this exists to prevent. */
 let cooldownHydrated = false;
 let cooldownHydrateOk = false;
+let cooldownHydrateError: unknown = null;
 
 async function hydrateAlertCooldown(): Promise<boolean> {
   if (cooldownHydrated) return cooldownHydrateOk;
@@ -2051,8 +2052,9 @@ async function hydrateAlertCooldown(): Promise<boolean> {
     const saved = data?.value as Record<string, number> | undefined;
     if (saved) importCooldownState(saved);
     cooldownHydrateOk = true;
-  } catch {
+  } catch (e) {
     cooldownHydrateOk = false; // no prior row (first-ever run) is NOT this branch - only a thrown read is
+    cooldownHydrateError = e;
   }
   return cooldownHydrateOk;
 }
@@ -2177,6 +2179,13 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // stricter rule. Every check below reads onCooldown, so this must resolve
   // before any of them run, not merely before the first one that uses it.
   if (!(await hydrateAlertCooldown())) {
+    // A log line, not just the response body: PM caught in review that a
+    // 503 alone still reads on Render as "alerts silently stopped" unless
+    // someone happens to check the JSON body - the exact "unknown read as
+    // no" failure #1266 exists to fix, just one layer further out. Same
+    // `[alert]` prefix everything else in this file's logging uses, so a
+    // log search for it catches this too.
+    console.warn(`[alert] ABORTED: cooldown hydrate failed (${healthError(cooldownHydrateError)})`);
     // 503, not the 200 an earlier draft of this had - __tests__/telegramStatusCodes.test.mts
     // enforces exactly this convention repo-wide: `ok: false` with no status
     // answers 200, and any caller checking `res.ok` reads the failure as success.
