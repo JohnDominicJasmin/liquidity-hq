@@ -6692,18 +6692,25 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   [data-design="terminal"] .tnav-item { padding-left: 8px; padding-right: 8px; }
   /* Direct fix for the signed-in clip: `.tnav-avatar` is a deliberately
      fixed 22x22px box (#714, "growing the visible box would be a design
-     change this fix has no standing to make" - not touched), and the
-     `.tnav-item` padding trim above has NO effect on `.tnav-right`'s own
-     position - it's a sibling flex child, sized by ITS OWN content
-     (PlanBadge + this gap + the avatar), not by how much room `.tnav-items`
-     needed. Confirmed empirically: the avatar's getBoundingClientRect().right
-     was identical (771px at 768px viewport) whether .tnav-item padding was
-     8px or 6px. The gap between PlanBadge and the avatar is what's actually
-     in the way here. 14px -> 8px recovers exactly the ~6px needed plus
-     margin, and only in the one signed-in row this matters for - two
-     visible children (PlanBadge, avatar) instead of the up-to-four this gap
-     spaces apart at 900px+. */
-  [data-design="terminal"] .tnav-right { gap: 8px; }
+     change this fix has no standing to make" - not touched), and
+     `.plan-badge`'s own 4px/10px padding is a shared, owner-specified rule
+     used everywhere the badge renders (not scoped to this nav) - touching
+     it here would change the badge on /settings, /upgrade and everywhere
+     else it appears, for a fix that only needs to apply in this one row.
+     The `.tnav-item` padding trim above has NO effect on `.tnav-right`'s
+     own position either way - it's a sibling flex child, sized by ITS OWN
+     content (PlanBadge + this gap + the avatar), not by how much room
+     `.tnav-items` needed.
+     So this gap is the one thing left that's both scoped to this row and
+     safe to shrink. PM/DevOps caught that the FIRST verification of this
+     (14px -> 8px) was measured before the plan badge had actually loaded
+     (`.plan-badge` renders nothing until the entitlements read resolves -
+     see PlanBadge.tsx's own doc comment - so an early screenshot/measurement
+     shows only the avatar, which is narrower). Re-measured waiting on the
+     badge's own text content, not a timer: with FREE actually present,
+     768px signed in was only 2.86px from the edge at gap:8px - too thin.
+     14px -> 4px recovers the difference with real margin instead. */
+  [data-design="terminal"] .tnav-right { gap: 4px; }
 }
 @media (min-width: 911px) and (max-width: 944px) {
   [data-design="terminal"] .tnav-session { display: none; }
