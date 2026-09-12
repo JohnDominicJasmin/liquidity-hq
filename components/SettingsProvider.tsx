@@ -5,7 +5,7 @@ import { getSupabase, getAuthToken } from '@/lib/supabase';
 import {
   UserSettings, SettingsContext,
   DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings, rowToSettings,
-  loadUnconfirmedKeys, saveUnconfirmedKeys, migrateUnconfirmedKeysToUser,
+  loadUnconfirmed, saveUnconfirmed, dropLegacyUnconfirmedKey,
 } from '@/lib/settings';
 import { T } from '@/lib/tables';
 
@@ -31,11 +31,6 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef  = useRef<Partial<UserSettings> | null>(null);
-  // Mirrors `settings`, read inside applyDbSettings below so that merge can
-  // use the CURRENT local value without putting a side effect (flushToDb)
-  // inside a setState updater callback - #1188 part 3.
-  const settingsRef = useRef(settings);
-  useEffect(() => { settingsRef.current = settings; }, [settings]);
 
   // ── Debounced Supabase upsert ─────────────────────────────────────────────
   // Declared before the effects, not after them. The sign-in effect below calls
@@ -73,11 +68,11 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       const { failed } = await attemptSave();
       if (!failed) {
         // #1188 part 3: this exact partial is now DB-confirmed - clear only
-        // these keys from the unconfirmed set, not the whole thing, since a
+        // these keys from the unconfirmed map, not the whole thing, since a
         // different field's own save may still be in flight or failed.
-        const unconfirmed = loadUnconfirmedKeys(user.id);
-        for (const key of Object.keys(partial)) unconfirmed.delete(key);
-        saveUnconfirmedKeys(user.id, unconfirmed);
+        const unconfirmed = loadUnconfirmed(user.id);
+        for (const key of Object.keys(partial)) delete unconfirmed[key];
+        saveUnconfirmed(user.id, unconfirmed);
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus('idle'), 2000);
         return;
@@ -116,27 +111,36 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // unsolved problem (no timestamp exists to decide who actually wins) -
   // tracked on #1202, not solved here. This function's contract stays
   // narrow: protect the field locally, touch nothing server-side.
+  //
+  // Reads the protected value from the unconfirmed MAP itself, never from
+  // `settings`/`lhq_settings_v1` - PM/DevOps caught a real cross-account leak
+  // in an earlier version that read the value from there: that cache is
+  // shared across whichever account most recently used this tab, so it could
+  // hold account B's real value at the moment account A's own unconfirmed
+  // field was being restored, showing B's setting as A's own, permanently.
+  // Storing the value alongside the marker (lib/settings.ts) removes that
+  // shared-cache dependency entirely.
   const applyDbSettings = useCallback((userId: string, dbSettings: UserSettings) => {
-    const unconfirmed = loadUnconfirmedKeys(userId);
-    if (unconfirmed.size === 0) {
+    const unconfirmed = loadUnconfirmed(userId);
+    const keys = Object.keys(unconfirmed);
+    if (keys.length === 0) {
       setSettings(dbSettings);
       saveLocalSettings(dbSettings);
       return;
     }
-    const current = settingsRef.current;
-    const merged: UserSettings = { ...dbSettings };
-    // Single generic per call, not a Record<string, unknown> cast - keeps
-    // dest[key] = src[key] type-checked against UserSettings' real field
-    // types instead of erasing them.
-    function copyKey<K extends keyof UserSettings>(dest: Partial<UserSettings>, key: K) {
-      dest[key] = current[key];
-    }
-    for (const key of unconfirmed) {
+    // Record<string, unknown>, not a per-key generic like #1188 part 3 used
+    // against `settingsRef` - the source here is `unconfirmed[key]`, which
+    // has already crossed a JSON.parse boundary and is `unknown` by
+    // construction, so there is no real UserSettings-typed value left to
+    // type-check dest[key] against. Same trade rowToSettings already makes
+    // for a DB row.
+    const merged = { ...dbSettings } as Record<string, unknown>;
+    for (const key of keys) {
       if (!(key in merged)) continue; // stale key from a removed field - ignore
-      copyKey(merged, key as keyof UserSettings);
+      merged[key] = unconfirmed[key];
     }
-    setSettings(merged);
-    saveLocalSettings(merged);
+    setSettings(merged as unknown as UserSettings);
+    saveLocalSettings(merged as unknown as UserSettings);
   }, []);
 
   // ── Initialise from localStorage immediately (no flash of defaults) ──────
@@ -158,6 +162,12 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     // for authLoading to actually settle before treating a null user as a
     // real sign-out.
     if (authLoading) return;
+    // #1202 symptom 3: drops the pre-#1202 global unconfirmed-keys key once
+    // authLoading settles, regardless of whether a real user resolves -
+    // nothing can attribute that legacy key to any one account (see
+    // dropLegacyUnconfirmedKey's own comment for why this drops rather than
+    // migrates), so there is no "right" account to move it into.
+    dropLegacyUnconfirmedKey();
     if (!user) {
       // #1202 symptom 3: used to call clearUnconfirmedKeys() here - needed
       // when the key was global, since a stale marker from THIS account
@@ -167,11 +177,6 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       // nothing left here to protect against.
       return;
     }
-    // #1202 symptom 3: one-time carry-over from the old global key into this
-    // account's namespaced one. Must run before any read/write of the
-    // namespaced key below, and only once user.id is a real, resolved value
-    // (the authLoading guard above already ensures that).
-    migrateUnconfirmedKeysToUser(user.id);
     const sb = getSupabase();
     if (!sb) return;
     setLoading(true);
@@ -203,9 +208,9 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
                 // call, so it needs the same unconfirmed-until-saved marker -
                 // otherwise a reload between now and this flush landing would
                 // let applyDbSettings silently revert the migrated value.
-                const unconfirmed = loadUnconfirmedKeys(user.id);
-                unconfirmed.add('anti_chop_enabled');
-                saveUnconfirmedKeys(user.id, unconfirmed);
+                const unconfirmed = loadUnconfirmed(user.id);
+                unconfirmed.anti_chop_enabled = legacyVal;
+                saveUnconfirmed(user.id, unconfirmed);
                 pendingRef.current = { ...(pendingRef.current ?? {}), anti_chop_enabled: legacyVal };
                 if (debounceRef.current) clearTimeout(debounceRef.current);
                 debounceRef.current = setTimeout(() => {
@@ -258,9 +263,9 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     // is nothing for a shared anonymous bucket to wrongly protect. Matches
     // this key's pre-#1202 behaviour exactly for that one case.
     const unconfirmedUserId = user?.id ?? 'anon';
-    const unconfirmed = loadUnconfirmedKeys(unconfirmedUserId);
-    for (const key of Object.keys(partial)) unconfirmed.add(key);
-    saveUnconfirmedKeys(unconfirmedUserId, unconfirmed);
+    const unconfirmed = loadUnconfirmed(unconfirmedUserId);
+    for (const [key, val] of Object.entries(partial)) unconfirmed[key] = val;
+    saveUnconfirmed(unconfirmedUserId, unconfirmed);
 
     // 2. Merge into pending batch and schedule debounced save
     pendingRef.current = { ...(pendingRef.current ?? {}), ...partial };
