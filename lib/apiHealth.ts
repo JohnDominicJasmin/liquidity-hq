@@ -99,7 +99,11 @@ const MIN_WRITE_INTERVAL_MS = 30_000;
 const MIN_STATE_CHANGE_INTERVAL_MS = 5_000;
 const lastWrite = new Map<string, { at: number; ok: boolean }>();
 
-function shouldWrite(source: string, ok: boolean): boolean {
+// Exported for tests (#1223, QA) - already pure, no behaviour change from
+// exporting it. Same shape as this file's other exports: real callers below
+// (trackHealth, reportHealth) are the only production use, this just lets a
+// test drive it directly instead of only through a live write.
+export function shouldWrite(source: string, ok: boolean): boolean {
   const prev = lastWrite.get(source);
   const now = Date.now();
   if (!prev) {
@@ -112,6 +116,13 @@ function shouldWrite(source: string, ok: boolean): boolean {
   if (elapsed < floor) return false;
   lastWrite.set(source, { at: now, ok });
   return true;
+}
+
+/** Clears shouldWrite's per-source state. Exported for tests only (#1223) -
+ *  a real caller has no reason to ever reset this; every source keeps its
+ *  history for the life of the process by design. */
+export function _resetApiHealthWriteState(): void {
+  lastWrite.clear();
 }
 
 /**
