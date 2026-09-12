@@ -184,7 +184,7 @@ function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
-  const { settings, update } = useSettings();
+  const { settings, settingsLoaded, update } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
     const c = searchParams.get('coin')?.toLowerCase() ?? '';
@@ -265,9 +265,13 @@ function ArenaContent() {
      echoing the just-read value straight back to the server on every load.
      Passed to StrategyPanel below in place of the raw setters. */
   const handleStrategySelectionChange = useCallback((next: readonly string[]) => {
+    // #1246: belt-and-suspenders alongside StrategyPanel's own `loaded` gate
+    // - this is the only path that writes strategy_selection, and it must
+    // not run against the pre-load [] regardless of what calls it.
+    if (!settingsLoaded) return;
     setStrategySelection(next);
     update({ strategy_selection: next as string[] });
-  }, [update]);
+  }, [update, settingsLoaded]);
   const handleStrategyParamsChange = useCallback((next: Record<string, Record<string, string | number | boolean>>) => {
     setStrategyParams(next);
     update({ strategy_params: next });
@@ -2397,7 +2401,7 @@ function ArenaContent() {
           wired, and that is deliberately a separate change. One selection
           driving a chart plus three AI actions is the part that goes wrong
           quietly, and it should not land inside a layout diff. */}
-      <StrategyPanel selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} />
+      <StrategyPanel loaded={settingsLoaded} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
