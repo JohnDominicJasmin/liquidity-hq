@@ -6669,22 +6669,44 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
    (icon button) + 36px (language chip) + 2 * 14px (.tnav-right's own gap,
    now needed for one item instead of three) = 92px - closes the 768px gap
    to within 9px, comfortably inside the padding trim below. */
-@media (min-width: 768px) and (max-width: 899px) {
+@media (min-width: 768px) and (max-width: 910px) {
   [data-design="terminal"] .tnav-session { display: none; }
   [data-design="terminal"] .tnav-icon-btn { display: none; }
   [data-design="terminal"] .lang-nav-wrap { display: none; }
   /* Nav items' own horizontal padding, not the design's own .tnav gap:28
-     (#599, cited by name in that rule - not touched here). 12px -> 8px per
-     side recovers 4px * 2 sides * 6 items = 48px.
+     (#599, cited by name in that rule - not touched here). 12px -> 6px per
+     side recovers 6px * 2 sides * 6 items = 72px.
      This got wider, not narrower, after the caret-wrap fix above: forcing
      SCANNERS/TOOLS onto one line (correct - the wrap was a real defect, not
      a way to save width) means each dropdown button now needs its full
      "label + caret" width every time instead of sometimes rendering just
-     the shorter wrapped label, re-opening a ~16px gap at 768px that this
-     covers along with the original ~9px this was sized for. */
-  [data-design="terminal"] .tnav-item { padding-left: 8px; padding-right: 8px; }
+     the shorter wrapped label. 8px covered the signed-out case
+     (`.tnav.scrollWidth === .tnav.clientWidth`) but PM/DevOps caught, by
+     measuring the actual account-menu button's own
+     `getBoundingClientRect().right` against `window.innerWidth` rather than
+     trusting the nav's own overflow check, that the SIGNED-IN right side
+     (plan badge + avatar button, wider than the signed-out "SIGN IN" link)
+     still clipped by ~3px at exactly 768px - `.tnav`'s scrollWidth didn't
+     catch it, since the child sits fractionally outside the box without
+     registering as scroll overflow. 6px leaves real margin instead of
+     landing exactly on the edge again. */
+  [data-design="terminal"] .tnav-item { padding-left: 6px; padding-right: 6px; }
+  /* Direct fix for the signed-in clip: `.tnav-avatar` is a deliberately
+     fixed 22x22px box (#714, "growing the visible box would be a design
+     change this fix has no standing to make" - not touched), and the
+     `.tnav-item` padding trim above has NO effect on `.tnav-right`'s own
+     position - it's a sibling flex child, sized by ITS OWN content
+     (PlanBadge + this gap + the avatar), not by how much room `.tnav-items`
+     needed. Confirmed empirically: the avatar's getBoundingClientRect().right
+     was identical (771px at 768px viewport) whether .tnav-item padding was
+     8px or 6px. The gap between PlanBadge and the avatar is what's actually
+     in the way here. 14px -> 8px recovers exactly the ~6px needed plus
+     margin, and only in the one signed-in row this matters for - two
+     visible children (PlanBadge, avatar) instead of the up-to-four this gap
+     spaces apart at 900px+. */
+  [data-design="terminal"] .tnav-right { gap: 8px; }
 }
-@media (min-width: 900px) and (max-width: 944px) {
+@media (min-width: 911px) and (max-width: 944px) {
   [data-design="terminal"] .tnav-session { display: none; }
 }
 [data-design="terminal"] .tnav-kbd {
