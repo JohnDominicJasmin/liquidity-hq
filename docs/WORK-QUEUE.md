@@ -36,18 +36,16 @@ the wrong item.
 
 ## Dev lane
 
-**Rewritten a third time on 2026-09-12, at ~15:30Z.** The second rewrite's D1 (#1202,
-via #1217) and D2 (#1025's retry storm, via #1219) both merged into `dev` and ship in
-release #2 (#1252). D3's #1114, #1121 and #1147 are open PRs: #1222, #1220 and #1225.
-#1246 and #1249, assigned in chat, are open PRs too: #1253 and #1250. **A queue
-that names finished work is worse than an empty one: it costs a session the time to
-discover it is wrong.**
+**Rewritten a fourth time on 2026-09-12, at ~20:40Z, after release #2 went live.** All
+of D3 (#1233–#1238), #1266 steps 1–2, #1278 and #1282's coalescing fix are **built and
+in review**: #1264, #1265, #1269, #1280→#1281, #1270→#1276→#1279, and #1283. The next
+item comes from QA's production re-check of release #2. **A queue that names finished
+work is worse than an empty one: it costs a session the time to discover it is wrong.**
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| D3 | **#1233–#1238: #1077's remaining server routes, Binance → Bybit** | ~half day each | **CLAIMED Dev 2026-09-12.** agg-trades, funding-rate, rsi, snapshot, the proxy's ticker+depth, and the proxy's futures-derivatives. **Follow #1240's shape:** a whole series from one source, never spliced, with an honest source label. **#1249 is the trap to avoid: a fallback that gets an empty 200 fails loud and names the cause. It never caches that as a success.** Go in number order unless two routes share a helper. |
-| D3a | **#1266: Telegram alerts call Binance directly at 13 sites, with no failover** | step 1 ~hours, step 2 ~1 day | **Goes ahead of #1237 and #1238, straight after #1236.** Alerts reach users' phones, and the remaining D3 routes only feed the UI. Each check silently returns on `!res.ok`, so a Binance block stops most alerts while the log still reads `fired=0`. **Step 1:** add a skipped-check count to the `[alert]` log line, so a block is visible the same day. **Step 2, owner decision 2026-09-12 ("if bybit can do the job then remove binance"):** first a coverage table of every alert check against its Bybit equivalent. Where Bybit covers a check, the check moves to Bybit only. Where it can't, the owner decides per check. Changed thresholds go to the owner, and the first run after cutover must not burst alerts. **Alert engine only.** The rest of the site stays Binance-first with its Bybit fallback. |
-| D3b | **#1278: alert cooldowns are held in memory, so every deploy wipes them** | ~half day | **Straight after #1276, ahead of #1237 and #1238.** `lib/alertCooldown.ts` keeps `lastSent` in a module-level `Map`, so any restart forgets what was sent, and the next alert run can re-send anything that was still on cooldown. That's pre-existing, but users feel it, and we deploy more often now. Persist the cooldowns, or seed them at startup from `lhq_alert_fires`. **If that startup read fails, skip the run rather than alerting with an empty map** (unknown is not no). |
+| D1 | **#1284: fear & greed, CMC dominance, alt-season and macro never fetch on production** | ~hours | **CLAIMED Dev 2026-09-12. User-visible, and first in line.** QA's #1252 step 3 found no requests to `/api/proxy?type=fng`, `/api/cmc?type=global`, `/api/cmc?type=altseason` or `/api/macro` on a hard reload. The routes work when called directly. Ruled out: the service worker (it only intercepts navigation requests), cache guards in the fetchers, and #1207's gating. **First, establish which of the mount effect's 15 calls actually fire.** The effect may be stopping at or before `fetchFNG`. Then check whether release #2 caused it, by comparing a build of `9fb45997` with one of `55a122c6`. |
+| D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | `PATCH /api/settings` already returns `rejected` plus the current `settings`, so the client should adopt them immediately and show a short notice. **Reuse #1188's save-status surface.** It's visible, so the owner approves the notice wording. |
 | D4 | **#1199: one retry-with-backoff utility** | ~half day | Two hand-written implementations exist, though #1188 said to reuse #1119's shape rather than write a second one. Extract a shared one, and **don't change either caller's timing** while doing it. The PR says what to assert; QA writes the tests. |
 | D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | #939's shape: meaning carried by a glyph alone, and a control with no accessible name. **Visual, so the owner sees it before it ships.** |
 | D6 | **#1113 tour rework · #1185 visual-rule instances** | mixed | Both visual. **Screenshots go to the owner before merge.** #1220 and #1225 are waiting on exactly that right now. |
