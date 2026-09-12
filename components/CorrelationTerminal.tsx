@@ -27,7 +27,15 @@ async function fetchCloses(id: CoinId, interval: string, limit: number): Promise
   const bbSym  = (BYBIT_SYMS  as Record<string, string>)[id];
   if (binSym) {
     try {
-      const res  = await fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=${interval}&limit=${limit}`);
+      const res = await fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=${interval}&limit=${limit}`);
+      // #1107: this used to skip straight to `res.json()` with no `res.ok`
+      // check. The route (app/api/market/klines/route.ts) always returns a
+      // non-2xx with an error body on a refused upstream request - never a
+      // fake-empty 200 - so a refusal parsed as an object, `.map` threw, and
+      // the catch below happened to swallow it. That was accidental safety,
+      // not a check: an error body shaped so `.map` doesn't throw would have
+      // silently returned wrong data instead of falling through to Bybit.
+      if (!res.ok) throw new Error(`binance klines ${res.status}`);
       const data = await res.json() as Array<unknown[]>;
       return data.map(c => parseFloat(c[4] as string));
     } catch { /* fall through */ }
