@@ -3,17 +3,36 @@ import { useEffect, useRef, useState } from 'react';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { nextSource, stableEnoughToSwitchBack } from '@/lib/exchangeFailover';
 
-/* ── Binance futures combined aggTrade stream - Binance-listed coins only (HYPE is Bybit-only) ── */
-const SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','nearusdt','suiusdt'];
+/* ── Binance futures combined aggTrade stream, Bybit publicTrade on failover ──
+   #1059: client-side failover - a browser that cannot reach Binance (blocked
+   region, 451/403, refused handshake) gets the same trades from Bybit instead
+   of a feed that silently stops. Server-side egress failover is #1077, a
+   separate scope on purpose. None of these 7 coins are Bybit's 1000x-prefixed
+   symbols (see lib/coins.ts bybitPriceFactor), so usd = price * qty is correct
+   unscaled on either exchange - no factor to apply here. */
+const COIN_IDS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'near', 'sui'] as const;
 
-const COIN_MAP: Record<string, string> = {
-  btcusdt:'BTC', ethusdt:'ETH', solusdt:'SOL', xrpusdt:'XRP',
-  bnbusdt:'BNB', nearusdt:'NEAR', suiusdt:'SUI',
-};
+const BN_SYMBOLS = COIN_IDS.map(c => BINANCE_SYMS[c].toLowerCase());
+const BN_COIN_MAP: Record<string, string> = Object.fromEntries(
+  COIN_IDS.map(c => [BINANCE_SYMS[c].toLowerCase(), c.toUpperCase()])
+);
+const BN_STREAMS = BN_SYMBOLS.map(s => `${s}@aggTrade`).join('/');
+const BN_WS_URL  = `wss://fstream.binance.com/stream?streams=${BN_STREAMS}`;
 
-const STREAMS  = SYMBOLS.map(s => `${s}@aggTrade`).join('/');
-const WS_URL   = `wss://fstream.binance.com/stream?streams=${STREAMS}`;
+const BB_SYM_MAP: Record<string, string> = Object.fromEntries(
+  COIN_IDS.map(c => [BYBIT_SYMS[c], c.toUpperCase()])
+);
+const BB_TOPICS = COIN_IDS.map(c => `publicTrade.${BYBIT_SYMS[c]}`);
+
+const BN_MAX_RETRIES = 5;       // same shape as MarketProvider's ticker WS failover
+const BN_RETRY_WHILE_ON_BB_MS = 60_000; // how often to re-try Binance while parked on Bybit
+// PR #1228 / QA's hysteresis ask: Binance must stay open this long before a
+// switch back commits, so a Binance connection that opens then drops within
+// a second or two doesn't bounce the feed between exchanges on every blip.
+const BN_STABLE_MS = 3_000;
 
 const MIN_USD  = 50_000;      // $50K  - large trade threshold
 const BIG_USD  = 200_000;     // $200K - whale
@@ -53,8 +72,8 @@ export default function WhaleTradesFeed() {
   const [feed,     setFeed]     = useState<WhaleTrade[]>([]);
   const [stats,    setStats]    = useState<Stats>({ buyUsd: 0, sellUsd: 0, count: 0 });
   const [status,   setStatus]   = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [source,   setSource]   = useState<'binance' | 'bybit'>('binance');
   const [msgCount, setMsgCount] = useState(0);
-  const wsRef      = useRef<WebSocket | null>(null);
   const historyRef = useRef<WhaleTrade[]>([]);
   const msgRef     = useRef(0);
 
@@ -68,49 +87,145 @@ export default function WhaleTradesFeed() {
     });
   }
 
-  function connect() {
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-    ws.onopen  = () => setStatus('live');
-    ws.onerror = () => setStatus('error');
-    ws.onclose = () => {
-      setStatus('error');
-      setTimeout(() => {
-        if (wsRef.current?.readyState !== WebSocket.OPEN) connect();
-      }, 3000);
-    };
-
-    ws.onmessage = (ev) => {
-      try {
-        msgRef.current += 1;
-        if (msgRef.current % 50 === 0) setMsgCount(msgRef.current);
-        const msg = JSON.parse(ev.data as string);
-        const d   = msg?.data;
-        if (d?.e !== 'aggTrade') return;
-
-        const price = parseFloat(d.p);
-        const qty   = parseFloat(d.q);
-        const usd   = price * qty;
-        if (usd < MIN_USD || !isFinite(usd)) return;
-
-        /* m = true → buyer is maker → aggressor was a SELLER (market sell)
-           m = false → buyer is taker → aggressor was a BUYER  (market buy) */
-        const side: 'BUY' | 'SELL' = d.m ? 'SELL' : 'BUY';
-        const symbol = ((d.s ?? '') as string).toLowerCase();
-        const coin   = COIN_MAP[symbol] ?? symbol.replace('usdt', '').toUpperCase();
-
-        const trade: WhaleTrade = { id: ++idCtr, coin, side, usd, price, ts: Date.now() };
-        historyRef.current = [...historyRef.current, trade].slice(-2000);
-        rebuildStats(historyRef.current);
-        setFeed(prev => [trade, ...prev].slice(0, FEED_MAX));
-      } catch { /* ignore parse errors */ }
-    };
+  function addTrade(coin: string, side: 'BUY' | 'SELL', usd: number, price: number) {
+    if (usd < MIN_USD || !isFinite(usd)) return;
+    msgRef.current += 1;
+    if (msgRef.current % 50 === 0) setMsgCount(msgRef.current);
+    const trade: WhaleTrade = { id: ++idCtr, coin, side, usd, price, ts: Date.now() };
+    historyRef.current = [...historyRef.current, trade].slice(-2000);
+    rebuildStats(historyRef.current);
+    setFeed(prev => [trade, ...prev].slice(0, FEED_MAX));
   }
 
   useEffect(() => {
-    connect();
+    let alive = true;
+    let bnWs: WebSocket | null = null;
+    let bbWs: WebSocket | null = null;
+    let bnRetries = 0;
+    let bbHostIdx = 0;
+    let bbRetryTimer: ReturnType<typeof setInterval> | null = null;
+    let confirmTimer: ReturnType<typeof setTimeout> | null = null;
+    let active: 'binance' | 'bybit' = 'binance';
+
+    function connectBN() {
+      if (!alive) return;
+      const ws = new WebSocket(BN_WS_URL);
+      bnWs = ws;
+      ws.onopen = () => {
+        if (!alive) return;
+        bnRetries = 0;
+        setStatus('live');
+        if (active !== 'bybit') { active = 'binance'; return; }
+        // Recovering from Bybit - don't commit the switch back immediately
+        // (PR #1228 hysteresis ask). Bybit keeps running until Binance has
+        // proven stable for BN_STABLE_MS; a drop before then just cancels
+        // the pending switch and leaves Bybit as the active source.
+        const openedAt = Date.now();
+        if (confirmTimer) clearTimeout(confirmTimer);
+        confirmTimer = setTimeout(() => {
+          confirmTimer = null;
+          if (!alive || bnWs !== ws) return; // this socket is no longer current
+          if (!stableEnoughToSwitchBack(openedAt, Date.now(), BN_STABLE_MS)) return;
+          active = 'binance';
+          setSource('binance');
+          if (bbRetryTimer) { clearInterval(bbRetryTimer); bbRetryTimer = null; }
+          if (bbWs) { const old = bbWs; bbWs = null; try { old.close(); } catch { /* */ } }
+        }, BN_STABLE_MS);
+      };
+      ws.onerror = () => { try { ws.close(); } catch { /* */ } };
+      ws.onclose = () => {
+        if (!alive) return;
+        setStatus('error');
+        if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
+        bnRetries++;
+        // #1059: Binance exhausted its retries - fail over to Bybit for the
+        // same coins rather than leaving the feed dead. Keep retrying Binance
+        // in the background so a recovered connection can take back over.
+        const decided = nextSource(active, bnRetries, BN_MAX_RETRIES);
+        if (decided === 'bybit') {
+          if (active !== 'bybit') {
+            active = 'bybit';
+            setSource('bybit');
+            connectBB();
+            if (!bbRetryTimer) {
+              bbRetryTimer = setInterval(() => { bnRetries = 0; connectBN(); }, BN_RETRY_WHILE_ON_BB_MS);
+            }
+          }
+          // else: already parked on Bybit - the background bbRetryTimer owns
+          // the next attempt, so don't also fast-retry here.
+          return;
+        }
+        setTimeout(connectBN, 2000 * bnRetries);
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data as string);
+          const d   = msg?.data;
+          if (d?.e !== 'aggTrade') return;
+          const price  = parseFloat(d.p);
+          const qty    = parseFloat(d.q);
+          const symbol = ((d.s ?? '') as string).toLowerCase();
+          const coin   = BN_COIN_MAP[symbol] ?? symbol.replace('usdt', '').toUpperCase();
+          /* m = true → buyer is maker → aggressor was a SELLER (market sell)
+             m = false → buyer is taker → aggressor was a BUYER  (market buy) */
+          const side: 'BUY' | 'SELL' = d.m ? 'SELL' : 'BUY';
+          addTrade(coin, side, price * qty, price);
+        } catch { /* ignore parse errors */ }
+      };
+    }
+
+    function connectBB() {
+      if (!alive || active !== 'bybit') return;
+      // bytick.com is Bybit's alternative domain - same failover host pattern
+      // as LiqFeed.tsx's connectBB, which this mirrors.
+      const host = bbHostIdx % 2 === 0
+        ? 'wss://stream.bybit.com/v5/public/linear'
+        : 'wss://stream.bytick.com/v5/public/linear';
+      const ws = new WebSocket(host);
+      bbWs = ws;
+      ws.onopen = () => {
+        if (!alive) return;
+        setStatus('live');
+        ws.send(JSON.stringify({ op: 'subscribe', args: BB_TOPICS }));
+      };
+      ws.onerror = () => { try { ws.close(); } catch { /* */ } };
+      ws.onclose = () => {
+        // Torn down deliberately by connectBN's onopen once Binance recovers -
+        // `active` already flipped back before that close(), so this must not
+        // reconnect a fallback that is no longer wanted.
+        if (!alive || active !== 'bybit') return;
+        setStatus('error');
+        bbHostIdx++;
+        setTimeout(connectBB, 5000);
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data as string);
+          if (msg.op === 'subscribe') return; // subscription ack, not a trade
+          if (!msg.topic?.startsWith('publicTrade.') || !Array.isArray(msg.data)) return;
+          msg.data.forEach((d: Record<string, string>) => {
+            const price = parseFloat(d.p ?? '0');
+            const qty   = parseFloat(d.v ?? '0');
+            const coin  = BB_SYM_MAP[d.s ?? ''] ?? (d.s ?? '').replace('USDT', '');
+            // Bybit's S is the TAKER's own side directly - Buy/Sell, no
+            // maker-flag inversion the way Binance's `m` needs.
+            const side: 'BUY' | 'SELL' = d.S === 'Buy' ? 'BUY' : 'SELL';
+            addTrade(coin, side, price * qty, price);
+          });
+        } catch { /* ignore parse errors */ }
+      };
+    }
+
+    connectBN();
     const iv = setInterval(() => rebuildStats(historyRef.current), 30_000);
-    return () => { clearInterval(iv); wsRef.current?.close(); };
+    return () => {
+      alive = false;
+      clearInterval(iv);
+      if (bbRetryTimer) clearInterval(bbRetryTimer);
+      if (confirmTimer) clearTimeout(confirmTimer);
+      try { bnWs?.close(); } catch { /* */ }
+      try { bbWs?.close(); } catch { /* */ }
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const netFlow  = stats.buyUsd - stats.sellUsd;
@@ -126,9 +241,13 @@ export default function WhaleTradesFeed() {
           <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)' }}>
             <Tip text={t('WHALE_TRADES_FEED_TOOLTIP')}>{t('WHALE_TRADES_FEED_TITLE')}</Tip>
           </span>
-          <span className={`wf-dot wf-dot-${status}`} title={status} />
+          <span className={`wf-dot wf-dot-${status}`} title={source === 'bybit' ? `${status} - bybit` : status} />
         </div>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('WHALE_TRADES_FEED_ALL_MARKETS')} {msgCount > 0 ? t('WHALE_TRADES_FEED_MSG_COUNT', { count: msgCount }) : t('WHALE_TRADES_FEED_WAITING')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+          {t('WHALE_TRADES_FEED_ALL_MARKETS')} {msgCount > 0 ? t('WHALE_TRADES_FEED_MSG_COUNT', { count: msgCount }) : t('WHALE_TRADES_FEED_WAITING')}
+          {/* #1059: honest label - a silent failover must say which exchange a trade came from */}
+          {source === 'bybit' && <> {t('WHALE_TRADES_FEED_BYBIT_FALLBACK')}</>}
+        </span>
       </div>
 
       {/* Stats bar */}
