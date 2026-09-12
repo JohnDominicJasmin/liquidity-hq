@@ -432,7 +432,11 @@ function ArenaContent() {
 
   /* ── Fetch alerts for selected coin (chart overlay lines) ── */
   useEffect(() => {
-    if (!user) return;
+    // #1107: `!user` alone fires on the transient pre-resolve null for a
+    // signed-in user too, briefly hiding the overlay lines on a cold load
+    // for no reason - authLoading distinguishes "not yet known" from
+    // "confirmed signed out", same fix already applied elsewhere.
+    if (authLoading || !user) return;
     let cancelled = false;
     async function load() {
       // getAuthToken(), not a raw getSession() - #1168.
@@ -445,7 +449,7 @@ function ArenaContent() {
     }
     load();
     return () => { cancelled = true; };
-  }, [selectedCoin, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedCoin, user, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Update alert price when user drags a line ──
      getAuthToken(), not a raw getSession() - #1168. Also fixes a real
