@@ -43,39 +43,21 @@ export const BYBIT_KLINE_SYMS: Record<string, string> = Object.fromEntries(
  *  the /ops card that all fail together, and the question anyone actually has
  *  is "is Binance answering us". A coin with no symbol on either exchange is
  *  NOT a failure - there is nothing to ask - so it reports nothing at all. */
-export async function fetchRibbonCandles(coin: string, tf: EMASignalTF): Promise<OHLCV[]> {
-  const bnSym = BINANCE_SYMS[coin];
-  if (bnSym) {
-    try {
-      const res = await fetch(
-        `https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${tf}&limit=300`,
-        { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
-      );
-      if (!res.ok) {
-        reportHealth('binance:klines', 'market', false, `HTTP ${res.status}`);
-        return [];
-      }
-      const raw = await res.json() as Array<(string | number)[]>;
-      const out = raw.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
-      // A 200 carrying no candles is not health - same reasoning as the RSS
-      // feed that served an HTML shell behind a 200.
-      reportHealth('binance:klines', 'market', out.length > 0,
-        out.length > 0 ? `${out.length} candles` : 'no candles', out.length);
-      return out;
-    } catch (e) {
-      reportHealth('binance:klines', 'market', false, healthError(e));
-      return [];
-    }
-  }
-  const bySym = BYBIT_KLINE_SYMS[coin];
-  if (!bySym) return [];
+/** Shared Bybit fetch, used both as the primary source for Bybit-only coins
+ *  and as the #1077 failover for Binance-listed coins whose Binance fetch
+ *  failed. `healthSource` distinguishes the two in /ops - 'bybit:klines' for
+ *  genuinely Bybit-primary coins (unchanged from before #1077), vs
+ *  'bybit:klines-fallback' when this is standing in for a failed Binance -
+ *  so a spike in the fallback key alone is visible as "Binance is down",
+ *  never conflated with Bybit's own normal traffic. */
+async function fetchFromBybit(bySym: string, tf: EMASignalTF, healthSource: string): Promise<OHLCV[]> {
   try {
     const res = await fetch(
       `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bySym}&interval=${BYBIT_TF_INTERVAL[tf]}&limit=300`,
       { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
     );
     if (!res.ok) {
-      reportHealth('bybit:klines', 'market', false, `HTTP ${res.status}`);
+      reportHealth(healthSource, 'market', false, `HTTP ${res.status}`);
       return [];
     }
     const d = await res.json() as { result?: { list?: string[][] } };
@@ -95,11 +77,51 @@ export async function fetchRibbonCandles(coin: string, tf: EMASignalTF): Promise
     const out = list.map(k => ({
       time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],
     }));
-    reportHealth('bybit:klines', 'market', out.length > 0,
+    reportHealth(healthSource, 'market', out.length > 0,
       out.length > 0 ? `${out.length} candles` : 'no candles', out.length);
     return out;
   } catch (e) {
-    reportHealth('bybit:klines', 'market', false, healthError(e));
+    reportHealth(healthSource, 'market', false, healthError(e));
     return [];
   }
+}
+
+export async function fetchRibbonCandles(coin: string, tf: EMASignalTF): Promise<OHLCV[]> {
+  const bnSym = BINANCE_SYMS[coin];
+  if (bnSym) {
+    try {
+      const res = await fetch(
+        `https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${tf}&limit=300`,
+        { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
+      );
+      if (res.ok) {
+        const raw = await res.json() as Array<(string | number)[]>;
+        const out = raw.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
+        // A 200 carrying no candles is not health - same reasoning as the RSS
+        // feed that served an HTML shell behind a 200. Treated as a failure
+        // worth trying Bybit for below, same as a non-2xx status.
+        if (out.length > 0) {
+          reportHealth('binance:klines', 'market', true, `${out.length} candles`, out.length);
+          return out;
+        }
+        reportHealth('binance:klines', 'market', false, 'no candles');
+      } else {
+        reportHealth('binance:klines', 'market', false, `HTTP ${res.status}`);
+      }
+    } catch (e) {
+      reportHealth('binance:klines', 'market', false, healthError(e));
+    }
+    // #1077: reaching here means Binance failed - non-ok, threw, or a 200
+    // carrying no candles. Fail over to Bybit for the same coin rather than
+    // the silent "fired=0 looks like a calm market" outcome this function's
+    // own doc comment warns about, but only if this coin actually has a
+    // Bybit symbol; otherwise there is nothing to fail over to, and this
+    // returns [] exactly as it always has for a Binance failure.
+    const bySymFallback = BYBIT_SYMS[coin];
+    if (bySymFallback) return fetchFromBybit(bySymFallback, tf, 'bybit:klines-fallback');
+    return [];
+  }
+  const bySym = BYBIT_KLINE_SYMS[coin];
+  if (!bySym) return [];
+  return fetchFromBybit(bySym, tf, 'bybit:klines');
 }
