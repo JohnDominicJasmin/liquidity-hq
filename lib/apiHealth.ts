@@ -63,26 +63,55 @@ export async function recordApiHealth(reports: HealthReport[]): Promise<void> {
    they are hit on page loads, potentially many times a second, and a DB write
    per request would cost more than the signal is worth.
 
-   So writes are coalesced per source. A state CHANGE is always written
-   immediately, because the ok->down and down->ok transitions are the whole
-   point; a repeat of the same state waits out MIN_WRITE_INTERVAL_MS. Worst
-   case a source is one interval stale, which the card's own staleness rule
-   already accounts for.
+   So writes are coalesced per source. A state CHANGE is written promptly
+   (after MIN_STATE_CHANGE_INTERVAL_MS, not immediately - see #1025's fix on
+   that constant for why), because the ok->down and down->ok transitions are
+   the whole point; a repeat of the same state waits out MIN_WRITE_INTERVAL_MS.
+   Worst case a source is one interval stale, which the card's own staleness
+   rule already accounts for.
 
    In-memory, so per-process - the same single-long-lived-process assumption
    lib/rateLimit.ts documents. If this service is ever scaled to multiple
-   instances the only consequence is more writes, not wrong ones. */
+   instances the only consequence is more writes, not wrong ones. Also
+   per-process across dev/qa/staging, each its own Render service - #1025's
+   ~280-writes measurement is the sum across however many of those were
+   running, not one process's output alone. */
 const MIN_WRITE_INTERVAL_MS = 30_000;
+/* #1025: a state-change write bypassing MIN_WRITE_INTERVAL_MS entirely was
+ * meant to report a real ok<->down transition promptly - it assumes one
+ * source represents one stable state that changes rarely. That assumption
+ * broke during the 2026-09-12 PostgREST outage: high-volume proxy routes
+ * (klines, agg-trades, macro, cmc) coalesce many concurrent requests onto
+ * one source key (e.g. every symbol/interval collapses into
+ * 'bybit:klines-proxy'), and when some of those concurrent requests
+ * succeed (served from cache, or an upstream call that happened to answer)
+ * while others fail, the recorded state flips on every disagreeing request
+ * - per-request noise misread as a sequence of real transitions. Checked
+ * and ruled out as the cause: dynamic/unbounded source keys (every source
+ * string in this codebase is a literal or a low-cardinality enum) and a
+ * Map growing without bound (same reason). Measured: ~280 writes in ~8s to
+ * one health-write RPC during that outage - consistent with flapping
+ * across concurrent requests to a shared key, not either of those.
+ *
+ * This floor still reports a genuine transition promptly (5s, not 30s)
+ * while capping the worst case: flapping across a burst of concurrent
+ * requests collapses to a few writes instead of one per request. */
+const MIN_STATE_CHANGE_INTERVAL_MS = 5_000;
 const lastWrite = new Map<string, { at: number; ok: boolean }>();
 
 function shouldWrite(source: string, ok: boolean): boolean {
   const prev = lastWrite.get(source);
   const now = Date.now();
-  if (!prev || prev.ok !== ok || now - prev.at >= MIN_WRITE_INTERVAL_MS) {
+  if (!prev) {
     lastWrite.set(source, { at: now, ok });
     return true;
   }
-  return false;
+  const elapsed = now - prev.at;
+  const stateChanged = prev.ok !== ok;
+  const floor = stateChanged ? MIN_STATE_CHANGE_INTERVAL_MS : MIN_WRITE_INTERVAL_MS;
+  if (elapsed < floor) return false;
+  lastWrite.set(source, { at: now, ok });
+  return true;
 }
 
 /**
