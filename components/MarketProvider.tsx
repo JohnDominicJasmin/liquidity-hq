@@ -142,6 +142,11 @@ export default function MarketProvider(
   const lastAggIdRef = useRef<Partial<Record<CoinId, number>>>({});
   /* OI Trend: sliding window of last 4 OI + price readings per coin */
   const oiHistRef = useRef<Partial<Record<CoinId, Array<{ oi: number; price: number }>>>>({});
+  // #1192: the 12s mount-time retries for CMC/macro below only make sense
+  // when the first attempt actually missed (Render cold start) - these track
+  // that so the retry can check instead of firing unconditionally.
+  const cmcOkRef = useRef(false);
+  const macroOkRef = useRef(false);
   /* CVD Divergence alerts: last known divergence + 30-min cooldown */
   const cvdDivStateRef    = useRef<Partial<Record<string, 'bullish' | 'bearish' | null>>>({});
   const cvdAlertCooldown  = useRef<Record<string, number>>({});
@@ -1084,6 +1089,11 @@ export default function MarketProvider(
         // `unknown` state is information we want to keep rather than skip.
         ...(d.real10y ? { real10y: d.real10y } : {}),
       }));
+      // Reached only once the request and response both succeeded - a miss
+      // (cold start, network error, non-ok status) never sets this, which is
+      // what #1192's 12s retry below checks. Individual null fields above are
+      // real, confirmed data (see the real10y comment) and are not a miss.
+      macroOkRef.current = true;
     } catch { /* fail silently */ }
   }, []);
 
@@ -1154,6 +1164,9 @@ export default function MarketProvider(
           btcDomHistory:[...s.btcDomHistory.slice(-9), parseFloat(dom.toFixed(2))],
           ethDom:       ethDom != null ? parseFloat(ethDom.toFixed(2)) : s.ethDom,
         }));
+        // #1192: real dominance data means this attempt did not miss - the
+        // 12s retry below only needs to fire when this never happens.
+        cmcOkRef.current = true;
       }
     } catch { /* */ }
   }, []);
@@ -1327,9 +1340,13 @@ export default function MarketProvider(
     fetchStablecoinFlows();
     // CB Premium needs BTC price first - wait 3s for WS/REST to populate
     setTimeout(fetchCoinbasePremium, 3000);
-    // Retry server-proxied APIs that may miss on Render cold start
-    setTimeout(fetchCMCGlobal, 12_000);
-    setTimeout(fetchMacro, 12_000);
+    // Retry server-proxied APIs that may miss on Render cold start - #1192:
+    // conditional on the mount attempt above having actually missed, not
+    // unconditional. Every visitor was making 2 extra calls to /api/cmc
+    // (CoinMarketCap-backed, real quota behind it) and /api/macro regardless
+    // of whether the first pair already succeeded.
+    setTimeout(() => { if (!cmcOkRef.current) fetchCMCGlobal(); }, 12_000);
+    setTimeout(() => { if (!macroOkRef.current) fetchMacro(); }, 12_000);
     // OI bootstrap - gives immediate trend signal without waiting for two 8-min Bybit polls
     bootstrapOITrend();
 
