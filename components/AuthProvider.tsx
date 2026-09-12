@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { forceSignOut } from '@/lib/authSession';
 import type { User } from '@supabase/supabase-js';
@@ -182,6 +182,37 @@ function isSessionExpired(): boolean {
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  /* #1177 source-level fix. Supabase hands back a brand new User object on
+     every setUser() call - the initial getSession() resolve, then up to two
+     onAuthStateChange fires (SIGNED_IN, INITIAL_SESSION) - for the SAME
+     signed-in person, because its own internal bookkeeping fields
+     (last_sign_in_at, updated_at, etc.) are not stable across those calls
+     even when nothing this app reads actually changed. #1206 fixed the two
+     downstream consumers that were re-firing on that churn; this fixes it
+     at the source so the next one written is safe by construction.
+
+     CHECKED FIRST, per this issue's own open question: does anything
+     legitimately need a NEW object when a field changes? Swept every
+     client-side read of a non-id User field (`user.email`/`user?.email` -
+     TerminalNav, settings/upgrade pages, app/ops/layout.tsx's deny screen).
+     All of them read directly in a render body, not inside a [user]-keyed
+     effect or memo, so they already see a fresh value on every AuthProvider
+     re-render regardless of this file's own churn (the context's own value
+     object is reconstructed every render, unmemoized). `identities` also
+     showed up in a grep, but that read is off a raw signup response
+     (app/login/page.tsx), not this context's `user` - irrelevant here.
+     Nothing found needs id-unchanged-but-object-refreshed to notice a
+     value change.
+
+     So the comparison below is deliberately scoped to `id` and `email` -
+     the only two fields anything in this app actually reads off `user` -
+     not every field Supabase's object carries. If a future consumer starts
+     reading another field (user_metadata, phone, ...) off `user`, add it
+     here, or that field's changes will go unnoticed by anything keyed on
+     `[user]` instead of reading it directly in render. */
+  const setUserStable = useCallback((next: User | null) => {
+    setUser(prev => (prev?.id === next?.id && prev?.email === next?.email) ? prev : next);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<'free' | 'pro'>('free');
   const [trialEndsAt, setTrialEndsAt] = useState<number | null>(null);
@@ -273,7 +304,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // user signed in past the expiry it is enforcing (#304).
         await withTimeout(forceSignOut(sb));
         localStorage.removeItem(LAST_ACTIVE_KEY);
-        setUser(null);
+        setUserStable(null);
       } else {
         if (sessionUser) touchActivity();
         /* setEntitlementsLoading(true) alongside setUser, same synchronous
@@ -296,7 +327,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
            the race is in a different pair of effects settling, not in the
            fetch's own duration. */
         if (sessionUser) setEntitlementsLoading(true);
-        setUser(sessionUser);
+        setUserStable(sessionUser);
       }
     }).finally(() => setLoading(false));
     /* .finally, NOT a trailing statement inside the .then (QA, on #377).
@@ -327,12 +358,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // Same race, same fix as the initial session resolve above - batched
       // with setUser so a consumer never sees the new user paired with a
       // stale `entitlementsLoading=false` left over from before this user
-      // existed. Harmless on a token refresh for the SAME user: the
-      // entitlements-fetch effect already re-runs and re-sets this on every
-      // `user` reference change (which a refresh also produces) - this just
-      // closes the one-frame gap before that effect gets to run.
+      // existed.
+      //
+      // CORRECTION (#1177): this comment used to claim the entitlements
+      // effect "already re-runs... on every user reference change (which a
+      // refresh also produces)" - not true since #1119 keyed that effect on
+      // `userId`, not `user`, specifically so it would NOT re-run on a
+      // same-id refresh. Whether this line's own `setEntitlementsLoading(true)`
+      // ever gets flipped back to `false` on a same-id redundant fire (since
+      // the effect that would do that isn't re-running) is a question this
+      // comment previously answered incorrectly rather than one #1177
+      // resolves - out of scope here, not touched by this fix.
       if (u) setEntitlementsLoading(true);
-      setUser(u);
+      setUserStable(u);
       if (!u) {
         setRole('free');
         // Cleanup, not a read for a decision: this is the one place PlanBadge's
@@ -502,7 +540,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // the network signOut() call itself failed, which never fires that
       // event, so it needs the same cleanup done explicitly here.
       if (user) clearPlanBadgeCache(user.id);
-      setUser(null);
+      setUserStable(null);
     }
   };
 
