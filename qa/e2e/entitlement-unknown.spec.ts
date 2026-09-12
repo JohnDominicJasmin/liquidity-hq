@@ -91,7 +91,12 @@ test.describe('#1119 entitlement retry-exhaustion (#1184 hook)', () => {
       await page.evaluate(() => {
         (window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__ = false;
       });
-      await page.locator(UNKNOWN_CARD).getByRole('button', { name: 'Retry' }).click();
+      // ENTITLEMENT_UNKNOWN_RETRY_BUTTON resolves to "Try again"
+      // (lib/labelDefaults.en.json), not "Retry" - this locator never
+      // matched, so .click() hung to the test's own 240s timeout rather
+      // than a clean assertion failure. The label is the source of truth;
+      // fixed here, not there.
+      await page.locator(UNKNOWN_CARD).getByRole('button', { name: 'Try again' }).click();
 
       await expect(page.locator(REAL_CONTENT),
         'Retry must recover to the real Pro state once the backend answers again').toBeVisible({ timeout: 15_000 });
