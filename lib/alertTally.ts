@@ -41,12 +41,25 @@ export interface AlertTally {
   sent: number;
   failed: number;
   recipients: number;
+  /** #1266 step 1: per-upstream count of checks that returned early because
+   *  their own fetch failed - `fired=0` on a Binance block reads identically
+   *  to `fired=0` on a genuinely quiet market otherwise, which is #1266's own
+   *  "unknown read as no" bug, one instance of the SAME class this file's own
+   *  header describes for fired/sent/failed. Keyed by upstream rather than a
+   *  single number, since a future source (e.g. Bybit, once #1266 step 2
+   *  lands) shouldn't have to share a bucket with Binance's count to stay
+   *  visible. Optional and omitted entirely when every key is zero, so a
+   *  healthy run's line is unchanged and `'skipped' in body`-style checks
+   *  keep working. */
+  skipped?: Readonly<Record<string, number>>;
 }
 
 export function formatAlertTally(t: AlertTally): string {
+  const skippedEntries = Object.entries(t.skipped ?? {}).filter(([, n]) => n > 0);
   return (
     `[alert] fired=${t.fired.length}${t.fired.length ? ` (${t.fired.join(',')})` : ''} ` +
     `queued=${t.queued} eligible=${t.eligible} ` +
-    `sent=${t.sent} failed=${t.failed} recipients=${t.recipients}`
+    `sent=${t.sent} failed=${t.failed} recipients=${t.recipients}` +
+    (skippedEntries.length ? ` skipped=${skippedEntries.map(([k, n]) => `${k}:${n}`).join(',')}` : '')
   );
 }
