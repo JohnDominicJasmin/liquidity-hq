@@ -789,7 +789,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
          * NaN comparison), and the loop fell through to push a whale event
          * with a `NaN` price and a `$NaNK` size - if HYPE ever had a
          * qualifying trade, it would have alerted with garbage numbers, not
-         * silently done nothing. Filed as #1271, separately from this
+         * silently done nothing. Filed as #1274, separately from this
          * migration - it predates it and would exist whether or not this
          * PR ever moved anything to Bybit. */
         const data = await res.json() as { result?: { list?: Array<{ time: string; price: string; size: string; side: string }> } };
