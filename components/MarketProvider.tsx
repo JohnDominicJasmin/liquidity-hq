@@ -1401,24 +1401,35 @@ export default function MarketProvider(
         else                 { byCoin[coin].s += usd; mktS += usd; }
       });
 
-      let fired = false;
-      for (const [coin, { l: lUsd, s: sUsd }] of Object.entries(byCoin)) {
-        const thr = LIQ_CASCADE_THRESHOLDS[coin] ?? LIQ_CASCADE_THRESHOLDS.DEFAULT;
-        if (lUsd >= thr || sUsd >= thr) {
-          const side: 'LONG' | 'SHORT' | 'MIXED' =
-            (lUsd >= thr && sUsd >= thr) ? 'MIXED' : lUsd >= thr ? 'LONG' : 'SHORT';
-          setStore(s => ({ ...s, cascadeAlert: { coin, side, totalUsd: lUsd + sUsd, ts: now } }));
-          sendCascadeAlert(coin, side, lUsd + sUsd, cascadeCooldown.current);
-          fired = true; break;
+      /* PR #1228 (PM/DevOps + QA, merge blocker): these thresholds were tuned
+         against Binance forceOrder volumes. Bybit's liquidation stream has
+         different coverage and size, so on the fallback the same thresholds
+         could undercount a real cascade or misfire on a normal one - and
+         nothing would tell anyone which, since this detector has no UI.
+         Keep collecting (the buffer feed and liqDelta stats below are
+         unaffected) but suppress the ALERT decision itself while parked on
+         Bybit, until the thresholds are checked against Bybit volumes. An
+         unknown calibration is not a "yes" - same rule as the HYPE CVD fix. */
+      if (active !== 'bybit') {
+        let fired = false;
+        for (const [coin, { l: lUsd, s: sUsd }] of Object.entries(byCoin)) {
+          const thr = LIQ_CASCADE_THRESHOLDS[coin] ?? LIQ_CASCADE_THRESHOLDS.DEFAULT;
+          if (lUsd >= thr || sUsd >= thr) {
+            const side: 'LONG' | 'SHORT' | 'MIXED' =
+              (lUsd >= thr && sUsd >= thr) ? 'MIXED' : lUsd >= thr ? 'LONG' : 'SHORT';
+            setStore(s => ({ ...s, cascadeAlert: { coin, side, totalUsd: lUsd + sUsd, ts: now } }));
+            sendCascadeAlert(coin, side, lUsd + sUsd, cascadeCooldown.current);
+            fired = true; break;
+          }
         }
-      }
-      if (!fired) {
-        const mktTotal = mktL + mktS;
-        if (mktTotal >= MARKET_CASCADE_THRESHOLD) {
-          const side: 'LONG' | 'SHORT' | 'MIXED' =
-            mktL > mktS * 1.5 ? 'LONG' : mktS > mktL * 1.5 ? 'SHORT' : 'MIXED';
-          setStore(s => ({ ...s, cascadeAlert: { coin: 'MARKET', side, totalUsd: mktTotal, ts: now } }));
-          sendCascadeAlert('MARKET', side, mktTotal, cascadeCooldown.current);
+        if (!fired) {
+          const mktTotal = mktL + mktS;
+          if (mktTotal >= MARKET_CASCADE_THRESHOLD) {
+            const side: 'LONG' | 'SHORT' | 'MIXED' =
+              mktL > mktS * 1.5 ? 'LONG' : mktS > mktL * 1.5 ? 'SHORT' : 'MIXED';
+            setStore(s => ({ ...s, cascadeAlert: { coin: 'MARKET', side, totalUsd: mktTotal, ts: now } }));
+            sendCascadeAlert('MARKET', side, mktTotal, cascadeCooldown.current);
+          }
         }
       }
 
