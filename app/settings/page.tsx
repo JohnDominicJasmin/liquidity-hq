@@ -12,7 +12,7 @@ import LoadingState from '@/components/LoadingState';
 import { SkeletonBar } from '@/components/Skeleton';
 import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
@@ -73,26 +73,6 @@ function AnalyticsConsentToggle() {
   );
 }
 
-/* ── Auto-save toast ── */
-function SaveToast({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }) {
-  const { t } = useLabels();
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    if (status === 'saved' || status === 'error') {
-      setVisible(true);
-      const timer = setTimeout(() => setVisible(false), 2000);
-      return () => clearTimeout(timer);
-    }
-    if (status === 'saving') setVisible(true);
-  }, [status]);
-  if (!visible) return null;
-  return (
-    <div className={`st-save-toast${status === 'error' ? ' error' : status === 'saving' ? ' saving' : ''}`}>
-      {status === 'saving' ? t('SETTINGS_STATUS_SAVING') : status === 'saved' ? t('SETTINGS_STATUS_SAVED') : t('SETTINGS_STATUS_FAILED')}
-    </div>
-  );
-}
-
 /* ── Section card wrapper ── */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -106,8 +86,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function SettingsPage() {
   const { t } = useLabels();
-  const { user, loading: authLoading, signOut, entitled } = useAuth();
-  const { settings, saveStatus, update } = useSettings();
+  const { user, loading: authLoading, signOut, entitlementStatus } = useAuth();
+  const { settings, update } = useSettings();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
   const [pushEnabled,  setPushEnabled]  = useState(false);
   const [pushWorking,  setPushWorking]  = useState(false);
@@ -160,16 +140,6 @@ export default function SettingsPage() {
     setTimeout(() => setPwSaved(false), 3000);
   }
 
-  async function getToken(): Promise<string | null> {
-    const { createClient } = await import('@supabase/supabase-js');
-    const sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    const { data } = await sb.auth.getSession();
-    return data.session?.access_token ?? null;
-  }
-
   async function handlePushToggle() {
     if (pushWorking) return;
     setPushWorking(true);
@@ -179,7 +149,7 @@ export default function SettingsPage() {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
-          const token = await getToken();
+          const token = await getAuthToken();
           await fetch('/api/push/subscribe', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -206,7 +176,7 @@ export default function SettingsPage() {
           userVisibleOnly: true,
           applicationServerKey: vapidKey,
         });
-        const token = await getToken();
+        const token = await getAuthToken();
         await fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -223,7 +193,7 @@ export default function SettingsPage() {
 
   async function handleTestPush() {
     setTestResult('idle');
-    const token = await getToken();
+    const token = await getAuthToken();
     const res = await fetch('/api/push/test', {
       method: 'POST',
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -297,8 +267,6 @@ export default function SettingsPage() {
 
   return (
     <div className="st-page" data-testid="settings-page">
-
-      <SaveToast status={saveStatus} />
 
       {/* ── Header ── */}
       <div className="st-header">
@@ -460,7 +428,13 @@ export default function SettingsPage() {
               // Fast timeframes are Pro-only. Previously every chip was
               // selectable for everyone, so a free user could save 5m here and
               // Arena would silently clamp it back to 1h on load.
-              const locked = !entitled && isGatedTf(tf);
+              // #1119: 'unknown' stays locked here too - no assertion is made
+              // either way (the tooltip just says "Pro only", true regardless
+              // of which side of entitled a signed-in Free/unknown user is
+              // on), so treating it the same as a confirmed non-entitled
+              // account isn't a guess, it's just not yet granting something
+              // unconfirmed.
+              const locked = entitlementStatus !== 'entitled' && isGatedTf(tf);
               return (
                 <button
                   key={tf}

@@ -7,33 +7,58 @@ import posthog from 'posthog-js';
 import { T } from '@/lib/tables';
 import { clearPlanBadgeCache } from '@/lib/planBadgeCache';
 
+// #1119, owner ruling 2026-09-11: a failed/timed-out subscription read is a
+// DIFFERENT fact than a confirmed free account, and the two must not collapse
+// into the same boolean. 'unknown' only means "every retry failed to get a
+// real answer" - it is not fail-open (never grants Pro FEATURES) and not
+// fail-closed (never asserts the user is on the free plan). A consumer that
+// silently treats 'unknown' the same as 'not_entitled' everywhere it shows
+// the user something has not implemented this - it has renamed the bug.
+export type EntitlementStatus = 'entitled' | 'not_entitled' | 'unknown';
+
 interface AuthCtx {
   user: User | null;
   loading: boolean;
   role: 'free' | 'pro';
   isPro: boolean;          // PAID Pro only - use for "should we sell them Pro" (e.g. /upgrade)
   isTrial: boolean;        // inside the 14-day signup trial (Pro features, Free AI caps)
-  entitled: boolean;       // isPro || isTrial - the gate for Pro FEATURES
+  // The gate for Pro FEATURES. Replaces the old `entitled: boolean` (#1119) -
+  // every call site that read `entitled`/`!entitled` needs a conscious
+  // decision for 'unknown', not a type that lets it fall through unnoticed.
+  // 'not_entitled' covers both a confirmed free account AND the window while
+  // entitlementsLoading is still true (the same safe default `entitled` used
+  // to carry while unresolved - unchanged, not part of this fix). 'unknown'
+  // is reserved for entitlementsLoading having settled with entitlementsError
+  // true: every retry exhausted, still no real answer.
+  entitlementStatus: EntitlementStatus;
   trialEndsAt: number | null; // ms epoch the trial ends, for the countdown banner
   // True from the moment `user` resolves until the user_subscriptions read
-  // below settles. `role` defaults to 'free' before that read completes, so
-  // a consumer that paints on `role` alone (rather than gating like the three
-  // `authLoading || entitled` call sites do) shows a real Pro/Trial account
-  // as Free for one frame on every cold load (#1090's nav badge, caught by
-  // QA). Existing consumers don't need this - they gate on `entitled`, which
-  // is already correct while unresolved (false is the safe default to fail
-  // toward). This exists for the one kind of consumer that paints `role`
-  // itself and cannot afford to show the wrong tier even briefly.
+  // below settles (all retries included). `role` defaults to 'free' before
+  // that read completes, so a consumer that paints on `role` alone (rather
+  // than gating like the three `authLoading || entitlementStatus === 'entitled'`
+  // call sites do) shows a real Pro/Trial account as Free for one frame on
+  // every cold load (#1090's nav badge, caught by QA). Existing consumers
+  // don't need this - they gate on `entitlementStatus`, which is already
+  // 'not_entitled' (the safe default to fail toward) while unresolved. This
+  // exists for the one kind of consumer that paints `role` itself and cannot
+  // afford to show the wrong tier even briefly.
   entitlementsLoading: boolean;
-  // True when the LAST user_subscriptions attempt (fast error response,
-  // network failure, or the bounded timeout below) did not resolve to a real
-  // answer. `role`/`trialEndsAt` still fall back to their free/null defaults
-  // on this path - unfixed here on purpose, see the fetch effect's own
-  // comment - so a consumer that paints `role` directly needs this to know
-  // "free" is a guess, not a resolved fact. Existing `entitled`-gated
-  // consumers are unaffected either way: false was already their safe
-  // default while unresolved.
+  // True once every entitlements retry has been exhausted with no real
+  // answer (#1119) - `entitlementStatus` reads 'unknown' exactly when this is
+  // true. `role`/`trialEndsAt` still fall back to their free/null defaults on
+  // this path - unfixed here on purpose, see the fetch effect's own comment -
+  // so a consumer that paints `role` directly needs this to know "free" is a
+  // guess, not a resolved fact. PlanBadge is the one existing consumer of
+  // this exact field (#1089/#1118's display-only cache) and is unaffected by
+  // this change - its meaning here is the same "we could not get a real
+  // answer" it always was, just arrived at after retries instead of one try.
   entitlementsError: boolean;
+  // Re-runs the entitlements fetch (fresh retry sequence) on demand - the
+  // Retry action on the 'unknown'-state UI (#1119). Automatic retries already
+  // ran and exhausted themselves before entitlementStatus ever reads
+  // 'unknown', so this exists for the case where the backend recovers after
+  // the user is already looking at a "couldn't verify" card.
+  retryEntitlements: () => void;
   signOut: () => Promise<void>;
 }
 
@@ -43,10 +68,11 @@ const AuthContext = createContext<AuthCtx>({
   role: 'free',
   isPro: false,
   isTrial: false,
-  entitled: false,
+  entitlementStatus: 'not_entitled',
   trialEndsAt: null,
   entitlementsLoading: true,
   entitlementsError: false,
+  retryEntitlements: () => {},
   signOut: async () => {},
 });
 
@@ -80,6 +106,61 @@ const SESSION_RESOLVE_MS = 8000;
    on that already-bad path, while the cost of too short is exactly the false
    failure just described. */
 const ENTITLEMENTS_FETCH_MS = 15000;
+/* #1119: retry-with-backoff, built on purpose to replace resilience this read
+   used to get BY ACCIDENT. Before #1177's dedup fix, one page load fired this
+   effect up to 3 times (object-identity churn on `[user]`), giving 3
+   independent chances against a flaky backend for free. Measured live on
+   #1119: 2 of 3 real runs had at least one of those accidental attempts fail
+   before a later one succeeded; 1 of 3 had every attempt fail. Deduping to a
+   single fetch (below, now keyed on `userId`) would have kept only whichever
+   attempt happened to run first - on the runs that were observed, that was
+   usually the one that failed. This gives the SAME read the SAME number of
+   chances on purpose instead.
+
+   3 attempts, matching the number the bug was already validating as enough
+   for this backend's actual failure rate - not a round number picked cold.
+   1s then 2s backoff between attempts: long enough to give a transient
+   hiccup room to clear before trying again, short enough that 3 failed
+   attempts at up to ENTITLEMENTS_FETCH_MS each stay a tail case (worst
+   case ~48s) rather than the common path - the common path is a real answer
+   on attempt 1, same as before this existed. */
+const ENTITLEMENTS_MAX_ATTEMPTS = 3;
+const ENTITLEMENTS_RETRY_BACKOFF_MS = [1000, 2000];
+
+/* QA-only hook, #1119 follow-up. QA's own finding: the retry-EXHAUSTION path
+   (every attempt failing, landing on entitlementStatus 'unknown') had been
+   reasoned about from the code but never actually exercised - a
+   `page.route()`/`window.fetch` override loses the race on a reload (this
+   effect can already be mid-attempt before a test's override installs), and
+   forcing a fresh sign-in to retry hits the login form's Turnstile widget.
+
+   `page.addInitScript()` beats both: Playwright guarantees it runs before ANY
+   page script, on every navigation including a reload, so a global it sets
+   is reliably in place before this effect's first attempt ever checks it -
+   no race to lose. Checked inside `attempt()` itself rather than raced
+   against the real network call, so a positive answer here goes through the
+   EXACT SAME retry loop, backoff and entitlementStatus derivation a real
+   failure would, only the network round trip is skipped.
+
+   FAIL-SAFE BY CONSTRUCTION, not by policy: this can only ever produce
+   `failed: true`, which this file's own derivation resolves to 'unknown' -
+   never 'entitled'. There is no value this flag can hold that grants access,
+   so a test (or, in principle, a hostile page) setting it can only make an
+   account look LESS entitled than it is, never more - the one thing #1119's
+   own ruling requires anyway.
+
+   BUILD-TIME DEAD ON PROD REGARDLESS: NEXT_PUBLIC_APP_ENV is inlined at
+   build time (see AGENTS.md/CONTRIBUTING.md's own warning on this), so
+   `QA_FORCE_ENTITLEMENTS_FAIL_ENABLED` is the literal `false` in a
+   NEXT_PUBLIC_APP_ENV=prod build and the branch below is eliminated from
+   the bundle entirely - not a runtime check a clever caller could flip. */
+const QA_FORCE_ENTITLEMENTS_FAIL_ENABLED = process.env.NEXT_PUBLIC_APP_ENV !== 'prod';
+function qaForcedEntitlementsFailure(): boolean {
+  if (!QA_FORCE_ENTITLEMENTS_FAIL_ENABLED) return false;
+  if (typeof window === 'undefined') return false;
+  return Boolean((window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__);
+}
+
 const LAST_ACTIVE_KEY = 'lhq_last_active';
 // Read by AuthGate - shared here so both sides reference the same literal.
 export const BAN_NOTICE_KEY = 'lhq_ban_notice';
@@ -108,6 +189,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // never a default that happens to read as correct.
   const [entitlementsLoading, setEntitlementsLoading] = useState(true);
   const [entitlementsError, setEntitlementsError] = useState(false);
+  // Bumped by retryEntitlements() to force a fresh retry sequence on demand -
+  // the entitlements-fetch effect below depends on it alongside `userId`, so
+  // incrementing it re-runs the effect without needing a user change (#1119).
+  const [entitlementsRetryNonce, setEntitlementsRetryNonce] = useState(0);
+  // Depend on the id, not the user object - same reasoning as app/ops/layout.tsx's
+  // admin check. Supabase hands back a new user object on every setUser() call
+  // (including the 2-3 that fire on one page load, see #1177) even when it is
+  // the same person; keying the entitlements fetch on the object re-ran it that
+  // many times for no reason, which is what made 3 accidental attempts look
+  // like resilience in the first place (#1119). The id is what actually decides
+  // the answer.
+  const userId = user?.id;
   // Tracks the CURRENT user id for the sign-out handler below, which fires
   // with the new (null) session and has no other way to know whose cache
   // to clear. A ref, not state read in that closure - onAuthStateChange's
@@ -277,15 +370,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // schema directly); subscribing here means a ban takes effect the moment
   // an admin flips it, instead of waiting up to ~1h for the JWT to naturally
   // refresh and fail its own ban check.
+  // Keyed on the id, not `user` itself - see userId's own comment above
+  // (#1177): a new user object per setUser() call, same person, used to
+  // re-subscribe/unsubscribe this channel up to 3x per page load for no
+  // reason.
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     const sb = getSupabase();
     if (!sb) return;
     const channel = sb
-      .channel(`user-status-${user.id}`)
+      .channel(`user-status-${userId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: T.user_status, filter: `user_id=eq.${user.id}` },
+        { event: '*', schema: 'public', table: T.user_status, filter: `user_id=eq.${userId}` },
         (payload) => {
           if ((payload.new as { banned?: boolean } | null)?.banned) {
             localStorage.removeItem(LAST_ACTIVE_KEY);
@@ -304,65 +401,90 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       )
       .subscribe();
     return () => { sb.removeChannel(channel); };
-  }, [user]);
+  }, [userId]);
 
-  // Fetch subscription role + trial window whenever user changes
+  // Retry-triggerable from outside this effect (the 'unknown'-state UI's
+  // Retry button) - see retryEntitlements below.
+  const retryEntitlements = () => setEntitlementsRetryNonce(n => n + 1);
+
+  // Fetch subscription role + trial window whenever the user (by id) changes,
+  // or a manual retry is requested.
   useEffect(() => {
-    if (!user) { setRole('free'); setTrialEndsAt(null); setEntitlementsLoading(false); setEntitlementsError(false); return; }
+    if (!userId) { setRole('free'); setTrialEndsAt(null); setEntitlementsLoading(false); setEntitlementsError(false); return; }
     const sb = getSupabase();
     if (!sb) { setEntitlementsLoading(false); return; }
     // Set even though the initial state is already `true` - this effect also
     // reruns on a user SWITCH (sign-out then a different sign-in in the same
     // tab), where the previous user's fetch already flipped it false.
     setEntitlementsLoading(true);
-    /* #1089: this read had NO bound at all - QA reproduced it hanging
-       indefinitely, entitlementsLoading stuck true forever with no console
-       error. Supabase resolves (rather than rejects) most failures, error
-       field included, but an unbounded fetch can still simply never settle -
-       .abortSignal(...) is what stops that. Called before `.maybeSingle()`:
-       that narrows to a builder type that does not expose `.abortSignal()`.
-       Wrapped in Promise.resolve() below because the builder's own .then()
-       returns a bare PromiseLike with no .catch() at the type level, even
-       though it behaves like a real promise at runtime. */
-    Promise.resolve(
-      sb.from(T.user_subscriptions)
-        .select('role, trial_ends_at')
-        .eq('user_id', user.id)
-        .abortSignal(AbortSignal.timeout(ENTITLEMENTS_FETCH_MS))
-        .maybeSingle(),
-    )
-      .then(({ data, error }) => {
-        /* NOT FIXED HERE, ON PURPOSE - reported, not patched (#1089 audit).
-           On a failed read (fast error response, reset, or the timeout
-           above), `data` is null and this still resolves role to 'free' /
-           trialEndsAt to null exactly as a genuinely-free account would -
-           `error` is available but deliberately not branched on here. That
-           means a real Pro/Trial account can read as `entitled: false`
-           during a backend hiccup, not just show the wrong badge - losing
-           actual Pro FEATURES (Arena's Confluence card, both Alerts
-           sections), not only a cosmetic label. Fixing that is a bigger,
-           separate change (what should every `entitled`-gated consumer do
-           on a failed read? fail open, fail closed, or something needing
-           its own cache the way the badge now has?) and is being decided
-           on #1089 rather than folded into this PR silently. `role`/
-           `trialEndsAt` keep today's exact behaviour; `entitlementsError`
-           below is the only new signal, and only PlanBadge acts on it. */
-        setRole(data?.role === 'pro' ? 'pro' : 'free');
-        const t = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : null;
-        setTrialEndsAt(t);
-        setEntitlementsLoading(false);
-        setEntitlementsError(Boolean(error));
-      })
-      .catch(() => {
-        // Defensive: Supabase resolves rather than rejects on the failures
-        // actually observed (including an abortSignal timeout), but nothing
-        // guarantees every failure mode does - a genuine rejection must not
-        // leave entitlementsLoading stuck true the same way the un-timed-out
-        // hang did before this fix existed.
-        setEntitlementsLoading(false);
-        setEntitlementsError(true);
-      });
-  }, [user]);
+    setEntitlementsError(false);
+    let cancelled = false;
+
+    /* #1089/#1119: this read had NO bound at all originally - QA reproduced
+       it hanging indefinitely, entitlementsLoading stuck true forever with
+       no console error. Supabase resolves (rather than rejects) most
+       failures, error field included, but an unbounded fetch can still
+       simply never settle - .abortSignal(...) is what stops that. Called
+       before `.maybeSingle()`: that narrows to a builder type that does not
+       expose `.abortSignal()`. Wrapped in Promise.resolve() below because
+       the builder's own .then() returns a bare PromiseLike with no .catch()
+       at the type level, even though it behaves like a real promise at
+       runtime. try/catch (not just .catch() below) covers a genuine
+       rejection from that same call, for the same reason. */
+    async function attempt(n: number): Promise<{ data: { role?: string; trial_ends_at?: string | null } | null; failed: boolean }> {
+      if (qaForcedEntitlementsFailure()) return { data: null, failed: true };
+      try {
+        const { data, error } = await Promise.resolve(
+          sb!.from(T.user_subscriptions)
+            .select('role, trial_ends_at')
+            .eq('user_id', userId!)
+            .abortSignal(AbortSignal.timeout(ENTITLEMENTS_FETCH_MS))
+            .maybeSingle(),
+        );
+        return { data: data ?? null, failed: Boolean(error) };
+      } catch {
+        return { data: null, failed: true };
+      }
+    }
+
+    (async () => {
+      for (let n = 1; n <= ENTITLEMENTS_MAX_ATTEMPTS; n++) {
+        const { data, failed } = await attempt(n);
+        if (cancelled) return;
+
+        if (!failed) {
+          /* NOT FIXED HERE, ON PURPOSE for a CONFIRMED answer - reported,
+             not patched (#1089 audit). `data === null` with `failed: false`
+             means Supabase genuinely found no subscription row: a real free
+             account, not a failure. `role`/`trialEndsAt` resolving to their
+             free/null defaults on that path is correct, not a guess. What
+             #1119 fixes is the OTHER path, below: every attempt failing no
+             longer resolves to this same free/null shape silently - see
+             entitlementStatus's derivation for what a genuine failure now
+             produces instead. */
+          setRole(data?.role === 'pro' ? 'pro' : 'free');
+          const t = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : null;
+          setTrialEndsAt(t);
+          setEntitlementsLoading(false);
+          setEntitlementsError(false);
+          return;
+        }
+
+        if (n < ENTITLEMENTS_MAX_ATTEMPTS) {
+          await new Promise(resolve => setTimeout(resolve, ENTITLEMENTS_RETRY_BACKOFF_MS[n - 1]));
+          if (cancelled) return;
+        }
+      }
+      // Every attempt failed - genuinely unknown. `role`/`trialEndsAt` are
+      // left at whatever they already were (free/null on a first load, or
+      // the last confirmed answer on a re-fetch) - entitlementsError is the
+      // signal that they are not to be trusted, same as before #1119.
+      setEntitlementsLoading(false);
+      setEntitlementsError(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [userId, entitlementsRetryNonce]);
 
   const signOut = async () => {
     const sb = getSupabase();
@@ -408,11 +530,26 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // ignores the trial flag entirely (isPro already grants everything).
   const isTrial = !isPro && trialEndsAt !== null && trialEndsAt > clock;
 
+  /* #1119. 'unknown' is checked FIRST but only wins when isPro/isTrial are
+     both false - a read that failed after already having confirmed Pro/Trial
+     from an earlier successful attempt (a re-fetch on a later retry, or a
+     stale-but-real answer this render hasn't re-fetched yet) must not
+     downgrade a real Pro account to 'unknown' just because entitlementsError
+     is also true from a past attempt. In practice `entitlementsError` and
+     `isPro`/`isTrial` are never both meaningfully true at once with the
+     effect above (a successful attempt always clears entitlementsError in
+     the same update as setting role) - ordered this way anyway so that
+     invariant is enforced by this line, not assumed from the effect. */
+  const entitlementStatus: EntitlementStatus =
+    (isPro || isTrial) ? 'entitled' :
+    entitlementsError  ? 'unknown' :
+    'not_entitled';
+
   return (
     <AuthContext.Provider value={{
       user, loading, role,
-      isPro, isTrial, entitled: isPro || isTrial, trialEndsAt,
-      entitlementsLoading, entitlementsError,
+      isPro, isTrial, entitlementStatus, trialEndsAt,
+      entitlementsLoading, entitlementsError, retryEntitlements,
       signOut,
     }}>
       {children}

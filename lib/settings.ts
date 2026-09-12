@@ -42,6 +42,12 @@ export interface UserSettings {
   // each subscriber's own local time. Null = not detected yet; the alert route
   // falls back to UTC. See components/TimezoneSync.tsx.
   timezone:         string | null;
+  // Arena Strategy Panel - which indicators are selected and any edited calc
+  // params, so a Pro user's setup survives reload and syncs across devices
+  // (#1020). Null = never saved: empty selection, registry defaults for every
+  // param - identical to this app's pre-#1020 in-memory-only behaviour.
+  strategy_selection: string[] | null;
+  strategy_params:    Record<string, Record<string, string | number | boolean>> | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -71,6 +77,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   watchlist:          ['btc', 'eth', 'sol'],
   language:           null,
   timezone:           null,
+  strategy_selection: null,
+  strategy_params:    null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -144,6 +152,57 @@ export function saveLocalSettings(s: UserSettings) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
 }
 
+// ── Unconfirmed-write tracking (#1188 part 3) ─────────────────────────────
+//
+// THE ACTUAL DEFECT #1188 IS ABOUT. update() writes optimistically to local
+// state + localStorage immediately, then debounces a save to the DB. If that
+// save fails (even after #1188 parts 1/2's retry), the field's local value
+// and the DB's value now disagree - and SettingsProvider's sign-in effect
+// re-fetches the DB row on every fresh session and used to overwrite local
+// state and localStorage from it UNCONDITIONALLY. A user could change a
+// setting, see it apply, and find it silently reverted on their next sign-in,
+// with no error ever shown for that second half.
+//
+// This set is the answer to "can the provider tell a field is dirty at seed
+// time?" - yes, if `update()` records it the moment the optimistic write
+// happens, PERSISTED (not just an in-memory ref) so it survives the exact
+// reload this bug depends on. A key is added here synchronously in update(),
+// before the debounce even fires, and removed only when flushToDb's own
+// success path confirms that exact key was actually written to the DB - never
+// on failure, and never by the sign-in/refresh reads themselves, which must
+// treat this set as read-only input to a merge, not something they clear.
+const UNCONFIRMED_LS_KEY = 'lhq_settings_unconfirmed_v1';
+
+export function loadUnconfirmedKeys(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(UNCONFIRMED_LS_KEY);
+    if (!raw) return new Set();
+    const arr: unknown = JSON.parse(raw);
+    return Array.isArray(arr) ? new Set(arr.filter((k): k is string => typeof k === 'string')) : new Set();
+  } catch { return new Set(); }
+}
+
+export function saveUnconfirmedKeys(keys: Set<string>) {
+  try {
+    if (keys.size === 0) { localStorage.removeItem(UNCONFIRMED_LS_KEY); return; }
+    localStorage.setItem(UNCONFIRMED_LS_KEY, JSON.stringify([...keys]));
+  } catch { /* ignore */ }
+}
+
+// Called on sign-out. Deliberately NOT per-account: `lhq_settings_v1` itself
+// isn't namespaced by user id either (a pre-existing, out-of-scope-for-#1188
+// property of this whole file - the first paint after switching accounts on
+// a shared browser already shows the previous user's cached settings until
+// the sign-in DB read corrects it). Left un-cleared, though, a stale
+// unconfirmed key from a PREVIOUS account would wrongly protect that same
+// field from the NEW account's real DB value during the merge below - worse
+// than the pre-existing behaviour, not just as-bad - so this one specifically
+// must be cleared on sign-out.
+export function clearUnconfirmedKeys() {
+  try { localStorage.removeItem(UNCONFIRMED_LS_KEY); } catch { /* ignore */ }
+}
+
 // ── DB row ↔ UserSettings conversion ─────────────────────────────────────
 
 export function rowToSettings(row: Record<string, unknown>): UserSettings {
@@ -170,5 +229,11 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     watchlist:          Array.isArray(row.watchlist) ? row.watchlist as string[] : DEFAULT_SETTINGS.watchlist,
     language:           (row.language as string | null) ?? null,
     timezone:           (row.timezone as string | null) ?? null,
+    strategy_selection: Array.isArray(row.strategy_selection)
+      ? (row.strategy_selection as unknown[]).filter((v): v is string => typeof v === 'string')
+      : null,
+    strategy_params: (row.strategy_params && typeof row.strategy_params === 'object' && !Array.isArray(row.strategy_params))
+      ? row.strategy_params as Record<string, Record<string, string | number | boolean>>
+      : null,
   };
 }

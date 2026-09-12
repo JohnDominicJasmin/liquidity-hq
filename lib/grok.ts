@@ -1,4 +1,4 @@
-import { getSupabase, getAuthToken } from './supabase.ts';
+import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 
 export interface GrokUsageInfo {
@@ -16,15 +16,18 @@ export interface GrokUsageInfo {
   tool_pool_limit?: number;
 }
 
-/** Client-side proxy call - routes through /api/grok (key stays server-side, rate-limited). */
+/** Client-side proxy call - routes through /api/grok (key stays server-side, rate-limited).
+ *  getAuthToken(), not a raw getSession() - #1168. This backs Arena's QUICK/DEEP/ASK AI
+ *  buttons, and the caller's own `finally` (which resets the loading spinner) never runs
+ *  until this call settles - an unbounded getSession() here hung the button forever on a
+ *  degraded auth backend, on the single most-used action in the app. */
 export async function callGrokViaProxy(
   prompt: string,
   tf: string,
   session: string,
   type: 'quick' | 'deep'
 ): Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }> {
-  const sb    = getSupabase();
-  const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
+  const token = await getAuthToken();
 
   const res = await fetch('/api/grok', {
     method: 'POST',

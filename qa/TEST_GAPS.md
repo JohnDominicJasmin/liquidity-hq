@@ -474,6 +474,31 @@ Needs the owner to either bring in a person who uses AT day to day, or contract
 an accessibility auditor for a real pass. Recorded as the honest state rather
 than as another tree-reading pass wearing a checkmark.
 
+**2026-09-12 — a targeted delta check, not a sixth blanket sweep.** The fifth
+sweep's own reasoning (above) argues against re-running the same net over the
+whole codebase again — a clean result would likely just repeat the fifth's.
+What it doesn't cover: **new code written since**. Checked every `.tsx` file
+changed since 2026-09-08 (16 files, all from #1119/#1168/#1188/#1195) against
+the same two established shapes, not a wider search. **Found three real
+instances and one milder one** — filed as #1200: `app/alerts/page.tsx:851`
+(direction glyph, sole carrier of "above/below", no `aria-hidden` or text),
+`app/alerts/page.tsx:854` (delete button's accessible name is the raw "✕"
+glyph — inconsistent with the *same file*, where every sibling form control
+correctly carries `aria-label`), `components/HypothesisTracker.tsx:561`
+(evidence-type glyph with no label, while the *same file* has the correct
+`{icon} {label}` pattern for the identical icon set 60 lines away, just not
+applied here). One milder, lower-priority case (`components/DryPowder.tsx:223`,
+a decorative icon redundant with adjacent text, not the sole carrier).
+
+**The lesson, stated plainly:** a clean sweep is a snapshot, not a standing
+guarantee. New code can reintroduce an already-fixed defect class faster than
+a "we already checked this" assumption tracks it — `HypothesisTracker.tsx`
+proves it inside a single file, correct in one place and missing 60 lines
+away. **Worth repeating this delta-only check (new/changed files since the
+last pass, against shapes already proven real) after any batch of feature
+work, rather than either a full re-sweep or assuming a past-clean result
+still holds.**
+
 ---
 
 ## 🟡 7. `staging` and `dev` share one database
@@ -673,6 +698,51 @@ Recorded here rather than hidden, because the suite is code and has defects too.
   least once. Before trusting any zero from a new query against a source
   or schema not already proven to work, run it against a window or
   condition known to contain a hit first.
+
+- **2026-09-11, #1163/#1173 investigation — three method notes from the same
+  day, kept together because they compound.**
+  1. **`read_network_requests` only tracks requests AFTER it is first called
+     on a tab.** Calling it once the page has already loaded silently misses
+     every prior request — no error, just an incomplete list that looks
+     complete. Cost one wrong reported claim ("production doesn't call
+     `/api/cmc`") that a re-check with the tool armed before navigating
+     reversed. Always call it, then navigate — never the other order.
+  2. **A freshly-minted, valid session cannot exercise a failure path by
+     itself — a valid token succeeds by construction.** Testing "what
+     happens when auth is down" against a real, healthy Supabase project
+     means the thing under test almost never fires: waiting for natural
+     flakiness (#1025) to land inside a test window is not a plan. The fix
+     was forcing the condition — an injected `window.fetch` override
+     permanently blocking `/auth/v1/*` and `/rest/v1/*` — which produced a
+     real, reproducible 22.7s-to-`SESSION EXPIRED` result (#1173) instead of
+     an unbounded wait for a real outage.
+  3. **The forced-failure override only works pre-reload.** A hard reload
+     wipes any injected `window.fetch` before the app's own initial fetch
+     fires — confirmed via `document.readyState` already `'complete'` by the
+     time a re-injected override lands — so a genuinely fresh, blocked
+     entitlements read (which requires a reload to re-fetch, since
+     `entitled` persists across client-side SPA navigation) could not be
+     forced this way. Reported as an accepted gap rather than silently
+     skipped or falsely claimed covered.
+
+- **2026-09-11, #1176: `handleAlertMove()`'s drag-revert fix has no
+  automated coverage, and it is a scoped, reasoned gap rather than a silent
+  one.** `qa/e2e/arena-alert-resilience.spec.ts` covers the OTHER bug fixed
+  in the same PR - `saveArenaAlert()`'s success UI firing unconditionally on
+  a failed save - with a real RED-on-old-code, GREEN-on-fixed-code proof
+  (the RED run failed at exactly `'a failed save must never show the
+  success message'`, not on setup). The drag case is different in kind: the
+  alert line is a `klinecharts` canvas overlay, dragged through the
+  library's own pointer-event state machine (`createOverlay` /
+  `onPressedMoveEnd` in `components/KLineProChart.tsx`), with no
+  `data-testid` and no exposed hook. Its on-screen position depends on the
+  chart's internal price-to-pixel mapping, which a black-box Playwright test
+  cannot compute without the app exposing it - forcing pixel-coordinate
+  drag automation here would produce exactly the fragile-test shape this
+  file has warned against elsewhere (§9's own REALIZED/ratchet entries).
+  Closing it for real needs either a stable overlay-position hook exposed
+  for tests, or accepting manual-only coverage for chart-drag interactions
+  generally - a decision for dev/PM, not a one-off workaround here.
 
 ---
 
@@ -884,6 +954,107 @@ component, grep its name across the CSS and config it touched, not just
 delete the JSX** — a process discipline, not a new test. Recording it here
 because it has now cost a live production defect (instance 1) and would have
 cost nothing to check for at revert time.
+
+---
+
+## ✅ 13. #1201's reload-survival fix — CLOSED 2026-09-12
+
+**Desktop, mobile, and deployed `qa` all confirmed.** QA wrote a regression
+spec (`qa/e2e/settings-reload-survives-failed-save.spec.ts`, #1204) and ran
+it six times across the review: clean RED against deployed `qa` pre-fix
+(value reverted `22345`→`10000` on reload), clean GREEN on desktop against
+`fix/settings-save-reconciliation` locally, then three deployed-`qa`
+post-merge runs and a local mobile solo run, detailed below.
+
+**The mobile/deployed question that was open as of the previous version of
+this entry is resolved - a named, specific infrastructure failure, not a
+product or viewport defect.** Three deployed-`qa` runs at commit `30b5c91`
+(#1201's merge commit):
+
+1. **Both projects together, first hit after deploy:** both FAILED - Account
+   Size field never rendered, page stuck on `AuthProvider`'s own Loading
+   spinner, before any interaction with the form at all.
+2. **Desktop solo, ~2 minutes later (warm retry):** FAILED again, same shape.
+3. **Desktop solo, with a concurrent `/auth/v1/token` latency probe sampling
+   every 2s:** PASSED clean, 21.9s.
+
+**The full causal chain, confirmed from three independent log sources
+(Render app logs, Supabase `postgrest_logs`, Supabase `realtime_logs` +
+`postgres_logs`), not inferred from symptoms alone:**
+
+1. `08:06:36` - Supabase Realtime wakes a sleeping tenant
+   (`Realtime.Tenants.Connect.GetTenant`, `"Tenant wdtjhrilakoitfcezxpx is
+   initializing"`).
+2. `08:06:37` - reinit runs `"Creating partitions for realtime.messages"` -
+   a schema change (DDL).
+3. `08:06:38-08:06:43` - that DDL fires five `"Received a schema cache
+   reload message on the pgrst channel"` events in four seconds.
+4. `08:06:51` - Postgres: `"canceling statement due to statement timeout"`
+   on the reload query.
+5. `08:07:00` - PostgREST: `"Failed to load the schema cache ... code
+   57014: canceling statement due to statement timeout"`, then continuous
+   `PGRST002 "Could not query the database for the schema cache.
+   Retrying."` through `08:07:34+`.
+6. **PostgREST could not serve any request for 30+ seconds** - including
+   the entitlements/settings reads `AuthProvider` waits on.
+
+Run 2 (the failing warm retry) ended at `08:07:22`, inside that outage.
+Render's app-side logs corroborate the same `PGRST002` message at the same
+timestamp, and that run's authenticated proxy/cmc calls (tagged with the
+test fixture's real user id) didn't fire until ~20+ seconds
+post-navigation - consistent with the outage window, not a generic
+slow-but-working backend. **The "cold start" instinct was right; the cold
+component was Supabase Realtime waking up, not Render** - which is why
+Render's own request logs and a post-hoc auth-latency sample both looked
+healthy without ruling anything out: neither was measuring Realtime.
+
+A 24h histogram of the same schema-cache-reload message on dev shows ~11/hour
+baseline, spiking to 68 at 17:00 the day before (during an owner-approved
+Realtime-publication experiment on the dev database - `ALTER PUBLICATION`
+is DDL too) and 269 at 08:00 this morning, during this review. A second,
+independent auth-latency probe run by PM/DevOps on the same endpoint during
+run 3's window corroborated low variance and no failures, consistent with
+run 3's clean pass landing outside the outage window.
+
+**Checked, and ruled out, the obvious next hypothesis: that QA's own test
+load was tipping a routine reload into a timeout.** Partition creation fires
+reload signals every time, deterministically (one create → exactly 5
+signals, two → exactly 10) - but request volume does not correlate with
+which reloads fail. Dev's busiest hour of the day (14:00, 1,633 requests)
+had a double reload and zero failures; 17:00 (181 requests) and 08:00
+(268 requests, during this review) both failed. Nine times the traffic, in
+the opposite direction. Production receives the identical reload trigger on
+the same schedule and has not failed once in 24 hours, including during its
+own busiest hour. **What distinguishes dev's failing reloads from its clean
+ones - and from production's, which never fail - is not yet identified.**
+One candidate worth naming without asserting it: 17:00 coincided with an
+owner-approved Realtime-publication experiment on the dev database, whose
+`ALTER PUBLICATION` is DDL on top of the partition reload; nothing
+equivalent is known for 08:00. This reframes #1194 (previously closed on
+Realtime's *polling* cost alone, ~58.6s/day - the partition DDL on tenant
+reinit was never measured) and is the leading lead for #1025 (why dev
+intermittently hangs) - tracked on those issues rather than re-derived
+here.
+
+**Mobile itself, separately:** one local solo run against
+`fix/settings-save-reconciliation` (before the deployed runs above) passed
+clean, 1.2m - two earlier solo attempts that night were killed by local
+system memory pressure mid-build, not by the test. Checked source for a
+structural mobile-specific cause (accordion/`display:none` on the Trading
+Profile fields, viewport-conditional logic in `AuthProvider`/
+`SettingsProvider`) and found none - consistent with desktop and mobile both
+failing the *same* way on the deployed runs above, not mobile specifically.
+
+**What remains open, and it is a separate, real finding, not part of
+#1201:** a settings page that cannot render at all for 30+ seconds during a
+PostgREST schema-cache outage is a genuine, user-facing problem regardless
+of whether the underlying fix is correct. Filed against #1173 (auth-timeout
+stacking) with a concrete trigger now, rather than re-opened here.
+
+**Closed by:** `qa/e2e/settings-reload-survives-failed-save.spec.ts` (#1204),
+the three deployed-`qa` runs and concurrent probe above (#1201's PR thread),
+and the solo local mobile GREEN. Six runs, one explained environmental
+cause, zero code-level causes found.
 
 ---
 

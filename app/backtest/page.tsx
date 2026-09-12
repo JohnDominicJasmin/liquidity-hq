@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { CoinId, COINS } from '@/lib/marketStore';
 import { runBacktest, BacktestRunResult, runOrderFlowBacktest, OrderFlowBacktestResult, ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
-import { FullPageUpgradeGate } from '@/components/UpgradeGateModal';
+import { FullPageUpgradeGate, FullPageEntitlementUnknown } from '@/components/UpgradeGateModal';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
@@ -79,7 +79,7 @@ function parseSection(text: string, key: string): string {
 
 export default function BacktestPage() {
   const { t } = useLabels();
-  const { entitled, loading: authLoading } = useAuth();
+  const { entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
   const [tf, setTf]               = useState<TF>('1h');
   const [coinScope, setCoinScope] = useState<'majors' | 'all'>('majors');
   const [running, setRunning]     = useState(false);
@@ -125,8 +125,7 @@ export default function BacktestPage() {
     setSrError(null);
     setSrResult(null);
     try {
-      const db = getSupabase();
-      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const token = await getAuthToken();
       const res = await fetch('/api/strategy-research', {
         method: 'POST',
         headers: {
@@ -155,8 +154,7 @@ export default function BacktestPage() {
     setPsResult(null);
     setPsCopied(false);
     try {
-      const db    = getSupabase();
-      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const token = await getAuthToken();
       const res   = await fetch('/api/pine-script', {
         method: 'POST',
         headers: {
@@ -181,8 +179,7 @@ export default function BacktestPage() {
     setSmcError(null);
     setSmcResult(null);
     try {
-      const db    = getSupabase();
-      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const token = await getAuthToken();
       const res   = await fetch('/api/smc-snapshot', {
         method: 'POST',
         headers: {
@@ -207,8 +204,7 @@ export default function BacktestPage() {
     setUlError(null);
     setUlResult(null);
     try {
-      const db    = getSupabase();
-      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const token = await getAuthToken();
       const res   = await fetch('/api/token-unlock', {
         method: 'POST',
         headers: {
@@ -265,7 +261,17 @@ export default function BacktestPage() {
   // resolve so an entitled user never sees a paywall flash, then replace the
   // entire page for free users.
   if (authLoading) return <LoadingState message={t('BACKTEST_LOADING')} fullPage />;
-  if (!entitled) {
+  if (entitlementStatus === 'unknown') {
+    // Feature name only, NOT BACKTEST_UPGRADE_TITLE ("Backtesting is part of
+    // Pro.") - that heading asserts the gate FullPageUpgradeGate below shows
+    // for a CONFIRMED non-entitled user. Reusing it here would reintroduce,
+    // through the heading, exactly the conflation the owner's #1119 ruling
+    // removed from the body copy. Same pattern every inline
+    // EntitlementUnknownCard already uses (e.g. Arena's "Confluence Score",
+    // not "Confluence Score is part of Pro").
+    return <FullPageEntitlementUnknown title={t('BACKTEST_PAGE_TITLE')} onRetry={retryEntitlements} />;
+  }
+  if (entitlementStatus !== 'entitled') {
     return (
       <FullPageUpgradeGate
         title={t('BACKTEST_UPGRADE_TITLE')}

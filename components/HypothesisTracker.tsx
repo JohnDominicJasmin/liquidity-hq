@@ -2,8 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
-import { LockedFeatureCard } from './UpgradeGateModal';
-import { getSupabase } from '@/lib/supabase';
+import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
+import { getAuthToken } from '@/lib/supabase';
 import EmptyState from '@/components/EmptyState';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
@@ -58,23 +58,17 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
 }
 
-async function getToken(): Promise<string> {
-  const sb = getSupabase();
-  if (!sb) return '';
-  const { data } = await sb.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 async function apiFetch(path: string, opts?: RequestInit) {
-  const token = await getToken();
+  // getAuthToken(), not a raw getSession() - #1168.
+  const token = await getAuthToken();
   return fetch(path, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts?.headers ?? {}) },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token ?? ''}`, ...(opts?.headers ?? {}) },
   });
 }
 
 export default function HypothesisTracker() {
-  const { user, entitled, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
   const { t } = useLabels();
   const router = useRouter();
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
@@ -95,6 +89,7 @@ export default function HypothesisTracker() {
   const [cfTargetDate, setCfTargetDate] = useState('');
   const [cfSaving, setCfSaving] = useState(false);
   const [cfError, setCfError] = useState('');
+  const [hypError, setHypError] = useState('');
 
   // Evidence form state
   const [evType, setEvType] = useState<'supporting' | 'against' | 'neutral'>('supporting');
@@ -107,19 +102,27 @@ export default function HypothesisTracker() {
     setLoading(true);
     try {
       const res = await apiFetch('/api/hypotheses');
+      if (!res.ok) {
+        // A failed/timed-out read must not silently overwrite a real list
+        // with an empty one - same defect shape as loadPriceAlerts, #1168.
+        setHypError(t('HYPOTHESIS_TRACKER_NETWORK_ERROR'));
+        return;
+      }
       const json = await res.json() as { hypotheses?: Hypothesis[]; error?: string };
+      setHypError('');
       setHypotheses(json.hypotheses ?? []);
     } catch {
-      // silently keep existing list on network error
+      setHypError(t('HYPOTHESIS_TRACKER_NETWORK_ERROR'));
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, t]);
 
   useEffect(() => { fetchHypotheses(); }, [fetchHypotheses]);
 
   const fetchEvidence = useCallback(async (id: string) => {
     const res = await apiFetch(`/api/hypotheses/${id}/evidence`);
+    if (!res.ok) return; // keep whatever evidence (if any) is already shown
     const json = await res.json() as { evidence?: Evidence[] };
     setEvidenceMap(prev => ({ ...prev, [id]: json.evidence ?? [] }));
   }, []);
@@ -206,7 +209,10 @@ export default function HypothesisTracker() {
   const runAnalysis = async (id: string) => {
     // The analysis endpoint is Pro-only (403 PRO_REQUIRED), so a free user's
     // click never reaches it - show the locked card instead of a round trip.
-    if (!entitled) { setProLocked(true); return; }
+    // 'unknown' is NOT intercepted here (#1119): we can't confirm they are
+    // locked out, so the honest thing is to let the real request answer -
+    // the PRO_REQUIRED check two lines down is the safety net either way.
+    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
     setAnalyzingId(id);
     try {
       const res = await apiFetch(`/api/hypotheses/${id}/analyze`, { method: 'POST' });
@@ -340,9 +346,20 @@ export default function HypothesisTracker() {
       )}
 
       {/* List */}
+      {hypError && !loading && (
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {hypError}
+          <button
+            onClick={fetchHypotheses}
+            style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}
+          >
+            {t('DRY_POWDER_RETRY')}
+          </button>
+        </div>
+      )}
       {loading ? (
         <LoadingState message={t('HYPOTHESIS_TRACKER_LOADING')} />
-      ) : hypotheses.length === 0 ? (
+      ) : hypError ? null : hypotheses.length === 0 ? (
         <EmptyState dashed title={t('HYPOTHESIS_TRACKER_EMPTY_STATE')} />
       ) : (
         hypotheses.map(h => {
@@ -487,12 +504,19 @@ export default function HypothesisTracker() {
                   {/* Grok analysis button - the rest of the tracker (creating
                       hypotheses, logging evidence) stays free, only the AI
                       analysis is Pro, so just this control gets locked. */}
-                  {(!authLoading && !entitled) || proLocked ? (
+                  {proLocked || (!authLoading && entitlementStatus === 'not_entitled') ? (
                     <div style={{ marginBottom: 14 }}>
                       <LockedFeatureCard
                         title={t('HYPOTHESIS_TRACKER_ANALYSIS_LOCKED_TITLE')}
                         description={t('HYPOTHESIS_TRACKER_ANALYSIS_LOCKED_DESC')}
                         onUnlock={() => router.push('/upgrade')}
+                      />
+                    </div>
+                  ) : !authLoading && entitlementStatus === 'unknown' ? (
+                    <div style={{ marginBottom: 14 }}>
+                      <EntitlementUnknownCard
+                        title={t('HYPOTHESIS_TRACKER_ANALYSIS_LOCKED_TITLE')}
+                        onRetry={retryEntitlements}
                       />
                     </div>
                   ) : (

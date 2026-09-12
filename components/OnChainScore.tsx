@@ -2,9 +2,9 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
-import { LockedFeatureCard } from './UpgradeGateModal';
+import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
 import { useMarket } from '@/lib/marketStore';
-import { getSupabase } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 
@@ -81,7 +81,7 @@ function MetricPill({ label, value, source }: { label: string; value: number | n
 export default function OnChainScore() {
   const { t } = useLabels();
   const router = useRouter();
-  const { user, entitled, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
   const { store } = useMarket();
   const btcPrice = store.coins['btc']?.price ?? 0;
 
@@ -94,12 +94,11 @@ export default function OnChainScore() {
     setLoading(true);
     setError('');
     try {
-      const sb = getSupabase();
-      const session = sb ? (await sb.auth.getSession()).data.session : null;
-      const token = session?.access_token ?? '';
+      // getAuthToken(), not a raw getSession() - #1168.
+      const token = await getAuthToken();
 
       const res = await fetch(`/api/onchain?price=${btcPrice}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token ?? ''}` },
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({})) as { error?: string };
@@ -135,7 +134,11 @@ export default function OnChainScore() {
       overflow: 'hidden',
       marginBottom: 12,
     }}>
-      {!authLoading && !entitled ? (
+      {!authLoading && entitlementStatus === 'unknown' ? (
+        <div style={{ padding: '10px 14px' }}>
+          <EntitlementUnknownCard title={t('ON_CHAIN_SCORE_TITLE')} onRetry={retryEntitlements} />
+        </div>
+      ) : !authLoading && entitlementStatus !== 'entitled' ? (
         <div style={{ padding: '10px 14px' }}>
           <LockedFeatureCard
             title={t('ON_CHAIN_SCORE_TITLE')}
