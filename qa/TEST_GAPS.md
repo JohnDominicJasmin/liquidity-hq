@@ -898,6 +898,38 @@ Recorded here rather than hidden, because the suite is code and has defects too.
   for tests, or accepting manual-only coverage for chart-drag interactions
   generally - a decision for dev/PM, not a one-off workaround here.
 
+**2026-09-12, three gaps found during the #1210 release pass, recorded so
+nobody rediscovers them the hard way:**
+
+- **Push notifications cannot be tested in the automated Chrome profile.**
+  `Notification.permission` reads `"denied"` at the browser level in this
+  extension's controlled profile, independent of anything the app does -
+  the toggle and the test-push flow are both structurally unreachable here.
+  Not an app defect; genuinely needs a real browser session (or a person)
+  to verify.
+- **A refused WebSocket connection fires `error` without a following
+  `close` event in this automation environment** (Dev's finding, surfaced
+  while verifying #1228's failover). Any code path keyed on `onclose` -
+  which is most of #1059/#1228's reconnect/failover state machine - cannot
+  be exercised end-to-end here; a live browser or a real network-level
+  block (not a same-origin policy refusal) is needed instead. Part of why
+  #1228's live pass hit a connect-timeout shape rather than a clean
+  refusal.
+- **There is no standing, owner-approved production QA account.** Every
+  release that needs a signed-in production check (this one: settings
+  persistence, entitlement-unknown card, Strategy Panel/migration proof)
+  has to ask the owner fresh, because creating or deleting a row in
+  production's \`auth.users\` is a shared-database write - one of the three
+  things this project always routes to the owner directly, never assumed
+  from a relay. Two prior one-off accounts (\`QA_TEST_PLAN.md\`) were created
+  and fully deleted after use rather than kept, so no persistent one has
+  ever existed. **Proposed fix, for the owner to pick between:** (a) a
+  persistent, owner-approved disposable production test account QA can
+  reuse release after release without asking each time, or (b) formalize
+  "the owner runs a 2-minute signed-in check" as a standing release step,
+  since QA cannot create one unilaterally and relayed instructions don't
+  substitute for the owner's own yes on a production write.
+
 ---
 
 ## 🟡 10. Monitoring is wired in production; DELIVERY is unconfirmed
