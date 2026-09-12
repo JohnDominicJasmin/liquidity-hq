@@ -2042,9 +2042,23 @@ let cooldownHydrated = false;
 let cooldownHydrateOk = false;
 let cooldownHydrateError: unknown = null;
 
+/* healthError() (lib/apiHealth.ts) only reads .message off a real Error
+ * instance, falling back to String(e) otherwise - Supabase's own
+ * PostgrestError is a plain object, not an Error, so that fallback is what
+ * printed the [object Object] the ABORTED log line shipped with. This reads
+ * .message/.code directly off whatever shape actually comes back. */
+function describeCooldownHydrateError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const obj = e as Record<string, unknown>;
+    const parts = [obj.message, obj.code].filter((p): p is string => typeof p === 'string');
+    if (parts.length) return parts.join(' - ');
+  }
+  return String(e);
+}
+
 async function hydrateAlertCooldown(): Promise<boolean> {
   if (cooldownHydrated) return cooldownHydrateOk;
-  cooldownHydrated = true; // set first - a failed read must never retry every tick
   try {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin.from(T.app_config).select('value').eq('key', 'alert_cooldown').maybeSingle();
@@ -2052,6 +2066,15 @@ async function hydrateAlertCooldown(): Promise<boolean> {
     const saved = data?.value as Record<string, number> | undefined;
     if (saved) importCooldownState(saved);
     cooldownHydrateOk = true;
+    // #1278/#1279 fix: latch ONLY on success. This was set unconditionally
+    // before the read - one failed read then latched `cooldownHydrateOk:
+    // false` for the rest of the process's life, so every run after the
+    // first transient failure kept returning the SAME stale answer instead
+    // of trying again, aborting with 503 until the next deploy restarted
+    // the process. A failure below leaves this false, so the next run's
+    // call re-attempts the read instead of trusting a result that never
+    // happened.
+    cooldownHydrated = true;
   } catch (e) {
     cooldownHydrateOk = false; // no prior row (first-ever run) is NOT this branch - only a thrown read is
     cooldownHydrateError = e;
@@ -2185,7 +2208,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     // no" failure #1266 exists to fix, just one layer further out. Same
     // `[alert]` prefix everything else in this file's logging uses, so a
     // log search for it catches this too.
-    console.warn(`[alert] ABORTED: cooldown hydrate failed (${healthError(cooldownHydrateError)})`);
+    console.warn(`[alert] ABORTED: cooldown hydrate failed (${describeCooldownHydrateError(cooldownHydrateError)})`);
     // 503, not the 200 an earlier draft of this had - __tests__/telegramStatusCodes.test.mts
     // enforces exactly this convention repo-wide: `ok: false` with no status
     // answers 200, and any caller checking `res.ok` reads the failure as success.
