@@ -178,50 +178,67 @@ export function saveLocalSettings(s: UserSettings) {
 // browser. Namespacing by user id removes the failure mode at the root:
 // two accounts now simply never share a key, so there is nothing left for a
 // missed cleanup to leak into.
+//
+// PM/DevOps caught a real regression in the first version of this (#1214):
+// namespacing the MARKER isn't enough on its own, because that first version
+// only ever stored KEY NAMES here and restored the actual value from
+// `settingsRef.current` / `lhq_settings_v1` - which is NOT namespaced and
+// can hold whichever account most recently used this tab. Account A's failed
+// edit, unconfirmed under `…:A`, would restore whatever value the SHARED
+// cache happened to hold at merge time - which could be account B's real,
+// confirmed value if B signed in and out in between. B's setting would then
+// display as A's own, permanently, since nothing would ever know it was
+// wrong. Storing the VALUE alongside the marker, per account, removes the
+// shared-cache dependency entirely - the merge in applyDbSettings (below,
+// SettingsProvider.tsx) never reads from `lhq_settings_v1` for an
+// unconfirmed field again.
 const UNCONFIRMED_LS_KEY = 'lhq_settings_unconfirmed_v1';
 const unconfirmedKeyFor = (userId: string) => `${UNCONFIRMED_LS_KEY}:${userId}`;
 
-export function loadUnconfirmedKeys(userId: string): Set<string> {
-  if (typeof window === 'undefined') return new Set();
+// Keyed by UserSettings field name; `unknown` because everything here has
+// crossed a JSON.parse boundary and cannot be trusted to be well-typed
+// without a runtime check, same reasoning rowToSettings already applies to
+// a DB row.
+export type UnconfirmedMap = Record<string, unknown>;
+
+export function loadUnconfirmed(userId: string): UnconfirmedMap {
+  if (typeof window === 'undefined') return {};
   try {
     const raw = localStorage.getItem(unconfirmedKeyFor(userId));
-    if (!raw) return new Set();
-    const arr: unknown = JSON.parse(raw);
-    return Array.isArray(arr) ? new Set(arr.filter((k): k is string => typeof k === 'string')) : new Set();
-  } catch { return new Set(); }
+    if (!raw) return {};
+    const obj: unknown = JSON.parse(raw);
+    return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj as UnconfirmedMap : {};
+  } catch { return {}; }
 }
 
-export function saveUnconfirmedKeys(userId: string, keys: Set<string>) {
+export function saveUnconfirmed(userId: string, map: UnconfirmedMap) {
   try {
     const key = unconfirmedKeyFor(userId);
-    if (keys.size === 0) { localStorage.removeItem(key); return; }
-    localStorage.setItem(key, JSON.stringify([...keys]));
+    if (Object.keys(map).length === 0) { localStorage.removeItem(key); return; }
+    localStorage.setItem(key, JSON.stringify(map));
   } catch { /* ignore */ }
 }
 
-// One-time migration from the old global key to this account's namespaced
-// one - called once per sign-in, only after authLoading has settled and a
-// real user id is known (see SettingsProvider's sign-in effect). Migrates
-// rather than drops: a pending edit under the old global key is still a real
-// unconfirmed edit for WHOEVER is signing in right now (the global key could
-// only ever have belonged to one account's browser session at a time, since
-// nothing else touches it), and dropping it during this one-time transition
-// would strip #1201's protection from that edit for no reason. Removes the
-// old key either way so this only ever runs once per browser.
-export function migrateUnconfirmedKeysToUser(userId: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem(UNCONFIRMED_LS_KEY);
-    if (raw == null) return;
-    const arr: unknown = JSON.parse(raw);
-    const legacy = Array.isArray(arr) ? arr.filter((k): k is string => typeof k === 'string') : [];
-    if (legacy.length > 0) {
-      const current = loadUnconfirmedKeys(userId);
-      legacy.forEach(k => current.add(k));
-      saveUnconfirmedKeys(userId, current);
-    }
-  } catch { /* ignore */ }
-  finally { try { localStorage.removeItem(UNCONFIRMED_LS_KEY); } catch { /* ignore */ } }
+// Drops the pre-#1202 global key (shipped with #1188 part 3, genuinely live
+// on deployed environments) once, on first load after authLoading settles -
+// NOT migrated into whichever account happens to sign in next.
+//
+// An earlier version of this function migrated it, seeding the value from
+// `lhq_settings_v1` (the shared local cache) since the legacy key only ever
+// stored key NAMES, never values. PM/DevOps caught why that is wrong: the
+// legacy key has no owner. If the old sign-out clear didn't run and a
+// DIFFERENT account signs in first after this deploy, migrating would copy
+// account A's key names AND account B's currently-cached values into B's own
+// protected set under A's old marker - reconstructing this exact rewrite's
+// cross-account leak, one step earlier than where it lived before.
+//
+// Dropping instead trades a narrower, visible loss for that unrecoverable
+// one: an edit that had ALREADY failed to save before this deploy reverts to
+// its DB value, once - the user sees their own genuinely-already-broken save
+// silently resolve to the server's answer, which is what would have
+// happened anyway had the original sign-out clear run as designed.
+export function dropLegacyUnconfirmedKey() {
+  try { localStorage.removeItem(UNCONFIRMED_LS_KEY); } catch { /* ignore */ }
 }
 
 // ── DB row ↔ UserSettings conversion ─────────────────────────────────────
