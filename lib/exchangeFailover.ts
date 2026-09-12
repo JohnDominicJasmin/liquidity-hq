@@ -33,3 +33,26 @@ export function stableEnoughToSwitchBack(
 ): boolean {
   return nowMs - connectedAtMs >= minStableMs;
 }
+
+/** PR #1228 review (PM/DevOps): both connect functions were driven entirely
+ *  by `onclose`, on the assumption that a failed connection always reaches
+ *  it. Two real cases don't: a blackholed connection (packets dropped, no
+ *  TCP RST) never fires `error` or `close` until the OS gives up, which can
+ *  take tens of seconds or more - the feed sits dead with no failover the
+ *  whole time; and `error` firing without a following `close` (confirmed
+ *  live in one browser-automation environment while testing this exact PR -
+ *  rare in ordinary Chrome, but the code must not depend on the pairing
+ *  either way).
+ *
+ *  Call this once a connect attempt's own timer fires, to confirm the
+ *  elapsed time genuinely warrants treating it as failed before doing so -
+ *  same defensive re-check `stableEnoughToSwitchBack` above uses, since a
+ *  scheduled timer firing is not itself a guarantee of elapsed time in
+ *  every runtime. */
+export function connectTimedOut(
+  startedAtMs: number,
+  nowMs: number,
+  timeoutMs: number,
+): boolean {
+  return nowMs - startedAtMs >= timeoutMs;
+}
