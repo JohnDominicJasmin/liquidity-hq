@@ -67,6 +67,34 @@ async function fetchOrSkip(url: string, opts: RequestInit, skipCounts: SkipCount
   }
 }
 
+/* #1266 step 2: which Bybit MARKET (spot or linear) to read for a
+ * Binance-listed coin's PRICE (RSI, rapid-move, price alerts - all three
+ * read Binance SPOT klines/ticker today, so the replacement should measure
+ * the same instrument, not silently switch to the perp's mark price).
+ *
+ * NOT derived from BYBIT_SYMS (the app's LINEAR perp map) - spot and linear
+ * are separate listing decisions on Bybit, and the two gaps run in OPPOSITE
+ * directions, both confirmed live against Bybit's real API (2026-09-12),
+ * not assumed:
+ *   - TAOUSDT has a Bybit linear perp (BYBIT_SYMS.tao) but NO Bybit spot
+ *     listing at all. Falls back to linear here - a materially different
+ *     instrument (perp mark price, not spot) for this one coin, accepted as
+ *     the least-bad option rather than leaving TAO on Binance alone.
+ *   - FETUSDT has a Bybit SPOT listing despite having NO Bybit linear perp
+ *     (lib/coins.ts's own comment). Confirmed live: 200 OK, real ticker
+ *     data. So FET moves to Bybit spot with everything else here, even
+ *     though it has no entry in BYBIT_SYMS at all.
+ * Checked against all 49 BYBIT_SYMS coins, not sampled: TAO is the ONLY one
+ * missing a spot listing. */
+function bybitSpotOrLinear(coin: string): { category: 'spot' | 'linear'; symbol: string } | null {
+  if (coin === 'tao') {
+    const linSym = BYBIT_SYMS[coin];
+    return linSym ? { category: 'linear', symbol: linSym } : null;
+  }
+  const bnSym = BINANCE_SYMS[coin];
+  return bnSym ? { category: 'spot', symbol: bnSym } : null;
+}
+
 // Telegram's parse_mode:HTML treats any of these characters as markup -
 // user-supplied free text (e.g. a saved price alert's label) must be escaped
 // before insertion into a message body, or it can inject its own tags
@@ -205,7 +233,6 @@ function passesThreshold(e: SignalEntry, t: UserThresholds | undefined): boolean
 /* ── Coin maps (sourced from shared lib/coins.ts) ── */
 const BINANCE_PERP  = BINANCE_SYMS;
 const BYBIT_PERP    = BYBIT_SYMS;
-const BINANCE_SPOT  = BINANCE_SYMS;   // spot symbols are identical to perp symbols
 const LABELS: Record<string, string> = COIN_LABELS;
 
 const WHALE_THRESHOLD: Record<string, number> = {
@@ -490,34 +517,97 @@ async function fetchAllFR(skipCounts: SkipCounts): Promise<Record<string, number
   return result;
 }
 
+/* #1266 step 2: moved off Binance entirely - checkPriceAlerts is the most
+ * literal "the number must be right" check in this file, and it, along with
+ * checkOISpike's price display, previously read Binance spot. Now reads
+ * Bybit spot (or linear for TAO, the one coin with no Bybit spot) via
+ * bybitSpotOrLinear, one bulk call per category rather than per coin -
+ * Bybit's v5/market/tickers takes no `symbol` and returns every listing in
+ * that category in one request, the same shape #1236's snapshot route
+ * fallback already established for tickers. */
 async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, number>> {
-  const res = await fetchOrSkip('https://api.binance.com/api/v3/ticker/price', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
-  if (!res) return {};
+  const out: Record<string, number> = {};
+  const bySpotSym  = new Map<string, string>(); // Bybit spot symbol -> coin
+  const byLinSym   = new Map<string, string>(); // Bybit linear symbol -> coin (TAO only, today)
+  for (const coin of Object.keys(BINANCE_SYMS)) {
+    const target = bybitSpotOrLinear(coin);
+    if (!target) continue;
+    (target.category === 'spot' ? bySpotSym : byLinSym).set(target.symbol, coin);
+  }
+
+  const [spotRes, linRes] = await Promise.all([
+    fetchOrSkip('https://api.bybit.com/v5/market/tickers?category=spot', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit'),
+    byLinSym.size > 0
+      ? fetchOrSkip('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit')
+      : Promise.resolve(null),
+  ]);
+
   try {
-    const data = await res.json() as Array<{ symbol: string; price: string }>;
-    const out: Record<string, number> = {};
-    for (const item of data) {
-      const coin = Object.entries(BINANCE_SPOT).find(([, s]) => s === item.symbol)?.[0];
-      if (coin) out[coin] = parseFloat(item.price);
+    if (spotRes) {
+      const d = await spotRes.json() as { result?: { list?: Array<{ symbol: string; lastPrice: string }> } };
+      for (const item of d.result?.list ?? []) {
+        const coin = bySpotSym.get(item.symbol);
+        if (coin && item.lastPrice) out[coin] = parseFloat(item.lastPrice);
+      }
     }
-    return out;
-  } catch { return {}; }
+    if (linRes) {
+      const d = await linRes.json() as { result?: { list?: Array<{ symbol: string; lastPrice: string }> } };
+      for (const item of d.result?.list ?? []) {
+        const coin = byLinSym.get(item.symbol);
+        if (coin && item.lastPrice) out[coin] = parseFloat(item.lastPrice);
+      }
+    }
+  } catch { /* whatever parsed before the throw is still returned below */ }
+  return out;
 }
 
-/* ── Bybit klines helper (newest-first → reversed to oldest-first) ── */
-async function fetchBybitKlines(symbol: string, interval: string, limit: number): Promise<number[]> {
+/* ── Bybit klines helper (newest-first → reversed to oldest-first) ──
+ * `category` defaults to 'linear' for the original callers (hype and other
+ * Bybit-only coins, which have no spot listing to speak of here anyway).
+ * #1266 step 2's Binance-migrated coins pass 'spot' (or 'linear' for TAO,
+ * via bybitSpotOrLinear) explicitly. `skipCounts` is optional so a caller
+ * that doesn't have one in scope (none do today, kept for symmetry with
+ * fetchOrSkip) isn't forced to thread one through for no reason. */
+interface BybitCandle { o: number; h: number; l: number; c: number }
+
+/* Raw OHLC, oldest-first, priceFactor applied - the shape checkRapidMove
+ * needs for pattern detection (detectPatterns reads o/h/l/c, not just
+ * closes). fetchBybitKlines below is this with only `c` kept, for the
+ * (more common) callers that only need closes. */
+async function fetchBybitCandles(
+  symbol: string, interval: string, limit: number,
+  skipCounts?: SkipCounts, category: 'linear' | 'spot' = 'linear',
+): Promise<BybitCandle[]> {
+  const url = `https://api.bybit.com/v5/market/kline?category=${category}&symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  const res = skipCounts
+    ? await fetchOrSkip(url, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit')
+    : await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }).then(r => (r.ok ? r : null)).catch(() => null);
+  if (!res) return [];
   try {
-    const res = await fetch(
-      `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`,
-      { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
-    );
-    if (!res.ok) return [];
     const data = await res.json() as { result?: { list?: string[][] } };
     const list = data.result?.list ?? [];
-    // Bybit returns newest-first - reverse so index 0 = oldest
     const pf = bybitSymbolPriceFactor(symbol);
-    return list.map(c => parseFloat(c[4]) * pf).reverse();
+    // Bybit returns newest-first - reverse so index 0 = oldest
+    return list.map(row => ({
+      o: parseFloat(row[1]) * pf, h: parseFloat(row[2]) * pf,
+      l: parseFloat(row[3]) * pf, c: parseFloat(row[4]) * pf,
+    })).reverse();
   } catch { return []; }
+}
+
+/* ── Bybit klines helper (newest-first → reversed to oldest-first) ──
+ * `category` defaults to 'linear' for the original callers (hype and other
+ * Bybit-only coins, which have no spot listing to speak of here anyway).
+ * #1266 step 2's Binance-migrated coins pass 'spot' (or 'linear' for TAO,
+ * via bybitSpotOrLinear) explicitly. `skipCounts` is optional so a caller
+ * that doesn't have one in scope (none do today, kept for symmetry with
+ * fetchOrSkip) isn't forced to thread one through for no reason. */
+async function fetchBybitKlines(
+  symbol: string, interval: string, limit: number,
+  skipCounts?: SkipCounts, category: 'linear' | 'spot' = 'linear',
+): Promise<number[]> {
+  const candles = await fetchBybitCandles(symbol, interval, limit, skipCounts, category);
+  return candles.map(c => c.c);
 }
 
 /* ════════════════════════════════════════
@@ -549,18 +639,20 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
 
   await runBatched(COINS.map(coin => async () => {
     try {
+      // #1266 step 2: moved off Binance - see bybitSpotOrLinear's own
+      // comment for why this reads Bybit spot (or linear for TAO, the one
+      // coin with no Bybit spot) rather than Binance spot klines. Wilder's
+      // RSI smoothing needs a long lookback to converge to the value
+      // TradingView/Bybit show - 20 candles only gives ~5 smoothing
+      // iterations past the initial seed, nowhere near enough. 300 matches
+      // what the Arena chart reader uses for the same calculation.
       let closes: number[];
-      if (BINANCE_SPOT[coin]) {
-        // Wilder's RSI smoothing needs a long lookback to converge to the value
-        // TradingView/Bybit show - 20 candles only gives ~5 smoothing iterations
-        // past the initial seed, nowhere near enough. 300 matches what the
-        // Arena chart reader uses for the same calculation.
-        const res = await fetchOrSkip(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
-        if (!res) return;
-        const data = await res.json() as Array<unknown[]>;
-        closes = data.map(c => parseFloat(c[4] as string));
+      const target = bybitSpotOrLinear(coin);
+      if (target) {
+        closes = await fetchBybitKlines(target.symbol, '60', 300, skipCounts, target.category);
+        if (closes.length === 0) return;
       } else if (BYBIT_KLINE_SYMS[coin]) {
-        closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 300);
+        closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 300, skipCounts);
         if (closes.length === 0) return;
       } else {
         return;
@@ -609,23 +701,21 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
         try {
           let prevClose: number, currClose: number;
           let patternStr = '';
-          if (BINANCE_SPOT[coin]) {
-            const res = await fetchOrSkip(
-              `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=${interval}&limit=25`,
-              { cache: 'no-store', signal: AbortSignal.timeout(7_000) },
-              skipCounts, 'binance',
-            );
-            if (!res) return;
-            const data = await res.json() as Array<unknown[]>;
-            if (data.length < 2) return;
-            prevClose = parseFloat(data[data.length - 2][4] as string);
-            currClose = parseFloat(data[data.length - 1][4] as string);
-            // Detect patterns from OHLC
-            const ohlc = data.map(k => ({ o: parseFloat(k[1] as string), h: parseFloat(k[2] as string), l: parseFloat(k[3] as string), c: parseFloat(k[4] as string) }));
+          // #1266 step 2: moved off Binance - see bybitSpotOrLinear's own
+          // comment. Bybit's kline gives full OHLC same as Binance's did, so
+          // pattern detection is preserved for every migrated coin, not just
+          // dropped to match the (always pattern-less) pre-existing
+          // Bybit-only branch below.
+          const target = bybitSpotOrLinear(coin);
+          if (target) {
+            const ohlc = await fetchBybitCandles(target.symbol, bybitInterval, 25, skipCounts, target.category);
+            if (ohlc.length < 2) return;
+            prevClose = ohlc[ohlc.length - 2].c;
+            currClose = ohlc[ohlc.length - 1].c;
             const pats = detectPatterns(ohlc);
             if (pats.length > 0) patternStr = pats[0]; // show first pattern
           } else if (BYBIT_KLINE_SYMS[coin]) {
-            const closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], bybitInterval, 25);
+            const closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], bybitInterval, 25, skipCounts);
             if (closes.length < 2) return;
             prevClose = closes[closes.length - 2];
             currClose = closes[closes.length - 1];
@@ -671,13 +761,75 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
   const fired: string[] = [];
   const since = Date.now() - 5 * 60_000;
   await runBatched([
-    // ── Binance perp coins ──
-    ...Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
+    /* ── Bybit linear, every coin it lists (#1266 step 2) ──
+     * Was two branches (Binance perp + the pre-existing Bybit-only coins);
+     * now one, since both read the same Bybit endpoint with the same
+     * business logic - only the input field names differed (`t.p`/`t.q`/
+     * `t.m` vs `t.p`/`t.v`/`t.S`), which is exactly the kind of thing #1233's
+     * PR already established a conversion for. BYBIT_SYMS covers every
+     * migrated coin PLUS the coins that were always Bybit-only (hype et al)
+     * - one map, not two. No `startTime` server-side filter on Bybit's
+     * recent-trade (it has no such param) - filtered client-side by `t.T`
+     * against the same 5-minute window, same as the pre-existing branch. */
+    ...Object.entries(BYBIT_SYMS).map(([coin, sym]) => async () => {
       const threshold = WHALE_THRESHOLD[coin];
       if (!threshold) return;
+      const res = await fetchOrSkip(
+        `https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=${sym}&limit=1000`,
+        { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit',
+      );
+      if (!res) return;
       try {
-        const res    = await fetchOrSkip(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
-        if (!res) return;
+        /* #1266 step 2 found this: the pre-existing HYPE-only branch this
+         * replaced read `t.T`/`t.p`/`t.v`/`t.S`, but Bybit's real
+         * recent-trade fields (confirmed live, curl, 2026-09-12) are `time`/
+         * `price`/`size`/`side` - none of those four names exist on the
+         * actual response. Every comparison against them was `undefined`,
+         * so `usd` was always `NaN`, `usd < threshold` was always false (a
+         * NaN comparison), and the loop fell through to push a whale event
+         * with a `NaN` price and a `$NaNK` size - if HYPE ever had a
+         * qualifying trade, it would have alerted with garbage numbers, not
+         * silently done nothing. Filed as #1274, separately from this
+         * migration - it predates it and would exist whether or not this
+         * PR ever moved anything to Bybit. */
+        const data = await res.json() as { result?: { list?: Array<{ time: string; price: string; size: string; side: string }> } };
+        const trades = (data.result?.list ?? []).filter(t => Number(t.time) >= since);
+        const label  = LABELS[coin];
+        for (const t of trades) {
+          const usd = parseFloat(t.price) * parseFloat(t.size);
+          if (usd < threshold) continue;
+          const side = t.side === 'Buy' ? 'BUY' : 'SELL';
+          const key  = `whale_${coin}_${side}`;
+          if (onCooldown(key, CD.whale)) continue;
+          const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
+          const price    = parseFloat(t.price);
+          const priceStr = price.toLocaleString();
+          queue.push({
+            coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
+            title: `Whale ${side} ${usdFmt}`,
+            body: side === 'BUY'
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution\n\n<i>${stamp}</i>`,
+          });
+          markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
+        }
+      } catch { /* skip */ }
+    }),
+    /* ── FET, Binance only (#1266 step 2) ──
+     * Bybit lists no linear perp for FET at all (lib/coins.ts) - confirmed
+     * live, not assumed. This is the one coin this check cannot move for,
+     * a documented decision rather than a silent gap: if Binance blocks
+     * this server, FET's whale check shows up in #1270's skip count same
+     * as before this migration, and every other coin keeps working. */
+    async () => {
+      const coin = 'fet';
+      const threshold = WHALE_THRESHOLD[coin];
+      if (!threshold || BYBIT_SYMS[coin]) return; // guard: only runs if fet truly has no Bybit path
+      const sym = BINANCE_PERP[coin];
+      if (!sym) return;
+      const res = await fetchOrSkip(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+      if (!res) return;
+      try {
         const trades = await res.json() as AggTrade[];
         const label  = LABELS[coin];
         for (const t of trades) {
@@ -699,40 +851,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
           markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
         }
       } catch { /* skip */ }
-    }),
-    // ── Bybit-only coins (HYPE) ──
-    ...Object.entries(BYBIT_KLINE_SYMS).map(([coin, sym]) => async () => {
-      const threshold = WHALE_THRESHOLD[coin];
-      if (!threshold) return;
-      try {
-        const res = await fetch(
-          `https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=${sym}&limit=1000`,
-          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
-        );
-        if (!res.ok) return;
-        const data = await res.json() as { result?: { list?: Array<{ T: number; p: string; v: string; S: string }> } };
-        const trades = (data.result?.list ?? []).filter(t => t.T >= since);
-        const label  = LABELS[coin];
-        for (const t of trades) {
-          const usd = parseFloat(t.p) * parseFloat(t.v);
-          if (usd < threshold) continue;
-          const side = t.S === 'Buy' ? 'BUY' : 'SELL';
-          const key  = `whale_${coin}_${side}`;
-          if (onCooldown(key, CD.whale)) continue;
-          const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
-          const price    = parseFloat(t.p);
-          const priceStr = price.toLocaleString();
-          queue.push({
-            coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
-            title: `Whale ${side} ${usdFmt}`,
-            body: side === 'BUY'
-              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation\n\n<i>${stamp}</i>`
-              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution\n\n<i>${stamp}</i>`,
-          });
-          markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
-        }
-      } catch { /* skip */ }
-    }),
+    },
   ], 5);
   return fired;
 }
@@ -786,45 +905,19 @@ interface OIHistItem { sumOpenInterest: string; timestamp: number }
 async function checkOISpike(stamp: string, prices: Record<string, number>, queue: SignalEntry[], skipCounts: SkipCounts): Promise<string[]> {
   const fired: string[] = [];
   await runBatched([
-    // ── Binance perp coins ──
-    ...Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
-    try {
-      const res = await fetchOrSkip(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+    /* ── Bybit linear, every coin it lists (#1266 step 2) ──
+     * Was two branches; merged into one for the same reason as checkWhales -
+     * both read the same Bybit endpoint (verified live, 200 OK, matches the
+     * field names already in use here - unlike checkWhales' recent-trade,
+     * this one was NOT carrying a field-name bug). BYBIT_SYMS covers every
+     * migrated coin plus the pre-existing Bybit-only ones. */
+    ...Object.entries(BYBIT_SYMS).map(([coin, sym]) => async () => {
+      const res = await fetchOrSkip(
+        `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=5min&limit=13`,
+        { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit',
+      );
       if (!res) return;
-      const data  = await res.json() as OIHistItem[];
-      if (data.length < 12) return;
-      const oldest = parseFloat(data[0].sumOpenInterest);
-      const newest = parseFloat(data[data.length - 1].sumOpenInterest);
-      if (oldest === 0) return;
-      const pct   = (newest - oldest) / oldest * 100;
-      const label = LABELS[coin];
-      const price = prices[coin];
-
-      if (Math.abs(pct) >= 15) {
-        const dir = pct > 0 ? 'spike' : 'drop';
-        const key = `oi_${dir}_${coin}`;
-        if (onCooldown(key, CD.oi)) return;
-
-        queue.push({
-          coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
-          title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
-          body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
-            `Open interest changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
-            `Signal: ${pct > 0 ? 'New money entering - big move likely building' : 'Positions closing - potential trend reversal'}` +
-            `\n\n<i>${stamp}</i>`,
-        });
-        markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
-      }
-    } catch { /* skip */ }
-    }),
-    // ── Bybit-only coins (HYPE) ──
-    ...Object.entries(BYBIT_KLINE_SYMS).map(([coin, sym]) => async () => {
       try {
-        const res = await fetch(
-          `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=5min&limit=13`,
-          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
-        );
-        if (!res.ok) return;
         const data = await res.json() as { result?: { list?: Array<{ openInterest: string }> } };
         const list = data.result?.list ?? [];
         if (list.length < 12) return;
@@ -851,6 +944,39 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
         }
       } catch { /* skip */ }
     }),
+    /* ── FET, Binance only (#1266 step 2) ── same reasoning as checkWhales. */
+    async () => {
+      const coin = 'fet';
+      if (BYBIT_SYMS[coin]) return; // guard: only runs if fet truly has no Bybit path
+      const sym = BINANCE_PERP[coin];
+      if (!sym) return;
+      const res = await fetchOrSkip(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+      if (!res) return;
+      try {
+        const data  = await res.json() as OIHistItem[];
+        if (data.length < 12) return;
+        const oldest = parseFloat(data[0].sumOpenInterest);
+        const newest = parseFloat(data[data.length - 1].sumOpenInterest);
+        if (oldest === 0) return;
+        const pct   = (newest - oldest) / oldest * 100;
+        const label = LABELS[coin];
+        const price = prices[coin];
+        if (Math.abs(pct) >= 15) {
+          const dir = pct > 0 ? 'spike' : 'drop';
+          const key = `oi_${dir}_${coin}`;
+          if (onCooldown(key, CD.oi)) return;
+          queue.push({
+            coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
+            title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
+            body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
+              `Open interest changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
+              `Signal: ${pct > 0 ? 'New money entering - big move likely building' : 'Positions closing - potential trend reversal'}` +
+              `\n\n<i>${stamp}</i>`,
+          });
+          markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
+        }
+      } catch { /* skip */ }
+    },
   ], 5);
   return fired;
 }
