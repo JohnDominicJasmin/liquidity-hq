@@ -121,11 +121,61 @@ function formatRemaining(mins: number): string {
  *  path segment. Derived from the URL rather than a hand-kept table, so a
  *  route with no nav entry still names itself instead of showing a generic
  *  placeholder or, worse, the wrong screen's name. */
+/* #1121: every route beyond ITEMS' five fell back to the raw URL segment,
+ * lowercased with hyphens turned to spaces - so /econ-calendar rendered as
+ * literal "econ calendar" in the mobile header. The design's mockups show
+ * curated names in that slot (CALENDAR, ALERTS, SETTINGS) and only ITEMS'
+ * five were ever wired up.
+ *
+ * A dedicated key per route, not a reuse of the (often longer) NAV_* label
+ * the drawer shows for the same route - Economic Calendar there, Calendar
+ * here, Liquidation Map there, Liq Map here. Short on purpose: #1120 makes
+ * this element truncate with an ellipsis when the header runs out of room,
+ * so a name that always truncates is a badly chosen name, same reasoning
+ * ITEMS' own five short labels already follow.
+ *
+ * Legal/marketing pages (about, faq, terms, privacy, refund, disclaimer)
+ * included even though they're rarely the active tab on mobile - they still
+ * render inside the app shell (see lib/navRoutes.ts's OWN_NAV_ROUTES
+ * comment on which pages do and don't), so they still hit this header. */
+const SCREEN_NAMES: Record<string, LabelKey> = {
+  '/briefing':      'TNAV_BRIEFING_LABEL',
+  '/markets':       'TNAV_MARKETS_LABEL',
+  '/liq':           'TNAV_LIQ_LABEL',
+  '/correlation':   'TNAV_CORRELATION_LABEL',
+  '/research':      'TNAV_RESEARCH_LABEL',
+  '/calc':          'TNAV_CALC_LABEL',
+  '/econ-calendar': 'TNAV_CALENDAR_LABEL',
+  '/alerts':        'TNAV_ALERTS_LABEL',
+  '/hours':         'TNAV_HOURS_LABEL',
+  '/playbook':      'TNAV_PLAYBOOK_LABEL',
+  '/news':          'TNAV_NEWS_LABEL',
+  '/settings':      'TNAV_SETTINGS_LABEL',
+  '/upgrade':       'TNAV_UPGRADE_LABEL',
+  '/about':         'TNAV_ABOUT_LABEL',
+  '/faq':           'TNAV_FAQ_LABEL',
+  '/terms':         'TNAV_TERMS_LABEL',
+  '/privacy':       'TNAV_PRIVACY_LABEL',
+  '/refund':        'TNAV_REFUND_LABEL',
+  '/disclaimer':    'TNAV_DISCLAIMER_LABEL',
+};
+
+// Title-cases each word of a raw route segment - "econ calendar" becomes
+// "Econ Calendar" rather than staying lowercase. This is deliberately still
+// only a fallback: a future route added without a SCREEN_NAMES entry reads
+// as a reasonable placeholder instead of the URL slug verbatim, but the
+// right fix for THAT route is still adding it above, not relying on this.
+function titleCase(s: string): string {
+  return s.split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+}
+
 function screenNameFor(pathname: string, t: (k: LabelKey) => string): string {
   const item = ITEMS.find(i => pathname === i.href || pathname.startsWith(i.href + '/'));
   if (item) return t(item.tabLabelKey);
+  const matchPath = Object.keys(SCREEN_NAMES).find(p => pathname === p || pathname.startsWith(p + '/'));
+  if (matchPath) return t(SCREEN_NAMES[matchPath]);
   const seg = pathname.split('/').filter(Boolean).pop();
-  return seg ? seg.replace(/-/g, ' ') : '';
+  return seg ? titleCase(seg.replace(/-/g, ' ')) : '';
 }
 
 /* The two groups the current design's nav discloses, same names and same

@@ -370,6 +370,17 @@ export const LABEL_KEYS = [
   'TNAV_WORDMARK', 'TNAV_ARIA_LABEL', 'TNAV_MORE_ARIA',
   'TNAV_DESK_LABEL', 'TNAV_DESK_TAB_LABEL', 'TNAV_ARENA_LABEL',
   'TNAV_SCAN_LABEL', 'TNAV_FLOW_LABEL', 'TNAV_BOOK_LABEL',
+  // #1121: mobile header screen names for every route beyond the five above.
+  // Deliberately separate from the (often longer) NAV_* label the drawer
+  // shows for the same route - short on purpose, same reasoning as the
+  // five TNAV_*_LABEL keys already here.
+  'TNAV_BRIEFING_LABEL', 'TNAV_MARKETS_LABEL', 'TNAV_LIQ_LABEL',
+  'TNAV_CORRELATION_LABEL', 'TNAV_RESEARCH_LABEL', 'TNAV_CALC_LABEL',
+  'TNAV_CALENDAR_LABEL', 'TNAV_ALERTS_LABEL', 'TNAV_HOURS_LABEL',
+  'TNAV_PLAYBOOK_LABEL', 'TNAV_NEWS_LABEL', 'TNAV_SETTINGS_LABEL',
+  'TNAV_UPGRADE_LABEL', 'TNAV_ABOUT_LABEL', 'TNAV_FAQ_LABEL',
+  'TNAV_TERMS_LABEL', 'TNAV_PRIVACY_LABEL', 'TNAV_REFUND_LABEL',
+  'TNAV_DISCLAIMER_LABEL',
   'DASH_COIN_SIGNALS_HEADER', 'DASH_BEST_SETUP_TODAY_HEADER', 'DASH_SELECTED_COIN_OPEN_ARENA',
   /* Used by app/dashboard/page.tsx - the CURRENT-design dashboard, which this
      revert does not touch. It sat in the same block as the canvas-era keys and
