@@ -1964,6 +1964,8 @@
   "ONBOARDING_FLOW_CONTINUE": "Continue →",
   "ONBOARDING_FLOW_SKIP_QUESTION": "Skip this question →",
   "ONBOARDING_FLOW_LOADING": "Loading…",
+  "ONBOARDING_FLOW_PREPARING_TITLE": "Setting up your account…",
+  "ONBOARDING_FLOW_PREPARING_SUB": "This only takes a moment.",
   "ONBOARDING_FLOW_FOOTER_DISCLAIMER": "LiquidityHQ provides data analytics and software tools for informational purposes only. This is not financial, investment, or trading advice. Trade at your own risk.",
   "ONBOARDING_FLOW_FOOTER_TERMS": "Terms of Use",
   "ONBOARDING_FLOW_FOOTER_PRIVACY": "Privacy Policy",
