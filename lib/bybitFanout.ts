@@ -46,8 +46,16 @@ export interface FanoutResult {
    *  back off for the TTL, versus look at why the upstream is patchy.
    *
    *  Same reason /api/market/snapshot reports `banned` separately from a short
-   *  map, and the same reason `partial` exists on its response at all. */
+   *  map, and the same reason `partial` exists on its response at all.
+   *
+   *  Describes the PRIMARY pass only - a run that hit this can still finish
+   *  complete via `fallback` below; the two are independent signals. */
   stopped: boolean;
+  /** Symbols served by `fallback` rather than the primary upstream (#1077).
+   *  Omitted when no symbol needed it, so an all-primary run's shape is
+   *  unchanged and `'viaFallback' in result` is a valid check, the same
+   *  convention `stopped` above already uses. */
+  viaFallback?: string[];
 }
 
 /**
@@ -85,6 +93,20 @@ export async function bybitFanout(
  * `symbols` must be a CLOSED set for the same reason the Bybit version uses one:
  * the cache key is per (endpoint, params), and the fan-out width is the symbol
  * count, so free-text symbols would be both a key leak and an egress amplifier.
+ *
+ * @param fallback #1077: a second exchange to retry for whatever the primary
+ * didn't answer for. Runs as its OWN bounded pool, over only the symbols
+ * still missing after the primary pass - not inline per-symbol inside the
+ * primary's own pool. That distinction matters under a real ban: the
+ * primary pool already stops early on the first 418/429/403 (`isRateLimitStatus`
+ * below) rather than spending the rest of its requests into an active ban, and
+ * an inline retry would defeat that by making every remaining symbol try the
+ * banned host once more before falling back. Retrying only what's missing,
+ * once, after the primary pool has already made its stop-or-continue decision,
+ * gets every symbol a real chance at the fallback without that cost. A symbol
+ * with no fallback mapping (`buildUrl` throwing for it, e.g. a coin the
+ * fallback exchange doesn't list) is caught by this pool's own per-item
+ * handling exactly like a normal miss - it stays missing, same as today.
  */
 export async function symbolFanout(
   symbols: string[],
@@ -92,6 +114,11 @@ export async function symbolFanout(
   ttlMs: number,
   buildUrl: (symbol: string) => string,
   pick: (body: unknown) => unknown,
+  // `pick` takes the symbol too - unlike the primary `pick` above, a fallback
+  // conversion routinely needs it (e.g. #1233's per-coin price factor), and
+  // the primary signature couldn't change without touching every existing
+  // caller of this function.
+  fallback?: { buildUrl: (symbol: string) => string; pick: (body: unknown, symbol: string) => unknown },
 ): Promise<FanoutResult> {
   return cached(key, ttlMs, async () => {
     /* Bounded, not `symbols.map` inside allSettled (#665).
@@ -122,6 +149,19 @@ export async function symbolFanout(
       if (v != null) data[sym] = v;
     }, isRateLimitStatus);
 
+    const viaFallback: string[] = [];
+    if (fallback) {
+      const missing = symbols.filter(s => !(s in data));
+      if (missing.length > 0) {
+        await runPool(missing, DEFAULT_CONCURRENCY, async (sym) => {
+          const r = await fetch(fallback.buildUrl(sym), { cache: 'no-store' });
+          if (!r.ok) throw new HttpStatusError(r.status, `${sym} fallback ${r.status}`);
+          const v = fallback.pick(await r.json(), sym);
+          if (v != null) { data[sym] = v; viaFallback.push(sym); }
+        }, isRateLimitStatus);
+      }
+    }
+
     /* Throwing on a total wipeout rather than caching an empty map. `cached()`
        does not store a rejection, so a refused upstream is retried by the next
        caller instead of being pinned for the TTL - and the route turns this into
@@ -130,6 +170,9 @@ export async function symbolFanout(
       throw new Error(`fan-out returned nothing for all ${symbols.length} symbols`);
     }
 
-    return { data, ok: Object.keys(data).length, total: symbols.length, stopped };
+    return {
+      data, ok: Object.keys(data).length, total: symbols.length, stopped,
+      ...(viaFallback.length ? { viaFallback } : {}),
+    };
   });
 }
