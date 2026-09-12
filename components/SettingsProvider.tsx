@@ -27,6 +27,11 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   const { user, loading: authLoading } = useAuth();
   const [settings,   setSettings]   = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading,    setLoading]    = useState(true);
+  // #1246: see lib/settings.ts's own comment on why this is separate from
+  // `loading`. False until the authoritative source (DB row for a signed-in
+  // user, or a confirmed sign-out) has actually been consulted once for the
+  // CURRENT account - goes false again if the account changes.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -228,11 +233,20 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       // in on a shared browser. Now namespaced by user id, so a different
       // account's sign-in reads its own key and never sees this one -
       // nothing left here to protect against.
+      // #1246: a confirmed sign-out IS an authoritative answer - there is no
+      // row to wait for, so DEFAULT_SETTINGS is correct as-is and a consumer
+      // gating on settingsLoaded should not stay blocked forever here.
+      setSettingsLoaded(true);
       return;
     }
     const sb = getSupabase();
     if (!sb) return;
     setLoading(true);
+    // #1246: a new account id means its row hasn't been read yet, even
+    // though the PREVIOUS account's had - without this, switching accounts
+    // in one session would leave settingsLoaded true from the old account
+    // for the instant before the new read resolves.
+    setSettingsLoaded(false);
     sb.from(T.user_settings)
       .select('*')
       .eq('user_id', user.id)
@@ -281,7 +295,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
           } catch { /* ignore */ }
         }
         setLoading(false);
-      }, () => setLoading(false));
+        setSettingsLoaded(true);
+      }, () => { setLoading(false); setSettingsLoaded(true); });
   }, [user?.id, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Re-read from Supabase on demand ───────────────────────────────────────
@@ -347,8 +362,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // setting actually changed. update/refresh/flushToDb are already useCallback'd,
   // so the identity is stable until the values genuinely move.
   const value = useMemo(
-    () => ({ settings, loading, saveStatus, update, refresh }),
-    [settings, loading, saveStatus, update, refresh],
+    () => ({ settings, loading, settingsLoaded, saveStatus, update, refresh }),
+    [settings, loading, settingsLoaded, saveStatus, update, refresh],
   );
 
   return (
