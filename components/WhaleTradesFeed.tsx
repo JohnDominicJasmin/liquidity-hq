@@ -4,6 +4,7 @@ import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { nextSource, stableEnoughToSwitchBack } from '@/lib/exchangeFailover';
 
 /* ── Binance futures combined aggTrade stream, Bybit publicTrade on failover ──
    #1059: client-side failover - a browser that cannot reach Binance (blocked
@@ -28,6 +29,10 @@ const BB_TOPICS = COIN_IDS.map(c => `publicTrade.${BYBIT_SYMS[c]}`);
 
 const BN_MAX_RETRIES = 5;       // same shape as MarketProvider's ticker WS failover
 const BN_RETRY_WHILE_ON_BB_MS = 60_000; // how often to re-try Binance while parked on Bybit
+// PR #1228 / QA's hysteresis ask: Binance must stay open this long before a
+// switch back commits, so a Binance connection that opens then drops within
+// a second or two doesn't bounce the feed between exchanges on every blip.
+const BN_STABLE_MS = 3_000;
 
 const MIN_USD  = 50_000;      // $50K  - large trade threshold
 const BIG_USD  = 200_000;     // $200K - whale
@@ -99,6 +104,7 @@ export default function WhaleTradesFeed() {
     let bnRetries = 0;
     let bbHostIdx = 0;
     let bbRetryTimer: ReturnType<typeof setInterval> | null = null;
+    let confirmTimer: ReturnType<typeof setTimeout> | null = null;
     let active: 'binance' | 'bybit' = 'binance';
 
     function connectBN() {
@@ -108,33 +114,48 @@ export default function WhaleTradesFeed() {
       ws.onopen = () => {
         if (!alive) return;
         bnRetries = 0;
-        active = 'binance';
-        setSource('binance');
         setStatus('live');
-        // Binance recovered - stop paying for a fallback we no longer need.
-        if (bbRetryTimer) { clearInterval(bbRetryTimer); bbRetryTimer = null; }
-        if (bbWs) { const old = bbWs; bbWs = null; try { old.close(); } catch { /* */ } }
+        if (active !== 'bybit') { active = 'binance'; return; }
+        // Recovering from Bybit - don't commit the switch back immediately
+        // (PR #1228 hysteresis ask). Bybit keeps running until Binance has
+        // proven stable for BN_STABLE_MS; a drop before then just cancels
+        // the pending switch and leaves Bybit as the active source.
+        const openedAt = Date.now();
+        if (confirmTimer) clearTimeout(confirmTimer);
+        confirmTimer = setTimeout(() => {
+          confirmTimer = null;
+          if (!alive || bnWs !== ws) return; // this socket is no longer current
+          if (!stableEnoughToSwitchBack(openedAt, Date.now(), BN_STABLE_MS)) return;
+          active = 'binance';
+          setSource('binance');
+          if (bbRetryTimer) { clearInterval(bbRetryTimer); bbRetryTimer = null; }
+          if (bbWs) { const old = bbWs; bbWs = null; try { old.close(); } catch { /* */ } }
+        }, BN_STABLE_MS);
       };
       ws.onerror = () => { try { ws.close(); } catch { /* */ } };
       ws.onclose = () => {
         if (!alive) return;
         setStatus('error');
+        if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
         bnRetries++;
-        if (bnRetries <= BN_MAX_RETRIES) {
-          setTimeout(connectBN, 2000 * bnRetries);
-          return;
-        }
         // #1059: Binance exhausted its retries - fail over to Bybit for the
         // same coins rather than leaving the feed dead. Keep retrying Binance
         // in the background so a recovered connection can take back over.
-        if (active !== 'bybit') {
-          active = 'bybit';
-          setSource('bybit');
-          connectBB();
-          if (!bbRetryTimer) {
-            bbRetryTimer = setInterval(() => { bnRetries = 0; connectBN(); }, BN_RETRY_WHILE_ON_BB_MS);
+        const decided = nextSource(active, bnRetries, BN_MAX_RETRIES);
+        if (decided === 'bybit') {
+          if (active !== 'bybit') {
+            active = 'bybit';
+            setSource('bybit');
+            connectBB();
+            if (!bbRetryTimer) {
+              bbRetryTimer = setInterval(() => { bnRetries = 0; connectBN(); }, BN_RETRY_WHILE_ON_BB_MS);
+            }
           }
+          // else: already parked on Bybit - the background bbRetryTimer owns
+          // the next attempt, so don't also fast-retry here.
+          return;
         }
+        setTimeout(connectBN, 2000 * bnRetries);
       };
       ws.onmessage = (ev) => {
         try {
@@ -201,6 +222,7 @@ export default function WhaleTradesFeed() {
       alive = false;
       clearInterval(iv);
       if (bbRetryTimer) clearInterval(bbRetryTimer);
+      if (confirmTimer) clearTimeout(confirmTimer);
       try { bnWs?.close(); } catch { /* */ }
       try { bbWs?.close(); } catch { /* */ }
     };

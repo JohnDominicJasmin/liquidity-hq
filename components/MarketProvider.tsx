@@ -10,6 +10,7 @@ import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
+import { nextSource, stableEnoughToSwitchBack } from '@/lib/exchangeFailover';
 
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
@@ -1249,11 +1250,16 @@ export default function MarketProvider(
     const BB_LIQ_TOPICS = CASCADE_COIN_IDS.map(c => `allLiquidation.${BYBIT_SYMS[c]}`);
     const BN_MAX_RETRIES = 5;
     const BN_RETRY_WHILE_ON_BB_MS = 60_000;
+    // PR #1228 / QA's hysteresis ask: Binance must stay open this long before
+    // a switch back commits, so a Binance connection that opens then drops
+    // within a second or two doesn't bounce the detector between exchanges.
+    const BN_STABLE_MS = 3_000;
 
     let bnWs: WebSocket | null = null;
     let bbWs: WebSocket | null = null;
     let bnRetryTimer: ReturnType<typeof setTimeout> | null = null;
     let bbRetryTimer: ReturnType<typeof setInterval> | null = null;
+    let confirmTimer: ReturnType<typeof setTimeout> | null = null;
     let bnRetries = 0;
     let bbHostIdx = 0;
     let active: 'binance' | 'bybit' = 'binance';
@@ -1275,9 +1281,21 @@ export default function MarketProvider(
       ws.onopen = () => {
         if (!alive) return;
         bnRetries = 0;
-        active = 'binance';
-        if (bbRetryTimer) { clearInterval(bbRetryTimer); bbRetryTimer = null; }
-        if (bbWs) { const old = bbWs; bbWs = null; try { old.close(); } catch { /* */ } }
+        if (active !== 'bybit') { active = 'binance'; return; }
+        // Recovering from Bybit - don't commit the switch back immediately
+        // (PR #1228 hysteresis ask). Bybit keeps feeding the detector until
+        // Binance has proven stable for BN_STABLE_MS; a drop before then
+        // just cancels the pending switch and leaves Bybit active.
+        const openedAt = Date.now();
+        if (confirmTimer) clearTimeout(confirmTimer);
+        confirmTimer = setTimeout(() => {
+          confirmTimer = null;
+          if (!alive || bnWs !== ws) return; // this socket is no longer current
+          if (!stableEnoughToSwitchBack(openedAt, Date.now(), BN_STABLE_MS)) return;
+          active = 'binance';
+          if (bbRetryTimer) { clearInterval(bbRetryTimer); bbRetryTimer = null; }
+          if (bbWs) { const old = bbWs; bbWs = null; try { old.close(); } catch { /* */ } }
+        }, BN_STABLE_MS);
       };
       ws.onmessage = (e) => {
         try {
@@ -1294,21 +1312,25 @@ export default function MarketProvider(
       };
       ws.onclose = () => {
         if (!alive) return;
+        if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
         bnRetries++;
-        if (bnRetries <= BN_MAX_RETRIES) {
-          bnRetryTimer = setTimeout(connectBN, 5_000);
-          return;
-        }
         // #1059: Binance exhausted its retries - fail over to Bybit for the
         // same coins rather than the detector going silent. Keep retrying
         // Binance in the background so a recovered connection takes back over.
-        if (active !== 'bybit') {
-          active = 'bybit';
-          connectBB();
-          if (!bbRetryTimer) {
-            bbRetryTimer = setInterval(() => { bnRetries = 0; connectBN(); }, BN_RETRY_WHILE_ON_BB_MS);
+        const decided = nextSource(active, bnRetries, BN_MAX_RETRIES);
+        if (decided === 'bybit') {
+          if (active !== 'bybit') {
+            active = 'bybit';
+            connectBB();
+            if (!bbRetryTimer) {
+              bbRetryTimer = setInterval(() => { bnRetries = 0; connectBN(); }, BN_RETRY_WHILE_ON_BB_MS);
+            }
           }
+          // else: already parked on Bybit - the background bbRetryTimer owns
+          // the next attempt, so don't also fast-retry here.
+          return;
         }
+        bnRetryTimer = setTimeout(connectBN, 5_000);
       };
       ws.onerror = () => { try { ws.close(); } catch { /* */ } };
     }
@@ -1337,7 +1359,16 @@ export default function MarketProvider(
             if (!coin) return;
             const price = parseFloat(d.p ?? '0');
             const qty   = parseFloat(d.v ?? '0');
-            // S:"Buy" = long position liquidated; S:"Sell" = short liquidated
+            // allLiquidation's S is the LIQUIDATED POSITION's own side, not the
+            // taker's - a different field semantic from publicTrade.S below
+            // (WhaleTradesFeed.tsx), which IS the taker's side. Bybit's own
+            // v5 docs: "S string: Position side. Buy, Sell. When you receive
+            // a Buy update, this means that a long position has been
+            // liquidated." https://bybit-exchange.github.io/docs/v5/websocket/public/all-liquidation
+            // Confirmed against the raw doc page, not a summary (PM/DevOps,
+            // PR #1228) - three liquidation/trade streams in this codebase
+            // use three different S conventions and this one looks inverted
+            // against the other two while being correct. Do not "fix" it.
             const side: 'LONG' | 'SHORT' = d.S === 'Buy' ? 'LONG' : 'SHORT';
             recordLiq(coin, side, price * qty);
           });
@@ -1410,6 +1441,7 @@ export default function MarketProvider(
       clearInterval(analyzer);
       if (bnRetryTimer) clearTimeout(bnRetryTimer);
       if (bbRetryTimer) clearInterval(bbRetryTimer);
+      if (confirmTimer) clearTimeout(confirmTimer);
       try { bnWs?.close(); } catch { /* */ }
       try { bbWs?.close(); } catch { /* */ }
     };
