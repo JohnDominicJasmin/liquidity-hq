@@ -209,12 +209,104 @@ const PASSTHROUGH: Record<string, PassEntry> = {
                            return { bids: result.b, asks: result.a };
                          },
                        } },
+  /* #1238 (#1077 split): only the no-`symbol` (batch, every coin) mode has a
+   * fallback - the only mode components/MarketProvider.tsx's fetchPremiumIndex
+   * (its one real caller) uses. A `symbol` request returns null and stays
+   * Binance-only.
+   *
+   * NOT a reconstruction of Binance's own next-funding FORMULA (mark/index
+   * basis + a clamped interest-rate leg) - PM caught in review that setting
+   * a fake `interestRate` to zero the clamp would quietly change what the
+   * number means (Binance's real formula adds roughly a 0.01% interest
+   * leg, so near-zero premiums would read systematically lower with
+   * nothing saying so). Bybit already PUBLISHES its own predicted-funding
+   * figure (`fundingRate` - confirmed live across BTC/ETH/TAO/GMT, all
+   * populated) rather than requiring a client-side estimate the way
+   * Binance's premiumIndex does. So this maps it to `lastFundingRate` - a
+   * REAL field on Binance's own premiumIndex shape that this route's one
+   * consumer happens not to read today - and the consumer is updated
+   * (components/MarketProvider.tsx) to use that field directly instead of
+   * running its formula whenever the response is fallback-sourced
+   * (`X-Data-Source` header), rather than have this route lie about having
+   * an interest-rate input it does not. */
   'premium-index':   { url: 'https://fapi.binance.com/fapi/v1/premiumIndex',
-                       params: ['symbol'], ttlMs: 60_000 },
+                       params: ['symbol'], ttlMs: 60_000,
+                       bybitFallback: {
+                         buildUrl: (req) => {
+                           const symbol = req.nextUrl.searchParams.get('symbol');
+                           if (symbol) return null; // single-symbol mode has no caller today
+                           return 'https://api.bybit.com/v5/market/tickers?category=linear';
+                         },
+                         convert: (body) => {
+                           const list = (body as { result?: { list?: Array<{
+                             symbol: string; markPrice: string; indexPrice: string;
+                             fundingRate: string; nextFundingTime: string;
+                           }> } })?.result?.list;
+                           if (!Array.isArray(list) || list.length === 0) return null;
+                           return list.map(t => ({
+                             symbol: t.symbol,
+                             markPrice: t.markPrice,
+                             indexPrice: t.indexPrice,
+                             lastFundingRate: t.fundingRate,
+                             nextFundingTime: Number(t.nextFundingTime),
+                           }));
+                         },
+                       } },
   'oi-hist':         { url: 'https://fapi.binance.com/futures/data/openInterestHist',
-                       params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
+                       params: ['symbol', 'period', 'limit'], ttlMs: 120_000,
+                       bybitFallback: {
+                         /* lib/useOI1h.ts (the only consumer this route's OI
+                          * types feed) already routes each coin to exactly
+                          * one source via a static per-coin map - no
+                          * side-by-side comparison exists to corrupt the way
+                          * lsr-global's does (see that entry's own comment
+                          * for why THAT one stays Binance-only). Safe to
+                          * fail over per #1240's established shape. */
+                         buildUrl: (req) => {
+                           const symbol = req.nextUrl.searchParams.get('symbol');
+                           if (!symbol) return null;
+                           const limit = req.nextUrl.searchParams.get('limit') ?? '13';
+                           return `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=5min&limit=${limit}`;
+                         },
+                         /* Reshaped into Binance's openInterestHist array
+                          * shape - only `sumOpenInterest` (this route's own
+                          * consumers only ever read that field, confirmed by
+                          * reading lib/useOI1h.ts and app/api/telegram's
+                          * checkOISpike). `sumOpenInterestValue` (the USD
+                          * notional) is NOT fabricated - Bybit's
+                          * open-interest response has no directly
+                          * equivalent field, and useOI1h.ts's own Bybit
+                          * branch already treats plain `openInterest` as the
+                          * value it reads instead, so nothing here actually
+                          * needs it. */
+                         convert: (body) => {
+                           const list = (body as { result?: { list?: Array<{ openInterest: string; timestamp: string }> } })?.result?.list;
+                           if (!Array.isArray(list) || list.length === 0) return null;
+                           // Bybit returns newest-first; Binance oldest-first.
+                           return [...list].reverse().map(item => ({
+                             sumOpenInterest: item.openInterest,
+                             timestamp: Number(item.timestamp),
+                           }));
+                         },
+                       } },
+  /* #1238: NOT given a Bybit fallback, deliberately. components/LiqTerminal.tsx
+   * already fetches Bybit's account-ratio-1 SEPARATELY and shows it as its
+   * own labelled series ("Bybit") right next to this endpoint's result
+   * (labelled "Retail"). Silently substituting Bybit data here during a
+   * Binance outage could show the IDENTICAL number under both labels -
+   * actively misleading, not merely imprecise, since a viewer reads
+   * "Retail" and "Bybit" as two independent facts corroborating (or not)
+   * each other. Confirmed by reading the component, not assumed. Stays
+   * Binance-only; a block shows up as a normal upstream failure, same as
+   * before this PR. */
   'lsr-global':      { url: 'https://fapi.binance.com/futures/data/globalLongShortAccountRatio',
                        params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
+  /* #1238: no Bybit equivalent exists at all - confirmed live,
+   * /v5/market/top-account-ratio and /v5/market/position-ratio both 404.
+   * Bybit's only trader-positioning endpoint is account-ratio (ALL
+   * accounts), not a "top trader" breakdown - the same gap #1266's
+   * coverage table found for the alert engine's identical Binance
+   * endpoint. Stays Binance-only; there is nothing to fail over to. */
   'lsr-top':         { url: 'https://fapi.binance.com/futures/data/topLongShortPositionRatio',
                        params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
   'funding-rate-1':  { url: 'https://fapi.binance.com/fapi/v1/fundingRate',
