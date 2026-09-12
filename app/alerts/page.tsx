@@ -872,10 +872,13 @@ export default function AlertsPage() {
               {priceAlerts.map(alert => (
                 <div key={alert.id} className="pa-row">
                   <span className="pa-coin">{COIN_LABELS[alert.coin] ?? alert.coin.toUpperCase()}</span>
-                  <span className="pa-dir">{alert.direction === 'above' ? '↑' : '↓'}</span>
+                  <span className="pa-dir">
+                    <span aria-hidden="true">{alert.direction === 'above' ? '↑' : '↓'}</span>
+                    <span className="sr-only">{alert.direction === 'above' ? t('ALERTS_DIR_ABOVE_SR') : t('ALERTS_DIR_BELOW_SR')}</span>
+                  </span>
                   <span className="pa-price">${parseFloat(String(alert.target_price)).toLocaleString()}</span>
                   {alert.label && <span className="pa-note">{alert.label}</span>}
-                  <button className="pa-del" onClick={() => deletePriceAlert(alert.id)}>✕</button>
+                  <button className="pa-del" aria-label={t('ALERTS_DELETE_ARIA')} onClick={() => deletePriceAlert(alert.id)}>✕</button>
                 </div>
               ))}
             </div>
