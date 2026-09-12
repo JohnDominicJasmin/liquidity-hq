@@ -32,6 +32,25 @@ mid-task. This one lives in the repo.
 blocked and why. A session that stops is more expensive than a session that picks
 the wrong item.
 
+**Filing issues: group them, don't scatter them.** This is the owner's instruction from
+2026-09-12, when open issues reached 52: *"if we have multiple small issues and they are
+related to each other or in similar page or problem just create one issue and put it all
+there"*. So:
+- **Before filing, check the open trackers** (`gh issue list --search "tracker in:title"`).
+  If one covers the page or problem, add your finding there as a checklist line in a
+  comment. Open a new issue only when nothing fits. If you're starting an area that will
+  collect findings, give it its own tracker, titled "… (tracker)".
+- **To fold an issue into a tracker,** run `gh issue close N --duplicate-of T` and leave a
+  comment that says where it went.
+- **A tracker closes only when every item on it is verified on production.** Folding an
+  issue in doesn't close it early, and the five conditions in `CLAUDE.md` still apply to
+  every item.
+- **Leave an issue alone while a PR that says "Fixes #N" is in flight.** Fold it in after
+  that PR lands.
+
+On 2026-09-12 this took the open count from 52 to 24: 13 trackers absorbed 28 issues. In
+the week before, 154 issues had been opened and 107 closed.
+
 ---
 
 ## Dev lane
