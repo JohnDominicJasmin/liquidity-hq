@@ -370,15 +370,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // schema directly); subscribing here means a ban takes effect the moment
   // an admin flips it, instead of waiting up to ~1h for the JWT to naturally
   // refresh and fail its own ban check.
+  // Keyed on the id, not `user` itself - see userId's own comment above
+  // (#1177): a new user object per setUser() call, same person, used to
+  // re-subscribe/unsubscribe this channel up to 3x per page load for no
+  // reason.
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     const sb = getSupabase();
     if (!sb) return;
     const channel = sb
-      .channel(`user-status-${user.id}`)
+      .channel(`user-status-${userId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: T.user_status, filter: `user_id=eq.${user.id}` },
+        { event: '*', schema: 'public', table: T.user_status, filter: `user_id=eq.${userId}` },
         (payload) => {
           if ((payload.new as { banned?: boolean } | null)?.banned) {
             localStorage.removeItem(LAST_ACTIVE_KEY);
@@ -397,7 +401,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       )
       .subscribe();
     return () => { sb.removeChannel(channel); };
-  }, [user]);
+  }, [userId]);
 
   // Retry-triggerable from outside this effect (the 'unknown'-state UI's
   // Retry button) - see retryEntitlements below.
