@@ -6644,6 +6644,26 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 [data-design="terminal"] .tnav-session-dot {
   width: 5px; height: 5px; background: var(--green); flex-shrink: 0;
 }
+/* #1114: .tnav overflows its own container from 768px (its own min-width
+   breakpoint) up to ~945px - measured, not estimated, on the closed issue:
+   177px of overflow at 768px, narrowing linearly to 0 at 950px. Traced to
+   this element as the largest single removable chunk, not confirmed live
+   (no browser check possible while the dev database is degraded - #1025 -
+   since any local server still hits it on mount regardless of the page
+   under test). The reasoning: the longest session name ('Mon Evening') plus
+   ' · Xh XXm' is up to ~21 characters at 11px monospace with .08em tracking,
+   which alone approaches the measured 177px gap at 768px before counting
+   its own dot and gaps.
+   Session status is supplementary (a countdown, not a route or control -
+   every destination this bar reaches stays reachable at every width above
+   767px regardless of this rule), which is why it is the one hidden here
+   rather than a nav item or the plan badge. Scoped to exactly the
+   overflowing band; at 945px and above the bar already fits and this
+   reverts to visible. NEEDS VISUAL CONFIRMATION once the database recovers
+   - see the issue for the follow-up measurement this PR is held on. */
+@media (min-width: 768px) and (max-width: 944px) {
+  [data-design="terminal"] .tnav-session { display: none; }
+}
 [data-design="terminal"] .tnav-kbd {
   color: var(--txt3);
   border: 1px solid var(--bdr);
