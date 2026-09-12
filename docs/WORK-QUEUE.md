@@ -36,15 +36,15 @@ the wrong item.
 
 ## Dev lane
 
-**Rewritten a fourth time on 2026-09-12, at ~20:40Z, after release #2 went live.** All
-of D3 (#1233–#1238), #1266 steps 1–2, #1278 and #1282's coalescing fix are **built and
-in review**: #1264, #1265, #1269, #1280→#1281, #1270→#1276→#1279, and #1283. The next
-item comes from QA's production re-check of release #2. **A queue that names finished
-work is worse than an empty one: it costs a session the time to discover it is wrong.**
+**Rewritten a fifth time on 2026-09-12, at ~21:15Z.** All of D3 (#1233–#1238), #1266
+steps 1–2, #1278 and #1282's coalescing fix are **merged to `dev`**, and together they're
+release #3's candidate. #1284 turned out to be a blind spot in the capture tool, not a
+bug, and it's closed. **Next: promote `dev` → `qa` for release #3, then D2.** **A queue
+that names finished work is worse than an empty one: it costs a session the time to
+discover it is wrong.**
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| D1 | **#1284: fear & greed, CMC dominance, alt-season and macro never fetch on production** | ~hours | **CLAIMED Dev 2026-09-12. User-visible, and first in line.** QA's #1252 step 3 found no requests to `/api/proxy?type=fng`, `/api/cmc?type=global`, `/api/cmc?type=altseason` or `/api/macro` on a hard reload. The routes work when called directly. Ruled out: the service worker (it only intercepts navigation requests), cache guards in the fetchers, and #1207's gating. **First, establish which of the mount effect's 15 calls actually fire.** The effect may be stopping at or before `fetchFNG`. Then check whether release #2 caused it, by comparing a build of `9fb45997` with one of `55a122c6`. |
 | D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | `PATCH /api/settings` already returns `rejected` plus the current `settings`, so the client should adopt them immediately and show a short notice. **Reuse #1188's save-status surface.** It's visible, so the owner approves the notice wording. |
 | D4 | **#1199: one retry-with-backoff utility** | ~half day | Two hand-written implementations exist, though #1188 said to reuse #1119's shape rather than write a second one. Extract a shared one, and **don't change either caller's timing** while doing it. The PR says what to assert; QA writes the tests. |
 | D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | #939's shape: meaning carried by a glyph alone, and a control with no accessible name. **Visual, so the owner sees it before it ships.** |
@@ -65,8 +65,8 @@ anything you touch.
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| Q1 | **Release #2 (#1252): what's left after the production re-check** | ~hours | **Re-checked on production at 20:34Z** (#1252). Steps 1–2 passed (settings save and the two-device conflict). **Step 3 failed** (market-context fetches never fire) and is now #1284, with Dev. Step 4 was inconclusive (the whale feed was quiet at the weekend). **Closed:** #1202, #1177 and #1107. **Reopened:** #1167, because its timeout path has never been forced live. Force it with a near-expiry token, or stub `getAuthToken` to time out. **Held:** #1192 until #1284 is fixed, and #1059 until the whale feed has been re-checked during a busier session. **Release #1's signed-in production check waits on the owner's A or B** (`docs/OWNER-BLOCKERS.md` row 12). |
-| Q2 | **Reviews, and release #3** | hours | Open for review: #1286 (docs). Dev reviews QA's #1273 and #1268. **#1220 and #1225 stay unmerged until the owner signs off their screenshots** (row 11). **Release #3:** `qa` holds #1222, #1244, #1250, #1253, #1256, #1257 and #1258. `dev` also holds #1245 and the whole D3/#1266/#1278/#1282 batch (checked with `git log --first-parent origin/staging..origin/qa` and `origin/qa..origin/dev` on 2026-09-12). **Promote `dev` → `qa` once #1284's fix lands**, then run the full pass. #1222 and #1244 need the owner's visual sign-off before release #3 ships. |
+| Q1 | **Release #2 (#1252): what's left after the production re-check** | ~hours | **Re-checked on production at 20:34Z** (#1252). Steps 1–2 passed (settings save and the two-device conflict). **Step 3 was reported failing, but that was the capture tool's blind spot.** At 21:13Z, QA and Dev each re-verified it as a pass using Resource Timing and the rendered values (#1284, closed). Step 4 was inconclusive (the whale feed was quiet at the weekend). **Closed:** #1202, #1177 and #1107. **Reopened:** #1167, because its timeout path has never been forced live. Force it with a near-expiry token, or stub `getAuthToken` to time out. **#1192 is off hold**, because step 3 passes: close it if its five conditions are met. **Held:** #1059, until the whale feed has been re-checked during a busier session. **Record the capture-tool blind spot** in `TEST_GAPS.md` or the QA docs. `read_network_requests` misses requests made in roughly the first 2 s of a fresh load, so use `performance.getEntriesByType('resource')` for load-time questions. **Release #1's signed-in production check waits on the owner's A or B** (`docs/OWNER-BLOCKERS.md` row 12). |
+| Q2 | **Reviews, and release #3** | hours | Open for review: #1286 (docs). Dev reviews QA's #1273 and #1268. **#1220 and #1225 stay unmerged until the owner signs off their screenshots** (row 11). **Release #3:** `qa` holds #1222, #1244, #1250, #1253, #1256, #1257 and #1258. `dev` also holds #1245 and the whole D3/#1266/#1278/#1282 batch (checked with `git log --first-parent origin/staging..origin/qa` and `origin/qa..origin/dev` on 2026-09-12). **#1284 needed no fix, so promote `dev` → `qa` now**, then run the full pass. #1222 and #1244 need the owner's visual sign-off before release #3 ships. |
 | Q3 | **Tests for what merges** | per PR | QA owns every test (owner ruling, 2026-09-07). #1250's are done (#1256). **#1253's are still owed**, and its PR says what to assert. |
 | Q4 | **#950: `layout.spec.ts` against a live run** | read-only | **Answered by #1252's run on 2026-09-12:** `layout.spec.ts` **passed** at `:430`, `:478` and `:626`, on both desktop and mobile. Post that on #950 with the run id (`34701414071`), then close it or say what's left. |
 | Q5 | **Open issues whose fix may already be on production** | ~1 hour | #1168, #1191, #1020, #1075 and #1173. For each one, check production or the issue's own thread, then **close it, or say on the issue exactly what's left.** #1119 also needs the owner's sign-off (`docs/OWNER-BLOCKERS.md` row 6). |
