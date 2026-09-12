@@ -117,6 +117,12 @@ export default function AlertsPage() {
   const [muted, setMuted]   = useState<Set<string>>(new Set());
   const [mutedLoaded, setMutedLoaded] = useState(false);
   const [muteErr, setMuteErr] = useState('');
+  // #1167: getAuthToken() returning no token means either "signed out" (no
+  // preferences exist) or "signed in, but the auth backend timed out" - two
+  // genuinely different facts that used to collapse into the same silent
+  // empty-mute default. See loadMutePrefs below, gated on authLoading/user so
+  // it can tell them apart before ever calling getAuthToken().
+  const [muteLoadFailed, setMuteLoadFailed] = useState(false);
   const [coinCapMsg, setCoinCapMsg] = useState('');
   const [tfCapMsg, setTfCapMsg] = useState('');
 
@@ -134,11 +140,22 @@ export default function AlertsPage() {
     fetch('/api/telegram/bot-info').then(r => r.json())
       .then(d => { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); })
       .catch(() => {});
+  }, []);
+
+  // #1167: waits for AuthProvider's own session resolve before doing anything,
+  // so "signed out" (user === null once authLoading settles) and "signed in,
+  // token fetch timed out" (getAuthToken() still returns nothing after that)
+  // are answered from two different, correctly-timed sources instead of one
+  // early call that could not tell them apart.
+  const loadMutePrefs = useCallback(() => {
+    if (!user) { setMutedLoaded(true); return; }
+    setMuteLoadFailed(false);
     getAuthToken().then(token => {
-      // Signed out: there are no preferences to wait for, and the pickers are
-      // not reachable anyway. Release the gate so a signed-out visitor is not
-      // left looking at skeletons forever.
-      if (!token) { setMutedLoaded(true); return; }
+      // Reached only when AuthProvider already confirmed a real signed-in
+      // user above - this is a genuine timeout/backend miss, not "signed
+      // out". Surfaced instead of silently presenting the empty-mute default
+      // as if it were the user's real, confirmed preferences.
+      if (!token) { setMuteLoadFailed(true); setMutedLoaded(true); return; }
       fetch('/api/alert-prefs', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then(async d => {
@@ -201,7 +218,7 @@ export default function AlertsPage() {
           // on, because turning a key on deletes its row, leaving them
           // indistinguishable from a brand-new user on the next visit.
         })
-        .catch(() => {})
+        .catch(() => setMuteLoadFailed(true))
         // Runs after the seeding awaits above, so the pickers unblock on the
         // final state rather than the intermediate one. On failure it still
         // fires: a user who cannot reach the API should get the pickers back
@@ -209,7 +226,14 @@ export default function AlertsPage() {
         // skeleton.
         .finally(() => setMutedLoaded(true));
     });
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    loadMutePrefs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id]);
 
   // ── Waiting for the user to finish in Telegram ──────────────────────────
   // Re-read settings on a timer while a code is outstanding: the webhook, not
@@ -907,6 +931,21 @@ export default function AlertsPage() {
           {t('ALERTS_MUTE_HINT_PREFIX')}
         </div>
         {muteErr && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
+        {/* #1167: distinct from muteErr above - this is "we don't actually know
+            your real mute settings yet", not a save failure. The toggles below
+            still render (safe default: nothing muted, same as before), this
+            just says not to trust them yet. */}
+        {muteLoadFailed && (
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--amber)', marginBottom: 8 }}>
+            {t('ALERTS_MUTE_LOAD_FAILED')}{' '}
+            <button
+              onClick={loadMutePrefs}
+              style={{ color: 'var(--amber)', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
+            >
+              {t('ALERTS_MUTE_LOAD_RETRY')}
+            </button>
+          </div>
+        )}
 
         {/* ── Alert coin selection - first, because it scopes everything below it:
             every condition further down only ever fires for the coins picked
