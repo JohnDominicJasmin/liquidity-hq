@@ -29,21 +29,23 @@ import { installMarketFixtures } from './_fixtures';
  * than claiming the gap is closed.
  */
 
-/** The two designs, and the element each one uses to name the active window.
+/** The one design left, and the element it uses to name the active window.
  *
- * PIN THE DESIGN, NEVER INHERIT IT (#844). This file used to seed no design and
- * read `div.session-pill`, which is the CURRENT design's app bar. That was
- * correct right up until #748 made terminal the default on every route, at
- * which point the selector stopped existing and the test failed with "the
- * session pill never rendered" - a message that reads like a broken feature and
- * was actually a spec looking at the wrong design.
- *
- * The feature is not missing in terminal. `TerminalNav.tsx` renders
- * `.tnav-session` from the same `getCurrentWindow()` in `lib/session.ts`. Two
- * components, one source of truth - so the clock behaviour is asserted in BOTH,
- * which is strictly more than this file used to prove. */
+ * PIN THE DESIGN, NEVER INHERIT IT (#844). This file used to seed no design
+ * and read `div.session-pill`, the CURRENT design's app bar - correct until
+ * #748 made terminal the default everywhere. #1259: the 'current' design
+ * itself is gone now, not just de-prioritized - #1109/#1111's retirement
+ * plan landed (#1174: "old design removed everywhere but Arena"), and
+ * `components/NavDrawer.tsx` renders `<TerminalNav>` unconditionally, no
+ * design-mode branching left to pin. `div.session-pill` doesn't exist
+ * anywhere in the component tree any more (confirmed: zero matches across
+ * every `.tsx` file). A spec asserting two designs agree or differ is
+ * exactly #1109's category-2 case once there is only one - delete, not
+ * shrink. `TerminalNav.tsx` renders `.tnav-session` from the same
+ * `getCurrentWindow()` in `lib/session.ts`, so the clock behaviour this
+ * file exists to prove is still covered, just through the one real
+ * component instead of two. */
 const DESIGNS = [
-  { design: 'current',  selector: 'div.session-pill'   },
   { design: 'terminal', selector: 'span.tnav-session'  },
 ] as const;
 
