@@ -6718,8 +6718,12 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      Scoped to `.tnav-right` specifically (not `.plan-badge-trial-days`
      alone) so the day count still shows everywhere else the badge renders
      (settings, upgrade) - only this nav, only this band, loses it.
-     `title="Trial"` on the parent span (PlanBadge.tsx) still carries the
-     same information to anyone who can't see this text. */
+     `title="Trial"` on the parent span (PlanBadge.tsx) does NOT carry the
+     day count - it says "Trial", nothing more. `TrialBanner` (mounted
+     globally in AppShell.tsx) is what still shows the live countdown to
+     anyone who can't see this text, on every page, every width - this
+     only removes the second, redundant copy of that number from one badge
+     in this one nav. */
   [data-design="terminal"] .tnav-right .plan-badge-trial-days { display: none; }
   /* Even bare "TRIAL" (5 characters) is enough more than "FREE" (4) to clip
      the avatar again at 768px once the day count above is gone - measured
