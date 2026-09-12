@@ -1,24 +1,15 @@
 'use client';
-import { useEffect, useCallback } from 'react';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import UsageRings from '@/components/UsageRings';
 import { useLabels } from '@/lib/labels';
+import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 
 interface Props { open: boolean; onClose: () => void; }
 
 export default function UsageModal({ open, onClose }: Props) {
   const { t } = useLabels();
   const { usage } = useGrokUsage();
-
-  const handleKey = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!open) return;
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, handleKey]);
+  const dialogRef = useDialogFocusTrap<HTMLDivElement>(open, onClose);
 
   if (!open) return null;
 
@@ -30,7 +21,7 @@ export default function UsageModal({ open, onClose }: Props) {
           alone onto a second row and read as an afterthought rather than one
           of the budgets. Still collapses to the viewport on mobile, where
           wrapping is expected. */}
-      <div className="smod-panel" data-testid="settings-modal" role="dialog" aria-modal="true" aria-label={t('USAGE_MODAL_TITLE')} style={{ maxHeight: 'none', width: 'min(460px, calc(100vw - 24px))' }}>
+      <div ref={dialogRef} tabIndex={-1} className="smod-panel" data-testid="settings-modal" role="dialog" aria-modal="true" aria-label={t('USAGE_MODAL_TITLE')} style={{ maxHeight: 'none', width: 'min(460px, calc(100vw - 24px))' }}>
         <div className="smod-header">
           <span className="smod-title">{t('USAGE_MODAL_TITLE')}</span>
           <button className="smod-close" onClick={onClose} aria-label="Close">✕</button>
