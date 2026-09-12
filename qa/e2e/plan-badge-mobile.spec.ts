@@ -32,17 +32,13 @@ import { AUTH_READY, AUTH_SKIP_REASON, signedInContext } from './_auth';
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
 
-test('PlanBadge renders at mobile width, design=current', async ({ browser }) => {
-  const ctx = await signedInContext(browser, 'a', { viewport: { width: 390, height: 844 } });
-  const page = await ctx.newPage();
-  await page.goto('/dashboard?design=current');
-
-  const badge = page.locator('.plan-badge:visible');
-  await expect(badge).toBeVisible({ timeout: 30_000 });
-  await expect(badge).toContainText('PRO');
-
-  await ctx.close();
-});
+/* #1259: the `design=current` case (mounted the same check with `?design=
+ * current`) is deleted, not shrunk - #1109's own ruling on this exact pair,
+ * written before this failed in CI. #1109/#1111's retirement landed
+ * (#1174: "old design removed everywhere but Arena") - `?design=current`
+ * is now inert, `NavDrawer.tsx` renders `<TerminalNav>` unconditionally, so
+ * the two cases asserted the same thing under two labels rather than
+ * covering two real designs. */
 
 /* #1094, closed by #1120: terminal's mobile chrome (.tnav-mhead) now mounts
  * its own PlanBadge, matching the desktop bar's. This test's first draft

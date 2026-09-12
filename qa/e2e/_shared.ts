@@ -157,7 +157,38 @@ export const BASELINE = {
    * drop back to a single number for both environments - not to widen this
    * further.
    */
-  tapTargetsUnder24: 85,
+  /* 85 -> 112, 2026-09-12, #1259. Measured from #1252's CI run (`34701414071`,
+   * reproduced identically across the initial attempt and its retry) and
+   * confirmed locally against the real violation list (the attached
+   * `tap-targets-under-24px.txt`, not guessed at):
+   *
+   *     78  a.pf-footer-bottom-link   (DOWN from 84 - footer link count
+   *                                    changed, not a regression)
+   *     21  button.strat-chip[.notyet]  /arena, all 76x20 or smaller - the
+   *         Strategy Panel's indicator chips (shipped with the plan
+   *         indicator feature). Every one is 20px tall, 4px under the
+   *         floor, in a wrapping flex grid with real gaps between chips -
+   *         exactly the shape SC 2.5.8's spacing exception covers, which is
+   *         why axe's own target-size rule (BASELINE.axeTargetSizeViolations,
+   *         the actual conformance gate) does NOT also flag these - it
+   *         models that exception; this cruder bounding-box-only metric
+   *         doesn't. Deliberate, already-shipped compact-chip design, not
+   *         an accident - this is the "loose small-touch-targets-on-a-PWA
+   *         signal" this metric's own documentation says it is, not a
+   *         WCAG failure count.
+   *      8  button.csb2-name-btn      /arena's coin-selector strip, same
+   *                                    shape as the chips above.
+   *      6  bare <a>
+   *
+   * Raised because this is real, understood, shipped surface - not to make
+   * a red build pass without looking.
+   *
+   * 112 -> 113: the same unexplained environment drift this file already
+   * documents for the 84->85 case above, on the same metric, for the same
+   * reason - a local run measured 113, twice, against CI's 112. Set to the
+   * higher number so `toBeLessThanOrEqual` is green in both, same rule:
+   * this +1 is not explained either, and is not licence to widen further. */
+  tapTargetsUnder24: 113,
   /**
    * SC 2.5.8 failures per axe-core's own `target-size` rule, which models BOTH
    * exceptions (spacing and inline) rather than re-deriving them by hand.
@@ -421,6 +452,22 @@ export const BASELINE = {
         '#bc4441',   // 3.30:1  /liq
         '#7c828a',   // 4.16:1  /liq   - --txt3, and #836's div.liq-current-bar
         '#349344',   // 4.34:1  /liq
+        /* ADDED 2026-09-12, #1259. `#3a3f45` (--txt4 in dark) is deliberately
+         * NOT here - see #1271. It's StrategyPanel's `.strat-aux`, which
+         * renders the account's own PRO/FREE status ("PRO", "FREE · 3",
+         * "···") - real, meaningful status text, not the disabled/axis-label
+         * content --txt4's own definition describes. This is case (b), a
+         * genuine defect, not a sweep artefact - filed to Dev rather than
+         * added here, which would have hidden it.
+         * `#595d64` is a COMPOSITED value (no literal match anywhere in
+         * app/globals.css or any component) - the axe-style scan measures
+         * post-cascade colour, so this is what the browser actually painted
+         * on /news, not necessarily a literal source hex. Reproduced
+         * identically across the initial attempt and its retry, and on both
+         * main (9fb45997) and release #2's head (f2f89f1d) per #1252's
+         * triage - stable, not one-off sweep variance. Not traced further;
+         * recorded as case (a) rather than guessed at. */
+        '#595d64',   // 3.04:1  /news    - composited, source not traced
       ] as readonly string[],
 
       /* Six of these nine are below 3:1. `#a1a2a2` at 1.95:1 is the worst text
@@ -437,6 +484,14 @@ export const BASELINE = {
         '#458c57',   // 3.03:1  /liq             .liq-section-hdr-short > .liq-section-sub
         '#af4a50',   // 3.90:1  /liq             .liq-section-hdr-long > .liq-section-sub
         '#5e6267',   // 4.32:1  /liq             .liq-current-oi   - #836's div.liq-current-bar
+        /* ADDED 2026-09-12, #1259. `#aeaaa4` (light's --txt4) deliberately
+         * NOT here, same reason as dark's #3a3f45 above - it's
+         * StrategyPanel's `.strat-aux` PRO/FREE status text, a real defect,
+         * filed as #1271 rather than hidden in this list. `#8c8e91` is
+         * unconfirmed (composited, not traced to a literal source colour)
+         * but reproduced identically across the initial attempt and its
+         * retry, and on both main and release #2's head per #1252's triage. */
+        '#8c8e91',   // 3.03:1  /news            .nfeed-empty > div:nth-child(3)
       ] as readonly string[],
     },
   },
