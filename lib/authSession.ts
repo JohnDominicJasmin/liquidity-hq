@@ -89,16 +89,23 @@ const SIGN_OUT_TIMEOUT_MS = 8000;
 export async function forceSignOut(sb: SignOutCapable | null | undefined): Promise<unknown> {
   if (!sb) return null;
   let error: unknown = null;
+  // The timeout timer is never cleared when signOut() itself resolves first,
+  // which keeps a plain `node --test` process alive until it fires (QA
+  // found this the same way as lib/rateLimit.ts's sweep interval). Clearing
+  // it here is a no-op if it already fired, and harmless if it never does.
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
       sb.auth.signOut(),
       new Promise<{ error: unknown }>(resolve => {
-        setTimeout(() => resolve({ error: new Error('signOut timed out') }), SIGN_OUT_TIMEOUT_MS);
+        timer = setTimeout(() => resolve({ error: new Error('signOut timed out') }), SIGN_OUT_TIMEOUT_MS);
       }),
     ]);
     error = result.error;
   } catch (e) {
     error = e ?? new Error('signOut rejected');
+  } finally {
+    clearTimeout(timer);
   }
   if (error) clearStoredSession();
   return error;
