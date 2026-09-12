@@ -36,17 +36,17 @@ the wrong item.
 
 ## Dev lane
 
-**Rewritten a fifth time on 2026-09-12, at ~21:15Z.** All of D3 (#1233–#1238), #1266
-steps 1–2, #1278 and #1282's coalescing fix are **merged to `dev`**, and together they're
-release #3's candidate. #1284 turned out to be a blind spot in the capture tool, not a
-bug, and it's closed. **Next: promote `dev` → `qa` for release #3, then D2.** **A queue
-that names finished work is worse than an empty one: it costs a session the time to
-discover it is wrong.**
+**Rewritten a sixth time on 2026-09-12, at ~22:45Z.** Release #3 is on `staging`
+(`8fd6f76`), QA-signed-off, and the release PR (#1299) is open awaiting the owner's
+visual gates. D4 (#1199) merged. D2 (#1285) is built and waits only on the owner's
+wording sign-off. **Next: D7 (#1266's CVD path fix + fetchAllFR switch), for
+release #4.** **A queue that names finished work is worse than an empty one: it
+costs a session the time to discover it is wrong.**
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | `PATCH /api/settings` already returns `rejected` plus the current `settings`, so the client should adopt them immediately and show a short notice. **Reuse #1188's save-status surface.** It's visible, so the owner approves the notice wording. |
-| D4 | **#1199: one retry-with-backoff utility** | ~half day | Two hand-written implementations exist, though #1188 said to reuse #1119's shape rather than write a second one. Extract a shared one, and **don't change either caller's timing** while doing it. The PR says what to assert; QA writes the tests. |
+| D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | **Built (PR #1292), QA-reviewed clean.** Holding on the owner's sign-off for the toast wording ("Updated from another device") and its look (amber, same corner as Saved/Failed) - screenshots already sent to PM for the batch. Merge once that lands. |
+| D7 | **#1266: `checkCVD`'s dead-looking endpoint + the `fetchAllFR` Bybit switch** | ~half day | Two fixes, one PR, for release #4. (1) `checkCVD` calls `/futures/data/takerBuySellVol` (COIN-M path) from `fapi` (USD-M) - always 404s, so CVD is 100% broken every run. Fix: `/futures/data/takerlongshortRatio`, verified live, same `buyVol`/`sellVol` shape the code already parses. (2) Apply the owner's "if bybit can do the job" rule in full to `fetchAllFR`: Bybit becomes the source for the 42 coins whose funding interval matches Binance's (verified live, all 42), Binance stays only for GMT (interval mismatch, 4h vs 8h) and FET (no Bybit derivatives, existing #1287 pattern). |
 | D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | #939's shape: meaning carried by a glyph alone, and a control with no accessible name. **Visual, so the owner sees it before it ships.** |
 | D6 | **#1113 tour rework · #1185 visual-rule instances** | mixed | Both visual. **Screenshots go to the owner before merge.** #1220 and #1225 are waiting on exactly that right now. |
 
