@@ -6,6 +6,7 @@ import type { User } from '@supabase/supabase-js';
 import posthog from 'posthog-js';
 import { T } from '@/lib/tables';
 import { clearPlanBadgeCache } from '@/lib/planBadgeCache';
+import { retryWithBackoff } from '@/lib/retryWithBackoff';
 
 // #1119, owner ruling 2026-09-11: a failed/timed-out subscription read is a
 // DIFFERENT fact than a confirmed free account, and the two must not collapse
@@ -486,32 +487,30 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }
 
     (async () => {
-      for (let n = 1; n <= ENTITLEMENTS_MAX_ATTEMPTS; n++) {
-        const { data, failed } = await attempt(n);
-        if (cancelled) return;
+      const { result, cancelled: bailedEarly } = await retryWithBackoff(attempt, {
+        maxAttempts: ENTITLEMENTS_MAX_ATTEMPTS,
+        backoffMs: ENTITLEMENTS_RETRY_BACKOFF_MS,
+        isCancelled: () => cancelled,
+      });
+      if (bailedEarly) return;
+      const { data, failed } = result;
 
-        if (!failed) {
-          /* NOT FIXED HERE, ON PURPOSE for a CONFIRMED answer - reported,
-             not patched (#1089 audit). `data === null` with `failed: false`
-             means Supabase genuinely found no subscription row: a real free
-             account, not a failure. `role`/`trialEndsAt` resolving to their
-             free/null defaults on that path is correct, not a guess. What
-             #1119 fixes is the OTHER path, below: every attempt failing no
-             longer resolves to this same free/null shape silently - see
-             entitlementStatus's derivation for what a genuine failure now
-             produces instead. */
-          setRole(data?.role === 'pro' ? 'pro' : 'free');
-          const t = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : null;
-          setTrialEndsAt(t);
-          setEntitlementsLoading(false);
-          setEntitlementsError(false);
-          return;
-        }
-
-        if (n < ENTITLEMENTS_MAX_ATTEMPTS) {
-          await new Promise(resolve => setTimeout(resolve, ENTITLEMENTS_RETRY_BACKOFF_MS[n - 1]));
-          if (cancelled) return;
-        }
+      if (!failed) {
+        /* NOT FIXED HERE, ON PURPOSE for a CONFIRMED answer - reported,
+           not patched (#1089 audit). `data === null` with `failed: false`
+           means Supabase genuinely found no subscription row: a real free
+           account, not a failure. `role`/`trialEndsAt` resolving to their
+           free/null defaults on that path is correct, not a guess. What
+           #1119 fixes is the OTHER path, below: every attempt failing no
+           longer resolves to this same free/null shape silently - see
+           entitlementStatus's derivation for what a genuine failure now
+           produces instead. */
+        setRole(data?.role === 'pro' ? 'pro' : 'free');
+        const t = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : null;
+        setTrialEndsAt(t);
+        setEntitlementsLoading(false);
+        setEntitlementsError(false);
+        return;
       }
       // Every attempt failed - genuinely unknown. `role`/`trialEndsAt` are
       // left at whatever they already were (free/null on a first load, or
