@@ -102,7 +102,14 @@ export interface SettingsContextValue {
   // should gate on this instead of inferring it from a field being non-null,
   // since null can legitimately mean "confirmed, never saved".
   settingsLoaded: boolean;
-  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  // #1285: 'conflict' is distinct from 'error' - the save itself succeeded
+  // (the server accepted the request and answered), it's just that this
+  // client's value for one or more fields lost to a newer write from another
+  // device and got overwritten locally with the server's authoritative value.
+  // Telling the user "save failed" for that would be wrong twice over: it
+  // did not fail, and the fix is not "try again" (retrying would just lose
+  // again to the same newer write).
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
   update:     (partial: Partial<UserSettings>) => void;
   // Re-read the saved row from the server. Needed by flows where the SERVER,
   // not this client, writes the value: connecting Telegram is finished by the

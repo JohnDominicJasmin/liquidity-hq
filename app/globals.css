@@ -4106,8 +4106,12 @@ html[data-theme="light"] { background: var(--bg0); }
   animation: stToastIn 0.2s ease;
   pointer-events: none;
 }
-.st-save-toast.saving { background: rgba(255,255,255,0.06); border-color: var(--bdr); color: var(--txt3); }
-.st-save-toast.error  { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.4); color: var(--red); }
+.st-save-toast.saving   { background: rgba(255,255,255,0.06); border-color: var(--bdr); color: var(--txt3); }
+.st-save-toast.error    { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.4); color: var(--red); }
+/* #1285: amber, not red - the save succeeded, a field just adopted another
+   device's newer value. Sharing --error's colour would read as a failure the
+   user should retry, which is the exact wrong message for this case. */
+.st-save-toast.conflict { background: var(--amber-bg); border-color: var(--amber-bdr); color: var(--amber); }
 @keyframes stToastIn  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 [data-theme="light"] .st-section { background: #fff; }

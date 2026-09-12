@@ -25,17 +25,22 @@ export default function SettingsSaveToast() {
   const { t } = useLabels();
   const [visible, setVisible] = useState(false);
   useEffect(() => {
-    if (saveStatus === 'saved' || saveStatus === 'error') {
+    if (saveStatus === 'saved' || saveStatus === 'error' || saveStatus === 'conflict') {
       setVisible(true);
-      const timer = setTimeout(() => setVisible(false), 2000);
+      // #1285: the provider already clears saveStatus back to 'idle' after
+      // 3000ms for 'conflict' (same window as 'error') - this timer only
+      // controls the toast's own visibility and must not outlive that, or a
+      // second conflict landing inside the gap would show nothing.
+      const timer = setTimeout(() => setVisible(false), saveStatus === 'saved' ? 2000 : 3000);
       return () => clearTimeout(timer);
     }
     if (saveStatus === 'saving') setVisible(true);
   }, [saveStatus]);
   if (!visible) return null;
-  return (
-    <div className={`st-save-toast${saveStatus === 'error' ? ' error' : saveStatus === 'saving' ? ' saving' : ''}`}>
-      {saveStatus === 'saving' ? t('SETTINGS_STATUS_SAVING') : saveStatus === 'saved' ? t('SETTINGS_STATUS_SAVED') : t('SETTINGS_STATUS_FAILED')}
-    </div>
-  );
+  const cls = saveStatus === 'error' ? ' error' : saveStatus === 'conflict' ? ' conflict' : saveStatus === 'saving' ? ' saving' : '';
+  const text = saveStatus === 'saving' ? t('SETTINGS_STATUS_SAVING')
+    : saveStatus === 'saved' ? t('SETTINGS_STATUS_SAVED')
+    : saveStatus === 'conflict' ? t('SETTINGS_STATUS_CONFLICT')
+    : t('SETTINGS_STATUS_FAILED');
+  return <div className={`st-save-toast${cls}`}>{text}</div>;
 }

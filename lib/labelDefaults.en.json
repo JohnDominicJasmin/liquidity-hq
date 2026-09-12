@@ -49,6 +49,7 @@
   "SETTINGS_STATUS_SAVING": "Saving…",
   "SETTINGS_STATUS_SAVED": "Saved ✓",
   "SETTINGS_STATUS_FAILED": "Failed",
+  "SETTINGS_STATUS_CONFLICT": "Updated from another device",
   "SETTINGS_SECTION_LANGUAGE": "Language",
   "NAV_DASHBOARD": "Dashboard",
   "NAV_ARENA": "Arena",
