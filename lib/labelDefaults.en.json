@@ -1431,6 +1431,7 @@
   "WHALE_TRADES_FEED_SR_WATCHING": "Watching for trades > $50K…",
   "WHALE_TRADES_FEED_BADGE_MEGA": "MEGA",
   "WHALE_TRADES_FEED_BADGE_WHALE": "WHALE",
+  "WHALE_TRADES_FEED_BYBIT_FALLBACK": "(Bybit - Binance unreachable)",
   "SIGNAL_ACCURACY_TOOLTIP": "Backtests each signal against real BTC 4H history: every time it fired in the past, did price move favorably within 12h and 24h? Win rate is the honest hit-rate, misses included - not a guarantee, a track record.",
   "SIGNAL_ACCURACY_TITLE": "Signal Accuracy Tracker",
   "SIGNAL_ACCURACY_CANDLES_INFO": "BTC · 4H · last {candles} candles",

@@ -1226,20 +1226,59 @@ export default function MarketProvider(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── Liquidation Cascade Detector - Binance futures all-symbols stream ── */
+  /* ── Liquidation Cascade Detector - Binance futures all-symbols stream,
+     Bybit allLiquidation on failover ──
+     #1059: client-side failover - a browser that cannot reach Binance
+     (blocked region, 451/403, refused handshake) still feeds the cascade
+     detector instead of it going permanently silent for the tab's life, which
+     is what the plain 5s-forever retry below used to do. Mirrors
+     LiqFeed.tsx's connectBB (same topic, same bytick.com failover host) -
+     server-side egress failover is #1077, a separate scope. None of these 7
+     coins are Bybit's 1000x-prefixed symbols, so usd = price * qty needs no
+     factor here either. */
   useEffect(() => {
     if (!enabled) return;          // #200 - no socket on data-free routes
     const FUTURES_MAP: Record<string, string> = {
       BTCUSDT: 'BTC', ETHUSDT: 'ETH', SOLUSDT: 'SOL',
       XRPUSDT: 'XRP', BNBUSDT: 'BNB', NEARUSDT: 'NEAR', SUIUSDT: 'SUI',
     };
-    let ws: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    const CASCADE_COIN_IDS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'near', 'sui'] as const;
+    const BB_LIQ_SYM_MAP: Record<string, string> = Object.fromEntries(
+      CASCADE_COIN_IDS.map(c => [BYBIT_SYMS[c], c.toUpperCase()])
+    );
+    const BB_LIQ_TOPICS = CASCADE_COIN_IDS.map(c => `allLiquidation.${BYBIT_SYMS[c]}`);
+    const BN_MAX_RETRIES = 5;
+    const BN_RETRY_WHILE_ON_BB_MS = 60_000;
+
+    let bnWs: WebSocket | null = null;
+    let bbWs: WebSocket | null = null;
+    let bnRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let bbRetryTimer: ReturnType<typeof setInterval> | null = null;
+    let bnRetries = 0;
+    let bbHostIdx = 0;
+    let active: 'binance' | 'bybit' = 'binance';
     let alive = true;
 
-    function connect() {
+    function recordLiq(coin: string, side: 'LONG' | 'SHORT', usd: number) {
+      if (!isFinite(usd) || usd <= 0) return;
+      const now = Date.now();
+      liqBufferRef.current.push({ coin, side, usd, ts: now });
+      // Keep rolling buffer covering both the 60s cascade window and the
+      // longer liquidation-delta window (LIQ_DELTA_WINDOW_MS) below.
+      liqBufferRef.current = liqBufferRef.current.filter(l => l.ts > now - (LIQ_DELTA_WINDOW_MS + 60_000));
+    }
+
+    function connectBN() {
       if (!alive) return;
-      ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+      const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+      bnWs = ws;
+      ws.onopen = () => {
+        if (!alive) return;
+        bnRetries = 0;
+        active = 'binance';
+        if (bbRetryTimer) { clearInterval(bbRetryTimer); bbRetryTimer = null; }
+        if (bbWs) { const old = bbWs; bbWs = null; try { old.close(); } catch { /* */ } }
+      };
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
@@ -1250,19 +1289,72 @@ export default function MarketProvider(
           // S:"SELL" = long position liquidated (forced sell); S:"BUY" = short liquidated
           const side: 'LONG' | 'SHORT' = order.S === 'SELL' ? 'LONG' : 'SHORT';
           const usd = parseFloat(order.ap || order.p || '0') * parseFloat(order.z || order.q || '0');
-          if (!isFinite(usd) || usd <= 0) return;
-          const now = Date.now();
-          liqBufferRef.current.push({ coin, side, usd, ts: now });
-          // Keep rolling buffer covering both the 60s cascade window and the
-          // longer liquidation-delta window (LIQ_DELTA_WINDOW_MS) below.
-          liqBufferRef.current = liqBufferRef.current.filter(l => l.ts > now - (LIQ_DELTA_WINDOW_MS + 60_000));
+          recordLiq(coin, side, usd);
         } catch { /* */ }
       };
-      ws.onclose = () => { if (alive) reconnectTimer = setTimeout(connect, 5_000); };
-      ws.onerror = () => { try { ws?.close(); } catch { /* */ } };
+      ws.onclose = () => {
+        if (!alive) return;
+        bnRetries++;
+        if (bnRetries <= BN_MAX_RETRIES) {
+          bnRetryTimer = setTimeout(connectBN, 5_000);
+          return;
+        }
+        // #1059: Binance exhausted its retries - fail over to Bybit for the
+        // same coins rather than the detector going silent. Keep retrying
+        // Binance in the background so a recovered connection takes back over.
+        if (active !== 'bybit') {
+          active = 'bybit';
+          connectBB();
+          if (!bbRetryTimer) {
+            bbRetryTimer = setInterval(() => { bnRetries = 0; connectBN(); }, BN_RETRY_WHILE_ON_BB_MS);
+          }
+        }
+      };
+      ws.onerror = () => { try { ws.close(); } catch { /* */ } };
     }
 
-    connect();
+    function connectBB() {
+      if (!alive || active !== 'bybit') return;
+      // bytick.com is Bybit's alternative domain - same failover host pattern
+      // as LiqFeed.tsx's connectBB, which this mirrors.
+      const host = bbHostIdx % 2 === 0
+        ? 'wss://stream.bybit.com/v5/public/linear'
+        : 'wss://stream.bytick.com/v5/public/linear';
+      const ws = new WebSocket(host);
+      bbWs = ws;
+      ws.onopen = () => {
+        if (!alive) return;
+        ws.send(JSON.stringify({ op: 'subscribe', args: BB_LIQ_TOPICS }));
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.op === 'subscribe') return; // subscription ack, not a liquidation
+          if (!msg.topic?.startsWith('allLiquidation.') || !msg.data) return;
+          const items = Array.isArray(msg.data) ? msg.data : [msg.data];
+          items.forEach((d: Record<string, string>) => {
+            const coin = BB_LIQ_SYM_MAP[d.s ?? ''];
+            if (!coin) return;
+            const price = parseFloat(d.p ?? '0');
+            const qty   = parseFloat(d.v ?? '0');
+            // S:"Buy" = long position liquidated; S:"Sell" = short liquidated
+            const side: 'LONG' | 'SHORT' = d.S === 'Buy' ? 'LONG' : 'SHORT';
+            recordLiq(coin, side, price * qty);
+          });
+        } catch { /* */ }
+      };
+      ws.onclose = () => {
+        // Torn down deliberately by connectBN's onopen once Binance recovers -
+        // `active` already flipped back before that close(), so this must not
+        // reconnect a fallback that is no longer wanted.
+        if (!alive || active !== 'bybit') return;
+        bbHostIdx++;
+        setTimeout(connectBB, 5_000);
+      };
+      ws.onerror = () => { try { ws.close(); } catch { /* */ } };
+    }
+
+    connectBN();
 
     // Cascade analyzer - check every 5s
     const analyzer = setInterval(() => {
@@ -1316,8 +1408,10 @@ export default function MarketProvider(
     return () => {
       alive = false;
       clearInterval(analyzer);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      try { ws?.close(); } catch { /* */ }
+      if (bnRetryTimer) clearTimeout(bnRetryTimer);
+      if (bbRetryTimer) clearInterval(bbRetryTimer);
+      try { bnWs?.close(); } catch { /* */ }
+      try { bbWs?.close(); } catch { /* */ }
     };
   }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
