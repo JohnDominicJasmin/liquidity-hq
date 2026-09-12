@@ -39,6 +39,34 @@ function noteSkip(counts: SkipCounts, source: string): void {
   counts[source] = (counts[source] ?? 0) + 1;
 }
 
+/* PM caught this in review: a bare `await fetch(...)` followed by
+ * `if (!res.ok) { noteSkip(...); return; }`, inside a try block whose catch
+ * ALSO guards unrelated per-item logic (cooldown checks, queue pushes),
+ * misses the case where the fetch itself throws - `AbortSignal.timeout`
+ * firing, DNS failure, a TCP reset. That exception skips straight past the
+ * `!res.ok` check into the outer catch, which this file deliberately does
+ * NOT instrument (see the scoping note on each check function - counting
+ * that catch would misattribute an unrelated bug in the business logic as
+ * an upstream skip). A real block that manifests as timeouts rather than
+ * clean 4xx/5xx responses would then log `skipped=0` while alerts silently
+ * stop - exactly the failure #1266 exists to make visible.
+ *
+ * Fix: isolate JUST the fetch call in its own try/catch, so a throw AT
+ * THAT POINT counts as a skip, while an exception from the surrounding
+ * per-item logic still falls through to the outer catch uninstrumented, on
+ * purpose. Returns null on any failure (network throw or non-2xx) so the
+ * caller's existing `if (!res) return;` shape barely changes. */
+async function fetchOrSkip(url: string, opts: RequestInit, skipCounts: SkipCounts, source: string): Promise<Response | null> {
+  try {
+    const res = await fetch(url, opts);
+    if (!res.ok) { noteSkip(skipCounts, source); return null; }
+    return res;
+  } catch {
+    noteSkip(skipCounts, source);
+    return null;
+  }
+}
+
 // Telegram's parse_mode:HTML treats any of these characters as markup -
 // user-supplied free text (e.g. a saved price alert's label) must be escaped
 // before insertion into a message body, or it can inject its own tags
@@ -463,9 +491,9 @@ async function fetchAllFR(skipCounts: SkipCounts): Promise<Record<string, number
 }
 
 async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, number>> {
+  const res = await fetchOrSkip('https://api.binance.com/api/v3/ticker/price', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+  if (!res) return {};
   try {
-    const res  = await fetch('https://api.binance.com/api/v3/ticker/price', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-    if (!res.ok) { noteSkip(skipCounts, 'binance'); return {}; }
     const data = await res.json() as Array<{ symbol: string; price: string }>;
     const out: Record<string, number> = {};
     for (const item of data) {
@@ -473,7 +501,7 @@ async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, n
       if (coin) out[coin] = parseFloat(item.price);
     }
     return out;
-  } catch { noteSkip(skipCounts, 'binance'); return {}; }
+  } catch { return {}; }
 }
 
 /* ── Bybit klines helper (newest-first → reversed to oldest-first) ── */
@@ -527,8 +555,8 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
         // TradingView/Bybit show - 20 candles only gives ~5 smoothing iterations
         // past the initial seed, nowhere near enough. 300 matches what the
         // Arena chart reader uses for the same calculation.
-        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-        if (!res.ok) { noteSkip(skipCounts, 'binance'); return; }
+        const res = await fetchOrSkip(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+        if (!res) return;
         const data = await res.json() as Array<unknown[]>;
         closes = data.map(c => parseFloat(c[4] as string));
       } else if (BYBIT_KLINE_SYMS[coin]) {
@@ -582,11 +610,12 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
           let prevClose: number, currClose: number;
           let patternStr = '';
           if (BINANCE_SPOT[coin]) {
-            const res = await fetch(
+            const res = await fetchOrSkip(
               `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=${interval}&limit=25`,
-              { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
+              { cache: 'no-store', signal: AbortSignal.timeout(7_000) },
+              skipCounts, 'binance',
             );
-            if (!res.ok) { noteSkip(skipCounts, 'binance'); return; }
+            if (!res) return;
             const data = await res.json() as Array<unknown[]>;
             if (data.length < 2) return;
             prevClose = parseFloat(data[data.length - 2][4] as string);
@@ -647,8 +676,8 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
       const threshold = WHALE_THRESHOLD[coin];
       if (!threshold) return;
       try {
-        const res    = await fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-        if (!res.ok) { noteSkip(skipCounts, 'binance'); return; }
+        const res    = await fetchOrSkip(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+        if (!res) return;
         const trades = await res.json() as AggTrade[];
         const label  = LABELS[coin];
         for (const t of trades) {
@@ -760,8 +789,8 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
     // ── Binance perp coins ──
     ...Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
     try {
-      const res = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-      if (!res.ok) { noteSkip(skipCounts, 'binance'); return; }
+      const res = await fetchOrSkip(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'binance');
+      if (!res) return;
       const data  = await res.json() as OIHistItem[];
       if (data.length < 12) return;
       const oldest = parseFloat(data[0].sumOpenInterest);
@@ -1192,11 +1221,12 @@ async function fetchAllLSR(skipCounts: SkipCounts): Promise<Record<string, numbe
     // Binance perp L/S ratio
     ...Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
       try {
-        const res = await fetch(
+        const res = await fetchOrSkip(
           `https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`,
-          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
+          { cache: 'no-store', signal: AbortSignal.timeout(7_000) },
+          skipCounts, 'binance',
         );
-        if (!res.ok) { noteSkip(skipCounts, 'binance'); return; }
+        if (!res) return;
         const d = await res.json() as Array<{ longAccount: string }>;
         if (d?.[0]) result[coin] = parseFloat(d[0].longAccount);
       } catch { /* skip */ }
