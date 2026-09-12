@@ -6,12 +6,18 @@
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
 // Periodic sweep so the Map doesn't grow unbounded across many distinct IPs.
-setInterval(() => {
+// unref'd so importing this module doesn't keep a plain `node --test` process
+// alive forever - the Next server process stays alive regardless, since it
+// has its own event loop work, so this is no behaviour change there. Guarded
+// because edge runtimes and the browser have no `unref`, and a bare call
+// would throw there.
+const sweep = setInterval(() => {
   const now = Date.now();
   for (const [key, b] of buckets) {
     if (now > b.resetAt) buckets.delete(key);
   }
 }, 5 * 60_000);
+(sweep as { unref?: () => void }).unref?.();
 
 /** Returns true if the request is allowed, false if the limit was exceeded. */
 export function rateLimit(key: string, limit: number, windowMs: number): boolean {
