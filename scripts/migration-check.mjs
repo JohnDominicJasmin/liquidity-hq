@@ -38,7 +38,12 @@
 //
 // Every table an object hangs off is also checked as a CONTROL row. If a control
 // row comes back absent, the name mapping is wrong, and the object rows for that
-// table mean nothing.
+// table mean nothing. The limit: a control can't catch a wrong mapping on a table
+// the migration itself creates, because that table is an object row, not a
+// control. That's how 5 false "absent" rows got into the first dev audit. So when
+// --env dev reports a whole table or policy missing, check the catalog directly
+// (to_regclass, pg_policies) before believing it. Re-running this script is not
+// a second measurement.
 //
 // Not checked: data seeds (`insert into`), comments, and statements it doesn't
 // recognise. They're counted in the summary so nothing is silently assumed.
@@ -81,7 +86,15 @@ const N = String.raw`("[^"]+"|[A-Za-z_][A-Za-z0-9_$]*)`;       // one name
 const Q = String.raw`(?:${N}\.)?${N}`;                           // [schema.]name: two groups
 const re = src => new RegExp(src, 'i');
 
-const toEnv = n => (env === 'dev' && n && n.startsWith('lhq_') && !n.startsWith('lhq_dev_') ? 'lhq_dev_' + n.slice(4) : n);
+// Objects the migrations deliberately create under the SAME name on both
+// projects, so the dev rename must leave them alone. 20260725p's header: the
+// signup-IP log "only ever runs server-side inside the Auth Hook", so there's
+// no dev/prod split. Found on 2026-09-13: when Dev checked this script's dev
+// audit against the catalog directly, 3 of its 15 "absent" rows were this.
+const SHARED_NAMES = new Set(['lhq_signup_ip_log', 'lhq_signup_ip_log_ip_created_idx']);
+const toEnv = n => (env === 'dev' && n && n.startsWith('lhq_') && !n.startsWith('lhq_dev_') && !SHARED_NAMES.has(n)
+  ? 'lhq_dev_' + n.slice(4)
+  : n);
 const isDevOnly = (...names) => env === 'prod' && names.some(n => n && n.startsWith('lhq_dev_'));
 
 const expected = new Map();
@@ -90,8 +103,12 @@ const counts = { seed: 0, comment: 0, other: 0, devOnlySkipped: 0 };
 
 function add(file, kind, schema, name, tbl) {
   if (isDevOnly(name, tbl)) { counts.devOnlySkipped++; return; }
-  // Policy names are free text, not table-derived, so they keep their spelling.
-  const o = { file, kind, schema: schema ?? 'public', name: kind === 'policy' ? name : toEnv(name), tbl: toEnv(tbl) };
+  // Policy names get the same dev rename as everything else. Free-text names
+  // ("users manage own push subscriptions") don't start with lhq_, so toEnv
+  // leaves them alone. lhq_-prefixed ones do get renamed on dev
+  // (lhq_news_read -> lhq_dev_news_read). Skipping that produced 2 false
+  // "absent" rows on 2026-09-13.
+  const o = { file, kind, schema: schema ?? 'public', name: toEnv(name), tbl: toEnv(tbl) };
   const k = keyOf(o);
   if (!expected.has(k)) expected.set(k, o);
 }
@@ -138,7 +155,7 @@ for (const file of files) {
     } else if ((m = stmt.match(re(`^create policy ${N} on ${Q}`)))) {
       add(name, 'policy', ident(m[2]), ident(m[1]), ident(m[3]));
     } else if ((m = stmt.match(re(`^drop policy (?:if exists )?${N} on ${Q}`)))) {
-      const pol = ident(m[1]), t = toEnv(ident(m[3]));
+      const pol = toEnv(ident(m[1])), t = toEnv(ident(m[3]));
       remove(o => o.kind === 'policy' && o.name === pol && o.tbl === t);
     } else if ((m = stmt.match(re(`^create (?:or replace )?function ${Q}\\s*\\(`)))) {
       add(name, 'function', ident(m[1]), ident(m[2]));
