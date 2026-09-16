@@ -1,4 +1,5 @@
 import type { Page, APIRequestContext, APIResponse } from '@playwright/test';
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 
 /** Every route the suite sweeps. Public + app routes, signed out. */
 /* Every route the sweeping specs measure — contrast, layout, a11y, seo, perf.
@@ -783,6 +784,104 @@ export async function runAxe(
  * answer a different question - and on 2026-08-13 it answered 200 while both
  * services were banned.
  */
+/**
+ * Spawns a SEPARATE `next start` instance with `qa/fail-once.cjs` required
+ * in, so the next outgoing fetch matching `match` gets one `status` response
+ * before passing through for real. See that file's own header for why this
+ * exists (a rejected Promise or 503/520 gets silently retried by
+ * @supabase/postgrest-js before the app ever sees it - only a status outside
+ * that retried set, like the 504 default, reaches the app's real error path).
+ *
+ * A SEPARATE process, not the shared `webServer` on 3100: the injector arms
+ * once per process and must be live from that process's very first request,
+ * so it cannot share a server another spec already started without the flag.
+ * Reuses the already-built `.next` output (the shared webServer's `npm run
+ * build` already ran it) rather than building again - `next start` alone
+ * takes under a second against it.
+ *
+ * Caller is responsible for calling `stop()` in a `finally` - this spawns a
+ * real OS process tree, and `next start` on Windows leaves child workers
+ * behind a plain SIGTERM does not reach (see the QA session notes on
+ * orphaned dev-server children costing real memory). `stop()` uses
+ * `taskkill /T /F` for that reason.
+ */
+export async function startFailOnceServer(opts: {
+  /** Substring(s) the request URL must ALL contain, comma-separated - see
+   *  qa/fail-once.cjs's own FAIL_ONCE_MATCH doc. */
+  match: string;
+  /** HTTP status to answer with once. Default 504 (see file header above -
+   *  do not use 503 or 520, postgrest-js retries those transparently). */
+  status?: number;
+  /** Fixed rather than dynamically chosen: this suite runs one spec like
+   *  this at a time, and a fixed port makes a leaked process from a prior
+   *  failed run obvious (still listening on 3101) instead of silently
+   *  finding a new one and hiding the leak. */
+  port?: number;
+}): Promise<{ baseURL: string; logs: string[]; stop: () => Promise<void> }> {
+  const port = opts.port ?? 3101;
+  const status = opts.status ?? 504;
+  const logs: string[] = [];
+
+  // Runs the `next` CLI's own JS entry directly via the current Node binary,
+  // not `npx`/`npx.cmd` - a .cmd shim needs a shell to spawn on Windows
+  // (EINVAL without one), and passing shell:true reintroduces an arg-escaping
+  // warning Node itself flags. This has neither problem and needs no build:
+  // it's the exact file `npm run start` (`next start`) already resolves to.
+  const child: ChildProcess = spawn(
+    process.execPath,
+    [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        NODE_OPTIONS: '--require ./qa/fail-once.cjs',
+        FAIL_ONCE_MATCH: opts.match,
+        FAIL_ONCE_STATUS: String(status),
+      },
+    },
+  );
+  child.stdout?.on('data', d => logs.push(String(d)));
+  child.stderr?.on('data', d => logs.push(String(d)));
+
+  const baseURL = `http://localhost:${port}`;
+  const deadline = Date.now() + 30_000;
+  let ready = false;
+  while (Date.now() < deadline) {
+    try {
+      await fetch(baseURL, { signal: AbortSignal.timeout(1_000) });
+      ready = true;
+      break;
+    } catch { /* not up yet */ }
+    await new Promise(r => setTimeout(r, 300));
+  }
+  if (!ready) {
+    throw new Error(
+      `fail-once server on :${port} never answered within 30s. Log tail:\n${logs.join('').slice(-2000)}`,
+    );
+  }
+  if (!logs.some(l => l.includes('[fail-once] armed'))) {
+    throw new Error(
+      `qa/fail-once.cjs did not log its own arming message - NODE_OPTIONS may not have reached the ` +
+      `child process. Log tail:\n${logs.join('').slice(-2000)}`,
+    );
+  }
+
+  return {
+    baseURL,
+    logs,
+    stop: async () => {
+      if (child.pid == null) return;
+      try {
+        if (process.platform === 'win32') {
+          execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+        } else {
+          process.kill(-child.pid, 'SIGKILL');
+        }
+      } catch { /* already gone */ }
+    },
+  };
+}
+
 export async function marketDataUnavailable(
   request: { get: (url: string) => Promise<{ status(): number }> },
   baseURL?: string,

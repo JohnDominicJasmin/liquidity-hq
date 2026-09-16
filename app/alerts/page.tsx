@@ -157,7 +157,12 @@ export default function AlertsPage() {
       // as if it were the user's real, confirmed preferences.
       if (!token) { setMuteLoadFailed(true); setMutedLoaded(true); return; }
       fetch('/api/alert-prefs', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json())
+        // #1309 item 10: a non-ok response means the DB read failed server-side
+        // (see app/api/alert-prefs/route.ts) - throw so this falls into the
+        // same .catch() as a network failure below, rather than reading
+        // whatever error body came back as if it were {muted: [...]} and
+        // seeding the default mutes on top of the user's real choices.
+        .then(r => { if (!r.ok) throw new Error(`alert-prefs ${r.status}`); return r.json(); })
         .then(async d => {
           const mutedList: string[] = d.muted ?? [];
           setMuted(new Set<string>(mutedList));
