@@ -72,7 +72,11 @@ async function contrastRatio(page: Page, colorA: string, colorB: string): Promis
 }
 
 interface FocusCheckResult {
+  /** Computed style changed on focus - outline, box-shadow or border-color. */
   hasIndicator: boolean;
+  /** hasIndicator AND not clipped away by an ancestor's overflow - this is
+   *  the one that answers "does a keyboard user actually SEE anything". */
+  visible: boolean;
   detail: string;
   contrast: number | null;
 }
@@ -81,7 +85,20 @@ interface FocusCheckResult {
  *  state, and reports whether SOMETHING changed (outline, box-shadow or
  *  border-color) - not which specific mechanism, since the fix is free to
  *  use any of them. Best-effort contrast: only computed when outline is the
- *  changed mechanism and a color is extractable, per "where you can". */
+ *  changed mechanism and a color is extractable, per "where you can".
+ *
+ *  WHY hasIndicator ALONE ISN'T ENOUGH (found reviewing #1321): a matching
+ *  computed style can still draw zero visible pixels - `.ps-inp` in a
+ *  suffix row gets `outline: solid 2px` on focus, but its parent `.ps-irow`
+ *  sets `overflow: hidden` and the ring sits 2-4px outside the input's own
+ *  box, so it's clipped away entirely. `visible` walks every ancestor up to
+ *  (not including) <body> for a clipping `overflow`/`overflow-x`/
+ *  `overflow-y`, and checks whether the ring's own box (the element's rect
+ *  expanded by the outline width, or a box-shadow's parsed spread) would
+ *  extend past that ancestor's rect. This is the "at minimum walk the
+ *  ancestors" bar, not full sub-pixel screenshot verification - it catches
+ *  exactly the clipping shape found on #1321, without needing a PNG-diffing
+ *  dependency this repo doesn't otherwise have. */
 async function checkFocusRing(page: Page, target: Locator): Promise<FocusCheckResult> {
   await target.scrollIntoViewIfNeeded();
   const before = await target.evaluate(el => {
@@ -105,11 +122,49 @@ async function checkFocusRing(page: Page, target: Locator): Promise<FocusCheckRe
     contrast = await contrastRatio(page, after.outlineColor, bg);
   }
 
+  let visible = hasIndicator;
+  let clipNote = '';
+  if (hasIndicator && (outlineChanged || boxShadowChanged)) {
+    const ringPx = outlineChanged
+      ? parseFloat(after.outline) || 2
+      // Parse a simple "<offset-x> <offset-y> <blur> <spread> <color>" box-shadow
+      // for its spread value; falls back to 4px (this app's typical ring
+      // width) if the shadow shape doesn't match that pattern.
+      : (() => {
+          const nums = after.boxShadow.match(/-?\d+(\.\d+)?px/g)?.map(parseFloat) ?? [];
+          return nums.length >= 4 ? Math.abs(nums[3]) : 4;
+        })();
+    const clip = await target.evaluate((el, ring) => {
+      const r = el.getBoundingClientRect();
+      const ringBox = { left: r.left - ring, top: r.top - ring, right: r.right + ring, bottom: r.bottom + ring };
+      let node = el.parentElement;
+      while (node && node !== document.body) {
+        const cs = getComputedStyle(node);
+        const clips = ['hidden', 'clip', 'scroll'].includes(cs.overflow)
+          || ['hidden', 'clip', 'scroll'].includes(cs.overflowX)
+          || ['hidden', 'clip', 'scroll'].includes(cs.overflowY);
+        if (clips) {
+          const ar = node.getBoundingClientRect();
+          if (ringBox.left < ar.left - 0.5 || ringBox.top < ar.top - 0.5
+            || ringBox.right > ar.right + 0.5 || ringBox.bottom > ar.bottom + 0.5) {
+            return { clipped: true, by: node.className || node.tagName };
+          }
+        }
+        node = node.parentElement;
+      }
+      return { clipped: false, by: null };
+    }, ringPx);
+    if (clip.clipped) {
+      visible = false;
+      clipNote = ` - CLIPPED by ancestor "${clip.by}" (overflow hidden/clip/scroll cuts off the ring)`;
+    }
+  }
+
   const mechanism = outlineChanged ? `outline (${after.outline}, ${after.outlineColor})`
     : boxShadowChanged ? `box-shadow (${after.boxShadow})`
     : borderColorChanged ? `border-color (${before.borderColor} -> ${after.borderColor})`
     : 'none';
-  return { hasIndicator, detail: mechanism, contrast };
+  return { hasIndicator, visible, detail: mechanism + clipNote, contrast };
 }
 
 async function setTheme(page: Page, theme: 'dark' | 'light') {
@@ -130,9 +185,8 @@ for (const theme of ['dark', 'light'] as const) {
         const email = page.locator('input.login-email-input[type="email"]').first();
         await expect(email, 'login email input never rendered').toBeVisible({ timeout: 10_000 });
         const emailResult = await checkFocusRing(page, email);
-        expect.soft(emailResult.hasIndicator,
-          `login email input (${theme}): no focus indicator - outline/box-shadow/border-color all ` +
-          `unchanged on focus (item 1)`).toBeTruthy();
+        expect.soft(emailResult.visible,
+          `login email input (${theme}): no VISIBLE focus indicator (item 1) - ${emailResult.detail}`).toBeTruthy();
         if (emailResult.contrast != null) {
           expect.soft(emailResult.contrast, `login email input (${theme}) focus outline contrast ` +
             `${emailResult.contrast.toFixed(2)}:1 against body background, below the 3:1 floor`).toBeGreaterThanOrEqual(3);
@@ -145,8 +199,8 @@ for (const theme of ['dark', 'light'] as const) {
         const password = page.locator('input.login-email-input[type="password"]').first();
         await expect(password, 'login password input never rendered').toBeVisible({ timeout: 10_000 });
         const pwResult = await checkFocusRing(page, password);
-        expect.soft(pwResult.hasIndicator,
-          `login password input (${theme}): no focus indicator (item 1)`).toBeTruthy();
+        expect.soft(pwResult.visible,
+          `login password input (${theme}): no VISIBLE focus indicator (item 1) - ${pwResult.detail}`).toBeTruthy();
         if (pwResult.contrast != null) {
           expect.soft(pwResult.contrast, `login password input (${theme}) focus outline contrast ` +
             `${pwResult.contrast.toFixed(2)}:1, below the 3:1 floor`).toBeGreaterThanOrEqual(3);
@@ -167,8 +221,8 @@ for (const theme of ['dark', 'light'] as const) {
         const settingsInput = page.locator('.st-input').first();
         await expect(settingsInput, 'no .st-input rendered on /settings').toBeVisible({ timeout: 15_000 });
         const settingsResult = await checkFocusRing(page, settingsInput);
-        expect.soft(settingsResult.hasIndicator,
-          `settings input (${theme}): no focus indicator (item 1, .st-input)`).toBeTruthy();
+        expect.soft(settingsResult.visible,
+          `settings input (${theme}): no VISIBLE focus indicator (item 1, .st-input) - ${settingsResult.detail}`).toBeTruthy();
         if (settingsResult.contrast != null) {
           expect.soft(settingsResult.contrast, `settings input (${theme}) focus outline contrast ` +
             `${settingsResult.contrast.toFixed(2)}:1, below the 3:1 floor`).toBeGreaterThanOrEqual(3);
@@ -179,8 +233,8 @@ for (const theme of ['dark', 'light'] as const) {
         const journalInput = page.locator('[data-testid="journal-input"]').first();
         await expect(journalInput, 'no [data-testid="journal-input"] rendered on /journal').toBeVisible({ timeout: 15_000 });
         const journalResult = await checkFocusRing(page, journalInput);
-        expect.soft(journalResult.hasIndicator,
-          `journal input (${theme}): no focus indicator (item 2, .tj-inp)`).toBeTruthy();
+        expect.soft(journalResult.visible,
+          `journal input (${theme}): no VISIBLE focus indicator (item 2, .tj-inp) - ${journalResult.detail}`).toBeTruthy();
         if (journalResult.contrast != null) {
           expect.soft(journalResult.contrast, `journal input (${theme}) focus outline contrast ` +
             `${journalResult.contrast.toFixed(2)}:1, below the 3:1 floor`).toBeGreaterThanOrEqual(3);
@@ -205,11 +259,53 @@ for (const theme of ['dark', 'light'] as const) {
         const search = page.locator('.nav-search').first();
         await expect(search, '.nav-search never rendered after opening the drawer').toBeVisible({ timeout: 10_000 });
         const result = await checkFocusRing(page, search);
-        expect.soft(result.hasIndicator,
-          `mobile drawer search (${theme}): no focus indicator (item 2, .nav-search)`).toBeTruthy();
+        expect.soft(result.visible,
+          `mobile drawer search (${theme}): no VISIBLE focus indicator (item 2, .nav-search) - ${result.detail}`).toBeTruthy();
         if (result.contrast != null) {
           expect.soft(result.contrast, `mobile drawer search (${theme}) focus outline contrast ` +
             `${result.contrast.toFixed(2)}:1, below the 3:1 floor`).toBeGreaterThanOrEqual(3);
+        }
+      } finally {
+        await ctx.close();
+      }
+    });
+
+    /* Added after reviewing PR #1321: a suffix-affix `.ps-inp` row (percent/
+     * unit suffix rendered AFTER the input, e.g. "Funding Rate (8h) %") and
+     * a prefix-affix row ("Account Size $") - two calculator inputs that,
+     * per that review, get a matching `outline` on focus but sit inside a
+     * `.ps-irow` with `overflow: hidden`, clipping the ring 2-4px outside
+     * the input's own box. Both should currently FAIL the `visible` check
+     * even though `hasIndicator` alone would pass. */
+    test(`focus is visible on the calculators' suffix and prefix inputs (${theme})`, async ({ browser }) => {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      const page = await ctx.newPage();
+      try {
+        await seedAuth(page);
+        await setTheme(page, theme);
+        await gotoGuarded(page, '/calc');
+
+        // Default tab is Position Sizer - "Account Size $" is a PREFIX row.
+        const accountSize = page.getByLabel('Account Size', { exact: true });
+        await expect(accountSize, 'Account Size input never rendered on /calc (Position Sizer tab)').toBeVisible({ timeout: 15_000 });
+        const acctResult = await checkFocusRing(page, accountSize);
+        expect.soft(acctResult.visible,
+          `calculator prefix input "Account Size" (${theme}): no VISIBLE focus indicator - ${acctResult.detail}`).toBeTruthy();
+        if (acctResult.contrast != null) {
+          expect.soft(acctResult.contrast, `"Account Size" (${theme}) focus outline contrast ` +
+            `${acctResult.contrast.toFixed(2)}:1, below the 3:1 floor`).toBeGreaterThanOrEqual(3);
+        }
+
+        // Funding Cost tab - "Funding Rate (8h)" is a SUFFIX row (% after the input).
+        await page.getByText('Funding Cost', { exact: true }).click();
+        const fundingRate = page.getByLabel('Funding Rate (8h)', { exact: true });
+        await expect(fundingRate, 'Funding Rate input never rendered on /calc (Funding Cost tab)').toBeVisible({ timeout: 10_000 });
+        const rateResult = await checkFocusRing(page, fundingRate);
+        expect.soft(rateResult.visible,
+          `calculator suffix input "Funding Rate" (${theme}): no VISIBLE focus indicator - ${rateResult.detail}`).toBeTruthy();
+        if (rateResult.contrast != null) {
+          expect.soft(rateResult.contrast, `"Funding Rate" (${theme}) focus outline contrast ` +
+            `${rateResult.contrast.toFixed(2)}:1, below the 3:1 floor`).toBeGreaterThanOrEqual(3);
         }
       } finally {
         await ctx.close();
