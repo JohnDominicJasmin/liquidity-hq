@@ -105,7 +105,16 @@ async function checkFocusRing(page: Page, target: Locator): Promise<FocusCheckRe
     const s = getComputedStyle(el);
     return { outline: s.outlineStyle + ' ' + s.outlineWidth, outlineColor: s.outlineColor, boxShadow: s.boxShadow, borderColor: s.borderColor };
   });
-  await target.click({ force: true });
+  // .focus() (the DOM method, via Playwright's Locator.focus()), not
+  // .click({force:true}) - found by diagnosing a false-negative on
+  // .st-input: a forced click did NOT put it into :focus-visible at all
+  // (Chromium's own heuristic, not this element being unfocusable - a
+  // literal `el.focus()` immediately after, in the same page, DID match
+  // :focus-visible and showed the real ring). Every other element in this
+  // file happened to still register :focus-visible on a forced click, which
+  // is what let this go unnoticed until .st-input's result looked like a
+  // real gap instead of a test artifact.
+  await target.evaluate(el => (el as HTMLElement).focus());
   const after = await target.evaluate(el => {
     const s = getComputedStyle(el);
     return { outline: s.outlineStyle + ' ' + s.outlineWidth, outlineColor: s.outlineColor, boxShadow: s.boxShadow, borderColor: s.borderColor };
