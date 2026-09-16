@@ -101,6 +101,14 @@ interface FocusCheckResult {
  *  dependency this repo doesn't otherwise have. */
 async function checkFocusRing(page: Page, target: Locator): Promise<FocusCheckResult> {
   await target.scrollIntoViewIfNeeded();
+  // Blur whatever currently has focus BEFORE the `before` snapshot - found
+  // by PM/DevOps's review: the login email input has `autoFocus`
+  // (app/login/page.tsx), so it's already focused the moment this function
+  // is called. Without this, `before` already shows the ring (identical to
+  // `after`, since .focus() on an already-focused element is a no-op), so
+  // outlineChanged reads false and the whole check silently reports "no
+  // indicator at all" for an element that has one throughout.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   const before = await target.evaluate(el => {
     const s = getComputedStyle(el);
     return { outline: s.outlineStyle + ' ' + s.outlineWidth, outlineColor: s.outlineColor, outlineWidth: parseFloat(s.outlineWidth) || 0, outlineOffset: parseFloat(s.outlineOffset) || 0, boxShadow: s.boxShadow, borderColor: s.borderColor };
