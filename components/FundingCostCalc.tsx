@@ -43,6 +43,7 @@ export default function FundingCostCalc() {
   const [posSize,     setPosSize]     = useState('');
   const [fundingRate, setFundingRate] = useState('0.01');
   const [hours,       setHours]       = useState('24');
+  const [side,        setSide]        = useState<'long' | 'short'>('long');
 
   const result = calc(
     parseFloat(posSize)     || 0,
@@ -50,9 +51,16 @@ export default function FundingCostCalc() {
     parseFloat(hours)       || 0,
   );
 
-  const rate     = parseFloat(fundingRate) || 0;
-  const isLong   = rate > 0;
-  const isPaying = isLong;
+  const rate = parseFloat(fundingRate) || 0;
+  // #1309 item 15: longs pay shorts when the rate is positive, and shorts
+  // pay longs when it's negative (see the hint text below, which already
+  // said this correctly). This previously had no side input at all and
+  // inferred `isLong` from the rate's own sign, so it always showed
+  // "PAYING" for a positive rate and "RECEIVING" for a negative one -
+  // correct only by coincidence for a long position, and backwards for an
+  // actual short: a short in a positive-rate market receives, but the old
+  // logic told them they were paying.
+  const isPaying = side === 'long' ? rate > 0 : rate < 0;
 
   return (
     <div>
@@ -63,6 +71,11 @@ export default function FundingCostCalc() {
 
       <div className="ps-card">
         <div className="ps-card-lbl">{t('CALC_FUNDING_POSITION_LABEL')}</div>
+        <label className="ps-lbl">{t('CALC_FUNDING_SIDE_LABEL')}</label>
+        <div className="ps-presets" style={{ marginTop: 0, marginBottom: 10 }}>
+          <button type="button" className={`ps-preset${side === 'long' ? ' on' : ''}`} onClick={() => setSide('long')}>{t('CALC_FUNDING_SIDE_LONG')}</button>
+          <button type="button" className={`ps-preset${side === 'short' ? ' on' : ''}`} onClick={() => setSide('short')}>{t('CALC_FUNDING_SIDE_SHORT')}</button>
+        </div>
         <div className="ps-row">
           <div className="ps-field">
             <label className="ps-lbl">{t('CALC_FUNDING_POS_SIZE_LABEL')}</label>

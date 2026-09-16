@@ -18,6 +18,7 @@ interface CalcResult {
   isLong:       boolean;
   rrRatio:      number | null;
   potentialPnL: number | null;
+  tpOnWrongSide: boolean;
 }
 
 function calculate(acc: number, riskPct: number, entry: number, stop: number, tp: number | null): CalcResult | null {
@@ -32,13 +33,23 @@ function calculate(acc: number, riskPct: number, entry: number, stop: number, tp
 
   let rrRatio: number | null = null;
   let potentialPnL: number | null = null;
+  let tpOnWrongSide = false;
   if (tp && tp > 0 && tp !== entry) {
-    const tpDist = Math.abs(tp - entry);
-    rrRatio      = tpDist / stopDist;
-    potentialPnL = riskUSD * rrRatio;
+    // A TP is only a profit target if it sits beyond entry in the trade's
+    // own direction (above entry when long, below when short). #1309 item 15
+    // found this scored ANY tp!==entry as reward via Math.abs(tp - entry),
+    // so a TP on the stop side of entry still produced a positive R:R and a
+    // "potential profit" figure for what is actually a loss.
+    if (isLong ? tp > entry : tp < entry) {
+      const tpDist = Math.abs(tp - entry);
+      rrRatio      = tpDist / stopDist;
+      potentialPnL = riskUSD * rrRatio;
+    } else {
+      tpOnWrongSide = true;
+    }
   }
 
-  return { riskUSD, posUSD, posUnits, leverage, stopDist, stopPct, isLong, rrRatio, potentialPnL };
+  return { riskUSD, posUSD, posUnits, leverage, stopDist, stopPct, isLong, rrRatio, potentialPnL, tpOnWrongSide };
 }
 
 function fmtUSD(v: number) {
@@ -284,6 +295,9 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
           )}
           {result.rrRatio != null && result.rrRatio < 1.5 && (
             <div className="ps-warn"><Warn /> {t('CALC_SIZER_WARN_LOW_RR')}</div>
+          )}
+          {result.tpOnWrongSide && (
+            <div className="ps-warn"><Warn /> {t('CALC_SIZER_WARN_TP_WRONG_SIDE', { side: result.isLong ? t('CALC_SIZER_LONG_PILL') : t('CALC_SIZER_SHORT_PILL') })}</div>
           )}
 
           <button className="ps-log-btn" onClick={logTrade}>
