@@ -2,120 +2,92 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 /* Antislop audit 001 (#1309) item 11 (AS-D) - when 1 or 2 of the 5 macro
- * feeds (DXY, VIX, Gold, Oil, 10Y Treasury) fail, app/api/macro-context/
- * route.ts:186-190 falls back to hardcoded stand-in values (DXY 103.5, VIX
- * 18, gold 2350, oil 78, 10Y 4.3%) and returns them in the payload
- * INDISTINGUISHABLE from a real reading - both to the dashboard/research
- * panel AND to the prompt sent to the AI for analysis. `missingData` IS
- * already returned alongside (route.ts:221), but
- * components/GlobalMacroContext.tsx never reads it, so the fake numbers
- * render as if live either way.
+ * feeds (DXY, VIX, Gold, Oil, 10Y Treasury) fail, the AI-facing prompt must
+ * not contain an invented number for the ones that failed.
  *
- * WRITTEN BEFORE THE FIX, per PM/DevOps - confirmed RED against the
- * current route logic, not run yet.
+ * UPDATED after Dev's actual fix landed (fix/audit-batch-d-macro-panel-no-
+ * fabrication, commit 3861c89) - this file originally proposed a new
+ * lib/macroContext.ts with a buildMacroPayload() function. Dev fixed this
+ * differently: app/api/macro-context/route.ts's existing buildMacroPrompt()
+ * now takes each metric as `{ price, chg } | null` and lists a failed one
+ * under "UNAVAILABLE (... do not assume a value or invent one)" instead of
+ * substituting a hardcoded stand-in - which is exactly the CONTRACT this
+ * test needs, just built as a different function than QA proposed. Rewritten
+ * to match what Dev actually built rather than keep testing a function that
+ * no longer matches the real fix shape.
  *
- * THIS IMPORT DOES NOT EXIST YET. The whole feeds-in -> payload-out
- * decision (lines 174-199 of route.ts today) is inline in the route
- * handler, mixed in with auth, rate-limiting and the actual xAI call - none
- * of which this test needs or wants to exercise. What's needed is exactly
- * the same shape as lib/alertCooldown.ts's own extraction: a pure function
- * taking the five fetch results (each real data or null) and returning the
- * payload, testable with zero network access.
+ * THIS IMPORT STILL DOES NOT EXIST YET, for a narrower reason than before:
+ * `buildMacroPrompt` (and the `pctChange` helper it calls) are ALREADY pure
+ * and dependency-free in route.ts - no Next.js/Supabase imports needed for
+ * their own logic - but neither is exported, and the route FILE ITSELF
+ * imports `next/server`, `@supabase/supabase-js`, `@/lib/xai` etc. Importing
+ * the route file directly from a plain `node --test` context (no Next.js
+ * runtime) risks pulling in code that doesn't resolve cleanly outside it.
+ *
+ * WHAT'S NEEDED, and it's a pure relocation now, not new logic (Dev already
+ * wrote the correct version - this only asks it to move and gain `export`):
  *
  *   lib/macroContext.ts
- *     export function buildMacroPayload(
- *       dxyData:  { price: number; prev: number } | null,
- *       vixData:  { price: number; prev: number } | null,
- *       goldData: { price: number; prev: number } | null,
- *       oilData:  { price: number; prev: number } | null,
- *       tnxData:  { price: number; prev: number } | null,
- *     ): {
- *       payload: {
- *         dxy: number | null; dxyChg: number | null;
- *         vix: number | null; vixChg: number | null;
- *         gold: number | null; goldChg: number | null;
- *         oil: number | null; oilChg: number | null;
- *         tnx: number | null; tnxChg: number | null;
- *         goldOilRatio: number | null;   // null if either side of the ratio is missing
- *       };
- *       missingData: string[];           // unchanged shape from today's `missing`
- *       tooManyMissing: boolean;         // today's `missing.length >= 3` throw condition,
- *                                        // surfaced as a return value instead of an
- *                                        // exception, so this function stays pure
- *     }
+ *     export function pctChange(price: number, prev: number): number   // unchanged, move as-is
+ *     export function buildMacroPrompt(d: {
+ *       dxy: { price: number; chg: number } | null;
+ *       vix: { price: number; chg: number } | null;
+ *       gold: { price: number; chg: number } | null;
+ *       oil: { price: number; chg: number } | null;
+ *       tnx: { price: number; chg: number } | null;
+ *       goldOilRatio: number | null;
+ *     }): string   // unchanged, move as-is
  *
- * Route.ts then calls this, throws when tooManyMissing is true (preserving
- * today's ">=3 missing -> hard error" behavior unchanged), and passes
- * payload+missingData straight through to both the AI prompt and the JSON
- * response, exactly as now.
+ *   route.ts imports both back from there instead of defining them locally.
  *
- * WHY null (not "unavailable" as a string) FOR THE PER-FIELD VALUES. A
- * string in a field every other branch treats as a number would need a
- * type check at every single consumer (the prompt builder, the panel, any
- * arithmetic using it) to avoid a silent NaN - GlobalMacroContext.tsx
- * already has to check `missingData` at all, once, to gate rendering; null
- * plus that one check is the shape that can't be used by accident. Exact
- * naming/shape is QA's proposal - the CONTRACT below (no invented number
- * ever appears, missingData always names what's actually missing) is what
- * this test needs to hold.
+ * Exact name/path is QA's proposal, not a requirement - the CONTRACT below
+ * (no invented number ever appears in the prompt, a missing feed is named
+ * under UNAVAILABLE) is what this test needs to hold.
  */
 
-/* Dynamic + computed specifier, not a static import: lib/macroContext.ts
- * doesn't exist yet (see the header above). A static import that fails to
- * resolve crashes the whole process before a single test can register,
- * which would fail __tests__/*.test.mts's own automatic run in the
- * pre-push gate for EVERY push, by everyone, until Dev's extraction lands -
- * not just report this one suite red. A COMPUTED specifier (concatenation,
- * not a literal) also keeps tsc from trying to resolve the module for
- * typecheck, which it does for a dynamic import() the same as a static one
- * when the argument is a literal. This is dormant (skipped, not broken)
- * until the module shows up, and asserts for real the moment it does - no
- * further change needed here then. */
 const libPath = (name: string) => '../lib/' + name + '.ts';
 const macroContext: any = await import(libPath('macroContext')).catch(() => null);
-const buildMacroPayload = macroContext?.buildMacroPayload;
-const SKIP = buildMacroPayload ? false : 'lib/macroContext.ts does not exist yet - see this file\'s header for what to extract';
+const buildMacroPrompt = macroContext?.buildMacroPrompt;
+const SKIP = buildMacroPrompt ? false : 'lib/macroContext.ts does not exist yet - see this file\'s header for what to move there';
 
-const REAL = { price: 100, prev: 99 };
-const INVENTED_VALUES = [103.5, 18, 2350, 78, 4.3]; // route.ts:186-190's exact stand-ins
+const REAL = { price: 100, chg: 1.5 };
+// route.ts's exact pre-fix stand-ins (103.5, 18, 2350, 78, 4.3) - the CI
+// commit before the fix, bb7acc3, used these literal fallbacks with no
+// UNAVAILABLE note at all.
+const INVENTED = { dxy: 103.5, vix: 18, gold: 2350, oil: 78, tnx: 4.3 };
 
-test('buildMacroPayload: a missing feed must never surface as an invented number', { skip: SKIP }, async (t) => {
-  await t.test('1 feed missing (DXY): dxy is null, not 103.5 - the other four are untouched', () => {
-    const { payload, missingData } = buildMacroPayload(null, REAL, REAL, REAL, REAL);
-    assert.equal(payload.dxy, null, `dxy was ${payload.dxy} - a missing feed must be null, never an invented reading`);
-    assert.ok(!INVENTED_VALUES.includes(payload.dxy as number), 'dxy must not be the old hardcoded stand-in');
-    assert.deepEqual(missingData, ['DXY']);
-    assert.equal(payload.vix, REAL.price, 'a feed that DID succeed must still report its real value');
+test('buildMacroPrompt: a missing feed must appear as UNAVAILABLE, never as an invented number', { skip: SKIP }, async (t) => {
+  await t.test('1 feed missing (DXY): prompt lists DXY under UNAVAILABLE, not as a reading', () => {
+    const prompt = buildMacroPrompt({ dxy: null, vix: REAL, gold: REAL, oil: REAL, tnx: REAL, goldOilRatio: 1 });
+    assert.ok(prompt.includes('UNAVAILABLE'), 'prompt never mentions UNAVAILABLE for a missing feed');
+    assert.ok(prompt.includes('DXY'), 'prompt does not name DXY as the missing feed');
+    assert.ok(!prompt.includes(String(INVENTED.dxy)),
+      `prompt contains "${INVENTED.dxy}" - the old hardcoded DXY stand-in - even though DXY's fetch failed`);
+    assert.ok(!/DXY.*:\s*\d/.test(prompt.split('UNAVAILABLE')[0]),
+      'a numeric reading line for DXY appears before the UNAVAILABLE section - it should have no reading line at all');
   });
 
-  await t.test('2 feeds missing (VIX, Oil): both null, both named in missingData, request still succeeds', () => {
-    const { payload, missingData, tooManyMissing } = buildMacroPayload(REAL, null, REAL, null, REAL);
-    assert.equal(tooManyMissing, false, '2 of 5 missing must not trip the hard-failure threshold');
-    assert.equal(payload.vix, null);
-    assert.equal(payload.oil, null);
-    assert.deepEqual([...missingData].sort(), ['Oil', 'VIX']);
-    assert.equal(payload.dxy, REAL.price);
-    assert.equal(payload.gold, REAL.price);
-    assert.equal(payload.tnx, REAL.price);
+  await t.test('2 feeds missing (VIX, Oil): both named under UNAVAILABLE, neither shows an invented number', () => {
+    const prompt = buildMacroPrompt({ dxy: REAL, vix: null, gold: REAL, oil: null, tnx: REAL, goldOilRatio: null });
+    assert.ok(prompt.includes('UNAVAILABLE'));
+    assert.ok(prompt.includes('VIX') && (prompt.match(/VIX/g)?.length ?? 0) >= 1);
+    assert.ok(!prompt.includes(String(INVENTED.vix) + ' ') && !prompt.includes('VIX (Fear Index):       ' + INVENTED.vix),
+      `prompt contains the old hardcoded VIX stand-in (${INVENTED.vix}) despite VIX's fetch failing`);
+    assert.ok(!prompt.includes('$' + INVENTED.oil),
+      `prompt contains the old hardcoded Oil stand-in ($${INVENTED.oil}) despite Oil's fetch failing`);
   });
 
-  await t.test("goldOilRatio must not be computed from an invented gold or oil value", () => {
-    const { payload } = buildMacroPayload(REAL, REAL, null, REAL, REAL); // gold missing
-    assert.equal(payload.goldOilRatio, null,
-      `goldOilRatio was ${payload.goldOilRatio} - a ratio with an invented numerator is a second invented number, not a real one`);
+  await t.test('goldOilRatio null (either side missing) must not appear as a computed ratio line', () => {
+    const prompt = buildMacroPrompt({ dxy: REAL, vix: REAL, gold: null, oil: REAL, tnx: REAL, goldOilRatio: null });
+    assert.ok(!prompt.includes('Gold/Oil Ratio:'),
+      'a Gold/Oil Ratio line appears even though gold (one side of the ratio) is unavailable - the old ' +
+      "code always computed gold.price / oil.price even with an invented gold value plugged in");
   });
 
-  await t.test('3+ feeds missing still trips tooManyMissing, unchanged from today\'s throw threshold', () => {
-    const { tooManyMissing, missingData } = buildMacroPayload(null, null, null, REAL, REAL);
-    assert.equal(tooManyMissing, true);
-    assert.equal(missingData.length, 3);
-  });
-
-  await t.test('sanity: all 5 feeds present - every value is real, missingData is empty', () => {
-    const { payload, missingData, tooManyMissing } = buildMacroPayload(REAL, REAL, REAL, REAL, REAL);
-    assert.equal(tooManyMissing, false);
-    assert.deepEqual(missingData, []);
-    assert.equal(payload.dxy, REAL.price);
-    assert.equal(payload.goldOilRatio, REAL.price / REAL.price);
+  await t.test('sanity: all 5 feeds present - every real value appears, no UNAVAILABLE section', () => {
+    const prompt = buildMacroPrompt({ dxy: REAL, vix: REAL, gold: REAL, oil: REAL, tnx: REAL, goldOilRatio: 1.28 });
+    assert.ok(!prompt.includes('UNAVAILABLE'), 'UNAVAILABLE appears even though every feed succeeded');
+    assert.ok(prompt.includes('100.00') || prompt.includes('100'), 'the real DXY value does not appear in the prompt');
+    assert.ok(prompt.includes('Gold/Oil Ratio:'), 'the ratio line is missing even though both sides are present');
   });
 });
