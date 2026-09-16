@@ -1738,6 +1738,7 @@
   "GLOBAL_MACRO_CONTEXT_ROW_OIL": "Oil (WTI)",
   "GLOBAL_MACRO_CONTEXT_ROW_10Y_YIELD": "10Y Yield",
   "GLOBAL_MACRO_CONTEXT_ROW_GOLD_OIL": "Gold/Oil",
+  "GLOBAL_MACRO_CONTEXT_ROW_UNAVAILABLE": "Unavailable",
   "GLOBAL_MACRO_CONTEXT_IMPLICATIONS_TITLE": "Crypto Implications",
   "GLOBAL_MACRO_CONTEXT_WATCH_LABEL": "Watch: ",
   "VOLATILITY_REGIME_TOOLTIP": "Historical Volatility (HV) measures how much price has moved over the past 30 days, annualized. The percentile shows where today's HV sits vs. the past ~120 days. Low vol historically precedes expansion - volatility mean-reverts. High vol means the market is already moving hard: size down or hedge.",

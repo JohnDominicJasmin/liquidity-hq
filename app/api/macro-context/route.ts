@@ -84,27 +84,39 @@ function pctChange(price: number, prev: number) {
   return ((price - prev) / prev) * 100;
 }
 
+interface MacroMetric { price: number; chg: number }
+
+// #1309 item 11: takes each metric as `MacroMetric | null` (null = that
+// feed's fetch failed) rather than always-present numbers. Only the
+// available ones get a line in the prompt - a missing feed is named as
+// unavailable instead of a fabricated number, and the model is told
+// explicitly not to guess at it. Before this, a fetch failure silently fell
+// back to a hardcoded stand-in (DXY 103.5, VIX 18, Gold 2350, Oil 78, 10Y
+// 4.3) that was fed to the AI as if it were live data.
 function buildMacroPrompt(d: {
-  dxy: number; dxyChg: number;
-  vix: number; vixChg: number;
-  gold: number; goldChg: number;
-  oil: number; oilChg: number;
-  tnx: number; tnxChg: number;
-  goldOilRatio: number;
+  dxy: MacroMetric | null; vix: MacroMetric | null; gold: MacroMetric | null;
+  oil: MacroMetric | null; tnx: MacroMetric | null; goldOilRatio: number | null;
 }): string {
   const fmt = (n: number, dec = 2) => n.toFixed(dec);
   const chgStr = (c: number) => (c >= 0 ? '+' : '') + c.toFixed(2) + '%';
+
+  const lines: string[] = [];
+  const unavailable: string[] = [];
+  if (d.dxy) lines.push(`DXY (US Dollar Index): ${fmt(d.dxy.price)} (${chgStr(d.dxy.chg)} today)`); else unavailable.push('DXY');
+  if (d.vix) lines.push(`VIX (Fear Index):       ${fmt(d.vix.price)} (${chgStr(d.vix.chg)} today)`); else unavailable.push('VIX');
+  if (d.gold) lines.push(`Gold (XAU/USD):         $${fmt(d.gold.price, 0)} (${chgStr(d.gold.chg)} today)`); else unavailable.push('Gold');
+  if (d.oil) lines.push(`WTI Oil:                $${fmt(d.oil.price, 1)} (${chgStr(d.oil.chg)} today)`); else unavailable.push('WTI Oil');
+  if (d.tnx) lines.push(`10Y Treasury Yield:     ${fmt(d.tnx.price, 2)}% (${chgStr(d.tnx.chg)} today)`); else unavailable.push('10Y Treasury Yield');
+  if (d.goldOilRatio != null) lines.push(`Gold/Oil Ratio:         ${fmt(d.goldOilRatio, 1)}x`);
 
   return [
     'You are a macro strategist specializing in crypto market correlations. Analyze the following macro indicators and classify the current macro backdrop for crypto traders.',
     '',
     '=== CURRENT MACRO DATA (live) ===',
-    `DXY (US Dollar Index): ${fmt(d.dxy)} (${chgStr(d.dxyChg)} today)`,
-    `VIX (Fear Index):       ${fmt(d.vix)} (${chgStr(d.vixChg)} today)`,
-    `Gold (XAU/USD):         $${fmt(d.gold, 0)} (${chgStr(d.goldChg)} today)`,
-    `WTI Oil:                $${fmt(d.oil, 1)} (${chgStr(d.oilChg)} today)`,
-    `10Y Treasury Yield:     ${fmt(d.tnx, 2)}% (${chgStr(d.tnxChg)} today)`,
-    `Gold/Oil Ratio:         ${fmt(d.goldOilRatio, 1)}x`,
+    ...lines,
+    ...(unavailable.length
+      ? ['', `UNAVAILABLE (could not be fetched - do not assume a value or invent one for these): ${unavailable.join(', ')}.`]
+      : []),
     '',
     '=== CLASSIFICATION TASKS ===',
     '',
@@ -183,22 +195,26 @@ export async function GET(req: NextRequest) {
         throw new Error(`Could not fetch macro data (${missing.join(', ')})`);
       }
 
-      const dxy  = dxyData  ?? { price: 103.5, prev: 103.5 };
-      const vix  = vixData  ?? { price: 18,    prev: 18    };
-      const gold = goldData ?? { price: 2350,  prev: 2350  };
-      const oil  = oilData  ?? { price: 78,    prev: 78    };
-      const tnx  = tnxData  ?? { price: 4.3,   prev: 4.3   };
+      // #1309 item 11: no fallback stand-ins - a metric that failed to fetch
+      // stays null all the way through (prompt and response both), instead
+      // of being replaced with a plausible-looking made-up number.
+      const dxy  = dxyData  && { price: dxyData.price,  chg: pctChange(dxyData.price,  dxyData.prev) };
+      const vix  = vixData  && { price: vixData.price,  chg: pctChange(vixData.price,  vixData.prev) };
+      const gold = goldData && { price: goldData.price, chg: pctChange(goldData.price, goldData.prev) };
+      const oil  = oilData  && { price: oilData.price,  chg: pctChange(oilData.price,  oilData.prev) };
+      const tnx  = tnxData  && { price: tnxData.price,  chg: pctChange(tnxData.price,  tnxData.prev) };
+      const goldOilRatio = gold && oil ? gold.price / oil.price : null;
 
       const payload = {
-        dxy:  dxy.price,  dxyChg:  pctChange(dxy.price,  dxy.prev),
-        vix:  vix.price,  vixChg:  pctChange(vix.price,  vix.prev),
-        gold: gold.price, goldChg: pctChange(gold.price, gold.prev),
-        oil:  oil.price,  oilChg:  pctChange(oil.price,  oil.prev),
-        tnx:  tnx.price,  tnxChg:  pctChange(tnx.price,  tnx.prev),
-        goldOilRatio: gold.price / oil.price,
+        dxy:  dxy?.price  ?? null, dxyChg:  dxy?.chg  ?? null,
+        vix:  vix?.price  ?? null, vixChg:  vix?.chg  ?? null,
+        gold: gold?.price ?? null, goldChg: gold?.chg ?? null,
+        oil:  oil?.price  ?? null, oilChg:  oil?.chg  ?? null,
+        tnx:  tnx?.price  ?? null, tnxChg:  tnx?.chg  ?? null,
+        goldOilRatio,
       };
 
-      const prompt = buildMacroPrompt(payload);
+      const prompt = buildMacroPrompt({ dxy, vix, gold, oil, tnx, goldOilRatio });
 
       const aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
