@@ -85,17 +85,28 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
       await page.evaluate(() => localStorage.removeItem('lhq_fng_history'));
 
       await gotoGuarded(page, '/dashboard');
-      await expect.poll(() => fngRequests.length > 0, {
-        message: 'no /api/proxy?type=fng request was made at all - this run measured nothing',
+      // Polls specifically for the HISTORY request (the "30" is the
+      // distinguishing constant, broken or not: '&?limit=30' pre-fix,
+      // '&limit=30' post-fix), not just any fng request - MarketProvider.tsx
+      // makes its OWN, unrelated 'limit=2' fng call app-wide (the current-
+      // value gauge, not the history), and it can easily fire first. The
+      // first version of this test polled on "any fng request" and could
+      // resolve on that one alone, silently skipping the actual assertion
+      // if the history call happened to fire slightly later - a false green
+      // waiting to happen once AS-F landed, caught by running this test
+      // against #1319's fix branch before trusting it.
+      await expect.poll(() => fngRequests.some(u => u.includes('limit=30')), {
+        message: `no /api/proxy?type=fng request containing 'limit=30' was ever made (captured: ` +
+          `${fngRequests.join(', ') || 'none'}) - this run measured nothing about the history call`,
         timeout: 15_000,
       }).toBe(true);
 
-      // components/MarketConditionsWidget.tsx:74 sends
-      // '?type=fng&?limit=30&format=json' - the second literal `?` makes the
-      // actual query key `?limit`, not `limit`, so the server-side proxy's
-      // `searchParams.get('limit')` reads null and forwards no limit at all.
-      // CURRENTLY every captured URL contains the broken '&?limit=' and NONE
-      // contains a well-formed 'limit=30'. Expected RED until AS-F fixes the typo.
+      // components/MarketConditionsWidget.tsx:74 sent '?type=fng&?limit=30&format=json'
+      // pre-fix - the second literal `?` made the actual query key `?limit`,
+      // not `limit`, so the server-side proxy's `searchParams.get('limit')`
+      // read null and forwarded no limit at all. Expected RED (every
+      // captured URL contains '&?limit=' and none is well-formed) until
+      // AS-F fixes the typo to '&limit=30'.
       const wellFormed = fngRequests.filter(u => /[?&]limit=30(&|$)/.test(u) && !u.includes('&?limit'));
       expect(wellFormed.length,
         `none of the ${fngRequests.length} fng request(s) had a well-formed limit=30 param - ` +
@@ -103,13 +114,18 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
 
       // Sparkline.tsx renders an empty <div> (no <svg>) for points.length < 2 -
       // a 1-value response (today's reading only, the broken query's effective
-      // result) cannot produce a real trend line. Locating by proximity to the
-      // F&G gauge rather than a global svg count, since the page has many
-      // other sparklines/charts.
-      const fngSection = page.locator('text=/Fear.{0,3}Greed/i').first().locator('xpath=ancestor::div[1]');
-      await expect(fngSection.locator('svg polyline'),
-        'the 30-day trend sparkline never rendered (no <svg><polyline> found near the Fear & Greed ' +
-        'gauge) - consistent with the history request never actually returning multi-day data').toBeVisible({ timeout: 10_000 });
+      // result) cannot produce a real trend line. Scoped to
+      // MarketConditionsWidget.tsx's own panel specifically - the dashboard's
+      // Market Read strip ALSO shows a "FEAR & GREED" label (a different,
+      // unrelated widget showing today's single value only, no history), and
+      // a bare text match on "Fear & Greed" finds that one first, which is
+      // what the first version of this assertion did.
+      const mcwPanel = page.locator('.av-rail-panel', { hasText: 'Market conditions' });
+      await expect(mcwPanel, 'MarketConditionsWidget (.av-rail-panel "Market conditions") never ' +
+        'rendered on /dashboard - this run measured nothing').toBeVisible({ timeout: 10_000 });
+      await expect(mcwPanel.locator('svg polyline'),
+        'the 30-day trend sparkline never rendered inside MarketConditionsWidget (no <svg><polyline> ' +
+        'found) - consistent with the history request never actually returning multi-day data').toBeVisible({ timeout: 10_000 });
     } finally {
       await ctx.close();
     }
