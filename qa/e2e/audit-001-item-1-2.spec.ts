@@ -103,7 +103,7 @@ async function checkFocusRing(page: Page, target: Locator): Promise<FocusCheckRe
   await target.scrollIntoViewIfNeeded();
   const before = await target.evaluate(el => {
     const s = getComputedStyle(el);
-    return { outline: s.outlineStyle + ' ' + s.outlineWidth, outlineColor: s.outlineColor, boxShadow: s.boxShadow, borderColor: s.borderColor };
+    return { outline: s.outlineStyle + ' ' + s.outlineWidth, outlineColor: s.outlineColor, outlineWidth: parseFloat(s.outlineWidth) || 0, outlineOffset: parseFloat(s.outlineOffset) || 0, boxShadow: s.boxShadow, borderColor: s.borderColor };
   });
   // .focus() (the DOM method, via Playwright's Locator.focus()), not
   // .click({force:true}) - found by diagnosing a false-negative on
@@ -115,9 +115,16 @@ async function checkFocusRing(page: Page, target: Locator): Promise<FocusCheckRe
   // is what let this go unnoticed until .st-input's result looked like a
   // real gap instead of a test artifact.
   await target.evaluate(el => (el as HTMLElement).focus());
+  // A short settle wait - found necessary switching from click() to
+  // .focus(): a run against the calculators' inputs intermittently read
+  // BOTH before/after as identical ("none" - no indicator at all) despite a
+  // visible text cursor in the failure screenshot, i.e. focus genuinely
+  // landed but :focus-visible/style hadn't finished being computed yet at
+  // the moment getComputedStyle ran in the very same tick.
+  await page.waitForTimeout(100);
   const after = await target.evaluate(el => {
     const s = getComputedStyle(el);
-    return { outline: s.outlineStyle + ' ' + s.outlineWidth, outlineColor: s.outlineColor, boxShadow: s.boxShadow, borderColor: s.borderColor };
+    return { outline: s.outlineStyle + ' ' + s.outlineWidth, outlineColor: s.outlineColor, outlineWidth: parseFloat(s.outlineWidth) || 0, outlineOffset: parseFloat(s.outlineOffset) || 0, boxShadow: s.boxShadow, borderColor: s.borderColor };
   });
 
   const outlineChanged    = after.outline !== before.outline && !after.outline.startsWith('none');
@@ -134,11 +141,26 @@ async function checkFocusRing(page: Page, target: Locator): Promise<FocusCheckRe
   let visible = hasIndicator;
   let clipNote = '';
   if (hasIndicator && (outlineChanged || boxShadowChanged)) {
+    // CSS outline geometry: the ring is drawn `outline-offset` away from the
+    // border edge, then `outline-width` thick, extending further outward
+    // from there. A NEGATIVE offset (this app's actual fix - see below)
+    // pulls the ring toward the element's own center, so the two can
+    // partly or wholly cancel out: offset -2px + width 2px = 0px past the
+    // element's own edge, meaning the ring never leaves the element's own
+    // box at all and cannot be clipped by anything. An EARLIER version of
+    // this function used `elementRect ± outlineWidth` alone - ignoring
+    // outline-offset entirely - which overstated how far outside the
+    // element the ring reaches and produced a false "still clipped" report
+    // on #1321's actual (working) fix. Caught by PM/DevOps's review; not
+    // just theorized - re-run and confirmed clean after this fix (see the
+    // PR thread).
     const ringPx = outlineChanged
-      ? parseFloat(after.outline) || 2
+      ? after.outlineOffset + after.outlineWidth
       // Parse a simple "<offset-x> <offset-y> <blur> <spread> <color>" box-shadow
       // for its spread value; falls back to 4px (this app's typical ring
-      // width) if the shadow shape doesn't match that pattern.
+      // width) if the shadow shape doesn't match that pattern. box-shadow
+      // has no separate offset/width split the way outline does - the
+      // spread number already IS the full outward reach.
       : (() => {
           const nums = after.boxShadow.match(/-?\d+(\.\d+)?px/g)?.map(parseFloat) ?? [];
           return nums.length >= 4 ? Math.abs(nums[3]) : 4;
@@ -153,9 +175,22 @@ async function checkFocusRing(page: Page, target: Locator): Promise<FocusCheckRe
           || ['hidden', 'clip', 'scroll'].includes(cs.overflowX)
           || ['hidden', 'clip', 'scroll'].includes(cs.overflowY);
         if (clips) {
+          // PADDING box, not the border box getBoundingClientRect() itself
+          // returns - `overflow: hidden` clips at the padding edge, inside
+          // the border. clientLeft/clientTop are exactly the border
+          // thickness on those sides; clientWidth/clientHeight are already
+          // the padding-box dimensions (content + padding, no border, no
+          // scrollbar). Using the border box here (the earlier version of
+          // this function did) makes the clip boundary too generous by
+          // exactly the border width on each side.
           const ar = node.getBoundingClientRect();
-          if (ringBox.left < ar.left - 0.5 || ringBox.top < ar.top - 0.5
-            || ringBox.right > ar.right + 0.5 || ringBox.bottom > ar.bottom + 0.5) {
+          const pad = {
+            left: ar.left + node.clientLeft, top: ar.top + node.clientTop,
+            right: ar.left + node.clientLeft + node.clientWidth,
+            bottom: ar.top + node.clientTop + node.clientHeight,
+          };
+          if (ringBox.left < pad.left - 0.5 || ringBox.top < pad.top - 0.5
+            || ringBox.right > pad.right + 0.5 || ringBox.bottom > pad.bottom + 0.5) {
             return { clipped: true, by: node.className || node.tagName };
           }
         }
@@ -242,6 +277,10 @@ for (const theme of ['dark', 'light'] as const) {
         const journalInput = page.locator('[data-testid="journal-input"]').first();
         await expect(journalInput, 'no [data-testid="journal-input"] rendered on /journal').toBeVisible({ timeout: 15_000 });
         const journalResult = await checkFocusRing(page, journalInput);
+        // Visual ground truth, per PM/DevOps's review - a real screenshot of
+        // the focused row settles it beyond whatever this function's own
+        // geometry math claims.
+        await journalInput.locator('xpath=..').screenshot({ path: `test-results/focus-ring-journal-entry-${theme}.png` }).catch(() => {});
         expect.soft(journalResult.visible,
           `journal input (${theme}): no VISIBLE focus indicator (item 2, .tj-inp) - ${journalResult.detail}`).toBeTruthy();
         if (journalResult.contrast != null) {
@@ -298,6 +337,7 @@ for (const theme of ['dark', 'light'] as const) {
         const accountSize = page.getByLabel('Account Size', { exact: true });
         await expect(accountSize, 'Account Size input never rendered on /calc (Position Sizer tab)').toBeVisible({ timeout: 15_000 });
         const acctResult = await checkFocusRing(page, accountSize);
+        await accountSize.locator('xpath=..').screenshot({ path: `test-results/focus-ring-account-size-${theme}.png` }).catch(() => {});
         expect.soft(acctResult.visible,
           `calculator prefix input "Account Size" (${theme}): no VISIBLE focus indicator - ${acctResult.detail}`).toBeTruthy();
         if (acctResult.contrast != null) {
