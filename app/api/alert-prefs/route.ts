@@ -25,7 +25,18 @@ export const dynamic = 'force-dynamic';
    the service-role client (not the user's own token) because the cron route
    (app/api/telegram/alert/route.ts) also needs bulk cross-user reads - the
    user_id filter here is what actually enforces the boundary, not RLS.
-   Fail-open: if Supabase is unreachable, nothing is muted. */
+
+   The CRON's OWN read (fetchMutedKeysByUser in telegram/alert/route.ts)
+   queries this table directly, not through this GET, and stays fail-open
+   there on purpose: if Supabase is unreachable, nothing is muted, so a DB
+   hiccup never silences an alert someone was expecting.
+
+   THIS route's GET has the opposite correct behavior (#1309 item 10): it is
+   the only reader used by the browser (app/alerts/page.tsx), which decides
+   whether to re-seed default mutes based on the response - so failing open
+   here (answering as if the user had zero mutes) would make the page
+   overwrite a real user's choices. It fails CLOSED instead: an error status,
+   not a plausible-looking empty result. */
 
 export async function GET(req: NextRequest) {
   const userId = await getAuthedUserId(req);
