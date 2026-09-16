@@ -35,10 +35,16 @@ export async function GET(req: NextRequest) {
   try {
     const db = getSupabaseAdmin();
     const { data, error } = await db.from(T.muted_alerts).select('key').eq('user_id', userId);
-    if (error) { console.error('[alert-prefs] GET:', error.message); return NextResponse.json({ muted: [] }); }
+    // #1309 item 10: a DB failure used to answer {muted: []} with a 200, which
+    // the page couldn't tell apart from "this user genuinely has zero mutes" -
+    // so it re-seeded the default mute set on top of whatever the user had
+    // actually chosen. An error status lets the page treat "unknown" as
+    // unknown instead of as "brand new user".
+    if (error) { console.error('[alert-prefs] GET:', error.message); return NextResponse.json({ error: 'Failed to load' }, { status: 503 }); }
     return NextResponse.json({ muted: (data ?? []).map(r => String(r.key)) });
-  } catch {
-    return NextResponse.json({ muted: [] });
+  } catch (e) {
+    console.error('[alert-prefs] GET exception:', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: 'Failed to load' }, { status: 503 });
   }
 }
 
