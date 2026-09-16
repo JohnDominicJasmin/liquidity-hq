@@ -1777,6 +1777,7 @@ function ArenaContent() {
               <input
                 ref={scannerSearchRef}
                 type="text"
+                className="clipped-row-search"
                 placeholder={t('ARENA_SCANNER_SEARCH_PLACEHOLDER')}
                 value={scannerSearch}
                 onChange={e => setScannerSearch(e.target.value)}

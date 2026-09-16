@@ -561,6 +561,7 @@ export default function FundingTerminal() {
                 </svg>
                 <input
                   type="text"
+                  className="clipped-row-search"
                   placeholder={t('FUNDING_SEARCH_PLACEHOLDER')}
                   value={frSearch}
                   onChange={e => setFrSearch(e.target.value)}

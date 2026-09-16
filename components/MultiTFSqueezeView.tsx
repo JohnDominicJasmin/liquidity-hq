@@ -202,6 +202,7 @@ export default function MultiTFSqueezeView() {
           <input
             ref={searchRef}
             type="text"
+            className="clipped-row-search"
             placeholder={t('MULTI_TF_SQUEEZE_VIEW_SEARCH_PLACEHOLDER')}
             value={search}
             onChange={e => setSearch(e.target.value)}
