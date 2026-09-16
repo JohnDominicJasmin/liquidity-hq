@@ -319,6 +319,14 @@ function ArenaContent() {
     strategySelection,
   );
   const [readLoading, setReadLoading] = useState(false);
+  // #1309 item 24: state, not a ref, updates asynchronously - two clicks
+  // landing within the same tick (measured live: ~200ms apart, well within
+  // one React batch on a cold Grok call) both read the same stale `false`
+  // before either one's setReadLoading(true) commits, so a state-only guard
+  // at the top of readMarket did not stop a second paid AI call in practice.
+  // The ref is set synchronously as the very first thing readMarket does, so
+  // the second call always sees the first one's write.
+  const readInFlightRef = useRef(false);
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
   const [readMode,  setReadMode]      = useState<'quick' | 'deep'>('deep');
@@ -1255,10 +1263,19 @@ function ArenaContent() {
   };
 
   const readMarket = useCallback(async (mode: 'quick' | 'deep' = 'deep', force = false) => {
+    // #1309 item 24: the toolbar's own Quick/Deep buttons are `disabled`
+    // while a read is running, but StrategyPanel's copies of the same three
+    // buttons (wired through runStrategy below) were not - a click there
+    // while one call was already in flight started a second paid AI call.
+    // Guarding here, not just on a button's `disabled` prop, protects every
+    // caller of readMarket, not only the ones a reviewer remembers to check.
+    if (readInFlightRef.current) return;
+    readInFlightRef.current = true;
     const binanceSym = BINANCE_SYMS[selectedCoin] as string | undefined;
     const bybitSym   = BYBIT_SYMS[selectedCoin]   as string | undefined;
     if (!binanceSym && !bybitSym) {
       setReadError(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() }));
+      readInFlightRef.current = false;
       return;
     }
 
@@ -1299,6 +1316,7 @@ function ArenaContent() {
           ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
           : 0;
         if (ageSecs < getCacheTTL() / 1000 && pricePct < PRICE_MOVE_PCT && entry.result.tf === readTf) {
+          readInFlightRef.current = false;
           return; // serve cache silently - no banner, no state change
         }
       }
@@ -1465,6 +1483,7 @@ function ArenaContent() {
       const usageFromErr = (e as { usage?: GrokUsageInfo }).usage;
       if (usageFromErr) setGrokUsage(usageFromErr);
     } finally {
+      readInFlightRef.current = false;
       setReadLoading(false); setReadStep('');
 
       /* REVEAL, on every exit path (#278).
@@ -2447,7 +2466,7 @@ function ArenaContent() {
           wired, and that is deliberately a separate change. One selection
           driving a chart plus three AI actions is the part that goes wrong
           quietly, and it should not land inside a layout diff. */}
-      <StrategyPanel loaded={settingsLoaded} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} />
+      <StrategyPanel loaded={settingsLoaded} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
