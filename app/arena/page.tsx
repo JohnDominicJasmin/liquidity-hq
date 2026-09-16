@@ -195,9 +195,26 @@ function ArenaContent() {
     const valid: ChartTf[] = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'];
     return valid.includes(tf as ChartTf) ? tf as ChartTf : '15m';
   });
+  // #1263: whether the page was actually navigated to with a coin/tf param,
+  // captured ONCE on first render like the lazy state above - never re-read
+  // later. The URL-sync effect below (`Sync coin + tf to URL`) calls
+  // `history.replaceState` on every mount, which Next's router observes and
+  // reflects into `searchParams` - so a later `searchParams.has('coin')` (or
+  // even a raw `window.location.search` read) sees the app's OWN just-written
+  // default and can no longer tell a real deep link apart from it.
+  const [hadCoinParamAtMount] = useState(() => searchParams.has('coin'));
+  const [hadTfParamAtMount]   = useState(() => searchParams.has('tf'));
   // Which Pro feature the user just tried to open (null = modal closed)
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
   const arenaInitRef  = useRef(false);
+  // #1263: set by the real user-facing coin/tf change handlers ONLY (the
+  // scanner's coin pick, the toolbar's TF click) - not by the seed effect's
+  // own setSelectedCoin/setReadTf calls. Lets the seed effect below tell "the
+  // user already chose something while settings were still loading" apart
+  // from "nothing has touched this yet", so a slow settings read can't
+  // clobber a real in-flight choice once it finally resolves.
+  const coinTouchedRef = useRef(false);
+  const tfTouchedRef   = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '-' });
   const msDataRef     = useRef<MSData | null>(null);
   // State, not a ref: the Confluence Score re-renders on it. Sourced from the
@@ -562,25 +579,52 @@ function ArenaContent() {
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Seed coin + TF from settings once settings are loaded ── */
+  // #1263: this used to guard ONLY on arenaInitRef, flipped true the first
+  // time this effect ran AT ALL - which on mount is BEFORE settingsLoaded can
+  // ever be true (settings starts as loadLocalSettings()'s DEFAULT_SETTINGS,
+  // synchronous, seeded before the real DB read has even started). On
+  // anything slower than an instant network, that first run seeded from the
+  // default coin/TF/strategy, latched arenaInitRef, and the real saved
+  // values arriving moments later were silently ignored - the guard this
+  // effect exists for was firing on the WRONG read. Gating on settingsLoaded
+  // first means the effect keeps returning early (arenaInitRef never
+  // latches) until the authoritative read actually lands, then seeds once
+  // from the real values. coinTouchedRef/tfTouchedRef cover the one case
+  // that still needs care: a user who acts on coin/TF WHILE settings are
+  // still loading must not have that choice overwritten once the slow read
+  // finally resolves.
   useEffect(() => {
-    if (!arenaInitRef.current) {
-      arenaInitRef.current = true;
-      // URL params take priority - only apply settings defaults when no URL params present
-      const urlParams = new URLSearchParams(window.location.search);
-      if (!urlParams.has('coin') && COINS.includes(settings.default_coin as CoinId)) {
-        setSelectedCoin(settings.default_coin as CoinId);
-      }
-      if (!urlParams.has('tf') && ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'].includes(settings.default_tf)) {
-        setReadTf(settings.default_tf as ChartTf);
-      }
-      // #1020: seed the Strategy Panel selection from the account, once, the
-      // same way coin/tf are seeded above. Uses the raw setters, not the
-      // update()-wrapped handlers below - this is a read, not a user edit,
-      // and must not immediately echo the just-read value back to the server.
-      if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);
-      if (settings.strategy_params) setStrategyParams(settings.strategy_params);
+    if (!settingsLoaded) return;
+    if (arenaInitRef.current) return;
+    arenaInitRef.current = true;
+    // URL params take priority - only apply settings defaults when no URL params
+    // were present at the ORIGINAL navigation (`hadCoinParamAtMount`/
+    // `hadTfParamAtMount`, captured once above). Neither a live
+    // `window.location.search` parse nor `searchParams.has(...)` works here:
+    // the URL-sync effect below (`Sync coin + tf to URL`) calls
+    // `history.replaceState` on every mount to make the page shareable, which
+    // writes today's `selectedCoin`/`readTf` defaults into the URL - and Next's
+    // router observes that same `replaceState` call and updates `searchParams`
+    // to match - well before this effect's settingsLoaded gate ever opens. Any
+    // live re-check at that point sees the app's OWN just-written `coin` param
+    // and wrongly treats it as a real deep link, permanently refusing to seed.
+    if (!hadCoinParamAtMount && !coinTouchedRef.current && COINS.includes(settings.default_coin as CoinId)) {
+      setSelectedCoin(settings.default_coin as CoinId);
     }
-  }, [settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!hadTfParamAtMount && !tfTouchedRef.current && ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'].includes(settings.default_tf)) {
+      setReadTf(settings.default_tf as ChartTf);
+    }
+    // #1020: seed the Strategy Panel selection from the account, once, the
+    // same way coin/tf are seeded above. Uses the raw setters, not the
+    // update()-wrapped handlers below - this is a read, not a user edit,
+    // and must not immediately echo the just-read value back to the server.
+    // No touched-ref needed here: handleStrategySelectionChange already
+    // refuses to run before settingsLoaded (line ~271), so there is no path
+    // for the user to have touched strategy selection before this effect's
+    // own settingsLoaded check passes.
+    if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);
+    if (settings.strategy_params) setStrategyParams(settings.strategy_params);
+  }, [settingsLoaded, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Pro gate: fast timeframes ──
      Intercepts every timeframe switch (chart toolbar buttons come through
@@ -596,6 +640,7 @@ function ArenaContent() {
       setUpgradeGate(t(TF_FEATURE_LABEL_KEYS[tf] ?? 'ARENA_TF_LABEL_FALLBACK'));
       return;
     }
+    tfTouchedRef.current = true;
     setReadTf(tf);
   };
 
@@ -1757,6 +1802,7 @@ function ArenaContent() {
                   key={c}
                   className="scanner-flyout-grid"
                   onClick={() => {
+                    coinTouchedRef.current = true;
                     setSelectedCoin(c); setScannerOpen(false); setScannerSearch(''); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
                   }}
                   style={{
