@@ -67,6 +67,12 @@ worse than an empty one: it costs a session the time to discover it is wrong.**
 | D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | **Built (PR #1292), QA-reviewed clean.** Holding on the owner's sign-off for the toast wording ("Updated from another device") and its look (amber, same corner as Saved/Failed) - screenshots already sent to PM for the batch. Merge once that lands. |
 | D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | **Built (PR #1305), gates green.** Two of the three fixes (alerts row, DryPowder) are ARIA-only with zero visual difference. The one real visual change (HypothesisTracker's new small label under each evidence icon) is blocked on a screenshot - QA will take it locally after their release #4 pass, with a QA test account on dev, per PM. Not merging until the owner signs off. |
 | D6 | **#1113 tour rework · #1185 visual-rule instances** | mixed | Both visual. **Screenshots go to the owner before merge.** #1220 and #1225 are waiting on exactly that right now. |
+| AS-B | **#1309 item 10: alerts mute re-seed on prefs read failure** | ~small | **Built (PR #1313), gates green, reproduced live.** Awaiting QA. |
+| AS-C | **#1309 item 13: onboarding read failure sends finished users back to the wizard** | ~small | **Built, reproduced live, gates in progress.** PR next. |
+| AS-F | **#1309 items 23/24/25: dup checklist, Arena double AI call, F&G `&?limit` typo** | ~small | Queued after AS-C. |
+| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | Queued after AS-F. Visual (focus ring only). |
+| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | Queued after AS-A. **Visual - screenshots to owner, stays unmerged until sign-off.** |
+| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | Queued after AS-D. **Visual (new warning text) - screenshots to owner.** |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
