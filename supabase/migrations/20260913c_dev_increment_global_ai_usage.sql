@@ -22,12 +22,18 @@
 -- Dev only. Not applied anywhere by this commit - additive (CREATE OR
 -- REPLACE, no drop), no app-code change needed (lib/aiUsage.ts's call site
 -- is already source-agnostic, same RPC name on both projects).
+--
+-- QA's pg_get_functiondef on the LIVE prod function found `set search_path =
+-- public` that neither this file nor 20260805f itself has - an advisor
+-- hardening fix applied directly, outside migrations. Matching it here so
+-- dev's function matches what prod actually runs, not just its migration file.
 
 create or replace function increment_global_ai_usage(
   p_date         date,
   p_global_limit int
 ) returns int
 language plpgsql
+set search_path = public
 as $$
 declare
   v_global int;
