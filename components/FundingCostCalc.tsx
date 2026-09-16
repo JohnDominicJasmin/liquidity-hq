@@ -73,8 +73,8 @@ export default function FundingCostCalc() {
         <div className="ps-card-lbl">{t('CALC_FUNDING_POSITION_LABEL')}</div>
         <label className="ps-lbl">{t('CALC_FUNDING_SIDE_LABEL')}</label>
         <div className="ps-presets" style={{ marginTop: 0, marginBottom: 10 }}>
-          <button type="button" className={`ps-preset${side === 'long' ? ' on' : ''}`} onClick={() => setSide('long')}>{t('CALC_FUNDING_SIDE_LONG')}</button>
-          <button type="button" className={`ps-preset${side === 'short' ? ' on' : ''}`} onClick={() => setSide('short')}>{t('CALC_FUNDING_SIDE_SHORT')}</button>
+          <button type="button" aria-pressed={side === 'long'} className={`ps-preset${side === 'long' ? ' on' : ''}`} onClick={() => setSide('long')}>{t('CALC_FUNDING_SIDE_LONG')}</button>
+          <button type="button" aria-pressed={side === 'short'} className={`ps-preset${side === 'short' ? ' on' : ''}`} onClick={() => setSide('short')}>{t('CALC_FUNDING_SIDE_SHORT')}</button>
         </div>
         <div className="ps-row">
           <div className="ps-field">
@@ -156,7 +156,7 @@ export default function FundingCostCalc() {
               <div className="ps-rval">{fmtUSD(result.breakeven)}</div>
             </div>
           </div>
-          {result.annualRate > 50 && isPaying && (
+          {Math.abs(result.annualRate) > 50 && isPaying && (
             <div className="ps-warn"><Warn /> {t('CALC_FUNDING_WARN_HIGH_RATE')}</div>
           )}
         </>

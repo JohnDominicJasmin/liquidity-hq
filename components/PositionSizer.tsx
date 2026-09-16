@@ -297,7 +297,7 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
             <div className="ps-warn"><Warn /> {t('CALC_SIZER_WARN_LOW_RR')}</div>
           )}
           {result.tpOnWrongSide && (
-            <div className="ps-warn"><Warn /> {t('CALC_SIZER_WARN_TP_WRONG_SIDE', { side: result.isLong ? t('CALC_SIZER_LONG_PILL') : t('CALC_SIZER_SHORT_PILL') })}</div>
+            <div className="ps-warn"><Warn /> {t('CALC_SIZER_WARN_TP_WRONG_SIDE', { side: result.isLong ? t('CALC_SIZER_LONG_WORD') : t('CALC_SIZER_SHORT_WORD') })}</div>
           )}
 
           <button className="ps-log-btn" onClick={logTrade}>
