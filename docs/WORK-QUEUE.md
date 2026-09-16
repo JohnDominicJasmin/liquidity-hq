@@ -69,8 +69,7 @@ worse than an empty one: it costs a session the time to discover it is wrong.**
 | D6 | **#1113 tour rework · #1185 visual-rule instances** | mixed | Both visual. **Screenshots go to the owner before merge.** #1220 and #1225 are waiting on exactly that right now. |
 | AS-B | **#1309 item 10: alerts mute re-seed on prefs read failure** | ~small | **Built (PR #1313), gates green, reproduced live.** Awaiting QA. |
 | AS-C | **#1309 item 13: onboarding read failure sends finished users back to the wizard** | ~small | **Built (PR #1315), gates green, reproduced live.** Awaiting QA. |
-| AS-F | **#1309 items 23/24/25: dup checklist, Arena double AI call, F&G `&?limit` typo** | ~small | **Built, reproduced live (all 3), gates in progress.** PR next. |
-| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | Queued after AS-F. Visual (focus ring only). |
+| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Built (PR next), verified live (screenshot taken), gates green.** |
 | AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | Queued after AS-A. **Visual - screenshots to owner, stays unmerged until sign-off.** |
 | AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | Queued after AS-D. **Visual (new warning text) - screenshots to owner.** |
 

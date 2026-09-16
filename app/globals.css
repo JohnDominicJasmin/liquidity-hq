@@ -840,7 +840,8 @@ body::after {
    actual focusable target a screen reader or switch-access user acts on,
    so its own box needs to clear 24, not just the pill around it. */
 .nav-search {
-  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  /* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+  flex: 1; min-width: 0; background: none; border: none;
   color: var(--txt); font-size: var(--fs-label); font-family: inherit; padding: 0;
   min-height: 24px;
 }
@@ -1927,7 +1928,9 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
    layers above it via z-index. */
 .ncard-headline-link { color: inherit; text-decoration: none; }
 .ncard-headline-link::after { content: ''; position: absolute; inset: 0; z-index: 0; }
-.ncard-headline-link:focus-visible { outline: none; }
+/* #1309 item 2: was `outline: none` with nothing replacing it (1.2-1.5:1 at
+   best, whatever ambient color shift this stretched link's text picked up) -
+   removed so the global `*:focus-visible` ring (line 331) shows instead. */
 
 /* Actions sit above the stretched headline link; make the row itself
    click-through so only the button is interactive and the empty space beside
@@ -2088,7 +2091,8 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 /* ── PRICE ALERTS ── */
 .pa-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
 .pa-select { font-size: var(--fs-caption); padding: 6px 10px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt); cursor: pointer; }
-.pa-input { font-size: var(--fs-caption); padding: 6px 10px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt); outline: none; width: 140px; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.pa-input { font-size: var(--fs-caption); padding: 6px 10px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt); width: 140px; }
 .pa-input-label { width: 160px; }
 .pa-input::placeholder { color: var(--txt3); }
 .pa-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 0.5px solid var(--bdr); }
@@ -2471,7 +2475,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 /* #520: was border: var(--bdr) (rgba(255,255,255,0.08)) - a hairline divider
    token, not built for a 3:1 UI-component boundary. rgba(255,255,255,0.35)
    composites to ~3.17:1 against --bg2. */
-.gchat-input { flex: 1; padding: 9px 12px; border-radius: 12px; font-size: var(--fs-label); border: 0.5px solid rgba(255,255,255,0.35); background: var(--bg2); color: var(--txt); outline: none; transition: border-color 0.15s; font-family: inherit; resize: none; overflow-y: auto; min-height: 38px; max-height: 120px; line-height: 1.5; }
+/* #1309 item 1: no `outline: none` - see .login-email-input's comment. */
+.gchat-input { flex: 1; padding: 9px 12px; border-radius: 12px; font-size: var(--fs-label); border: 0.5px solid rgba(255,255,255,0.35); background: var(--bg2); color: var(--txt); transition: border-color 0.15s; font-family: inherit; resize: none; overflow-y: auto; min-height: 38px; max-height: 120px; line-height: 1.5; }
 .gchat-input:focus { border-color: var(--purple-bdr); }
 .gchat-input:disabled { opacity: 0.5; }
 .gchat-send { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; background: var(--accent-bg); border: 0.5px solid var(--accent-bdr); color: var(--accent); font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
@@ -3307,7 +3312,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .ps-irow  { display: flex; align-items: center; background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; overflow: hidden; }
 .ps-affix { padding: 0 8px; font-size: var(--fs-caption); color: var(--txt3); background: var(--bg3); border-right: 0.5px solid var(--bdr); line-height: 36px; flex-shrink: 0; }
 .ps-suffix { border-right: none; border-left: 0.5px solid var(--bdr); }
-.ps-inp   { flex: 1; background: transparent; border: none; outline: none; padding: 0 10px; font-size: var(--fs-label); color: var(--txt); height: 36px; width: 0; min-width: 0; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.ps-inp   { flex: 1; background: transparent; border: none; padding: 0 10px; font-size: var(--fs-label); color: var(--txt); height: 36px; width: 0; min-width: 0; }
 .ps-inp-stop:focus { box-shadow: inset 0 0 0 1px rgba(248,113,113,.3); }
 .ps-inp-tp:focus   { box-shadow: inset 0 0 0 1px rgba(52,211,153,.3); }
 .ps-presets { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
@@ -3335,7 +3341,13 @@ html[data-theme="light"] { background: var(--bg0); }
   transition: border-color .15s, background-color .15s, box-shadow .15s;
 }
 .ps-coin-trigger:hover  { border-color: var(--bdr); background-color: var(--bg3); }
-.ps-coin-trigger:focus-visible, .ps-coin-trigger[aria-expanded="true"] { outline: none; border-color: var(--accent-bdr); box-shadow: 0 0 0 3px var(--accent-bg); }
+/* #1309 item 2: was one rule covering BOTH keyboard focus and "menu is open"
+   (aria-expanded), with `outline: none` and only a 1.05-1.5:1 box-shadow to
+   show for it - split so :focus-visible keeps its `outline: none` off and
+   falls through to the global `*:focus-visible` ring (line 331) instead;
+   the open-state box-shadow/border-color stays exactly as it was for
+   aria-expanded (that's an "is this open" cue, not the focus indicator). */
+.ps-coin-trigger[aria-expanded="true"] { border-color: var(--accent-bdr); box-shadow: 0 0 0 3px var(--accent-bg); }
 .ps-coin-trigger-dot   { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; background: var(--bg3); border: 0.5px solid var(--bdr2); }
 .ps-coin-trigger-label { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ps-coin-chevron       { flex-shrink: 0; color: var(--txt3); transition: transform .15s; }
@@ -3472,11 +3484,13 @@ html[data-theme="light"] { background: var(--bg0); }
 .tj-lbl   { font-size: var(--fs-caption); color: var(--txt2); margin-bottom: 5px; }
 .tj-irow  { display: flex; align-items: center; background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; overflow: hidden; }
 .tj-affix { padding: 0 8px; font-size: var(--fs-caption); color: var(--txt3); background: var(--bg3); border-right: 0.5px solid var(--bdr); line-height: 36px; flex-shrink: 0; }
-.tj-inp   { flex: 1; background: transparent; border: none; outline: none; padding: 0 10px; font-size: var(--fs-label); color: var(--txt); height: 36px; width: 0; min-width: 0; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.tj-inp   { flex: 1; background: transparent; border: none; padding: 0 10px; font-size: var(--fs-label); color: var(--txt); height: 36px; width: 0; min-width: 0; }
 .tj-inp-stop:focus { box-shadow: inset 0 0 0 1px rgba(248,113,113,.3); }
 .tj-inp-tp:focus   { box-shadow: inset 0 0 0 1px rgba(52,211,153,.3); }
 .tj-autofill { font-size: var(--fs-caption); color: var(--green); margin-top: 8px; }
-.tj-notes { width: 100%; background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 10px; font-size: var(--fs-caption); color: var(--txt); resize: vertical; outline: none; font-family: inherit; box-sizing: border-box; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.tj-notes { width: 100%; background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 10px; font-size: var(--fs-caption); color: var(--txt); resize: vertical; font-family: inherit; box-sizing: border-box; }
 .tj-submit { width: 100%; padding: 13px; border-radius: var(--radius-card); border: 1px solid var(--purple); background: rgba(26,122,255,.22); color: #e4e7ff; font-size: var(--fs-label); font-weight: 700; cursor: pointer; margin-top: 4px; }
 .tj-submit:disabled { opacity: .35; cursor: not-allowed; border-color: var(--purple-bdr); background: rgba(26,122,255,.08); color: var(--purple); }
 .tj-submit:not(:disabled):hover { box-shadow: 0 0 16px rgba(26,122,255,.2); }
@@ -3505,7 +3519,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .tj-edit-form { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--bdr); }
 .tj-edit-row  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .tj-edit-field { display: flex; flex-direction: column; gap: 4px; }
-.tj-edit-select { background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 0 10px; font-size: var(--fs-caption); color: var(--txt); height: 36px; outline: none; cursor: pointer; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.tj-edit-select { background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 0 10px; font-size: var(--fs-caption); color: var(--txt); height: 36px; cursor: pointer; }
 .tj-edit-btns { display: flex; gap: 6px; margin-top: 10px; }
 .tj-trade-prices { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
 .tj-tp      { display: flex; flex-direction: column; gap: 1px; }
@@ -3541,7 +3556,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .tj-lev-slider {
   -webkit-appearance: none; appearance: none;
   width: 100%; height: 4px; border-radius: 2px;
-  outline: none; cursor: pointer; display: block;
+  /* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+  cursor: pointer; display: block;
   margin-bottom: 6px; border: none;
 }
 .tj-lev-slider::-webkit-slider-thumb {
@@ -3577,7 +3593,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .tj-lev-num {
   width: 56px; flex-shrink: 0; padding: 6px 8px; border-radius: 8px;
   border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt);
-  font-size: var(--fs-data); font-weight: 700; text-align: center; outline: none;
+  /* #1309 item 1: no `outline: none` - see .login-email-input's comment. */
+  font-size: var(--fs-data); font-weight: 700; text-align: center;
   font-variant-numeric: tabular-nums; font-family: inherit;
   -moz-appearance: textfield;
 }
@@ -3985,7 +4002,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .st-input {
   flex: 1; height: 34px; padding: 0 10px;
   background: var(--bg2); border: 0.5px solid var(--bdr);
-  color: var(--txt); font-size: var(--fs-label); outline: none;
+  /* #1309 item 1: no `outline: none` - see .login-email-input's comment. */
+  color: var(--txt); font-size: var(--fs-label);
   border-radius: 7px;
   -moz-appearance: textfield;
 }
@@ -4162,12 +4180,15 @@ html[data-theme="light"] { background: var(--bg0); }
   display: flex; flex-direction: column;
   max-height: 320px; overflow: hidden;
 }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. The
+   old `:focus { border-color: var(--bdr2) }` below is gone too - `--bdr2` is
+   DARKER than the resting `--bdr`, so it made the border less visible on
+   focus, actively working against the ring this restores. */
 .cms-search {
   flex-shrink: 0; height: 34px; padding: 0 10px; margin: 6px;
   background: rgba(255,255,255,0.05); border: 0.5px solid var(--bdr); border-radius: 7px;
-  color: var(--txt); font-size: var(--fs-caption); outline: none;
+  color: var(--txt); font-size: var(--fs-caption);
 }
-.cms-search:focus { border-color: var(--bdr2); }
 .cms-list { flex: 1; overflow-y: auto; padding: 0 6px 6px; }
 .cms-row {
   display: flex; align-items: center; gap: 8px;
@@ -4526,7 +4547,13 @@ html[data-theme="light"] { background: var(--bg0); }
 .login-email-input {
   width: 100%; padding: 11px 14px; border-radius: 12px;
   background: var(--bg2); border: 0.5px solid var(--bdr2);
-  color: var(--txt); font-size: var(--fs-label); font-family: inherit; outline: none;
+  /* #1309 item 1: no `outline: none` here - the global `*:focus-visible`
+     ring (line 331) is this field's focus indicator. It used to be
+     suppressed here with nothing keyboard-visible to replace it (the
+     `:focus` border-color below is real but was itself silently overridden
+     by the terminal border-color rule further down - see that rule's own
+     comment). */
+  color: var(--txt); font-size: var(--fs-label); font-family: inherit;
   transition: border-color 0.15s;
 }
 .login-email-input::placeholder { color: var(--txt3); }
@@ -8369,11 +8396,20 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .tj-irow,
 [data-design="terminal"] .tj-notes,
 [data-design="terminal"] .ps-irow,
-[data-design="terminal"] .login-email-input,
-[data-design="terminal"] .st-input,
-[data-design="terminal"] .st-affix,
-[data-design="terminal"] .tj-lev-num,
-[data-design="terminal"] .gchat-input { border-color: var(--border-input); }
+[data-design="terminal"] .st-affix { border-color: var(--border-input); }
+/* #1309 item 1: split from the blanket rule above for these four - each has
+   its own `:focus`/`:focus-visible` border-color rule earlier in this file,
+   and this rule sat at the SAME specificity ([data-design] + one class) but
+   LATER in source order, so it always won and silently erased whatever the
+   focus rule set - the border never actually changed on focus, terminal
+   mode only. `:not(:focus-visible)` keeps the resting-state fix (#512 bug 3)
+   without re-introducing that override. The global `*:focus-visible` ring
+   (line 331) is what actually makes focus visible here; this only restores
+   the secondary border-color cue these elements already had. */
+[data-design="terminal"] .login-email-input:not(:focus-visible),
+[data-design="terminal"] .st-input:not(:focus-visible),
+[data-design="terminal"] .tj-lev-num:not(:focus-visible),
+[data-design="terminal"] .gchat-input:not(:focus-visible) { border-color: var(--border-input); }
 
 /* ── Shared shell chrome: terminal radius (#526 C6) ────────────────────────
    NavDrawer and GrokChat render once in AppShell, as siblings outside every

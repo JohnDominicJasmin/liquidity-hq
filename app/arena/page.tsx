@@ -1780,7 +1780,7 @@ function ArenaContent() {
                 placeholder={t('ARENA_SCANNER_SEARCH_PLACEHOLDER')}
                 value={scannerSearch}
                 onChange={e => setScannerSearch(e.target.value)}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
+                style={{ flex: 1, background: 'transparent', border: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
               />
               {scannerSearch && (
                 <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label={t('ARENA_SCANNER_CLEAR_SEARCH_ARIA')}>×</button>
@@ -2034,7 +2034,7 @@ function ArenaContent() {
                     value={alertPrice}
                     onChange={e => setAlertPrice(e.target.value)}
                     placeholder={t('ARENA_ALERT_PRICE_PLACEHOLDER')}
-                    style={{ flex: 1, minWidth: 0, padding: '7px 0', fontSize: 'var(--fs-body)', fontFamily: 'var(--font-mono), monospace', border: 'none', background: 'transparent', color: 'var(--txt)', outline: 'none' }}
+                    style={{ flex: 1, minWidth: 0, padding: '7px 0', fontSize: 'var(--fs-body)', fontFamily: 'var(--font-mono), monospace', border: 'none', background: 'transparent', color: 'var(--txt)' }}
                   />
                   <span style={{
                     flexShrink: 0, fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.03em',
@@ -2056,7 +2056,7 @@ function ArenaContent() {
                   value={alertLabel}
                   onChange={e => setAlertLabel(e.target.value)}
                   placeholder={t('ARENA_ALERT_LABEL_PLACEHOLDER')}
-                  style={{ width: '100%', padding: '9px 12px', fontSize: 'var(--fs-label)', borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: 'var(--fs-label)', borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)' }}
                 />
               </div>
 
