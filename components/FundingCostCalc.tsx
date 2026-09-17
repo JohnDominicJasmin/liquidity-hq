@@ -4,27 +4,7 @@ import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
-
-interface FundResult {
-  totalCost:    number;
-  costPerDay:   number;
-  costPerWeek:  number;
-  annualRate:   number;
-  payments:     number;
-  breakeven:    number;
-}
-
-function calc(posSize: number, fundingRate: number, hours: number): FundResult | null {
-  if (posSize <= 0 || fundingRate === 0 || hours <= 0) return null;
-  const payments   = hours / 8;
-  const rate       = fundingRate / 100;
-  const totalCost  = posSize * rate * payments;
-  const costPerDay = posSize * rate * 3;
-  const costPerWeek = posSize * rate * 21;
-  const annualRate = rate * 3 * 365 * 100;
-  const breakeven  = Math.abs(totalCost);
-  return { totalCost, costPerDay, costPerWeek, annualRate, payments, breakeven };
-}
+import { calcFundingCost, isFundingPaying, isHighFundingRateWarning } from '@/lib/fundingCost';
 
 function fmtUSD(v: number) {
   return '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -43,16 +23,16 @@ export default function FundingCostCalc() {
   const [posSize,     setPosSize]     = useState('');
   const [fundingRate, setFundingRate] = useState('0.01');
   const [hours,       setHours]       = useState('24');
+  const [side,        setSide]        = useState<'long' | 'short'>('long');
 
-  const result = calc(
+  const result = calcFundingCost(
     parseFloat(posSize)     || 0,
     parseFloat(fundingRate) || 0,
     parseFloat(hours)       || 0,
   );
 
-  const rate     = parseFloat(fundingRate) || 0;
-  const isLong   = rate > 0;
-  const isPaying = isLong;
+  const rate = parseFloat(fundingRate) || 0;
+  const isPaying = isFundingPaying(side, rate);
 
   return (
     <div>
@@ -63,6 +43,11 @@ export default function FundingCostCalc() {
 
       <div className="ps-card">
         <div className="ps-card-lbl">{t('CALC_FUNDING_POSITION_LABEL')}</div>
+        <label className="ps-lbl">{t('CALC_FUNDING_SIDE_LABEL')}</label>
+        <div className="ps-presets" style={{ marginTop: 0, marginBottom: 10 }}>
+          <button type="button" aria-pressed={side === 'long'} className={`ps-preset${side === 'long' ? ' on' : ''}`} onClick={() => setSide('long')}>{t('CALC_FUNDING_SIDE_LONG')}</button>
+          <button type="button" aria-pressed={side === 'short'} className={`ps-preset${side === 'short' ? ' on' : ''}`} onClick={() => setSide('short')}>{t('CALC_FUNDING_SIDE_SHORT')}</button>
+        </div>
         <div className="ps-row">
           <div className="ps-field">
             <label className="ps-lbl">{t('CALC_FUNDING_POS_SIZE_LABEL')}</label>
@@ -143,7 +128,7 @@ export default function FundingCostCalc() {
               <div className="ps-rval">{fmtUSD(result.breakeven)}</div>
             </div>
           </div>
-          {result.annualRate > 50 && isPaying && (
+          {isHighFundingRateWarning(result.annualRate, isPaying) && (
             <div className="ps-warn"><Warn /> {t('CALC_FUNDING_WARN_HIGH_RATE')}</div>
           )}
         </>

@@ -26,6 +26,7 @@
 
 import { useState, useMemo, useId } from 'react';
 import { useAuth } from './AuthProvider';
+import { SkeletonBar } from './Skeleton';
 import {
   GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS,
   AUTO_SET_ID, CUSTOM_SET_ID,
@@ -36,6 +37,15 @@ import {
 export type RunKind = 'quick' | 'deep' | 'ask';
 
 interface Props {
+  /** #1246: whether the caller's saved selection has actually been read from
+   *  the server (or confirmed there is none - a signed-out visitor). Until
+   *  true, `selected` is NOT the user's real answer, just whatever local
+   *  state happened to start as - so this component must not accept input
+   *  that would write it out as if it were. False on a genuinely new setup
+   *  is indistinguishable from false on a load that just hasn't landed yet,
+   *  which is exactly why this is a separate flag rather than inferred from
+   *  `selected.length === 0`. */
+  loaded: boolean;
   /** The current selection. CONTROLLED, and that is the point of this change:
    *  the chart, QUICK, DEEP and ASK AI all need to know what is selected, and
    *  three of those live outside this component. State that two consumers read
@@ -56,6 +66,12 @@ interface Props {
    *  this went unnoticed until QA hit it by hand. Required turns a future
    *  instance of the same mistake into a compile error instead. */
   onRun: (kind: RunKind, selection: readonly string[]) => void;
+  /** #1309 item 24: whether a Quick/Deep/Ask read is already in flight.
+   *  Disables all three run buttons while true - onRun's own guard
+   *  (readMarket bails early on a concurrent call) stops a second paid AI
+   *  call either way, but a click that visibly does nothing is still a
+   *  worse experience than a greyed-out button. */
+  running?: boolean;
 }
 
 function ParamRow({ spec, value, readOnly, onChange }: {
@@ -114,7 +130,7 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   );
 }
 
-export default function StrategyPanel({ selected, onSelectedChange, params, onParamsChange, onRun }: Props) {
+export default function StrategyPanel({ loaded, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
   const { entitlementStatus } = useAuth();
   const entitled = entitlementStatus === 'entitled';
   const limitNoteId = useId();
@@ -139,6 +155,10 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
   const atLimit = selected.length >= limit;
 
   const applySet = (id: string) => {
+    // #1246: the pre-load blank state must be inert, not just look inert -
+    // see the `loaded` prop doc for why this can't be inferred from
+    // `selected` itself.
+    if (!loaded) return;
     setSetId(id);
     const preset = STRATEGY_SETS.find(s => s.id === id);
     if (!preset || id === CUSTOM_SET_ID) { setDropped(0); return; }
@@ -153,6 +173,10 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
   };
 
   const toggle = (entry: IndicatorEntry) => {
+    // #1246: same reasoning as applySet above - a click before the real
+    // selection has loaded must not write `[...emptyPreLoadState, entry.id]`
+    // over whatever the user actually saved.
+    if (!loaded) return;
     /* An entry that cannot draw is not selectable. Accepting the click and
        doing nothing is the silent-failure shape this project has spent a day
        arguing against - it would look exactly like a working chip. */
@@ -183,7 +207,7 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
   };
 
   const groups = useMemo(() => GROUPS.map(g => ({ id: g, entries: byGroup(g) })), []);
-  const isAuto = setId === AUTO_SET_ID && selected.length === 0;
+  const isAuto = loaded && setId === AUTO_SET_ID && selected.length === 0;
 
   return (
     <div className="strat-panel">
@@ -207,6 +231,7 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
         <select
           className="strat-sel"
           value={setId}
+          disabled={!loaded}
           aria-label="Strategy set"
           onChange={e => applySet(e.target.value)}
         >
@@ -218,11 +243,25 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
         <div className="strat-lbl">
           <span>Indicators</span>
           {/* The ceiling is visible before it is reached rather than announced
-              as a rejection afterwards. */}
-          <span className="strat-cap">{selected.length} of {limit}</span>
+              as a rejection afterwards. Withheld while unloaded too - "0 of 3"
+              reads as a real count, and it isn't one yet. */}
+          {loaded && <span className="strat-cap">{selected.length} of {limit}</span>}
         </div>
 
-        {groups.map(({ id, entries }) => (
+        {/* #1246: a neutral loading state, not an empty one. The pre-load
+            selection is genuinely unknown, not genuinely zero - showing every
+            chip unselected asserts the second when only the first is true,
+            the same "unknown shown as a definite answer" class as #1119/#1201. */}
+        {!loaded && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} role="status" aria-live="polite">
+            <span className="sr-only">Loading your saved strategy…</span>
+            {[0, 1, 2].map(i => (
+              <SkeletonBar key={i} height={28} radius={8} style={{ opacity: 1 - i * 0.18 }} />
+            ))}
+          </div>
+        )}
+
+        {loaded && groups.map(({ id, entries }) => (
           <div key={id} className="strat-grp">
             <div className="strat-gname">{GROUP_LABEL[id]}</div>
             <div className="strat-chips">
@@ -304,9 +343,11 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
             into the chart at all), not on entitlement, so it is identical
             for every plan. Saying so directly removes the misread instead
             of relying on the reader not to make it. */}
-        <div className="strat-notyet-note">
-          Dimmed indicators aren&apos;t wired up to the chart yet - same on every plan.
-        </div>
+        {loaded && (
+          <div className="strat-notyet-note">
+            Dimmed indicators aren&apos;t wired up to the chart yet - same on every plan.
+          </div>
+        )}
 
         {atLimit && (
           <div id={limitNoteId} className="strat-limit" role="status">
@@ -360,8 +401,8 @@ export default function StrategyPanel({ selected, onSelectedChange, params, onPa
           {/* Never gated on a selection. Zero indicators is the default state and
               all three actions work in it - that is what "let the read choose"
               means. */}
-          <button type="button" className="strat-btn pri" onClick={() => onRun('quick', selected)}>QUICK</button>
-          <button type="button" className="strat-btn" onClick={() => onRun('deep', selected)}>DEEP</button>
+          <button type="button" className="strat-btn pri" disabled={running} onClick={() => onRun('quick', selected)}>QUICK</button>
+          <button type="button" className="strat-btn" disabled={running} onClick={() => onRun('deep', selected)}>DEEP</button>
           <button type="button" className="strat-btn" onClick={() => onRun('ask', selected)}>ASK AI</button>
         </div>
       </div>

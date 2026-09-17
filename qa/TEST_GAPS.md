@@ -172,6 +172,47 @@ checked against current source, not assumed still true:**
   assertion, the same discipline `rsi.test.mts` and `smaNMArr.test.mts`
   already established for this file's neighbours.
 
+**2026-09-12 — systematic audit of every server-side time-dependent
+decision**, per PM/DevOps's request while the dev database was down (a
+code-only task, deliberately chosen for that window). Mapped every genuine
+time-gated *decision* (not a display timestamp) against the five named
+categories - trial expiry, alert cooldowns, rate-limit windows, health-write
+coalescing, market-hours logic - and one bucket: testable today with no code
+change, testable today because it's already exported/parameterized right,
+or genuinely blocked on a bare `Date.now()`/`new Date()` with no seam.
+
+- **Testable today, no seam needed:** `lib/rateLimit.ts`'s `rateLimit(key,
+  limit, windowMs)` - already exported, reads `Date.now()` internally with
+  no parameter, same shape as `shouldWrite` below. No test exists yet; none
+  is blocked from existing either. `market-hours` logic itself has no
+  separate server-side gate to find - it's client-rendered on `/hours` and
+  already covered by `clock.spec.ts`'s three pinned instants (see above).
+- **Testable today because already exported/parameterized correctly:**
+  `lib/apiHealth.ts`'s `shouldWrite` (health-write coalescing, the named
+  30s/5s floors) - now unit-tested directly (#1226, `node:test`'s built-in
+  `Date` mock, no real sleeps), closing what was an open item as of this
+  morning. `lib/candles.ts`'s `closedCandleTtl`/`msUntilNextClose` remain
+  the standing proof this pattern works (cited above).
+- **Genuinely blocked - bare `Date.now()`/`new Date()`, no seam, named fix:**
+  - `app/api/trial-reminder/route.ts:32` - `const now = Date.now(); const
+    cutoff = new Date(now + WINDOW_DAYS * 86_400_000)...` gates which
+    trial-ending-soon rows get a reminder email. Same shape as
+    `resolveWindow`'s cutoff above: extract the boundary check itself into
+    a pure function taking `nowMs` and `trial_ends_at`, same pattern as
+    `closedCandleTtl`. Not proposing the change here - app code.
+  - `app/api/telegram/alert/route.ts:229-230` - `onCooldown`/`markSent`, a
+    module-level `Map` + bare `Date.now()` gating whether an alert re-fires
+    within its cooldown window. Pure function, same shape as `shouldWrite` -
+    the **only** reason it isn't testable today is that it isn't exported.
+    Same one-word, zero-risk ask as `outcomePct` above: `export function
+    onCooldown` / `export function markSent`, no behavior change.
+
+Everything else the `Date.now()`/`new Date()` grep across `app/api/` turned
+up (40 files) was either a display/audit timestamp with no gating decision
+behind it, or a route already covered above. Not listing all 40 - the two
+new named gaps and the one already-exportable-today function are what's
+actionable; the rest is noise for this section's purpose.
+
 ---
 
 ## 🟡 2. Geometry is checked now; APPEARANCE still is not
@@ -499,6 +540,119 @@ last pass, against shapes already proven real) after any batch of feature
 work, rather than either a full re-sweep or assuming a past-clean result
 still holds.**
 
+**2026-09-12 — four new shapes, not covered by any prior sweep.** The five
+prior passes all targeted two specific defect families (keyboard-inaccessible
+click handlers, glyph-only direction/disclosure text). This pass looked at
+four categories those never touched: accessible names on form controls and
+icon-only buttons, modal focus management, live regions, and color-only
+state. Source-and-tree reading only, same caveat as everything above — this
+finds missing structure, not what a screen reader actually announces.
+
+**Unlabeled form controls (placeholder-only, no `aria-label`/`<label>`) — 11
+instances across 7 files**, all the same shape: a `placeholder` is the ONLY
+name source, and a placeholder is not an accessible name (it disappears on
+the first keystroke, and several screen readers never announce it at all —
+`CoinMultiSelect.tsx`'s own code comment already states this, correctly,
+right next to a field that gets it right).
+- `FundingTerminal.tsx:562` — the funding-rate search input. Notably
+  inconsistent *within the same component*: the clear button three lines
+  below it (`:570`) correctly carries `aria-label`; the field it clears does
+  not.
+- `HypothesisTracker.tsx:281,307,327,616` — four fields in the counterfactual
+  form (title, criterion, target date, evidence source). The date field
+  (`:327`) has neither a label nor a placeholder — nothing names it at all.
+- `MarketsTerminal.tsx:165`, `MultiTFSqueezeView.tsx:202` — both coin-filter
+  search inputs.
+- `TradeJournal.tsx:1168,1729,1744,1762` — the history quick-exit price, and
+  three Thesis Health form fields (ticker, date, assumption). The date field
+  (`:1744`) again has no placeholder either. (Not a defect found here, but
+  worth recording since it lives 80 lines above: the edit-trade exit/PnL/notes
+  fields at `:1229-1253` already carry correct `<label htmlFor>` pairing, and
+  the file has its own comment at `:1246` warning that a textarea's rendered
+  VALUE can look like a label to a careless check — a real prior false-positive
+  this pass did not repeat.)
+- `OnboardingFlow.tsx:134,338` — the country-search combobox and the
+  display-name field. `:134` is the more structurally incomplete of the
+  two: it opens a filtered listbox with no `aria-label`, `role="combobox"`,
+  `aria-expanded`, or `aria-controls` — a sighted mouse user sees a dropdown
+  appear; nothing in the markup says one exists. `:338` is a real profile
+  field (the name stored and shown elsewhere in the app), not a transient
+  filter, which makes its missing name the more consequential of the two.
+
+**Icon-only control naming — one real inversion, found by checking how the
+accessible name is actually computed, not just whether SOME attribute is
+present.** `GrokChat.tsx:795`'s close button: `<button title="Close">✕</button>`,
+no `aria-label`. Per the accessible-name computation order (ARIA's accname
+spec), visible text content wins over `title` — so this button's name is
+whatever "✕" reads as on a given screen reader (inconsistent, often nothing
+usable), and "Close" is likely never announced at all. Two close buttons
+elsewhere in the same codebase get this right the correct way —
+`SetupChecklist.tsx:55,66` and `UsageModal.tsx:36` all use `aria-label="Close"`
+(or equivalent) instead of `title` — so the fix is the existing in-house
+pattern, not a new one.
+
+**Modal focus management — a structural gap in all four `role="dialog"`
+components in the codebase**, not a new defect introduced by one of them:
+`UpgradeGateModal.tsx`, `UsageModal.tsx`, `SpotlightTour.tsx`,
+`OnboardingFlow.tsx`. Checked each for three things a screen-reader or
+keyboard-only user needs from anything claiming `aria-modal="true"`: focus
+moves INTO the dialog when it opens, Tab cannot leave the dialog while it's
+open (a trap), and focus returns to whatever triggered it on close. **None
+of the four do any of the three.** `aria-modal="true"` is an assertion the
+DOM has to back up with real behaviour; right now it's present on all four
+and enforced by none of them — the same "attribute exists, behaviour
+doesn't" shape this whole section exists to catch, just never checked
+against modals before. Narrower gap, same four files: Escape-to-close is
+present in two (`UpgradeGateModal.tsx`, `UsageModal.tsx`) and absent in two
+(`SpotlightTour.tsx`, `OnboardingFlow.tsx`) — both of the latter do have a
+real, Tab-reachable `<button>` to dismiss/advance, so this is a missing
+shortcut, not a missing keyboard path.
+
+**Live regions — two real gaps, the state-changes-silently shape PM named
+directly.**
+- `SettingsSaveToast.tsx` — mounted app-wide since #1188 specifically so a
+  save triggered from any of 9 call sites has a visible result. The toast
+  `<div>` (`:37-39`) carries no `aria-live`, `role="status"`, or
+  `role="alert"` at all. A sighted user on any route sees "Saved"/"Failed
+  to save" appear in the corner; a screen reader user gets nothing, from
+  any of the 9 sites, unless they happen to already have focus there.
+- `TradeJournal.tsx`'s three AI tools (Shadow Trader `:1625-1626`, Bias
+  check `:1679-1680`, Thesis Health `:1892-1894`) — the async result and
+  error regions for all three are plain `<div>`s with no live region. The
+  interaction is exactly the shape live regions exist for: click a button,
+  wait on a network call, read what comes back — and right now a
+  keyboard/AT user who has moved focus back to the button (the natural
+  thing to do while waiting) is never told the wait ended, successfully or
+  not.
+
+**Color-only state — one real instance, checked against the actual CSS, not
+assumed from the class name.** `WhaleTradesFeed.tsx:129`'s `wf-dot` (PM's own
+example): `app/globals.css:3633-3636` confirms connecting/live/error are
+three colors on one identical shape, no icon or glyph difference. The only
+textual fallback is `title={status}` — unreliably announced (browser/AT
+support for reading `title` on hover/focus is inconsistent, and it is never
+perceivable on a touch device regardless). **Checked four other dot-style
+indicators PM's framing could also describe, to see how common this
+actually is**: `DashboardTerminal.tsx`'s `cascade-dot` (clean — the adjacent
+heading text names LONG/SHORT/neutral in words, color is redundant, not the
+only carrier); `TerminalNav.tsx`'s `tnav-session-dot` and the four
+`ps-live-dot` sites (both clean — single static color, no state variants,
+purely decorative). So the shape exists in exactly one place, not a pattern
+across the codebase — worth knowing before assuming the fix generalizes.
+
+**Non-focusable click handlers (the established #939/#968/#1072/#1200
+shape) — delta-checked against today's changed files only, per the standing
+rule two entries above.** `components/WhaleTradesFeed.tsx` and
+`components/MarketProvider.tsx` (#1228's failover work): no `<div onClick>`
+or `<span onClick>` in either file. Clean — not a wider sweep, just the
+files that changed since the last check.
+
+**None of this is closeable from here.** Same standing verdict as the rest
+of this item: these are all structural findings from source reading, not
+from a screen reader actually running. The modal and live-region findings in
+particular are exactly the kind a real AT session would catch fastest —
+recorded as app-code requests for Dev, not changes QA can make.
+
 ---
 
 ## 🟡 7. `staging` and `dev` share one database
@@ -743,6 +897,73 @@ Recorded here rather than hidden, because the suite is code and has defects too.
   Closing it for real needs either a stable overlay-position hook exposed
   for tests, or accepting manual-only coverage for chart-drag interactions
   generally - a decision for dev/PM, not a one-off workaround here.
+
+**2026-09-12, three gaps found during the #1210 release pass, recorded so
+nobody rediscovers them the hard way:**
+
+- **Push notifications cannot be tested in the automated Chrome profile.**
+  `Notification.permission` reads `"denied"` at the browser level in this
+  extension's controlled profile, independent of anything the app does -
+  the toggle and the test-push flow are both structurally unreachable here.
+  Not an app defect; genuinely needs a real browser session (or a person)
+  to verify.
+- **A refused WebSocket connection fires `error` without a following
+  `close` event in this automation environment** (Dev's finding, surfaced
+  while verifying #1228's failover). Any code path keyed on `onclose` -
+  which is most of #1059/#1228's reconnect/failover state machine - cannot
+  be exercised end-to-end here; a live browser or a real network-level
+  block (not a same-origin policy refusal) is needed instead. Part of why
+  #1228's live pass hit a connect-timeout shape rather than a clean
+  refusal.
+- **There is no standing, owner-approved production QA account.** Every
+  release that needs a signed-in production check (this one: settings
+  persistence, entitlement-unknown card, Strategy Panel/migration proof)
+  has to ask the owner fresh, because creating or deleting a row in
+  production's \`auth.users\` is a shared-database write - one of the three
+  things this project always routes to the owner directly, never assumed
+  from a relay. Two prior one-off accounts (\`QA_TEST_PLAN.md\`) were created
+  and fully deleted after use rather than kept, so no persistent one has
+  ever existed. **Proposed fix, for the owner to pick between:** (a) a
+  persistent, owner-approved disposable production test account QA can
+  reuse release after release without asking each time, or (b) formalize
+  "the owner runs a 2-minute signed-in check" as a standing release step,
+  since QA cannot create one unilaterally and relayed instructions don't
+  substitute for the owner's own yes on a production write.
+
+- **2026-09-12, #1284: a SECOND, more dangerous `read_network_requests` gap
+  than the one above - it misses requests fired in roughly the first 2
+  seconds after a fresh document load EVEN WHEN ARMED BEFORE NAVIGATION.**
+  The #1163 entry above documents forgetting to arm the tool first; this one
+  reproduces with that rule followed correctly, so "arm before navigate"
+  does not close it. Filed #1284 ("fear & greed, CMC dominance, alt-season
+  and macro never fetch on production") after a hard reload's capture showed
+  zero requests to `/api/proxy?type=fng`,
+  `/api/cmc?type=global`, `/api/cmc?type=altseason` and `/api/macro` - a
+  contiguous-looking gap that read exactly like a real regression, console
+  clean, routes confirmed working when called directly. It wasn't one.
+  `performance.getEntriesByType('resource')` on the same reload showed all
+  15 of `MarketProvider`'s mount-effect calls landing at 1.2-2.1s, including
+  every one the capture tool reported missing. QA and Dev each reproduced
+  the false negative independently, then each reproduced the correction
+  independently, before comparing notes. **The instrument's own blind spot
+  produced a specific, plausible, wrong shape** (a contiguous run of calls
+  absent, not a random scatter) that took a filed issue, a coverage-table
+  side effect on an unrelated PR, and a Dev investigation cycle to unwind -
+  see #1284, #1252 and #1192's threads for the full trail. **Rule going
+  forward: any question about what fires in the first ~2s of a page load
+  gets answered with Resource Timing, not this tool's request capture.**
+  The capture tool remains fine for anything after that window, and for
+  counting requests over a longer session (it hasn't shown this gap past
+  the first couple of seconds). A second, narrower gap surfaced in the same
+  investigation and is still open, not closed here: Resource Timing itself
+  showed a ~100ms-apart duplicate entry for several endpoints (`/api/cmc`,
+  `bybit-tickers`, `snapshot`, `rsi`, `agg-trades`, others), with the second
+  entry `initiatorType: "other"` and zero bytes transferred - seen only in
+  this browser-automation environment, not yet reproduced in a clean
+  browser. Filed separately as #1290 rather than folded in here, because
+  it's a different, unresolved question (real second request vs. a second
+  artifact layered on top of the first) - don't read this entry as having
+  settled that one too.
 
 ---
 

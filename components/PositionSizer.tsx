@@ -7,39 +7,7 @@ import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
-
-interface CalcResult {
-  riskUSD:      number;
-  posUSD:       number;
-  posUnits:     number;
-  leverage:     number;
-  stopDist:     number;
-  stopPct:      number;
-  isLong:       boolean;
-  rrRatio:      number | null;
-  potentialPnL: number | null;
-}
-
-function calculate(acc: number, riskPct: number, entry: number, stop: number, tp: number | null): CalcResult | null {
-  if (acc <= 0 || riskPct <= 0 || entry <= 0 || stop <= 0 || entry === stop) return null;
-  const riskUSD  = acc * (riskPct / 100);
-  const stopDist = Math.abs(entry - stop);
-  const stopPct  = (stopDist / entry) * 100;
-  const posUnits = riskUSD / stopDist;
-  const posUSD   = posUnits * entry;
-  const leverage = posUSD / acc;
-  const isLong   = entry > stop;
-
-  let rrRatio: number | null = null;
-  let potentialPnL: number | null = null;
-  if (tp && tp > 0 && tp !== entry) {
-    const tpDist = Math.abs(tp - entry);
-    rrRatio      = tpDist / stopDist;
-    potentialPnL = riskUSD * rrRatio;
-  }
-
-  return { riskUSD, posUSD, posUnits, leverage, stopDist, stopPct, isLong, rrRatio, potentialPnL };
-}
+import { calcPositionSize } from '@/lib/positionSizer';
 
 function fmtUSD(v: number) {
   return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -126,7 +94,7 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
     if (!isNaN(n) && n > 0) updateSettings({ risk_pct: n });
   };
 
-  const result = calculate(
+  const result = calcPositionSize(
     parseFloat(account) || 0,
     parseFloat(riskPct) || 0,
     parseFloat(entry)   || 0,
@@ -284,6 +252,9 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
           )}
           {result.rrRatio != null && result.rrRatio < 1.5 && (
             <div className="ps-warn"><Warn /> {t('CALC_SIZER_WARN_LOW_RR')}</div>
+          )}
+          {result.tpOnWrongSide && (
+            <div className="ps-warn"><Warn /> {t('CALC_SIZER_WARN_TP_WRONG_SIDE', { side: result.isLong ? t('CALC_SIZER_LONG_WORD') : t('CALC_SIZER_SHORT_WORD') })}</div>
           )}
 
           <button className="ps-log-btn" onClick={logTrade}>

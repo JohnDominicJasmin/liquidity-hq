@@ -106,6 +106,16 @@ export const BYBIT_SYMS: Record<string, string> = {
   xau: 'XAUUSDT', spx: 'SPXUSDT',
 };
 
+/* Reverse of BINANCE_SYMS - given a Binance symbol, which coin it is. Shared
+ * across every #1077 server-side failover route that fans out over
+ * BINANCE_SYMS and needs to find that coin's Bybit equivalent (or discover
+ * there isn't one, e.g. fet - "Bybit does not list FETUSDT as a linear
+ * perp", above). app/api/market/klines/route.ts still keeps its own local
+ * copy rather than importing this - out of scope here, not overlooked. */
+export const BINANCE_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
+  Object.entries(BINANCE_SYMS).map(([coin, sym]) => [sym, coin]),
+);
+
 export const COIN_DEC: Record<CoinId, number> = {
   btc: 2, eth: 2, sol: 3, xrp: 4, bnb: 2, hype: 3, near: 4, sui: 4,
   doge: 5, avax: 3, link: 3, ada: 4, dot: 3, atom: 3, wif: 4,

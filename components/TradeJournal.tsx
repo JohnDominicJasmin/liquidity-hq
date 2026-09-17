@@ -1550,7 +1550,7 @@ function Inner() {
                 placeholder={t('TRADE_JOURNAL_RULES_NAME_PLACEHOLDER')}
                 value={ruleName}
                 onChange={e => setRuleName(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', marginBottom: 10, outline: 'none' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', marginBottom: 10 }}
               />
 
               <button
@@ -1731,7 +1731,7 @@ function Inner() {
                   onChange={e => setThesisFormSymbol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
                   placeholder={t('TRADE_JOURNAL_THESIS_TICKER_PLACEHOLDER')}
                   maxLength={10}
-                  style={{ width: 110, padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', outline: 'none', fontFamily: 'var(--font-mono), monospace', fontWeight: 700 }}
+                  style={{ width: 110, padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', fontFamily: 'var(--font-mono), monospace', fontWeight: 700 }}
                 />
                 <select
                   value={thesisFormDirection}
@@ -1745,7 +1745,7 @@ function Inner() {
                   type="date"
                   value={thesisFormDate}
                   onChange={e => setThesisFormDate(e.target.value)}
-                  style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', outline: 'none' }}
+                  style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)' }}
                 />
               </div>
               <textarea
@@ -1753,7 +1753,7 @@ function Inner() {
                 onChange={e => setThesisFormText(e.target.value)}
                 placeholder={t('TRADE_JOURNAL_THESIS_TEXT_PLACEHOLDER')}
                 rows={3}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', resize: 'vertical', outline: 'none', marginBottom: 10 }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', resize: 'vertical', marginBottom: 10 }}
               />
               <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
                 {t('TRADE_JOURNAL_THESIS_ASSUMPTIONS_LABEL')}
@@ -1768,7 +1768,7 @@ function Inner() {
                     setThesisFormAssumptions(copy);
                   }}
                   placeholder={t('TRADE_JOURNAL_THESIS_ASSUMPTION_PLACEHOLDER', { n: i + 1 })}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', outline: 'none', marginBottom: 6 }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', marginBottom: 6 }}
                 />
               ))}
               <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>

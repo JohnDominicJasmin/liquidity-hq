@@ -1,44 +1,45 @@
-'use client';
-import Link from 'next/link';
-import { useLabels } from '@/lib/labels';
+import { headers } from 'next/headers';
+import NotFoundContent from '@/components/NotFoundContent';
 
 export const dynamic = 'force-dynamic';
 
-export default function NotFound() {
-  const { t } = useLabels();
+/* #1251: production logs a bare `NoFallbackError` for an ungenerated dynamic
+ * route (e.g. app/[locale]/page.tsx's `dynamicParams = false`) with no path
+ * attached, so a crawler probe, a stale tab requesting an old build's route
+ * after a deploy, and a genuinely broken link are indistinguishable after
+ * the fact. The not-found boundary itself receives no information about the
+ * URL that triggered it - that's a React Server Components limitation, not
+ * an oversight here - so proxy.ts tags every page request with its own
+ * pathname via a request header, and this reads it back.
+ *
+ * Warn level, not error: a 404 render is not, by itself, a server fault.
+ * Pathname only - `x-lhq-pathname` is set from `request.nextUrl.pathname`
+ * in proxy.ts, which excludes the query string by construction.
+ *
+ * The referer is NEVER logged raw (PM caught this in review). next.config.ts
+ * sets `Referrer-Policy: strict-origin-when-cross-origin`, which only trims
+ * the referer on CROSS-origin navigation - a same-origin navigation (the
+ * common case for a 404 reached by clicking a stale in-app link) still sends
+ * the full previous URL, query string included. That previous page could be
+ * an auth callback (`?code=`), a password reset, or a checkout link - any of
+ * those tokens would land in production logs the moment the next request
+ * happens to 404. `refererOrigin` below keeps only the scheme+host+pathname
+ * via `new URL()`, which drops the query and hash by construction, and never
+ * throws into the render path if the referer isn't a parseable URL. */
+function safeRefererOriginAndPath(referer: string | null): string | null {
+  if (!referer) return null;
+  try {
+    const u = new URL(referer);
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return '(unparseable referer)';
+  }
+}
 
-  return (
-    <div style={{
-      minHeight: '60vh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 14, padding: '2rem',
-      textAlign: 'center',
-    }}>
-
-      <div style={{
-        fontSize: 'var(--fs-page)', fontWeight: 800, color: 'var(--txt1, #e8e8e8)',
-        fontFamily: "'JetBrains Mono', monospace",
-      }}>
-        {t('NOT_FOUND_TITLE')}
-      </div>
-      <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3, #808080)', maxWidth: 420, lineHeight: 1.6 }}>
-        {t('NOT_FOUND_BODY')}
-      </div>
-      <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-        <Link href="/" style={{
-          padding: '9px 18px', borderRadius: 10, fontSize: 'var(--fs-label)', fontWeight: 700,
-          color: 'var(--accent)', background: 'var(--accent-bg)',
-          border: '0.5px solid var(--accent-bdr)', textDecoration: 'none',
-        }}>
-          {t('NOT_FOUND_HOME_LINK')}
-        </Link>
-        <Link href="/liq" style={{
-          padding: '9px 18px', borderRadius: 10, fontSize: 'var(--fs-label)', fontWeight: 700,
-          color: 'var(--green-2)', background: 'rgba(52,211,153,0.08)',
-          border: '0.5px solid rgba(52,211,153,0.3)', textDecoration: 'none',
-        }}>
-          {t('NOT_FOUND_LIQUIDATION_MAP_LINK')}
-        </Link>
-      </div>
-    </div>
-  );
+export default async function NotFound() {
+  const h = await headers();
+  const pathname = h.get('x-lhq-pathname') ?? '(unknown path)';
+  const referer = safeRefererOriginAndPath(h.get('referer'));
+  console.warn('[not-found]', pathname, referer ? `referer=${referer}` : '(no referer)');
+  return <NotFoundContent />;
 }

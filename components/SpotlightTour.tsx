@@ -7,6 +7,7 @@ import { useLabels } from '@/lib/labels';
 import { useTheme } from '@/lib/theme';
 import { useDesignMode } from '@/components/DesignModeProvider';
 import type { LabelKey } from '@/lib/labelKeys';
+import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 
 const MONO = "var(--font-mono, 'IBM Plex Mono', monospace)";
 const SANS = "var(--font-sans, 'Figtree', system-ui, sans-serif)";
@@ -523,9 +524,17 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
 
   const terminal = useDesignMode() === 'terminal';
   const Visual = current.Visual;
+  // #1243: this component has no `open` prop - it IS the dialog for its
+  // entire mount lifetime (the parent conditionally renders it), so `open`
+  // here is just "mounted". close() is a plain function, not useCallback, so
+  // the hook's latest-ref pattern (see its own comment) is what keeps this
+  // from re-stealing focus on every step change.
+  const dialogRef = useDialogFocusTrap<HTMLDivElement>(true, close);
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       /* Radius is the one thing the TERMINAL palette above cannot carry - it

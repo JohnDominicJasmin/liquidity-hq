@@ -64,7 +64,16 @@ const LOCKED = '[data-testid="locked-feature"]';
 async function lockedCount(page: import('@playwright/test').Page, url: string): Promise<number> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => localStorage.setItem('lhq_analytics_consent_v1', 'denied'));
-  await page.waitForTimeout(2500);   // entitlement resolves async; `authLoading` renders the Pro branch
+  /* #1259: was a flat 2500ms. Flaky in CI specifically (the CONTROL test,
+   * :85, signed-out /arena, no design flag, no comparison - nothing about
+   * this path touches #1109's design retirement). A fixed wait assumes
+   * local's auth/entitlement resolution speed; CI's shared, slower hardware
+   * doesn't reliably clear that window in the same time, the same class of
+   * gap already found and fixed in plan-badge-no-flash.spec.ts today.
+   * Polling for the marker directly removes the guess entirely - it
+   * resolves as soon as the locked card actually renders, on any hardware,
+   * rather than waiting a fixed amount and hoping. */
+  await page.locator(LOCKED).first().waitFor({ state: 'attached', timeout: 10_000 }).catch(() => {});
   return page.locator(LOCKED).count();
 }
 

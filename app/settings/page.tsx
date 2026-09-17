@@ -218,6 +218,18 @@ export default function SettingsPage() {
             <label className="st-field-label">{t('SETTINGS_FIELD_THEME')}</label>
             <ThemeChips />
           </div>
+          <div className="st-field">
+            <label className="st-field-label">{t('SETTINGS_SECTION_LANGUAGE')}</label>
+            {/* #1222: this page hid the entire nav-bar language control at
+                768-899px on the theory that /settings still offers it - true
+                for theme, not for language, since this signed-out branch had
+                never carried LanguageSelect. Confirmed safe to add here as-is:
+                LanguageSelect only calls update() `if (user)` (see that
+                component), so signed-out it does exactly what ThemeChips
+                above already does - setLocale() to localStorage, no DB
+                write, no flushToDb path to race with anything. */}
+            <LanguageSelect />
+          </div>
           {/* Not gated behind sign-in - see AnalyticsConsentToggle. */}
           <AnalyticsConsentToggle />
         </Section>

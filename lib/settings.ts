@@ -86,6 +86,22 @@ export const DEFAULT_SETTINGS: UserSettings = {
 export interface SettingsContextValue {
   settings:   UserSettings;
   loading:    boolean;
+  // #1246: distinct from `loading` on purpose. `loading` flips false as soon
+  // as the SYNCHRONOUS localStorage read completes on mount, before the
+  // sign-in effect has even checked whether a real account exists to fetch a
+  // DB row for - a consumer gating on `!loading` alone can start rendering
+  // (and accepting input against) `settings` before the authoritative source
+  // has been consulted at all. `settingsLoaded` is true only once that source
+  // - a resolved DB read for a signed-in user, or a confirmed sign-out with
+  // nothing to fetch - has actually landed, and it goes false again if the
+  // signed-in account changes, since a new account's row hasn't been read yet
+  // even though the previous one's had. Added for the Strategy Panel
+  // pre-load write race (a chip clicked before this is true was writing an
+  // empty selection over a real saved one) but generic: any consumer that
+  // must not act on `settings` before the authoritative value is known
+  // should gate on this instead of inferring it from a field being non-null,
+  // since null can legitimately mean "confirmed, never saved".
+  settingsLoaded: boolean;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   update:     (partial: Partial<UserSettings>) => void;
   // Re-read the saved row from the server. Needed by flows where the SERVER,
@@ -98,6 +114,7 @@ export interface SettingsContextValue {
 export const SettingsContext = createContext<SettingsContextValue>({
   settings:   DEFAULT_SETTINGS,
   loading:    false,
+  settingsLoaded: false,
   saveStatus: 'idle',
   update:     () => {},
   refresh:    async () => {},

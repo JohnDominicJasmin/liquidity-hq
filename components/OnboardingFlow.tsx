@@ -7,6 +7,7 @@ import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 
 
 interface Props { onStartTour: () => void; }
@@ -227,6 +228,20 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   const [challenge,   setChallenge]  = useState<Challenge | null>(null);
   const [heard,       setHeard]      = useState<Heard | null>(null);
 
+  // #1243: no universal dismiss exists here by design - the wizard is
+  // required except for its final, optional step, which already has its own
+  // Tab-reachable "skip this question" button (onClick={finish}, isLast &&
+  // !saving only, further down). Escape is wired as a shortcut for exactly
+  // that existing capability, not a new one - it no-ops on every earlier
+  // step, same as the skip button not being rendered there. Hooks cannot
+  // follow the early returns below (react-hooks/rules-of-hooks), so this
+  // reads `step` directly rather than the `isLast` const computed after
+  // them - same value, `finish` is a hoisted function declaration so it is
+  // safe to reference here despite being defined later in the file.
+  const dialogRef = useDialogFocusTrap<HTMLDivElement>(true, () => {
+    if (step === STEP_META.length - 1 && !saving) finish();
+  });
+
   if (!user || state.profileComplete) return null;
 
   // `loaded` is a separate, async-resolved state (Supabase fetch to
@@ -308,7 +323,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   }
 
   return (
-    <div role="dialog" aria-modal="true" className="obw-root">
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" className="obw-root">
 
       {/* ── Segmented progress bar ── */}
       <div className="obw-progress">
@@ -328,7 +343,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             <div className="obw-eyebrow">
               <span className="k">{t('ONBOARDING_FLOW_STEP_PREFIX', { num: String(step + 1).padStart(2, '0') })}</span>
               <span className="d">/ {String(STEP_META.length).padStart(2, '0')}</span>
-              <span className="d">&mdash; {t(meta.labelKey).toUpperCase()}</span>
+              <span className="d">- {t(meta.labelKey).toUpperCase()}</span>
             </div>
 
             {/* Headline */}

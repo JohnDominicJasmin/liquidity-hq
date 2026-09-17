@@ -32,21 +32,50 @@ mid-task. This one lives in the repo.
 blocked and why. A session that stops is more expensive than a session that picks
 the wrong item.
 
+**Filing issues: group them, don't scatter them.** This is the owner's instruction from
+2026-09-12, when open issues reached 52: *"if we have multiple small issues and they are
+related to each other or in similar page or problem just create one issue and put it all
+there"*. So:
+- **Before filing, check the open trackers** (`gh issue list --search "tracker in:title"`).
+  If one covers the page or problem, add your finding there as a checklist line in a
+  comment. Open a new issue only when nothing fits. If you're starting an area that will
+  collect findings, give it its own tracker, titled "… (tracker)".
+- **To fold an issue into a tracker,** run `gh issue close N --duplicate-of T` and leave a
+  comment that says where it went.
+- **A tracker closes only when every item on it is verified on production.** Folding an
+  issue in doesn't close it early, and the five conditions in `CLAUDE.md` still apply to
+  every item.
+- **Leave an issue alone while a PR that says "Fixes #N" is in flight.** Fold it in after
+  that PR lands.
+
+On 2026-09-12 this took the open count from 52 to 24: 13 trackers absorbed 28 issues. In
+the week before, 154 issues had been opened and 107 closed.
+
 ---
 
 ## Dev lane
 
-**Rewritten a second time on 2026-09-12: the morning's D1–D7 all merged into `dev`
-the same day.** #1188 via #1198, #1201 and #1215. #1187. #1177 via #1206 and #1216.
-#1192 via #1207. #1167. #1107 via #1212 and #1213, which found a live
-fabricated-zero CVD alert. **A queue that names finished work is worse than an
-empty one: it costs a session the time to discover it is wrong.**
+**Rewritten a seventh time on 2026-09-12, at ~23:40Z.** Release #3 is on `staging`
+(`8fd6f76`), QA-signed-off, and the release PR (#1299) is open awaiting the owner's
+visual gates. Release #4 candidate is on `qa` (`c8903c9`), QA-passed. D4 (#1199)
+and D7 (#1266) both merged. **Next: D6, then the item after it, since D5 is
+blocked on a screenshot rather than done.** **A queue that names finished work is
+worse than an empty one: it costs a session the time to discover it is wrong.**
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| D1 | **#1202: per-field `field_updated_at`, optimistic concurrency on settings writes** | ~1 day | **CLAIMED Dev 2026-09-12. PR #1217 is open and unmerged: it's waiting on a live read/write pass, which waits on the dev database recovering.** The design is on the issue. **Use the corrected accept rule:** `server_ts is null` OR (`client_ts` present AND `client_ts >= server_ts`). A client that never confirmed a read must not win. **Fold in the `flushToDb` race:** on success, delete the marker only if it still equals the value that flush sent. **The column is on the dev database. On production it goes in just before the release carrying this deploys** (`docs/OWNER-BLOCKERS.md` row 7). **Put the prod migration file in the PR, and write "requires prod migration before deploy" in Risk.** |
-| D2 | **#1025: our own servers amplify dev outages** | ~half day | During the 2026-09-12 outage, `service_role` clients sent **~280 `POST /rpc/lhq_dev_record_api_health` in ~8 s**, plus hundreds of `lhq_dev_labels` and `lhq_dev_app_config` reads, all 503/504. **`lib/apiHealth.ts`'s `shouldWrite` is meant to coalesce to one write per source per 30 s, so find what defeated it:** many processes, dynamic source keys, or flapping state. **Add backoff on 5xx to the labels and app-config reads.** This helps production too. |
-| D3 | **#1114 nav overflow 768–945px · #1121 route slugs as screen names · #1147 signup skeleton · #1113 tour rework** | mixed | Small, real, none urgent. #1121 is ~15 pages showing a lowercase URL slug where a designed label exists. **All visual, so the owner sees each one before it ships.** |
+| D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | **Built (PR #1292), QA-reviewed clean.** Holding on the owner's sign-off for the toast wording ("Updated from another device") and its look (amber, same corner as Saved/Failed) - screenshots already sent to PM for the batch. Merge once that lands. |
+| D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | **Built (PR #1305), gates green.** Two of the three fixes (alerts row, DryPowder) are ARIA-only with zero visual difference. The one real visual change (HypothesisTracker's new small label under each evidence icon) is blocked on a screenshot - QA will take it locally after their release #4 pass, with a QA test account on dev, per PM. Not merging until the owner signs off. |
+| D6 | **#1113 tour rework · #1185 visual-rule instances** | mixed | Both visual. **Screenshots go to the owner before merge.** #1220 and #1225 are waiting on exactly that right now. |
+| AS-B | **#1309 item 10: alerts mute re-seed on prefs read failure** | ~small | **Merged (PR #1313).** |
+| AS-C | **#1309 item 13: onboarding read failure sends finished users back to the wizard** | ~small | **Merged (PR #1315).** |
+| AS-F | **#1309 items 23/24/25: dup checklist, Arena double AI call, F&G `&?limit` typo** | ~small | **Merged (PR #1319).** |
+| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Merged (PR #1321).** QA's browser run went 8/8 green with element screenshots confirming the ring is unclipped on both prefix and suffix rows. |
+| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Merged (PR #1324).** |
+| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Merged (PR #1325).** QA's #1322 (calculator directionality test) also merged. |
+| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Merged (PR #1327).** Owner signed off the wording. |
+| PR-B | **#1309 batch 2, landing/product claims + About rewrite (items 31/32/33/35)** | ~med | **Merged (PR #1329).** Owner signed off the wording, including the 3-tile stats-bar call. Landing hard gate run clean. Migration applied to dev DB (295 rows / 59 keys, md5-verified) - `/about` shows the new copy on `qa`/`staging` now. Prod not applied yet (owner's go at release time). Item 34 held (no support email yet). |
+| PR-FU1 | **#1309 follow-up: FUNDING_SIG_LONGS_OVERCROWDED_DESC neutral ending + funding-payer extraction** | ~small | **Merged (PR #1331).** Owner approved the wording. QA's coverage (PR #1332, 22 subtests) also merged. Migration applied to dev DB (PM/DevOps, owner's go). Prod not applied yet (release time). |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
@@ -63,26 +92,57 @@ anything you touch.
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| Q1 | **Release #1210: the staging pass, then production verification** | hours | **The owner approved the production deploy on condition of your sign-off**, so your "ready" is the last gate. **Void from 09:16Z on 2026-09-12**: the dev database outage. Re-run from a clean window, check `PGRST00x` for any failure, and record which windows were clean. **After deploy, the release's issues close when production is verified, not when they merge.** |
-| Q2 | **Review and verify the next `qa` promotion** | ~half day | #1207 (#1192), #1167, #1212 and #1213 (the #1107 sweep, including HYPE CVD: **does the held reading show as stale?**), **#1214 + #1215 (per-account unconfirmed settings: test with two accounts holding different values in the same field, and assert A's own value comes back after B's session)**, #1216 (#1177 source fix in `AuthProvider`: ban enforcement and Grok usage still work). |
-| Q3 | **#1173: isolate what removed the 13 s** | ~1 hour | Run the corrected method on **`30b5c911`** (pre-#1206) on localhost. **~22 s means #1206 was the fix. ~9 s means the 22.7 s came from the setup.** One local build at a time. |
-| Q4 | **#1171: the ~2.5 s nobody can account for** | ~half day | **Two causes have been disproved: the triple `/api/grok` call (re-measured, no improvement) and the entitlements read (measured on the wrong environment, by PM/DevOps's instruction).** What survives: network is quiet by ~4.5 s, content settles ~7 s. **The gap is AFTER network activity ends**: client-side render cost, or a WebSocket feed Resource Timing cannot see. **Measurement noise on these dynos exceeds the effect**, so either take many samples or say the environment cannot settle it. |
-| Q5 | **`TEST_GAPS.md` §6: accessibility asserted, never heard** | ~1 day | No real assistive-technology pass has ever happened. **"Cannot be verified here, and here is what would be needed" is an acceptable result.** |
-| Q6 | **`TEST_GAPS.md` §1: server time is not controllable** | ~half day | Anything time-dependent is untestable at boundaries. |
-| Q7 | **#950: `layout.spec.ts` against a live run** | read-only | **CI is switched on for release #1210**, so its E2E run is the one live result available. Read `layout.spec.ts`'s outcome there before CI goes back off. |
+| Q1 | **Release #2 (#1252): what's left after the production re-check** | ~hours | **Re-checked on production at 20:34Z** (#1252). Steps 1–2 passed (settings save and the two-device conflict). **Step 3 was reported failing, but that was the capture tool's blind spot.** At 21:13Z, QA and Dev each re-verified it as a pass using Resource Timing and the rendered values (#1284, closed). Step 4 was inconclusive (the whale feed was quiet at the weekend). **Closed:** #1202, #1177 and #1107. **Reopened:** #1167, because its timeout path has never been forced live. Force it with a near-expiry token, or stub `getAuthToken` to time out. **#1192 is off hold**, because step 3 passes: close it if its five conditions are met. **Held:** #1059, until the whale feed has been re-checked during a busier session. **Record the capture-tool blind spot** in `TEST_GAPS.md` or the QA docs. `read_network_requests` misses requests made in roughly the first 2 s of a fresh load, so use `performance.getEntriesByType('resource')` for load-time questions. **Release #1's signed-in production check waits on the owner's A or B** (`docs/OWNER-BLOCKERS.md` row 12). |
+| Q2 | **Reviews, and release #3** | hours | Open for review: #1286 (docs). Dev reviews QA's #1273 and #1268. **#1220 and #1225 stay unmerged until the owner signs off their screenshots** (row 11). **Release #3:** `qa` holds #1222, #1244, #1250, #1253, #1256, #1257 and #1258. `dev` also holds #1245 and the whole D3/#1266/#1278/#1282 batch (checked with `git log --first-parent origin/staging..origin/qa` and `origin/qa..origin/dev` on 2026-09-12). **#1284 needed no fix, so promote `dev` → `qa` now**, then run the full pass. #1222 and #1244 need the owner's visual sign-off before release #3 ships. |
+| Q3 | **Tests for what merges** | per PR | QA owns every test (owner ruling, 2026-09-07). #1250's are done (#1256). **#1253's are still owed**, and its PR says what to assert. |
+| Q4 | **#950: `layout.spec.ts` against a live run** | read-only | **Answered by #1252's run on 2026-09-12:** `layout.spec.ts` **passed** at `:430`, `:478` and `:626`, on both desktop and mobile. Post that on #950 with the run id (`34701414071`), then close it or say what's left. |
+| Q5 | **Open issues whose fix may already be on production** | ~1 hour | #1168, #1191, #1020, #1075 and #1173. For each one, check production or the issue's own thread, then **close it, or say on the issue exactly what's left.** #1119 also needs the owner's sign-off (`docs/OWNER-BLOCKERS.md` row 6). |
+| Q5a | **#1259: make a red E2E run mean something again** | ~1 day | Six specs fail on production's own code, and three more depend on CI or account state. **For each one, fix it or quarantine it with a reason and an issue link.** For the ratchets, find what raised the count before re-baselining. Until this lands, every release needs a manual triage like #1252's. |
+| Q5b | **#1260: does the price ticker return to its WebSocket after ~30 s of failed retries?** | ~1 hour | Check the CI trace first (run `34701414071`), then reproduce on `main` with an outage longer than 30 s. **If it never reopens, it's a product defect on production (#306), and it goes to Dev.** |
+| Q5c | **#1290: two Resource Timing entries ~100 ms apart on most market endpoints** | ~1 hour | **Low priority. Take it after release #3's pass, on a quiet machine.** Found while verifying #1192, which is closed. It isn't the 12 s retry, and `<MarketProvider>` mounts once. The second entry is `initiatorType: "other"` with 0 bytes. Only the automation Chrome has shown it. **To settle it,** run `qa` locally in a clean browser and count `[proxy] type=bybit-tickers` server log lines against Resource Timing entries for the same reload. If the server sees 1, it's an artifact: close it. |
+| Q6 | **#1171: the ~2.5 s nobody can account for** | ~half day | **Two causes have been disproved: the triple `/api/grok` call (re-measured, no improvement) and the entitlements read (measured on the wrong environment, by PM/DevOps's instruction).** What survives: network is quiet by ~4.5 s, content settles ~7 s. **The gap is AFTER network activity ends**: client-side render cost, or a WebSocket feed Resource Timing cannot see. **Measurement noise on these dynos exceeds the effect**, so either take many samples or say the environment cannot settle it. |
+| Q7 | **`TEST_GAPS.md` §6: accessibility asserted, never heard** | ~1 day | No real assistive-technology pass has ever happened. **"Cannot be verified here, and here is what would be needed" is an acceptable result.** |
+| Q8 | **`TEST_GAPS.md` §1: server time is not controllable** | ~half day | Anything time-dependent is untestable at boundaries. |
 
 ## Unassigned — take with a reason
 
 | Item | Why it is here |
 |---|---|
-| **#1025: why the dev Supabase project hangs** | **The trigger is known. Why dev can't absorb it is still a candidate.** Any DDL fires PostgREST schema reloads, including Realtime's hourly partition DDL and, on 2026-09-12, **one additive column at 09:16:24Z, which caused 30+ minutes of degradation**: `PGRST002` loops, `PGRST003` pool exhaustion, and PostgREST backends idle-in-transaction on `ClientRead`. **Postgres itself was idle, and PostgREST was the stalled side.** Two live candidates, not exclusive: **memory headroom** (dev at 99.77% of its commit limit) and **our own servers' retry storm** (D2). The **dashboard memory graph for 09:16–09:50Z** would confirm or kill the first. Production has never failed on a reload, and a manual DDL there under traffic has not been measured. |
+| **#1025: why the dev Supabase project hangs** | **The trigger is known. Why dev can't absorb it is still a candidate.** Any DDL fires PostgREST schema reloads, including Realtime's hourly partition DDL and, on 2026-09-12, **one additive column at 09:16:24Z, which caused 30+ minutes of degradation**: `PGRST002` loops, `PGRST003` pool exhaustion, and PostgREST backends idle-in-transaction on `ClientRead`. **Postgres itself was idle, and PostgREST was the stalled side.** Two live candidates, not exclusive: **memory headroom** (dev at 99.77% of its commit limit) and **our own servers' retry storm**, which #1219 damps. #1219 shipped in release #2 on 2026-09-12. The **dashboard memory graph for 09:16–09:50Z** would confirm or kill the first. Production has never failed on a reload, and a manual DDL there under traffic has not been measured. |
 | **#1152 — the FREE plan described differently in two places** | **Root cause identified:** two independent sources. The landing page reads `dict.pricing.*` in `lib/i18n/dictionaries.ts`; the upgrade screen reads `UPGRADE_*` label keys. Nothing links them. **Editing both to match leaves the mechanism and they drift again.** The fix is one source — and it touches user-visible pricing, so the owner approves before anyone builds. |
 | **#1185 — the visual rule's remaining instances** | Corner consistency and the scroll affordance. The rule is adopted; these are what it applies to. **Owner approves anything visual.** |
-| **#1059 / #1077 — Binance to Bybit** | Client-side failover and server-side egress. Distinct scopes, deliberately not merged. |
-| **#1157 — five unindexed foreign keys** | From the database audit. Mechanical, low risk, and the cost grows with usage. |
+| **#1157: five unindexed foreign keys** | **Applied to production on 2026-09-12 at ~19:07Z** and read back (`docs/OWNER-BLOCKERS.md`, Settled). **They aren't on the dev database.** Checked at ~21:00Z: the four `lhq_dev_*` tables have only their primary keys. The dev versions are commented out at the bottom of `supabase/migrations/20260912b_fk_covering_indexes.sql`. **Low value for now**, because the tables hold a handful of rows, so don't raise it with the owner on its own. It's still a schema write: bundle it with the next dev-database schema ask, and apply it in a QA quiet window (machine rule 3). |
 | **`TEST_GAPS.md` §11 / §7** | CI being off is the owner's cost decision; the shared dev/staging database is a Supabase free-tier structural limit. Neither is actionable without a purchase. |
 
 ---
+
+## Release and loop guardrails
+
+**Added 2026-09-12 with the owner's go-ahead**, adapted from a proposed "swarm guardrails"
+doc. Both tools are read-only.
+
+**1. Before every release, check that its migrations are applied.** Run
+`node scripts/migration-check.mjs --range origin/main..origin/staging --absent-only`, then
+run the SQL it prints through the Supabase tool's `execute_sql` on production. Do the same
+with `--env dev` on dev. **Every object must be present before the deploy that needs
+it.** Paste the result into the release PR. A migration file that's merged but not applied
+isn't done: applying it goes to the owner first, because it's a write to the shared
+database, and it must be additive, because production has no backups. Leaving out
+`--range` audits every migration file, not just the release's.
+
+**2. Three failed QA rounds on one PR: freeze that PR, not the team.** QA starts a
+failing verdict with `**QA: not ready**`. Before sending a PR back to Dev, the PM runs
+`node scripts/qa-rounds.mjs <PR>`, which exits 3 once a PR has had 3 failed rounds. When
+it does: say on the PR that it's frozen, add it to `docs/OWNER-BLOCKERS.md`, and move Dev
+and QA to their next items. **Nobody stops.** The "never idle" rule outranks any single PR.
+
+**Not adopted from that doc, and why:**
+- A drift check that needs a local Supabase stack (there isn't one on this machine) and
+  generates migrations itself. A generated diff can contain DROPs.
+- A circuit breaker that halts every session.
+- Scripts that carry Slack or Telegram tokens. Secrets stay in the git-ignored `.env.local`.
+
+Visual sign-off stays with the owner (condition 5).
 
 ## Owner-only — do not queue these
 

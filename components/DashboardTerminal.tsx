@@ -24,7 +24,6 @@ import GlobalMacroContext from '@/components/GlobalMacroContext';
 import EconCalendarWidget from '@/components/EconCalendarWidget';
 import MarketConditionsWidget from '@/components/MarketConditionsWidget';
 import SpotlightTour from '@/components/SpotlightTour';
-import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
@@ -533,8 +532,11 @@ export default function DashboardTerminal() {
 
   return (
     <div className="dashboard-grid" data-spotlight-section>
+      {/* #1309 item 23: SetupChecklist is already rendered app-wide by
+          AppShell (every route, not just this one) - a second copy here
+          duplicated it at the same fixed position, so dismissing one
+          appeared to do nothing while the other stayed put. */}
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
-      <SetupChecklist />
       <TCascadeAlertBanner />
 
       {/* No GlobalSpotlight in terminal mode — cursor glow effects don't fit

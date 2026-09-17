@@ -100,7 +100,20 @@ export default function PlanBadge() {
       : null;
     return (
       <span className="plan-badge plan-badge-trial" title="Trial">
-        {`TRIAL${daysLeft != null ? ` · ${daysLeft}D` : ''}`}
+        TRIAL
+        {/* #1222: the day count is its own span so the narrow nav bands
+            (768-917px, 918-944px) can hide it without touching the badge
+            everywhere else it renders (settings, upgrade). "TRIAL · 14D"
+            (11 chars) is nearly 3x "FREE" (4 chars) - PM/DevOps measured it
+            clipping the avatar by over 50px at 768px, not just thin, once
+            the earlier FREE-only fix was in place. `title="Trial"` above
+            does NOT carry the day count - it says "Trial", same as this
+            span says when visible. TrialBanner (mounted globally in
+            AppShell.tsx) is what still shows the live countdown to anyone
+            who can't see this span, on every page, every width - hiding
+            it here removes only the second, redundant copy of that
+            number. */}
+        {daysLeft != null && <span className="plan-badge-trial-days">{` · ${daysLeft}D`}</span>}
       </span>
     );
   }

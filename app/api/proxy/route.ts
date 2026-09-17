@@ -82,6 +82,29 @@ interface PassEntry {
   params: readonly string[];
   ttlMs: number;
   fixed?: Record<string, string>;
+  /* #1237 (#1077 split): a per-entry Bybit retry when the primary upstream
+   * fails. Optional and rare (only `binance-24hr` and `depth` have one) -
+   * this is a generic passthrough table, and most entries either already
+   * point at Bybit or have no equivalent worth building (a global figure
+   * like premiumIndex/oi-hist/lsr-*, #1238's scope, not this one).
+   *
+   * `buildUrl` reads the ALREADY-VALIDATED request params (the same ones
+   * the primary URL was built from) and returns the Bybit URL to try, or
+   * `null` when this specific request shape has no Bybit path (e.g.
+   * binance-24hr's single-`symbol` mode - only the `symbols` batch mode,
+   * the one real caller uses, is covered; see the entry's own comment).
+   * `convert` reshapes a successful Bybit body into this entry's OWN
+   * primary response shape, so the passthrough's callers never have to
+   * know a fallback happened - the same principle #1240's klines route
+   * established, signalled the same way (an `X-Data-Source` header, since
+   * this route's bodies are raw passthroughs with no room for a body
+   * field the way #1233's agg-trades added one). Returns `null` on a
+   * malformed/empty body - #1249's rule applies here too: never let an
+   * empty success get cached as real data. */
+  bybitFallback?: {
+    buildUrl: (req: NextRequest) => string | null;
+    convert: (body: unknown) => unknown | null;
+  };
 }
 
 /* Params whose presence makes a request UNCACHEABLE, whatever the entry says.
@@ -120,15 +143,170 @@ const PASSTHROUGH: Record<string, PassEntry> = {
 
   /* Binance spot and futures */
   'binance-24hr':    { url: 'https://api.binance.com/api/v3/ticker/24hr',
-                       params: ['symbols', 'symbol'], ttlMs: 30_000 },
+                       params: ['symbols', 'symbol'], ttlMs: 30_000,
+                       bybitFallback: {
+                         /* Only the `symbols` (batch) mode has a fallback -
+                          * the only mode MarketProvider.tsx's one real
+                          * caller actually uses (confirmed by reading it,
+                          * not assumed). The single-`symbol` mode returns
+                          * null here and stays Binance-only; nothing calls
+                          * it today, so building it would be untested
+                          * reach rather than coverage. */
+                         buildUrl: (req) => {
+                           const symbolsParam = req.nextUrl.searchParams.get('symbols');
+                           if (!symbolsParam) return null;
+                           return 'https://api.bybit.com/v5/market/tickers?category=linear';
+                         },
+                         /* Bybit's bulk tickers response, reshaped into
+                          * Binance's ticker/24hr ARRAY shape - the exact
+                          * fields components/MarketProvider.tsx's restPoll
+                          * reads (symbol, lastPrice, priceChangePercent,
+                          * highPrice, lowPrice, quoteVolume), nothing else
+                          * fabricated. `price24hPcnt` is a FRACTION on
+                          * Bybit (confirmed live, 2026-09-12) against
+                          * Binance's already-scaled percentage - hence
+                          * `* 100`, the same conversion #1236's snapshot
+                          * route fallback already established. `turnover24h`
+                          * (quote-currency volume) maps to `quoteVolume`,
+                          * not `volume24h` (base-coin units - the wrong
+                          * field, same distinction #1236 made). No coin
+                          * this route is ever asked about has a 1000x
+                          * Bybit symbol (pepe/bonk aren't Binance-listed),
+                          * so no price factor is needed here. */
+                         convert: (body) => {
+                           const list = (body as { result?: { list?: Array<{
+                             symbol: string; lastPrice: string; price24hPcnt: string;
+                             highPrice24h: string; lowPrice24h: string; turnover24h: string;
+                           }> } })?.result?.list;
+                           if (!Array.isArray(list) || list.length === 0) return null;
+                           return list.map(t => ({
+                             symbol: t.symbol,
+                             lastPrice: t.lastPrice,
+                             priceChangePercent: String(Number(t.price24hPcnt) * 100),
+                             highPrice: t.highPrice24h,
+                             lowPrice: t.lowPrice24h,
+                             quoteVolume: t.turnover24h,
+                           }));
+                         },
+                       } },
   'depth':           { url: 'https://api.binance.com/api/v3/depth',
-                       params: ['symbol', 'limit'], ttlMs: 15_000 },
+                       params: ['symbol', 'limit'], ttlMs: 15_000,
+                       bybitFallback: {
+                         buildUrl: (req) => {
+                           const symbol = req.nextUrl.searchParams.get('symbol');
+                           if (!symbol) return null;
+                           const limit = req.nextUrl.searchParams.get('limit') ?? '50';
+                           return `https://api.bybit.com/v5/market/orderbook?category=linear&symbol=${symbol}&limit=${limit}`;
+                         },
+                         /* Bybit's `b`/`a` (bids/asks) are already
+                          * `[price, size]` string pairs, the identical
+                          * shape Binance's `bids`/`asks` use - a rename,
+                          * not a reshape. `components/MarketProvider.tsx`'s
+                          * fetchOrderBook reads only these two fields. */
+                         convert: (body) => {
+                           const result = (body as { result?: { b?: string[][]; a?: string[][] } })?.result;
+                           if (!result?.b || !result?.a) return null;
+                           return { bids: result.b, asks: result.a };
+                         },
+                       } },
+  /* #1238 (#1077 split): only the no-`symbol` (batch, every coin) mode has a
+   * fallback - the only mode components/MarketProvider.tsx's fetchPremiumIndex
+   * (its one real caller) uses. A `symbol` request returns null and stays
+   * Binance-only.
+   *
+   * NOT a reconstruction of Binance's own next-funding FORMULA (mark/index
+   * basis + a clamped interest-rate leg) - PM caught in review that setting
+   * a fake `interestRate` to zero the clamp would quietly change what the
+   * number means (Binance's real formula adds roughly a 0.01% interest
+   * leg, so near-zero premiums would read systematically lower with
+   * nothing saying so). Bybit already PUBLISHES its own predicted-funding
+   * figure (`fundingRate` - confirmed live across BTC/ETH/TAO/GMT, all
+   * populated) rather than requiring a client-side estimate the way
+   * Binance's premiumIndex does. So this maps it to `lastFundingRate` - a
+   * REAL field on Binance's own premiumIndex shape that this route's one
+   * consumer happens not to read today - and the consumer is updated
+   * (components/MarketProvider.tsx) to use that field directly instead of
+   * running its formula whenever the response is fallback-sourced
+   * (`X-Data-Source` header), rather than have this route lie about having
+   * an interest-rate input it does not. */
   'premium-index':   { url: 'https://fapi.binance.com/fapi/v1/premiumIndex',
-                       params: ['symbol'], ttlMs: 60_000 },
+                       params: ['symbol'], ttlMs: 60_000,
+                       bybitFallback: {
+                         buildUrl: (req) => {
+                           const symbol = req.nextUrl.searchParams.get('symbol');
+                           if (symbol) return null; // single-symbol mode has no caller today
+                           return 'https://api.bybit.com/v5/market/tickers?category=linear';
+                         },
+                         convert: (body) => {
+                           const list = (body as { result?: { list?: Array<{
+                             symbol: string; markPrice: string; indexPrice: string;
+                             fundingRate: string; nextFundingTime: string;
+                           }> } })?.result?.list;
+                           if (!Array.isArray(list) || list.length === 0) return null;
+                           return list.map(t => ({
+                             symbol: t.symbol,
+                             markPrice: t.markPrice,
+                             indexPrice: t.indexPrice,
+                             lastFundingRate: t.fundingRate,
+                             nextFundingTime: Number(t.nextFundingTime),
+                           }));
+                         },
+                       } },
   'oi-hist':         { url: 'https://fapi.binance.com/futures/data/openInterestHist',
-                       params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
+                       params: ['symbol', 'period', 'limit'], ttlMs: 120_000,
+                       bybitFallback: {
+                         /* lib/useOI1h.ts (the only consumer this route's OI
+                          * types feed) already routes each coin to exactly
+                          * one source via a static per-coin map - no
+                          * side-by-side comparison exists to corrupt the way
+                          * lsr-global's does (see that entry's own comment
+                          * for why THAT one stays Binance-only). Safe to
+                          * fail over per #1240's established shape. */
+                         buildUrl: (req) => {
+                           const symbol = req.nextUrl.searchParams.get('symbol');
+                           if (!symbol) return null;
+                           const limit = req.nextUrl.searchParams.get('limit') ?? '13';
+                           return `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=5min&limit=${limit}`;
+                         },
+                         /* Reshaped into Binance's openInterestHist array
+                          * shape - only `sumOpenInterest` (this route's own
+                          * consumers only ever read that field, confirmed by
+                          * reading lib/useOI1h.ts and app/api/telegram's
+                          * checkOISpike). `sumOpenInterestValue` (the USD
+                          * notional) is NOT fabricated - Bybit's
+                          * open-interest response has no directly
+                          * equivalent field, and useOI1h.ts's own Bybit
+                          * branch already treats plain `openInterest` as the
+                          * value it reads instead, so nothing here actually
+                          * needs it. */
+                         convert: (body) => {
+                           const list = (body as { result?: { list?: Array<{ openInterest: string; timestamp: string }> } })?.result?.list;
+                           if (!Array.isArray(list) || list.length === 0) return null;
+                           // Bybit returns newest-first; Binance oldest-first.
+                           return [...list].reverse().map(item => ({
+                             sumOpenInterest: item.openInterest,
+                             timestamp: Number(item.timestamp),
+                           }));
+                         },
+                       } },
+  /* #1238: NOT given a Bybit fallback, deliberately. components/LiqTerminal.tsx
+   * already fetches Bybit's account-ratio-1 SEPARATELY and shows it as its
+   * own labelled series ("Bybit") right next to this endpoint's result
+   * (labelled "Retail"). Silently substituting Bybit data here during a
+   * Binance outage could show the IDENTICAL number under both labels -
+   * actively misleading, not merely imprecise, since a viewer reads
+   * "Retail" and "Bybit" as two independent facts corroborating (or not)
+   * each other. Confirmed by reading the component, not assumed. Stays
+   * Binance-only; a block shows up as a normal upstream failure, same as
+   * before this PR. */
   'lsr-global':      { url: 'https://fapi.binance.com/futures/data/globalLongShortAccountRatio',
                        params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
+  /* #1238: no Bybit equivalent exists at all - confirmed live,
+   * /v5/market/top-account-ratio and /v5/market/position-ratio both 404.
+   * Bybit's only trader-positioning endpoint is account-ratio (ALL
+   * accounts), not a "top trader" breakdown - the same gap #1266's
+   * coverage table found for the alert engine's identical Binance
+   * endpoint. Stays Binance-only; there is nothing to fail over to. */
   'lsr-top':         { url: 'https://fapi.binance.com/futures/data/topLongShortPositionRatio',
                        params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
   'funding-rate-1':  { url: 'https://fapi.binance.com/fapi/v1/fundingRate',
@@ -366,17 +544,37 @@ export async function GET(req: NextRequest) {
         if (v != null && v !== '') u.searchParams.set(k, v);
       }
 
-      const go = async () => {
+      /* Returns `viaFallback` alongside the body, not just the body, so a
+       * CACHED read of a fallback-sourced response still reports its real
+       * origin - the flag travels with whatever `cached()` stored, not just
+       * with the call that produced it (#1237). */
+      const go = async (): Promise<{ body: unknown; viaFallback: boolean }> => {
         const r = await fetch(u, { cache: 'no-store' });
-        if (!r.ok) {
-          /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
-             is retried rather than pinned, and the caller gets a status instead
-             of a plausible-looking empty body. */
-          const err = new Error(`${type} upstream ${r.status}`);
-          (err as Error & { status?: number }).status = r.status;
-          throw err;
+        if (r.ok) return { body: await r.json(), viaFallback: false };
+
+        /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
+           is retried rather than pinned, and the caller gets a status instead
+           of a plausible-looking empty body. */
+        const err = new Error(`${type} upstream ${r.status}`);
+        (err as Error & { status?: number }).status = r.status;
+
+        /* #1237: try Bybit before giving up, same shape #1240's klines route
+           established - never splice, never fabricate, fail loud if the
+           fallback also has nothing. */
+        const fbUrl = entry.bybitFallback?.buildUrl(req);
+        if (fbUrl) {
+          try {
+            const fr = await fetch(fbUrl, { cache: 'no-store' });
+            if (fr.ok) {
+              const converted = entry.bybitFallback!.convert(await fr.json());
+              // #1249's rule: an empty/malformed fallback body is a failure,
+              // not a success - `convert` already returns null for that, so
+              // falling through to the original error is correct, not a bug.
+              if (converted != null) return { body: converted, viaFallback: true };
+            }
+          } catch { /* Bybit fallback also failed - fall through to the original error */ }
         }
-        return r.json();
+        throw err;
       };
 
       try {
@@ -411,10 +609,18 @@ export async function GET(req: NextRequest) {
             { error: 'Rate limit exceeded for paginated requests' }, { status: 429 },
           );
         }
-        const body = cacheable
+        const result = cacheable
           ? await cached(`proxy:${type}:${u.search}`, entry.ttlMs, go)
           : await go();
-        return NextResponse.json(body, { headers: cacheable ? PROXY_CACHE : undefined });
+        return NextResponse.json(result.body, {
+          headers: {
+            ...(cacheable ? PROXY_CACHE : {}),
+            // #1237: the only way a caller (or QA) can tell this answer came
+            // from the fallback rather than the primary upstream - a header,
+            // not a body-shape change, matching #1240's klines route.
+            ...(result.viaFallback ? { 'X-Data-Source': 'bybit-fallback' } : {}),
+          },
+        });
       } catch (e) {
         const status = (e as Error & { status?: number }).status;
         return apiError('proxy', e, 502, status

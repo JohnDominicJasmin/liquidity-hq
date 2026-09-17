@@ -170,7 +170,7 @@ export default function MarketsTerminal() {
               flex: 1, minWidth: 120,
               background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
               borderRadius: 0, padding: '7px 12px',
-              fontSize: 'var(--fs-caption)', color: 'var(--txt)', outline: 'none',
+              fontSize: 'var(--fs-caption)', color: 'var(--txt)',
             }}
           />
           {(['volume', 'change', 'grade', 'signal', 'name'] as SortKey[]).map(key => (
