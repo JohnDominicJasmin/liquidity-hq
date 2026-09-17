@@ -632,6 +632,10 @@ export const LABEL_KEYS = [
   'ALERTS_COIN_ARIA', 'ALERTS_DIRECTION_ARIA', 'ALERTS_DIR_ABOVE_OPTION', 'ALERTS_DIR_BELOW_OPTION',
   'ALERTS_PRICE_ARIA', 'ALERTS_PRICE_PLACEHOLDER', 'ALERTS_NOTE_ARIA', 'ALERTS_NOTE_PLACEHOLDER',
   'ALERTS_ADDING', 'ALERTS_ADD_ALERT_BUTTON', 'ALERTS_LOADING',
+  // #1200: the saved-alert row's own direction glyph and delete button -
+  // distinct from the form's ARIA keys above, which label the form controls
+  // that CREATE an alert, not the glyph-only markers on each already-saved one.
+  'ALERTS_DIR_ABOVE_SR', 'ALERTS_DIR_BELOW_SR', 'ALERTS_DELETE_ARIA',
   'ALERTS_NO_PRICE_ALERTS_TITLE', 'ALERTS_NO_PRICE_ALERTS_SUB', 'ALERTS_PRICE_ALERT_FOOTER',
   // ALERTS_RECENTLY_FIRED_LABEL, ALERTS_REFRESH_BUTTON, ALERTS_NO_HISTORY_*,
   // ALERTS_AGO_* and ALERTS_AUTO_REFRESH_NOTE lived here for the "Recently
