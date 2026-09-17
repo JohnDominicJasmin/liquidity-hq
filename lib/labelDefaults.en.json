@@ -891,7 +891,7 @@
   "FUNDING_SIG_LONGS_OVERCROWDED_HINT": "Short on weakness",
   "FUNDING_SIG_LONGS_OVERCROWDED_LABEL": "Longs Overcrowded - Dump Risk",
   "FUNDING_SIG_LONGS_OVERCROWDED_ACTION": "Avoid new longs. Look to short on weakness.",
-  "FUNDING_SIG_LONGS_OVERCROWDED_DESC": "The market is extremely long-heavy. Traders are paying 0.05%+ every 8h just to stay long - they are overleveraged. Whales have incentive to dump price and mass-liquidate these longs.",
+  "FUNDING_SIG_LONGS_OVERCROWDED_DESC": "The market is extremely long-heavy. Traders are paying 0.05%+ every 8h just to stay long - they are overleveraged. This is unsustainable, raising the risk of a long-liquidation cascade if price drops.",
   "FUNDING_SIG_LONGS_HEAVY_CROWD": "Longs Heavy",
   "FUNDING_SIG_LONGS_HEAVY_HINT": "Reduce longs",
   "FUNDING_SIG_LONGS_HEAVY_LABEL": "Longs Heavy - Elevated Dump Risk",
