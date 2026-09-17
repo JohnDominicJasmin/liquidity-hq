@@ -73,7 +73,7 @@ worse than an empty one: it costs a session the time to discover it is wrong.**
 | AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Merged (PR #1321).** QA's browser run went 8/8 green with element screenshots confirming the ring is unclipped on both prefix and suffix rows. |
 | AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Built (PR #1324), gates green, reproduced live (forced one feed unavailable).** Owner approved the visual - awaiting QA's #1323 run before merge. |
 | AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Built (PR #1325), gates green, reproduced live (control + fix both verified).** Owner approved the visual - awaiting QA's verdict on #1322. |
-| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Built (PR next), all 4 gates green, migration + before/after table.** |
+| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Built (PR #1327), all 4 gates green, migration + before/after table.** Awaiting QA. |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
