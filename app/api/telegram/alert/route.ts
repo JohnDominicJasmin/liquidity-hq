@@ -828,8 +828,8 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
             coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
-              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation\n\n<i>${stamp}</i>`
-              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution\n\n<i>${stamp}</i>`,
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
         }
@@ -865,8 +865,8 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
             coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
-              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation\n\n<i>${stamp}</i>`
-              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution\n\n<i>${stamp}</i>`,
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
         }
@@ -1330,12 +1330,12 @@ async function checkSentimentExtremes(
     // All 3 screaming "longs are overcrowded" → dump risk is elevated
     if (fng >= 75 && frPct >= 0.04 && longPct >= 60 && !onCooldown('sentiment_bear', CD.sentiment)) {
       await tg(token, chatId,
-        `🚨 <b>Sentiment Extremes - ALL 3 BEARISH</b>\n\n` +
+        `🚨 <b>Sentiment Extremes - All 3 Bearish</b>\n\n` +
         `😱 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
         `💸 BTC FR: <b>+${frPct.toFixed(4)}%</b> - Longs overcrowded\n` +
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at extremes - <b>long flush risk elevated</b>\n` +
-        `Action: Tighten stops on longs. Do NOT add longs into this setup.` +
+        `Action: Tighten stops on longs. Avoid adding longs into this setup.` +
         `\n\n<i>${stamp}</i>`
       );
       markSent('sentiment_bear');
