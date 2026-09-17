@@ -86,7 +86,7 @@ export interface LandingDict {
 export const en: LandingDict = {
   nav: { signIn: 'Sign In', getStarted: 'Get Started Free' },
   hero: {
-    badge: 'Live · 50 markets · Signals + alerts',
+    badge: '50 markets · Signals + alerts',
     h1Line1: 'Read the map.',
     h1Line2: 'Hunt the stops.',
     sub: 'Professional-grade crypto intelligence for retail traders. Squeeze scores, whale alerts, AI analysis, and macro events - all in one dashboard.',
@@ -100,7 +100,7 @@ export const en: LandingDict = {
     sub: 'Live signals, alerts, and analysis - each tool built to answer one specific question.',
     openLabel: 'Open',
     cards: [
-      { title: 'AI Arena', desc: '58-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX - all in one view.', pills: ['Grok 4.3', '58 signals', '50 markets'] },
+      { title: 'AI Arena', desc: 'Multi-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX - all in one view.', pills: ['Grok 4.3', 'Multi-signal', '50 markets'] },
       { title: 'Telegram Alerts', desc: 'Auto-fire alerts for squeeze setups, whale trades, RSI extremes, EMA crosses, rapid price moves, open interest spikes, and breaking news.', pills: ['Squeeze alerts', 'Whale trades', 'Breaking news'] },
       { title: 'Morning Briefing', desc: 'Daily macro snapshot: BTC dominance, DXY, S&P correlation, ETF flows, economic calendar, and hot setups. Know the backdrop before the session opens.', pills: ['Macro events', 'ETF flows', 'Hot setups'] },
       { title: 'News Feed', desc: 'BBC, Al Jazeera, Fox News, Politico, CoinDesk, CoinTelegraph and more - all classified and scored. Breaking geo-political news that moves crypto.', pills: ['12+ sources', 'Auto-classify', '~1 min lag'] },
@@ -114,7 +114,7 @@ export const en: LandingDict = {
     steps: [
       { title: 'Connect Telegram', desc: 'Link your Telegram in Settings. Alerts fire automatically - squeeze setups, whale trades, FR extremes, breaking news.' },
       { title: 'Pick your coins', desc: 'Choose from 50 markets across majors, alts, meme, gold, and the S&P 500. The Squeeze Scanner watches all of them live, 24/7.' },
-      { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Quick or Deep. Grok reads 58 live signals and gives you a direct, actionable trade bias.' },
+      { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Quick or Deep. Grok reads dozens of live signals and gives you a direct, actionable trade bias.' },
     ],
   },
   // AI limit numbers below (5 Quick / 3 Deep / 5 chat, and 30/10/50/10 for Pro)
@@ -144,7 +144,7 @@ export const en: LandingDict = {
       cta: 'Get Pro - $25/mo',
     },
   },
-  finalCta: { h2: 'Ready to read the map?', sub: 'Start tracking the signals that matter.', cta: 'Create free account →' },
+  finalCta: { h2: 'Ready to read the map?', sub: 'Free to start, no card needed.', cta: 'Create free account →' },
   footer: {
     brandDesc: 'Live crypto intelligence for retail traders - squeeze scores, whale alerts, AI analysis, and macro events in one dashboard.',
     columns: { product: 'Product', analysis: 'Analysis', tools: 'Tools', account: 'Account' },
