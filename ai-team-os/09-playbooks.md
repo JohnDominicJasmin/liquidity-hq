@@ -93,11 +93,19 @@ doing it from memory produced a mistake at least once.
 1. Measure free memory before any heavy job, and name the threshold in
    `PROJECT.md`.
 2. One heavy job at a time. The seat holding the slot says so.
-3. If a job is killed, stop. Do not retry in a loop: each retry makes the
+3. If a job is killed, **stop and report**. What is forbidden is the blind
+   loop: retrying the same command unchanged, because each attempt makes the
    machine worse and teaches nothing new.
-4. Report to the owner what is consuming resources, including their own
+4. **One deliberate retry is allowed, and only one**, when something has
+   actually changed: the low-memory fallback from `PROJECT.md` is now applied,
+   a competing job has finished, or the PM seat has assigned the single heavy
+   slot. Say which of those changed before retrying. If that attempt dies too,
+   stop for real and escalate.
+5. Report to the owner what is consuming resources, including their own
    applications, with numbers.
-5. Use the known low-memory fallback rather than inventing one under pressure.
+6. Use the known low-memory fallback rather than inventing one under pressure,
+   and write it in `PROJECT.md` the first time it works so the next seat does
+   not have to find it again.
 
 ## Weekly hygiene
 
