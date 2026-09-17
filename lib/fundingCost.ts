@@ -23,3 +23,18 @@ export function calcFundingCost(posSize: number, fundingRate: number, hours: num
   const breakeven  = Math.abs(totalCost);
   return { totalCost, costPerDay, costPerWeek, annualRate, payments, breakeven };
 }
+
+// #1309 item 15: longs pay shorts when the rate is positive, and shorts pay
+// longs when it's negative - a short in a positive-rate market receives, not
+// pays. Extracted from components/FundingCostCalc.tsx so QA can test all
+// four side x sign cases directly; no behavior change.
+export function isFundingPaying(side: 'long' | 'short', rate: number): boolean {
+  return side === 'long' ? rate > 0 : rate < 0;
+}
+
+// The calculator only warns on an unsustainably high rate the user is
+// actually PAYING - a high rate the user is receiving is a windfall, not a
+// warning. Threshold matches the calculator's own copy (CALC_FUNDING_WARN_HIGH_RATE).
+export function isHighFundingRateWarning(annualRate: number, isPaying: boolean): boolean {
+  return Math.abs(annualRate) > 50 && isPaying;
+}
