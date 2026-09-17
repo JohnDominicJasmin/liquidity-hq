@@ -5,7 +5,6 @@ import { useAuth } from './AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
-import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
@@ -252,8 +251,22 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   // would snap in once the fetch finished, producing a visible flash for
   // brand-new signups. Block with the same full-screen backdrop instead so
   // nothing shows through.
+  //
+  // #1147: a brand-new signup hits this exact branch with zero context for
+  // what a bare skeleton means - LoadingState's message is deliberately
+  // sr-only (see that component's own comment), which is right for the ~26
+  // warm-return call sites elsewhere but leaves a first-time user staring at
+  // an unexplained shimmer. This is the one call site where the viewer has
+  // never seen the product before, so it gets bespoke visible copy instead of
+  // reusing LoadingState - that shared component stays sr-only everywhere else.
   if (!loaded) {
-    return <LoadingState message={t('ONBOARDING_FLOW_LOADING')} fullPage />;
+    return (
+      <div className="obw-root obw-loading" role="status" aria-live="polite">
+        <div className="obw-loading-spinner login-spinner-lg" aria-hidden="true" />
+        <div className="obw-loading-title">{t('ONBOARDING_FLOW_PREPARING_TITLE')}</div>
+        <div className="obw-loading-sub">{t('ONBOARDING_FLOW_PREPARING_SUB')}</div>
+      </div>
+    );
   }
 
   const meta   = STEP_META[step];
