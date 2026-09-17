@@ -74,7 +74,7 @@ worse than an empty one: it costs a session the time to discover it is wrong.**
 | AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Merged (PR #1324).** |
 | AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Merged (PR #1325).** QA's #1322 (calculator directionality test) also merged. |
 | PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Merged (PR #1327).** Owner signed off the wording. |
-| PR-B | **#1309 batch 2, landing/product claims + About rewrite (items 31/32/33/35)** | ~med | **Ready for review (PR #1329)**, migration + before/after table. Owner signed off the wording, including the 3-tile stats-bar call. Build green, landing hard gate run (stats bar clean in all 4 contexts + ko/zh + 375px). Two out-of-scope findings noted on the PR (light-theme hero background, `/about` needs the migration applied to show new copy - that's a shared-DB write, owner's call). Item 34 held (no support email yet). |
+| PR-B | **#1309 batch 2, landing/product claims + About rewrite (items 31/32/33/35)** | ~med | **Merged (PR #1329).** Owner signed off the wording, including the 3-tile stats-bar call. Landing hard gate run clean. `/about` needs the migration applied to the dev DB to show the new copy - that's a shared-DB write, owner's call, still open. Item 34 held (no support email yet). |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
