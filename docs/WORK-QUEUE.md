@@ -55,19 +55,27 @@ the week before, 154 issues had been opened and 107 closed.
 
 ## Dev lane
 
-**Rewritten a sixth time on 2026-09-12, at ~22:45Z.** Release #3 is on `staging`
+**Rewritten a seventh time on 2026-09-12, at ~23:40Z.** Release #3 is on `staging`
 (`8fd6f76`), QA-signed-off, and the release PR (#1299) is open awaiting the owner's
-visual gates. D4 (#1199) merged. D2 (#1285) is built and waits only on the owner's
-wording sign-off. **Next: D7 (#1266's CVD path fix + fetchAllFR switch), for
-release #4.** **A queue that names finished work is worse than an empty one: it
-costs a session the time to discover it is wrong.**
+visual gates. Release #4 candidate is on `qa` (`c8903c9`), QA-passed. D4 (#1199)
+and D7 (#1266) both merged. **Next: D6, then the item after it, since D5 is
+blocked on a screenshot rather than done.** **A queue that names finished work is
+worse than an empty one: it costs a session the time to discover it is wrong.**
 
 | # | Item | Size | Notes |
 |---|---|---|---|
 | D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | **Built (PR #1292), QA-reviewed clean.** Holding on the owner's sign-off for the toast wording ("Updated from another device") and its look (amber, same corner as Saved/Failed) - screenshots already sent to PM for the batch. Merge once that lands. |
-| D7 | **#1266: `checkCVD`'s dead-looking endpoint + the `fetchAllFR` Bybit switch** | ~half day | **Built (PR #1303), gates green (lint/tsc/test/build).** `checkCVD` was calling the COIN-M `takerBuySellVol` path from `fapi` (USD-M) - always 404s, fixed to `/futures/data/takerlongshortRatio`. `fetchAllFR` now reads Bybit first for the 42 coins whose funding interval matches Binance's, Binance only for GMT (interval mismatch) and FET (no Bybit derivatives). Awaiting QA review. |
-| D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | #939's shape: meaning carried by a glyph alone, and a control with no accessible name. **Visual, so the owner sees it before it ships.** |
+| D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | **Built (PR #1305), gates green.** Two of the three fixes (alerts row, DryPowder) are ARIA-only with zero visual difference. The one real visual change (HypothesisTracker's new small label under each evidence icon) is blocked on a screenshot - QA will take it locally after their release #4 pass, with a QA test account on dev, per PM. Not merging until the owner signs off. |
 | D6 | **#1113 tour rework · #1185 visual-rule instances** | mixed | Both visual. **Screenshots go to the owner before merge.** #1220 and #1225 are waiting on exactly that right now. |
+| AS-B | **#1309 item 10: alerts mute re-seed on prefs read failure** | ~small | **Merged (PR #1313).** |
+| AS-C | **#1309 item 13: onboarding read failure sends finished users back to the wizard** | ~small | **Merged (PR #1315).** |
+| AS-F | **#1309 items 23/24/25: dup checklist, Arena double AI call, F&G `&?limit` typo** | ~small | **Merged (PR #1319).** |
+| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Merged (PR #1321).** QA's browser run went 8/8 green with element screenshots confirming the ring is unclipped on both prefix and suffix rows. |
+| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Merged (PR #1324).** |
+| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Merged (PR #1325).** QA's #1322 (calculator directionality test) also merged. |
+| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Merged (PR #1327).** Owner signed off the wording. |
+| PR-B | **#1309 batch 2, landing/product claims + About rewrite (items 31/32/33/35)** | ~med | **Merged (PR #1329).** Owner signed off the wording, including the 3-tile stats-bar call. Landing hard gate run clean. Migration applied to dev DB (295 rows / 59 keys, md5-verified) - `/about` shows the new copy on `qa`/`staging` now. Prod not applied yet (owner's go at release time). Item 34 held (no support email yet). |
+| PR-FU1 | **#1309 follow-up: FUNDING_SIG_LONGS_OVERCROWDED_DESC neutral ending + funding-payer extraction** | ~small | **Merged (PR #1331).** Owner approved the wording. QA's coverage (PR #1332, 22 subtests) also merged. Migration applied to dev DB (PM/DevOps, owner's go). Prod not applied yet (release time). |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not

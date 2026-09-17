@@ -682,7 +682,6 @@ const inputStyle: React.CSSProperties = {
   padding: '7px 10px',
   fontSize: 'var(--fs-caption)',
   color: 'var(--txt)',
-  outline: 'none',
   boxSizing: 'border-box',
 };
 

@@ -57,7 +57,7 @@ function useIsDesktop() {
 
 const LIVE_READ_COIN = 'btc' as const;
 
-function EmDash() { return <span style={{ color: 'var(--txt2)' }}>—</span>; }
+function EmptyValue() { return <span style={{ color: 'var(--txt2)' }}>-</span>; }
 
 /* ── Same FEATURE_META as current design's LandingContent.tsx - structural
    icon+route data, not translated copy, so it is shared rather than
@@ -152,7 +152,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
             <div key={label} style={{ background: 'var(--bg1)', padding: mobile ? '9px 10px' : '11px 12px' }}>
               <div style={{ fontSize: 9, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt3)' }}>{label}</div>
               <div style={{ fontSize: mobile ? 12.5 : 13.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums', marginTop: 5 }}>
-                <EmDash />
+                <EmptyValue />
               </div>
             </div>
           ))}
@@ -164,7 +164,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
               <span style={{ width: 2, height: 18, flexShrink: 0, background: row.value == null ? 'var(--mark-idle)' : row.col }} />
               <span style={{ width: 76, flexShrink: 0, fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.1em', color: 'var(--txt3)' }}>{row.label}</span>
               <span style={{ fontSize: 12.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: row.value == null ? 'var(--txt2)' : row.col }}>
-                {row.value == null ? <EmDash /> : row.value}
+                {row.value == null ? <EmptyValue /> : row.value}
               </span>
               {row.note && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--txt3)' }}>{row.note}</span>}
             </div>
@@ -290,21 +290,21 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
 
             {isDesktop ? (
               <div style={{ display: 'flex', marginTop: 40, borderTop: '1px solid var(--bdr)', paddingTop: 24 }}>
-                {[dict.hero.stats.coins, dict.hero.stats.signals, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
-                  <div key={label} style={{ paddingRight: 38, marginRight: 38, borderRight: i < 3 ? '1px solid var(--bdr)' : undefined }}>
+                {[dict.hero.stats.coins, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
+                  <div key={label} style={{ paddingRight: 38, marginRight: 38, borderRight: i < 2 ? '1px solid var(--bdr)' : undefined }}>
                     <div style={{ fontSize: 26, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)', lineHeight: 1 }}>
-                      {['50', '35', 'Grok', 'Live'][i]}
+                      {['50', 'Grok', 'Auto'][i]}
                     </div>
                     <div style={{ fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--txt3)', marginTop: 8 }}>{label}</div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--bdr)', marginTop: 40 }}>
-                {[dict.hero.stats.coins, dict.hero.stats.signals, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: 'var(--bdr)', marginTop: 40 }}>
+                {[dict.hero.stats.coins, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
                   <div key={label} style={{ background: 'var(--bg0)', padding: '13px 14px' }}>
                     <div style={{ fontSize: 20, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)', lineHeight: 1 }}>
-                      {['50', '35', 'Grok', 'Live'][i]}
+                      {['50', 'Grok', 'Auto'][i]}
                     </div>
                     <div style={{ fontSize: 8.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt3)', marginTop: 8 }}>{label}</div>
                   </div>
@@ -593,7 +593,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             { label: 'Trading Risk', text: 'Crypto trading involves substantial risk. Prices are volatile, leverage magnifies losses, and most active traders lose money. Only trade with money you can afford to lose.' },
             { label: 'No Investment Advice', text: 'We are not a registered investment advisor. You are solely responsible for your own trading decisions. Consult a licensed professional before making any investment decision.' },
             { label: 'AI Analysis', text: 'LiquidityAI is powered by xAI Grok. AI output can be incomplete, outdated, or wrong - never use it as your sole basis for a trade. Always verify against the raw data shown.' },
-            { label: 'Data Sources', text: 'Price, funding, and OI data sourced from Binance, Bybit, Finnhub, and Alternative.me. We do not guarantee accuracy, completeness, or availability of third-party feeds.' },
+            { label: 'Data Sources', text: 'Price, funding, and OI data sourced from Binance and Bybit. News from Finnhub, Fear & Greed from Alternative.me. We do not guarantee accuracy, completeness, or availability of third-party feeds.' },
             { label: 'No Affiliation', text: 'LiquidityHQ is not affiliated with, endorsed by, or sponsored by any exchange or data provider referenced here. All trademarks belong to their respective owners.' },
           ].map(item => (
             <div key={item.label}>

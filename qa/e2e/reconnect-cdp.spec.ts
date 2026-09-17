@@ -116,7 +116,13 @@ test.describe('chart reconnects after a real transport drop', () => {
     await cdp.send('Network.emulateNetworkConditions', {
       offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1,
     });
-    await page.waitForTimeout(20_000);            // backoff needs room
+    // #1260: widened from 20s to 90s - the quick-retry sequence alone takes
+    // 30s to exhaust before the 60s background wsRetryRef interval even
+    // arms, so 20s could not observe recovery under either mechanism. 90s
+    // gives the first background retry (fires up to 60s after it arms,
+    // which itself can be up to ~10s into the offline window) comfortable
+    // room to land.
+    await page.waitForTimeout(90_000);
 
     const after = await read();
     const opensAfter = after.filter(e => e.kind === 'open').length;
@@ -142,7 +148,7 @@ test.describe('chart reconnects after a real transport drop', () => {
 
     expect(stillDown,
       `${stillDown.length} of ${dropped.length} socket(s) that dropped uncleanly never came ` +
-      `back in the 20s after the network returned: ${stillDown.map(host).join(', ')}. A total ` +
+      `back in the 90s after the network returned: ${stillDown.map(host).join(', ')}. A total ` +
       `open count would have hidden this - one socket reconnecting is not the same as the one ` +
       `the user is looking at reconnecting, and #306 is about the CHART specifically.`)
       .toEqual([]);

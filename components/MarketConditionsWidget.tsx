@@ -71,7 +71,12 @@ function useFngHistory(): number[] {
       }
     } catch {}
     let cancelled = false;
-    fetch('/api/proxy?type=fng&?limit=30&format=json')
+    // #1309 item 25: was '&?limit=30' - the stray '?' made 'limit' part of a
+    // literal "?limit" key that the proxy's URLSearchParams-based param
+    // forwarding never matches, so this always fell back to alternative.me's
+    // own default (limit=0, meaning "no limit" - not the same as never
+    // resolving, but the 30-day window this widget wants was never applied).
+    fetch('/api/proxy?type=fng&limit=30&format=json')
       .then(r => r.json())
       .then((d: { data?: { value: string }[] }) => {
         if (cancelled || !d.data) return;

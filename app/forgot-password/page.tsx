@@ -53,7 +53,7 @@ export default function ForgotPasswordPage() {
             <div className="login-success-icon">✉️</div>
             <div className="login-success-title">{t('FORGOT_PASSWORD_SENT_TITLE')}</div>
             <div className="login-success-desc">
-              {t('FORGOT_PASSWORD_SENT_DESC_PRE')} <strong>{email}</strong>.<br />
+              {t('FORGOT_PASSWORD_SENT_DESC_PRE')} <strong>{email}</strong>,<br />
               {t('FORGOT_PASSWORD_SENT_DESC_POST')}
             </div>
             <Link href="/login" className="login-back-btn">{t('FORGOT_PASSWORD_BACK_TO_LOGIN')}</Link>

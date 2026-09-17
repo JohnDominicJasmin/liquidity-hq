@@ -1125,7 +1125,9 @@ export default function MarketProvider(
   /* ── Fear & Greed ── */
   const fetchFNG = useCallback(async () => {
     try {
-      const res = await fetch('/api/proxy?type=fng&?limit=2&format=json', { cache: 'no-cache' });
+      // #1309 item 25: was '&?limit=2' - see MarketConditionsWidget.tsx for
+      // why the stray '?' breaks the proxy's param forwarding.
+      const res = await fetch('/api/proxy?type=fng&limit=2&format=json', { cache: 'no-cache' });
       const d = await res.json();
       const items = d.data;
       if (!items?.[0]?.value) return;
@@ -1137,7 +1139,7 @@ export default function MarketProvider(
       }));
     } catch {
       try {
-        const res = await fetch('/api/proxy?type=fng&?limit=2&format=json', { cache: 'no-cache' });
+        const res = await fetch('/api/proxy?type=fng&limit=2&format=json', { cache: 'no-cache' });
         const d = await res.json();
         const items = d.data;
         if (!items?.[0]?.value) return;

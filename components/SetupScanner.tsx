@@ -303,7 +303,6 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
             background: 'var(--bg1)',
             color: 'var(--txt)',
             fontSize: 'var(--fs-label)',
-            outline: 'none',
           }}
         />
       </div>
