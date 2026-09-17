@@ -25,7 +25,7 @@ const DISCLOSURES = [
   },
   {
     label: 'Data Sources',
-    text: 'Price, funding, and OI data sourced from Binance, Bybit, Finnhub, and Alternative.me. We do not guarantee accuracy, completeness, or availability of third-party feeds.',
+    text: 'Price, funding, and OI data sourced from Binance and Bybit. News from Finnhub, Fear & Greed from Alternative.me. We do not guarantee accuracy, completeness, or availability of third-party feeds.',
   },
   {
     label: 'No Affiliation',

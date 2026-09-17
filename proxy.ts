@@ -43,11 +43,31 @@ export function proxy(request: NextRequest) {
        browsers and would outlive the decision. */
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
-  return NextResponse.next();
+  /* #1251: tag every page request with its own pathname (no query string,
+   * excluded by `nextUrl.pathname` itself) via a request header, so
+   * app/not-found.tsx can log which path actually 404s. The not-found
+   * boundary gets no information about the URL that triggered it - a React
+   * Server Components limitation, not something skipped there - and this is
+   * the standard way around it: the proxy sees the raw request before
+   * routing decides anything, tags it, and NextResponse.next({ request:
+   * { headers } }) forwards the tag through to whatever Server Component
+   * ends up rendering, not-found included. See that file's own comment for
+   * why this matters: production logs a bare `NoFallbackError` today with
+   * no path attached, so a crawler probe, a stale tab after a deploy, and a
+   * genuinely broken link are indistinguishable after the fact. */
+  const headers = new Headers(request.headers);
+  headers.set('x-lhq-pathname', request.nextUrl.pathname);
+  return NextResponse.next({ request: { headers } });
 }
 
-/* Scoped so this runs for two paths and nothing else. Without a matcher the
-   proxy executes on every request in the app for a two-entry lookup. */
+/* Was scoped to exactly the two blocked paths (a two-entry lookup gains
+ * nothing from running elsewhere) until #1251 needed pathname-tagging on
+ * every page request to make a 404 attributable - a second, independent
+ * reason for this file to exist, not a widening of the first one. Excludes
+ * `/api` (which already has its own logging via reportHealth) and Next's
+ * own static/image assets, so this still never runs on a request that
+ * couldn't land on either the block-list or not-found.tsx in the first
+ * place. */
 export const config = {
-  matcher: ['/backtest', '/live-tracking'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };

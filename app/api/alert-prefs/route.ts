@@ -25,7 +25,18 @@ export const dynamic = 'force-dynamic';
    the service-role client (not the user's own token) because the cron route
    (app/api/telegram/alert/route.ts) also needs bulk cross-user reads - the
    user_id filter here is what actually enforces the boundary, not RLS.
-   Fail-open: if Supabase is unreachable, nothing is muted. */
+
+   The CRON's OWN read (fetchMutedKeysByUser in telegram/alert/route.ts)
+   queries this table directly, not through this GET, and stays fail-open
+   there on purpose: if Supabase is unreachable, nothing is muted, so a DB
+   hiccup never silences an alert someone was expecting.
+
+   THIS route's GET has the opposite correct behavior (#1309 item 10): it is
+   the only reader used by the browser (app/alerts/page.tsx), which decides
+   whether to re-seed default mutes based on the response - so failing open
+   here (answering as if the user had zero mutes) would make the page
+   overwrite a real user's choices. It fails CLOSED instead: an error status,
+   not a plausible-looking empty result. */
 
 export async function GET(req: NextRequest) {
   const userId = await getAuthedUserId(req);
@@ -35,10 +46,16 @@ export async function GET(req: NextRequest) {
   try {
     const db = getSupabaseAdmin();
     const { data, error } = await db.from(T.muted_alerts).select('key').eq('user_id', userId);
-    if (error) { console.error('[alert-prefs] GET:', error.message); return NextResponse.json({ muted: [] }); }
+    // #1309 item 10: a DB failure used to answer {muted: []} with a 200, which
+    // the page couldn't tell apart from "this user genuinely has zero mutes" -
+    // so it re-seeded the default mute set on top of whatever the user had
+    // actually chosen. An error status lets the page treat "unknown" as
+    // unknown instead of as "brand new user".
+    if (error) { console.error('[alert-prefs] GET:', error.message); return NextResponse.json({ error: 'Failed to load' }, { status: 503 }); }
     return NextResponse.json({ muted: (data ?? []).map(r => String(r.key)) });
-  } catch {
-    return NextResponse.json({ muted: [] });
+  } catch (e) {
+    console.error('[alert-prefs] GET exception:', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: 'Failed to load' }, { status: 503 });
   }
 }
 

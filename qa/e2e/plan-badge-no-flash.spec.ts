@@ -65,7 +65,18 @@ test('PlanBadge never renders FREE while entitlements are still resolving', asyn
   // false for the wrong reason, and the test would pass through a real
   // regression silently.
   const badge = page.locator('.plan-badge:visible, .plan-badge-free-text:visible');
-  const deadline = Date.now() + DELAY_MS + 1_000;
+  /* #1259: was DELAY_MS + 1_000 (3s total). Passed locally, failed in CI -
+   * `sawAnyBadge` stayed false the whole poll window even though the badge
+   * DID reach PRO correctly (the separate toContainText check below, with
+   * its own 10s budget, passed). The artificial 2s delay is only one part
+   * of the real wait: session/auth resolution runs before the intercepted
+   * fetch even starts, and CI's shared, slower hardware stretches that part
+   * further than local dev ever showed. Matching the poll window to the
+   * same 10s budget the final assertion already trusts removes the gap
+   * without weakening what's being checked - widening when the property is
+   * "did X ever happen in this window" only improves coverage, it can't
+   * produce a false pass that a tighter window wouldn't also have produced. */
+  const deadline = Date.now() + DELAY_MS + 8_000;
   let sawFree = false;
   let sawAnyBadge = false;
 

@@ -561,10 +561,11 @@ export default function FundingTerminal() {
                 </svg>
                 <input
                   type="text"
+                  className="clipped-row-search"
                   placeholder={t('FUNDING_SEARCH_PLACEHOLDER')}
                   value={frSearch}
                   onChange={e => setFrSearch(e.target.value)}
-                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
+                  style={{ flex: 1, background: 'transparent', border: 'none', padding: '8px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
                 />
                 {frSearch && (
                   <button onClick={() => setFrSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label={t('FUNDING_CLEAR_SEARCH_ARIA')}>×</button>

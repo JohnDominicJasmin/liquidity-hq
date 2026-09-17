@@ -8,18 +8,21 @@ import {
   loadUnconfirmed, saveUnconfirmed, dropLegacyUnconfirmedKey,
 } from '@/lib/settings';
 import { T } from '@/lib/tables';
+import { retryWithBackoff } from '@/lib/retryWithBackoff';
 
 /* #1188: retry-with-backoff before declaring a settings save failed, same
    shape as #1119's entitlements fetch - 3 attempts, 1s then 2s backoff. Not
    a new pattern invented for this: reusing #1119's exact numbers on purpose,
    since two different retry shapes in the same codebase is how a third one
-   gets written the next time this comes up. Most saves that would have
-   failed on a transient blip now succeed on attempt 2 or 3 instead of ever
-   reaching the user - this is part 1 of #1188's fix; part 2 (this file's own
-   comment on flushToDb below, and SettingsSaveToast.tsx) makes the ones that
-   still fail visible; the reconciliation gap (a failed save silently
-   overwritten by the next sign-in's read) is NOT fixed by either and stays
-   open on #1188. */
+   gets written the next time this comes up (#1199 later extracted the loop
+   itself into lib/retryWithBackoff.ts, shared with AuthProvider's
+   entitlements fetch - these numbers are this caller's own choice, not the
+   shared utility's). Most saves that would have failed on a transient blip
+   now succeed on attempt 2 or 3 instead of ever reaching the user - this is
+   part 1 of #1188's fix; part 2 (this file's own comment on flushToDb below,
+   and SettingsSaveToast.tsx) makes the ones that still fail visible; the
+   reconciliation gap (a failed save silently overwritten by the next
+   sign-in's read) is NOT fixed by either and stays open on #1188. */
 const SETTINGS_SAVE_MAX_ATTEMPTS = 3;
 const SETTINGS_SAVE_RETRY_BACKOFF_MS = [1000, 2000];
 
@@ -27,10 +30,22 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   const { user, loading: authLoading } = useAuth();
   const [settings,   setSettings]   = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading,    setLoading]    = useState(true);
+  // #1246: see lib/settings.ts's own comment on why this is separate from
+  // `loading`. False until the authoritative source (DB row for a signed-in
+  // user, or a confirmed sign-out) has actually been consulted once for the
+  // CURRENT account - goes false again if the account changes.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef  = useRef<Partial<UserSettings> | null>(null);
+  // #1202 core: the last server-confirmed write timestamp per field, as of
+  // the most recent DB read (sign-in fetch, refresh(), or a PATCH response).
+  // Sent back as `knownAsOf` on the next save so the server can tell "I'm
+  // writing based on the version I actually last saw" from "I'm writing
+  // blind" - see app/api/settings/route.ts's own accept-rule comment. A ref,
+  // not state: purely an outgoing-request input, never rendered.
+  const fieldUpdatedAtRef = useRef<Record<string, string>>({});
 
   // ── Debounced Supabase upsert ─────────────────────────────────────────────
   // Declared before the effects, not after them. The sign-in effect below calls
@@ -49,37 +64,82 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     // the app runs through this (update() debounces into it), so an unbounded
     // call here left saveStatus stuck on 'saving' forever on a degraded auth
     // backend, with nothing downstream ever given a chance to reset it.
-    async function attemptSave(): Promise<{ failed: boolean }> {
+    type AttemptResult =
+      | { failed: true }
+      | { failed: false; accepted: string[]; rejected: string[]; settings: Record<string, unknown> | null };
+    async function attemptSave(_attemptNumber: number): Promise<AttemptResult> {
       try {
         const token = await getAuthToken();
         if (!token) return { failed: true };
+        // #1202 core: only send a knownAsOf entry for a field this client has
+        // actually seen a server-confirmed timestamp for - omitting one for a
+        // never-synced field is deliberate, not a gap; see the route's own
+        // accept-rule comment for why sending nothing must not read as "no
+        // conflict".
+        const knownAsOf: Record<string, string> = {};
+        for (const key of Object.keys(partial)) {
+          const ts = fieldUpdatedAtRef.current[key];
+          if (ts) knownAsOf[key] = ts;
+        }
         const res = await fetch('/api/settings', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify(partial),
+          body: JSON.stringify({ ...partial, knownAsOf }),
         });
-        return { failed: !res.ok };
+        if (!res.ok) return { failed: true };
+        const body = await res.json() as { accepted?: string[]; rejected?: string[]; settings?: Record<string, unknown> | null };
+        return { failed: false, accepted: body.accepted ?? [], rejected: body.rejected ?? [], settings: body.settings ?? null };
       } catch {
         return { failed: true };
       }
     }
 
-    for (let n = 1; n <= SETTINGS_SAVE_MAX_ATTEMPTS; n++) {
-      const { failed } = await attemptSave();
-      if (!failed) {
-        // #1188 part 3: this exact partial is now DB-confirmed - clear only
-        // these keys from the unconfirmed map, not the whole thing, since a
-        // different field's own save may still be in flight or failed.
-        const unconfirmed = loadUnconfirmed(user.id);
-        for (const key of Object.keys(partial)) delete unconfirmed[key];
-        saveUnconfirmed(user.id, unconfirmed);
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
-        return;
+    const { result } = await retryWithBackoff(attemptSave, {
+      maxAttempts: SETTINGS_SAVE_MAX_ATTEMPTS,
+      backoffMs: SETTINGS_SAVE_RETRY_BACKOFF_MS,
+    });
+
+    if (!result.failed) {
+      // The row the server actually holds now, regardless of which fields
+      // this attempt won - authoritative ground truth for fieldUpdatedAtRef
+      // and for reconciling anything rejected below.
+      const freshRow = result.settings;
+      if (freshRow?.field_updated_at && typeof freshRow.field_updated_at === 'object') {
+        fieldUpdatedAtRef.current = freshRow.field_updated_at as Record<string, string>;
       }
-      if (n < SETTINGS_SAVE_MAX_ATTEMPTS) {
-        await new Promise(resolve => setTimeout(resolve, SETTINGS_SAVE_RETRY_BACKOFF_MS[n - 1]));
+
+      const unconfirmed = loadUnconfirmed(user.id);
+      for (const key of result.accepted) {
+        // #1188 part 3 + PM/DevOps's #1202 catch: only clear the marker if
+        // the stored value still equals what THIS attempt actually sent.
+        // Without this check, a newer edit to the same key made WHILE this
+        // attempt was in flight (update() already overwrote the map entry
+        // with the newer value) would have its protection deleted here by
+        // an older attempt confirming an older value - the newer edit is
+        // then unprotected and never retried.
+        if (JSON.stringify(unconfirmed[key]) === JSON.stringify((partial as Record<string, unknown>)[key])) {
+          delete unconfirmed[key];
+        }
       }
+      // #1202 core: a rejected field lost to a newer confirmed write on
+      // another device. The conflict is now resolved by an authoritative
+      // answer, not a guess - adopt the server's actual value and release
+      // this device's protection for it, the same way applyDbSettings
+      // would if this had arrived via a fresh sign-in instead.
+      if (result.rejected.length > 0 && freshRow) {
+        for (const key of result.rejected) delete unconfirmed[key];
+        setSettings(prev => {
+          const merged = { ...prev } as Record<string, unknown>;
+          for (const key of result.rejected) if (key in freshRow) merged[key] = freshRow[key];
+          saveLocalSettings(merged as unknown as UserSettings);
+          return merged as unknown as UserSettings;
+        });
+      }
+      saveUnconfirmed(user.id, unconfirmed);
+
+      setSaveStatus(result.rejected.length > 0 ? 'error' : 'saved');
+      setTimeout(() => setSaveStatus('idle'), result.rejected.length > 0 ? 3000 : 2000);
+      return;
     }
     /* Every attempt failed. `saveStatus: 'error'` is #1188 part 2's signal -
        SettingsSaveToast.tsx renders it from anywhere, not just /settings.
@@ -175,11 +235,20 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       // in on a shared browser. Now namespaced by user id, so a different
       // account's sign-in reads its own key and never sees this one -
       // nothing left here to protect against.
+      // #1246: a confirmed sign-out IS an authoritative answer - there is no
+      // row to wait for, so DEFAULT_SETTINGS is correct as-is and a consumer
+      // gating on settingsLoaded should not stay blocked forever here.
+      setSettingsLoaded(true);
       return;
     }
     const sb = getSupabase();
     if (!sb) return;
     setLoading(true);
+    // #1246: a new account id means its row hasn't been read yet, even
+    // though the PREVIOUS account's had - without this, switching accounts
+    // in one session would leave settingsLoaded true from the old account
+    // for the instant before the new read resolves.
+    setSettingsLoaded(false);
     sb.from(T.user_settings)
       .select('*')
       .eq('user_id', user.id)
@@ -188,6 +257,12 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
         if (data) {
           const row = data as Record<string, unknown>;
           const s   = rowToSettings(row);
+          // #1202 core: seed the known-as-of map from this read before
+          // anything else touches it, so the very first save this session
+          // makes already carries real per-field timestamps.
+          if (row.field_updated_at && typeof row.field_updated_at === 'object') {
+            fieldUpdatedAtRef.current = row.field_updated_at as Record<string, string>;
+          }
           applyDbSettings(user.id, s);
 
           // One-time migration: Arena's Anti-Chop Filter toggle used to be a
@@ -222,7 +297,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
           } catch { /* ignore */ }
         }
         setLoading(false);
-      }, () => setLoading(false));
+        setSettingsLoaded(true);
+      }, () => { setLoading(false); setSettingsLoaded(true); });
   }, [user?.id, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Re-read from Supabase on demand ───────────────────────────────────────
@@ -240,7 +316,11 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       .eq('user_id', user.id)
       .maybeSingle();
     if (!data) return;
-    const s = rowToSettings(data as Record<string, unknown>);
+    const row = data as Record<string, unknown>;
+    const s = rowToSettings(row);
+    if (row.field_updated_at && typeof row.field_updated_at === 'object') {
+      fieldUpdatedAtRef.current = row.field_updated_at as Record<string, string>;
+    }
     applyDbSettings(user.id, s);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -284,8 +364,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // setting actually changed. update/refresh/flushToDb are already useCallback'd,
   // so the identity is stable until the values genuinely move.
   const value = useMemo(
-    () => ({ settings, loading, saveStatus, update, refresh }),
-    [settings, loading, saveStatus, update, refresh],
+    () => ({ settings, loading, settingsLoaded, saveStatus, update, refresh }),
+    [settings, loading, settingsLoaded, saveStatus, update, refresh],
   );
 
   return (

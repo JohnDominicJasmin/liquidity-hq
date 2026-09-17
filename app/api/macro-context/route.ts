@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { hasProFeatures, getUsageTier } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { pctChange, buildMacroPrompt } from '@/lib/macroContext';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // DXY/VIX/gold/oil/10Y don't meaningfully shift within a few minutes - cache
@@ -80,60 +81,6 @@ async function fetchYF(symbol: string, initialDelayMs = 0): Promise<{ price: num
   }
 }
 
-function pctChange(price: number, prev: number) {
-  return ((price - prev) / prev) * 100;
-}
-
-function buildMacroPrompt(d: {
-  dxy: number; dxyChg: number;
-  vix: number; vixChg: number;
-  gold: number; goldChg: number;
-  oil: number; oilChg: number;
-  tnx: number; tnxChg: number;
-  goldOilRatio: number;
-}): string {
-  const fmt = (n: number, dec = 2) => n.toFixed(dec);
-  const chgStr = (c: number) => (c >= 0 ? '+' : '') + c.toFixed(2) + '%';
-
-  return [
-    'You are a macro strategist specializing in crypto market correlations. Analyze the following macro indicators and classify the current macro backdrop for crypto traders.',
-    '',
-    '=== CURRENT MACRO DATA (live) ===',
-    `DXY (US Dollar Index): ${fmt(d.dxy)} (${chgStr(d.dxyChg)} today)`,
-    `VIX (Fear Index):       ${fmt(d.vix)} (${chgStr(d.vixChg)} today)`,
-    `Gold (XAU/USD):         $${fmt(d.gold, 0)} (${chgStr(d.goldChg)} today)`,
-    `WTI Oil:                $${fmt(d.oil, 1)} (${chgStr(d.oilChg)} today)`,
-    `10Y Treasury Yield:     ${fmt(d.tnx, 2)}% (${chgStr(d.tnxChg)} today)`,
-    `Gold/Oil Ratio:         ${fmt(d.goldOilRatio, 1)}x`,
-    '',
-    '=== CLASSIFICATION TASKS ===',
-    '',
-    '1. MACRO_SIGNAL - Classify the CURRENT macro backdrop as exactly one of: RISK_ON, RISK_OFF, or NEUTRAL.',
-    '   Base this on the composite picture: DXY direction, VIX level, gold vs oil behavior.',
-    '   Format: "RISK_ON" or "RISK_OFF" or "NEUTRAL" - nothing else on this line.',
-    '',
-    '2. MACRO_ANALYSIS - In 3-4 sentences, explain WHY you classified it that way. What is each indicator telling you?',
-    '   Which indicators are conflicting? What is the dominant narrative?',
-    '',
-    '3. CRYPTO_IMPLICATIONS - What does this macro backdrop mean specifically for BTC and crypto?',
-    '   - Expected BTC behavior in this macro regime',
-    '   - Key correlation to watch (DXY strength, VIX spike, etc.)',
-    '   - Position sizing implication (increase, hold, reduce exposure?)',
-    '',
-    '4. WATCH_LEVEL - One specific macro level or threshold that would CHANGE the regime classification if crossed.',
-    '',
-    'Output using EXACTLY these headers:',
-    'MACRO_SIGNAL:',
-    '[RISK_ON or RISK_OFF or NEUTRAL]',
-    'MACRO_ANALYSIS:',
-    '[3-4 sentences]',
-    'CRYPTO_IMPLICATIONS:',
-    '[bullet points]',
-    'WATCH_LEVEL:',
-    '[one specific level/threshold]',
-  ].join('\n');
-}
-
 export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -183,22 +130,26 @@ export async function GET(req: NextRequest) {
         throw new Error(`Could not fetch macro data (${missing.join(', ')})`);
       }
 
-      const dxy  = dxyData  ?? { price: 103.5, prev: 103.5 };
-      const vix  = vixData  ?? { price: 18,    prev: 18    };
-      const gold = goldData ?? { price: 2350,  prev: 2350  };
-      const oil  = oilData  ?? { price: 78,    prev: 78    };
-      const tnx  = tnxData  ?? { price: 4.3,   prev: 4.3   };
+      // #1309 item 11: no fallback stand-ins - a metric that failed to fetch
+      // stays null all the way through (prompt and response both), instead
+      // of being replaced with a plausible-looking made-up number.
+      const dxy  = dxyData  && { price: dxyData.price,  chg: pctChange(dxyData.price,  dxyData.prev) };
+      const vix  = vixData  && { price: vixData.price,  chg: pctChange(vixData.price,  vixData.prev) };
+      const gold = goldData && { price: goldData.price, chg: pctChange(goldData.price, goldData.prev) };
+      const oil  = oilData  && { price: oilData.price,  chg: pctChange(oilData.price,  oilData.prev) };
+      const tnx  = tnxData  && { price: tnxData.price,  chg: pctChange(tnxData.price,  tnxData.prev) };
+      const goldOilRatio = gold && oil ? gold.price / oil.price : null;
 
       const payload = {
-        dxy:  dxy.price,  dxyChg:  pctChange(dxy.price,  dxy.prev),
-        vix:  vix.price,  vixChg:  pctChange(vix.price,  vix.prev),
-        gold: gold.price, goldChg: pctChange(gold.price, gold.prev),
-        oil:  oil.price,  oilChg:  pctChange(oil.price,  oil.prev),
-        tnx:  tnx.price,  tnxChg:  pctChange(tnx.price,  tnx.prev),
-        goldOilRatio: gold.price / oil.price,
+        dxy:  dxy?.price  ?? null, dxyChg:  dxy?.chg  ?? null,
+        vix:  vix?.price  ?? null, vixChg:  vix?.chg  ?? null,
+        gold: gold?.price ?? null, goldChg: gold?.chg ?? null,
+        oil:  oil?.price  ?? null, oilChg:  oil?.chg  ?? null,
+        tnx:  tnx?.price  ?? null, tnxChg:  tnx?.chg  ?? null,
+        goldOilRatio,
       };
 
-      const prompt = buildMacroPrompt(payload);
+      const prompt = buildMacroPrompt({ dxy, vix, gold, oil, tnx, goldOilRatio });
 
       const aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',

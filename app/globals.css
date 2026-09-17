@@ -840,11 +840,20 @@ body::after {
    actual focusable target a screen reader or switch-access user acts on,
    so its own box needs to clear 24, not just the pill around it. */
 .nav-search {
-  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  /* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+  flex: 1; min-width: 0; background: none; border: none;
   color: var(--txt); font-size: var(--fs-label); font-family: inherit; padding: 0;
   min-height: 24px;
 }
 .nav-search::placeholder { color: var(--txt3); }
+/* #1309 item 1/2 follow-up (PM/DevOps measured this live): shared by every
+   flush search-bar input that sits as the first child of an
+   `overflow: hidden` panel (Arena's scanner flyout, FundingTerminal's list
+   panel, MultiTFSqueezeView's expanded panel) - the panel clips the global
+   ring's top edge (and sometimes more) before it can be seen. Pulling the
+   offset negative draws the same ring inside the input instead, same fix as
+   .ps-inp/.tj-inp above. */
+.clipped-row-search:focus-visible { outline-offset: -2px; }
 .nav-search-clear {
   display: flex; align-items: center; justify-content: center;
   background: none; border: none; cursor: pointer; color: var(--txt3);
@@ -1927,7 +1936,9 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
    layers above it via z-index. */
 .ncard-headline-link { color: inherit; text-decoration: none; }
 .ncard-headline-link::after { content: ''; position: absolute; inset: 0; z-index: 0; }
-.ncard-headline-link:focus-visible { outline: none; }
+/* #1309 item 2: was `outline: none` with nothing replacing it (1.2-1.5:1 at
+   best, whatever ambient color shift this stretched link's text picked up) -
+   removed so the global `*:focus-visible` ring (line 331) shows instead. */
 
 /* Actions sit above the stretched headline link; make the row itself
    click-through so only the button is interactive and the empty space beside
@@ -2088,7 +2099,8 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 /* ── PRICE ALERTS ── */
 .pa-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
 .pa-select { font-size: var(--fs-caption); padding: 6px 10px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt); cursor: pointer; }
-.pa-input { font-size: var(--fs-caption); padding: 6px 10px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt); outline: none; width: 140px; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.pa-input { font-size: var(--fs-caption); padding: 6px 10px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt); width: 140px; }
 .pa-input-label { width: 160px; }
 .pa-input::placeholder { color: var(--txt3); }
 .pa-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 0.5px solid var(--bdr); }
@@ -2471,7 +2483,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 /* #520: was border: var(--bdr) (rgba(255,255,255,0.08)) - a hairline divider
    token, not built for a 3:1 UI-component boundary. rgba(255,255,255,0.35)
    composites to ~3.17:1 against --bg2. */
-.gchat-input { flex: 1; padding: 9px 12px; border-radius: 12px; font-size: var(--fs-label); border: 0.5px solid rgba(255,255,255,0.35); background: var(--bg2); color: var(--txt); outline: none; transition: border-color 0.15s; font-family: inherit; resize: none; overflow-y: auto; min-height: 38px; max-height: 120px; line-height: 1.5; }
+/* #1309 item 1: no `outline: none` - see .login-email-input's comment. */
+.gchat-input { flex: 1; padding: 9px 12px; border-radius: 12px; font-size: var(--fs-label); border: 0.5px solid rgba(255,255,255,0.35); background: var(--bg2); color: var(--txt); transition: border-color 0.15s; font-family: inherit; resize: none; overflow-y: auto; min-height: 38px; max-height: 120px; line-height: 1.5; }
 .gchat-input:focus { border-color: var(--purple-bdr); }
 .gchat-input:disabled { opacity: 0.5; }
 .gchat-send { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; background: var(--accent-bg); border: 0.5px solid var(--accent-bdr); color: var(--accent); font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
@@ -3307,7 +3320,15 @@ html[data-theme="light"] { background: var(--bg0); }
 .ps-irow  { display: flex; align-items: center; background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; overflow: hidden; }
 .ps-affix { padding: 0 8px; font-size: var(--fs-caption); color: var(--txt3); background: var(--bg3); border-right: 0.5px solid var(--bdr); line-height: 36px; flex-shrink: 0; }
 .ps-suffix { border-right: none; border-left: 0.5px solid var(--bdr); }
-.ps-inp   { flex: 1; background: transparent; border: none; outline: none; padding: 0 10px; font-size: var(--fs-label); color: var(--txt); height: 36px; width: 0; min-width: 0; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.ps-inp   { flex: 1; background: transparent; border: none; padding: 0 10px; font-size: var(--fs-label); color: var(--txt); height: 36px; width: 0; min-width: 0; }
+/* #1309 item 1/2 follow-up (PM/DevOps measured this live): .ps-irow sets
+   `overflow: hidden` with 0 padding around this input, so the global ring's
+   default `outline-offset: 2px` draws outside the row and gets clipped -
+   measured 0-70 visible ring pixels there vs 1150 on an unclipped control.
+   Pulling the offset negative draws the SAME global ring INSIDE the input's
+   own box instead, which the row's overflow can't touch. */
+.ps-inp:focus-visible { outline-offset: -2px; }
 .ps-inp-stop:focus { box-shadow: inset 0 0 0 1px rgba(248,113,113,.3); }
 .ps-inp-tp:focus   { box-shadow: inset 0 0 0 1px rgba(52,211,153,.3); }
 .ps-presets { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
@@ -3335,7 +3356,13 @@ html[data-theme="light"] { background: var(--bg0); }
   transition: border-color .15s, background-color .15s, box-shadow .15s;
 }
 .ps-coin-trigger:hover  { border-color: var(--bdr); background-color: var(--bg3); }
-.ps-coin-trigger:focus-visible, .ps-coin-trigger[aria-expanded="true"] { outline: none; border-color: var(--accent-bdr); box-shadow: 0 0 0 3px var(--accent-bg); }
+/* #1309 item 2: was one rule covering BOTH keyboard focus and "menu is open"
+   (aria-expanded), with `outline: none` and only a 1.05-1.5:1 box-shadow to
+   show for it - split so :focus-visible keeps its `outline: none` off and
+   falls through to the global `*:focus-visible` ring (line 331) instead;
+   the open-state box-shadow/border-color stays exactly as it was for
+   aria-expanded (that's an "is this open" cue, not the focus indicator). */
+.ps-coin-trigger[aria-expanded="true"] { border-color: var(--accent-bdr); box-shadow: 0 0 0 3px var(--accent-bg); }
 .ps-coin-trigger-dot   { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; background: var(--bg3); border: 0.5px solid var(--bdr2); }
 .ps-coin-trigger-label { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ps-coin-chevron       { flex-shrink: 0; color: var(--txt3); transition: transform .15s; }
@@ -3472,11 +3499,16 @@ html[data-theme="light"] { background: var(--bg0); }
 .tj-lbl   { font-size: var(--fs-caption); color: var(--txt2); margin-bottom: 5px; }
 .tj-irow  { display: flex; align-items: center; background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; overflow: hidden; }
 .tj-affix { padding: 0 8px; font-size: var(--fs-caption); color: var(--txt3); background: var(--bg3); border-right: 0.5px solid var(--bdr); line-height: 36px; flex-shrink: 0; }
-.tj-inp   { flex: 1; background: transparent; border: none; outline: none; padding: 0 10px; font-size: var(--fs-label); color: var(--txt); height: 36px; width: 0; min-width: 0; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.tj-inp   { flex: 1; background: transparent; border: none; padding: 0 10px; font-size: var(--fs-label); color: var(--txt); height: 36px; width: 0; min-width: 0; }
+/* #1309 item 1/2 follow-up: same clipped-row fix as .ps-inp above -
+   .tj-irow is `overflow: hidden` with 0 padding. */
+.tj-inp:focus-visible { outline-offset: -2px; }
 .tj-inp-stop:focus { box-shadow: inset 0 0 0 1px rgba(248,113,113,.3); }
 .tj-inp-tp:focus   { box-shadow: inset 0 0 0 1px rgba(52,211,153,.3); }
 .tj-autofill { font-size: var(--fs-caption); color: var(--green); margin-top: 8px; }
-.tj-notes { width: 100%; background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 10px; font-size: var(--fs-caption); color: var(--txt); resize: vertical; outline: none; font-family: inherit; box-sizing: border-box; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.tj-notes { width: 100%; background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 10px; font-size: var(--fs-caption); color: var(--txt); resize: vertical; font-family: inherit; box-sizing: border-box; }
 .tj-submit { width: 100%; padding: 13px; border-radius: var(--radius-card); border: 1px solid var(--purple); background: rgba(26,122,255,.22); color: #e4e7ff; font-size: var(--fs-label); font-weight: 700; cursor: pointer; margin-top: 4px; }
 .tj-submit:disabled { opacity: .35; cursor: not-allowed; border-color: var(--purple-bdr); background: rgba(26,122,255,.08); color: var(--purple); }
 .tj-submit:not(:disabled):hover { box-shadow: 0 0 16px rgba(26,122,255,.2); }
@@ -3505,7 +3537,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .tj-edit-form { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--bdr); }
 .tj-edit-row  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .tj-edit-field { display: flex; flex-direction: column; gap: 4px; }
-.tj-edit-select { background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 0 10px; font-size: var(--fs-caption); color: var(--txt); height: 36px; outline: none; cursor: pointer; }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+.tj-edit-select { background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 0 10px; font-size: var(--fs-caption); color: var(--txt); height: 36px; cursor: pointer; }
 .tj-edit-btns { display: flex; gap: 6px; margin-top: 10px; }
 .tj-trade-prices { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
 .tj-tp      { display: flex; flex-direction: column; gap: 1px; }
@@ -3541,7 +3574,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .tj-lev-slider {
   -webkit-appearance: none; appearance: none;
   width: 100%; height: 4px; border-radius: 2px;
-  outline: none; cursor: pointer; display: block;
+  /* #1309 item 2: no `outline: none` - see .login-email-input's comment. */
+  cursor: pointer; display: block;
   margin-bottom: 6px; border: none;
 }
 .tj-lev-slider::-webkit-slider-thumb {
@@ -3577,7 +3611,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .tj-lev-num {
   width: 56px; flex-shrink: 0; padding: 6px 8px; border-radius: 8px;
   border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt);
-  font-size: var(--fs-data); font-weight: 700; text-align: center; outline: none;
+  /* #1309 item 1: no `outline: none` - see .login-email-input's comment. */
+  font-size: var(--fs-data); font-weight: 700; text-align: center;
   font-variant-numeric: tabular-nums; font-family: inherit;
   -moz-appearance: textfield;
 }
@@ -3985,7 +4020,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .st-input {
   flex: 1; height: 34px; padding: 0 10px;
   background: var(--bg2); border: 0.5px solid var(--bdr);
-  color: var(--txt); font-size: var(--fs-label); outline: none;
+  /* #1309 item 1: no `outline: none` - see .login-email-input's comment. */
+  color: var(--txt); font-size: var(--fs-label);
   border-radius: 7px;
   -moz-appearance: textfield;
 }
@@ -4162,12 +4198,20 @@ html[data-theme="light"] { background: var(--bg0); }
   display: flex; flex-direction: column;
   max-height: 320px; overflow: hidden;
 }
+/* #1309 item 2: no `outline: none` - see .login-email-input's comment. The
+   old `:focus { border-color: var(--bdr2) }` below is gone too - it made
+   the border LESS visible on focus specifically in the terminal palette
+   (:6112-6113, --bdr2 #131618 is darker than --bdr #1f2225), actively
+   working against the ring this restores. Only true there: in the default
+   dark (:159-160) and light (:2869-2870) themes --bdr2 is the STRONGER
+   border, not weaker. Removing the rule is correct either way, since the
+   ring is now the actual focus indicator - this just says why, precisely,
+   rather than leaving a claim that's backwards in two of the three themes. */
 .cms-search {
   flex-shrink: 0; height: 34px; padding: 0 10px; margin: 6px;
   background: rgba(255,255,255,0.05); border: 0.5px solid var(--bdr); border-radius: 7px;
-  color: var(--txt); font-size: var(--fs-caption); outline: none;
+  color: var(--txt); font-size: var(--fs-caption);
 }
-.cms-search:focus { border-color: var(--bdr2); }
 .cms-list { flex: 1; overflow-y: auto; padding: 0 6px 6px; }
 .cms-row {
   display: flex; align-items: center; gap: 8px;
@@ -4526,7 +4570,13 @@ html[data-theme="light"] { background: var(--bg0); }
 .login-email-input {
   width: 100%; padding: 11px 14px; border-radius: 12px;
   background: var(--bg2); border: 0.5px solid var(--bdr2);
-  color: var(--txt); font-size: var(--fs-label); font-family: inherit; outline: none;
+  /* #1309 item 1: no `outline: none` here - the global `*:focus-visible`
+     ring (line 331) is this field's focus indicator. It used to be
+     suppressed here with nothing keyboard-visible to replace it (the
+     `:focus` border-color below is real but was itself silently overridden
+     by the terminal border-color rule further down - see that rule's own
+     comment). */
+  color: var(--txt); font-size: var(--fs-label); font-family: inherit;
   transition: border-color 0.15s;
 }
 .login-email-input::placeholder { color: var(--txt3); }
@@ -6508,6 +6558,12 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
   padding: 6px 12px; color: var(--txt3); text-decoration: none;
   transition: color .12s;
+  /* PM/DevOps's #1222 audit: SCANNERS/TOOLS wrapped their own caret onto a
+     second line at 768px once the padding trim below narrowed the button.
+     A nav item's label and its own disclosure indicator are one unit -
+     wrapping was never intended at any width, just never visible before
+     because there was always enough room to avoid it by accident. */
+  white-space: nowrap;
 }
 [data-design="terminal"] .tnav-item:hover { color: var(--txt2); }
 
@@ -6643,6 +6699,103 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 }
 [data-design="terminal"] .tnav-session-dot {
   width: 5px; height: 5px; background: var(--green); flex-shrink: 0;
+}
+/* #1114: .tnav overflows its own container from 768px (its own min-width
+   breakpoint) up to ~900px. Hiding .tnav-session alone (the original fix
+   here) was NOT enough - PM/DevOps audited the actual screenshots rather
+   than the description and caught SIGN IN pushed fully off-screen at 768px
+   and clipped at 850px, which is worse than the cosmetic overflow this
+   started as: a signed-out visitor could not reach sign-in from the nav.
+   Re-measured live with Playwright rather than re-estimated (see PR #1222):
+   real overflow with .tnav-session already hidden is 101px at 768px, 69px
+   at 800px, 19px at 850px, 0px at 900px+ - a real number this time, not a
+   linear guess from the closed issue.
+   The theme toggle and language switcher are the next two candidates by the
+   same reasoning #1114 used for session status: both are supplementary
+   (a preference, not a route or a control anything else on the page
+   depends on reaching from HERE specifically - the theme toggle and
+   language picker both exist again on /settings), while SIGN IN and every
+   nav destination must stay reachable. Combined width recovered: 28px
+   (icon button) + 36px (language chip) + 2 * 14px (.tnav-right's own gap,
+   now needed for one item instead of three) = 92px - closes the 768px gap
+   to within 9px, comfortably inside the padding trim below. */
+@media (min-width: 768px) and (max-width: 917px) {
+  [data-design="terminal"] .tnav-session { display: none; }
+  [data-design="terminal"] .tnav-icon-btn { display: none; }
+  [data-design="terminal"] .lang-nav-wrap { display: none; }
+  /* Nav items' own horizontal padding, not the design's own .tnav gap:28
+     (#599, cited by name in that rule - not touched here). 12px -> 8px per
+     side recovers 4px * 2 sides * 6 items = 48px.
+     This got wider, not narrower, after the caret-wrap fix above: forcing
+     SCANNERS/TOOLS onto one line (correct - the wrap was a real defect, not
+     a way to save width) means each dropdown button now needs its full
+     "label + caret" width every time instead of sometimes rendering just
+     the shorter wrapped label. Verified with real margin, not just zero
+     overflow: 8.4px at 768px, English, signed out
+     (`.tnav-signin`'s own `getBoundingClientRect()` against
+     `window.innerWidth` - `.tnav.scrollWidth` is not a reliable proxy for
+     this, see the next rule's comment). This value does NOT fix the
+     signed-in account-button clip below - confirmed empirically, that
+     button's position was identical whether this padding was 8px or a
+     since-reverted 6px, because it belongs to a different flex child
+     (.tnav-right, not .tnav-items) that this padding cannot reach. */
+  [data-design="terminal"] .tnav-item { padding-left: 8px; padding-right: 8px; }
+  /* Direct fix for the signed-in clip: `.tnav-avatar` is a deliberately
+     fixed 22x22px box (#714, "growing the visible box would be a design
+     change this fix has no standing to make" - not touched), and
+     `.plan-badge`'s own 4px/10px padding is a shared, owner-specified rule
+     used everywhere the badge renders (not scoped to this nav) - touching
+     it here would change the badge on /settings, /upgrade and everywhere
+     else it appears, for a fix that only needs to apply in this one row.
+     The `.tnav-item` padding trim above has NO effect on `.tnav-right`'s
+     own position either way - it's a sibling flex child, sized by ITS OWN
+     content (PlanBadge + this gap + the avatar), not by how much room
+     `.tnav-items` needed.
+     So this gap is the one thing left that's both scoped to this row and
+     safe to shrink. PM/DevOps caught that the FIRST verification of this
+     (14px -> 8px) was measured before the plan badge had actually loaded
+     (`.plan-badge` renders nothing until the entitlements read resolves -
+     see PlanBadge.tsx's own doc comment - so an early screenshot/measurement
+     shows only the avatar, which is narrower). Re-measured waiting on the
+     badge's own text content, not a timer: with FREE actually present,
+     768px signed in was only 2.86px from the edge at gap:8px - too thin.
+     14px -> 4px recovers the difference with real margin instead. */
+  [data-design="terminal"] .tnav-right { gap: 4px; }
+  /* PM/DevOps caught this measuring the widest badge state, not just FREE:
+     a two-digit-day TRIAL badge ("TRIAL · 14D", 11 characters against
+     FREE's 4) clips the avatar by over 50px at 768px even with the gap fix
+     above - the badge itself is the problem here, not spacing around it.
+     Scoped to `.tnav-right` specifically (not `.plan-badge-trial-days`
+     alone) so the day count still shows everywhere else the badge renders
+     (settings, upgrade) - only this nav, only this band, loses it.
+     `title="Trial"` on the parent span (PlanBadge.tsx) does NOT carry the
+     day count - it says "Trial", nothing more. `TrialBanner` (mounted
+     globally in AppShell.tsx) is what still shows the live countdown to
+     anyone who can't see this text, on every page, every width - this
+     only removes the second, redundant copy of that number from one badge
+     in this one nav. */
+  [data-design="terminal"] .tnav-right .plan-badge-trial-days { display: none; }
+  /* Even bare "TRIAL" (5 characters) is enough more than "FREE" (4) to clip
+     the avatar again at 768px once the day count above is gone - measured
+     at -1.47px, i.e. still overflowing, not just thin. `.plan-badge`'s
+     shared 10px horizontal padding (app-wide, owner-specified - see that
+     rule's own comment, not touched globally) is scoped down here to 6px,
+     same "only this nav" pattern as the day-count rule above. Applies to
+     every badge state (FREE/TRIAL/PRO) uniformly rather than singling one
+     out, since all three share the one class this targets. */
+  [data-design="terminal"] .tnav-right .plan-badge { padding-left: 6px; padding-right: 6px; }
+}
+@media (min-width: 918px) and (max-width: 944px) {
+  [data-design="terminal"] .tnav-session { display: none; }
+  /* The two-digit-day TRIAL badge clips the avatar here too (theme toggle
+     and language switcher are both back at this width, per the band split
+     above, so there is even less room for it than 768-917px had before its
+     own fixes) - same reasoning and same fix as that band's identical rule. */
+  [data-design="terminal"] .tnav-right .plan-badge-trial-days { display: none; }
+  /* Same reasoning as the 768-917px band's identical rule: bare "TRIAL"
+     alone still clips here (this band has no gap trim of its own, unlike
+     768-917px, so the deficit is larger - measured at -19.84px before this). */
+  [data-design="terminal"] .tnav-right .plan-badge { padding-left: 6px; padding-right: 6px; }
 }
 [data-design="terminal"] .tnav-kbd {
   color: var(--txt3);
@@ -8266,11 +8419,20 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .tj-irow,
 [data-design="terminal"] .tj-notes,
 [data-design="terminal"] .ps-irow,
-[data-design="terminal"] .login-email-input,
-[data-design="terminal"] .st-input,
-[data-design="terminal"] .st-affix,
-[data-design="terminal"] .tj-lev-num,
-[data-design="terminal"] .gchat-input { border-color: var(--border-input); }
+[data-design="terminal"] .st-affix { border-color: var(--border-input); }
+/* #1309 item 1: split from the blanket rule above for these four - each has
+   its own `:focus`/`:focus-visible` border-color rule earlier in this file,
+   and this rule sat at the SAME specificity ([data-design] + one class) but
+   LATER in source order, so it always won and silently erased whatever the
+   focus rule set - the border never actually changed on focus, terminal
+   mode only. `:not(:focus-visible)` keeps the resting-state fix (#512 bug 3)
+   without re-introducing that override. The global `*:focus-visible` ring
+   (line 331) is what actually makes focus visible here; this only restores
+   the secondary border-color cue these elements already had. */
+[data-design="terminal"] .login-email-input:not(:focus-visible),
+[data-design="terminal"] .st-input:not(:focus-visible),
+[data-design="terminal"] .tj-lev-num:not(:focus-visible),
+[data-design="terminal"] .gchat-input:not(:focus-visible) { border-color: var(--border-input); }
 
 /* ── Shared shell chrome: terminal radius (#526 C6) ────────────────────────
    NavDrawer and GrokChat render once in AppShell, as siblings outside every

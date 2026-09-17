@@ -18,6 +18,11 @@ export interface OnboardingState {
 interface OnboardingCtx {
   state:   OnboardingState;
   loaded:  boolean;
+  // #1309 item 13: true only when the read itself failed (DB error or a
+  // thrown exception) - distinct from `loaded && !state.profileComplete`,
+  // which is the real "no row yet, genuinely new user" case. See the
+  // effect below for why the two must never collapse into one boolean.
+  loadError: boolean;
   markDone: (key: OnboardingKey) => void;
   allDone: boolean;
   tourPending:      boolean;
@@ -27,7 +32,7 @@ interface OnboardingCtx {
 
 const CTX = createContext<OnboardingCtx>({
   state: { tourSeen: false, profileComplete: false, telegram: false, priceAlert: false, grok: false, coins: false },
-  loaded: false, markDone: () => {}, allDone: false,
+  loaded: false, loadError: false, markDone: () => {}, allDone: false,
   tourPending: false, requestTour: () => {}, clearTourPending: () => {},
 });
 
@@ -48,6 +53,7 @@ export default function OnboardingProvider({ children }: { children: React.React
     tourSeen: false, profileComplete: false, telegram: false, priceAlert: false, grok: false, coins: false,
   });
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [tourPending, setTourPending] = useState(false);
 
   useEffect(() => {
@@ -55,25 +61,39 @@ export default function OnboardingProvider({ children }: { children: React.React
     if (!user) { setLoaded(true); return; }
     const sb = getSupabase();
     if (!sb) { setLoaded(true); return; }
+    setLoadError(false);
     (async () => {
-      const { data } = await sb
-        .from(T.user_onboarding)
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (data) {
-        setState({
-          tourSeen:        !!data.tour_seen,
-          profileComplete: !!data.profile_complete,
-          telegram:        !!data.checklist_telegram,
-          priceAlert:      !!data.checklist_price_alert,
-          grok:            !!data.checklist_grok,
-          coins:           !!data.checklist_coins,
-        });
-      } else {
-        await sb.from(T.user_onboarding).upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
+      try {
+        const { data, error } = await sb
+          .from(T.user_onboarding)
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        // #1309 item 13: `error` and "no row" both leave `data` falsy, but
+        // they are not the same fact. Only a genuinely errorless empty
+        // result means "brand-new user, no row yet" - that's the one case
+        // where creating the row is correct. An error means the real state
+        // is UNKNOWN, not "incomplete": don't touch the DB, and don't let
+        // `state.profileComplete`'s stale `false` default be read as a real
+        // answer - OnboardingGate checks `loadError` before it checks that.
+        if (error) { setLoadError(true); return; }
+        if (data) {
+          setState({
+            tourSeen:        !!data.tour_seen,
+            profileComplete: !!data.profile_complete,
+            telegram:        !!data.checklist_telegram,
+            priceAlert:      !!data.checklist_price_alert,
+            grok:            !!data.checklist_grok,
+            coins:           !!data.checklist_coins,
+          });
+        } else {
+          await sb.from(T.user_onboarding).upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
+        }
+      } catch {
+        setLoadError(true);
+      } finally {
+        setLoaded(true);
       }
-      setLoaded(true);
     })();
   }, [user, authLoading]);
 
@@ -102,7 +122,7 @@ export default function OnboardingProvider({ children }: { children: React.React
   const clearTourPending = useCallback(() => setTourPending(false), []);
 
   return (
-    <CTX.Provider value={{ state, loaded, markDone, allDone, tourPending, requestTour, clearTourPending }}>
+    <CTX.Provider value={{ state, loaded, loadError, markDone, allDone, tourPending, requestTour, clearTourPending }}>
       {children}
     </CTX.Provider>
   );

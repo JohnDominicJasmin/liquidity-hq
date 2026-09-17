@@ -532,7 +532,7 @@ export default function BacktestPage() {
           padding: '10px 12px', borderRadius: 8,
           border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
           color: 'var(--txt)', fontSize: 'var(--fs-label)', resize: 'vertical',
-          outline: 'none', marginBottom: 10,
+          marginBottom: 10,
         }}
       />
 
@@ -673,7 +673,7 @@ export default function BacktestPage() {
           style={{
             width: 80, padding: '8px 10px', borderRadius: 6,
             border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
-            color: 'var(--txt)', fontSize: 'var(--fs-label)', outline: 'none',
+            color: 'var(--txt)', fontSize: 'var(--fs-label)',
             fontFamily: 'var(--font-mono), monospace', fontWeight: 700,
           }}
         />
@@ -761,7 +761,7 @@ export default function BacktestPage() {
           style={{
             width: 110, padding: '8px 10px', borderRadius: 6,
             border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
-            color: 'var(--txt)', fontSize: 'var(--fs-label)', outline: 'none',
+            color: 'var(--txt)', fontSize: 'var(--fs-label)',
             fontFamily: 'var(--font-mono), monospace', fontWeight: 700,
           }}
         />
