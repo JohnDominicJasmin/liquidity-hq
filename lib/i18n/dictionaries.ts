@@ -86,7 +86,7 @@ export interface LandingDict {
 export const en: LandingDict = {
   nav: { signIn: 'Sign In', getStarted: 'Get Started Free' },
   hero: {
-    badge: 'Live · 50 coins · Real-time signals',
+    badge: 'Live · 50 coins · Signals + alerts',
     h1Line1: 'Read the map.',
     h1Line2: 'Hunt the stops.',
     sub: 'Professional-grade crypto intelligence for retail traders. Squeeze scores, whale alerts, AI analysis, and macro events - all in one dashboard.',
@@ -103,8 +103,8 @@ export const en: LandingDict = {
       { title: 'AI Arena', desc: '35-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX - all in one view.', pills: ['Grok 4.3', '35 signals', '50 coins'] },
       { title: 'Telegram Alerts', desc: 'Auto-fire alerts for squeeze setups, whale trades, RSI extremes, EMA crosses, rapid price moves, open interest spikes, and breaking news - before the crowd.', pills: ['Squeeze alerts', 'Whale trades', 'Breaking news'] },
       { title: 'Morning Briefing', desc: 'Daily macro snapshot: BTC dominance, DXY, S&P correlation, ETF flows, economic calendar, and hot setups. Know the backdrop before the session opens.', pills: ['Macro events', 'ETF flows', 'Hot setups'] },
-      { title: 'News Feed', desc: 'Reuters, AP, Al Jazeera, Fox News, Politico, TruthSocial, CoinDesk and more - all classified and scored. Breaking geo-political news that moves crypto.', pills: ['12+ sources', 'Auto-classify', '~1 min lag'] },
-      { title: 'Whale Tracker', desc: 'Real-time large trade detection across Binance and Bybit. Know when institutions move size. Configurable thresholds with per-coin sensitivity.', pills: ['Real-time', 'Binance + Bybit', 'All 50 coins'] },
+      { title: 'News Feed', desc: 'BBC, Al Jazeera, Fox News, Politico, CoinDesk, CoinTelegraph and more - all classified and scored. Breaking geo-political news that moves crypto.', pills: ['12+ sources', 'Auto-classify', '~1 min lag'] },
+      { title: 'Whale Tracker', desc: 'Live large-trade feed across Binance and Bybit (7 coins), plus Telegram alerts checked on a timer. Thresholds are fixed, not user-configurable.', pills: ['Binance + Bybit', '7 coins live', 'Telegram alerts'] },
       { title: 'Squeeze Scanner', desc: '3-signal squeeze score across all 50 coins simultaneously. Funding rate + L/S ratio + taker pressure - when all three align, the flush is coming.', pills: ['Score 0–100', 'All coins', '4h cooldown'] },
     ],
   },
@@ -162,7 +162,7 @@ export const en: LandingDict = {
 export const ko: LandingDict = {
   nav: { signIn: '로그인', getStarted: '무료로 시작하기' },
   hero: {
-    badge: '실시간 · 50개 코인 · 실시간 신호',
+    badge: '라이브 · 50개 코인 · 신호 + 알림',
     h1Line1: '지도를 읽으세요.',
     h1Line2: '손절을 사냥하세요.',
     sub: '리테일 트레이더를 위한 전문가급 암호화폐 인텔리전스. 스퀴즈 점수, 고래 알림, AI 분석, 매크로 이벤트까지 하나의 대시보드에서 확인하세요.',
@@ -179,8 +179,8 @@ export const ko: LandingDict = {
       { title: 'AI 아레나', desc: '35개 신호가 합류하는 엔진에 실시간 차트와 Grok AI 분석까지. 펀딩비, CVD, 미결제약정 추세, 스퀴즈 점수, 고래 흐름, GEX를 한 화면에서 확인하세요.', pills: ['Grok 4.3', '35개 신호', '50개 코인'] },
       { title: '텔레그램 알림', desc: '스퀴즈 셋업, 고래 거래, RSI 과열/과매도, EMA 교차, 급격한 가격 변동, 미결제약정 급등, 속보까지 - 남들보다 먼저 자동으로 알려드립니다.', pills: ['스퀴즈 알림', '고래 거래', '속보'] },
       { title: '모닝 브리핑', desc: '매일의 매크로 스냅샷: BTC 도미넌스, 달러 지수(DXY), S&P 상관관계, ETF 자금 흐름, 경제 캘린더, 핫한 셋업까지. 장이 열리기 전에 배경을 파악하세요.', pills: ['매크로 이벤트', 'ETF 자금 흐름', '핫 셋업'] },
-      { title: '뉴스 피드', desc: '로이터, AP, 알자지라, 폭스뉴스, 폴리티코, 트루스소셜, 코인데스크 등 - 모두 분류되고 점수화됩니다. 암호화폐를 움직이는 지정학적 속보까지.', pills: ['12개 이상 소스', '자동 분류', '약 1분 지연'] },
-      { title: '고래 트래커', desc: '바이낸스와 바이빗 전반의 대형 거래를 실시간으로 감지합니다. 기관이 대규모로 움직이는 순간을 놓치지 마세요. 코인별 민감도로 임계값을 설정할 수 있습니다.', pills: ['실시간', 'Binance + Bybit', '50개 코인 전체'] },
+      { title: '뉴스 피드', desc: 'BBC, 알자지라, 폭스뉴스, 폴리티코, 코인데스크, 코인텔레그래프 등 - 모두 분류되고 점수화됩니다. 암호화폐를 움직이는 지정학적 속보까지.', pills: ['12개 이상 소스', '자동 분류', '약 1분 지연'] },
+      { title: '고래 트래커', desc: '바이낸스와 바이빗 전반의 대형 거래를 실시간 피드로 제공합니다 (7개 코인). 텔레그램 알림은 일정 주기로 확인됩니다. 임계값은 고정되어 있으며 사용자가 직접 설정할 수 없습니다.', pills: ['Binance + Bybit', '7개 코인 실시간', '텔레그램 알림'] },
       { title: '스퀴즈 스캐너', desc: '50개 코인 전체를 동시에 스캔하는 3가지 신호 기반 스퀴즈 점수. 펀딩비 + 롱숏 비율 + 테이커 압력 - 세 가지가 모두 일치하면 플러시가 옵니다.', pills: ['0~100점', '전체 코인', '4시간 쿨다운'] },
     ],
   },
@@ -234,7 +234,7 @@ export const ko: LandingDict = {
 export const zh: LandingDict = {
   nav: { signIn: '登录', getStarted: '免费开始使用' },
   hero: {
-    badge: '实时 · 50种币 · 实时信号',
+    badge: '实时 · 50种币 · 信号+提醒',
     h1Line1: '读懂地图。',
     h1Line2: '猎取止损点。',
     sub: '为散户交易者打造的专业级加密货币情报系统。挤压评分、巨鲸警报、AI分析和宏观事件--尽在一个仪表盘。',
@@ -251,8 +251,8 @@ export const zh: LandingDict = {
       { title: 'AI Arena', desc: '35信号共振引擎,搭载实时图表与Grok AI分析。资金费率、CVD、未平仓合约趋势、挤压评分、巨鲸流向、GEX--尽在一屏。', pills: ['Grok 4.3', '35个信号', '50种币'] },
       { title: 'Telegram提醒', desc: '挤压形态、巨鲸交易、RSI极值、EMA交叉、价格快速波动、未平仓合约激增、突发新闻--自动提醒,抢先一步。', pills: ['挤压提醒', '巨鲸交易', '突发新闻'] },
       { title: '晨间简报', desc: '每日宏观快照:BTC市占率、美元指数(DXY)、标普关联性、ETF资金流向、经济日历及热门形态。开盘前先了解大局。', pills: ['宏观事件', 'ETF资金流', '热门形态'] },
-      { title: '新闻资讯', desc: '路透社、美联社、半岛电视台、福克斯新闻、Politico、TruthSocial、CoinDesk等--全部经过分类与评分。影响加密市场的地缘政治突发新闻。', pills: ['12+信息源', '自动分类', '约1分钟延迟'] },
-      { title: '巨鲸追踪', desc: '实时侦测币安与Bybit上的大额交易。机构大举出手时第一时间知晓。可按币种自定义灵敏度阈值。', pills: ['实时', 'Binance + Bybit', '全部50种币'] },
+      { title: '新闻资讯', desc: 'BBC、半岛电视台、福克斯新闻、Politico、CoinDesk、CoinTelegraph等--全部经过分类与评分。影响加密市场的地缘政治突发新闻。', pills: ['12+信息源', '自动分类', '约1分钟延迟'] },
+      { title: '巨鲸追踪', desc: '币安与Bybit的大额交易实时信息流(7种币),另有按固定周期检查的Telegram提醒。阈值为固定值,用户无法自行设置。', pills: ['Binance + Bybit', '7种币实时', 'Telegram提醒'] },
       { title: '挤压扫描器', desc: '同时扫描全部50种币的三信号挤压评分。资金费率+多空比+吃单压力--三者共振时,插针行情即将到来。', pills: ['0-100分', '所有币种', '4小时冷却'] },
     ],
   },
