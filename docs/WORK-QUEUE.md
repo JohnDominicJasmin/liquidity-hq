@@ -32,23 +32,50 @@ mid-task. This one lives in the repo.
 blocked and why. A session that stops is more expensive than a session that picks
 the wrong item.
 
+**Filing issues: group them, don't scatter them.** This is the owner's instruction from
+2026-09-12, when open issues reached 52: *"if we have multiple small issues and they are
+related to each other or in similar page or problem just create one issue and put it all
+there"*. So:
+- **Before filing, check the open trackers** (`gh issue list --search "tracker in:title"`).
+  If one covers the page or problem, add your finding there as a checklist line in a
+  comment. Open a new issue only when nothing fits. If you're starting an area that will
+  collect findings, give it its own tracker, titled "… (tracker)".
+- **To fold an issue into a tracker,** run `gh issue close N --duplicate-of T` and leave a
+  comment that says where it went.
+- **A tracker closes only when every item on it is verified on production.** Folding an
+  issue in doesn't close it early, and the five conditions in `CLAUDE.md` still apply to
+  every item.
+- **Leave an issue alone while a PR that says "Fixes #N" is in flight.** Fold it in after
+  that PR lands.
+
+On 2026-09-12 this took the open count from 52 to 24: 13 trackers absorbed 28 issues. In
+the week before, 154 issues had been opened and 107 closed.
+
 ---
 
 ## Dev lane
 
-**Rewritten a fifth time on 2026-09-12, at ~21:15Z.** All of D3 (#1233–#1238), #1266
-steps 1–2, #1278 and #1282's coalescing fix are **merged to `dev`**, and together they're
-release #3's candidate. #1284 turned out to be a blind spot in the capture tool, not a
-bug, and it's closed. **Next: promote `dev` → `qa` for release #3, then D2.** **A queue
-that names finished work is worse than an empty one: it costs a session the time to
-discover it is wrong.**
+**Rewritten a seventh time on 2026-09-12, at ~23:40Z.** Release #3 is on `staging`
+(`8fd6f76`), QA-signed-off, and the release PR (#1299) is open awaiting the owner's
+visual gates. Release #4 candidate is on `qa` (`c8903c9`), QA-passed. D4 (#1199)
+and D7 (#1266) both merged. **Next: D6, then the item after it, since D5 is
+blocked on a screenshot rather than done.** **A queue that names finished work is
+worse than an empty one: it costs a session the time to discover it is wrong.**
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | `PATCH /api/settings` already returns `rejected` plus the current `settings`, so the client should adopt them immediately and show a short notice. **Reuse #1188's save-status surface.** It's visible, so the owner approves the notice wording. |
-| D4 | **#1199: one retry-with-backoff utility** | ~half day | Two hand-written implementations exist, though #1188 said to reuse #1119's shape rather than write a second one. Extract a shared one, and **don't change either caller's timing** while doing it. The PR says what to assert; QA writes the tests. |
-| D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | #939's shape: meaning carried by a glyph alone, and a control with no accessible name. **Visual, so the owner sees it before it ships.** |
+| D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | **Built (PR #1292), QA-reviewed clean.** Holding on the owner's sign-off for the toast wording ("Updated from another device") and its look (amber, same corner as Saved/Failed) - screenshots already sent to PM for the batch. Merge once that lands. |
+| D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | **Built (PR #1305), gates green.** Two of the three fixes (alerts row, DryPowder) are ARIA-only with zero visual difference. The one real visual change (HypothesisTracker's new small label under each evidence icon) is blocked on a screenshot - QA will take it locally after their release #4 pass, with a QA test account on dev, per PM. Not merging until the owner signs off. |
 | D6 | **#1113 tour rework · #1185 visual-rule instances** | mixed | Both visual. **Screenshots go to the owner before merge.** #1220 and #1225 are waiting on exactly that right now. |
+| AS-B | **#1309 item 10: alerts mute re-seed on prefs read failure** | ~small | **Merged (PR #1313).** |
+| AS-C | **#1309 item 13: onboarding read failure sends finished users back to the wizard** | ~small | **Merged (PR #1315).** |
+| AS-F | **#1309 items 23/24/25: dup checklist, Arena double AI call, F&G `&?limit` typo** | ~small | **Merged (PR #1319).** |
+| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Merged (PR #1321).** QA's browser run went 8/8 green with element screenshots confirming the ring is unclipped on both prefix and suffix rows. |
+| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Merged (PR #1324).** |
+| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Merged (PR #1325).** QA's #1322 (calculator directionality test) also merged. |
+| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Merged (PR #1327).** Owner signed off the wording. |
+| PR-B | **#1309 batch 2, landing/product claims + About rewrite (items 31/32/33/35)** | ~med | **Merged (PR #1329).** Owner signed off the wording, including the 3-tile stats-bar call. Landing hard gate run clean. Migration applied to dev DB (295 rows / 59 keys, md5-verified) - `/about` shows the new copy on `qa`/`staging` now. Prod not applied yet (owner's go at release time). Item 34 held (no support email yet). |
+| PR-FU1 | **#1309 follow-up: FUNDING_SIG_LONGS_OVERCROWDED_DESC neutral ending + funding-payer extraction** | ~small | **Merged (PR #1331).** Owner approved the wording. QA's coverage (PR #1332, 22 subtests) also merged. Migration applied to dev DB (PM/DevOps, owner's go). Prod not applied yet (release time). |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
@@ -88,6 +115,34 @@ anything you touch.
 | **`TEST_GAPS.md` §11 / §7** | CI being off is the owner's cost decision; the shared dev/staging database is a Supabase free-tier structural limit. Neither is actionable without a purchase. |
 
 ---
+
+## Release and loop guardrails
+
+**Added 2026-09-12 with the owner's go-ahead**, adapted from a proposed "swarm guardrails"
+doc. Both tools are read-only.
+
+**1. Before every release, check that its migrations are applied.** Run
+`node scripts/migration-check.mjs --range origin/main..origin/staging --absent-only`, then
+run the SQL it prints through the Supabase tool's `execute_sql` on production. Do the same
+with `--env dev` on dev. **Every object must be present before the deploy that needs
+it.** Paste the result into the release PR. A migration file that's merged but not applied
+isn't done: applying it goes to the owner first, because it's a write to the shared
+database, and it must be additive, because production has no backups. Leaving out
+`--range` audits every migration file, not just the release's.
+
+**2. Three failed QA rounds on one PR: freeze that PR, not the team.** QA starts a
+failing verdict with `**QA: not ready**`. Before sending a PR back to Dev, the PM runs
+`node scripts/qa-rounds.mjs <PR>`, which exits 3 once a PR has had 3 failed rounds. When
+it does: say on the PR that it's frozen, add it to `docs/OWNER-BLOCKERS.md`, and move Dev
+and QA to their next items. **Nobody stops.** The "never idle" rule outranks any single PR.
+
+**Not adopted from that doc, and why:**
+- A drift check that needs a local Supabase stack (there isn't one on this machine) and
+  generates migrations itself. A generated diff can contain DROPs.
+- A circuit breaker that halts every session.
+- Scripts that carry Slack or Telegram tokens. Secrets stay in the git-ignored `.env.local`.
+
+Visual sign-off stays with the owner (condition 5).
 
 ## Owner-only — do not queue these
 

@@ -1,4 +1,5 @@
 import type { Page, APIRequestContext, APIResponse } from '@playwright/test';
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 
 /** Every route the suite sweeps. Public + app routes, signed out. */
 /* Every route the sweeping specs measure — contrast, layout, a11y, seo, perf.
@@ -157,7 +158,38 @@ export const BASELINE = {
    * drop back to a single number for both environments - not to widen this
    * further.
    */
-  tapTargetsUnder24: 85,
+  /* 85 -> 112, 2026-09-12, #1259. Measured from #1252's CI run (`34701414071`,
+   * reproduced identically across the initial attempt and its retry) and
+   * confirmed locally against the real violation list (the attached
+   * `tap-targets-under-24px.txt`, not guessed at):
+   *
+   *     78  a.pf-footer-bottom-link   (DOWN from 84 - footer link count
+   *                                    changed, not a regression)
+   *     21  button.strat-chip[.notyet]  /arena, all 76x20 or smaller - the
+   *         Strategy Panel's indicator chips (shipped with the plan
+   *         indicator feature). Every one is 20px tall, 4px under the
+   *         floor, in a wrapping flex grid with real gaps between chips -
+   *         exactly the shape SC 2.5.8's spacing exception covers, which is
+   *         why axe's own target-size rule (BASELINE.axeTargetSizeViolations,
+   *         the actual conformance gate) does NOT also flag these - it
+   *         models that exception; this cruder bounding-box-only metric
+   *         doesn't. Deliberate, already-shipped compact-chip design, not
+   *         an accident - this is the "loose small-touch-targets-on-a-PWA
+   *         signal" this metric's own documentation says it is, not a
+   *         WCAG failure count.
+   *      8  button.csb2-name-btn      /arena's coin-selector strip, same
+   *                                    shape as the chips above.
+   *      6  bare <a>
+   *
+   * Raised because this is real, understood, shipped surface - not to make
+   * a red build pass without looking.
+   *
+   * 112 -> 113: the same unexplained environment drift this file already
+   * documents for the 84->85 case above, on the same metric, for the same
+   * reason - a local run measured 113, twice, against CI's 112. Set to the
+   * higher number so `toBeLessThanOrEqual` is green in both, same rule:
+   * this +1 is not explained either, and is not licence to widen further. */
+  tapTargetsUnder24: 113,
   /**
    * SC 2.5.8 failures per axe-core's own `target-size` rule, which models BOTH
    * exceptions (spacing and inline) rather than re-deriving them by hand.
@@ -421,6 +453,22 @@ export const BASELINE = {
         '#bc4441',   // 3.30:1  /liq
         '#7c828a',   // 4.16:1  /liq   - --txt3, and #836's div.liq-current-bar
         '#349344',   // 4.34:1  /liq
+        /* ADDED 2026-09-12, #1259. `#3a3f45` (--txt4 in dark) is deliberately
+         * NOT here - see #1271. It's StrategyPanel's `.strat-aux`, which
+         * renders the account's own PRO/FREE status ("PRO", "FREE · 3",
+         * "···") - real, meaningful status text, not the disabled/axis-label
+         * content --txt4's own definition describes. This is case (b), a
+         * genuine defect, not a sweep artefact - filed to Dev rather than
+         * added here, which would have hidden it.
+         * `#595d64` is a COMPOSITED value (no literal match anywhere in
+         * app/globals.css or any component) - the axe-style scan measures
+         * post-cascade colour, so this is what the browser actually painted
+         * on /news, not necessarily a literal source hex. Reproduced
+         * identically across the initial attempt and its retry, and on both
+         * main (9fb45997) and release #2's head (f2f89f1d) per #1252's
+         * triage - stable, not one-off sweep variance. Not traced further;
+         * recorded as case (a) rather than guessed at. */
+        '#595d64',   // 3.04:1  /news    - composited, source not traced
       ] as readonly string[],
 
       /* Six of these nine are below 3:1. `#a1a2a2` at 1.95:1 is the worst text
@@ -437,6 +485,14 @@ export const BASELINE = {
         '#458c57',   // 3.03:1  /liq             .liq-section-hdr-short > .liq-section-sub
         '#af4a50',   // 3.90:1  /liq             .liq-section-hdr-long > .liq-section-sub
         '#5e6267',   // 4.32:1  /liq             .liq-current-oi   - #836's div.liq-current-bar
+        /* ADDED 2026-09-12, #1259. `#aeaaa4` (light's --txt4) deliberately
+         * NOT here, same reason as dark's #3a3f45 above - it's
+         * StrategyPanel's `.strat-aux` PRO/FREE status text, a real defect,
+         * filed as #1271 rather than hidden in this list. `#8c8e91` is
+         * unconfirmed (composited, not traced to a literal source colour)
+         * but reproduced identically across the initial attempt and its
+         * retry, and on both main and release #2's head per #1252's triage. */
+        '#8c8e91',   // 3.03:1  /news            .nfeed-empty > div:nth-child(3)
       ] as readonly string[],
     },
   },
@@ -728,6 +784,104 @@ export async function runAxe(
  * answer a different question - and on 2026-08-13 it answered 200 while both
  * services were banned.
  */
+/**
+ * Spawns a SEPARATE `next start` instance with `qa/fail-once.cjs` required
+ * in, so the next outgoing fetch matching `match` gets one `status` response
+ * before passing through for real. See that file's own header for why this
+ * exists (a rejected Promise or 503/520 gets silently retried by
+ * @supabase/postgrest-js before the app ever sees it - only a status outside
+ * that retried set, like the 504 default, reaches the app's real error path).
+ *
+ * A SEPARATE process, not the shared `webServer` on 3100: the injector arms
+ * once per process and must be live from that process's very first request,
+ * so it cannot share a server another spec already started without the flag.
+ * Reuses the already-built `.next` output (the shared webServer's `npm run
+ * build` already ran it) rather than building again - `next start` alone
+ * takes under a second against it.
+ *
+ * Caller is responsible for calling `stop()` in a `finally` - this spawns a
+ * real OS process tree, and `next start` on Windows leaves child workers
+ * behind a plain SIGTERM does not reach (see the QA session notes on
+ * orphaned dev-server children costing real memory). `stop()` uses
+ * `taskkill /T /F` for that reason.
+ */
+export async function startFailOnceServer(opts: {
+  /** Substring(s) the request URL must ALL contain, comma-separated - see
+   *  qa/fail-once.cjs's own FAIL_ONCE_MATCH doc. */
+  match: string;
+  /** HTTP status to answer with once. Default 504 (see file header above -
+   *  do not use 503 or 520, postgrest-js retries those transparently). */
+  status?: number;
+  /** Fixed rather than dynamically chosen: this suite runs one spec like
+   *  this at a time, and a fixed port makes a leaked process from a prior
+   *  failed run obvious (still listening on 3101) instead of silently
+   *  finding a new one and hiding the leak. */
+  port?: number;
+}): Promise<{ baseURL: string; logs: string[]; stop: () => Promise<void> }> {
+  const port = opts.port ?? 3101;
+  const status = opts.status ?? 504;
+  const logs: string[] = [];
+
+  // Runs the `next` CLI's own JS entry directly via the current Node binary,
+  // not `npx`/`npx.cmd` - a .cmd shim needs a shell to spawn on Windows
+  // (EINVAL without one), and passing shell:true reintroduces an arg-escaping
+  // warning Node itself flags. This has neither problem and needs no build:
+  // it's the exact file `npm run start` (`next start`) already resolves to.
+  const child: ChildProcess = spawn(
+    process.execPath,
+    [require.resolve('next/dist/bin/next'), 'start', '-p', String(port)],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        NODE_OPTIONS: '--require ./qa/fail-once.cjs',
+        FAIL_ONCE_MATCH: opts.match,
+        FAIL_ONCE_STATUS: String(status),
+      },
+    },
+  );
+  child.stdout?.on('data', d => logs.push(String(d)));
+  child.stderr?.on('data', d => logs.push(String(d)));
+
+  const baseURL = `http://localhost:${port}`;
+  const deadline = Date.now() + 30_000;
+  let ready = false;
+  while (Date.now() < deadline) {
+    try {
+      await fetch(baseURL, { signal: AbortSignal.timeout(1_000) });
+      ready = true;
+      break;
+    } catch { /* not up yet */ }
+    await new Promise(r => setTimeout(r, 300));
+  }
+  if (!ready) {
+    throw new Error(
+      `fail-once server on :${port} never answered within 30s. Log tail:\n${logs.join('').slice(-2000)}`,
+    );
+  }
+  if (!logs.some(l => l.includes('[fail-once] armed'))) {
+    throw new Error(
+      `qa/fail-once.cjs did not log its own arming message - NODE_OPTIONS may not have reached the ` +
+      `child process. Log tail:\n${logs.join('').slice(-2000)}`,
+    );
+  }
+
+  return {
+    baseURL,
+    logs,
+    stop: async () => {
+      if (child.pid == null) return;
+      try {
+        if (process.platform === 'win32') {
+          execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+        } else {
+          process.kill(-child.pid, 'SIGKILL');
+        }
+      } catch { /* already gone */ }
+    },
+  };
+}
+
 export async function marketDataUnavailable(
   request: { get: (url: string) => Promise<{ status(): number }> },
   baseURL?: string,

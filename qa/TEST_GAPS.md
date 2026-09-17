@@ -930,6 +930,41 @@ nobody rediscovers them the hard way:**
   since QA cannot create one unilaterally and relayed instructions don't
   substitute for the owner's own yes on a production write.
 
+- **2026-09-12, #1284: a SECOND, more dangerous `read_network_requests` gap
+  than the one above - it misses requests fired in roughly the first 2
+  seconds after a fresh document load EVEN WHEN ARMED BEFORE NAVIGATION.**
+  The #1163 entry above documents forgetting to arm the tool first; this one
+  reproduces with that rule followed correctly, so "arm before navigate"
+  does not close it. Filed #1284 ("fear & greed, CMC dominance, alt-season
+  and macro never fetch on production") after a hard reload's capture showed
+  zero requests to `/api/proxy?type=fng`,
+  `/api/cmc?type=global`, `/api/cmc?type=altseason` and `/api/macro` - a
+  contiguous-looking gap that read exactly like a real regression, console
+  clean, routes confirmed working when called directly. It wasn't one.
+  `performance.getEntriesByType('resource')` on the same reload showed all
+  15 of `MarketProvider`'s mount-effect calls landing at 1.2-2.1s, including
+  every one the capture tool reported missing. QA and Dev each reproduced
+  the false negative independently, then each reproduced the correction
+  independently, before comparing notes. **The instrument's own blind spot
+  produced a specific, plausible, wrong shape** (a contiguous run of calls
+  absent, not a random scatter) that took a filed issue, a coverage-table
+  side effect on an unrelated PR, and a Dev investigation cycle to unwind -
+  see #1284, #1252 and #1192's threads for the full trail. **Rule going
+  forward: any question about what fires in the first ~2s of a page load
+  gets answered with Resource Timing, not this tool's request capture.**
+  The capture tool remains fine for anything after that window, and for
+  counting requests over a longer session (it hasn't shown this gap past
+  the first couple of seconds). A second, narrower gap surfaced in the same
+  investigation and is still open, not closed here: Resource Timing itself
+  showed a ~100ms-apart duplicate entry for several endpoints (`/api/cmc`,
+  `bybit-tickers`, `snapshot`, `rsi`, `agg-trades`, others), with the second
+  entry `initiatorType: "other"` and zero bytes transferred - seen only in
+  this browser-automation environment, not yet reproduced in a clean
+  browser. Filed separately as #1290 rather than folded in here, because
+  it's a different, unresolved question (real second request vs. a second
+  artifact layered on top of the first) - don't read this entry as having
+  settled that one too.
+
 ---
 
 ## 🟡 10. Monitoring is wired in production; DELIVERY is unconfirmed
