@@ -4,7 +4,7 @@ import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
-import { calcFundingCost } from '@/lib/fundingCost';
+import { calcFundingCost, isFundingPaying, isHighFundingRateWarning } from '@/lib/fundingCost';
 
 function fmtUSD(v: number) {
   return '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -32,15 +32,7 @@ export default function FundingCostCalc() {
   );
 
   const rate = parseFloat(fundingRate) || 0;
-  // #1309 item 15: longs pay shorts when the rate is positive, and shorts
-  // pay longs when it's negative (see the hint text below, which already
-  // said this correctly). This previously had no side input at all and
-  // inferred `isLong` from the rate's own sign, so it always showed
-  // "PAYING" for a positive rate and "RECEIVING" for a negative one -
-  // correct only by coincidence for a long position, and backwards for an
-  // actual short: a short in a positive-rate market receives, but the old
-  // logic told them they were paying.
-  const isPaying = side === 'long' ? rate > 0 : rate < 0;
+  const isPaying = isFundingPaying(side, rate);
 
   return (
     <div>
@@ -136,7 +128,7 @@ export default function FundingCostCalc() {
               <div className="ps-rval">{fmtUSD(result.breakeven)}</div>
             </div>
           </div>
-          {Math.abs(result.annualRate) > 50 && isPaying && (
+          {isHighFundingRateWarning(result.annualRate, isPaying) && (
             <div className="ps-warn"><Warn /> {t('CALC_FUNDING_WARN_HIGH_RATE')}</div>
           )}
         </>
