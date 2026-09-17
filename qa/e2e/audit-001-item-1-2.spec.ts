@@ -123,12 +123,28 @@ async function checkFocusRing(page: Page, target: Locator): Promise<FocusCheckRe
   // is what let this go unnoticed until .st-input's result looked like a
   // real gap instead of a test artifact.
   await target.evaluate(el => (el as HTMLElement).focus());
-  // A short settle wait - found necessary switching from click() to
-  // .focus(): a run against the calculators' inputs intermittently read
-  // BOTH before/after as identical ("none" - no indicator at all) despite a
-  // visible text cursor in the failure screenshot, i.e. focus genuinely
-  // landed but :focus-visible/style hadn't finished being computed yet at
-  // the moment getComputedStyle ran in the very same tick.
+  // Poll for focus to actually land, rather than a blind wait - found
+  // testing against liquidity-hq-qa.onrender.com (higher latency than
+  // local): the mobile drawer search input can still be mid-transition
+  // when `.focus()` fires, and a raw DOM `.focus()` call on an element
+  // that isn't fully "focusable" yet (still animating into place) silently
+  // no-ops rather than throwing - confirmed via a failure's own page
+  // snapshot, where `document.activeElement` was still the page root. A
+  // fixed `waitForTimeout` before the call (300ms, then 500ms) cut the
+  // failure rate but didn't eliminate it - the actual race is variable
+  // remote latency, which no fixed number reliably covers. Polling for the
+  // real postcondition (focus landed) rather than guessing how long to
+  // wait for it fixes the class of bug, not just this one number.
+  await expect.poll(() => target.evaluate(el => document.activeElement === el), {
+    timeout: 3_000,
+  }).toBe(true);
+  // Still keep a short settle wait after focus lands - found necessary
+  // switching from click() to .focus(): a run against the calculators'
+  // inputs intermittently read BOTH before/after as identical ("none" - no
+  // indicator at all) despite a visible text cursor in the failure
+  // screenshot, i.e. focus genuinely landed but :focus-visible/style
+  // hadn't finished being computed yet at the moment getComputedStyle ran
+  // in the very same tick.
   await page.waitForTimeout(100);
   const after = await target.evaluate(el => {
     const s = getComputedStyle(el);
@@ -314,6 +330,17 @@ for (const theme of ['dark', 'light'] as const) {
 
         const search = page.locator('.nav-search').first();
         await expect(search, '.nav-search never rendered after opening the drawer').toBeVisible({ timeout: 10_000 });
+        // toBeVisible() only checks CSS visibility (non-zero size, not
+        // display:none) - it does not wait for the drawer's own slide-in
+        // transition to finish, so `search` can report visible while still
+        // mid-transition on a higher-latency remote target. Found running
+        // against liquidity-hq-qa.onrender.com (reproduced repeatedly; never
+        // showed up locally, where render latency was low enough that the
+        // race didn't matter) - a fixed wait here (tried 300ms, then 500ms)
+        // cut the failure rate but never fully eliminated it, since the
+        // actual race is variable remote latency. checkFocusRing() below now
+        // polls for focus to actually land instead of guessing a delay,
+        // which fixes the real race directly.
         const result = await checkFocusRing(page, search);
         expect.soft(result.visible,
           `mobile drawer search (${theme}): no VISIBLE focus indicator (item 2, .nav-search) - ${result.detail}`).toBeTruthy();
