@@ -70,9 +70,10 @@ worse than an empty one: it costs a session the time to discover it is wrong.**
 | AS-B | **#1309 item 10: alerts mute re-seed on prefs read failure** | ~small | **Merged (PR #1313).** |
 | AS-C | **#1309 item 13: onboarding read failure sends finished users back to the wizard** | ~small | **Merged (PR #1315).** |
 | AS-F | **#1309 items 23/24/25: dup checklist, Arena double AI call, F&G `&?limit` typo** | ~small | **Merged (PR #1319).** |
-| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Built (PR #1321), gates green.** Focus-ring clipping fix. QA is redoing its clipping check (per PM, the check may ignore `outline-offset`) - hold on merge until PM/QA resolve. |
-| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Built (PR #1324), gates green, reproduced live (forced one feed unavailable).** Visual - screenshot sent to PM/owner. Stays unmerged pending owner sign-off. |
-| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Built (PR #1325), gates green, reproduced live (control + fix both verified).** Awaiting QA (draft coverage at #1322). |
+| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Merged (PR #1321).** QA's browser run went 8/8 green with element screenshots confirming the ring is unclipped on both prefix and suffix rows. |
+| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Built (PR #1324), gates green, reproduced live (forced one feed unavailable).** Owner approved the visual - awaiting QA's #1323 run before merge. |
+| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Built (PR #1325), gates green, reproduced live (control + fix both verified).** Owner approved the visual - awaiting QA's verdict on #1322. |
+| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Built (PR next), all 4 gates green, migration + before/after table.** |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not

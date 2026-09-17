@@ -373,7 +373,6 @@ export default function LiqTerminal() {
               cursor: 'pointer',
               appearance: 'none',
               WebkitAppearance: 'none',
-              outline: 'none',
               colorScheme: 'dark',
               letterSpacing: '.05em',
               minWidth: 150,
