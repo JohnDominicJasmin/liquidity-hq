@@ -73,8 +73,17 @@ out later.
 | `08-quality-checks.md` | The checks each kind of change has to pass. |
 | `09-playbooks.md` | Step-by-step for releases, hotfixes, rollbacks, pauses. |
 | `10-lessons.md` | The failures that produced these rules. |
-| `roles/` | One file per seat, written from that seat's side. |
-| `templates/` | Fill-in shapes: PR, report, release notes, status update. |
+| `roles/pm-devops.md` | The PM/DevOps seat, written from that seat's side. |
+| `roles/dev.md` | The Dev seat. |
+| `roles/qa.md` | The QA seat. |
+| `templates/pull-request.md` | The PR shape every change follows. |
+| `templates/qa-report.md` | How to test, per-step results, verdicts, parks. |
+| `templates/release-and-status.md` | Release PR, status update, stopping point, tracker. |
+
+Each seat's file was written **by that seat**, then reviewed by another, which
+is the same rule the work itself follows: the one who wrote it does not sign it
+off. Where a role file and this folder's general rules disagree, the role file
+is the one that has been checked against real practice — fix the general rule.
 
 ## The three ideas the rest of it rests on
 
