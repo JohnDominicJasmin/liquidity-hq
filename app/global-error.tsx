@@ -19,7 +19,7 @@ export default function GlobalError({
       <body style={{ margin: 0, background: '#0d0d0d', color: '#e5e7eb', fontFamily: 'Figtree, system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
         <div style={{ textAlign: 'center', padding: '2rem' }}>
           <h2 style={{ fontSize: 'var(--fs-section)', marginBottom: '0.5rem' }}>Something went wrong</h2>
-          <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>An unexpected error occurred.</p>
+          <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>Try reloading the page. If this keeps happening, please try again in a few minutes.</p>
           {/* #fff STAYS HERE, and it is the one exemption from #775.
               This screen renders when the root layout has already failed, so
               no stylesheet is guaranteed. If the tokens are missing,

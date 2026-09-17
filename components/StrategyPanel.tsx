@@ -66,6 +66,12 @@ interface Props {
    *  this went unnoticed until QA hit it by hand. Required turns a future
    *  instance of the same mistake into a compile error instead. */
   onRun: (kind: RunKind, selection: readonly string[]) => void;
+  /** #1309 item 24: whether a Quick/Deep/Ask read is already in flight.
+   *  Disables all three run buttons while true - onRun's own guard
+   *  (readMarket bails early on a concurrent call) stops a second paid AI
+   *  call either way, but a click that visibly does nothing is still a
+   *  worse experience than a greyed-out button. */
+  running?: boolean;
 }
 
 function ParamRow({ spec, value, readOnly, onChange }: {
@@ -124,7 +130,7 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   );
 }
 
-export default function StrategyPanel({ loaded, selected, onSelectedChange, params, onParamsChange, onRun }: Props) {
+export default function StrategyPanel({ loaded, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
   const { entitlementStatus } = useAuth();
   const entitled = entitlementStatus === 'entitled';
   const limitNoteId = useId();
@@ -395,8 +401,8 @@ export default function StrategyPanel({ loaded, selected, onSelectedChange, para
           {/* Never gated on a selection. Zero indicators is the default state and
               all three actions work in it - that is what "let the read choose"
               means. */}
-          <button type="button" className="strat-btn pri" onClick={() => onRun('quick', selected)}>QUICK</button>
-          <button type="button" className="strat-btn" onClick={() => onRun('deep', selected)}>DEEP</button>
+          <button type="button" className="strat-btn pri" disabled={running} onClick={() => onRun('quick', selected)}>QUICK</button>
+          <button type="button" className="strat-btn" disabled={running} onClick={() => onRun('deep', selected)}>DEEP</button>
           <button type="button" className="strat-btn" onClick={() => onRun('ask', selected)}>ASK AI</button>
         </div>
       </div>

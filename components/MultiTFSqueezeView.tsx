@@ -202,10 +202,11 @@ export default function MultiTFSqueezeView() {
           <input
             ref={searchRef}
             type="text"
+            className="clipped-row-search"
             placeholder={t('MULTI_TF_SQUEEZE_VIEW_SEARCH_PLACEHOLDER')}
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
+            style={{ flex: 1, background: 'transparent', border: 'none', padding: '8px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
           />
           {search && (
             <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label={t('MULTI_TF_SQUEEZE_VIEW_CLEAR_SEARCH_ARIA')}>×</button>

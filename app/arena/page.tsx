@@ -195,9 +195,26 @@ function ArenaContent() {
     const valid: ChartTf[] = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'];
     return valid.includes(tf as ChartTf) ? tf as ChartTf : '15m';
   });
+  // #1263: whether the page was actually navigated to with a coin/tf param,
+  // captured ONCE on first render like the lazy state above - never re-read
+  // later. The URL-sync effect below (`Sync coin + tf to URL`) calls
+  // `history.replaceState` on every mount, which Next's router observes and
+  // reflects into `searchParams` - so a later `searchParams.has('coin')` (or
+  // even a raw `window.location.search` read) sees the app's OWN just-written
+  // default and can no longer tell a real deep link apart from it.
+  const [hadCoinParamAtMount] = useState(() => searchParams.has('coin'));
+  const [hadTfParamAtMount]   = useState(() => searchParams.has('tf'));
   // Which Pro feature the user just tried to open (null = modal closed)
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
   const arenaInitRef  = useRef(false);
+  // #1263: set by the real user-facing coin/tf change handlers ONLY (the
+  // scanner's coin pick, the toolbar's TF click) - not by the seed effect's
+  // own setSelectedCoin/setReadTf calls. Lets the seed effect below tell "the
+  // user already chose something while settings were still loading" apart
+  // from "nothing has touched this yet", so a slow settings read can't
+  // clobber a real in-flight choice once it finally resolves.
+  const coinTouchedRef = useRef(false);
+  const tfTouchedRef   = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '-' });
   const msDataRef     = useRef<MSData | null>(null);
   // State, not a ref: the Confluence Score re-renders on it. Sourced from the
@@ -302,6 +319,14 @@ function ArenaContent() {
     strategySelection,
   );
   const [readLoading, setReadLoading] = useState(false);
+  // #1309 item 24: state, not a ref, updates asynchronously - two clicks
+  // landing within the same tick (measured live: ~200ms apart, well within
+  // one React batch on a cold Grok call) both read the same stale `false`
+  // before either one's setReadLoading(true) commits, so a state-only guard
+  // at the top of readMarket did not stop a second paid AI call in practice.
+  // The ref is set synchronously as the very first thing readMarket does, so
+  // the second call always sees the first one's write.
+  const readInFlightRef = useRef(false);
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
   const [readMode,  setReadMode]      = useState<'quick' | 'deep'>('deep');
@@ -562,25 +587,52 @@ function ArenaContent() {
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Seed coin + TF from settings once settings are loaded ── */
+  // #1263: this used to guard ONLY on arenaInitRef, flipped true the first
+  // time this effect ran AT ALL - which on mount is BEFORE settingsLoaded can
+  // ever be true (settings starts as loadLocalSettings()'s DEFAULT_SETTINGS,
+  // synchronous, seeded before the real DB read has even started). On
+  // anything slower than an instant network, that first run seeded from the
+  // default coin/TF/strategy, latched arenaInitRef, and the real saved
+  // values arriving moments later were silently ignored - the guard this
+  // effect exists for was firing on the WRONG read. Gating on settingsLoaded
+  // first means the effect keeps returning early (arenaInitRef never
+  // latches) until the authoritative read actually lands, then seeds once
+  // from the real values. coinTouchedRef/tfTouchedRef cover the one case
+  // that still needs care: a user who acts on coin/TF WHILE settings are
+  // still loading must not have that choice overwritten once the slow read
+  // finally resolves.
   useEffect(() => {
-    if (!arenaInitRef.current) {
-      arenaInitRef.current = true;
-      // URL params take priority - only apply settings defaults when no URL params present
-      const urlParams = new URLSearchParams(window.location.search);
-      if (!urlParams.has('coin') && COINS.includes(settings.default_coin as CoinId)) {
-        setSelectedCoin(settings.default_coin as CoinId);
-      }
-      if (!urlParams.has('tf') && ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'].includes(settings.default_tf)) {
-        setReadTf(settings.default_tf as ChartTf);
-      }
-      // #1020: seed the Strategy Panel selection from the account, once, the
-      // same way coin/tf are seeded above. Uses the raw setters, not the
-      // update()-wrapped handlers below - this is a read, not a user edit,
-      // and must not immediately echo the just-read value back to the server.
-      if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);
-      if (settings.strategy_params) setStrategyParams(settings.strategy_params);
+    if (!settingsLoaded) return;
+    if (arenaInitRef.current) return;
+    arenaInitRef.current = true;
+    // URL params take priority - only apply settings defaults when no URL params
+    // were present at the ORIGINAL navigation (`hadCoinParamAtMount`/
+    // `hadTfParamAtMount`, captured once above). Neither a live
+    // `window.location.search` parse nor `searchParams.has(...)` works here:
+    // the URL-sync effect below (`Sync coin + tf to URL`) calls
+    // `history.replaceState` on every mount to make the page shareable, which
+    // writes today's `selectedCoin`/`readTf` defaults into the URL - and Next's
+    // router observes that same `replaceState` call and updates `searchParams`
+    // to match - well before this effect's settingsLoaded gate ever opens. Any
+    // live re-check at that point sees the app's OWN just-written `coin` param
+    // and wrongly treats it as a real deep link, permanently refusing to seed.
+    if (!hadCoinParamAtMount && !coinTouchedRef.current && COINS.includes(settings.default_coin as CoinId)) {
+      setSelectedCoin(settings.default_coin as CoinId);
     }
-  }, [settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!hadTfParamAtMount && !tfTouchedRef.current && ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'].includes(settings.default_tf)) {
+      setReadTf(settings.default_tf as ChartTf);
+    }
+    // #1020: seed the Strategy Panel selection from the account, once, the
+    // same way coin/tf are seeded above. Uses the raw setters, not the
+    // update()-wrapped handlers below - this is a read, not a user edit,
+    // and must not immediately echo the just-read value back to the server.
+    // No touched-ref needed here: handleStrategySelectionChange already
+    // refuses to run before settingsLoaded (line ~271), so there is no path
+    // for the user to have touched strategy selection before this effect's
+    // own settingsLoaded check passes.
+    if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);
+    if (settings.strategy_params) setStrategyParams(settings.strategy_params);
+  }, [settingsLoaded, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Pro gate: fast timeframes ──
      Intercepts every timeframe switch (chart toolbar buttons come through
@@ -596,6 +648,7 @@ function ArenaContent() {
       setUpgradeGate(t(TF_FEATURE_LABEL_KEYS[tf] ?? 'ARENA_TF_LABEL_FALLBACK'));
       return;
     }
+    tfTouchedRef.current = true;
     setReadTf(tf);
   };
 
@@ -1210,10 +1263,19 @@ function ArenaContent() {
   };
 
   const readMarket = useCallback(async (mode: 'quick' | 'deep' = 'deep', force = false) => {
+    // #1309 item 24: the toolbar's own Quick/Deep buttons are `disabled`
+    // while a read is running, but StrategyPanel's copies of the same three
+    // buttons (wired through runStrategy below) were not - a click there
+    // while one call was already in flight started a second paid AI call.
+    // Guarding here, not just on a button's `disabled` prop, protects every
+    // caller of readMarket, not only the ones a reviewer remembers to check.
+    if (readInFlightRef.current) return;
+    readInFlightRef.current = true;
     const binanceSym = BINANCE_SYMS[selectedCoin] as string | undefined;
     const bybitSym   = BYBIT_SYMS[selectedCoin]   as string | undefined;
     if (!binanceSym && !bybitSym) {
       setReadError(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() }));
+      readInFlightRef.current = false;
       return;
     }
 
@@ -1254,6 +1316,7 @@ function ArenaContent() {
           ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
           : 0;
         if (ageSecs < getCacheTTL() / 1000 && pricePct < PRICE_MOVE_PCT && entry.result.tf === readTf) {
+          readInFlightRef.current = false;
           return; // serve cache silently - no banner, no state change
         }
       }
@@ -1420,6 +1483,7 @@ function ArenaContent() {
       const usageFromErr = (e as { usage?: GrokUsageInfo }).usage;
       if (usageFromErr) setGrokUsage(usageFromErr);
     } finally {
+      readInFlightRef.current = false;
       setReadLoading(false); setReadStep('');
 
       /* REVEAL, on every exit path (#278).
@@ -1713,10 +1777,11 @@ function ArenaContent() {
               <input
                 ref={scannerSearchRef}
                 type="text"
+                className="clipped-row-search"
                 placeholder={t('ARENA_SCANNER_SEARCH_PLACEHOLDER')}
                 value={scannerSearch}
                 onChange={e => setScannerSearch(e.target.value)}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
+                style={{ flex: 1, background: 'transparent', border: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
               />
               {scannerSearch && (
                 <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label={t('ARENA_SCANNER_CLEAR_SEARCH_ARIA')}>×</button>
@@ -1757,6 +1822,7 @@ function ArenaContent() {
                   key={c}
                   className="scanner-flyout-grid"
                   onClick={() => {
+                    coinTouchedRef.current = true;
                     setSelectedCoin(c); setScannerOpen(false); setScannerSearch(''); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
                   }}
                   style={{
@@ -1852,7 +1918,7 @@ function ArenaContent() {
         {/* Quick button - requires sign-in */}
         <button
           className={`arena-fire-btn arena-quick-btn${!user ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
+          disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
@@ -1873,7 +1939,7 @@ function ArenaContent() {
         {/* Deep button - requires sign-in */}
         <button
           className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
+          disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
@@ -1969,7 +2035,7 @@ function ArenaContent() {
                     value={alertPrice}
                     onChange={e => setAlertPrice(e.target.value)}
                     placeholder={t('ARENA_ALERT_PRICE_PLACEHOLDER')}
-                    style={{ flex: 1, minWidth: 0, padding: '7px 0', fontSize: 'var(--fs-body)', fontFamily: 'var(--font-mono), monospace', border: 'none', background: 'transparent', color: 'var(--txt)', outline: 'none' }}
+                    style={{ flex: 1, minWidth: 0, padding: '7px 0', fontSize: 'var(--fs-body)', fontFamily: 'var(--font-mono), monospace', border: 'none', background: 'transparent', color: 'var(--txt)' }}
                   />
                   <span style={{
                     flexShrink: 0, fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.03em',
@@ -1991,7 +2057,7 @@ function ArenaContent() {
                   value={alertLabel}
                   onChange={e => setAlertLabel(e.target.value)}
                   placeholder={t('ARENA_ALERT_LABEL_PLACEHOLDER')}
-                  style={{ width: '100%', padding: '9px 12px', fontSize: 'var(--fs-label)', borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: 'var(--fs-label)', borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)' }}
                 />
               </div>
 
@@ -2401,7 +2467,13 @@ function ArenaContent() {
           wired, and that is deliberately a separate change. One selection
           driving a chart plus three AI actions is the part that goes wrong
           quietly, and it should not land inside a layout diff. */}
-      <StrategyPanel loaded={settingsLoaded} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} />
+      {/* #1335: `running` also covers authLoading, not just readLoading. Without
+          it, a click that lands before auth resolves reaches runStrategy()
+          while `user` is still null, which redirects to /login and returns
+          before readLoading is ever set - so the button never visibly
+          disables at all for that click, on a signed-in account, during the
+          one window this matters. */}
+      <StrategyPanel loaded={settingsLoaded} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>

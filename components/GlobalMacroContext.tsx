@@ -10,12 +10,15 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 
 interface MacroData {
-  dxy: number;  dxyChg: number;
-  vix: number;  vixChg: number;
-  gold: number; goldChg: number;
-  oil: number;  oilChg: number;
-  tnx: number;  tnxChg: number;
-  goldOilRatio: number;
+  // #1309 item 11: null (not a fallback number) means that feed's fetch
+  // failed server-side - rendered as "unavailable" below, never as a
+  // plausible-looking value that was never actually read.
+  dxy: number | null;  dxyChg: number | null;
+  vix: number | null;  vixChg: number | null;
+  gold: number | null; goldChg: number | null;
+  oil: number | null;  oilChg: number | null;
+  tnx: number | null;  tnxChg: number | null;
+  goldOilRatio: number | null;
   signal:       string;
   analysis:     string;
   implications: string;
@@ -69,9 +72,9 @@ export default function GlobalMacroContext() {
 
       const res  = await fetch('/api/macro-context', { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json() as {
-        dxy?: number; dxyChg?: number; vix?: number; vixChg?: number;
-        gold?: number; goldChg?: number; oil?: number; oilChg?: number;
-        tnx?: number; tnxChg?: number; goldOilRatio?: number;
+        dxy?: number | null; dxyChg?: number | null; vix?: number | null; vixChg?: number | null;
+        gold?: number | null; goldChg?: number | null; oil?: number | null; oilChg?: number | null;
+        tnx?: number | null; tnxChg?: number | null; goldOilRatio?: number | null;
         analysis?: string; error?: string;
       };
 
@@ -93,12 +96,12 @@ export default function GlobalMacroContext() {
       const watchLevel  = parseMacroSection(text, 'WATCH_LEVEL');
 
       const data: MacroData = {
-        dxy:  json.dxy  ?? 0, dxyChg:  json.dxyChg  ?? 0,
-        vix:  json.vix  ?? 0, vixChg:  json.vixChg  ?? 0,
-        gold: json.gold ?? 0, goldChg: json.goldChg ?? 0,
-        oil:  json.oil  ?? 0, oilChg:  json.oilChg  ?? 0,
-        tnx:  json.tnx  ?? 0, tnxChg:  json.tnxChg  ?? 0,
-        goldOilRatio: json.goldOilRatio ?? 0,
+        dxy:  json.dxy  ?? null, dxyChg:  json.dxyChg  ?? null,
+        vix:  json.vix  ?? null, vixChg:  json.vixChg  ?? null,
+        gold: json.gold ?? null, goldChg: json.goldChg ?? null,
+        oil:  json.oil  ?? null, oilChg:  json.oilChg  ?? null,
+        tnx:  json.tnx  ?? null, tnxChg:  json.tnxChg  ?? null,
+        goldOilRatio: json.goldOilRatio ?? null,
         signal, analysis, implications, watchLevel,
       };
       setState(data);
@@ -237,13 +240,15 @@ export default function GlobalMacroContext() {
 
       {typeof state === 'object' && state !== null && (() => {
         const d = state;
-        const rows: { id: string; label: string; value: string; chg: number; invertBullish?: boolean }[] = [
-          { id: 'dxy',    label: t('GLOBAL_MACRO_CONTEXT_ROW_DXY'),      value: d.dxy.toFixed(2),  chg: d.dxyChg,  invertBullish: true },
-          { id: 'vix',    label: t('GLOBAL_MACRO_CONTEXT_ROW_VIX'),      value: d.vix.toFixed(1),  chg: d.vixChg,  invertBullish: true },
-          { id: 'gold',   label: t('GLOBAL_MACRO_CONTEXT_ROW_GOLD'),     value: '$' + d.gold.toLocaleString('en-US', { maximumFractionDigits: 0 }), chg: d.goldChg },
-          { id: 'oil',    label: t('GLOBAL_MACRO_CONTEXT_ROW_OIL'),      value: '$' + d.oil.toFixed(1),  chg: d.oilChg  },
-          { id: 'tnx',    label: t('GLOBAL_MACRO_CONTEXT_ROW_10Y_YIELD'), value: d.tnx.toFixed(2) + '%',  chg: d.tnxChg, invertBullish: true },
-          { id: 'goldoil', label: t('GLOBAL_MACRO_CONTEXT_ROW_GOLD_OIL'), value: d.goldOilRatio.toFixed(1) + 'x', chg: 0 },
+        // #1309 item 11: `value: null` renders as "unavailable" below,
+        // never a fabricated number for a feed that failed to fetch.
+        const rows: { id: string; label: string; value: string | null; chg: number; invertBullish?: boolean }[] = [
+          { id: 'dxy',    label: t('GLOBAL_MACRO_CONTEXT_ROW_DXY'),      value: d.dxy  != null ? d.dxy.toFixed(2) : null, chg: d.dxyChg ?? 0, invertBullish: true },
+          { id: 'vix',    label: t('GLOBAL_MACRO_CONTEXT_ROW_VIX'),      value: d.vix  != null ? d.vix.toFixed(1) : null, chg: d.vixChg ?? 0, invertBullish: true },
+          { id: 'gold',   label: t('GLOBAL_MACRO_CONTEXT_ROW_GOLD'),     value: d.gold != null ? '$' + d.gold.toLocaleString('en-US', { maximumFractionDigits: 0 }) : null, chg: d.goldChg ?? 0 },
+          { id: 'oil',    label: t('GLOBAL_MACRO_CONTEXT_ROW_OIL'),      value: d.oil  != null ? '$' + d.oil.toFixed(1) : null, chg: d.oilChg ?? 0 },
+          { id: 'tnx',    label: t('GLOBAL_MACRO_CONTEXT_ROW_10Y_YIELD'), value: d.tnx  != null ? d.tnx.toFixed(2) + '%' : null, chg: d.tnxChg ?? 0, invertBullish: true },
+          { id: 'goldoil', label: t('GLOBAL_MACRO_CONTEXT_ROW_GOLD_OIL'), value: d.goldOilRatio != null ? d.goldOilRatio.toFixed(1) + 'x' : null, chg: 0 },
         ];
         return (
           <>
@@ -266,9 +271,19 @@ export default function GlobalMacroContext() {
               {rows.map(r => (
                 <div key={r.id} style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{r.label}</span>
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{r.value}</span>
-                  {r.chg !== 0 && (
-                    <span style={{ fontSize: 'var(--fs-caption)', color: chgColor(r.chg, r.invertBullish), fontFamily: 'var(--font-mono), monospace' }}>{chgStr(r.chg)}</span>
+                  {/* #1309 item 11: r.value is null when this feed's fetch
+                      failed server-side - shown as "unavailable", never a
+                      fabricated number, and its % change is skipped too
+                      (a change relative to a value that was never read). */}
+                  {r.value != null ? (
+                    <>
+                      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{r.value}</span>
+                      {r.chg !== 0 && (
+                        <span style={{ fontSize: 'var(--fs-caption)', color: chgColor(r.chg, r.invertBullish), fontFamily: 'var(--font-mono), monospace' }}>{chgStr(r.chg)}</span>
+                      )}
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', fontStyle: 'italic' }}>{t('GLOBAL_MACRO_CONTEXT_ROW_UNAVAILABLE')}</span>
                   )}
                 </div>
               ))}

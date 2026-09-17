@@ -8,18 +8,21 @@ import {
   loadUnconfirmed, saveUnconfirmed, dropLegacyUnconfirmedKey,
 } from '@/lib/settings';
 import { T } from '@/lib/tables';
+import { retryWithBackoff } from '@/lib/retryWithBackoff';
 
 /* #1188: retry-with-backoff before declaring a settings save failed, same
    shape as #1119's entitlements fetch - 3 attempts, 1s then 2s backoff. Not
    a new pattern invented for this: reusing #1119's exact numbers on purpose,
    since two different retry shapes in the same codebase is how a third one
-   gets written the next time this comes up. Most saves that would have
-   failed on a transient blip now succeed on attempt 2 or 3 instead of ever
-   reaching the user - this is part 1 of #1188's fix; part 2 (this file's own
-   comment on flushToDb below, and SettingsSaveToast.tsx) makes the ones that
-   still fail visible; the reconciliation gap (a failed save silently
-   overwritten by the next sign-in's read) is NOT fixed by either and stays
-   open on #1188. */
+   gets written the next time this comes up (#1199 later extracted the loop
+   itself into lib/retryWithBackoff.ts, shared with AuthProvider's
+   entitlements fetch - these numbers are this caller's own choice, not the
+   shared utility's). Most saves that would have failed on a transient blip
+   now succeed on attempt 2 or 3 instead of ever reaching the user - this is
+   part 1 of #1188's fix; part 2 (this file's own comment on flushToDb below,
+   and SettingsSaveToast.tsx) makes the ones that still fail visible; the
+   reconciliation gap (a failed save silently overwritten by the next
+   sign-in's read) is NOT fixed by either and stays open on #1188. */
 const SETTINGS_SAVE_MAX_ATTEMPTS = 3;
 const SETTINGS_SAVE_RETRY_BACKOFF_MS = [1000, 2000];
 
@@ -64,7 +67,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     type AttemptResult =
       | { failed: true }
       | { failed: false; accepted: string[]; rejected: string[]; settings: Record<string, unknown> | null };
-    async function attemptSave(): Promise<AttemptResult> {
+    async function attemptSave(_attemptNumber: number): Promise<AttemptResult> {
       try {
         const token = await getAuthToken();
         if (!token) return { failed: true };
@@ -91,60 +94,59 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       }
     }
 
-    for (let n = 1; n <= SETTINGS_SAVE_MAX_ATTEMPTS; n++) {
-      const result = await attemptSave();
-      if (!result.failed) {
-        // The row the server actually holds now, regardless of which fields
-        // this attempt won - authoritative ground truth for fieldUpdatedAtRef
-        // and for reconciling anything rejected below.
-        const freshRow = result.settings;
-        if (freshRow?.field_updated_at && typeof freshRow.field_updated_at === 'object') {
-          fieldUpdatedAtRef.current = freshRow.field_updated_at as Record<string, string>;
-        }
+    const { result } = await retryWithBackoff(attemptSave, {
+      maxAttempts: SETTINGS_SAVE_MAX_ATTEMPTS,
+      backoffMs: SETTINGS_SAVE_RETRY_BACKOFF_MS,
+    });
 
-        const unconfirmed = loadUnconfirmed(user.id);
-        for (const key of result.accepted) {
-          // #1188 part 3 + PM/DevOps's #1202 catch: only clear the marker if
-          // the stored value still equals what THIS attempt actually sent.
-          // Without this check, a newer edit to the same key made WHILE this
-          // attempt was in flight (update() already overwrote the map entry
-          // with the newer value) would have its protection deleted here by
-          // an older attempt confirming an older value - the newer edit is
-          // then unprotected and never retried.
-          if (JSON.stringify(unconfirmed[key]) === JSON.stringify((partial as Record<string, unknown>)[key])) {
-            delete unconfirmed[key];
-          }
-        }
-        // #1202 core: a rejected field lost to a newer confirmed write on
-        // another device. The conflict is now resolved by an authoritative
-        // answer, not a guess - adopt the server's actual value and release
-        // this device's protection for it, the same way applyDbSettings
-        // would if this had arrived via a fresh sign-in instead.
-        if (result.rejected.length > 0 && freshRow) {
-          for (const key of result.rejected) delete unconfirmed[key];
-          setSettings(prev => {
-            const merged = { ...prev } as Record<string, unknown>;
-            for (const key of result.rejected) if (key in freshRow) merged[key] = freshRow[key];
-            saveLocalSettings(merged as unknown as UserSettings);
-            return merged as unknown as UserSettings;
-          });
-        }
-        saveUnconfirmed(user.id, unconfirmed);
+    if (!result.failed) {
+      // The row the server actually holds now, regardless of which fields
+      // this attempt won - authoritative ground truth for fieldUpdatedAtRef
+      // and for reconciling anything rejected below.
+      const freshRow = result.settings;
+      if (freshRow?.field_updated_at && typeof freshRow.field_updated_at === 'object') {
+        fieldUpdatedAtRef.current = freshRow.field_updated_at as Record<string, string>;
+      }
 
-        // #1285: 'conflict', not 'error' - this attempt succeeded (the server
-        // answered and this device's local state was just brought current
-        // above), it just didn't win every field. Tab B in the issue's repro
-        // got a 200 and kept showing its own stale value until reload; the
-        // fix is this branch adopting `freshRow` immediately (above) and
-        // surfacing that a value changed, not silently, but also not as a
-        // failure the user would think to retry.
-        setSaveStatus(result.rejected.length > 0 ? 'conflict' : 'saved');
-        setTimeout(() => setSaveStatus('idle'), result.rejected.length > 0 ? 3000 : 2000);
-        return;
+      const unconfirmed = loadUnconfirmed(user.id);
+      for (const key of result.accepted) {
+        // #1188 part 3 + PM/DevOps's #1202 catch: only clear the marker if
+        // the stored value still equals what THIS attempt actually sent.
+        // Without this check, a newer edit to the same key made WHILE this
+        // attempt was in flight (update() already overwrote the map entry
+        // with the newer value) would have its protection deleted here by
+        // an older attempt confirming an older value - the newer edit is
+        // then unprotected and never retried.
+        if (JSON.stringify(unconfirmed[key]) === JSON.stringify((partial as Record<string, unknown>)[key])) {
+          delete unconfirmed[key];
+        }
       }
-      if (n < SETTINGS_SAVE_MAX_ATTEMPTS) {
-        await new Promise(resolve => setTimeout(resolve, SETTINGS_SAVE_RETRY_BACKOFF_MS[n - 1]));
+      // #1202 core: a rejected field lost to a newer confirmed write on
+      // another device. The conflict is now resolved by an authoritative
+      // answer, not a guess - adopt the server's actual value and release
+      // this device's protection for it, the same way applyDbSettings
+      // would if this had arrived via a fresh sign-in instead.
+      if (result.rejected.length > 0 && freshRow) {
+        for (const key of result.rejected) delete unconfirmed[key];
+        setSettings(prev => {
+          const merged = { ...prev } as Record<string, unknown>;
+          for (const key of result.rejected) if (key in freshRow) merged[key] = freshRow[key];
+          saveLocalSettings(merged as unknown as UserSettings);
+          return merged as unknown as UserSettings;
+        });
       }
+      saveUnconfirmed(user.id, unconfirmed);
+
+      // #1285: 'conflict', not 'error' - this attempt succeeded (the server
+      // answered and this device's local state was just brought current
+      // via freshRow/the rejected-key merge above), it just didn't win every
+      // field. Tab B in the issue's repro got a 200 and kept showing its own
+      // stale value until reload; the fix is adopting the server's value
+      // immediately (above) and surfacing that a value changed, not
+      // silently, but also not as a failure the user would think to retry.
+      setSaveStatus(result.rejected.length > 0 ? 'conflict' : 'saved');
+      setTimeout(() => setSaveStatus('idle'), result.rejected.length > 0 ? 3000 : 2000);
+      return;
     }
     /* Every attempt failed. `saveStatus: 'error'` is #1188 part 2's signal -
        SettingsSaveToast.tsx renders it from anywhere, not just /settings.

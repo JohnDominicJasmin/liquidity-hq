@@ -489,30 +489,50 @@ async function flushSignals(
 interface BNTicker { symbol: string; lastFundingRate: string }
 interface BBTicker  { symbol: string; fundingRate: string }
 
+/* #1266: the owner's rule ("if bybit can do the job then remove binance")
+ * applied in full. Bybit is now the PRIMARY (only) source for every coin
+ * whose funding interval matches Binance's - verified live against both
+ * APIs for all 43 shared coins: 42 matched exactly (mostly 8h, several
+ * genuine 4h symbols agreeing on both venues), one didn't. GMT is that one
+ * exception (Binance 4h, Bybit 8h) - a Bybit-sourced rate for GMT is an
+ * independently-formed number from a market on a different settlement
+ * cadence, not a scaled version of Binance's, so it is not safe to splice
+ * in. FET has no Bybit linear perp at all (lib/coins.ts). Both exceptions
+ * read Binance instead, same "documented single-coin exception" shape as
+ * checkWhales/checkOISpike's own FET branch (#1287). No fallback either
+ * way, on purpose: this is a source SWITCH, not primary+backup - a partial
+ * fallback here would reintroduce the exact cross-venue splicing #1240's
+ * shape exists to avoid. */
+const BINANCE_ONLY_FR_COINS = new Set(['gmt', 'fet']);
+
 async function fetchAllFR(skipCounts: SkipCounts): Promise<Record<string, number | null>> {
   const result: Record<string, number | null> = {};
   COINS.forEach(c => (result[c] = null));
-  const [bnR, bbR] = await Promise.allSettled([
-    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+  const [bbR, bnR] = await Promise.allSettled([
     fetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
   ]);
-  if (bnR.status === 'fulfilled' && bnR.value.ok) {
-    const d = await bnR.value.json() as BNTicker[];
-    for (const item of d) {
-      const coin = Object.entries(BINANCE_PERP).find(([, s]) => s === item.symbol)?.[0];
-      if (coin) result[coin] = parseFloat(item.lastFundingRate);
-    }
-  } else {
-    // One shared upstream call feeding every coin's funding rate - a single
-    // event, not one per coin, same as fetchSpotPrices below.
-    noteSkip(skipCounts, 'binance');
-  }
   if (bbR.status === 'fulfilled' && bbR.value.ok) {
     const d = await bbR.value.json() as { result?: { list?: BBTicker[] } };
     for (const item of d.result?.list ?? []) {
       const coin = Object.entries(BYBIT_PERP).find(([, s]) => s === item.symbol)?.[0];
-      if (coin && result[coin] == null && item.fundingRate) result[coin] = parseFloat(item.fundingRate);
+      if (coin && !BINANCE_ONLY_FR_COINS.has(coin) && item.fundingRate) result[coin] = parseFloat(item.fundingRate);
     }
+  } else {
+    // One shared upstream call feeding every migrated coin's funding rate -
+    // a single event, not one per coin, same as fetchSpotPrices below.
+    noteSkip(skipCounts, 'bybit');
+  }
+  if (bnR.status === 'fulfilled' && bnR.value.ok) {
+    const d = await bnR.value.json() as BNTicker[];
+    for (const item of d) {
+      const coin = Object.entries(BINANCE_PERP).find(([, s]) => s === item.symbol)?.[0];
+      if (coin && BINANCE_ONLY_FR_COINS.has(coin)) result[coin] = parseFloat(item.lastFundingRate);
+    }
+  } else {
+    // GMT and FET's only source - a Binance failure here is a real skip for
+    // exactly those two coins, not covered by Bybit at all.
+    noteSkip(skipCounts, 'binance');
   }
   return result;
 }
@@ -808,8 +828,8 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
             coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
-              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation\n\n<i>${stamp}</i>`
-              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution\n\n<i>${stamp}</i>`,
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
         }
@@ -845,8 +865,8 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
             coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
-              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation\n\n<i>${stamp}</i>`
-              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution\n\n<i>${stamp}</i>`,
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
         }
@@ -992,7 +1012,13 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
     try {
       const [kRes, tvRes] = await Promise.allSettled([
         fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=2`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
-        fetch(`https://fapi.binance.com/futures/data/takerBuySellVol?symbol=${sym}&period=5m&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+        // #1266: was /futures/data/takerBuySellVol - that's the COIN-M (dapi)
+        // path, which 404s on fapi (USD-M) for every symbol, every time.
+        // Confirmed live: this was a 100% failure, not intermittent - CVD
+        // never actually ran. /futures/data/takerlongshortRatio is the
+        // correct USD-M path, verified live to return the same buyVol/
+        // sellVol/timestamp shape TakerVolItem already expects below.
+        fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${sym}&period=5m&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
       ]);
       // One skip per coin if either leg failed, not one per endpoint - both
       // legs feed the SAME check for this coin, so counting each separately
@@ -1304,12 +1330,12 @@ async function checkSentimentExtremes(
     // All 3 screaming "longs are overcrowded" → dump risk is elevated
     if (fng >= 75 && frPct >= 0.04 && longPct >= 60 && !onCooldown('sentiment_bear', CD.sentiment)) {
       await tg(token, chatId,
-        `🚨 <b>Sentiment Extremes - ALL 3 BEARISH</b>\n\n` +
+        `🚨 <b>Sentiment Extremes - All 3 Bearish</b>\n\n` +
         `😱 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
         `💸 BTC FR: <b>+${frPct.toFixed(4)}%</b> - Longs overcrowded\n` +
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at extremes - <b>long flush risk elevated</b>\n` +
-        `Action: Tighten stops on longs. Do NOT add longs into this setup.` +
+        `Action: Tighten stops on longs. Avoid adding longs into this setup.` +
         `\n\n<i>${stamp}</i>`
       );
       markSent('sentiment_bear');
@@ -2042,9 +2068,23 @@ let cooldownHydrated = false;
 let cooldownHydrateOk = false;
 let cooldownHydrateError: unknown = null;
 
+/* healthError() (lib/apiHealth.ts) only reads .message off a real Error
+ * instance, falling back to String(e) otherwise - Supabase's own
+ * PostgrestError is a plain object, not an Error, so that fallback is what
+ * printed the [object Object] the ABORTED log line shipped with. This reads
+ * .message/.code directly off whatever shape actually comes back. */
+function describeCooldownHydrateError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const obj = e as Record<string, unknown>;
+    const parts = [obj.message, obj.code].filter((p): p is string => typeof p === 'string');
+    if (parts.length) return parts.join(' - ');
+  }
+  return String(e);
+}
+
 async function hydrateAlertCooldown(): Promise<boolean> {
   if (cooldownHydrated) return cooldownHydrateOk;
-  cooldownHydrated = true; // set first - a failed read must never retry every tick
   try {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin.from(T.app_config).select('value').eq('key', 'alert_cooldown').maybeSingle();
@@ -2052,6 +2092,15 @@ async function hydrateAlertCooldown(): Promise<boolean> {
     const saved = data?.value as Record<string, number> | undefined;
     if (saved) importCooldownState(saved);
     cooldownHydrateOk = true;
+    // #1278/#1279 fix: latch ONLY on success. This was set unconditionally
+    // before the read - one failed read then latched `cooldownHydrateOk:
+    // false` for the rest of the process's life, so every run after the
+    // first transient failure kept returning the SAME stale answer instead
+    // of trying again, aborting with 503 until the next deploy restarted
+    // the process. A failure below leaves this false, so the next run's
+    // call re-attempts the read instead of trusting a result that never
+    // happened.
+    cooldownHydrated = true;
   } catch (e) {
     cooldownHydrateOk = false; // no prior row (first-ever run) is NOT this branch - only a thrown read is
     cooldownHydrateError = e;
@@ -2185,7 +2234,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     // no" failure #1266 exists to fix, just one layer further out. Same
     // `[alert]` prefix everything else in this file's logging uses, so a
     // log search for it catches this too.
-    console.warn(`[alert] ABORTED: cooldown hydrate failed (${healthError(cooldownHydrateError)})`);
+    console.warn(`[alert] ABORTED: cooldown hydrate failed (${describeCooldownHydrateError(cooldownHydrateError)})`);
     // 503, not the 200 an earlier draft of this had - __tests__/telegramStatusCodes.test.mts
     // enforces exactly this convention repo-wide: `ok: false` with no status
     // answers 200, and any caller checking `res.ok` reads the failure as success.
