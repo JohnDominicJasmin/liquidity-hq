@@ -35,7 +35,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // user, or a confirmed sign-out) has actually been consulted once for the
   // CURRENT account - goes false again if the account changes.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>('idle');
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef  = useRef<Partial<UserSettings> | null>(null);
@@ -137,7 +137,14 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       }
       saveUnconfirmed(user.id, unconfirmed);
 
-      setSaveStatus(result.rejected.length > 0 ? 'error' : 'saved');
+      // #1285: 'conflict', not 'error' - this attempt succeeded (the server
+      // answered and this device's local state was just brought current
+      // via freshRow/the rejected-key merge above), it just didn't win every
+      // field. Tab B in the issue's repro got a 200 and kept showing its own
+      // stale value until reload; the fix is adopting the server's value
+      // immediately (above) and surfacing that a value changed, not
+      // silently, but also not as a failure the user would think to retry.
+      setSaveStatus(result.rejected.length > 0 ? 'conflict' : 'saved');
       setTimeout(() => setSaveStatus('idle'), result.rejected.length > 0 ? 3000 : 2000);
       return;
     }
