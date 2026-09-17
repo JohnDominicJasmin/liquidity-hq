@@ -290,21 +290,21 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
 
             {isDesktop ? (
               <div style={{ display: 'flex', marginTop: 40, borderTop: '1px solid var(--bdr)', paddingTop: 24 }}>
-                {[dict.hero.stats.coins, dict.hero.stats.signals, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
-                  <div key={label} style={{ paddingRight: 38, marginRight: 38, borderRight: i < 3 ? '1px solid var(--bdr)' : undefined }}>
+                {[dict.hero.stats.coins, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
+                  <div key={label} style={{ paddingRight: 38, marginRight: 38, borderRight: i < 2 ? '1px solid var(--bdr)' : undefined }}>
                     <div style={{ fontSize: 26, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)', lineHeight: 1 }}>
-                      {['50', 'Multi', 'Grok', 'Auto'][i]}
+                      {['50', 'Grok', 'Auto'][i]}
                     </div>
                     <div style={{ fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--txt3)', marginTop: 8 }}>{label}</div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--bdr)', marginTop: 40 }}>
-                {[dict.hero.stats.coins, dict.hero.stats.signals, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: 'var(--bdr)', marginTop: 40 }}>
+                {[dict.hero.stats.coins, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
                   <div key={label} style={{ background: 'var(--bg0)', padding: '13px 14px' }}>
                     <div style={{ fontSize: 20, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)', lineHeight: 1 }}>
-                      {['50', 'Multi', 'Grok', 'Auto'][i]}
+                      {['50', 'Grok', 'Auto'][i]}
                     </div>
                     <div style={{ fontSize: 8.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt3)', marginTop: 8 }}>{label}</div>
                   </div>

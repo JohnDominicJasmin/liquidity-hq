@@ -48,7 +48,7 @@ export interface LandingDict {
     sub: string;
     ctaPrimary: string;
     ctaGhost: string;
-    stats: { coins: string; signals: string; ai: string; telegram: string };
+    stats: { coins: string; ai: string; telegram: string };
   };
   features: {
     label: string;
@@ -92,7 +92,7 @@ export const en: LandingDict = {
     sub: 'Professional-grade crypto intelligence for retail traders. Squeeze scores, whale alerts, AI analysis, and macro events - all in one dashboard.',
     ctaPrimary: 'Start for free →',
     ctaGhost: 'See live briefing',
-    stats: { coins: 'Markets tracked', signals: 'Signal types', ai: 'AI analysis', telegram: 'Telegram alerts' },
+    stats: { coins: 'Markets tracked', ai: 'AI analysis', telegram: 'Telegram alerts' },
   },
   features: {
     label: 'What you get',
@@ -162,35 +162,35 @@ export const en: LandingDict = {
 export const ko: LandingDict = {
   nav: { signIn: '로그인', getStarted: '무료로 시작하기' },
   hero: {
-    badge: '실시간 · 50개 코인 · 실시간 신호',
+    badge: '50개 마켓 · 신호 + 알림',
     h1Line1: '지도를 읽으세요.',
     h1Line2: '손절을 사냥하세요.',
     sub: '리테일 트레이더를 위한 전문가급 암호화폐 인텔리전스. 스퀴즈 점수, 고래 알림, AI 분석, 매크로 이벤트까지 하나의 대시보드에서 확인하세요.',
     ctaPrimary: '무료로 시작하기 →',
     ctaGhost: '실시간 브리핑 보기',
-    stats: { coins: '추적 코인', signals: '신호 유형', ai: 'AI 분석', telegram: '텔레그램 알림' },
+    stats: { coins: '추적 마켓', ai: 'AI 분석', telegram: '텔레그램 알림' },
   },
   features: {
     label: '제공 기능',
     h2: '진지한 트레이더에게 필요한 모든 것',
-    sub: '실시간 신호, 알림, 분석까지 - 각 도구는 하나의 질문에 가장 정확하게 답하도록 만들어졌습니다. 모두 무료로 제공됩니다.',
+    sub: '실시간 신호, 알림, 분석까지 - 각 도구는 하나의 질문에 답하도록 만들어졌습니다.',
     openLabel: '열기',
     cards: [
-      { title: 'AI 아레나', desc: '35개 신호가 합류하는 엔진에 실시간 차트와 Grok AI 분석까지. 펀딩비, CVD, 미결제약정 추세, 스퀴즈 점수, 고래 흐름, GEX를 한 화면에서 확인하세요.', pills: ['Grok 4.3', '35개 신호', '50개 코인'] },
-      { title: '텔레그램 알림', desc: '스퀴즈 셋업, 고래 거래, RSI 과열/과매도, EMA 교차, 급격한 가격 변동, 미결제약정 급등, 속보까지 - 남들보다 먼저 자동으로 알려드립니다.', pills: ['스퀴즈 알림', '고래 거래', '속보'] },
+      { title: 'AI 아레나', desc: '멀티 신호 합류 엔진에 실시간 차트와 Grok AI 분석까지. 펀딩비, CVD, 미결제약정 추세, 스퀴즈 점수, 고래 흐름, GEX를 한 화면에서 확인하세요.', pills: ['Grok 4.3', '멀티 신호', '50개 마켓'] },
+      { title: '텔레그램 알림', desc: '스퀴즈 셋업, 고래 거래, RSI 과열/과매도, EMA 교차, 급격한 가격 변동, 미결제약정 급등, 속보까지 자동으로 알려드립니다.', pills: ['스퀴즈 알림', '고래 거래', '속보'] },
       { title: '모닝 브리핑', desc: '매일의 매크로 스냅샷: BTC 도미넌스, 달러 지수(DXY), S&P 상관관계, ETF 자금 흐름, 경제 캘린더, 핫한 셋업까지. 장이 열리기 전에 배경을 파악하세요.', pills: ['매크로 이벤트', 'ETF 자금 흐름', '핫 셋업'] },
-      { title: '뉴스 피드', desc: '로이터, AP, 알자지라, 폭스뉴스, 폴리티코, 트루스소셜, 코인데스크 등 - 모두 분류되고 점수화됩니다. 암호화폐를 움직이는 지정학적 속보까지.', pills: ['12개 이상 소스', '자동 분류', '약 1분 지연'] },
-      { title: '고래 트래커', desc: '바이낸스와 바이빗 전반의 대형 거래를 실시간으로 감지합니다. 기관이 대규모로 움직이는 순간을 놓치지 마세요. 코인별 민감도로 임계값을 설정할 수 있습니다.', pills: ['실시간', 'Binance + Bybit', '50개 코인 전체'] },
-      { title: '스퀴즈 스캐너', desc: '50개 코인 전체를 동시에 스캔하는 3가지 신호 기반 스퀴즈 점수. 펀딩비 + 롱숏 비율 + 테이커 압력 - 세 가지가 모두 일치하면 플러시가 옵니다.', pills: ['0~100점', '전체 코인', '4시간 쿨다운'] },
+      { title: '뉴스 피드', desc: 'BBC, 알자지라, 폭스뉴스, 폴리티코, 코인데스크, 코인텔레그래프 등 - 모두 분류되고 점수화됩니다. 암호화폐를 움직이는 지정학적 속보까지.', pills: ['12개 이상 소스', '자동 분류', '약 1분 지연'] },
+      { title: '고래 트래커', desc: '바이낸스와 바이빗 전반의 대형 거래를 실시간으로 감지합니다(7개 코인). 텔레그램 알림도 주기적으로 확인됩니다. 임계값은 고정되어 있으며 사용자가 설정할 수 없습니다.', pills: ['Binance + Bybit', '7개 코인 실시간', '텔레그램 알림'] },
+      { title: '스퀴즈 스캐너', desc: '50개 마켓 전체를 동시에 스캔하는 3가지 신호 기반 스퀴즈 점수. 펀딩비 + 롱숏 비율 + 테이커 압력 - 세 가지가 모두 일치하면 고신뢰 스퀴즈 셋업으로 표시됩니다.', pills: ['0~100점', '전체 마켓', '4시간 쿨다운'] },
     ],
   },
   howItWorks: {
     label: '이용 방법',
-    h2: '신호에서 거래까지, 몇 초 만에',
+    h2: '신호에서 거래까지',
     steps: [
       { title: '텔레그램 연결', desc: '설정에서 텔레그램을 연결하세요. 스퀴즈 셋업, 고래 거래, 펀딩비 극값, 속보까지 알림이 자동으로 발송됩니다.' },
-      { title: '코인 선택', desc: '메이저, 알트, 밈 코인까지 50개 코인 중에서 선택하세요. 스퀴즈 스캐너가 24시간 실시간으로 모두 감시합니다.' },
-      { title: 'AI 분석 실행', desc: 'AI 아레나를 열고 코인을 선택한 뒤 분석하기를 누르세요. Grok이 35개의 실시간 신호를 읽고 명확하고 실행 가능한 트레이딩 방향을 제시합니다.' },
+      { title: '마켓 선택', desc: '메이저, 알트, 밈, 금, S&P 500까지 50개 마켓 중에서 선택하세요. 스퀴즈 스캐너가 24시간 실시간으로 모두 감시합니다.' },
+      { title: 'AI 분석 실행', desc: 'AI 아레나를 열고 마켓을 선택한 뒤 퀵 또는 딥을 누르세요. Grok이 수십 개의 실시간 신호를 읽고 명확하고 실행 가능한 트레이딩 방향을 제시합니다.' },
     ],
   },
   pricing: {
@@ -202,7 +202,7 @@ export const ko: LandingDict = {
         { text: '대시보드 + 시장 개요', included: true },
         { text: '모닝 브리핑', included: true },
         { text: '뉴스 피드', included: true },
-        { text: '전체 50개 코인 - 스퀴즈 스캐너', included: true },
+        { text: '전체 50개 마켓 - 스퀴즈 스캐너', included: true },
         { text: '일일 퀵 분석 5회 + 딥 분석 3회', included: true },
         { text: '일일 AI 채팅 5회', included: true },
         { text: '텔레그램 알림', included: false },
@@ -211,12 +211,12 @@ export const ko: LandingDict = {
       cta: '무료로 시작하기',
     },
     pro: {
-      badge: '가장 인기', name: 'Pro', sub: '모든 기능 잠금 해제, 넉넉한 일일 한도',
+      badge: '추천', name: 'Pro', sub: '모든 기능 잠금 해제, 넉넉한 일일 한도',
       features: ['무료 플랜의 모든 기능', '1분, 5분, 15분 차트 시그널', '컨플루언스 점수, 오더 플로우, 앱소프션 디텍터', '온체인 및 글로벌 매크로 AI 분석', '텔레그램 알림 - 전체 신호 유형', '무제한 가격 알림', '일일 퀵 분석 30회 + 딥 분석 10회', '일일 AI 채팅 50회', '일일 실시간 검색 10회', '일일 AI 도구 실행 25회 (공용)', '우선 지원'],
       cta: 'Pro 시작하기 - $25/월',
     },
   },
-  finalCta: { h2: '지도를 읽을 준비가 되셨나요?', sub: '유동성이 움직이기 전에 미리 보는 트레이더들과 함께하세요.', cta: '무료 계정 만들기 →' },
+  finalCta: { h2: '지도를 읽을 준비가 되셨나요?', sub: '무료로 시작하고, 카드 등록도 필요 없습니다.', cta: '무료 계정 만들기 →' },
   footer: {
     brandDesc: '리테일 트레이더를 위한 실시간 암호화폐 인텔리전스 - 스퀴즈 점수, 고래 알림, AI 분석, 매크로 이벤트를 하나의 대시보드에서.',
     columns: { product: '제품', analysis: '분석', tools: '도구', account: '계정' },
@@ -234,35 +234,35 @@ export const ko: LandingDict = {
 export const zh: LandingDict = {
   nav: { signIn: '登录', getStarted: '免费开始使用' },
   hero: {
-    badge: '实时 · 50种币 · 实时信号',
+    badge: '50个市场 · 信号 + 提醒',
     h1Line1: '读懂地图。',
     h1Line2: '猎取止损点。',
     sub: '为散户交易者打造的专业级加密货币情报系统。挤压评分、巨鲸警报、AI分析和宏观事件--尽在一个仪表盘。',
     ctaPrimary: '免费开始 →',
     ctaGhost: '查看实时简报',
-    stats: { coins: '追踪币种', signals: '信号类型', ai: 'AI分析', telegram: 'Telegram提醒' },
+    stats: { coins: '追踪市场', ai: 'AI分析', telegram: 'Telegram提醒' },
   },
   features: {
     label: '您将获得',
     h2: '专业交易者所需的一切',
-    sub: '实时信号、提醒与分析--每个工具只为回答一个问题而生,做得比任何替代方案都好。全部免费提供。',
+    sub: '实时信号、提醒与分析--每个工具只为回答一个特定问题而生。',
     openLabel: '打开',
     cards: [
-      { title: 'AI Arena', desc: '35信号共振引擎,搭载实时图表与Grok AI分析。资金费率、CVD、未平仓合约趋势、挤压评分、巨鲸流向、GEX--尽在一屏。', pills: ['Grok 4.3', '35个信号', '50种币'] },
-      { title: 'Telegram提醒', desc: '挤压形态、巨鲸交易、RSI极值、EMA交叉、价格快速波动、未平仓合约激增、突发新闻--自动提醒,抢先一步。', pills: ['挤压提醒', '巨鲸交易', '突发新闻'] },
+      { title: 'AI Arena', desc: '多信号共振引擎,搭载实时图表与Grok AI分析。资金费率、CVD、未平仓合约趋势、挤压评分、巨鲸流向、GEX--尽在一屏。', pills: ['Grok 4.3', '多信号', '50个市场'] },
+      { title: 'Telegram提醒', desc: '挤压形态、巨鲸交易、RSI极值、EMA交叉、价格快速波动、未平仓合约激增、突发新闻--自动提醒。', pills: ['挤压提醒', '巨鲸交易', '突发新闻'] },
       { title: '晨间简报', desc: '每日宏观快照:BTC市占率、美元指数(DXY)、标普关联性、ETF资金流向、经济日历及热门形态。开盘前先了解大局。', pills: ['宏观事件', 'ETF资金流', '热门形态'] },
-      { title: '新闻资讯', desc: '路透社、美联社、半岛电视台、福克斯新闻、Politico、TruthSocial、CoinDesk等--全部经过分类与评分。影响加密市场的地缘政治突发新闻。', pills: ['12+信息源', '自动分类', '约1分钟延迟'] },
-      { title: '巨鲸追踪', desc: '实时侦测币安与Bybit上的大额交易。机构大举出手时第一时间知晓。可按币种自定义灵敏度阈值。', pills: ['实时', 'Binance + Bybit', '全部50种币'] },
-      { title: '挤压扫描器', desc: '同时扫描全部50种币的三信号挤压评分。资金费率+多空比+吃单压力--三者共振时,插针行情即将到来。', pills: ['0-100分', '所有币种', '4小时冷却'] },
+      { title: '新闻资讯', desc: 'BBC、半岛电视台、福克斯新闻、Politico、CoinDesk、CoinTelegraph等--全部经过分类与评分。影响加密市场的地缘政治突发新闻。', pills: ['12+信息源', '自动分类', '约1分钟延迟'] },
+      { title: '巨鲸追踪', desc: '实时侦测币安与Bybit上的大额交易(7种币)。Telegram提醒也会定期检查。阈值固定,用户无法自定义。', pills: ['Binance + Bybit', '7种币实时', 'Telegram提醒'] },
+      { title: '挤压扫描器', desc: '同时扫描全部50个市场的三信号挤压评分。资金费率+多空比+吃单压力--三者共振时,系统会标记为高置信度挤压形态。', pills: ['0-100分', '所有市场', '4小时冷却'] },
     ],
   },
   howItWorks: {
     label: '使用方法',
-    h2: '从信号到交易,只需几秒',
+    h2: '从信号到交易',
     steps: [
       { title: '连接Telegram', desc: '在设置中连接您的Telegram。警报将自动触发--挤压形态、巨鲸交易、资金费率极值、突发新闻。' },
-      { title: '选择币种', desc: '从主流币、山寨币到meme币,共50种可供选择。挤压扫描器24/7实时监控全部币种。' },
-      { title: '运行AI分析', desc: '打开AI Arena,选择币种,点击分析。Grok读取35个实时信号,为您提供直接、可执行的交易倾向。' },
+      { title: '选择市场', desc: '从主流币、山寨币、meme币到黄金、标普500,共50个市场可供选择。挤压扫描器24/7实时监控全部市场。' },
+      { title: '运行AI分析', desc: '打开AI Arena,选择市场,点击快速或深度分析。Grok读取数十个实时信号,为您提供直接、可执行的交易倾向。' },
     ],
   },
   pricing: {
@@ -274,7 +274,7 @@ export const zh: LandingDict = {
         { text: '仪表盘+市场概览', included: true },
         { text: '晨间简报', included: true },
         { text: '新闻资讯', included: true },
-        { text: '全部50种币--挤压扫描器', included: true },
+        { text: '全部50个市场--挤压扫描器', included: true },
         { text: '每日5次快速+3次深度AI分析', included: true },
         { text: '每日5条AI聊天消息', included: true },
         { text: 'Telegram提醒', included: false },
@@ -283,12 +283,12 @@ export const zh: LandingDict = {
       cta: '免费开始使用',
     },
     pro: {
-      badge: '最受欢迎', name: 'Pro', sub: '解锁全部功能,每日额度充裕',
+      badge: '推荐', name: 'Pro', sub: '解锁全部功能,每日额度充裕',
       features: ['免费版全部功能', '1 分钟、5 分钟、15 分钟图表信号', '共振评分、订单流与吸筹探测器', '链上数据与全球宏观 AI 分析', 'Telegram提醒--全部信号类型', '无限价格提醒', '每日30次快速+10次深度分析', '每日50条AI聊天消息', '每日10次实时搜索', '每日25次AI工具调用(共享额度)', '优先支持'],
       cta: '升级Pro--$25/月',
     },
   },
-  finalCta: { h2: '准备好读懂地图了吗?', sub: '加入那些在流动性变动前就已洞察先机的交易者行列。', cta: '创建免费账户 →' },
+  finalCta: { h2: '准备好读懂地图了吗?', sub: '免费开始,无需信用卡。', cta: '创建免费账户 →' },
   footer: {
     brandDesc: '为散户交易者打造的实时加密货币情报--挤压评分、巨鲸警报、AI分析与宏观事件,尽在一个仪表盘。',
     columns: { product: '产品', analysis: '分析', tools: '工具', account: '账户' },
@@ -312,7 +312,7 @@ export const ar: LandingDict = {
     sub: 'معلومات احترافية عن العملات الرقمية لصالح المتداولين الأفراد. درجات الانضغاط، تنبيهات الحيتان، تحليل الذكاء الاصطناعي، والأحداث الاقتصادية الكلية - كل ذلك في لوحة تحكم واحدة.',
     ctaPrimary: 'ابدأ مجانًا ←',
     ctaGhost: 'شاهد الموجز المباشر',
-    stats: { coins: 'عملات متتبعة', signals: 'أنواع الإشارات', ai: 'تحليل الذكاء الاصطناعي', telegram: 'تنبيهات تيليجرام' },
+    stats: { coins: 'عملات متتبعة', ai: 'تحليل الذكاء الاصطناعي', telegram: 'تنبيهات تيليجرام' },
   },
   features: {
     label: 'ما ستحصل عليه',
