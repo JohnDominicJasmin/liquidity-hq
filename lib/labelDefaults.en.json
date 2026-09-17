@@ -917,7 +917,7 @@
   "FUNDING_SIG_SHORTS_OVERCROWDED_HINT": "Squeeze setup",
   "FUNDING_SIG_SHORTS_OVERCROWDED_LABEL": "Shorts Overcrowded - High Squeeze Risk",
   "FUNDING_SIG_SHORTS_OVERCROWDED_ACTION": "Shorts are extremely crowded - a squeeze setup, not a short signal.",
-  "FUNDING_SIG_SHORTS_OVERCROWDED_DESC": "Extreme short crowding - traders are paying 0.03%+ every 8h just to stay short. This is unsustainable. Whales have incentive to push price up and mass-liquidate these shorts.",
+  "FUNDING_SIG_SHORTS_OVERCROWDED_DESC": "Extreme short crowding - traders are paying 0.03%+ every 8h just to stay short. This is unsustainable, raising the risk of a short squeeze if price rises.",
   "CORRELATION_RANGE_24H": "24h",
   "CORRELATION_RANGE_7D": "7d",
   "CORRELATION_RANGE_30D": "30d",

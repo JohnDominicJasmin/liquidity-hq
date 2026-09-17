@@ -232,11 +232,11 @@ insert into lhq_labels (key, locale, value) values
 ('DASH_EDGE_SETUP_TIP','ar','درجة إعداد الضغط (سكويز): معدل التمويل (0-40 نقطة) + مركز نسبة الشراء/البيع (0-40 نقطة) + ضغط الشراء/البيع من الآخذين (0-15 نقطة) + مكافأة ارتفاع حجم التداول (0-20 نقطة). LONG_LIQ = ازدحام المراكز الشرائية، مهيأ للهبوط. SHORT_SQ = ازدحام المراكز البيعية، مهيأ للصعود.'),
 ('DASH_EDGE_SETUP_TIP','ru','Показатель сетапа сквиза: ставка финансирования (0-40 баллов) + позиционирование по соотношению лонг/шорт (0-40 баллов) + давление тейкеров на покупку/продажу (0-15 баллов) + бонус за всплеск объёма (0-20 баллов). LONG_LIQ = лонги перегружены, созрели для слива. SHORT_SQ = шорты перегружены, созрели для пампа.'),
 
-('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','en','Extreme short crowding - traders are paying 0.03%+ every 8h just to stay short. This is unsustainable. Whales have incentive to push price up and mass-liquidate these shorts.'),
-('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','ko','극도의 숏 밀집 - 트레이더들은 숏 포지션을 유지하기 위해 8시간마다 0.03% 이상을 지불하고 있습니다. 이는 지속 불가능합니다. 고래들은 가격을 밀어올려 이 숏 포지션들을 대량 청산시킬 유인이 있습니다.'),
-('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','zh','极度空头拥挤 - 交易者为维持空头每8小时支付0.03%以上的费率。这是不可持续的。巨鲸有动机拉升价格，大规模清算这些空头。'),
-('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','ar','ازدحام شديد في المراكز البيعية (الشورت) - يدفع المتداولون أكثر من 0.03% كل 8 ساعات فقط للبقاء في مراكزهم البيعية. هذا غير مستدام. لدى الحيتان حافز لدفع السعر للأعلى وتصفية هذه المراكز البيعية بشكل جماعي.'),
-('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','ru','Крайняя перегруженность шортами - трейдеры платят 0.03%+ каждые 8 часов только за удержание шорта. Это неустойчиво. У китов есть стимул поднять цену и массово ликвидировать эти шорты.'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','en','Extreme short crowding - traders are paying 0.03%+ every 8h just to stay short. This is unsustainable, raising the risk of a short squeeze if price rises.'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','ko','극도의 숏 밀집 - 트레이더들은 숏 포지션을 유지하기 위해 8시간마다 0.03% 이상을 지불하고 있습니다. 이는 지속 불가능하며, 가격이 오르면 숏 스퀴즈가 발생할 위험이 커집니다.'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','zh','极度空头拥挤 - 交易者为维持空头每8小时支付0.03%以上的费率。这是不可持续的，价格上涨时会加大空头挤压的风险。'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','ar','ازدحام شديد في المراكز البيعية (الشورت) - يدفع المتداولون أكثر من 0.03% كل 8 ساعات فقط للبقاء في مراكزهم البيعية. هذا غير مستدام، مما يرفع خطر حدوث ضغط شراء قسري (سكويز) إذا ارتفع السعر.'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_DESC','ru','Крайняя перегруженность шортами - трейдеры платят 0.03%+ каждые 8 часов только за удержание шорта. Это неустойчиво, что повышает риск шорт-сквиза при росте цены.'),
 
 ('WHALE_TRADES_FEED_BIAS_NET_BUY','en','Whales net buying'),
 ('WHALE_TRADES_FEED_BIAS_NET_BUY','ko','고래 순매수'),
