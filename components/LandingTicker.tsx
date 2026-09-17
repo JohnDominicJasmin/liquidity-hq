@@ -50,7 +50,7 @@ export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: '
             </span>
             {!mobile && (
               <span style={{ fontSize: 11, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
-                {d?.price ? fmtPrice(d.price, COIN_DEC[id]) : '—'}
+                {d?.price ? fmtPrice(d.price, COIN_DEC[id]) : '-'}
               </span>
             )}
             <span style={{
@@ -69,7 +69,7 @@ export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: '
                  size or weight. */
               color: chg == null ? 'var(--txt2)' : (up ? 'var(--green)' : 'var(--red)'),
             }}>
-              {chg == null ? '—' : `${up ? '+' : '−'}${Math.abs(chg).toFixed(2)}%`}
+              {chg == null ? '-' : `${up ? '+' : '−'}${Math.abs(chg).toFixed(2)}%`}
             </span>
           </div>
         );

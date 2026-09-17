@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
         `• Funding rate extremes (longs / shorts overcrowded)\n` +
         `• RSI overbought / oversold (1H)\n` +
         `• Whale trades, open interest spikes, rapid moves\n` +
-        `• Price level alerts & daily 7am summary\n\n` +
+        `• Price level alerts & daily 7am (PHT) summary\n\n` +
         `<i>⏰ ${now} UTC</i>`,
     }),
   });

@@ -330,7 +330,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             <div className="obw-eyebrow">
               <span className="k">{t('ONBOARDING_FLOW_STEP_PREFIX', { num: String(step + 1).padStart(2, '0') })}</span>
               <span className="d">/ {String(STEP_META.length).padStart(2, '0')}</span>
-              <span className="d">&mdash; {t(meta.labelKey).toUpperCase()}</span>
+              <span className="d">- {t(meta.labelKey).toUpperCase()}</span>
             </div>
 
             {/* Headline */}
