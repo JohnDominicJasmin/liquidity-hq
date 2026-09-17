@@ -57,6 +57,61 @@ export async function recordApiHealth(reports: HealthReport[]): Promise<void> {
   }
 }
 
+/* ── Coalescing queue for trackHealth/reportHealth (found investigating
+ * prod's #1252 504s on rpc/lhq_record_api_health and lhq_app_config) ──
+ *
+ * `recordApiHealth` above already accepts a BATCH and costs one round trip
+ * regardless of size - but until now, only `news/ingest`'s caller actually
+ * batched (it assembles every source's report into one array itself before
+ * calling this once). Every OTHER caller goes through `trackHealth`/
+ * `reportHealth` below, and each of THOSE fired its own individual
+ * `recordApiHealth([oneReport])` - one full RPC round trip per source per
+ * pass. Confirmed live against prod's edge logs: a single chart-load burst
+ * produced 20 separate `rpc/lhq_record_api_health` calls in about 3
+ * seconds, all from sources release #2 added (`app/api/market/klines`,
+ * `lib/ribbonCandles`) that fire on ordinary page-load traffic, not just a
+ * once-a-minute cron the way `news/ingest`'s sources do.
+ *
+ * That specific burst didn't measurably fail (confirmed - all 20 returned
+ * 204), so this isn't a confirmed fix for the 504s themselves (see #1252
+ * for the full investigation - the failures instead correlate with an
+ * unexplained ~5s stall during LOW-volume moments, not the burst). It is
+ * still real, measured waste: 20 round trips for what could have been 1-2,
+ * on a free-tier database, matching #1219/#1025's own established
+ * principle of coalescing writes that don't need per-request granularity.
+ *
+ * Batches every queued report that arrives within FLUSH_INTERVAL_MS into
+ * ONE recordApiHealth call, the same shape news/ingest already uses
+ * manually. `shouldWrite`'s OWN throttling (below) is unchanged and still
+ * decides WHETHER a given call queues at all - this only changes how many
+ * of the calls that already passed that gate turn into separate RPC round
+ * trips. A source appearing twice in one flush window is fine: the RPC
+ * upserts per source, so the batch just applies both, last one winning -
+ * the same outcome as two separate calls landing in either order. */
+const FLUSH_INTERVAL_MS = 1_000;
+let pendingReports: HealthReport[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function queueApiHealth(report: HealthReport): void {
+  pendingReports.push(report);
+  if (flushTimer) return;
+  flushTimer = setTimeout(() => {
+    const batch = pendingReports;
+    pendingReports = [];
+    flushTimer = null;
+    void recordApiHealth(batch);
+  }, FLUSH_INTERVAL_MS);
+}
+
+/** Exported for tests only, same convention as _resetApiHealthWriteState
+ *  below - clears the queue and cancels any pending flush without writing
+ *  it, so a test isn't left with a dangling timer or a write that lands
+ *  after the test that queued it has already finished. */
+export function _resetApiHealthQueue(): void {
+  pendingReports = [];
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+}
+
 /* ── Per-request sources ──────────────────────────────────────────────────
    The ingest crons call recordApiHealth directly: they run once a minute, so
    one write per source per run costs nothing. The routes below are different -
@@ -151,12 +206,12 @@ export async function trackHealth<T>(
     const d = describe?.(value) ?? {};
     const ok = d.ok ?? true;
     if (shouldWrite(source, ok)) {
-      void recordApiHealth([{ source, category, ok, detail: d.detail, items: d.items }]);
+      queueApiHealth({ source, category, ok, detail: d.detail, items: d.items });
     }
     return value;
   } catch (e) {
     if (shouldWrite(source, false)) {
-      void recordApiHealth([{ source, category, ok: false, detail: healthError(e) }]);
+      queueApiHealth({ source, category, ok: false, detail: healthError(e) });
     }
     throw e;
   }
@@ -168,6 +223,6 @@ export function reportHealth(
   source: string, category: HealthCategory, ok: boolean, detail?: string, items?: number,
 ): void {
   if (shouldWrite(source, ok)) {
-    void recordApiHealth([{ source, category, ok, detail, items }]);
+    queueApiHealth({ source, category, ok, detail, items });
   }
 }

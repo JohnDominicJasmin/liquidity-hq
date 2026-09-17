@@ -681,6 +681,16 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      - no Binance fallback (lib/coins.ts), so a failed Bybit fetch has nowhere
      else to go. */
   const [historyFailed, setHistoryFailed] = useState(false);
+  /* #1077: true only in the rare double-fallback case - this chart already
+     tries Bybit, then Binance spot, then Binance futures itself before ever
+     reaching /api/market/klines?source=binance-futures, and that route now
+     has its OWN Bybit fallback (#1240) for when Binance refuses it too. So
+     this only lights up when Bybit AND Binance-spot both failed for this
+     chart AND the server's own Binance-futures attempt also failed - at
+     that point the candles are genuinely Bybit's, routed through the
+     Binance-shaped response, and the chart must say so rather than let a
+     Binance label sit under Bybit-sourced data. */
+  const [historyViaServerBybitFallback, setHistoryViaServerBybitFallback] = useState(false);
   const [fullscreen,   setFullscreen]  = useState(false);
   const [chartReady,   setChartReady]  = useState(false);
   /* Which ink the overlays are drawn with. Only the price-alert line needs it
@@ -1555,6 +1565,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             callback(bars, false);
           };
           setHistoryFailed(false); // clear any previous coin's failure banner immediately
+          setHistoryViaServerBybitFallback(false); // same - clear the previous coin's label immediately
           try {
             /* #1059: Bybit primary, Binance fallback - reversed from
                Binance-primary. Measured against staging directly: Binance
@@ -1634,12 +1645,16 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               // data refer to. That argues for showing futures ALONGSIDE, not
               // for silently joining futures history to a spot stream, which is
               // what this used to do.
-              const tryFetch = async (url: string): Promise<(string | number)[][] | null> => {
+              const tryFetch = async (url: string): Promise<{ data: (string | number)[][]; viaBybitFallback: boolean } | null> => {
                 try {
                   const res = await fetch(url);
                   if (!res.ok) return null;
                   const j = await res.json();
-                  return Array.isArray(j) && j.length ? j as (string | number)[][] : null;
+                  if (!Array.isArray(j) || !j.length) return null;
+                  // #1077: the klines route sets this only when it silently
+                  // retried against Bybit because Binance refused the
+                  // request - see that route's own comment on the header.
+                  return { data: j as (string | number)[][], viaBybitFallback: res.headers.get('X-Data-Source') === 'bybit-fallback' };
                 } catch { return null; }
               };
               /* SPOT FIRST (#359). The live stream is spot - wss://stream.binance.com
@@ -1651,20 +1666,31 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                  a different host, and it is the reason a Binance-spot outage or
                  block does not blank the chart. Ordering changed; resilience
                  kept. */
-              let raw = await tryFetch(`/api/market/klines?source=binance&symbol=${bnSym}&interval=${iv}&limit=1500`);
-              if (raw) {
+              let result = await tryFetch(`/api/market/klines?source=binance&symbol=${bnSym}&interval=${iv}&limit=1500`);
+              if (result) {
                 histSourceRef.current = 'binance';
               } else {
-                raw = await tryFetch(`/api/market/klines?source=binance-futures&symbol=${bnSym}&interval=${iv}&limit=1500`);
+                result = await tryFetch(`/api/market/klines?source=binance-futures&symbol=${bnSym}&interval=${iv}&limit=1500`);
                 /* Remember WHICH feed the history came from, so the gap backfill
                    (#313) refills from the same one. Without this, a spot outage
                    would give futures history and a spot backfill - the exact
                    mismatch #359 is about, re-created in the recovery path and
                    only on the day something else was already broken. */
-                if (raw) histSourceRef.current = 'binance-futures';
+                if (result) histSourceRef.current = 'binance-futures';
               }
-              raw = raw ?? [];
+              let raw = result?.data ?? [];
               if (stale()) return; // superseded by a newer switch - drop it
+              // Set only for the load that wins the race above (#1244 fix):
+              // this used to fire before the stale check, so a load for one
+              // interval could tag the label true and then a DIFFERENT,
+              // slower-resolving load for another interval - even one that
+              // ultimately has nothing to do with what's on screen - would
+              // reset it to false at ITS OWN start (see the unconditional
+              // setHistoryViaServerBybitFallback(false) above) and never set
+              // it back if that load's own fallback attempt came back empty.
+              // Tying the true-set to the exact bars this call is about to
+              // apply means the label always matches what's actually drawn.
+              if (result?.viaBybitFallback) setHistoryViaServerBybitFallback(true);
               const bars = raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
@@ -1900,6 +1926,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                     { signal: AbortSignal.timeout(12_000) },
                   );
                   if (!r.ok || cancelled) return;
+                  // #1077: same header this route sets on getBars' own
+                  // history load above - a reconnect backfill can hit the
+                  // server's Bybit fallback too, independent of whether the
+                  // initial load did.
+                  if (r.headers.get('X-Data-Source') === 'bybit-fallback') setHistoryViaServerBybitFallback(true);
                   rows = await r.json();
                   if (cancelled) return;
                 }
@@ -2895,6 +2926,27 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }}>
               <Warn size={13} />
               Couldn&apos;t load price history for {coin.toUpperCase()}. Try switching timeframe or reloading.
+            </div>
+          </div>
+        )}
+
+        {/* #1077: the rare double-fallback case (Bybit AND Binance-spot both
+            failed for this chart, and the server's own Binance-futures
+            attempt also got refused by Binance and silently retried against
+            Bybit) - honest label so Bybit-sourced candles are never shown
+            under an implied Binance source. Same treatment
+            components/WhaleTradesFeed.tsx got in #1228. */}
+        {historyViaServerBybitFallback && (
+          <div style={{ position: 'absolute', top: 8, left: 8, pointerEvents: 'none' }}>
+            <div style={{
+              fontSize: 'var(--fs-caption)',
+              color: 'rgba(255,255,255,0.65)',
+              background: 'rgba(30,30,30,0.72)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 4,
+              padding: '3px 8px',
+            }}>
+              Bybit (Binance unreachable)
             </div>
           </div>
         )}

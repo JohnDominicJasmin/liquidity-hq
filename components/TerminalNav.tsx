@@ -37,7 +37,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import BrandMark from './BrandMark';
 import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
@@ -169,6 +169,13 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
      call and not part of this. */
   const [openDrop, setOpenDrop] = useState<'scanners' | 'tools' | 'account' | null>(null);
   const [usageOpen, setUsageOpen] = useState(false);
+  // QA #1245: "View Usage" is a dropdown menu item that unmounts in the same
+  // click that opens UsageModal (setOpenDrop(null) closes the dropdown
+  // containing it) - useDialogFocusTrap's document.activeElement capture
+  // finds nothing left by the time its effect runs. The avatar button that
+  // owns the dropdown stays mounted regardless, so it's passed as the
+  // explicit focus-return target instead.
+  const avatarBtnRef = useRef<HTMLButtonElement>(null);
   // #1149: same reasoning as NavDrawer's signingOut - closing the dropdown
   // the instant Sign Out is clicked hid the only place feedback could show,
   // so a slow-but-working network looked identical to a broken button.
@@ -415,6 +422,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
           {!authLoading && initials && (
             <div className="tnav-drop-wrap" onClick={e => e.stopPropagation()}>
               <button
+                ref={avatarBtnRef}
                 type="button"
                 className={`tnav-avatar${openDrop === 'account' ? ' on' : ''}`}
                 onClick={() => setOpenDrop(v => (v === 'account' ? null : 'account'))}
@@ -515,7 +523,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
           you would check was present and correct. QA caught it by clicking.
 
           Sibling of NavDrawer.tsx:465, which has always rendered it here. */}
-      <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
+      <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} triggerEl={avatarBtnRef.current} />
     </>
   );
 }

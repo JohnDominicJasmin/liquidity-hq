@@ -29,3 +29,22 @@ export function markSent(key: string): void {
 export function _resetAlertCooldownState(): void {
   lastSent.clear();
 }
+
+/** Serializes the ledger for persistence (#1278) - the route layer decides
+ *  where it's stored; this module only knows how to save/restore its own
+ *  state, the same separation apiHealth.ts's Map keeps from its callers. */
+export function exportCooldownState(): Record<string, number> {
+  return Object.fromEntries(lastSent);
+}
+
+/** Restores the ledger from a persisted snapshot (#1278). Merges rather than
+ *  overwrites - keeps the LATER of the two timestamps per key, so restoring
+ *  can never shorten a cooldown that's already running in this process
+ *  (it would only ever run before any check has fired in a fresh process
+ *  anyway, but merging is the same cost as replacing and strictly safer). */
+export function importCooldownState(saved: Record<string, number>): void {
+  for (const [k, v] of Object.entries(saved)) {
+    const existing = lastSent.get(k);
+    if (existing === undefined || v > existing) lastSent.set(k, v);
+  }
+}

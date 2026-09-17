@@ -335,7 +335,27 @@ export async function GET(req: NextRequest) {
               (err as Error & { status?: number }).status = r.status;
               throw err;
             }
-            return r.json();
+            const body = await r.json();
+            // #1249: an empty result.list is a fetch failure, not a success -
+            // "no candles" must stay distinguishable from "refused" (#228's
+            // rule, applied here too). Throwing here, before `cached()` ever
+            // sees a resolved value, matters as much as the check itself:
+            // cached() only skips caching a REJECTION (lib/apiCache.ts) - a
+            // resolved-but-empty body would otherwise get memoized as if it
+            // were a good answer and served to every caller sharing this key
+            // for the rest of the TTL, long after Bybit itself would answer
+            // correctly again. Confirmed live: the same symbol returned real
+            // candles for one interval and an empty list for another,
+            // moments apart, while a direct curl against Bybit's real API
+            // for both exact queries returned data for both - the emptiness
+            // was a one-off that got cached, not Bybit actually having no
+            // candles for that interval.
+            if (!Array.isArray(body?.result?.list) || body.result.list.length === 0) {
+              const err = new Error('bybit fallback klines returned no candles');
+              (err as Error & { status?: number }).status = 502;
+              throw err;
+            }
+            return body;
           };
           // Same TTL policy and cache mechanics as the primary path, so
           // every caller sharing this bucket during a sustained Binance

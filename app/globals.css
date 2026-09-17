@@ -6508,6 +6508,12 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
   padding: 6px 12px; color: var(--txt3); text-decoration: none;
   transition: color .12s;
+  /* PM/DevOps's #1222 audit: SCANNERS/TOOLS wrapped their own caret onto a
+     second line at 768px once the padding trim below narrowed the button.
+     A nav item's label and its own disclosure indicator are one unit -
+     wrapping was never intended at any width, just never visible before
+     because there was always enough room to avoid it by accident. */
+  white-space: nowrap;
 }
 [data-design="terminal"] .tnav-item:hover { color: var(--txt2); }
 
@@ -6643,6 +6649,103 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 }
 [data-design="terminal"] .tnav-session-dot {
   width: 5px; height: 5px; background: var(--green); flex-shrink: 0;
+}
+/* #1114: .tnav overflows its own container from 768px (its own min-width
+   breakpoint) up to ~900px. Hiding .tnav-session alone (the original fix
+   here) was NOT enough - PM/DevOps audited the actual screenshots rather
+   than the description and caught SIGN IN pushed fully off-screen at 768px
+   and clipped at 850px, which is worse than the cosmetic overflow this
+   started as: a signed-out visitor could not reach sign-in from the nav.
+   Re-measured live with Playwright rather than re-estimated (see PR #1222):
+   real overflow with .tnav-session already hidden is 101px at 768px, 69px
+   at 800px, 19px at 850px, 0px at 900px+ - a real number this time, not a
+   linear guess from the closed issue.
+   The theme toggle and language switcher are the next two candidates by the
+   same reasoning #1114 used for session status: both are supplementary
+   (a preference, not a route or a control anything else on the page
+   depends on reaching from HERE specifically - the theme toggle and
+   language picker both exist again on /settings), while SIGN IN and every
+   nav destination must stay reachable. Combined width recovered: 28px
+   (icon button) + 36px (language chip) + 2 * 14px (.tnav-right's own gap,
+   now needed for one item instead of three) = 92px - closes the 768px gap
+   to within 9px, comfortably inside the padding trim below. */
+@media (min-width: 768px) and (max-width: 917px) {
+  [data-design="terminal"] .tnav-session { display: none; }
+  [data-design="terminal"] .tnav-icon-btn { display: none; }
+  [data-design="terminal"] .lang-nav-wrap { display: none; }
+  /* Nav items' own horizontal padding, not the design's own .tnav gap:28
+     (#599, cited by name in that rule - not touched here). 12px -> 8px per
+     side recovers 4px * 2 sides * 6 items = 48px.
+     This got wider, not narrower, after the caret-wrap fix above: forcing
+     SCANNERS/TOOLS onto one line (correct - the wrap was a real defect, not
+     a way to save width) means each dropdown button now needs its full
+     "label + caret" width every time instead of sometimes rendering just
+     the shorter wrapped label. Verified with real margin, not just zero
+     overflow: 8.4px at 768px, English, signed out
+     (`.tnav-signin`'s own `getBoundingClientRect()` against
+     `window.innerWidth` - `.tnav.scrollWidth` is not a reliable proxy for
+     this, see the next rule's comment). This value does NOT fix the
+     signed-in account-button clip below - confirmed empirically, that
+     button's position was identical whether this padding was 8px or a
+     since-reverted 6px, because it belongs to a different flex child
+     (.tnav-right, not .tnav-items) that this padding cannot reach. */
+  [data-design="terminal"] .tnav-item { padding-left: 8px; padding-right: 8px; }
+  /* Direct fix for the signed-in clip: `.tnav-avatar` is a deliberately
+     fixed 22x22px box (#714, "growing the visible box would be a design
+     change this fix has no standing to make" - not touched), and
+     `.plan-badge`'s own 4px/10px padding is a shared, owner-specified rule
+     used everywhere the badge renders (not scoped to this nav) - touching
+     it here would change the badge on /settings, /upgrade and everywhere
+     else it appears, for a fix that only needs to apply in this one row.
+     The `.tnav-item` padding trim above has NO effect on `.tnav-right`'s
+     own position either way - it's a sibling flex child, sized by ITS OWN
+     content (PlanBadge + this gap + the avatar), not by how much room
+     `.tnav-items` needed.
+     So this gap is the one thing left that's both scoped to this row and
+     safe to shrink. PM/DevOps caught that the FIRST verification of this
+     (14px -> 8px) was measured before the plan badge had actually loaded
+     (`.plan-badge` renders nothing until the entitlements read resolves -
+     see PlanBadge.tsx's own doc comment - so an early screenshot/measurement
+     shows only the avatar, which is narrower). Re-measured waiting on the
+     badge's own text content, not a timer: with FREE actually present,
+     768px signed in was only 2.86px from the edge at gap:8px - too thin.
+     14px -> 4px recovers the difference with real margin instead. */
+  [data-design="terminal"] .tnav-right { gap: 4px; }
+  /* PM/DevOps caught this measuring the widest badge state, not just FREE:
+     a two-digit-day TRIAL badge ("TRIAL · 14D", 11 characters against
+     FREE's 4) clips the avatar by over 50px at 768px even with the gap fix
+     above - the badge itself is the problem here, not spacing around it.
+     Scoped to `.tnav-right` specifically (not `.plan-badge-trial-days`
+     alone) so the day count still shows everywhere else the badge renders
+     (settings, upgrade) - only this nav, only this band, loses it.
+     `title="Trial"` on the parent span (PlanBadge.tsx) does NOT carry the
+     day count - it says "Trial", nothing more. `TrialBanner` (mounted
+     globally in AppShell.tsx) is what still shows the live countdown to
+     anyone who can't see this text, on every page, every width - this
+     only removes the second, redundant copy of that number from one badge
+     in this one nav. */
+  [data-design="terminal"] .tnav-right .plan-badge-trial-days { display: none; }
+  /* Even bare "TRIAL" (5 characters) is enough more than "FREE" (4) to clip
+     the avatar again at 768px once the day count above is gone - measured
+     at -1.47px, i.e. still overflowing, not just thin. `.plan-badge`'s
+     shared 10px horizontal padding (app-wide, owner-specified - see that
+     rule's own comment, not touched globally) is scoped down here to 6px,
+     same "only this nav" pattern as the day-count rule above. Applies to
+     every badge state (FREE/TRIAL/PRO) uniformly rather than singling one
+     out, since all three share the one class this targets. */
+  [data-design="terminal"] .tnav-right .plan-badge { padding-left: 6px; padding-right: 6px; }
+}
+@media (min-width: 918px) and (max-width: 944px) {
+  [data-design="terminal"] .tnav-session { display: none; }
+  /* The two-digit-day TRIAL badge clips the avatar here too (theme toggle
+     and language switcher are both back at this width, per the band split
+     above, so there is even less room for it than 768-917px had before its
+     own fixes) - same reasoning and same fix as that band's identical rule. */
+  [data-design="terminal"] .tnav-right .plan-badge-trial-days { display: none; }
+  /* Same reasoning as the 768-917px band's identical rule: bare "TRIAL"
+     alone still clips here (this band has no gap trim of its own, unlike
+     768-917px, so the deficit is larger - measured at -19.84px before this). */
+  [data-design="terminal"] .tnav-right .plan-badge { padding-left: 6px; padding-right: 6px; }
 }
 [data-design="terminal"] .tnav-kbd {
   color: var(--txt3);

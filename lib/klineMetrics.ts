@@ -93,13 +93,29 @@ export function computeKlineMetrics(klines: string[][]): KlineMetrics | null {
   const vah = minP + (hi + 1) * bSize;
 
   /* Taker buy/sell aggression over the recent window.
-     >0.55 = buyers lifting offers, <0.45 = sellers hitting bids. */
+     >0.55 = buyers lifting offers, <0.45 = sellers hitting bids.
+
+     #1236: k[9] (taker buy base volume) is a Binance-only field - Bybit's
+     public kline endpoint has no equivalent breakdown, so a Bybit-sourced
+     fallback candle array leaves it as '' rather than fabricate a number.
+     `parseFloat('')` is NaN, and NaN propagating through the sum below would
+     silently produce a NaN ratio - fine ONLY by the accident that
+     `JSON.stringify` turns a NaN into `null`, which nothing here should
+     depend on staying true. Checked explicitly instead: if any candle in the
+     window lacks a parseable k[9], the ratio is unknowable for this window
+     and this returns null on purpose, the same "absent beats a fabricated
+     number" rule this file already applies to `vwap` and `takerBuyRatio`'s
+     other branch. */
+  const window = klines.slice(-TAKER_WINDOW);
+  const hasTakerData = window.every(k => Number.isFinite(parseFloat(k[9])));
   let totalBuyVol = 0, totalBaseVol = 0;
-  klines.slice(-TAKER_WINDOW).forEach(k => {
-    totalBuyVol  += parseFloat(k[9]);
-    totalBaseVol += parseFloat(k[5]);
-  });
-  const takerBuyRatio = totalBaseVol > 0 ? totalBuyVol / totalBaseVol : null;
+  if (hasTakerData) {
+    window.forEach(k => {
+      totalBuyVol  += parseFloat(k[9]);
+      totalBaseVol += parseFloat(k[5]);
+    });
+  }
+  const takerBuyRatio = hasTakerData && totalBaseVol > 0 ? totalBuyVol / totalBaseVol : null;
 
   /* VWAP on BASE volume, not quote. Quote volume biases the average toward
      high-price candles and does not give a true VWAP. */

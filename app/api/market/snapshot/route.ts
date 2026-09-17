@@ -43,10 +43,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
-import { BINANCE_SYMS } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
-import { runPool, HttpStatusError } from '@/lib/pool';
+import { runPool, HttpStatusError, isRateLimitStatus } from '@/lib/pool';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { computeKlineMetrics, type KlineMetrics } from '@/lib/klineMetrics';
 
@@ -128,7 +128,70 @@ async function resolveHost(hosts: readonly string[], pingPath: string): Promise<
   return null;
 }
 
-async function buildTicker(): Promise<Record<string, TickerEntry>> {
+/* #1236 (#1077 split): why `lsr` (below) gets no Bybit fallback while
+ * `ticker` and `klines` do. Bybit's account-ratio endpoints report BYBIT's
+ * own traders' long/short positioning - a real, different population from
+ * Binance's. Price and candles are the same fact regardless of which
+ * exchange answers (both track the same underlying asset, which is the
+ * entire premise #1240/#1233/#1234/#1235 rely on to fail over at all); a
+ * long/short ratio is not - it IS the fact "what Binance's traders are
+ * doing", and substituting Bybit's would silently relabel a different
+ * exchange's retail positioning as Binance's own. That is fabrication
+ * wearing resilience's clothes, not the #1077 pattern. `lsr` degrades to
+ * `{}` on a Binance outage today and keeps doing exactly that here - absent
+ * beats a number that answers a different question than the one asked. */
+
+/* Bybit's public ticker gives absolute price - REAL scaling, unlike RSI
+ * (#1235), where a price factor is mathematically inert. `price24hPcnt` is a
+ * fraction (0.0022 = 0.22%), confirmed live (curl, not memory) against
+ * Binance's `priceChangePercent`, which is already a percentage number -
+ * hence the `* 100`. `turnover24h` is Bybit's quote-currency (USD) 24h
+ * volume, matching Binance's `quoteVolume` semantically - `volume24h` would
+ * be base-coin units instead, the wrong field for this route's `vol24`. */
+function bybitTickerToEntry(
+  t: { lastPrice: string; price24hPcnt: string; highPrice24h: string; lowPrice24h: string; turnover24h: string },
+  priceFactor: number,
+): TickerEntry {
+  return {
+    price:  parseFloat(t.lastPrice)     * priceFactor,
+    change: parseFloat(t.price24hPcnt)  * 100,
+    high:   parseFloat(t.highPrice24h)  * priceFactor,
+    low:    parseFloat(t.lowPrice24h)   * priceFactor,
+    vol24:  parseFloat(t.turnover24h),
+  };
+}
+
+/* Bybit's kline row is `[start, open, high, low, close, volume, turnover]` -
+ * 7 fields against Binance's 12, newest-first against Binance's oldest-first
+ * (same asymmetry app/api/market/klines/route.ts's own comment documents,
+ * confirmed there live). Reshaped into a Binance-shaped 12-field row so the
+ * EXISTING computeKlineMetrics can consume it unmodified - only the fields
+ * that function actually reads are populated:
+ *   [1-4] OHLC, priceFactor-scaled (real price, unlike RSI)
+ *   [5]   base volume, unconverted (a count of tokens, not a price)
+ *   [7]   quote volume (turnover), unconverted - already USD-denominated
+ *         regardless of what one "contract" means on either exchange
+ *   [9]   taker buy base volume - Bybit's public kline has no such
+ *         breakdown, left as '' rather than fabricated. lib/klineMetrics.ts
+ *         treats a missing k[9] as "unknowable", not zero. */
+function bybitKlineToBinanceShape(body: unknown, priceFactor: number): string[][] | null {
+  const list = (body as { result?: { list?: string[][] } })?.result?.list;
+  if (!Array.isArray(list)) return null;
+  const oldestFirst = [...list].reverse();
+  return oldestFirst.map(row => {
+    const [start, open, high, low, close, volume, turnover] = row;
+    return [
+      start,
+      String(Number(open)  * priceFactor),
+      String(Number(high)  * priceFactor),
+      String(Number(low)   * priceFactor),
+      String(Number(close) * priceFactor),
+      volume, '', turnover, '', '',
+    ];
+  });
+}
+
+async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFallback: string[] }> {
   const out: Record<string, TickerEntry> = {};
   const byCoin = Object.fromEntries(SYMS.map(([c, s]) => [s, c]));
 
@@ -171,20 +234,48 @@ async function buildTicker(): Promise<Record<string, TickerEntry>> {
     if (fut) absorb(await get(`${fut}/fapi/v1/ticker/24hr`));
   }
 
+  /* #1236: whatever coin still has no entry - both Binance attempts missed
+     it entirely, or (rare) a symbol mapping gap - gets one shot at Bybit's
+     OWN bulk ticker call: `category=linear` with no `symbol` returns every
+     linear ticker in ONE request, the same endpoint app/api/funding/route.ts's
+     getBybit() already proves, so this costs one extra call regardless of
+     how many coins are missing rather than one per coin. */
+  const viaFallback: string[] = [];
+  const missingCoins = SYMS.map(([c]) => c).filter(c => !out[c]);
+  if (missingCoins.length > 0) {
+    try {
+      const bbBody = await get('https://api.bybit.com/v5/market/tickers?category=linear') as
+        { result?: { list?: Array<{ symbol: string; lastPrice: string; price24hPcnt: string; highPrice24h: string; lowPrice24h: string; turnover24h: string }> } } | null;
+      const bbBySymbol = Object.fromEntries((bbBody?.result?.list ?? []).map(t => [t.symbol, t]));
+      for (const coin of missingCoins) {
+        const bbSym = BYBIT_SYMS[coin];
+        const t = bbSym ? bbBySymbol[bbSym] : undefined;
+        if (!t) continue; // fet - no Bybit linear perp (lib/coins.ts) - or Bybit is down too
+        out[coin] = bybitTickerToEntry(t, bybitPriceFactor(coin));
+        viaFallback.push(coin);
+      }
+    } catch { /* Bybit also unreachable - those coins simply stay missing, same as today */ }
+  }
+
   reportHealth('binance:ticker', 'market', Object.keys(out).length > 0,
-    `${Object.keys(out).length} coins via ${source}`);
-  return out;
+    `${Object.keys(out).length} coins via ${source}`
+      + (viaFallback.length ? `, ${viaFallback.length} via bybit-fallback` : ''));
+  return { out, viaFallback };
 }
 
-async function buildKlines(): Promise<Record<string, KlineMetrics>> {
+async function buildKlines(): Promise<{ out: Record<string, KlineMetrics>; viaFallback: string[] }> {
   /* Futures klines, with spot as fallback - the client preferred fapi because
      its taker buy/sell split is the one perp traders act on. */
   const fut  = await resolveHost(FUTURES_HOSTS, '/fapi/v1/ping');
   const spot = fut ? null : await resolveHost(SPOT_HOSTS, '/api/v3/ping');
   const out: Record<string, KlineMetrics> = {};
-  if (!fut && !spot) { reportHealth('binance:klines', 'market', false, 'no reachable host'); return out; }
+  /* No early return on "no reachable host" any more (#1236) - unlike before,
+     that no longer means nothing can be done: every symbol just starts the
+     fallback pass below already missing, and Bybit gets a real shot at all
+     of them rather than the route giving up before trying. */
+  const symsToTry = (!fut && !spot) ? [] : SYMS;
 
-  const banned = await runPool(SYMS, CONCURRENCY, async ([coin, sym]) => {
+  const banned = symsToTry.length ? await runPool(symsToTry, CONCURRENCY, async ([coin, sym]) => {
     const url = fut
       ? `${fut}/fapi/v1/klines?symbol=${sym}&interval=15m&limit=100`
       : `${spot}/api/v3/klines?symbol=${sym}&interval=15m&limit=100`;
@@ -192,14 +283,36 @@ async function buildKlines(): Promise<Record<string, KlineMetrics>> {
     if (!Array.isArray(raw)) return;
     const m = computeKlineMetrics(raw as string[][]);
     if (m) out[coin] = m;
-  }, isBinanceBackoff);
+  }, isBinanceBackoff) : false;
+
+  /* #1236: same "missing is missing" retry as #1233/#1234/#1235's fallback
+     pools - runs whether the whole host was unreachable, the primary pool
+     was banned mid-run, or one symbol individually missed. Bybit's own
+     stop condition (isRateLimitStatus, which treats its 403 as fatal) - NOT
+     isBinanceBackoff, the same distinction #1235 draws for the same reason. */
+  const viaFallback: string[] = [];
+  const missing = SYMS.filter(([coin]) => !out[coin]);
+  if (missing.length > 0) {
+    await runPool(missing, CONCURRENCY, async ([coin, sym]) => {
+      const bbSym = BYBIT_SYMS[coin];
+      if (!bbSym) return; // fet - no Bybit linear perp (lib/coins.ts)
+      const body = await get(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bbSym}&interval=15&limit=100`);
+      const converted = bybitKlineToBinanceShape(body, bybitPriceFactor(coin));
+      if (!converted) return;
+      const m = computeKlineMetrics(converted);
+      if (m) { out[coin] = m; viaFallback.push(coin); }
+    }, isRateLimitStatus);
+  }
 
   reportHealth('binance:klines', 'market', Object.keys(out).length > 0 && !banned,
-    banned ? `418/429 after ${Object.keys(out).length}/${SYMS.length}`
-           : `${Object.keys(out).length}/${SYMS.length} via ${fut ? 'futures' : 'spot'}`);
-  return out;
+    (banned ? `418/429 after ${Object.keys(out).length}/${SYMS.length}`
+            : `${Object.keys(out).length}/${SYMS.length} via ${fut ? 'futures' : (spot ? 'spot' : 'none')}`)
+      + (viaFallback.length ? `, ${viaFallback.length} via bybit-fallback` : ''));
+  return { out, viaFallback };
 }
 
+/* #1236: deliberately no Bybit fallback here - see the comment above
+   buildTicker for why. Degrades to {} on a Binance outage, same as always. */
 async function buildLsr(): Promise<Record<string, LsrEntry>> {
   const host = await resolveHost(FUTURES_HOSTS, '/fapi/v1/ping');
   const out: Record<string, LsrEntry> = {};
@@ -274,9 +387,17 @@ export async function GET(req: NextRequest) {
      * use this where stale is genuinely better than absent". An empty chart is
      * visibly empty; a stale one is silently wrong, and people draw trendlines on
      * these. */
-    const ticker = t.status === 'fulfilled' ? t.value : {};
-    const klines = k.status === 'fulfilled' ? k.value : {};
-    const lsr    = l.status === 'fulfilled' ? l.value : {};
+    const ticker = t.status === 'fulfilled' ? t.value.out : {};
+    const klines = k.status === 'fulfilled' ? k.value.out : {};
+    const lsr    = l.status === 'fulfilled' ? l.value    : {};
+
+    /* #1236: which coins came from Bybit rather than Binance, per section -
+       additive, omitted when empty so an all-Binance response's shape is
+       unchanged, same convention #1233/#1234/#1235 use. `lsr` never
+       contributes - see buildLsr's own comment on why it has no fallback. */
+    const viaFallback: Record<string, string[]> = {};
+    if (t.status === 'fulfilled' && t.value.viaFallback.length) viaFallback.ticker = t.value.viaFallback;
+    if (k.status === 'fulfilled' && k.value.viaFallback.length) viaFallback.klines = k.value.viaFallback;
 
     const partial = [
       ['ticker', ticker] as const,
@@ -291,6 +412,7 @@ export async function GET(req: NextRequest) {
       /* Omitted entirely when everything is healthy, so the common response is
          unchanged and `'partial' in body` is a valid check. */
       ...(partial.length ? { partial } : {}),
+      ...(Object.keys(viaFallback).length ? { viaFallback } : {}),
       ts: Date.now(),
     }, {
       /* Public and visitor-independent, and already only as fresh as the
