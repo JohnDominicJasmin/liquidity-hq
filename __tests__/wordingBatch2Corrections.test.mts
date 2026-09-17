@@ -30,29 +30,33 @@ import path from 'node:path';
  *      the audit flagged: "real-time", "instant", "size up",
  *      "institutional", "smart money", an em dash, or all-caps "NOT".
  *
- * SKIPPED RIGHT NOW, on dev: PR A does not exist yet. This looks for its
- * migration by the naming convention every existing labels migration
- * follows (supabase/migrations/*_labels_*.sql) and skips - with the reason
- * printed in the skip message - until a file matches. Matches loosely:
- * anything containing "batch2" OR "audit_001_wording" (case-insensitive,
- * `_`/`-`/space interchangeable) so a reasonable naming choice on Dev's side
- * doesn't skip forever. Same `{skip}` shape as AS-D (#1323) and AS-E
- * (#1322), by PM/DevOps's call after a real conflict: a hard-failing test
- * here would fail `npm test`, which `.githooks/pre-push` runs under `set -e`
- * - that blocks `git push` outright for whoever's branch carries this file,
- * not just a CI status.
+ * SKIPPED RIGHT NOW, on dev: none of AUDIT_KEYS has a migration row yet.
+ * This does NOT try to guess a filename - an earlier version filtered
+ * `supabase/migrations/` to names matching "batch2"/"audit_001_wording",
+ * and PR #1327's real follow-up migration (`20260917b_labels_funding_
+ * longs_neutral_ending.sql`) proved that guess wrong: it corrects one of
+ * AUDIT_KEYS but its name matches neither pattern, so the filtered
+ * discovery never found it - the sort-by-filename fix (still correct,
+ * still here) never got a chance to run on a file discovery excluded
+ * outright. Dev caught this on PR #1330 before merging, with direct
+ * evidence (the regex tested false against the real filename, and running
+ * the sort-fixed test against Dev's actual branch reproduced the same
+ * failure unchanged). Now scans EVERY `.sql` file under
+ * `supabase/migrations/`, sorted by filename, with SQL line comments
+ * (`-- ...`) stripped before parsing so a commented-out dev-section
+ * duplicate never gets counted as a live row - and collects a row only
+ * when its key is one of AUDIT_KEYS's 42, so this never has to reason
+ * about the hundreds of unrelated keys the rest of this repo's migration
+ * history touches. The reason is printed in the skip message. Same
+ * `{skip}` shape as AS-D (#1323) and AS-E (#1322), by PM/DevOps's call
+ * after a real conflict: a hard-failing test here would fail `npm test`,
+ * which `.githooks/pre-push` runs under `set -e` - that blocks `git push`
+ * outright for whoever's branch carries this file, not just a CI status.
  *
  * PM/DevOps's condition for this being an acceptable substitute for a hard
- * red: on PR A's own branch, once the migration exists, EVERY subtest below
- * must actually RUN and pass - a skip there (e.g. from a filename that
- * doesn't match either pattern) counts as a fail at review, not a pass.
- * Match patterns, don't guess a single exact filename.
- *
- * Proposed filename (QA's proposal, not a requirement - adjust the pattern
- * below if Dev's actual name differs, the same way AS-D's proposed
- * lib/macroContext.ts got adjusted after Dev's real fix shape came in): a
- * file under supabase/migrations/ whose name contains "batch2" or
- * "audit_001_wording", e.g. `20260917a_labels_batch2_factual_corrections.sql`.
+ * red: on PR A's own branch, once at least one audited key has a
+ * migration row, EVERY subtest below must actually RUN and pass - a skip
+ * there counts as a fail at review, not a pass.
  *
  * Part (c) also covers app/api/telegram/alert/route.ts, which doesn't
  * depend on the migration at all - but it's gated behind the SAME skip as
@@ -128,25 +132,31 @@ const BANNED: Array<{ name: string; re: RegExp }> = [
   { name: 'all-caps "NOT"', re: /\bNOT\b/ }, // no /i - "not" lowercase is fine, only shouting caps is banned
 ];
 
-// Loose on purpose: "batch2"/"batch_2"/"batch-2" or "audit_001_wording" in
-// any casing/separator, so a reasonable naming choice on Dev's side still
-// matches - see this file's header for why a single exact name isn't used.
-const MIGRATION_NAME_RE = /batch[_\- ]?2|audit[_\- ]?001[_\- ]?wording/i;
-
-function findBatch2MigrationFiles(): string[] {
+function findAllMigrationFiles(): string[] {
   if (!existsSync(MIGRATIONS_DIR)) return [];
   // Sorted ascending by filename - readdirSync's own order is not
-  // guaranteed (Node docs), and a later migration (e.g. a follow-up
-  // correcting a key the first one already touched, `20260917b...` after
-  // `20260917...`) must win, the same way applying them to a real database
-  // in filename order would. loadMigrationRows() below relies on this
-  // order: it Map.set()s per key per file, so processing files earliest-
-  // first means the LAST (latest-named) file to touch a key is what
-  // survives in the map.
+  // guaranteed (Node docs; confirmed different from alphabetical on this
+  // machine for these exact files), and a later migration (e.g. a
+  // follow-up correcting a key the first one already touched) must win,
+  // the same way applying them to a real database in filename order
+  // would. loadAuditKeyRows() below relies on this order: it Map.set()s
+  // per key per file, so processing files earliest-first means the LAST
+  // (latest-named) file to touch a key is what survives in the map.
   return readdirSync(MIGRATIONS_DIR)
-    .filter(f => MIGRATION_NAME_RE.test(f) && f.endsWith('.sql'))
+    .filter(f => f.endsWith('.sql'))
     .sort()
     .map(f => path.join(MIGRATIONS_DIR, f));
+}
+
+/** Strips SQL `-- ...` line comments before parsing, so a commented-out
+ *  dev-section duplicate (`-- insert into lhq_dev_labels ...`, per this
+ *  repo's 20260912b convention of keeping the prod insert live and the
+ *  dev one commented out) never gets counted as a real row. Not a full
+ *  SQL parser - a literal "--" inside a quoted value would also get cut
+ *  here, but the audit this file enforces is itself removing "--"-style
+ *  em dashes from label text, so that case shouldn't occur in practice. */
+function stripSqlComments(sql: string): string {
+  return sql.replace(/--[^\n]*/g, '');
 }
 
 /** Parses `insert into lhq_labels (key, locale, value) values (...)` tuples
@@ -162,47 +172,46 @@ function parseEnLabelRows(sql: string): Map<string, string> {
   return out;
 }
 
-function stripComments(src: string): string {
+function stripJsComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 }
 
-function loadMigrationRows(files: string[]): Map<string, string> {
+/** Scans every migration file (sorted, latest wins per key - see
+ *  findAllMigrationFiles' comment) and keeps only rows whose key is one
+ *  of `keys`, so this never has to reason about the hundreds of unrelated
+ *  keys the rest of this repo's migration history touches. */
+function loadAuditKeyRows(files: string[], keys: readonly string[]): Map<string, string> {
+  const keySet = new Set(keys);
   const rows = new Map<string, string>();
   for (const file of files) {
-    for (const [k, v] of parseEnLabelRows(readFileSync(file, 'utf8'))) rows.set(k, v);
+    const clean = stripSqlComments(readFileSync(file, 'utf8'));
+    for (const [k, v] of parseEnLabelRows(clean)) {
+      if (keySet.has(k)) rows.set(k, v);
+    }
   }
   return rows;
 }
 
-const migrationFiles = findBatch2MigrationFiles();
-const SKIP = migrationFiles.length > 0 ? false :
-  'no supabase/migrations/*.sql file matching /batch[_-]?2|audit[_-]?001[_-]?wording/i yet - PR A has not ' +
-  "landed. See this test file's header for the naming convention.";
+const migrationFiles = findAllMigrationFiles();
+const auditRows = loadAuditKeyRows(migrationFiles, AUDIT_KEYS);
+const SKIP = auditRows.size > 0 ? false :
+  'none of the 42 audit-named keys (#1309 items 36-44/54/57) has a row in any supabase/migrations/*.sql file yet - PR A has not landed.';
 
 test('wording batch 2 (#1309 PR A, items 36-44/54/57): migration matches labelDefaults, banned phrases gone',
   { skip: SKIP }, async (t) => {
-    await t.test('a batch 2 labels migration exists (supabase/migrations/, name matches the pattern above)', () => {
-      assert.ok(migrationFiles.length > 0, 'unreachable if truly absent - skip would have fired first');
-    });
-
-    await t.test("labelDefaults.en.json matches the migration's en rows for every key it touches", () => {
-      const defaults = JSON.parse(readFileSync(LABEL_DEFAULTS, 'utf8')) as Record<string, string>;
-      const rows = loadMigrationRows(migrationFiles);
-      assert.ok(rows.size > 0, `${migrationFiles.map(f => path.basename(f)).join(', ')} matched but no ` +
-        '"insert into lhq_labels (...) values (...)" en rows were parsed out of it');
-      for (const [key, migrationValue] of rows) {
-        assert.equal(defaults[key], migrationValue,
-          `labelDefaults.en.json["${key}"] does not match the migration's en value for this key - they must ` +
-          'agree exactly, since labelDefaults.en.json is what gets served until the migration is applied');
-      }
-    });
-
-    await t.test('every audit-named key (#1309 items 36-44/54/57) has a row in the batch migration', () => {
-      const rows = loadMigrationRows(migrationFiles);
-      const missing = AUDIT_KEYS.filter(k => !rows.has(k));
+    await t.test('every audit-named key has a row in at least one migration', () => {
+      const missing = AUDIT_KEYS.filter(k => !auditRows.has(k));
       assert.deepEqual(missing, [],
-        `${missing.length} audit-named key(s) have no row in ${migrationFiles.map(f => path.basename(f)).join(', ')}: ` +
-        missing.join(', '));
+        `${missing.length} audit-named key(s) have no row in any supabase/migrations/*.sql file: ${missing.join(', ')}`);
+    });
+
+    await t.test("labelDefaults.en.json matches each audit-named key's latest migration row", () => {
+      const defaults = JSON.parse(readFileSync(LABEL_DEFAULTS, 'utf8')) as Record<string, string>;
+      for (const [key, migrationValue] of auditRows) {
+        assert.equal(defaults[key], migrationValue,
+          `labelDefaults.en.json["${key}"] does not match the latest migration's en value for this key - they ` +
+          'must agree exactly, since labelDefaults.en.json is what gets served until the migration is applied');
+      }
     });
 
     await t.test('none of the audit-named keys\' current labelDefaults.en.json values still contain a banned phrase', () => {
@@ -218,7 +227,7 @@ test('wording batch 2 (#1309 PR A, items 36-44/54/57): migration matches labelDe
 
     await t.test('app/api/telegram/alert/route.ts (items 42/57 - code, not labels) has no banned phrase in a message string', () => {
       assert.ok(existsSync(TELEGRAM_ROUTE), `${TELEGRAM_ROUTE} not found - has this file moved?`);
-      const code = stripComments(readFileSync(TELEGRAM_ROUTE, 'utf8'));
+      const code = stripJsComments(readFileSync(TELEGRAM_ROUTE, 'utf8'));
       for (const { name, re } of BANNED) {
         assert.ok(!re.test(code), `app/api/telegram/alert/route.ts still contains ${name} outside a comment`);
       }
