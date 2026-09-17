@@ -71,10 +71,10 @@ worse than an empty one: it costs a session the time to discover it is wrong.**
 | AS-C | **#1309 item 13: onboarding read failure sends finished users back to the wizard** | ~small | **Merged (PR #1315).** |
 | AS-F | **#1309 items 23/24/25: dup checklist, Arena double AI call, F&G `&?limit` typo** | ~small | **Merged (PR #1319).** |
 | AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Merged (PR #1321).** QA's browser run went 8/8 green with element screenshots confirming the ring is unclipped on both prefix and suffix rows. |
-| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Built (PR #1324), gates green, reproduced live (forced one feed unavailable).** Owner approved the visual - awaiting QA's #1323 run before merge. |
-| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Built (PR #1325), gates green, reproduced live (control + fix both verified).** Owner approved the visual - awaiting QA's verdict on #1322. |
-| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Built (PR #1327), all 42 audit-named keys covered, migration + before/after table.** lint/tsc/test green; build gate held for memory tonight. Awaiting QA. |
-| PR-B | **#1309 batch 2, landing/product claims + About rewrite (items 31/32/33/35)** | ~med | **Draft (PR #1329)**, migration + before/after table. Owner approves exact wording before merge. Rebase onto `dev` after PR A (#1327) lands - see the PR's own rebase note. Item 34 held (no support email yet). |
+| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Merged (PR #1324).** |
+| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Built (PR #1325), gates green, reproduced live (control + fix both verified).** Build OOM-killed tonight, retry held for memory. Owner approved the visual - awaiting QA's verdict on #1322. |
+| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Merged (PR #1327).** Owner signed off the wording. |
+| PR-B | **#1309 batch 2, landing/product claims + About rewrite (items 31/32/33/35)** | ~med | **Ready for review (PR #1329)**, migration + before/after table. Owner signed off the wording, including the 3-tile stats-bar call. Merged onto `dev` (PR A is in), ko/zh translated, gates green (878/878). **Landing hard gate still owed** - dev-server render in all 4 contexts, held for memory. Item 34 held (no support email yet). |
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
