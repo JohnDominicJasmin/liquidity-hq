@@ -4,27 +4,7 @@ import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
-
-interface FundResult {
-  totalCost:    number;
-  costPerDay:   number;
-  costPerWeek:  number;
-  annualRate:   number;
-  payments:     number;
-  breakeven:    number;
-}
-
-function calc(posSize: number, fundingRate: number, hours: number): FundResult | null {
-  if (posSize <= 0 || fundingRate === 0 || hours <= 0) return null;
-  const payments   = hours / 8;
-  const rate       = fundingRate / 100;
-  const totalCost  = posSize * rate * payments;
-  const costPerDay = posSize * rate * 3;
-  const costPerWeek = posSize * rate * 21;
-  const annualRate = rate * 3 * 365 * 100;
-  const breakeven  = Math.abs(totalCost);
-  return { totalCost, costPerDay, costPerWeek, annualRate, payments, breakeven };
-}
+import { calcFundingCost } from '@/lib/fundingCost';
 
 function fmtUSD(v: number) {
   return '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,7 +25,7 @@ export default function FundingCostCalc() {
   const [hours,       setHours]       = useState('24');
   const [side,        setSide]        = useState<'long' | 'short'>('long');
 
-  const result = calc(
+  const result = calcFundingCost(
     parseFloat(posSize)     || 0,
     parseFloat(fundingRate) || 0,
     parseFloat(hours)       || 0,
