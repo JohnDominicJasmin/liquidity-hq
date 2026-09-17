@@ -68,6 +68,29 @@ regressions enter.
 - [ ] Not applied during a test pass without asking the test seat.
 - [ ] Recorded in the migration history with the same name as the file.
 
+## Scope: when a pre-existing bug belongs in this change
+
+Reviewers keep meeting the same question: the new thing works, but something
+old and broken sits next to it. Bundling every nearby defect into one pull
+request makes a sign-off meaningless; refusing to touch any of them ships
+features that do not function. The line:
+
+- **Sitting near the new thing → separate item.** A cosmetic collision, an
+  unrelated old bug in the same corner of the screen: file it, do not bundle it.
+- **Preventing the new thing from working → in scope.** If the old defect stops
+  the new behaviour from reaching the user, fixing it is part of delivering
+  this change, not a favour to a different ticket.
+
+The test is not "did this PR cause it", it is **"can a user get the benefit
+this PR claims?"** A notice the user cannot read, a button the user cannot
+reach, a label hidden behind an overlay: the feature is not delivered, whoever
+introduced the obstacle.
+
+**And decide it from the artifact.** This distinction is invisible in a
+description. "The toast overlaps the floating button" reads as cosmetic;
+the screenshot showed the button covering the end of the sentence, which is the
+feature failing. Open the image before ruling on scope.
+
 ## Release
 
 - [ ] Every item in the bundle passed QA on staging.

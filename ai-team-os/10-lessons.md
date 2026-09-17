@@ -109,6 +109,22 @@ resource kill, stop and report.**
 deploys was read as standing permission to deploy. → **A record of the holder is
 never a standing yes.**
 
+**The scope ruling made from a description.** A seat reported that a new
+notice "visually overlaps" a floating button, and called it pre-existing and
+out of scope. The PM agreed, in writing, on that basis. Then the screenshot
+showed the button sitting on top of the end of the sentence: the notice was
+unreadable, so the feature the PR existed to deliver did not work. The ruling
+had to be reversed. → **Open the artifact before ruling on scope, and record
+the reversal with its reason rather than leaving two contradictory rulings on
+the thread.** The seat's description was accurate; a description is still not
+the artifact.
+
+**Two seats filing the same finding a minute apart.** A finding surfaced in a
+review thread; the test seat filed it as its own issue while the PM filed it as
+an instance of a wider tracker. → **Say on the thread that you are taking a
+finding elsewhere, before you file.** The duplicate cost nothing here because
+both write-ups were good, but the habit is what keeps an issue list readable.
+
 **The header written before the answer.** A migration comment claimed
 "owner-approved" before the owner had replied. It became true a minute later,
 which is not the point. → **Never write an approval before it exists.**
