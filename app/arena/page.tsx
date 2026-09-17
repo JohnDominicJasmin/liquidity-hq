@@ -1918,7 +1918,7 @@ function ArenaContent() {
         {/* Quick button - requires sign-in */}
         <button
           className={`arena-fire-btn arena-quick-btn${!user ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
+          disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
@@ -1939,7 +1939,7 @@ function ArenaContent() {
         {/* Deep button - requires sign-in */}
         <button
           className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
+          disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
@@ -2467,7 +2467,13 @@ function ArenaContent() {
           wired, and that is deliberately a separate change. One selection
           driving a chart plus three AI actions is the part that goes wrong
           quietly, and it should not land inside a layout diff. */}
-      <StrategyPanel loaded={settingsLoaded} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading} />
+      {/* #1335: `running` also covers authLoading, not just readLoading. Without
+          it, a click that lands before auth resolves reaches runStrategy()
+          while `user` is still null, which redirects to /login and returns
+          before readLoading is ever set - so the button never visibly
+          disables at all for that click, on a signed-in account, during the
+          one window this matters. */}
+      <StrategyPanel loaded={settingsLoaded} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
