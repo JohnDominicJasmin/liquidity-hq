@@ -135,8 +135,17 @@ const MIGRATION_NAME_RE = /batch[_\- ]?2|audit[_\- ]?001[_\- ]?wording/i;
 
 function findBatch2MigrationFiles(): string[] {
   if (!existsSync(MIGRATIONS_DIR)) return [];
+  // Sorted ascending by filename - readdirSync's own order is not
+  // guaranteed (Node docs), and a later migration (e.g. a follow-up
+  // correcting a key the first one already touched, `20260917b...` after
+  // `20260917...`) must win, the same way applying them to a real database
+  // in filename order would. loadMigrationRows() below relies on this
+  // order: it Map.set()s per key per file, so processing files earliest-
+  // first means the LAST (latest-named) file to touch a key is what
+  // survives in the map.
   return readdirSync(MIGRATIONS_DIR)
     .filter(f => MIGRATION_NAME_RE.test(f) && f.endsWith('.sql'))
+    .sort()
     .map(f => path.join(MIGRATIONS_DIR, f));
 }
 
