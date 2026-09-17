@@ -142,7 +142,25 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
     // buggy build makes MORE than one. A short delay keeps the first "call"
     // in flight long enough for a rapid-click burst to land inside the
     // window a real request would occupy.
+    //
+    // GET vs POST matters here: app/api/grok/route.ts serves BOTH a GET
+    // (usage lookup - lib/grok.ts's fetchGrokUsage, fired on mount by
+    // GrokUsageProvider, root-wide, for every signed-in visitor) and the
+    // POST this test actually cares about (the paid analysis call). Both
+    // share the URL, so an unfiltered route() handler counts the mount-time
+    // usage check as if it were a second analysis run - a false failure
+    // this test itself would report as a guard regression. First run of
+    // this exact rewrite did exactly that: grokCalls reached 3 against the
+    // real, working #1338 fix (1 legitimate POST + 2 GETs from usage
+    // fetches on '/' and '/arena' mount) before this method filter was
+    // added. Same class of false-signal risk the klines mock comment above
+    // already calls out for a different endpoint - filtering to the method
+    // that matters removes the variable instead of reasoning around it.
     await page.route('**/api/grok', async route => {
+      if (route.request().method() !== 'POST') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ usage: null }) });
+        return;
+      }
       grokCalls++;
       await new Promise(r => setTimeout(r, 800));
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ signal: 'WAIT', confidence: 50, reasoning: 'stub' }) });
