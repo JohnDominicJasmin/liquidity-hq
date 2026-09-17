@@ -2289,6 +2289,13 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 /* The FAB sits above the mobile nav drawer (z-index 9995 vs 999) and otherwise
    covers the bottom nav links, eating their taps - hide it while the drawer is open. */
 body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
+/* #1292 release screenshot: the settings save toast (bottom:24/right:24) and
+   this FAB (bottom:24/right:20) share the same corner, so the FAB (z-index
+   9995 vs the toast's 9999 - still visually on top since it isn't
+   transparent) covered the end of the toast's text. Same treatment as
+   body.pwa-prompt-open above - hide the FAB rather than compute an offset,
+   so mobile's safe-area math never has to know about the toast at all. */
+body.settings-toast-open .gchat-fab { opacity: 0; pointer-events: none; }
 
 
 /* ── backdrop (expanded mode) ── */

@@ -36,6 +36,18 @@ export default function SettingsSaveToast() {
     }
     if (saveStatus === 'saving') setVisible(true);
   }, [saveStatus]);
+  // Found reviewing #1292's own release screenshot, not in the code: this
+  // toast and the Ask AI FAB share the same bottom-right corner, and the
+  // FAB (z-index 9995) sits on top of the toast's text - "Updated from
+  // another de[FAB]" - defeating the whole point of a toast the user is
+  // meant to read. Same pattern this file's header comment already links to
+  // for PWA-prompt-vs-FAB (body.pwa-prompt-open); reusing it here rather
+  // than computing an offset keeps the fix consistent with that precedent
+  // and needs no separate mobile safe-area math.
+  useEffect(() => {
+    document.body.classList.toggle('settings-toast-open', visible);
+    return () => { document.body.classList.remove('settings-toast-open'); };
+  }, [visible]);
   if (!visible) return null;
   const cls = saveStatus === 'error' ? ' error' : saveStatus === 'conflict' ? ' conflict' : saveStatus === 'saving' ? ' saving' : '';
   const text = saveStatus === 'saving' ? t('SETTINGS_STATUS_SAVING')
