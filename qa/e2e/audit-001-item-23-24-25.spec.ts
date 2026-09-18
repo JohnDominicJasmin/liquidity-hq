@@ -142,7 +142,25 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
     // buggy build makes MORE than one. A short delay keeps the first "call"
     // in flight long enough for a rapid-click burst to land inside the
     // window a real request would occupy.
+    //
+    // GET vs POST matters here: app/api/grok/route.ts serves BOTH a GET
+    // (usage lookup - lib/grok.ts's fetchGrokUsage, fired on mount by
+    // GrokUsageProvider, root-wide, for every signed-in visitor) and the
+    // POST this test actually cares about (the paid analysis call). Both
+    // share the URL, so an unfiltered route() handler counts the mount-time
+    // usage check as if it were a second analysis run - a false failure
+    // this test itself would report as a guard regression. First run of
+    // this exact rewrite did exactly that: grokCalls reached 3 against the
+    // real, working #1338 fix (1 legitimate POST + 2 GETs from usage
+    // fetches on '/' and '/arena' mount) before this method filter was
+    // added. Same class of false-signal risk the klines mock comment above
+    // already calls out for a different endpoint - filtering to the method
+    // that matters removes the variable instead of reasoning around it.
     await page.route('**/api/grok', async route => {
+      if (route.request().method() !== 'POST') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ usage: null }) });
+        return;
+      }
       grokCalls++;
       await new Promise(r => setTimeout(r, 800));
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ signal: 'WAIT', confidence: 50, reasoning: 'stub' }) });
@@ -174,28 +192,49 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
       // StrategyPanel.tsx:398 - literal "QUICK", distinct from the main
       // page's own "Quick Research" fire button (which DOES already check
       // `disabled={readLoading}` - this test is specifically about the
-      // panel's buttons, which call the shared runStrategy() with no such
-      // guard at all, per StrategyPanel.tsx:398-399 and app/arena/page.tsx:1212).
+      // panel's buttons, which call the shared runStrategy() with a guard
+      // added by AS-F: `disabled={running}`, StrategyPanel.tsx:404).
       const quickBtn = page.getByRole('button', { name: 'QUICK', exact: true });
       await expect(quickBtn, 'StrategyPanel\'s QUICK button never rendered - this run measured nothing')
         .toBeVisible({ timeout: 15_000 });
 
-      for (let i = 0; i < 3; i++) {
-        await quickBtn.click({ force: true });
-      }
-      await page.waitForTimeout(1_500); // let every fired request's 800ms mock delay resolve
+      // REWRITTEN after AS-F's real fix landed (StrategyPanel.tsx:404,
+      // `disabled={running}`) - the original version force-clicked 3 times
+      // rapidly and counted requests, which matched the PRE-fix component
+      // (no guard at all, any click reaches onRun). Against the real fix,
+      // that methodology itself became unreliable: `{force:true}` bypasses
+      // Playwright's own actionability checks, but a genuinely `disabled`
+      // native <button> still won't dispatch a click event to its handler
+      // regardless - so once the first click flips `running` (and the
+      // button disabled) a subsequent force-click doesn't reach onRun at
+      // all, and depending on exactly when React committs that state
+      // update relative to click #2/#3, the locator itself can become
+      // temporarily hard to resolve/click, producing test-side timeouts
+      // that have nothing to do with whether the guard is working. Found
+      // running this against a remote target during a release promotion:
+      // 2/2 reproductions of `locator.click: Timeout 30000ms exceeded`,
+      // not a real product regression - the guard was working correctly
+      // the whole time. Testing the actual mechanism directly (disabled
+      // state + call count) instead of inferring it through a race of
+      // forced clicks fixes the flakiness at its root, not just this one
+      // click's timing.
+      await quickBtn.click();
+      await expect(quickBtn, 'QUICK must become disabled the instant a read starts - a click while ' +
+        'one is already running must not be able to start another paid AI call (item 24)').toBeDisabled({ timeout: 2_000 });
 
-      // CURRENTLY not reliably 1 - neither runStrategy() nor readMarket()
-      // checks any in-flight state, and StrategyPanel is never passed
-      // readLoading to disable itself, so how many of the 3 clicks land
-      // before React processes the first one's state update is a genuine
-      // race, not a fixed number. Measured 2 and 5 across repeated isolated
-      // runs while writing this test, and (once, running this file back to
-      // back with the other two tests above) a lucky 1 - the same shape of
-      // variance reconnect-cdp.spec.ts documents for its own real race.
-      // Expected RED, but not deterministically every single run, until
-      // AS-F adds a shared guard that makes the count always exactly 1.
-      expect(grokCalls, `expected exactly 1 /api/grok request from 3 rapid clicks, got ${grokCalls} - a ` +
+      // A second click while genuinely disabled - even forced - must not
+      // reach onRun. This is what actually proves the guard works, rather
+      // than assuming a disabled button can't be clicked.
+      await quickBtn.click({ force: true }).catch(() => {}); // a disabled native button may refuse the click outright; either outcome is fine, only grokCalls matters below
+      await expect.poll(() => grokCalls, {
+        message: `expected exactly 1 /api/grok request after clicking QUICK while disabled, got ${grokCalls}`,
+      }).toBe(1);
+
+      // Let the in-flight (mocked, 800ms) request resolve, then confirm the
+      // button re-enables and the count still hasn't moved from the earlier
+      // disabled-click attempt.
+      await expect(quickBtn, 'QUICK must re-enable once the read finishes').toBeEnabled({ timeout: 2_000 });
+      expect(grokCalls, `expected exactly 1 /api/grok request total, got ${grokCalls} - a ` +
         'click while a read is already running must not start another paid AI call (item 24)').toBe(1);
     } finally {
       await ctx.close();

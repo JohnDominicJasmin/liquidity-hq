@@ -558,7 +558,15 @@ export default function HypothesisTracker() {
                             borderRadius: 6,
                             border: '0.5px solid var(--bdr)',
                           }}>
-                            <span style={{ fontSize: 'var(--fs-label)', color: em.col, flexShrink: 0, fontWeight: 700 }}>{em.icon}</span>
+                            {/* #1200: was the icon alone - the only thing distinguishing
+                                supporting/against/neutral evidence, since ev.content is the
+                                evidence text itself, not a type label. Same {icon} {label}
+                                pattern already used for this exact EV_META set at the type
+                                selector button below. */}
+                            <span style={{ fontSize: 'var(--fs-label)', color: em.col, flexShrink: 0, fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                              <span aria-hidden="true">{em.icon}</span>
+                              <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 400 }}>{t(em.labelKey)}</span>
+                            </span>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', lineHeight: 1.5 }}>{ev.content}</div>
                               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>

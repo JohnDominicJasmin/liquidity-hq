@@ -5699,6 +5699,18 @@ html[lang="ar"] .lp-h1-accent {
   overflow-y: auto;
 }
 
+/* #1147: the wizard's own loading branch (user_onboarding still fetching) -
+   same fixed backdrop as .obw-root above so it swaps into the wizard proper
+   with no flash, but centered content instead of the progress bar + panel. */
+.obw-loading {
+  align-items: center; justify-content: center;
+  gap: var(--space-4); text-align: center;
+  padding: var(--space-5);
+}
+.obw-loading-spinner { margin: 0 auto; }
+.obw-loading-title { font-size: var(--fs-body); font-weight: 600; color: var(--txt); }
+.obw-loading-sub { font-size: var(--fs-caption); color: var(--txt3); }
+
 /* Segmented progress bar (top) */
 .obw-progress {
   display: flex; gap: var(--space-2);
