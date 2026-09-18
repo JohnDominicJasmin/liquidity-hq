@@ -919,7 +919,7 @@ function ArenaContent() {
 
   }, [store, selectedCoin, notifEnabled, fireNotif, settings]);
 
-  const gatherContext = (): GrokContext => {
+  const gatherContext = (emaLoading: boolean): GrokContext => {
     const coin = store.coins[selectedCoin];
     const session = getSessionName(new Date());
 
@@ -1268,7 +1268,33 @@ function ArenaContent() {
          give the model a second vocabulary for one fact, and a user reading the
          dashboard and the AI answer would see two claims instead of one. */
       perpSpot: perpSpotRef.current?.explanation ?? 'Perps vs spot could not be measured for this coin.',
-      emaStrategy: strategyToGrokLine(emaSignalRef.current, readTf),
+      /* #1347 item 5: emaSignalRef (below) freezes at the last resolved
+         value while emaSignal.loading is true (:704-705) - correct on its
+         own, so a coin/TF switch doesn't flash "no data" for one render.
+         But nothing downstream checked emaSignal.loading before reading the
+         ref, so on a coin or TF change the prompt asserted the PREVIOUS
+         coin/TF's EMA technicals as present-tense fact for the one now
+         selected, with no caveat. One label at the top of the bundle, not
+         four (emaStrategy/emaATR/ema50Slope/waveTrend all derive from the
+         same frozen ref for the same reason) - repeating it per field would
+         be noise for one root cause.
+
+         `emaLoading` is an ARGUMENT, not `emaSignal.loading` read here.
+         This function is only ever called from inside `readMarket`, a
+         useCallback whose dependency array does not list `emaSignal`, and
+         the hook flips to loading in an effect - one render AFTER the
+         coin/TF change that recreates that callback. Reading it from the
+         closure therefore captured `false` and only turned true if an
+         unrelated `store` tick happened to recreate the callback first
+         (observed on the built app: caveat present in 1 of 8 reads made
+         while EMA was provably loading; 3 of 3 once ticks had intervened).
+         That is #1347 item 1's shape - a memoised callback's freshness
+         riding on websocket traffic - so it is passed in from the click
+         handler, whose closure is fresh at click time, exactly as
+         `selection` is. */
+      emaStrategy: (emaLoading
+        ? '[Still loading EMA technicals for the current coin/timeframe - the line below is the PREVIOUS selection\'s, not this one\'s] '
+        : '') + strategyToGrokLine(emaSignalRef.current, readTf),
       emaATR: emaSignalRef.current.atrLast != null
         ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 35% buf = $${(emaSignalRef.current.atrLast * 0.35).toFixed(2)} min clearance above/below EMA50`
         : '-',
@@ -1287,7 +1313,12 @@ function ArenaContent() {
     };
   };
 
-  const readMarket = useCallback(async (selection: readonly string[], mode: 'quick' | 'deep' = 'deep', force = false) => {
+  // `mode`, `force` and `emaLoading` carry no defaults on purpose: the one
+  // caller (runStrategy) passes all of them, and a default `emaLoading` of
+  // false would make a future caller that forgets it indistinguishable from
+  // one that checked and found EMA resolved - the same "dropped argument
+  // reads as a deliberate empty one" shape as #1347 item 11.
+  const readMarket = useCallback(async (selection: readonly string[], mode: 'quick' | 'deep', force: boolean, emaLoading: boolean) => {
     // #1309 item 24: the toolbar's own Quick/Deep buttons are `disabled`
     // while a read is running, but StrategyPanel's copies of the same three
     // buttons (wired through runStrategy below) were not - a click there
@@ -1429,7 +1460,7 @@ function ArenaContent() {
 
       // Step 2 - gather 34 market signals
       setReadStep('Reading market…');
-      const ctx = { ...gatherContext(), rsiDaily: rsiDailyStr, structureBreak };
+      const ctx = { ...gatherContext(emaLoading), rsiDaily: rsiDailyStr, structureBreak };
 
       // Step 3 - ask Grok via server proxy (key hidden, rate-limited)
       setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
@@ -1597,7 +1628,7 @@ function ArenaContent() {
     if (!user) { window.location.href = '/login'; return; }
     const entry = resultsCache[selectedCoin];
     const force = !!(entry && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-    readMarket(selection, kind, force);
+    readMarket(selection, kind, force, emaSignal.loading);
     window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
   };
 
