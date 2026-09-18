@@ -367,10 +367,26 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // `userId`, not `user`, specifically so it would NOT re-run on a
       // same-id refresh. Whether this line's own `setEntitlementsLoading(true)`
       // ever gets flipped back to `false` on a same-id redundant fire (since
-      // the effect that would do that isn't re-running) is a question this
-      // comment previously answered incorrectly rather than one #1177
-      // resolves - out of scope here, not touched by this fix.
-      if (u) setEntitlementsLoading(true);
+      // the effect that would do that isn't re-running) was left open there.
+      //
+      // ANSWERED (#1376): it never does. Any same-user event - supabase-js
+      // re-fires SIGNED_IN when the tab regains visibility, and a token
+      // refresh takes this same path - set the flag with nothing to bring it
+      // home, so `entitlementsLoading` stayed true for the rest of the page's
+      // life and PlanBadge (`if (... || entitlementsLoading) return null`)
+      // vanished until reload. Observed live on a production build with a
+      // bubbling visibilitychange; the same events dispatched without
+      // bubbling never reach supabase's window listener and changed nothing,
+      // which is the control that puts the cause here rather than in the
+      // harness.
+      //
+      // So only flag loading when the user actually CHANGED - a different id
+      // is the case the fetch effect DOES re-run for, and the one the race
+      // this line exists for (a new user paired with a stale `false`) needs.
+      // `userIdRef` is the same ref this handler's sign-out branch already
+      // reads for the same reason: this callback is created once with `[]`
+      // deps, so `user` itself would be permanently stale in here.
+      if (u && u.id !== userIdRef.current) setEntitlementsLoading(true);
       setUserStable(u);
       if (!u) {
         setRole('free');
