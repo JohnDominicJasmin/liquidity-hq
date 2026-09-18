@@ -18,13 +18,23 @@ import { useSettings } from '@/lib/settings';
 // persists for an authenticated user, and there is no row to attach it to
 // otherwise.
 export default function TimezoneSync() {
-  const { settings, loading, update } = useSettings();
+  const { settings, settingsLoadStatus, update } = useSettings();
 
   useEffect(() => {
-    // Wait for the real row: while loading, `settings` is still localStorage or
-    // defaults, so comparing against it would fire a redundant write on every
-    // page load before the fetch resolves.
-    if (loading) return;
+    // #1347 item 19: was gated on `loading`, which flips false as soon as
+    // the SYNCHRONOUS localStorage read completes on mount - well before
+    // the authoritative DB read (settingsLoadStatus) has resolved, and
+    // still true even when that read FAILS outright. Comparing against
+    // `settings.timezone` at that point compares the browser's real
+    // timezone against a stale localStorage/default value, not the
+    // account's actual saved one - the same "acted on settings before the
+    // authoritative source landed" shape as item 2, caught the same way
+    // (a captured PATCH body during a settings-read failure showed this
+    // firing with a genuinely failed read, unrelated to strategy_selection
+    // and with no error state of its own to stop it). `!== 'ready'` means
+    // this waits out both "still loading" and "the read failed" -
+    // identical to every other settingsLoadStatus consumer from this audit.
+    if (settingsLoadStatus !== 'ready') return;
 
     let tz: string | undefined;
     try {
@@ -35,7 +45,7 @@ export default function TimezoneSync() {
     if (!tz || tz === settings.timezone) return;
 
     update({ timezone: tz });
-  }, [loading, settings.timezone, update]);
+  }, [settingsLoadStatus, settings.timezone, update]);
 
   return null;
 }
