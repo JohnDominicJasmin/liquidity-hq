@@ -13,14 +13,22 @@
 -- itself is identical in every locale and must stay that way - a translated or
 -- transliterated address is a broken address.
 --
--- NOT YET APPLIED, as of 2026-09-18T21:36Z. This is a shared-database write and
--- needs the owner's go. WHOEVER APPLIES IT EDITS THIS LINE IN THE SAME ACTION -
--- 20260907a_user_settings_strategy_selection.sql still claims it was never applied
--- weeks after both projects got its columns, and a reader who believes that file
--- concludes the whole persistence path is dead. A status line nobody updates is
--- worse than no status line.
--- Prepared in advance so applying it is one step once they approve; QA's #1366
--- carries four deliberately-red tests that pass only once these rows exist.
+-- APPLIED to BOTH projects at 2026-09-18T23:16:43Z, owner-approved in chat the same morning.
+-- Production (lhq_labels): before the write, AUTH_GATE_BANNED_DESC existed in
+-- `en` ONLY - the other four locales had been falling back to English - and the
+-- two ABOUT_CONTACT_* keys did not exist. So this was 1 update and 14 inserts,
+-- not a pure insert. Verified two ways: the rows read back 5 locales per key,
+-- and /api/labels on the live site serves the address in all five locales.
+-- Dev (lhq_dev_labels): applied and read back, 5 locales per key.
+-- The suspended-user message took effect on production immediately, because it
+-- is served from the database; the About Contact card renders once #1360 ships.
+-- This line was edited in the same action as the apply, as the line above
+-- instructed. A status line nobody updates is worse than no status line.
+-- It was prepared in advance so applying it would be one step. QA's #1366 had
+-- label-dependent tests grouped as expected-red until these rows existed - about
+-- ten, not the four first estimated, because /api/labels serves database rows only
+-- and the English fallback is client-side (Dev measured it). With the rows applied
+-- those tests should now pass on qa/staging; that is QA's to confirm on a run.
 --
 -- Run against BOTH lhq_labels (prod, qdpwhnvmhqgzijuwopso) and lhq_dev_labels
 -- (dev, wdtjhrilakoitfcezxpx). The dev section below is commented out per
