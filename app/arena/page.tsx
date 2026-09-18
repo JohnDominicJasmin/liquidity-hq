@@ -588,6 +588,22 @@ function ArenaContent() {
   // Derived - current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
   const result     = cacheEntry?.result ?? null;
+  /* #985 gap 3 / #1347 item 4: lifted here from inside the signal card's own
+     render (it used to be computed twice - once there, once nowhere - for
+     the reasoning/chart-analysis/patterns block and the ASK AI prompt,
+     which both need the SAME answer, not a second copy of the comparison
+     that could drift from the first). This read was built from the
+     selection at request time and nothing else watches strategySelection to
+     invalidate it, so a trader who changes indicators keeps reading a
+     recommendation computed from the set they no longer have selected, with
+     nothing on screen saying so - unless every place that shows `result`
+     checks this, not just the banner. Order-independent: re-selecting the
+     same indicators in a different click order is not a change. */
+  const selectionChanged = (() => {
+    const before = [...(cacheEntry?.selectionAtAnalysis ?? [])].sort().join(' ');
+    const now = [...strategySelection].sort().join(' ');
+    return before !== now;
+  })();
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Seed coin + TF from settings once settings are loaded ── */
@@ -1555,7 +1571,15 @@ function ArenaContent() {
         detail: {
           coin: selectedCoin,
           selection,
-          prompt: (result
+          /* #1347 item 4, the "worst case" the audit named: citing a stale
+             result's signal/confidence/reasoning as fact while appending
+             the CURRENT selection below was one message asserting two
+             different states as one. `result && !selectionChanged` means a
+             result computed from a selection the trader has since changed
+             is treated the same as having no result at all here - honest,
+             and it costs nothing: Quick/Deep are one click away for a
+             fresh read against the current selection. */
+          prompt: (result && !selectionChanged
             ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
                 coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
                 entryZone: '-',  // #260: no levels; ARENA_CHAT_PROMPT_WITH_RESULT still names one - needs a DB row edit
@@ -2354,6 +2378,20 @@ function ArenaContent() {
       {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
       {result && (
         <>
+          {/* #1347 item 4: the banner in the signal card (above, in a
+              different column at wider widths) marks the SAME result as
+              stale - this repeats that marker here because a reader can
+              reach the chart-analysis/patterns/reasoning text without ever
+              scrolling past the signal card, and this content was the
+              "no marker at all" half of the audit's finding. Same labels,
+              same condition, not a second wording for the same fact. */}
+          {selectionChanged && (
+            <div className="arena-override-notice" style={{ margin: '0 0 10px' }}>
+              {describeSelection(strategySelection)
+                ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(strategySelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
+                : t('ARENA_STALE_SELECTION_CLEARED')}
+            </div>
+          )}
           {result.chartAnalysis && (
             <div className="arena-reasoning" style={{ margin: '10px 0' }}>
               <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
