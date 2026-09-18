@@ -172,6 +172,11 @@ export const LABEL_KEYS = [
   'ABOUT_STEP3_BOLD', 'ABOUT_STEP3_TEXT', 'ABOUT_STEP4_BOLD', 'ABOUT_STEP4_TEXT',
   'ABOUT_STEP5_BOLD', 'ABOUT_STEP5_TEXT', 'ABOUT_STEP6_BOLD', 'ABOUT_STEP6_TEXT',
   'ABOUT_REMINDER_LABEL', 'ABOUT_REMINDER_TITLE', 'ABOUT_REMINDER_BODY',
+  // #1347 item 34: Privacy/Terms both say "the email address listed on the
+  // About page" and the About page listed none - support@liquidity-hq.com
+  // now exists (owner confirmed, one mailbox on the domain plan), so this
+  // closes the dead-end rather than continuing to point at an empty page.
+  'ABOUT_CONTACT_LABEL', 'ABOUT_CONTACT_BODY',
 
   // Calc page shell
   'CALC_TAB_SIZER', 'CALC_TAB_LIQUIDATION', 'CALC_TAB_PNL', 'CALC_TAB_RR',
