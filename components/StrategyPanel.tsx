@@ -151,9 +151,26 @@ function ParamRow({ spec, value, readOnly, onChange }: {
 }
 
 export default function StrategyPanel({ status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
-  const loaded = status === 'ready';
-  const { entitlementStatus, retryEntitlements } = useAuth();
+  const { entitlementStatus, entitlementsLoading, loading: authLoading, retryEntitlements } = useAuth();
   const entitled = entitlementStatus === 'entitled';
+  /* PROPOSAL (#1362's loading-window gap, found by QA reading AuthProvider):
+     while the plan is still being resolved - the session itself
+     (`authLoading`) or the user_subscriptions read (`entitlementsLoading`) -
+     `entitlementStatus` reads 'not_entitled' BY DESIGN (AuthProvider's own
+     comment: it "covers both a confirmed free account AND the window while
+     entitlementsLoading is still true"). A consumer that turns that into
+     controls is asserting "free" about an account whose plan is not yet
+     known, and here it is worse than a label: `applySet` truncates a preset
+     to `limit` and `toggle` stops at `limit`, and both WRITE the result, so a
+     Pro user acting in that window would persist a free-capped selection over
+     their saved one. Same class as #1246 (a pre-load state shown as a
+     definite answer) and the same remedy: fold "plan pending" into `loaded`,
+     which already makes the chips absent, the set selector disabled, the
+     count withheld and both handlers inert, and show the same neutral
+     skeleton. 'unknown' is NOT pending - loading has settled by then and it
+     has its own card (#1362). */
+  const planPending = authLoading || entitlementsLoading;
+  const loaded = status === 'ready' && !planPending;
   // #1347 item 6: `entitled` (used for `limit`/`atLimit`/`readOnly` below)
   // collapses 'not_entitled' and 'unknown' into the same false - so a Pro
   // user whose entitlements read hadn't resolved yet was capped at the
@@ -261,8 +278,8 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
             line in this file that names a plan tier instead of just
             disabling something. Hardcoded English, same as the rest of this
             file's copy (see the file-header comment on why). */}
-        <span className="strat-aux" title={entitlementStatus === 'unknown' ? "Couldn't verify your plan" : undefined}>
-          {entitled ? 'PRO' : entitlementStatus === 'unknown' ? '···' : `FREE · ${limit}`}
+        <span className="strat-aux" title={entitlementStatus === 'unknown' ? "Couldn't verify your plan" : planPending ? 'Checking your plan…' : undefined}>
+          {entitled ? 'PRO' : entitlementStatus === 'unknown' || planPending ? '···' : `FREE · ${limit}`}
         </span>
       </div>
 
@@ -299,9 +316,9 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
             selection is genuinely unknown, not genuinely zero - showing every
             chip unselected asserts the second when only the first is true,
             the same "unknown shown as a definite answer" class as #1119/#1201. */}
-        {status === 'loading' && (
+        {(status === 'loading' || (status === 'ready' && planPending)) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} role="status" aria-live="polite">
-            <span className="sr-only">Loading your saved strategy…</span>
+            <span className="sr-only">{status === 'loading' ? 'Loading your saved strategy…' : 'Checking your plan…'}</span>
             {[0, 1, 2].map(i => (
               <SkeletonBar key={i} height={28} radius={8} style={{ opacity: 1 - i * 0.18 }} />
             ))}
