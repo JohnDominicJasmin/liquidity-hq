@@ -87,13 +87,17 @@ release PR is open**; apply the visual rule to anything you touch.
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| B1 | **Independent production re-check of #1347/#1348's four items** | ~hours | **In progress, PM granted the slot.** First time these fixes meet production's own database rather than the dev one — the release's risk section names that as untested. Quote the served commit. |
 | B2 | **#1359: stub both exchanges in the release gate** | open PR | Dev reviews and merges. **The next release run is the "after" measurement** against #1354's real "before" — no dedicated run, no extra cost. The prediction is written in the PR; if the gate still cannot finish, that is a result, not a failure. |
-| B3 | **#1361: the sign-in 504/522 flake** | ~hours | 14 occurrences across one run, spread rather than concentrated. Dev's own runs saw none, which narrows it to concurrent load. It makes **every** authenticated spec unreliable, so it undermines any conclusion drawn from a red run. |
+| B3 | **#1361: the sign-in 504/522 flake** | filed, dormant | **No action unless it recurs.** 14 occurrences across one run, spread rather than concentrated; Dev's own runs saw none, which narrows it to concurrent load. Documented with the counts and the control. It makes **every** authenticated spec unreliable, so quote it when a red run is being triaged. |
 | B4 | **Coverage for #1360 (the support address)** | per PR | Dev says what to assert; you write it. The copy is DB rows in five locales, so assert by key rather than by rendered English. |
 | B5 | **#1263: the coin/timeframe half** | ~hours | Still **unknown**, not failing: two attempts, two different results, one confound found and one not. The strategy-selection half is verified and its spec is committed. |
 | B6 | **#1333: mobile drawer focus** | ~small | Open and unconfirmed; 25/25 passed locally, never confirmed on a deployed build. |
 | B7 | **`TEST_GAPS.md` §6: accessibility asserted, never heard** | ~1 day | No real assistive-technology pass has ever happened. "Cannot be verified here, and here is what it would take" is an acceptable result. |
+
+**B1 came out and B3 was downgraded on QA's review, within an hour of this file being
+written.** Both had moved between drafting and reading — which is the failure this file
+exists to prevent, arriving in the fix for it. The production re-check is done (#1347),
+its blocker is filed (#1364), and the sign-in flake is documented and dormant.
 
 ## Unassigned — take with a reason
 
