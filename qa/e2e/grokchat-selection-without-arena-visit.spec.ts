@@ -89,6 +89,19 @@ test.describe('LiquidityAI must know a real saved selection even without an Aren
       // than a per-article button, since it carries even less context in.
       const launcher = page.locator('[data-testid="grok-launcher"]');
       await expect(launcher, 'the global Ask AI launcher never rendered - this run measured nothing').toBeVisible({ timeout: 15_000 });
+
+      // #1347 items 3/18 fix: chatSelection now seeds from a mount-time
+      // effect gated on settingsLoadStatus === 'ready' (GrokChat.tsx,
+      // chatSelectionSeededRef). GrokChat has no visible loading indicator
+      // for that status, and `page.goto('/news')` is a full document
+      // navigation - GrokChat remounts fresh on it, so the seed effect's
+      // own settings read has only the time between hydration and this
+      // point to resolve. A short, explicit wait here is honest about
+      // exercising the steady state this test is actually about, not the
+      // loading race (a separate, unrelated concern) - clicking immediately
+      // on launcher-visible risks a false negative from timing, not from
+      // the mechanism under test.
+      await page.waitForTimeout(1_500);
       await launcher.click();
 
       const input = page.locator('textarea').first();
