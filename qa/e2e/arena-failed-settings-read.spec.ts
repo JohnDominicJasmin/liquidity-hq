@@ -107,6 +107,14 @@ test.describe('A failed settings read must not present or persist an empty selec
       injecting = false;
       await retryBtn.click();
 
+      // THE PENDING STATE (added in a follow-up commit, d918d9cb, after
+      // this file's first draft - re-read before adding this): a click that
+      // changes nothing on screen until the read settles is
+      // indistinguishable from a click that never registered, especially on
+      // a slow connection. Checked immediately after the click, before the
+      // round trip below has had a chance to resolve.
+      await expect(retryBtn, 'Retry must visibly disable for the round trip, not look identical to an unregistered click').toBeDisabled({ timeout: 2_000 });
+
       // THE ROUND TRIP, not just the error state: the account's real saved
       // selection must actually come back, or a Retry that does nothing
       // would still pass a test that stopped at the alert rendering.
