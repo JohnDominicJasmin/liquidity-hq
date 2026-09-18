@@ -83,6 +83,17 @@ export const DEFAULT_SETTINGS: UserSettings = {
 
 // ── Context ────────────────────────────────────────────────────────────────
 
+// #1347 item 2/8: replaces the old `settingsLoaded: boolean`, which could
+// not tell "still loading" apart from "the read failed" - both left
+// `settings` at DEFAULT_SETTINGS and both were treated as a confirmed
+// answer downstream (StrategyPanel's skeleton dropped, and the write guard
+// at app/arena/page.tsx that exists specifically to stop a premature write
+// stopped protecting anything). 'ready' covers a real row AND a confirmed
+// "no row yet" for a genuinely new account - both are honest; only a failed
+// read is not. Mirrors `saveStatus` below, which is already a string union
+// for the same reason rather than a boolean.
+export type SettingsLoadStatus = 'loading' | 'error' | 'ready';
+
 export interface SettingsContextValue {
   settings:   UserSettings;
   loading:    boolean;
@@ -91,30 +102,35 @@ export interface SettingsContextValue {
   // sign-in effect has even checked whether a real account exists to fetch a
   // DB row for - a consumer gating on `!loading` alone can start rendering
   // (and accepting input against) `settings` before the authoritative source
-  // has been consulted at all. `settingsLoaded` is true only once that source
-  // - a resolved DB read for a signed-in user, or a confirmed sign-out with
-  // nothing to fetch - has actually landed, and it goes false again if the
-  // signed-in account changes, since a new account's row hasn't been read yet
-  // even though the previous one's had. Added for the Strategy Panel
-  // pre-load write race (a chip clicked before this is true was writing an
-  // empty selection over a real saved one) but generic: any consumer that
-  // must not act on `settings` before the authoritative value is known
-  // should gate on this instead of inferring it from a field being non-null,
-  // since null can legitimately mean "confirmed, never saved".
-  settingsLoaded: boolean;
+  // has been consulted at all. `settingsLoadStatus` is 'ready' only once that
+  // source - a resolved DB read for a signed-in user, or a confirmed sign-out
+  // with nothing to fetch - has actually landed, and it goes back to
+  // 'loading' if the signed-in account changes, since a new account's row
+  // hasn't been read yet even though the previous one's had. Added for the
+  // Strategy Panel pre-load write race (a chip clicked before this is
+  // 'ready' was writing an empty selection over a real saved one) but
+  // generic: any consumer that must not act on `settings` before the
+  // authoritative value is known should gate on this instead of inferring it
+  // from a field being non-null, since null can legitimately mean
+  // "confirmed, never saved".
+  settingsLoadStatus: SettingsLoadStatus;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   update:     (partial: Partial<UserSettings>) => void;
   // Re-read the saved row from the server. Needed by flows where the SERVER,
   // not this client, writes the value: connecting Telegram is finished by the
   // bot webhook (see app/api/telegram/webhook/route.ts), so the page has no
   // way to learn it happened other than asking again.
+  //
+  // #1347 item 2: this is also StrategyPanel's Retry action once
+  // settingsLoadStatus is 'error', so its own failure path must manage that
+  // status too - see the sticky-'ready' comment on its implementation.
   refresh:    () => Promise<void>;
 }
 
 export const SettingsContext = createContext<SettingsContextValue>({
   settings:   DEFAULT_SETTINGS,
   loading:    false,
-  settingsLoaded: false,
+  settingsLoadStatus: 'loading',
   saveStatus: 'idle',
   update:     () => {},
   refresh:    async () => {},

@@ -1,27 +1,35 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
 
-/* #1348 item 2 (from #1347's audit): a FAILED settings read is presented as
- * a confirmed empty selection, then can overwrite the real one.
+/* #1348 item 2 (from #1347's audit) - a FAILED settings read used to be
+ * presented as a confirmed empty selection, then could overwrite the real
+ * one on the next chip click.
  *
- * components/SettingsProvider.tsx:300-301 - `setSettingsLoaded(true)` fires
- * in BOTH the success (.then) and error callback of the `user_settings`
- * read. The error path never calls setSettings/applyDbSettings, so
- * `settings` stays whatever the synchronous DEFAULT_SETTINGS fallback was
- * (strategy_selection: null -> [] once spread through the panel). The
- * `!settingsLoaded` guard on `handleStrategySelectionChange`
- * (app/arena/page.tsx:288) stops protecting once this flips - a chip click
- * after a failed read can persist an empty selection over the account's
- * real saved one.
+ * REWRITTEN against Dev's actual fix (fix/arena-selection-liveness, read
+ * before writing this - components/SettingsProvider.tsx,
+ * components/StrategyPanel.tsx, lib/settings.ts), not against the shape
+ * this test assumed before the fix existed. The old version asserted a real
+ * chip rendering with aria-pressed="true" after a failure - that assumption
+ * does not survive the real fix and would now fail for the wrong reason
+ * (element not found, not a stale selection).
  *
- * This is DELIBERATELY the failure path, not the slow path -
- * strategy-panel-preload-race.spec.ts only ever delays the read and always
- * lets it eventually succeed. No PR has fixed this yet, so this test is
- * expected to demonstrate the defect (RED), not confirm a fix - written
- * against the CURRENT, real component behaviour (StrategyPanel.tsx:251-262:
- * `!loaded` shows a skeleton, `loaded` unconditionally shows the real chip
- * grid keyed off `selected`, with no third "errored" state anywhere in
- * between), not a hoped-for one.
+ * THE REAL FIX: `settingsLoaded: boolean` became `settingsLoadStatus:
+ * 'loading' | 'error' | 'ready'` (lib/settings.ts). A genuinely failed read
+ * sets 'error' (SettingsProvider.tsx), which StrategyPanel now renders as
+ * its own distinct state (StrategyPanel.tsx `status === 'error'`) - no chip
+ * grid at all (so nothing can be clicked into persisting an empty
+ * selection), an alert with retry text, and a Retry button wired to
+ * `refresh()`. `handleStrategySelectionChange` and the seed effect
+ * (app/arena/page.tsx) both now gate on `settingsLoadStatus === 'ready'`
+ * specifically - 'error' no longer satisfies that check the way the old
+ * boolean `true` used to.
+ *
+ * THE PROPERTY BEING PROTECTED, not just "the error state exists": a user
+ * whose read failed can get their real saved selection back. The error
+ * message and Retry button are only the means - a Retry that silently did
+ * nothing would still pass a test that stopped at "the alert rendered."
+ * This file asserts the full round trip: failure -> error state, no chips,
+ * no persisting write -> Retry -> real saved selection appears.
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
@@ -47,81 +55,87 @@ async function resetStrategySelection(page: import('@playwright/test').Page, sel
     .toContain('strategy_selection');
 }
 
-test.describe('A failed settings read must not present or persist an empty selection (#1348 item 2)', () => {
-  test('a real saved selection is not shown as empty, and a click does not persist that empty state, after the settings read genuinely fails', async ({ browser }) => {
-    // Confirmed live defect (#1348 item 2), no fix landed yet - test.fail()
-    // keeps the suite green while it's true, and turns loudly red the
-    // moment a fix makes this test unexpectedly pass, so Dev's own
-    // pre-push hook doesn't fail on the very fix this test exists for.
-    // Remove this line as part of that fix, not before.
-    test.fail();
+test.describe('A failed settings read must not present or persist an empty selection, and Retry must recover the real one (#1348 item 2)', () => {
+  test('a genuinely failed read shows the error state with no chip grid, persists no write, and Retry recovers the real saved selection', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
       await gotoSignedIn(page, '/about');
       await resetStrategySelection(page, ['SMA']);
 
-      let settingsPatchCount = 0;
+      // Scoped to `strategy_selection` specifically, not any PATCH to
+      // /api/settings - a real, unrelated write (`{"timezone":"...",
+      // "knownAsOf":{}}`, a background browser-timezone sync that fires on
+      // every page regardless of settingsLoadStatus) was caught by an
+      // earlier, broader version of this check and produced a false
+      // failure. The property that matters for item 2 is specifically "no
+      // write can persist an empty/wrong strategy_selection over the
+      // account's real saved one" - found by reading the actual captured
+      // request body from a failed run, not by loosening the assertion on
+      // a hunch.
+      let strategySelectionPatchCount = 0;
       page.on('request', req => {
-        if (req.method() === 'PATCH' && req.url().includes('/api/settings')) settingsPatchCount++;
+        if (req.method() === 'PATCH' && req.url().includes('/api/settings') && (req.postData() ?? '').includes('strategy_selection')) {
+          strategySelectionPatchCount++;
+        }
       });
 
-      // A genuine failure, not a delay - this is the untested half per
-      // #1347/#1348: strategy-panel-preload-race.spec.ts only ever tests a
-      // read that eventually succeeds.
+      // Failing, not delaying - toggled off after the initial load so Retry's
+      // follow-up request (below) succeeds for real, exercising the actual
+      // recovery path rather than a permanently-broken one.
+      let injecting = true;
       let injectedFailureCount = 0;
-      await page.route(`${SUPABASE_URL}/rest/v1/**`, route => {
+      await page.route(`${SUPABASE_URL}/rest/v1/**`, async route => {
         const url = route.request().url();
-        if (!/user_settings/.test(url)) return route.fallback();
+        if (!injecting || !/user_settings/.test(url)) return route.fallback();
         injectedFailureCount++;
         return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'simulated failure' }) });
       });
 
       await page.goto('/arena');
 
-      // Give the failed read time to resolve and settingsLoaded to flip -
-      // whichever way it flips.
-      await page.waitForTimeout(3_000);
+      const skeleton   = page.locator('[role="status"][aria-live="polite"]', { hasText: /loading your saved strategy/i });
+      const errorAlert = page.locator('[role="alert"]', { hasText: /couldn.?t load your saved indicators/i });
+      const smaChip    = page.locator('button.strat-chip', { hasText: 'SMA' });
+      const retryBtn   = errorAlert.getByRole('button', { name: /retry/i });
 
-      const skeleton = page.locator('[role="status"][aria-live="polite"]', { hasText: /loading your saved strategy/i });
-      const smaChip  = page.locator('button.strat-chip', { hasText: 'SMA' });
+      await expect(errorAlert, 'the error state never appeared after a genuinely failed settings read').toBeVisible({ timeout: 10_000 });
 
-      // THE FINDING: does the panel present a definite (empty) answer after
-      // a failure, the same way it does after a genuine success? If so,
-      // `smaChip` will be visible - it only renders once `loaded` (i.e.
-      // `settingsLoaded`) is true - and it will read unpressed despite the
-      // real saved value, because `settings.strategy_selection` never got
-      // populated on this path.
-      // The early return below only means something if the injected failure
-      // actually fired - a route pattern that silently stops matching (a
-      // refactor of the settings fetch path, a Supabase SDK version bump
-      // changing its REST call shape) must not be able to produce a quiet
-      // green pass here. Machine-checked, not left as a note for a human to
-      // go verify in a request log.
-      expect(injectedFailureCount, 'the simulated user_settings failure never actually fired - this run measured nothing, not a pass').toBeGreaterThan(0);
+      // The injection actually firing is what makes the assertions above and
+      // below mean anything - a route pattern that silently stops matching
+      // (a refactor, an SDK version bump changing the REST call shape) must
+      // not be able to produce a quiet pass.
+      expect(injectedFailureCount, 'the simulated user_settings failure never actually fired - this run measured nothing').toBeGreaterThan(0);
 
-      const stillSkeleton = await skeleton.isVisible().catch(() => false);
-      if (stillSkeleton) {
-        // The ideal, NOT-YET-BUILT behaviour: a failure should leave the
-        // panel in a recognizable non-final state (loading or a distinct
-        // error) rather than flipping to a false "done, zero selected."
-        test.info().annotations.push({ type: 'result', description: 'PASS-BY-DEFAULT: panel stayed in a loading/non-final state after the failed read rather than presenting a false empty answer - this would mean the defect does not reproduce as described. The injection itself is confirmed to have fired (checked above), so this is a real result, not a silent miss.' });
-        return;
-      }
+      // No chip grid at all while errored - nothing renders that a click
+      // could turn into a persisting empty-selection write. This is the
+      // actual mechanism that closes item 2's data-loss path: not "the
+      // panel looks different", but "there is nothing to click."
+      await expect(page.locator('button.strat-chip'), 'no strategy chips should render at all while the settings read is in the error state').toHaveCount(0);
+      await expect(skeleton, 'the panel must not ALSO be showing the loading skeleton once it has reached a definite error state').toHaveCount(0);
+      expect(strategySelectionPatchCount, 'no strategy_selection PATCH should have fired from a state with nothing clickable in it').toBe(0);
 
-      await expect(smaChip, 'the account\'s real saved SMA selection must not render as unselected just because the read failed - "unknown" was shown as "confirmed empty" (#1347 item 2)')
-        .toHaveAttribute('aria-pressed', 'true');
+      // Recover: let the next settings read through for real, then retry.
+      injecting = false;
+      await retryBtn.click();
 
-      // If the assertion above already failed (which is the expected,
-      // documented-bug outcome), this next part demonstrates the write-path
-      // consequence: since `settingsLoaded` incorrectly reads true, the
-      // `!settingsLoaded` guard in handleStrategySelectionChange no longer
-      // protects, so ANY click that changes selection would persist an
-      // empty/wrong selection over the real one. Toggling SMA off proves it.
-      await smaChip.click();
-      await expect.poll(() => settingsPatchCount, {
-        message: 'a click after a failed settings read fired a PATCH - proving it can persist the wrong (empty) selection over the account\'s real saved one',
-      }).toBeGreaterThan(0);
+      // THE PENDING STATE (added in a follow-up commit, d918d9cb, after
+      // this file's first draft - re-read before adding this): a click that
+      // changes nothing on screen until the read settles is
+      // indistinguishable from a click that never registered, especially on
+      // a slow connection. Checked immediately after the click, before the
+      // round trip below has had a chance to resolve.
+      await expect(retryBtn, 'Retry must visibly disable for the round trip, not look identical to an unregistered click').toBeDisabled({ timeout: 2_000 });
+
+      // THE ROUND TRIP, not just the error state: the account's real saved
+      // selection must actually come back, or a Retry that does nothing
+      // would still pass a test that stopped at the alert rendering.
+      await expect(errorAlert, 'the error state must clear once Retry succeeds').toHaveCount(0, { timeout: 10_000 });
+      await expect(smaChip, 'the real saved SMA selection must appear, pressed, once Retry succeeds - this is the actual recovery the error state and button exist to provide').toHaveAttribute('aria-pressed', 'true', { timeout: 5_000 });
+
+      // Still no write fired anywhere in this flow - reading the account's
+      // own saved value back is not a save.
+      expect(strategySelectionPatchCount, 'recovering via Retry must not itself fire a strategy_selection PATCH - reading the account\'s own saved value back is not a save').toBe(0);
     } finally {
       await ctx.close();
     }

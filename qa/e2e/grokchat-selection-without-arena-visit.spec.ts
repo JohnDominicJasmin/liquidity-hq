@@ -55,12 +55,11 @@ async function resetStrategySelection(page: import('@playwright/test').Page, sel
 
 test.describe('LiquidityAI must know a real saved selection even without an Arena visit this session (#1348 items 3/18)', () => {
   test('opening the chat from the news page, with no prior Arena visit, still reasons from the account\'s real saved indicator', async ({ browser }) => {
-    // Confirmed live defect (#1348 items 3/18), no fix landed yet -
-    // test.fail() keeps the suite green while it's true, and turns loudly
-    // red the moment a fix makes this test unexpectedly pass, so Dev's own
-    // pre-push hook doesn't fail on the very fix this test exists for.
-    // Remove this line as part of that fix, not before.
-    test.fail();
+    // #1347 items 3/18 fix landed (GrokChat now seeds chatSelection from
+    // settings.strategy_selection on mount, gated on settingsLoadStatus -
+    // see components/GrokChat.tsx's chatSelectionSeededRef) - test.fail()
+    // removed as part of that fix, so this now guards the behaviour instead
+    // of documenting the absence of it.
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
@@ -80,6 +79,30 @@ test.describe('LiquidityAI must know a real saved selection even without an Aren
       });
 
       // Fresh load, straight to news - NO Arena visit anywhere in this test.
+      // CORRECTNESS NOTE: an earlier draft of this file named "news" in its
+      // title, comments and assertion text but never actually navigated
+      // there - `gotoSignedIn(page, '/news')` was missing entirely, so every
+      // prior run of this exact file exercised `/about` (the reset target
+      // above) rather than news. Caught while fixing the timing wait below,
+      // not before. Doesn't change item 18's finding (`/about` is equally
+      // "not Arena," which is the only property that mattered), but the
+      // test should do what it says. Fixed here, not left as a stale
+      // comment describing a page this file never visited.
+      //
+      // #1347 items 3/18 fix: chatSelection now seeds from a mount-time
+      // effect gated on settingsLoadStatus === 'ready' (GrokChat.tsx,
+      // chatSelectionSeededRef). GrokChat has no visible loading indicator
+      // for that status, so this waits on the actual precondition - the
+      // `user_settings` REST read resolving - rather than a fixed sleep,
+      // which would flake on a slow run or a cold start of the deployed
+      // site rather than being deterministic either way.
+      const settingsRead = page.waitForResponse(
+        resp => resp.url().includes(`${SUPABASE_URL}/rest/v1/user_settings`),
+        { timeout: 15_000 },
+      ).catch(() => null); // null, not a throw - a page that never re-fetches settings on this nav (e.g. already cached) is a real outcome to fall through from, not a test error
+      await gotoSignedIn(page, '/news');
+      await settingsRead;
+
       // Opens via the global FAB (data-testid="grok-launcher",
       // GrokChat.tsx:692-697) rather than a per-article "Ask AI" card - the
       // news feed can render with zero cards on this environment (no
@@ -102,7 +125,18 @@ test.describe('LiquidityAI must know a real saved selection even without an Aren
         timeout: 10_000,
       }).toBe(true);
 
-      const systemMsg: string = grokChatBody?.messages?.find((m: { role: string }) => m.role === 'system')?.content ?? '';
+      // GrokChat.tsx's two send branches use different body shapes for the
+      // exact same conversation payload: the search branch (components/
+      // GrokChat.tsx ~line 525) sends `input`, the non-search 'chat' branch
+      // (~line 552) sends `messages` - same array-of-{role,content} shape
+      // either way. An earlier version of this assertion only checked
+      // `messages` and false-failed on a real, correct run that happened to
+      // go through the search branch (confirmed by reading the actual
+      // captured request body from that failure, not assumed) - the
+      // "weighing these indicators: SMA" sentence was genuinely present in
+      // `input`, this test just wasn't looking there.
+      const turns: Array<{ role: string; content: string }> = grokChatBody?.messages ?? grokChatBody?.input ?? [];
+      const systemMsg: string = turns.find(m => m.role === 'system')?.content ?? '';
       expect(systemMsg, 'the account\'s real saved SMA selection never reached the chat\'s system context because this session never visited Arena - GrokChat has no other way to learn a saved selection (#1347 item 18)')
         .toMatch(/weighing these indicators[\s\S]*SMA/i);
     } finally {
