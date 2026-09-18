@@ -38,6 +38,24 @@ test.skip(!AUTH_READY, AUTH_SKIP_REASON);
 const PANEL = '.strat-panel';
 const UNKNOWN_CARD = '[data-testid="entitlement-unknown"]';
 
+/** The measurement test clicks a chip, which persists a selection to account A
+ *  on the shared dev database. Put it back so no later spec inherits it. */
+async function clearSavedSelection(page: import('@playwright/test').Page) {
+  await page.evaluate(async () => {
+    const raw = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    const token = raw ? JSON.parse(localStorage.getItem(raw)!).access_token : null;
+    await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ strategy_selection: [], knownAsOf: { strategy_selection: new Date().toISOString() } }),
+    });
+    localStorage.removeItem('lhq_settings_v1');
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('lhq_settings_unconfirmed_v1')) localStorage.removeItem(k);
+    }
+  });
+}
+
 const forceEntitlementsFail = () => {
   (window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__ = true;
 };
@@ -133,6 +151,78 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       await expect(panel.locator('button.strat-chip').first(), 'a confirmed-Pro account must get the chip grid').toBeVisible({ timeout: 15_000 });
       await expect(panel.locator(UNKNOWN_CARD), 'a confirmed-Pro account must not be shown the couldn\'t-verify card').toHaveCount(0);
     } finally {
+      await ctx.close();
+    }
+  });
+
+  /* MEASUREMENT, NOT A GATE - and it cannot fail on what it measures, by design.
+   *
+   * #1362 fixes entitlement `unknown` (retries EXHAUSTED). It does not touch the
+   * window BEFORE that, while the read is still in flight: AuthProvider reports
+   * `not_entitled` for it on purpose ("covers both a confirmed free account AND
+   * the window while entitlementsLoading is still true"), and StrategyPanel does
+   * not look at `entitlementsLoading`. So a Pro account's panel is built from
+   * `indicatorLimit(false)` and `readOnly={!entitled}` for as long as the read
+   * takes. From reading only, as of QA's review comment on #1362.
+   *
+   * There is no assertion of what the panel SHOULD show here, because that is a
+   * design decision that is not made (a skeleton, or something else - #1119
+   * rules out both fail-open and fail-closed, so "enable everything" is not the
+   * answer either). A test asserting one shape would encode a guess. So this
+   * holds the entitlements request, reads what a Pro account is actually shown,
+   * and records it as annotations for whoever makes that call. The only hard
+   * assertion is the PRECONDITION: the request was held, i.e. we really were
+   * inside the loading window - without that the annotations would describe a
+   * different state.
+   *
+   * If the decision lands and the panel changes, replace this with an assertion
+   * of the chosen behaviour. */
+  test('MEASUREMENT: what a Pro account\'s panel shows while the entitlements read is still in flight', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    const page = await ctx.newPage();
+    const held: Array<import('@playwright/test').Route> = [];
+    try {
+      // Held, never answered - the read neither resolves nor rejects, so the
+      // account stays in the loading window until this test lets go.
+      await page.route('**/rest/v1/*user_subscriptions*', route => { held.push(route); });
+      await gotoSignedIn(page, '/arena');
+
+      const panel = page.locator(PANEL);
+      await expect(panel).toBeVisible({ timeout: 15_000 });
+      await expect.poll(() => held.length, {
+        message: 'the entitlements request was never issued, so this run is not inside the loading window and measures nothing',
+        timeout: 15_000,
+      }).toBeGreaterThan(0);
+
+      const chipCount = await panel.locator('button.strat-chip').count();
+      const unknownCard = await panel.locator(UNKNOWN_CARD).count();
+      await panel.locator('select.strat-sel').selectOption('custom').catch(() => {});
+      const firstChip = panel.locator('button.strat-chip').first();
+      let params = 'not reachable';
+      if (await firstChip.isVisible().catch(() => false)) {
+        await firstChip.click();
+        const input = panel.locator('.strat-params input[type="number"]').first();
+        params = await input.isVisible().catch(() => false)
+          ? ((await input.isDisabled()) ? 'params inputs DISABLED (read-only)' : 'params inputs enabled')
+          : 'no params box for the first chip';
+      }
+      const freeNote = await panel.getByText(/Defaults on free/i).count();
+
+      const observed = [
+        `chip grid rendered: ${chipCount > 0} (${chipCount} chips)`,
+        `EntitlementUnknownCard in panel: ${unknownCard > 0}`,
+        params,
+        `"Defaults on free" note visible: ${freeNote > 0}`,
+      ].join(' | ');
+      test.info().annotations.push({
+        type: 'measurement',
+        description: `Pro account A, entitlements request held (in flight): ${observed}. ` +
+          'If the grid renders and params are disabled or the free note shows, the panel is asserting a free plan for an account whose plan is not yet known - #1347 item 6\'s loading-window half, not covered by #1362.',
+      });
+      console.log(`[strategy-panel loading window] ${observed}`);
+    } finally {
+      await Promise.allSettled(held.map(r => r.abort()));
+      await clearSavedSelection(page).catch(() => {});
       await ctx.close();
     }
   });
