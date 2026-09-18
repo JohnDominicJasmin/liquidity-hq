@@ -49,6 +49,12 @@ async function resetStrategySelection(page: import('@playwright/test').Page, sel
 
 test.describe('A failed settings read must not present or persist an empty selection (#1348 item 2)', () => {
   test('a real saved selection is not shown as empty, and a click does not persist that empty state, after the settings read genuinely fails', async ({ browser }) => {
+    // Confirmed live defect (#1348 item 2), no fix landed yet - test.fail()
+    // keeps the suite green while it's true, and turns loudly red the
+    // moment a fix makes this test unexpectedly pass, so Dev's own
+    // pre-push hook doesn't fail on the very fix this test exists for.
+    // Remove this line as part of that fix, not before.
+    test.fail();
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
@@ -63,9 +69,11 @@ test.describe('A failed settings read must not present or persist an empty selec
       // A genuine failure, not a delay - this is the untested half per
       // #1347/#1348: strategy-panel-preload-race.spec.ts only ever tests a
       // read that eventually succeeds.
+      let injectedFailureCount = 0;
       await page.route(`${SUPABASE_URL}/rest/v1/**`, route => {
         const url = route.request().url();
         if (!/user_settings/.test(url)) return route.fallback();
+        injectedFailureCount++;
         return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'simulated failure' }) });
       });
 
@@ -84,12 +92,20 @@ test.describe('A failed settings read must not present or persist an empty selec
       // `settingsLoaded`) is true - and it will read unpressed despite the
       // real saved value, because `settings.strategy_selection` never got
       // populated on this path.
+      // The early return below only means something if the injected failure
+      // actually fired - a route pattern that silently stops matching (a
+      // refactor of the settings fetch path, a Supabase SDK version bump
+      // changing its REST call shape) must not be able to produce a quiet
+      // green pass here. Machine-checked, not left as a note for a human to
+      // go verify in a request log.
+      expect(injectedFailureCount, 'the simulated user_settings failure never actually fired - this run measured nothing, not a pass').toBeGreaterThan(0);
+
       const stillSkeleton = await skeleton.isVisible().catch(() => false);
       if (stillSkeleton) {
         // The ideal, NOT-YET-BUILT behaviour: a failure should leave the
         // panel in a recognizable non-final state (loading or a distinct
         // error) rather than flipping to a false "done, zero selected."
-        test.info().annotations.push({ type: 'result', description: 'PASS-BY-DEFAULT: panel stayed in a loading/non-final state after the failed read rather than presenting a false empty answer - this would mean the defect does not reproduce as described, worth re-confirming the failure was actually injected (check request log) before trusting this.' });
+        test.info().annotations.push({ type: 'result', description: 'PASS-BY-DEFAULT: panel stayed in a loading/non-final state after the failed read rather than presenting a false empty answer - this would mean the defect does not reproduce as described. The injection itself is confirmed to have fired (checked above), so this is a real result, not a silent miss.' });
         return;
       }
 
