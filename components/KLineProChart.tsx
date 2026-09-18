@@ -617,6 +617,38 @@ function computeSRLevels(
   return [...resistances, ...supports];
 }
 
+/* QA test seam for the indicator-sync failure notice (#1369). Same shape and
+   same reasoning as AuthProvider's `qaForcedEntitlementsFailure` (#1184): the
+   three paths that feed the "Couldn't draw" badge are klinecharts refusing a
+   call - `overrideIndicator` throwing, `createIndicator` returning null,
+   `createIndicator` throwing - and nothing a browser-side script can do
+   reaches inside the library to make it refuse. So the app checks a global
+   itself, at the exact call site, and the badge goes through the SAME
+   `failed` list, `setChartSyncIssues` and JSX a real failure would; only the
+   library call is skipped.
+
+   `page.addInitScript()` sets it before any page script (or `page.evaluate`
+   sets it later - it is read each time the sync effect runs, so a test can
+   draw an indicator normally and then force the params-edit path).
+
+   Values: 'override-throw' | 'create-null' | 'create-throw'. Anything else,
+   including `true`, is ignored - each names one real failure path, and a bare
+   boolean would silently pick one.
+
+   FAIL-SAFE BY CONSTRUCTION: every value can only make the chart draw LESS
+   than was asked and say so; none can make it draw, or claim to have drawn,
+   something it did not. BUILD-TIME DEAD ON PROD: NEXT_PUBLIC_APP_ENV is inlined
+   at build time, so in a `prod` build the flag below is the literal `false`
+   and the branches that read it are eliminated - not a runtime check. */
+const QA_FORCE_CHART_FAIL_ENABLED = process.env.NEXT_PUBLIC_APP_ENV !== 'prod';
+type QaChartFailMode = 'override-throw' | 'create-null' | 'create-throw';
+function qaForcedChartFailure(): QaChartFailMode | null {
+  if (!QA_FORCE_CHART_FAIL_ENABLED) return null;
+  if (typeof window === 'undefined') return null;
+  const v = (window as unknown as { __LHQ_QA_FORCE_CHART_INDICATOR_FAIL__?: unknown }).__LHQ_QA_FORCE_CHART_INDICATOR_FAIL__;
+  return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
+}
+
 export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams }: Props) {
   const mode = useDesignMode();
   /* The init effect below runs once and must not re-run when the design mode
@@ -2479,6 +2511,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
     // Add what is newly selected.
     const failed: string[] = [];
+    const qaFail = qaForcedChartFailure();
     for (const [key, entry] of wanted) {
       const calcParams = toCalcParams(entry, indicatorParams?.[key]);
       const serialized = JSON.stringify(calcParams);
@@ -2499,6 +2532,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                exact instance rather than every indicator sharing the name -
                relevant for RSI, which also has an always-on pane elsewhere on
                this chart (line ~997). */
+            if (qaFail === 'override-throw') throw new Error('QA-forced overrideIndicator failure');
             chart.overrideIndicator({ id: existingId, name: entry.id, calcParams });
             activeParamsRef.current.set(key, serialized);
           } catch {
@@ -2525,7 +2559,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
          *
          * THE CAST IS WHY IT SHIPPED. `(chart as any)` turned a compile error
          * into a live defect; without it this never builds. It is gone. */
-        const indicatorId = chart.createIndicator(
+        if (qaFail === 'create-throw') throw new Error('QA-forced createIndicator failure');
+        const indicatorId = qaFail === 'create-null' ? null : chart.createIndicator(
           { name: entry.id, calcParams },
           entry.pane === 'own'
             ? { pane: { id: `strat_${key.toLowerCase()}`, height: 90, minHeight: 30 } }
