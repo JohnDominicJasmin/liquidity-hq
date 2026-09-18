@@ -58,6 +58,16 @@ export default function About() {
           <div className="pb">{t('ABOUT_REMINDER_BODY')}</div>
         </div>
       </div>
+
+      {/* #1347 item 34: Privacy and Terms both point here for a contact
+          address - this card is what makes that true rather than a dead
+          end. */}
+      <div className="card">
+        <div className="lbl">{t('ABOUT_CONTACT_LABEL')}</div>
+        <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.7 }}>
+          {t('ABOUT_CONTACT_BODY')}
+        </div>
+      </div>
     </div>
   );
 }
