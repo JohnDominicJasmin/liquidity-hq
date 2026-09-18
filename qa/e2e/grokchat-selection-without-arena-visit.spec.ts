@@ -125,7 +125,18 @@ test.describe('LiquidityAI must know a real saved selection even without an Aren
         timeout: 10_000,
       }).toBe(true);
 
-      const systemMsg: string = grokChatBody?.messages?.find((m: { role: string }) => m.role === 'system')?.content ?? '';
+      // GrokChat.tsx's two send branches use different body shapes for the
+      // exact same conversation payload: the search branch (components/
+      // GrokChat.tsx ~line 525) sends `input`, the non-search 'chat' branch
+      // (~line 552) sends `messages` - same array-of-{role,content} shape
+      // either way. An earlier version of this assertion only checked
+      // `messages` and false-failed on a real, correct run that happened to
+      // go through the search branch (confirmed by reading the actual
+      // captured request body from that failure, not assumed) - the
+      // "weighing these indicators: SMA" sentence was genuinely present in
+      // `input`, this test just wasn't looking there.
+      const turns: Array<{ role: string; content: string }> = grokChatBody?.messages ?? grokChatBody?.input ?? [];
+      const systemMsg: string = turns.find(m => m.role === 'system')?.content ?? '';
       expect(systemMsg, 'the account\'s real saved SMA selection never reached the chat\'s system context because this session never visited Arena - GrokChat has no other way to learn a saved selection (#1347 item 18)')
         .toMatch(/weighing these indicators[\s\S]*SMA/i);
     } finally {

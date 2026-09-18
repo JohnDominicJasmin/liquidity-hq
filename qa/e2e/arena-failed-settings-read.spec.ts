@@ -63,9 +63,21 @@ test.describe('A failed settings read must not present or persist an empty selec
       await gotoSignedIn(page, '/about');
       await resetStrategySelection(page, ['SMA']);
 
-      let settingsPatchCount = 0;
+      // Scoped to `strategy_selection` specifically, not any PATCH to
+      // /api/settings - a real, unrelated write (`{"timezone":"...",
+      // "knownAsOf":{}}`, a background browser-timezone sync that fires on
+      // every page regardless of settingsLoadStatus) was caught by an
+      // earlier, broader version of this check and produced a false
+      // failure. The property that matters for item 2 is specifically "no
+      // write can persist an empty/wrong strategy_selection over the
+      // account's real saved one" - found by reading the actual captured
+      // request body from a failed run, not by loosening the assertion on
+      // a hunch.
+      let strategySelectionPatchCount = 0;
       page.on('request', req => {
-        if (req.method() === 'PATCH' && req.url().includes('/api/settings')) settingsPatchCount++;
+        if (req.method() === 'PATCH' && req.url().includes('/api/settings') && (req.postData() ?? '').includes('strategy_selection')) {
+          strategySelectionPatchCount++;
+        }
       });
 
       // Failing, not delaying - toggled off after the initial load so Retry's
@@ -101,7 +113,7 @@ test.describe('A failed settings read must not present or persist an empty selec
       // panel looks different", but "there is nothing to click."
       await expect(page.locator('button.strat-chip'), 'no strategy chips should render at all while the settings read is in the error state').toHaveCount(0);
       await expect(skeleton, 'the panel must not ALSO be showing the loading skeleton once it has reached a definite error state').toHaveCount(0);
-      expect(settingsPatchCount, 'no /api/settings PATCH should have fired from a state with nothing clickable in it').toBe(0);
+      expect(strategySelectionPatchCount, 'no strategy_selection PATCH should have fired from a state with nothing clickable in it').toBe(0);
 
       // Recover: let the next settings read through for real, then retry.
       injecting = false;
@@ -123,7 +135,7 @@ test.describe('A failed settings read must not present or persist an empty selec
 
       // Still no write fired anywhere in this flow - reading the account's
       // own saved value back is not a save.
-      expect(settingsPatchCount, 'recovering via Retry must not itself fire a settings PATCH').toBe(0);
+      expect(strategySelectionPatchCount, 'recovering via Retry must not itself fire a strategy_selection PATCH - reading the account\'s own saved value back is not a save').toBe(0);
     } finally {
       await ctx.close();
     }
