@@ -77,10 +77,6 @@ test.describe('Arena seed effect restores a REAL saved strategy selection after 
       // and this file stays clear of that mechanism entirely by never
       // asserting on coin/TF (see the scope note above).
       await gotoSignedIn(page, '/about');
-      // Single indicator - StrategyPanel.tsx's `indicatorLimit(entitled)`
-      // caps a free-tier account at 1 selected indicator (`FREE · ${limit}`,
-      // limit=1 per that file's own comment); a real, single saved value is
-      // enough to prove the seed effect restores non-empty state at all.
       await resetStrategySelection(page, ['SMA']);
 
       const DELAY_MS = 2_000;
@@ -103,6 +99,53 @@ test.describe('Arena seed effect restores a REAL saved strategy selection after 
       // THE ASSERTION #1263 NAMES: correct AFTER loading, not merely "not loading".
       const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
       await expect(smaChip, 'the real saved SMA selection must come back pressed, not reset to unselected').toHaveAttribute('aria-pressed', 'true');
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  // #1263's original report was a MULTI-item selection - the single-indicator
+  // test above proves the mechanism works at all, but never exercised the
+  // exact shape the bug was found in, which PM/DevOps flagged as a real gap
+  // (this suite had avoided the multi-item case twice: this file's own
+  // earlier draft used one indicator to sidestep what was believed to be a
+  // free-tier limit=1 cap, and strategy-panel-preload-race.spec.ts's header
+  // comment sidesteps the multi-item case entirely because of this bug).
+  //
+  // CORRECTION, found reading qa/e2e/_auth.ts properly before writing this:
+  // E2E_USER_A ('a', used by every spec in this file) is PINNED role='pro',
+  // not free - see _auth.ts's own "ENTITLEMENT FIXTURES ARE A AND B, PINNED"
+  // comment. StrategyPanel's indicatorLimit is 3 for Pro, not 1. The earlier
+  // single-indicator choice in this file's other test was not wrong to make,
+  // but its STATED reason (avoiding a free-tier cap) was factually wrong
+  // about which account this is - worth recording rather than quietly
+  // fixing, per this project's own "correct yourself in writing" habit.
+  // Two indicators is well within account A's real limit of 3.
+  test('a real, non-empty saved TWO-item selection both come back pressed once settings load - the exact shape #1263 was originally reported in', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    const page = await ctx.newPage();
+    try {
+      await gotoSignedIn(page, '/about');
+      await resetStrategySelection(page, ['EMA_RIBBON', 'SMA']);
+
+      const DELAY_MS = 2_000;
+      await page.route(`${SUPABASE_URL}/rest/v1/**`, async route => {
+        const url = route.request().url();
+        if (!/user_settings/.test(url)) return route.fallback();
+        await new Promise(r => setTimeout(r, DELAY_MS));
+        return route.fallback();
+      });
+
+      await page.goto('/arena');
+
+      const skeleton = page.locator('[role="status"][aria-live="polite"]', { hasText: /loading your saved strategy/i });
+      await expect(skeleton).toBeVisible({ timeout: DELAY_MS - 200 });
+      await expect(skeleton).toHaveCount(0, { timeout: DELAY_MS + 3_000 });
+
+      const emaChip = page.locator('button.strat-chip', { hasText: 'EMA Ribbon' });
+      const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
+      await expect(emaChip, 'the real saved EMA Ribbon selection must come back pressed - this is the exact multi-item shape #1263 was originally reported in').toHaveAttribute('aria-pressed', 'true');
+      await expect(smaChip, 'the real saved SMA selection must ALSO come back pressed - a fix that only restores one of two saved indicators is not fixed').toHaveAttribute('aria-pressed', 'true');
     } finally {
       await ctx.close();
     }
