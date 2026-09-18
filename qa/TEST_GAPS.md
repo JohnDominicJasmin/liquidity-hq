@@ -97,6 +97,24 @@ altering anything, `1` stubs. That measurement retired #114: Binance **0**,
 Bybit **<25**, Supabase 100+ per contrast sweep — the constraint the `workers`
 pin was built around barely exists.
 
+**The release gate now runs in STUB mode (#1259).** `.github/workflows/ci.yml`'s
+E2E job (the staging→main release gate) sets `QA_INTERCEPT_UPSTREAM=1`
+unconditionally as of this change — both exchanges answer `200 []` there,
+because on a GitHub runner they are fully blocked anyway (Binance 451, Bybit
+403) and `MarketProvider`'s app-wide reconnect/poll loop against two dead hosts
+was taxing every authenticated-page test, not just market-data ones (measured
+on #1354's killed run: five spec files with no market assertion of their own
+still cost 2,838s combined). **This is a predicted improvement, not a measured
+one** — see the env-block comment in `ci.yml` for the full reasoning and the
+revert (one line each, back to empty strings). **CI therefore never talks to
+either exchange for real, on any trigger** — a genuine upstream shape change
+(a renamed field, a changed response structure) would not surface in CI. The
+live check is a local run: a dev machine is not IP-blocked, so
+`E2E_ALLOW_BILLED_CALLS` aside, an ordinary local `npx playwright test` still
+exercises real Binance/Bybit responses through the unstubbed proxy. That is
+local-and-owned — no scheduled CI job promises this on a cadence; it happens
+when someone actually runs the suite locally.
+
 **The user's timezone — closed, `2889463`.** `qa/e2e/clock.spec.ts` composes
 `page.clock` (the instant) with Playwright's `timezoneId` context option (the
 zone) — measured before writing, both compose correctly. Three cases assert
