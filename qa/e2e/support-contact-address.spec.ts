@@ -38,16 +38,19 @@ import { gotoGuarded, getGuarded } from './_shared';
  *     (#675's class). It currently serves the OLD text with no address, on
  *     qa and on prod alike, in English too.
  *
- * So after #1360 merges and BEFORE the held label rows are applied:
- *   GREEN  the About page Contact card (renders from the client fallback)
- *   RED    the banned-visitor UI test (`.auth-gate-desc` renders the served
- *          label, and the DB row wins over the new default)
- *   RED    all five /api/labels address checks, `en` included
- *   RED    the four "translated, not silently English" checks
- * All the red ones wait on PM/DevOps's gated database write (an upsert that
- * UPDATES the existing banned-message rows as well as inserting the new
- * keys), NOT on a defect in #1360. They assert the target end state and go
- * green together when the rows land, with no change to this file.
+ * So after #1360 merges and BEFORE the label rows were applied, only the
+ * About-card test was green and about ten others were red.
+ *
+ * UPDATE 2026-09-19: PM/DevOps applied the rows to BOTH projects, owner-
+ * approved (one update and fourteen inserts on prod - AUTH_GATE_BANNED_DESC
+ * existed in English only there, so the other four locales had been silently
+ * falling back to English). Checked against the served /api/labels on deployed
+ * qa and on prod: ABOUT_CONTACT_BODY and AUTH_GATE_BANNED_DESC name the address
+ * in all five locales on both. The group below is therefore now expected GREEN.
+ * It stays grouped and its messages stay as written, because the failure it
+ * guards is the one that already happened once: an upsert that only inserts
+ * leaves a shadowing row in place, and a locale that has no row falls back to
+ * English without saying so.
  */
 
 const SUPPORT_EMAIL = 'support@liquidity-hq.com';
@@ -61,7 +64,7 @@ test.describe('Support contact surfaces name a real address (#1360)', () => {
       'never rendered, or the address changed').toBeVisible({ timeout: 10_000 });
   });
 
-  test.describe('expected RED until PM/DevOps applies the held label rows (see header) - not a defect in #1360', () => {
+  test.describe('depend on the database label rows (applied 2026-09-19 - see header); a red here means a row is missing or shadowing, not a defect in #1360', () => {
     test('a banned, signed-out visitor sees the address inline in the suspension message, not the generic gate text', async ({ browser }) => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
