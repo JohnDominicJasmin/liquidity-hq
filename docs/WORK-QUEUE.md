@@ -55,64 +55,59 @@ the week before, 154 issues had been opened and 107 closed.
 
 ## Dev lane
 
-**Rewritten a seventh time on 2026-09-12, at ~23:40Z.** Release #3 is on `staging`
-(`8fd6f76`), QA-signed-off, and the release PR (#1299) is open awaiting the owner's
-visual gates. Release #4 candidate is on `qa` (`c8903c9`), QA-passed. D4 (#1199)
-and D7 (#1266) both merged. **Next: D6, then the item after it, since D5 is
-blocked on a screenshot rather than done.** **A queue that names finished work is
-worse than an empty one: it costs a session the time to discover it is wrong.**
+**Rewritten 2026-09-18 after the release shipped.** Everything the previous version
+listed is merged and live — it described release #3 as pending for six days after it
+shipped, which is exactly the failure this file warns about. `v2026.09.18` is on
+production, verified two ways and tagged.
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | **Built (PR #1292), QA-reviewed clean.** Holding on the owner's sign-off for the toast wording ("Updated from another device") and its look (amber, same corner as Saved/Failed) - screenshots already sent to PM for the batch. Merge once that lands. |
-| D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | **Built (PR #1305), gates green.** Two of the three fixes (alerts row, DryPowder) are ARIA-only with zero visual difference. The one real visual change (HypothesisTracker's new small label under each evidence icon) is blocked on a screenshot - QA will take it locally after their release #4 pass, with a QA test account on dev, per PM. Not merging until the owner signs off. |
-| D6 | **#1113 tour rework · #1185 visual-rule instances** | mixed | Both visual. **Screenshots go to the owner before merge.** #1220 and #1225 are waiting on exactly that right now. |
-| AS-B | **#1309 item 10: alerts mute re-seed on prefs read failure** | ~small | **Merged (PR #1313).** |
-| AS-C | **#1309 item 13: onboarding read failure sends finished users back to the wizard** | ~small | **Merged (PR #1315).** |
-| AS-F | **#1309 items 23/24/25: dup checklist, Arena double AI call, F&G `&?limit` typo** | ~small | **Merged (PR #1319).** |
-| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Merged (PR #1321).** QA's browser run went 8/8 green with element screenshots confirming the ring is unclipped on both prefix and suffix rows. |
-| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Merged (PR #1324).** |
-| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Merged (PR #1325).** QA's #1322 (calculator directionality test) also merged. |
-| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Merged (PR #1327).** Owner signed off the wording. |
-| PR-B | **#1309 batch 2, landing/product claims + About rewrite (items 31/32/33/35)** | ~med | **Merged (PR #1329).** Owner signed off the wording, including the 3-tile stats-bar call. Landing hard gate run clean. Migration applied to dev DB (295 rows / 59 keys, md5-verified) - `/about` shows the new copy on `qa`/`staging` now. Prod not applied yet (owner's go at release time). Item 34 held (no support email yet). |
-| PR-FU1 | **#1309 follow-up: FUNDING_SIG_LONGS_OVERCROWDED_DESC neutral ending + funding-payer extraction** | ~small | **Merged (PR #1331).** Owner approved the wording. QA's coverage (PR #1332, 22 subtests) also merged. Migration applied to dev DB (PM/DevOps, owner's go). Prod not applied yet (release time). |
+| A1 | **#1347 item 6: entitlement `unknown` enforced as free** | ~hours | **In progress.** A paying user is told they are on the free plan while their account resolves: limit drops to 1, chips block, params go read-only. Reuse the Arena Confluence card's existing three-way pattern (`EntitlementUnknownCard` + `retryEntitlements`) rather than inventing a second shape, and say in the PR that you reused it. |
+| A2 | **#1347 item 4: a stale read is labelled in one place and unlabelled in three** | ~hours | The stale-selection banner works. The same stale result is still rendered unmarked by the long-form reasoning blocks, passed to the chart, and embedded in the ASK AI opening prompt — which sends the stale result and the *current* selection in one message. |
+| A3 | **#1347 item 5: the prompt states a loading signal as current** | ~small | While a signal loads, the ref feeding QUICK/DEEP holds the previous coin's value and the prompt asserts it as present tense. Freezing on load is right; sending it unlabelled is not. |
+| A4 | **#1347 item 11: the remaining third-state gates** | ~hours | `indicators ?? []` (a dropped prop reads as an empty selection), `createIndicator` returning null inside a catch that also swallows real errors, a failed param apply leaving the old line under the new value, `useEMAStrategy`'s `selection = []` default, and the `!user` label gates that #1338 fixed for `disabled` but not for the lock icon and title. |
+| A5 | **#1347 item 15: a migration file claims it was never applied** | ~minutes | `20260907a_user_settings_strategy_selection.sql` says "NOT YET APPLIED to either". Both projects have had both columns for weeks — I read the catalogues on 2026-09-18. A reader believing that file concludes the whole persistence path is dead. |
+| A6 | **#1347 item 16: four surfaces, four different carrier sentences** | ~small | `describeSelection` correctly owns the name list; every consumer writes its own sentence around it, including one in first person. Low severity, listed because the helper exists to stop exactly this. |
+| A7 | **#1346: research evidence list, loading/error vs confirmed-empty** | ~hours | Open PR, built, **blocked on the owner approving two new on-screen strings.** Do not merge before that. |
 
-**Standing, not numbered:** review and merge QA's open PRs into `dev` without being
-asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
-waiting for an answer; apply the visual rule — **bordered outlines only for things
-that respond to a click; one corner radius for containers, one for controls** — to
-anything you touch.
+**Standing, not numbered:** review and merge QA's PRs into `dev` without being asked;
+promote `dev` → `qa` when work accumulates; **never promote into `staging` while a
+release PR is open**; apply the visual rule to anything you touch.
 
-**Machine rules, added 2026-09-12 after two memory kills and a 30-minute dev outage:**
-- **One local `next build` at a time, across all folders.** Check for another `next` process before starting.
-- **Stop local servers you aren't using.** Each one is ~0.5–1 GB, and it joins the retry storm whenever the dev database degrades.
-- **No DDL on the dev database while QA has a pass running.** Any DDL fires a PostgREST schema reload, and on 2026-09-12 one additive column caused 30+ minutes of degradation. See #1025.
+**Machine rules, and they are live constraints right now:**
+- **Ask PM before any build, dev server or browser run.** The owner is working on this
+  machine and their browser alone holds around 4 GB of 15.
+- **One heavy job at a time, across all folders.** On 2026-09-18 a build ran at 0.4 GB
+  free and survived on luck; two at once is what killed builds repeatedly.
+- **A Playwright command without `E2E_BASE_URL` silently starts its own build.** That is
+  how two builds nearly collided. Set it explicitly.
+- **No DDL on the dev database while QA has a pass running.**
 
 ## QA lane
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| Q1 | **Release #2 (#1252): what's left after the production re-check** | ~hours | **Re-checked on production at 20:34Z** (#1252). Steps 1–2 passed (settings save and the two-device conflict). **Step 3 was reported failing, but that was the capture tool's blind spot.** At 21:13Z, QA and Dev each re-verified it as a pass using Resource Timing and the rendered values (#1284, closed). Step 4 was inconclusive (the whale feed was quiet at the weekend). **Closed:** #1202, #1177 and #1107. **Reopened:** #1167, because its timeout path has never been forced live. Force it with a near-expiry token, or stub `getAuthToken` to time out. **#1192 is off hold**, because step 3 passes: close it if its five conditions are met. **Held:** #1059, until the whale feed has been re-checked during a busier session. **Record the capture-tool blind spot** in `TEST_GAPS.md` or the QA docs. `read_network_requests` misses requests made in roughly the first 2 s of a fresh load, so use `performance.getEntriesByType('resource')` for load-time questions. **Release #1's signed-in production check waits on the owner's A or B** (`docs/OWNER-BLOCKERS.md` row 12). |
-| Q2 | **Reviews, and release #3** | hours | Open for review: #1286 (docs). Dev reviews QA's #1273 and #1268. **#1220 and #1225 stay unmerged until the owner signs off their screenshots** (row 11). **Release #3:** `qa` holds #1222, #1244, #1250, #1253, #1256, #1257 and #1258. `dev` also holds #1245 and the whole D3/#1266/#1278/#1282 batch (checked with `git log --first-parent origin/staging..origin/qa` and `origin/qa..origin/dev` on 2026-09-12). **#1284 needed no fix, so promote `dev` → `qa` now**, then run the full pass. #1222 and #1244 need the owner's visual sign-off before release #3 ships. |
-| Q3 | **Tests for what merges** | per PR | QA owns every test (owner ruling, 2026-09-07). #1250's are done (#1256). **#1253's are still owed**, and its PR says what to assert. |
-| Q4 | **#950: `layout.spec.ts` against a live run** | read-only | **Answered by #1252's run on 2026-09-12:** `layout.spec.ts` **passed** at `:430`, `:478` and `:626`, on both desktop and mobile. Post that on #950 with the run id (`34701414071`), then close it or say what's left. |
-| Q5 | **Open issues whose fix may already be on production** | ~1 hour | #1168, #1191, #1020, #1075 and #1173. For each one, check production or the issue's own thread, then **close it, or say on the issue exactly what's left.** #1119 also needs the owner's sign-off (`docs/OWNER-BLOCKERS.md` row 6). |
-| Q5a | **#1259: make a red E2E run mean something again** | ~1 day | Six specs fail on production's own code, and three more depend on CI or account state. **For each one, fix it or quarantine it with a reason and an issue link.** For the ratchets, find what raised the count before re-baselining. Until this lands, every release needs a manual triage like #1252's. |
-| Q5b | **#1260: does the price ticker return to its WebSocket after ~30 s of failed retries?** | ~1 hour | Check the CI trace first (run `34701414071`), then reproduce on `main` with an outage longer than 30 s. **If it never reopens, it's a product defect on production (#306), and it goes to Dev.** |
-| Q5c | **#1290: two Resource Timing entries ~100 ms apart on most market endpoints** | ~1 hour | **Low priority. Take it after release #3's pass, on a quiet machine.** Found while verifying #1192, which is closed. It isn't the 12 s retry, and `<MarketProvider>` mounts once. The second entry is `initiatorType: "other"` with 0 bytes. Only the automation Chrome has shown it. **To settle it,** run `qa` locally in a clean browser and count `[proxy] type=bybit-tickers` server log lines against Resource Timing entries for the same reload. If the server sees 1, it's an artifact: close it. |
-| Q6 | **#1171: the ~2.5 s nobody can account for** | ~half day | **Two causes have been disproved: the triple `/api/grok` call (re-measured, no improvement) and the entitlements read (measured on the wrong environment, by PM/DevOps's instruction).** What survives: network is quiet by ~4.5 s, content settles ~7 s. **The gap is AFTER network activity ends**: client-side render cost, or a WebSocket feed Resource Timing cannot see. **Measurement noise on these dynos exceeds the effect**, so either take many samples or say the environment cannot settle it. |
-| Q7 | **`TEST_GAPS.md` §6: accessibility asserted, never heard** | ~1 day | No real assistive-technology pass has ever happened. **"Cannot be verified here, and here is what would be needed" is an acceptable result.** |
-| Q8 | **`TEST_GAPS.md` §1: server time is not controllable** | ~half day | Anything time-dependent is untestable at boundaries. |
+| B2 | **#1359: stub both exchanges in the release gate** | open PR | Dev reviews and merges. **The next release run is the "after" measurement** against #1354's real "before" — no dedicated run, no extra cost. The prediction is written in the PR; if the gate still cannot finish, that is a result, not a failure. |
+| B3 | **#1361: the sign-in 504/522 flake** | filed, dormant | **No action unless it recurs.** 14 occurrences across one run, spread rather than concentrated; Dev's own runs saw none, which narrows it to concurrent load. Documented with the counts and the control. It makes **every** authenticated spec unreliable, so quote it when a red run is being triaged. |
+| B4 | **Coverage for #1360 (the support address)** | per PR | Dev says what to assert; you write it. The copy is DB rows in five locales, so assert by key rather than by rendered English. |
+| B5 | **#1263: the coin/timeframe half** | ~hours | Still **unknown**, not failing: two attempts, two different results, one confound found and one not. The strategy-selection half is verified and its spec is committed. |
+| B6 | **#1333: mobile drawer focus** | ~small | Open and unconfirmed; 25/25 passed locally, never confirmed on a deployed build. |
+| B7 | **`TEST_GAPS.md` §6: accessibility asserted, never heard** | ~1 day | No real assistive-technology pass has ever happened. "Cannot be verified here, and here is what it would take" is an acceptable result. |
+
+**B1 came out and B3 was downgraded on QA's review, within an hour of this file being
+written.** Both had moved between drafting and reading — which is the failure this file
+exists to prevent, arriving in the fix for it. The production re-check is done (#1347),
+its blocker is filed (#1364), and the sign-in flake is documented and dormant.
 
 ## Unassigned — take with a reason
 
 | Item | Why it is here |
 |---|---|
-| **#1025: why the dev Supabase project hangs** | **The trigger is known. Why dev can't absorb it is still a candidate.** Any DDL fires PostgREST schema reloads, including Realtime's hourly partition DDL and, on 2026-09-12, **one additive column at 09:16:24Z, which caused 30+ minutes of degradation**: `PGRST002` loops, `PGRST003` pool exhaustion, and PostgREST backends idle-in-transaction on `ClientRead`. **Postgres itself was idle, and PostgREST was the stalled side.** Two live candidates, not exclusive: **memory headroom** (dev at 99.77% of its commit limit) and **our own servers' retry storm**, which #1219 damps. #1219 shipped in release #2 on 2026-09-12. The **dashboard memory graph for 09:16–09:50Z** would confirm or kill the first. Production has never failed on a reload, and a manual DDL there under traffic has not been measured. |
-| **#1152 — the FREE plan described differently in two places** | **Root cause identified:** two independent sources. The landing page reads `dict.pricing.*` in `lib/i18n/dictionaries.ts`; the upgrade screen reads `UPGRADE_*` label keys. Nothing links them. **Editing both to match leaves the mechanism and they drift again.** The fix is one source — and it touches user-visible pricing, so the owner approves before anyone builds. |
-| **#1185 — the visual rule's remaining instances** | Corner consistency and the scroll affordance. The rule is adopted; these are what it applies to. **Owner approves anything visual.** |
-| **#1157: five unindexed foreign keys** | **Applied to production on 2026-09-12 at ~19:07Z** and read back (`docs/OWNER-BLOCKERS.md`, Settled). **They aren't on the dev database.** Checked at ~21:00Z: the four `lhq_dev_*` tables have only their primary keys. The dev versions are commented out at the bottom of `supabase/migrations/20260912b_fk_covering_indexes.sql`. **Low value for now**, because the tables hold a handful of rows, so don't raise it with the owner on its own. It's still a schema write: bundle it with the next dev-database schema ask, and apply it in a QA quiet window (machine rule 3). |
-| **`TEST_GAPS.md` §11 / §7** | CI being off is the owner's cost decision; the shared dev/staging database is a Supabase free-tier structural limit. Neither is actionable without a purchase. |
+| **#1347 item 17: the Strategy Panel is English-only across five locales** | The premise that blocked it — that keys added there cannot survive `labels:regen` — is **false**, and the regen script's own header says so. The path is open. Needs the owner's sign-off on the translated copy once written, and it carries the landing hard gate. |
+| **#1347 item 14: the alerts copy claims parity the divergence removed** | `ALERTS_EMA_SIGNAL_DESC` promises "the same confirmed buy or sell call your Arena chart draws". True of the markers, silent about the selection-gated verdict. DB rows, five locales, owner signs the wording. |
+| **#1292: settings conflict notice** | Built, QA-clean, **needs all four images re-shot** after the toast/floating-button fix, then the owner's approval. |
+| **#1025: why the dev Supabase project hangs** | Unchanged: any DDL fires PostgREST schema reloads; two live candidates are memory headroom and our own retry storm. |
+| **#1152: the FREE plan described differently in two places** | Two independent sources, nothing linking them. Editing both leaves the mechanism. One source is the fix, and it touches pricing, so the owner approves first. |
 
 ---
 
