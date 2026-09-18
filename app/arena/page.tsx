@@ -1252,7 +1252,19 @@ function ArenaContent() {
          give the model a second vocabulary for one fact, and a user reading the
          dashboard and the AI answer would see two claims instead of one. */
       perpSpot: perpSpotRef.current?.explanation ?? 'Perps vs spot could not be measured for this coin.',
-      emaStrategy: strategyToGrokLine(emaSignalRef.current, readTf),
+      /* #1347 item 5: emaSignalRef (below) freezes at the last resolved
+         value while emaSignal.loading is true (:704-705) - correct on its
+         own, so a coin/TF switch doesn't flash "no data" for one render.
+         But nothing downstream checked emaSignal.loading before reading the
+         ref, so on a coin or TF change the prompt asserted the PREVIOUS
+         coin/TF's EMA technicals as present-tense fact for the one now
+         selected, with no caveat. One label at the top of the bundle, not
+         four (emaStrategy/emaATR/ema50Slope/waveTrend all derive from the
+         same frozen ref for the same reason) - repeating it per field would
+         be noise for one root cause. */
+      emaStrategy: (emaSignal.loading
+        ? '[Still loading EMA technicals for the current coin/timeframe - the line below is the PREVIOUS selection\'s, not this one\'s] '
+        : '') + strategyToGrokLine(emaSignalRef.current, readTf),
       emaATR: emaSignalRef.current.atrLast != null
         ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 35% buf = $${(emaSignalRef.current.atrLast * 0.35).toFixed(2)} min clearance above/below EMA50`
         : '-',
