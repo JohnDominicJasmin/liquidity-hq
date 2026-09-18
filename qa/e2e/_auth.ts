@@ -106,6 +106,30 @@ export const AUTH_SKIP_REASON =
   'But a skip is NOT a pass either - if you are seeing this, the authenticated surface ' +
   'is being verified by nothing at all in this run.';
 
+/* #1348/#1347 item 1: a spec that fires real, billed xAI calls (QUICK/DEEP
+ * against /api/grok) must not run as part of the ordinary suite - CI's
+ * `test:e2e` job runs unscoped on every push to a release PR (staging ->
+ * main), and because a release PR's head IS its base branch, every push to
+ * `staging` while one is open re-fires it via `synchronize`. AUTH_READY
+ * alone does not gate this: CI supplies the E2E_USER_* fixtures as real
+ * secrets, so an authenticated-only gate is satisfied there too - a
+ * SEPARATE, explicit opt-in is required, defaulting to skip, the same way
+ * a skip is loud and stated rather than silent.
+ *
+ * Deliberately not tied to AUTH_READY or NODE_ENV=test - both are true in
+ * CI, which is exactly the environment this must default OFF in. A human
+ * (or a deliberately configured job) sets E2E_ALLOW_BILLED_CALLS=1 to opt
+ * in; nothing else does. */
+export const BILLED_CALLS_READY = process.env.E2E_ALLOW_BILLED_CALLS === '1';
+
+export const BILLED_CALLS_SKIP_REASON =
+  'this spec fires real, billed xAI API calls (QUICK/DEEP via /api/grok) and does not run by ' +
+  'default - set E2E_ALLOW_BILLED_CALLS=1 to opt in deliberately. Not gated on AUTH_READY: CI ' +
+  'supplies real E2E_USER_* secrets, so an auth-only gate would let this fire on every push to ' +
+  'a release PR (staging -> main re-runs the whole suite via `synchronize` on every push while ' +
+  'one is open). Skipping rather than passing: this is not a pass on the mechanism it checks - ' +
+  'it is verifying nothing this run, deliberately, to avoid an unplanned recurring cost.';
+
 /* ENTITLEMENT FIXTURES ARE A AND B, PINNED.
  *
  *   A -> role='pro',  trial_ends_at NULL

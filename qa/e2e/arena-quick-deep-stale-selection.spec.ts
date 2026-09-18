@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
+import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, BILLED_CALLS_READY, BILLED_CALLS_SKIP_REASON } from './_auth';
 
 /* #1348 item 1 (from #1347's audit) - the audit's headline target.
  *
@@ -18,12 +18,24 @@ import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_
  * carried the wrong indicators. The only instrument that settles it is the
  * outgoing /api/grok POST body.
  *
- * WHY THIS COSTS REAL AI CREDITS AND RUNS EXACTLY ONCE: both QUICK and DEEP
- * are real, billed xAI calls. Budgeted and stated on #1348 before running:
- * 2 calls total (one per click), one attempt. A clean negative (the second
- * request correctly names the new selection) is reported as a real result -
- * it downgrades this from confirmed-live-defect to latent-hazard, not a
- * wasted run, per PM/DevOps's own framing.
+ * WHY THIS COSTS REAL AI CREDITS, AND WHY IT IS GATED OFF BY DEFAULT:
+ * both QUICK and DEEP are real, billed xAI calls. This does NOT run
+ * unless E2E_ALLOW_BILLED_CALLS=1 is set explicitly (BILLED_CALLS_READY,
+ * ./_auth.ts) - AUTH_READY alone is not enough of a gate, because CI
+ * supplies real E2E_USER_* secrets, and CI's `test:e2e` job runs the whole
+ * suite unscoped on every push to a release PR (staging -> main). A
+ * release PR's head IS its base branch, so every push to `staging` while
+ * one is open re-fires the suite via `synchronize` - this spec would have
+ * billed on every one of those runs with no one having decided that.
+ *
+ * RUN HISTORY (updated by hand after each deliberate run, not automated):
+ * 2 calls against the deployed qa site before the #1347 fix existed
+ * (clean negative). 4 calls against the fix's own local build after it
+ * landed - 2 of those 4 were an unplanned mistake (re-ran the command to
+ * inspect output already in hand instead of reading it), reported as such
+ * rather than folded into "the authorised check." All four post-fix
+ * calls: clean negative, both required assertions (names SMA, does not
+ * name EMA Ribbon) satisfied every time.
  *
  * METHODOLOGY: click QUICK once (selection A, lets the first call complete
  * so the button re-enables - #1338's guard requires this), THEN change the
@@ -38,6 +50,7 @@ import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+test.skip(!BILLED_CALLS_READY, BILLED_CALLS_SKIP_REASON);
 
 test.describe('QUICK/DEEP must send the selection current at click time, not a stale one (#1348 item 1)', () => {
   test('switching the indicator selection immediately before a DEEP click sends the NEW selection, not the one from the first click', async ({ browser }) => {
@@ -121,8 +134,8 @@ test.describe('QUICK/DEEP must send the selection current at click time, not a s
       // summary), regardless of selection. Matching that section would
       // false-positive "still weighing EMA Ribbon" on a run that never
       // selected it at all. First run of this exact regex made that mistake
-      // - fixed here without re-running (budget spent, one attempt as
-      // committed on #1348).
+      // - fixed here without re-running, to avoid spending another billed
+      // call just to correct a matching pattern.
       const secondPrompt = grokRequestBodies[1];
       const weighSentenceMatch = secondPrompt.match(/weigh these indicators:\s*([^.\\]*)\./);
       const weighSentence = weighSentenceMatch?.[1] ?? '(no "weighing these indicators" sentence found at all)';
