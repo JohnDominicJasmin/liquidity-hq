@@ -60,8 +60,11 @@ interface Props {
    *  empty selection that the next chip click would persist over the user's
    *  real saved one (item 2 - the finding this whole type exists for). */
   status: SettingsLoadStatus;
-  /** Retry action for the 'error' state - SettingsProvider's `refresh()`. */
-  onRetry: () => void;
+  /** Retry action for the 'error' state - SettingsProvider's `refresh()`.
+   *  Returns a Promise (refresh() already is async) so this component can
+   *  show a pending state for the round trip - a click that changes nothing
+   *  on screen is indistinguishable from a click that didn't register. */
+  onRetry: () => Promise<void>;
   /** The current selection. CONTROLLED, and that is the point of this change:
    *  the chart, QUICK, DEEP and ASK AI all need to know what is selected, and
    *  three of those live outside this component. State that two consumers read
@@ -151,6 +154,17 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
   const { entitlementStatus } = useAuth();
   const entitled = entitlementStatus === 'entitled';
   const { t } = useLabels();
+  // #1347: local, not global - a USER-initiated retry gets its own pending
+  // state so the button visibly does something, without reintroducing the
+  // flash `refresh()` deliberately skips for a background poll. Cleared in
+  // a finally so a rejected refresh() (network throw, not just a reported
+  // 'error' status) still releases the button rather than leaving it
+  // permanently disabled.
+  const [retrying, setRetrying] = useState(false);
+  const handleRetry = async () => {
+    setRetrying(true);
+    try { await onRetry(); } finally { setRetrying(false); }
+  };
   const limitNoteId = useId();
   const limit = indicatorLimit(entitled);
 
@@ -291,10 +305,11 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }} role="alert">
             <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>Couldn&apos;t load your saved indicators.</span>
             <button
-              onClick={onRetry}
-              style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}
+              onClick={handleRetry}
+              disabled={retrying}
+              style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '2px 8px', cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1 }}
             >
-              Retry
+              {retrying ? 'Retrying…' : 'Retry'}
             </button>
           </div>
         )}
