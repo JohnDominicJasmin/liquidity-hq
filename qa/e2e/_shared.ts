@@ -1,5 +1,6 @@
 import type { Page, APIRequestContext, APIResponse } from '@playwright/test';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import DEFAULT_EN_LABELS from '../../lib/labelDefaults.en.json';
 
 /** Every route the suite sweeps. Public + app routes, signed out. */
 /* Every route the sweeping specs measure — contrast, layout, a11y, seo, perf.
@@ -688,6 +689,26 @@ export async function getGuarded(
   } catch (e) {
     rethrowIfEnvironmental(e, url);
   }
+}
+
+/**
+ * The label map a page actually RENDERS from, not what /api/labels returns.
+ *
+ * /api/labels serves database rows only. The client (components/LabelsProvider)
+ * layers them over the shipped English defaults, `{ ...DEFAULT_EN_LABELS, ...data }`,
+ * so a key that exists only in lib/labelDefaults.en.json - a new one, or one no
+ * migration ever seeded - renders fine and is ABSENT from the API. A spec that
+ * looks a key up in the API alone fails on a page that is correct. That was
+ * #1366's mistake and then #1371's, on consecutive days; use this instead
+ * whenever a spec needs the text a user would see.
+ *
+ * Use a raw /api/labels read only when the question is genuinely "is there a
+ * database row" (support-contact-address.spec.ts asks exactly that).
+ */
+export async function servedLabels(request: APIRequestContext, locale = 'en'): Promise<Record<string, string>> {
+  const res = await getGuarded(request, `/api/labels?locale=${locale}`);
+  const db = await res.json() as Record<string, string>;
+  return { ...(DEFAULT_EN_LABELS as Record<string, string>), ...db };
 }
 
 /**

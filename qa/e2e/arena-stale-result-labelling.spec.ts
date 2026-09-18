@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Browser } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
+import { servedLabels } from './_shared';
 
 /* #1347 item 4 (#1365, fix by Dev Team) - a read computed for one indicator
  * selection kept being SHOWN after the trader changed the selection, and only
@@ -34,7 +35,9 @@ import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_
  * separate source of flake unrelated to what this file measures.
  *
  * ASSERTED BY LABEL KEY, NOT BY RENDERED ENGLISH. The stale notice's wording is
- * read from /api/labels (ARENA_STALE_SELECTION_PRE) rather than typed here, and
+ * read from the served label map (ARENA_STALE_SELECTION_PRE) rather than typed here - the
+ * DATABASE rows layered over the shipped defaults, as the client renders them, NOT
+ * /api/labels alone, which does not carry a key that has no row - and
  * the ASK AI prompt is identified by the fixed payload's own marker token, which
  * is locale-invariant. A copy edit to either label cannot silently turn these
  * into passing-for-the-wrong-reason.
@@ -125,11 +128,11 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
     .toBeVisible({ timeout: 20_000 });
   await expect(quickBtn).toBeEnabled({ timeout: 20_000 });
 
-  const labels = await (await page.request.get('/api/labels?locale=en')).json() as Record<string, string>;
+  const labels = await servedLabels(page.request);
   const stalePre = labels.ARENA_STALE_SELECTION_PRE;
-  expect(stalePre, 'ARENA_STALE_SELECTION_PRE is missing from /api/labels - cannot identify the stale notice by key').toBeTruthy();
+  expect(stalePre, 'ARENA_STALE_SELECTION_PRE is in neither the served labels nor the shipped defaults - cannot identify the stale notice by key').toBeTruthy();
   const noResultPrefix = (labels.ARENA_CHAT_PROMPT_NO_RESULT ?? '').split('{')[0];
-  expect(noResultPrefix, 'ARENA_CHAT_PROMPT_NO_RESULT is missing from /api/labels').toBeTruthy();
+  expect(noResultPrefix, 'ARENA_CHAT_PROMPT_NO_RESULT is in neither the served labels nor the shipped defaults').toBeTruthy();
 
   const staleNotices = page.locator('.arena-override-notice').filter({ hasText: stalePre });
   const staleInCard = page.locator('.arena-signal-card .arena-override-notice').filter({ hasText: stalePre });
@@ -209,14 +212,21 @@ test.describe('A read computed for a different selection is marked wherever it i
     try {
       const ema = page.locator('button.strat-chip', { hasText: 'EMA Ribbon' });
       const sma = page.locator('button.strat-chip', { hasText: 'SMA' });
-      await ema.click();
+      // With 2+ selected, clicking a chip that is NOT the focused one only
+      // brings its params back into view - it does not deselect (#1027,
+      // StrategyPanel `toggle`). Only re-clicking the FOCUSED chip removes
+      // it. The last chip picked (SMA) holds focus, so SMA goes first, then
+      // EMA Ribbon becomes the focused one. An earlier version of this test
+      // clicked EMA Ribbon first, which just moved focus and left both
+      // pressed - a wrong model of the panel, not a product defect.
       await sma.click();
-      await expect(ema).toHaveAttribute('aria-pressed', 'false');
       await expect(sma).toHaveAttribute('aria-pressed', 'false');
-      // Same two indicators, opposite click order.
-      await sma.click();
       await ema.click();
+      await expect(ema).toHaveAttribute('aria-pressed', 'false');
+      // Same two indicators, opposite click order: SMA first this time.
+      await sma.click();
       await expect(sma).toHaveAttribute('aria-pressed', 'true');
+      await ema.click();
       await expect(ema).toHaveAttribute('aria-pressed', 'true');
 
       await expect(staleNotices,

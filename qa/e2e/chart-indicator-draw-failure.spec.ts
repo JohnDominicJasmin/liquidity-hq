@@ -158,6 +158,13 @@ test.describe('The chart says so when it cannot draw a selected indicator (#1347
 
       const input = page.locator('.strat-params input[type="number"]').first();
       await expect(input, 'the params box never rendered for the focused indicator - cannot drive a param edit').toBeVisible({ timeout: 10_000 });
+      // The input is DISABLED until the entitlements read resolves as Pro
+      // (StrategyPanel `readOnly={!entitled}`), and that window is real and can
+      // be long on a slow dev Supabase (#1347 item 6, loading half). Waiting for
+      // it to enable is the honest precondition; failing here means A never
+      // resolved as entitled, NOT that the chart badge is broken.
+      await expect(input, 'the params input stayed DISABLED - account A did not resolve as entitled in time (entitlements read still in flight, or A has drifted from Pro), so a param edit cannot be driven. Not a finding about the chart badge.')
+        .toBeEnabled({ timeout: 60_000 });
       restore = { input, value: await input.inputValue() };
 
       await setFlag(page, 'override-throw');
