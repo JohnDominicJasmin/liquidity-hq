@@ -79,6 +79,30 @@ test.describe('LiquidityAI must know a real saved selection even without an Aren
       });
 
       // Fresh load, straight to news - NO Arena visit anywhere in this test.
+      // CORRECTNESS NOTE: an earlier draft of this file named "news" in its
+      // title, comments and assertion text but never actually navigated
+      // there - `gotoSignedIn(page, '/news')` was missing entirely, so every
+      // prior run of this exact file exercised `/about` (the reset target
+      // above) rather than news. Caught while fixing the timing wait below,
+      // not before. Doesn't change item 18's finding (`/about` is equally
+      // "not Arena," which is the only property that mattered), but the
+      // test should do what it says. Fixed here, not left as a stale
+      // comment describing a page this file never visited.
+      //
+      // #1347 items 3/18 fix: chatSelection now seeds from a mount-time
+      // effect gated on settingsLoadStatus === 'ready' (GrokChat.tsx,
+      // chatSelectionSeededRef). GrokChat has no visible loading indicator
+      // for that status, so this waits on the actual precondition - the
+      // `user_settings` REST read resolving - rather than a fixed sleep,
+      // which would flake on a slow run or a cold start of the deployed
+      // site rather than being deterministic either way.
+      const settingsRead = page.waitForResponse(
+        resp => resp.url().includes(`${SUPABASE_URL}/rest/v1/user_settings`),
+        { timeout: 15_000 },
+      ).catch(() => null); // null, not a throw - a page that never re-fetches settings on this nav (e.g. already cached) is a real outcome to fall through from, not a test error
+      await gotoSignedIn(page, '/news');
+      await settingsRead;
+
       // Opens via the global FAB (data-testid="grok-launcher",
       // GrokChat.tsx:692-697) rather than a per-article "Ask AI" card - the
       // news feed can render with zero cards on this environment (no
