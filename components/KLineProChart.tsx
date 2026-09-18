@@ -2434,6 +2434,18 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
    * indicator's values into its pane's auto Y-range, which is why a long EMA on
    * the candle pane once dragged the axis ~11x wider than the visible range. An
    * entry marked `own` gets its own pane for that reason. */
+  /* #1347 item 11: the sync effect below has two silent-failure paths -
+     `createIndicator` returning null for an indicator the chip list still
+     shows as selected (the registry's own unit test should make this
+     unreachable for a real builtin id, but "should" is not "does" if that
+     test and this chart ever drift), and `overrideIndicator` throwing on a
+     param edit, which used to just leave the OLD line on screen with no
+     sign the new value hasn't taken effect ("next sync retries" is true but
+     invisible). Both land here as one shared, low-noise notice - one
+     mechanism for "the chart couldn't draw what you selected/changed",
+     matching the Bybit-fallback badge's own precedent (below) rather than
+     inventing a second corner-label pattern. */
+  const [chartSyncIssues, setChartSyncIssues] = useState<string[]>([]);
   const activeIndicatorIds = useRef<Map<string, string>>(new Map());
   /* Last calcParams actually applied per active indicator, serialized for a
      cheap diff (#1008). Lets a param edit on an indicator that stays selected
@@ -2466,6 +2478,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     }
 
     // Add what is newly selected.
+    const failed: string[] = [];
     for (const [key, entry] of wanted) {
       const calcParams = toCalcParams(entry, indicatorParams?.[key]);
       const serialized = JSON.stringify(calcParams);
@@ -2488,7 +2501,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                this chart (line ~997). */
             chart.overrideIndicator({ id: existingId, name: entry.id, calcParams });
             activeParamsRef.current.set(key, serialized);
-          } catch { /* leave the stale snapshot - next sync retries */ }
+          } catch {
+            // #1347 item 11: leave the stale snapshot so the next sync
+            // retries, as before - now also surfaced, since the chart still
+            // shows the OLD line under the input's NEW value until a retry
+            // succeeds, with nothing saying so.
+            failed.push(entry.label);
+          }
         }
         continue;
       }
@@ -2518,13 +2537,23 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
          * never could, because nothing was thrown. A null simply leaves nothing
          * in the map, so the next sync does not try to remove an indicator that
          * was never created. The registry test that checks every builtin id
-         * against the 27 names klinecharts ships is what actually guards it. */
+         * against the 27 names klinecharts ships is what actually guards it -
+         * #1347 item 11 adds a visible fallback for the residual case that
+         * test doesn't cover (a drift between the registry and whatever
+         * klinecharts version is actually loaded), rather than leaving the
+         * chip selected and pressed with nothing to show for it. */
         if (indicatorId) {
           activeIndicatorIds.current.set(key, indicatorId);
           activeParamsRef.current.set(key, serialized);
+        } else {
+          failed.push(entry.label);
         }
-      } catch { /* a genuine render error - leave the map untouched and carry on */ }
+      } catch {
+        // a genuine render error - leave the map untouched and carry on
+        failed.push(entry.label);
+      }
     }
+    setChartSyncIssues(failed);
   }, [indicators, indicatorParams, chartReady]);
 
   // ── Restore user-drawn lines for this coin, and swap them out on coin change ──
@@ -2947,6 +2976,27 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               padding: '3px 8px',
             }}>
               Bybit (Binance unreachable)
+            </div>
+          </div>
+        )}
+
+        {/* #1347 item 11: an indicator the chip list still shows as selected
+            that failed to draw or failed to pick up a param edit, surfaced
+            here rather than left silent - see the sync effect's own comment
+            above for the two failure paths this covers. Same corner-label
+            treatment as the Bybit-fallback badge above, opposite corner so
+            the two never overlap if both are true at once. */}
+        {chartSyncIssues.length > 0 && (
+          <div style={{ position: 'absolute', top: 8, right: 8, pointerEvents: 'none' }}>
+            <div style={{
+              fontSize: 'var(--fs-caption)',
+              color: 'rgba(255,255,255,0.65)',
+              background: 'rgba(30,30,30,0.72)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 4,
+              padding: '3px 8px',
+            }}>
+              Couldn&apos;t draw: {chartSyncIssues.join(', ')}
             </div>
           </div>
         )}
