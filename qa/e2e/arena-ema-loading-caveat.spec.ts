@@ -46,7 +46,15 @@ import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_
  * The caveat is hard-coded English inside a prompt sent to the model, not a UI
  * label, so it is matched as written.
  *
- * Not run before this commit's own run; results are on the PR that adds it.
+ * READ A GREEN RUN FOR WHAT IT IS. This spec has only ever been seen to PASS,
+ * on the FIXED build (deployed qa at 3f58a2d). It has never been run against the
+ * code before 91f388fd, so nobody has watched it FAIL on the defect it guards.
+ * Its power to catch that defect rests on Dev's measurement (the caveat present in
+ * 1 of 8 reads while EMA was provably loading) and on the by-construction argument
+ * above, not on a red run of its own - by qa/README.md's own habit, that makes it a
+ * promise until it is proven once against a pre-fix build. Do that when the machine
+ * has room; until then a pass here means the fix behaves, not that this spec would
+ * have caught its absence.
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
