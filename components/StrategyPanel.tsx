@@ -27,6 +27,7 @@
 import { useState, useMemo, useId } from 'react';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
+import { EntitlementUnknownCard } from './UpgradeGateModal';
 import type { SettingsLoadStatus } from '@/lib/settings';
 // #1347 item 12: first real useLabels() call in this file. The header
 // comment above claims a key added here "would not survive labels:regen" -
@@ -151,8 +152,18 @@ function ParamRow({ spec, value, readOnly, onChange }: {
 
 export default function StrategyPanel({ status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
   const loaded = status === 'ready';
-  const { entitlementStatus } = useAuth();
+  const { entitlementStatus, retryEntitlements } = useAuth();
   const entitled = entitlementStatus === 'entitled';
+  // #1347 item 6: `entitled` (used for `limit`/`atLimit`/`readOnly` below)
+  // collapses 'not_entitled' and 'unknown' into the same false - so a Pro
+  // user whose entitlements read hadn't resolved yet was capped at the
+  // free-tier limit=1 and shown a read-only params box, a confident "you
+  // are on free" the owner's #1119 ruling forbids asserting. The selection
+  // UI itself is replaced with EntitlementUnknownCard below while unknown -
+  // same component and Retry action arena/page.tsx already uses for its
+  // Confluence card (:2524-2534), not a second implementation of the same
+  // three states.
+  const entitlementUnknown = entitlementStatus === 'unknown';
   const { t } = useLabels();
   // #1347: local, not global - a USER-initiated retry gets its own pending
   // state so the button visibly does something, without reintroducing the
@@ -255,6 +266,10 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
         </span>
       </div>
 
+      {entitlementUnknown ? (
+        <EntitlementUnknownCard title="Strategy indicators" onRetry={retryEntitlements} />
+      ) : (
+      <>
       <div className="strat-sect">
         <div className="strat-lbl">
           <span>Strategy set</span>
@@ -454,6 +469,8 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
           </div>
         )}
       </div>
+      </>
+      )}
 
       <div className="strat-sect">
         <div className="strat-lbl"><span>Run the read</span></div>
