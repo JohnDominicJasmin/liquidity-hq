@@ -1997,17 +1997,27 @@ function ArenaContent() {
       {/* ── AI READ · answer-first hero ── */}
       <div className="arena-below-chart">
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        {/* Quick button - requires sign-in */}
+        {/* Quick button - requires sign-in.
+            #1347 item 11: #1338 fixed `disabled` to also check `authLoading`
+            (a click before sign-in resolves must not bounce a signed-in
+            user to /login) but left the lock icon, title and CSS class
+            keyed on `!user` alone - so while auth was still resolving, a
+            signed-in user saw the "sign in to use this" lock icon and
+            tooltip on a button that was correctly disabled for a different
+            reason. `!user && !authLoading` is the confirmed-signed-out
+            state; unknown-yet renders as neither locked nor unlocked,
+            matching the same "don't claim a fact we haven't confirmed"
+            pattern as this file's other #1347 fixes. */}
         <button
-          className={`arena-fire-btn arena-quick-btn${!user ? ' arena-deep-locked' : ''}`}
+          className={`arena-fire-btn arena-quick-btn${!user && !authLoading ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
+          title={!user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {!user && (
+              {!user && !authLoading && (
                 <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
                   <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -2018,17 +2028,17 @@ function ArenaContent() {
           )}
         </button>
 
-        {/* Deep button - requires sign-in */}
+        {/* Deep button - requires sign-in. Same fix as Quick above. */}
         <button
-          className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
+          className={`arena-fire-btn${!user && !authLoading ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
+          title={!user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {!user && (
+              {!user && !authLoading && (
                 <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
                   <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
