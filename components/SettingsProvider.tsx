@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthProvider';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
 import {
-  UserSettings, SettingsContext,
+  UserSettings, SettingsContext, SettingsLoadStatus,
   DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings, rowToSettings,
   loadUnconfirmed, saveUnconfirmed, dropLegacyUnconfirmedKey,
 } from '@/lib/settings';
@@ -30,11 +30,12 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   const { user, loading: authLoading } = useAuth();
   const [settings,   setSettings]   = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading,    setLoading]    = useState(true);
-  // #1246: see lib/settings.ts's own comment on why this is separate from
-  // `loading`. False until the authoritative source (DB row for a signed-in
-  // user, or a confirmed sign-out) has actually been consulted once for the
-  // CURRENT account - goes false again if the account changes.
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  // #1246/#1347: see lib/settings.ts's own comment on why this is separate
+  // from `loading` and why it's a tri-state, not a boolean. 'loading' until
+  // the authoritative source (DB row for a signed-in user, or a confirmed
+  // sign-out) has actually been consulted once for the CURRENT account -
+  // goes back to 'loading' if the account changes.
+  const [settingsLoadStatus, setSettingsLoadStatus] = useState<SettingsLoadStatus>('loading');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,23 +238,28 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       // nothing left here to protect against.
       // #1246: a confirmed sign-out IS an authoritative answer - there is no
       // row to wait for, so DEFAULT_SETTINGS is correct as-is and a consumer
-      // gating on settingsLoaded should not stay blocked forever here.
-      setSettingsLoaded(true);
+      // gating on settingsLoadStatus should not stay blocked forever here.
+      setSettingsLoadStatus('ready');
       return;
     }
     const sb = getSupabase();
-    if (!sb) return;
+    // #1347 item 8: used to just `return` here, leaving settingsLoadStatus
+    // at whatever it already was (permanently 'loading' on a fresh session)
+    // with no error surfaced - a signed-in user with no client got a silent,
+    // permanent skeleton. 'error' at least gives StrategyPanel a real state
+    // to render instead of pretending the read is still in flight forever.
+    if (!sb) { setSettingsLoadStatus('error'); return; }
     setLoading(true);
     // #1246: a new account id means its row hasn't been read yet, even
     // though the PREVIOUS account's had - without this, switching accounts
-    // in one session would leave settingsLoaded true from the old account
-    // for the instant before the new read resolves.
-    setSettingsLoaded(false);
+    // in one session would leave settingsLoadStatus 'ready' from the old
+    // account for the instant before the new read resolves.
+    setSettingsLoadStatus('loading');
     sb.from(T.user_settings)
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (data) {
           const row = data as Record<string, unknown>;
           const s   = rowToSettings(row);
@@ -297,8 +303,16 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
           } catch { /* ignore */ }
         }
         setLoading(false);
-        setSettingsLoaded(true);
-      }, () => { setLoading(false); setSettingsLoaded(true); });
+        // #1347 item 2: `error` used to be dropped entirely by the
+        // `{ data }` destructure above, so a real Postgrest-level failure
+        // (RLS denial, transient DB error) was indistinguishable from "no
+        // row yet for a new user" - both landed here and both reported
+        // 'ready' with DEFAULT_SETTINGS standing in as a confirmed answer.
+        // `data` with no `error` (a real row) and no `data` with no `error`
+        // (genuinely new user, nothing saved yet) are both honest 'ready'
+        // outcomes; only a real `error` is not.
+        setSettingsLoadStatus(error ? 'error' : 'ready');
+      }, () => { setLoading(false); setSettingsLoadStatus('error'); });
   }, [user?.id, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Re-read from Supabase on demand ───────────────────────────────────────
@@ -306,22 +320,43 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // migration (that must stay one-time). Exposed on the context for flows
   // where the server writes a setting behind the client's back - the Telegram
   // link code is redeemed by the bot webhook, so the Alerts page polls this to
-  // notice the connection landed.
+  // notice the connection landed. Also StrategyPanel's Retry action once
+  // settingsLoadStatus is 'error' (#1347 item 2).
+  //
+  // Deliberately does NOT set 'loading' at the start, unlike the sign-in
+  // effect: this runs as a background poll (Alerts page) as well as an
+  // explicit Retry, and flashing every settingsLoadStatus consumer's loading
+  // state (StrategyPanel's skeleton) on each poll tick would be a new,
+  // worse annoyance than the bug this fixes.
+  //
+  // STICKY 'ready' (#1347): a failed refresh must never demote a status that
+  // has already reached 'ready' back to 'error' - `refresh` is consumed by
+  // the Alerts page too, and that provider is app-wide, so a network blip on
+  // an unrelated background poll would otherwise lock the Arena panel's
+  // write guard even though `settings` still holds correct, already-loaded
+  // data. 'error' means "we have never successfully read this," which is
+  // only true the first time this fails, before anything has landed - the
+  // functional setState form checks that rather than overwriting blindly.
   const refresh = useCallback(async () => {
     if (!user) return;
     const sb = getSupabase();
-    if (!sb) return;
-    const { data } = await sb.from(T.user_settings)
+    if (!sb) { setSettingsLoadStatus(prev => prev === 'ready' ? prev : 'error'); return; }
+    const { data, error } = await sb.from(T.user_settings)
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
-    if (!data) return;
-    const row = data as Record<string, unknown>;
-    const s = rowToSettings(row);
-    if (row.field_updated_at && typeof row.field_updated_at === 'object') {
-      fieldUpdatedAtRef.current = row.field_updated_at as Record<string, string>;
+    if (error) { setSettingsLoadStatus(prev => prev === 'ready' ? prev : 'error'); return; }
+    if (data) {
+      const row = data as Record<string, unknown>;
+      const s = rowToSettings(row);
+      if (row.field_updated_at && typeof row.field_updated_at === 'object') {
+        fieldUpdatedAtRef.current = row.field_updated_at as Record<string, string>;
+      }
+      applyDbSettings(user.id, s);
     }
-    applyDbSettings(user.id, s);
+    // A successful refresh always confirms 'ready', whether or not a row
+    // came back - never a demotion, so unconditional is correct here.
+    setSettingsLoadStatus('ready');
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = useCallback((partial: Partial<UserSettings>) => {
@@ -364,8 +399,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // setting actually changed. update/refresh/flushToDb are already useCallback'd,
   // so the identity is stable until the values genuinely move.
   const value = useMemo(
-    () => ({ settings, loading, settingsLoaded, saveStatus, update, refresh }),
-    [settings, loading, settingsLoaded, saveStatus, update, refresh],
+    () => ({ settings, loading, settingsLoadStatus, saveStatus, update, refresh }),
+    [settings, loading, settingsLoadStatus, saveStatus, update, refresh],
   );
 
   return (

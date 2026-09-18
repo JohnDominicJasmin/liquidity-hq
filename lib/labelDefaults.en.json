@@ -728,6 +728,7 @@
   "ARENA_HIST_CONFIDENCE_PCT": "{pct}% confidence",
   "ARENA_HIST_ENTRY_ZONE_LABEL": "Entry Zone",
   "ARENA_REASONING_LINK_FALLBACK": "link",
+  "STRATEGY_PANEL_PARAMS_VERDICT_NOTE": "Changes the chart line only. The buy/sell call still uses standard settings.",
   "MARKETS_SIGNAL_LONGS_OVERCROWDED": "Longs overcrowded",
   "MARKETS_SIGNAL_SHORTS_SQUEEZED": "Shorts squeezed",
   "MARKETS_SIGNAL_SMART_BUYERS": "Smart buyers active",

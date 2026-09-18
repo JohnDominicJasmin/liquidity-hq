@@ -453,6 +453,10 @@ export const LABEL_KEYS = [
   'ARENA_SESSION_HISTORY_HEADER', 'ARENA_SESSION_HISTORY_CLEAR_BUTTON',
   'ARENA_HIST_BADGE_LONG', 'ARENA_HIST_BADGE_LEAN_LONG', 'ARENA_HIST_BADGE_SHORT', 'ARENA_HIST_BADGE_LEAN_SHORT', 'ARENA_HIST_BADGE_FLAT',
   'ARENA_HIST_CONFIDENCE_PCT', 'ARENA_HIST_ENTRY_ZONE_LABEL', 'ARENA_REASONING_LINK_FALLBACK',
+  // Arena - strategy panel (#1347 item 12; StrategyPanel.tsx's own copy is
+  // otherwise still hardcoded English, tracked for a single-pass conversion
+  // on item 17 - this is the one key that couldn't wait for that pass)
+  'STRATEGY_PANEL_PARAMS_VERDICT_NOTE',
 
   // Markets
   'MARKETS_SIGNAL_LONGS_OVERCROWDED', 'MARKETS_SIGNAL_SHORTS_SQUEEZED',

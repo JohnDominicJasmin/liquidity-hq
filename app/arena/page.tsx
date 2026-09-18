@@ -184,7 +184,7 @@ function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
-  const { settings, settingsLoaded, update } = useSettings();
+  const { settings, settingsLoadStatus, update, refresh: refreshSettings } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
     const c = searchParams.get('coin')?.toLowerCase() ?? '';
@@ -282,13 +282,17 @@ function ArenaContent() {
      echoing the just-read value straight back to the server on every load.
      Passed to StrategyPanel below in place of the raw setters. */
   const handleStrategySelectionChange = useCallback((next: readonly string[]) => {
-    // #1246: belt-and-suspenders alongside StrategyPanel's own `loaded` gate
-    // - this is the only path that writes strategy_selection, and it must
-    // not run against the pre-load [] regardless of what calls it.
-    if (!settingsLoaded) return;
+    // #1246/#1347: belt-and-suspenders alongside StrategyPanel's own gate -
+    // this is the only path that writes strategy_selection, and it must not
+    // run against the pre-load [] regardless of what calls it. Gating on
+    // `!== 'ready'` (not just truthiness) means a failed read - which used
+    // to report the same 'ready'-equivalent as a real one - no longer opens
+    // this guard and lets a chip click persist an empty selection over the
+    // user's actual saved one (#1347 item 2, the data-loss finding).
+    if (settingsLoadStatus !== 'ready') return;
     setStrategySelection(next);
     update({ strategy_selection: next as string[] });
-  }, [update, settingsLoaded]);
+  }, [update, settingsLoadStatus]);
   const handleStrategyParamsChange = useCallback((next: Record<string, Record<string, string | number | boolean>>) => {
     setStrategyParams(next);
     update({ strategy_params: next });
@@ -588,21 +592,25 @@ function ArenaContent() {
 
   /* ── Seed coin + TF from settings once settings are loaded ── */
   // #1263: this used to guard ONLY on arenaInitRef, flipped true the first
-  // time this effect ran AT ALL - which on mount is BEFORE settingsLoaded can
-  // ever be true (settings starts as loadLocalSettings()'s DEFAULT_SETTINGS,
-  // synchronous, seeded before the real DB read has even started). On
-  // anything slower than an instant network, that first run seeded from the
-  // default coin/TF/strategy, latched arenaInitRef, and the real saved
-  // values arriving moments later were silently ignored - the guard this
-  // effect exists for was firing on the WRONG read. Gating on settingsLoaded
-  // first means the effect keeps returning early (arenaInitRef never
-  // latches) until the authoritative read actually lands, then seeds once
-  // from the real values. coinTouchedRef/tfTouchedRef cover the one case
-  // that still needs care: a user who acts on coin/TF WHILE settings are
-  // still loading must not have that choice overwritten once the slow read
-  // finally resolves.
+  // time this effect ran AT ALL - which on mount is BEFORE settingsLoadStatus
+  // can ever be 'ready' (settings starts as loadLocalSettings()'s
+  // DEFAULT_SETTINGS, synchronous, seeded before the real DB read has even
+  // started). On anything slower than an instant network, that first run
+  // seeded from the default coin/TF/strategy, latched arenaInitRef, and the
+  // real saved values arriving moments later were silently ignored - the
+  // guard this effect exists for was firing on the WRONG read. Gating on
+  // settingsLoadStatus === 'ready' first means the effect keeps returning
+  // early (arenaInitRef never latches) until the authoritative read actually
+  // lands, then seeds once from the real values. #1347: a failed read
+  // ('error') must not seed from DEFAULT_SETTINGS either - same defect as
+  // item 2's, one more instance - so this now also waits that out rather
+  // than treating error as good enough to seed from; a later successful
+  // retry re-runs this effect and seeds correctly then. coinTouchedRef/
+  // tfTouchedRef cover the one case that still needs care: a user who acts
+  // on coin/TF WHILE settings are still loading must not have that choice
+  // overwritten once the slow read finally resolves.
   useEffect(() => {
-    if (!settingsLoaded) return;
+    if (settingsLoadStatus !== 'ready') return;
     if (arenaInitRef.current) return;
     arenaInitRef.current = true;
     // URL params take priority - only apply settings defaults when no URL params
@@ -613,9 +621,10 @@ function ArenaContent() {
     // `history.replaceState` on every mount to make the page shareable, which
     // writes today's `selectedCoin`/`readTf` defaults into the URL - and Next's
     // router observes that same `replaceState` call and updates `searchParams`
-    // to match - well before this effect's settingsLoaded gate ever opens. Any
-    // live re-check at that point sees the app's OWN just-written `coin` param
-    // and wrongly treats it as a real deep link, permanently refusing to seed.
+    // to match - well before this effect's settingsLoadStatus gate ever opens.
+    // Any live re-check at that point sees the app's OWN just-written `coin`
+    // param and wrongly treats it as a real deep link, permanently refusing
+    // to seed.
     if (!hadCoinParamAtMount && !coinTouchedRef.current && COINS.includes(settings.default_coin as CoinId)) {
       setSelectedCoin(settings.default_coin as CoinId);
     }
@@ -627,12 +636,12 @@ function ArenaContent() {
     // update()-wrapped handlers below - this is a read, not a user edit,
     // and must not immediately echo the just-read value back to the server.
     // No touched-ref needed here: handleStrategySelectionChange already
-    // refuses to run before settingsLoaded (line ~271), so there is no path
-    // for the user to have touched strategy selection before this effect's
-    // own settingsLoaded check passes.
+    // refuses to run before settingsLoadStatus is 'ready' (see above), so
+    // there is no path for the user to have touched strategy selection
+    // before this effect's own check passes.
     if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);
     if (settings.strategy_params) setStrategyParams(settings.strategy_params);
-  }, [settingsLoaded, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsLoadStatus, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Pro gate: fast timeframes ──
      Intercepts every timeframe switch (chart toolbar buttons come through
@@ -1262,7 +1271,7 @@ function ArenaContent() {
     };
   };
 
-  const readMarket = useCallback(async (mode: 'quick' | 'deep' = 'deep', force = false) => {
+  const readMarket = useCallback(async (selection: readonly string[], mode: 'quick' | 'deep' = 'deep', force = false) => {
     // #1309 item 24: the toolbar's own Quick/Deep buttons are `disabled`
     // while a read is running, but StrategyPanel's copies of the same three
     // buttons (wired through runStrategy below) were not - a click there
@@ -1415,11 +1424,20 @@ function ArenaContent() {
 
          describeSelection returns null for an empty selection, so the default
          "let the read choose" state adds no sentence at all - which is the
-         behaviour, not an omission. */
+         behaviour, not an omission.
+
+         #1347 item 1: `selection` is a PARAMETER, not the `strategySelection`
+         closure. This callback's own dependency array (below) doesn't list
+         `strategySelection` - it never needed to accidentally stay fresh via
+         `store`'s constant tick-driven churn, because runStrategy already
+         had the live value at click time (same reasoning its own comment
+         gives for taking `selection` as an argument) and now forwards it
+         here instead of letting this callback close over a value that could
+         be one click behind a change. */
       const base = mode === 'quick'
         ? buildQuickPrompt(ctx, chartData)
         : buildCombinedPrompt(ctx, chartData);
-      const watching = describeSelection(strategySelection);
+      const watching = describeSelection(selection);
       const prompt = watching
         ? [base, '',
             'The trader has chosen to weigh these indicators: ' + watching + '.',
@@ -1461,7 +1479,7 @@ function ArenaContent() {
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
-      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: strategySelection } }));
+      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection } }));
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
@@ -1521,7 +1539,16 @@ function ArenaContent() {
      (#996, filed as three dead buttons: no error, no console warning,
      nothing). Takes `selection` as an argument rather than closing over
      strategySelection so it matches exactly what the caller had at click
-     time, even though today the two are always the same value. */
+     time.
+
+     #1347 item 1: this is no longer just belt-and-suspenders. `readMarket`
+     used to read `strategySelection` from its own closure, and that
+     callback's dependency array never listed it - so QUICK/DEEP's freshness
+     rode entirely on `store` (a dependency for an unrelated reason)
+     recreating the closure on every market tick, an accident of websocket
+     traffic rather than a guarantee. `selection` is now forwarded into
+     `readMarket` below exactly as received here, so a click is correct at
+     the instant it happens regardless of tick timing. */
   const runStrategy = (kind: RunKind, selection: readonly string[]) => {
     if (kind === 'ask') {
       window.dispatchEvent(new CustomEvent('grok-chat', {
@@ -1546,7 +1573,7 @@ function ArenaContent() {
     if (!user) { window.location.href = '/login'; return; }
     const entry = resultsCache[selectedCoin];
     const force = !!(entry && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-    readMarket(kind, force);
+    readMarket(selection, kind, force);
     window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
   };
 
@@ -2473,7 +2500,7 @@ function ArenaContent() {
           before readLoading is ever set - so the button never visibly
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
-      <StrategyPanel loaded={settingsLoaded} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
+      <StrategyPanel status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>

@@ -55,12 +55,11 @@ async function resetStrategySelection(page: import('@playwright/test').Page, sel
 
 test.describe('LiquidityAI must know a real saved selection even without an Arena visit this session (#1348 items 3/18)', () => {
   test('opening the chat from the news page, with no prior Arena visit, still reasons from the account\'s real saved indicator', async ({ browser }) => {
-    // Confirmed live defect (#1348 items 3/18), no fix landed yet -
-    // test.fail() keeps the suite green while it's true, and turns loudly
-    // red the moment a fix makes this test unexpectedly pass, so Dev's own
-    // pre-push hook doesn't fail on the very fix this test exists for.
-    // Remove this line as part of that fix, not before.
-    test.fail();
+    // #1347 items 3/18 fix landed (GrokChat now seeds chatSelection from
+    // settings.strategy_selection on mount, gated on settingsLoadStatus -
+    // see components/GrokChat.tsx's chatSelectionSeededRef) - test.fail()
+    // removed as part of that fix, so this now guards the behaviour instead
+    // of documenting the absence of it.
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
