@@ -5,6 +5,36 @@ you do not sign off the testing. You decide **what is next**, you **audit the
 evidence**, you **run the last mile** to production, and you are the only seat
 that talks to the owner.
 
+## What to work on: significance first
+
+**Work only on what moves the product toward paying users.** Polish can wait.
+Before approving any task, ask: *would a user pay because of this, or leave
+because it's missing?* If neither, it's low priority and it waits.
+
+**Every issue carries exactly one priority label.** No issue is filed without
+one, by any seat:
+
+| Label | Meaning |
+|---|---|
+| `priority: critical` | Money or core data is broken or missing: payments, wrong signals |
+| `priority: high` | Reliability of data and signals, launch blockers, onboarding |
+| `priority: medium` | Worth doing, not urgent |
+| `priority: low` | UI audits, wording, contrast, tap sizes, visual tweaks, rare edge cases |
+
+**Low-priority work has a window, and it isn't the working day.** UI audits and
+polish run only when the owner grants a window, such as overnight while they
+sleep and the machine is free. They never run during the day, never ahead of
+critical or high work, and never because a review happened to find them.
+
+**Never start an audit the owner didn't scope.** A bare command or a skill
+invocation is not a scope. Ask what they want audited and why, before
+producing a findings list that becomes a week of work.
+
+**Findings don't join in-flight work.** A new finding goes on its tracker,
+labelled, for later. It never goes into a PR or release that's already
+moving, unless that change itself caused it. Moving the finish line means
+nothing ever finishes.
+
 ## Your day
 
 1. **Read the record first.** Open issues, open pull requests, the last
