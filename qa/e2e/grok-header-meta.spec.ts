@@ -34,26 +34,23 @@ import { gotoSignedIn, signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_
  * not.
  */
 
-const DESIGN_THEME_PAIRS: ReadonlyArray<{ design: 'current' | 'terminal'; theme: 'dark' | 'light' }> = [
-  { design: 'current', theme: 'dark' },
-  { design: 'current', theme: 'light' },
+/* The two `current` pairs were removed with the design itself (#1111). After that change a
+ * stored `lhq-design-mode=current` is ignored, so they would have measured terminal twice
+ * under a `current` label. The names keep the `terminal/` prefix so history stays readable. */
+const DESIGN_THEME_PAIRS: ReadonlyArray<{ design: 'terminal'; theme: 'dark' | 'light' }> = [
   { design: 'terminal', theme: 'dark' },
   { design: 'terminal', theme: 'light' },
 ];
 
-/** Seeds design/theme/consent the same way contrast.spec.ts and a11y.spec.ts
- *  do - before hydration, via localStorage, so the page never renders a frame
- *  we are not measuring and the cookie banner never inflates the header's
- *  neighbourhood. */
+/** Seeds theme/consent the same way contrast.spec.ts and a11y.spec.ts do - before
+ *  hydration, via localStorage, so the page never renders a frame we are not measuring
+ *  and the cookie banner never inflates the header's neighbourhood. The design needs no
+ *  seed: `data-design="terminal"` is static on <html> (#1111). */
 async function openArenaChat(
   browser: Browser,
-  design: 'current' | 'terminal',
   theme: 'dark' | 'light',
 ): Promise<{ page: Page; close: () => Promise<void> }> {
   const ctx = await signedInContext(browser, 'a', { viewport: { width: 1440, height: 900 } });
-  await ctx.addInitScript((d) => {
-    try { localStorage.setItem('lhq-design-mode', d); } catch { /* private mode */ }
-  }, design);
   await ctx.addInitScript((t) => {
     try { localStorage.setItem('theme', t); } catch { /* private mode */ }
   }, theme);
@@ -133,14 +130,14 @@ test.describe('Grok header meta strip (#995)', () => {
 
   for (const { design, theme } of DESIGN_THEME_PAIRS) {
     test(`default state stays clear of the header — ${design}/${theme}`, async ({ browser }) => {
-      const { page, close } = await openArenaChat(browser, design, theme);
+      const { page, close } = await openArenaChat(browser, theme);
       try {
         // Confirm the seed actually applied before trusting anything measured under it.
         const applied = await page.evaluate(() => ({
           design: document.documentElement.getAttribute('data-design'),
           theme: document.documentElement.getAttribute('data-theme'),
         }));
-        if (design === 'terminal') expect(applied.design).toBe('terminal');
+        expect(applied.design).toBe('terminal');
         if (theme === 'light') expect(applied.theme).toBe('light');
 
         await assertHeaderNeverCrowded(page);
@@ -149,7 +146,7 @@ test.describe('Grok header meta strip (#995)', () => {
     });
 
     test(`live-search-note stays clear of the header — ${design}/${theme}`, async ({ browser }) => {
-      const { page, close } = await openArenaChat(browser, design, theme);
+      const { page, close } = await openArenaChat(browser, theme);
       try {
         const textarea = page.locator('textarea[placeholder*="Ask about"]');
         await textarea.fill('What is the CPI report saying today?');

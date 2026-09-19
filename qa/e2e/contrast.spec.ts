@@ -32,33 +32,20 @@ import { installMarketFixtures } from './_fixtures';
  * light 20 against 26), because the sweep had started walking a different set
  * of rendered surfaces. Nothing had regressed and the ratchet said otherwise.
  *
- * Terminal is the default, so terminal is what a visitor gets and what this
- * sweep holds by default. `?design=current` is a supported escape hatch and is
- * NOT swept on an ordinary run - one sweep is 9-10 minutes in CI and doubling
- * the slowest spec in the suite for the rollback path is not worth the minutes.
- * Measure it deliberately when the current design changes:
- *
- *     QA_CONTRAST_DESIGN=current npx playwright test qa/e2e/contrast.spec.ts
- *
- * Both baselines live in `_shared.ts` and neither is deleted, so switching back
- * costs nothing. Say which design a contrast number came from when reporting
- * one - a ratio without a design is the ambiguity this whole comment exists to
+ * Terminal is the only design there is (#1111 deleted `?design=current`), so terminal is
+ * what a visitor gets and what this sweep holds. There is no second design to measure
+ * and no `QA_CONTRAST_DESIGN` switch: it was removed with the design, because setting it
+ * to `current` would now measure terminal under a `current` label against the `current`
+ * baseline. The `current` lists in `_shared.ts` are retired and unreachable; they stay
+ * only until someone deletes them. Say which design a contrast number came from when
+ * reporting one - a ratio without a design is the ambiguity this whole comment exists to
  * remove.
  */
-const DESIGN_UNDER_TEST: 'current' | 'terminal' =
-  process.env.QA_CONTRAST_DESIGN === 'current' ? 'current' : 'terminal';
+const DESIGN_UNDER_TEST = 'terminal' as const;
 
-/** Seed the theme and the design, and prove both applied before measuring. */
+/** Seed the theme. The design needs no seeding: `data-design="terminal"` is static on <html> (#1111). */
 async function themedPage(browser: Browser, theme: 'dark' | 'light'): Promise<{ page: Page; close: () => Promise<void> }> {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  /* Seeded the same way the theme is, and for the same reason: the `design-init`
-   * script in app/layout.tsx reads localStorage before hydration, so the page
-   * never renders a frame of the design we are not measuring. A `?design=` query
-   * param would arrive one step later and would have to be re-appended to all 58
-   * route navigations. */
-  await ctx.addInitScript((d) => {
-    try { localStorage.setItem('lhq-design-mode', d); } catch { /* private mode */ }
-  }, DESIGN_UNDER_TEST);
   // app/layout.tsx runs an inline script that reads localStorage BEFORE
   // hydration and stamps data-theme, so seeding the key is enough — no click on
   // a theme toggle, and no race with hydration.

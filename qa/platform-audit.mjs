@@ -40,6 +40,14 @@ const JSON_OUT = process.argv.includes('--json');
  * incomparable without saying so. The flag makes the choice explicit; the
  * default keeps the existing record readable. */
 const DESIGNS = arg('--design', 'terminal').split(',');
+/* #1111 removed the `?design=current` switch, so there is only one design and this flag can
+   only ever mean terminal. `--design current` used to select the old design; it would now
+   measure terminal and label the rows `current`, so it is refused rather than allowed to
+   produce a mislabelled number. */
+if (DESIGNS.some(d => d !== 'terminal')) {
+  console.error(`platform-audit: --design ${DESIGNS.join(',')} is not available: the current design was removed (#1111), only terminal exists.`);
+  process.exit(2);
+}
 
 /* Kept in step with qa/e2e/_design-tokens.ts. /correlation is included even
    though it has no design frame yet — it is a converted route, so it is in

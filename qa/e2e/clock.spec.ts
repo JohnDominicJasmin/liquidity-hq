@@ -49,19 +49,13 @@ const DESIGNS = [
   { design: 'terminal', selector: 'span.tnav-session'  },
 ] as const;
 
-/** A page with the clock pinned, fixtures served, the banner dismissed, and the
- *  design pinned rather than inherited. */
-async function pinnedTo(browser: Browser, iso: string, timezoneId?: string, design: 'current' | 'terminal' = 'terminal') {
+/** A page with the clock pinned, fixtures served and the banner dismissed. The design is
+ *  not pinned any more: `data-design="terminal"` is static on <html> (#1111). */
+async function pinnedTo(browser: Browser, iso: string, timezoneId?: string) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId });
   await ctx.addInitScript(() => {
     try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
   });
-  /* Seeded, not passed as `?design=`, so the preference is in place before the
-   * `design-init` script in app/layout.tsx reads it - the same route the query
-   * param takes, one step earlier, and with no first frame on the default. */
-  await ctx.addInitScript((d) => {
-    try { localStorage.setItem('lhq-design-mode', d); } catch { /* private mode */ }
-  }, design);
   const page = await ctx.newPage();
   /* BEFORE navigation, and before fixtures. The app reads the clock during
    * hydration, so installing it after a goto measures the real time on first
@@ -121,7 +115,7 @@ test.describe('clock-dependent behaviour', () => {
   async function sessionPill(
     browser: Browser, iso: string, design: 'current' | 'terminal', selector: string,
   ): Promise<string> {
-    const { page, close } = await pinnedTo(browser, iso, undefined, design);
+    const { page, close } = await pinnedTo(browser, iso, undefined);
     try {
       await gotoGuarded(page, '/hours', { waitUntil: 'domcontentloaded' });
 

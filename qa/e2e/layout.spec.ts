@@ -373,11 +373,12 @@ const KNOWN_OBSCURED_BY_DESIGN: Record<'current' | 'terminal', Record<string, st
   },
 };
 
-/** The design this run measures. Terminal is the default after #748; the spec
- *  seeds it rather than inheriting it, so the baseline above cannot silently
- *  come to describe a different design than the one on screen. */
-const LAYOUT_DESIGN: 'current' | 'terminal' =
-  process.env.QA_LAYOUT_DESIGN === 'current' ? 'current' : 'terminal';
+/** The design this run measures. Terminal is the only design after #1111 removed
+ *  `?design=current`, so there is no `QA_LAYOUT_DESIGN` switch any more: setting it to
+ *  `current` would have measured terminal against the `current` list. The `current` list
+ *  in KNOWN_OBSCURED_BY_DESIGN is retired and unreachable; it stays only until someone
+ *  deletes it. */
+const LAYOUT_DESIGN = 'terminal' as const;
 
 const KNOWN_OBSCURED: Record<string, string[]> = KNOWN_OBSCURED_BY_DESIGN[LAYOUT_DESIGN];
 
@@ -396,16 +397,10 @@ test.describe('layout', () => {
     consent: 'denied' | 'first-visit' = 'denied',
   ) {
     const ctx = await browser.newContext({ viewport });
-    /* PIN THE DESIGN (#844). Seeded before navigation so the `design-init`
-     * script in app/layout.tsx reads it pre-hydration, the same route the query
-     * param takes one step later. Unpinned, this spec swept whatever the app's
-     * default happened to be, and KNOWN_OBSCURED — derived on 2026-08-12 against
-     * the current design — silently came to describe a different one the day
-     * #748 landed. Seeded even on the first-visit path: consent is what that
-     * test varies, and the design must not vary with it. */
-    await ctx.addInitScript((d) => {
-      try { localStorage.setItem('lhq-design-mode', d); } catch { /* private mode */ }
-    }, LAYOUT_DESIGN);
+    /* THE DESIGN IS NOT SEEDED ANY MORE. It was pinned here (#844) by writing a stored
+     * preference, because the app's default could move under the baseline. #1111 made
+     * `data-design="terminal"` a static attribute on <html>, so there is nothing to pin and
+     * nothing that could move. */
     if (consent === 'denied') {
       await ctx.addInitScript(() => {
         try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }

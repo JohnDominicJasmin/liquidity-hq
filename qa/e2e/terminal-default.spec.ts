@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
  *
  *   `/`              terminal, for someone with no query param and no storage
  *   every app route  terminal, on the same terms
- *   both escape hatches still work
+ *   ?design= and a stored preference do nothing at all (the switch was deleted, #1111)
  *
  * THIS FILE USED TO ASSERT THE OPPOSITE, and the correction is recorded rather
  * than quietly swapped. It was written for #719, which shipped terminal on `/`
@@ -24,14 +24,22 @@ import { test, expect } from '@playwright/test';
  * one of the things that fell into it. See #844.
  *
  * `data-design` is the thing under test rather than any rendered pixel: it is
- * what the whole terminal stylesheet keys off, it is set before first paint by
- * the `design-init` script in app/layout.tsx, and it is observable without
+ * what the whole terminal stylesheet keys off, it is set before first paint (a static
+ * attribute in app/layout.tsx since #1111; it used to be the `design-init` script), and it is observable without
  * depending on live market data - which is what made an earlier spec in this
  * suite a coin flip (#723).
  *
- * Each test starts from a CLEARED storage state. The mode is sticky by design,
- * so a leaked preference from a previous test would silently make the next one
- * assert nothing.
+ * 2026-09-19, #1111: the `?design=current` switch itself was deleted. `data-design` is
+ * now a STATIC attribute on <html> in app/layout.tsx, so it is in the server HTML rather
+ * than set by a script, and `?design=`, `?design=terminal` and a stored `lhq-design-mode`
+ * are all ignored. Three tests here asserted the switch (`?design=current` as a working
+ * escape hatch, `?design=terminal` sticking, the opt-out crossing the boundary); they
+ * were replaced by the two that pin what is true now: the attribute is in the raw server
+ * HTML, and the old inputs change nothing and write nothing. The history above is kept
+ * because the boundary and no-flash tests still guard what it describes.
+ *
+ * Each test starts from a CLEARED storage state, so a leaked value from a previous test
+ * cannot make the next one assert nothing.
  */
 
 const APP_ROUTES = ['/dashboard', '/arena', '/liq', '/scanner'];
@@ -61,55 +69,53 @@ test.describe('#748 terminal is the default on every route', () => {
     }
   });
 
-  test('?design=current on / is a working escape hatch, and survives a reload', async ({ page }) => {
-    /* The reload half is the part that matters. The param writes a stored
-       preference; if the route default outranked it, the hatch would undo
-       itself on the next load and the visitor would be stuck on terminal. */
-    await page.goto('/?design=current');
-    expect(await designAttr(page)).toBeNull();
-
-    /* Same asynchronous write as the stickiness test above - the preference is
-       persisted in an effect, so the reload has to happen after it lands.
-       On `/` this is more than a test detail: until that write completes the
-       route default is still terminal, so a visitor who opts out and reloads
-       instantly gets terminal back. Narrow, pre-existing (the write has always
-       been in an effect), and now visible because `/` finally has a default
-       that differs from the stored value. Recorded on the PR. */
-    await expect
-      .poll(() => page.evaluate(() => { try { return localStorage.getItem('lhq-design-mode'); } catch { return null; } }),
-        { message: 'the opt-out was never persisted' })
-      .toBe('current');
-
-    await page.goto('/');
-    expect(await designAttr(page), 'stored "current" must outrank the route default').toBeNull();
+  test('the attribute is in the raw server HTML, not only set by script afterwards', async ({ request }) => {
+    /* NEW WITH #1111. data-design used to be resolved from ?design= and localStorage by an
+       inline script and by DesignModeProvider, so the served HTML never carried it. It is now
+       a static attribute on <html>. `request` fetches the document WITHOUT running any of
+       the page's JavaScript, so this is the one check that cannot be satisfied by a script
+       that still sets it after load: if someone puts a script back, or moves the attribute
+       into an effect, the raw HTML loses it and this fails while every browser-based check
+       above still passes. */
+    for (const route of ['/', '/about', '/arena', '/dashboard']) {
+      const res = await request.get(route);
+      expect(res.status(), `${route} answered ${res.status()}`).toBe(200);
+      const html = await res.text();
+      const htmlTag = html.match(/<html\b[^>]*>/i)?.[0] ?? '';
+      expect(htmlTag, `no <html> tag found in the raw response for ${route}`).not.toBe('');
+      expect(htmlTag, `the raw <html> tag for ${route} carries no data-design="terminal": ${htmlTag}`).toMatch(/\sdata-design="terminal"/);
+    }
   });
 
-  test('?design=terminal still works on app routes, and sticks', async ({ page }) => {
-    /* QA reviews deployed builds through this path. After #748 the param names
-       the default rather than changing anything, so the ATTRIBUTE half of this
-       test would now pass with the param removed entirely. The half that still
-       earns its keep is the persisted write below: `?design=terminal` must
-       leave a stored 'terminal', because that is what pins a reviewer's session
-       if the default is ever moved back. */
-    await page.goto('/dashboard?design=terminal');
-    expect(await designAttr(page)).toBe('terminal');
-
-    /* WAIT FOR THE WRITE, do not assume it. The preference is persisted by
-       DesignModeProvider's useEffect, so it lands after hydration - navigating
-       immediately beats it. My first version of this test did exactly that and
-       failed, and the failure looked like broken stickiness rather than a
-       racing assertion. Probed it: stored was still null right after goto, and
-       'terminal' a moment later.
-       Worth knowing beyond this test - a visitor who clicks away from the
-       param URL within a few hundred ms genuinely does not get the preference
-       saved. Pre-existing and not introduced by #719, but real. */
-    await expect
-      .poll(() => page.evaluate(() => { try { return localStorage.getItem('lhq-design-mode'); } catch { return null; } }),
-        { message: 'the design preference was never persisted' })
-      .toBe('terminal');
-
-    await page.goto('/arena');
-    expect(await designAttr(page), 'the review path must stay sticky across navigation').toBe('terminal');
+  test('?design=current, ?design=terminal and a stored lhq-design-mode=current change nothing and write nothing', async ({ browser }) => {
+    /* #1111's own "How to test" item 1. The three inputs that used to select or persist a
+       design are all ignored now. For each: the attribute is terminal, on `/` and on an app
+       route, and localStorage is exactly as it started. A stale stored value is never read
+       and, deliberately, never cleaned up - so it must still be there afterwards, which also
+       proves nothing rewrote it. */
+    const cases: Array<{ name: string; url: string; stored: string | null }> = [
+      { name: '?design=current', url: '/?design=current', stored: null },
+      { name: '?design=terminal', url: '/?design=terminal', stored: null },
+      { name: 'stored current', url: '/', stored: 'current' },
+      { name: 'stored current AND ?design=current', url: '/?design=current', stored: 'current' },
+    ];
+    for (const c of cases) {
+      const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+      try {
+        if (c.stored) await ctx.addInitScript((v) => { try { localStorage.setItem('lhq-design-mode', v); } catch { /* private mode */ } }, c.stored);
+        const page = await ctx.newPage();
+        await page.goto(c.url);
+        expect(await designAttr(page), `${c.name}: / must be terminal`).toBe('terminal');
+        // Time for any effect that used to persist a preference to have run.
+        await page.waitForTimeout(1500);
+        await page.goto('/dashboard');
+        expect(await designAttr(page), `${c.name}: /dashboard must be terminal`).toBe('terminal');
+        const stored = await page.evaluate(() => { try { return localStorage.getItem('lhq-design-mode'); } catch { return null; } });
+        expect(stored, `${c.name}: localStorage['lhq-design-mode'] is ${JSON.stringify(stored)}, expected ${JSON.stringify(c.stored)} - the app wrote (or removed) a design preference that no longer exists`).toBe(c.stored);
+      } finally {
+        await ctx.close();
+      }
+    }
   });
 
   test('no flash: data-design is set before the first paint, not after hydration', async ({ page }) => {
@@ -120,8 +126,8 @@ test.describe('#748 terminal is the default on every route', () => {
        see the current design's light ground paint and then swap to terminal's
        near-black, on the first frame of the acquisition page.
      *
-     * Reading the attribute during `document-start` proves the bootstrap
-     * script ran before any content was painted. If the attribute is only set
+     * Reading the attribute during `document-start` proves the attribute
+     * was already there before any content was painted. If the attribute is only set
      * by the React effect, this is null and the test fails. */
     let atDocumentStart: string | null | undefined;
     await page.addInitScript(() => {
@@ -143,7 +149,7 @@ test.describe('#748 terminal is the default on every route', () => {
     expect(
       atDocumentStart,
       'data-design was absent when the document became interactive - the attribute is being ' +
-      'set by the React effect instead of the beforeInteractive script, so / will flash the ' +
+      'being set late (by script or an effect) instead of being static in the server HTML, so / will flash the ' +
       'current design before swapping to terminal',
     ).toBe('terminal');
   });
@@ -214,24 +220,5 @@ test.describe('#748 terminal is the default on every route', () => {
 
     await page.goBack();
     expect(await designAttr(page), 'going back to / must still be terminal').toBe('terminal');
-  });
-
-  test('the opt-out crosses the boundary too', async ({ page }) => {
-    /* The half that matters more than the default. A visitor who opts out on
-       `/` must stay opted out when they reach the app - otherwise the escape
-       hatch is only an escape from the landing page, and the first app route
-       silently puts them back. Not covered before #748, because before #748 an
-       app route was current-design regardless and this would have passed
-       vacuously. */
-    await page.goto('/?design=current');
-    expect(await designAttr(page)).toBeNull();
-
-    await expect
-      .poll(() => page.evaluate(() => { try { return localStorage.getItem('lhq-design-mode'); } catch { return null; } }),
-        { message: 'the opt-out was never persisted' })
-      .toBe('current');
-
-    await page.goto('/dashboard');
-    expect(await designAttr(page), 'the opt-out must survive crossing into the app').toBeNull();
   });
 });
