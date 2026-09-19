@@ -50,11 +50,17 @@ function outcomePct(dir: 'long' | 'short', entry: number, current: number): numb
   return dir === 'long' ? raw : -raw;
 }
 
-async function resolveWindow(hours: 24 | 48, prices: Record<string, number>): Promise<number> {
+// The two Supabase projects each hold their own copy of this function, named the
+// same way the tables are (lib/tables.ts) - same pattern as lib/apiHealth.ts.
+const RESOLVE_FN = process.env.NEXT_PUBLIC_APP_ENV === 'dev'
+  ? 'lhq_dev_resolve_alert_outcomes'
+  : 'lhq_resolve_alert_outcomes';
+
+interface WindowResult { resolved: number; error?: string }
+
+async function resolveWindow(hours: 24 | 48, prices: Record<string, number>): Promise<WindowResult> {
   const admin    = getSupabaseAdmin();
   const resCol   = hours === 24 ? 'resolved_24h'    : 'resolved_48h';
-  const priceCol = hours === 24 ? 'price_24h'        : 'price_48h';
-  const pctCol   = hours === 24 ? 'outcome_pct_24h'  : 'outcome_pct_48h';
   const cutoff   = new Date(Date.now() - hours * 3_600_000).toISOString();
 
   const { data: rows } = await admin
@@ -64,24 +70,43 @@ async function resolveWindow(hours: 24 | 48, prices: Record<string, number>): Pr
     .lte('fired_at', cutoff)
     .limit(200);
 
-  let resolved = 0;
+  const updates: Array<{ id: number; price: number; pct: number }> = [];
   for (const row of (rows ?? []) as FireRow[]) {
     const current = prices[row.coin];
     if (current == null) continue; // no live price this run - retried on the next cron tick
-    const pct = outcomePct(row.dir, row.price_at_fire, current);
-    await admin.from(T.alert_fires).update({ [priceCol]: current, [pctCol]: pct, [resCol]: true }).eq('id', row.id);
-    resolved++;
+    updates.push({ id: row.id, price: current, pct: outcomePct(row.dir, row.price_at_fire, current) });
   }
-  return resolved;
+  if (updates.length === 0) return { resolved: 0 };
+
+  // #1282: ONE round trip per window. This used to be a PATCH per row, awaited
+  // in a loop - up to 200 sequential writes per window, the two windows side by
+  // side, which is where the hourly multi-second stalls came from. Each row
+  // carries its own price and outcome, so a bulk PATCH (one payload per filter)
+  // cannot express it; the RPC is an UPDATE ... FROM over the array, guarded
+  // with `not resolved_Nh` so an overlapping or retried run cannot overwrite an
+  // outcome that is already resolved. See 20260919a_resolve_alert_outcomes_batch.sql.
+  //
+  // A failure is LOGGED and RETURNED, not swallowed: the loop this replaces
+  // ignored every update error and counted the row as resolved anyway. On error
+  // no row is counted, all of them stay unresolved, and the next tick retries.
+  const { data, error } = await admin.rpc(RESOLVE_FN, { p_hours: hours, p_rows: updates });
+  if (error) {
+    console.error(`[alert-outcomes/resolve] ${hours}h batch update failed (${RESOLVE_FN}):`, error.message);
+    return { resolved: 0, error: `${hours}h: ${error.message}` };
+  }
+  // The function returns the rows it actually resolved (rows already resolved
+  // by an overlapping run are skipped by its guard, so this can be < updates.length).
+  return { resolved: typeof data === 'number' ? data : 0 };
 }
 
-async function runResolve(): Promise<{ resolved24h: number; resolved48h: number }> {
+async function runResolve(): Promise<{ resolved24h: number; resolved48h: number; errors: string[] }> {
   const prices = await fetchCurrentPrices();
-  const [resolved24h, resolved48h] = await Promise.all([
+  const [w24, w48] = await Promise.all([
     resolveWindow(24, prices),
     resolveWindow(48, prices),
   ]);
-  return { resolved24h, resolved48h };
+  const errors = [w24.error, w48.error].filter((e): e is string => !!e);
+  return { resolved24h: w24.resolved, resolved48h: w48.resolved, errors };
 }
 
 export async function GET(req: Request) {
@@ -94,6 +119,19 @@ export async function GET(req: Request) {
   });
   const result = await Promise.race([runResolve(), timeout]);
   clearTimeout(timerId!);
-  if ('resolved24h' in result) return NextResponse.json({ ok: true, ...result });
+  // A failed window returns 500, not 200. The loop this replaced ignored every
+  // update error and answered ok:true regardless, so a resolver that had stopped
+  // resolving looked exactly like a healthy one - "unknown reads as fine". With a
+  // 5xx the hourly n8n workflow's execution (docs/INFRASTRUCTURE.md) shows the
+  // failure. The body still carries `ok: false` and `errors`, and the counts of
+  // whatever did resolve (a window that succeeded is not rolled back; the failed
+  // one's rows stay unresolved and the next tick retries them).
+  if ('resolved24h' in result) {
+    const { errors, ...counts } = result;
+    return NextResponse.json(
+      { ok: errors.length === 0, ...counts, ...(errors.length ? { errors } : {}) },
+      { status: errors.length ? 500 : 200 },
+    );
+  }
   return result;
 }
