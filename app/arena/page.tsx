@@ -433,6 +433,10 @@ function ArenaContent() {
       setAlertSuccess(true);
       setAlertLabel('');
       setTimeout(() => { setAlertFormOpen(false); setAlertSuccess(false); }, 1500);
+    } catch {
+      // #1309 item 21: a fetch that REJECTS (offline, DNS, a dropped connection) skipped every branch above
+      // and left the form looking as if nothing had happened. Same message the token/non-OK paths use.
+      setAlertError(t('ALERTS_NETWORK_ERROR'));
     } finally {
       setAlertSaving(false);
     }

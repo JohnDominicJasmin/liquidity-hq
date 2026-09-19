@@ -720,11 +720,17 @@ function Inner() {
     await loadTrades();
   };
 
+  /* #1309 item 21: the row was removed from the screen whether or not the delete happened, so a failed delete
+     looked like a success until the next reload brought the trade back. Only a delete the database confirmed
+     removes it, and a failure says so. */
+  const [deleteFailed, setDeleteFailed] = useState(false);
   const deleteTrade = async (id: string) => {
     const db = getSupabase();
     if (!db) return;
     if (!confirm(t('TRADE_JOURNAL_CONFIRM_DELETE_TRADE'))) return;
-    await db.from(T.trades).delete().eq('id', id);
+    setDeleteFailed(false);
+    const { error } = await db.from(T.trades).delete().eq('id', id);
+    if (error) { setDeleteFailed(true); return; }
     setTrades(prev => prev.filter(tr => tr.id !== id));
   };
 
@@ -1051,6 +1057,11 @@ function Inner() {
       {/* ──────── HISTORY TAB ──────── */}
       {tab === 'history' && (
         <div>
+          {deleteFailed && (
+            <div role="alert" style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>
+              {t('TRADE_JOURNAL_NETWORK_ERROR')}
+            </div>
+          )}
           {loading && <LoadingState message={t('TRADE_JOURNAL_HISTORY_LOADING_MESSAGE')} />}
           {!loading && trades.length === 0 && (
             <div style={{
