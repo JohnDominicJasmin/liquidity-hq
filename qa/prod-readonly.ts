@@ -105,6 +105,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'signal-freshness', needs: 'none' },
   { spec: 'smoke', needs: 'none', note: 'route sweep' },
   { spec: 'support-contact-address', needs: 'none', note: 'label rows exist on prod (verified 2026-09-19)' },
+  { spec: 'support-contact-locales-rendered', needs: 'none', note: 'renders the Contact card and banned message in all five locales' },
   { spec: 'terminal-default', needs: 'none' },
   { spec: 'upgrade-expired-session', needs: 'none' },
   { spec: 'version-configured', needs: 'none', note: 'asserts /api/version flags: production differs from dev, expect a triage pass' },
