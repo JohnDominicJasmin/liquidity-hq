@@ -39,6 +39,7 @@ export default function LanguageSelect() {
           key={l}
           type="button"
           className={`st-chip${locale === l ? ' on' : ''}`}
+          aria-pressed={locale === l}
           onClick={() => choose(l)}
         >
           {LOCALE_LABELS[l]}
