@@ -2432,7 +2432,7 @@
   "OPS_USER_DETAIL_MARGIN_NOTE": "Estimated from real xAI per-token rates (grok-4.3), not an exact invoice match. Margin = monthly Pro revenue minus estimated 14-day AI cost.",
   "SETTINGS_PASSWORD_TOO_SHORT": "Password must be at least 8 characters",
   "ALERTS_EMA_SIGNAL_TITLE": "EMA Buy/Sell Signal",
-  "ALERTS_EMA_SIGNAL_DESC": "The same confirmed buy or sell call your Arena chart draws, with entry, stop loss, and target included. Choose which timeframes to receive it on below.",
+  "ALERTS_EMA_SIGNAL_DESC": "The standard EMA ribbon buy or sell call, with entry, stop loss, and target included. It does not follow your chart's indicator selection, so it can differ from what your chart shows. Choose which timeframes to receive it on below.",
   "ALERTS_TF_COUNT": "Timeframes - {onCount}/{cap} on",
   "ALERTS_TF_OVER_LIMIT": "Timeframes - {onCount} on (limit {cap} - turn some off)",
   "ALERTS_TF_CAP_REACHED_MSG": "Limit reached ({cap}/{cap} timeframes) - turn one off to add another.",

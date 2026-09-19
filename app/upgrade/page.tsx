@@ -64,7 +64,13 @@ const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
   ['UPGRADE_PRO_FEATURE_AI_ANALYSES', { quick: P.quick, deep: P.deep }],
   ['UPGRADE_PRO_FEATURE_AI_CHAT_SEARCH', { chat: P.chat, search: P.search }],
   ['UPGRADE_PRO_FEATURE_TOOL_POOL', { tools: P.toolPool ?? 0 }],
-  ['UPGRADE_PRO_FEATURE_PRIORITY_SUPPORT'],
+  /* There is no "Priority support" entry, on purpose. Owner ruling (#1309 item 34):
+   * support is one shared mailbox for every plan, so there is no priority tier to
+   * sell, and this line promised one to Pro subscribers. Removed rather than
+   * reworded, along with the landing copy's matching line. The label key
+   * UPGRADE_PRO_FEATURE_PRIORITY_SUPPORT is RETIRED, not deleted (production is
+   * additive-only; see labelKeys.ts), so nothing renders it any more. If a real
+   * priority channel ever exists, that is a new decision and a new key. */
 ];
 
 export default function UpgradePage() {
