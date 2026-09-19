@@ -125,6 +125,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'text-under-control', needs: 'pro' },
   { spec: 'tf-gating', needs: 'pro' },
   { spec: 'tnav-russian-768', needs: 'pro', note: 'Russian test is test.fail() while #1255 stands' },
+  { spec: 'tnav-russian-widths', needs: 'pro', note: 'signed-out, PRO and stubbed-TRIAL sweeps; the label-row test is red on prod until 20260919e is applied there' },
   // ── signed in, free ──
   { spec: 'plan-badge-trial-flip', needs: 'free' },
 ];
