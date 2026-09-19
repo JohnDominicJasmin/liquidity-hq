@@ -910,6 +910,15 @@ body::after {
 /* ── PRIMARY ACTION BUTTON - shared base for all confirm/submit actions ── */
 
 .lbl { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--txt3); margin-bottom: 10px; }
+/* #1272. A <Tip> title followed by a sub-label ("Session map" + "Your local time..."). Tip's
+   wrapper is inline-flex with a 24px-minimum icon, i.e. a 24px-tall box sharing an inline line
+   with ~12px text; QA's text-under-control probe found the sub-label's box overlapping it.
+   As flex items the two are separate boxes (measured: the sub-label's box no longer reaches the
+   Tip's). Baselines still line up on one line; where there is no room the sub-label drops to its
+   own line as one block instead of flowing on after the title and wrapping mid-phrase. The gap is
+   direction-independent (the old `margin-left` sat on the far side in Arabic). Used where a Tip
+   label is followed by a sub-label. */
+.tip-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; }
 /* ── Side-by-side tile pair (2 columns on desktop, stacks on mobile) ── */
 @media (max-width: 1099px) {
 }
@@ -6809,6 +6818,26 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      768-917px, so the deficit is larger - measured at -19.84px before this). */
   [data-design="terminal"] .tnav-right .plan-badge { padding-left: 6px; padding-right: 6px; }
 }
+/* #1255 (tracked on #1114): in RUSSIAN the bar overflows from 768px up to about 1200px, not just at
+   768 - measured (Dev, 2026-09-19, signed in and out, PRO and TRIAL badges) at +235px at 768, +143 to
+   +209 at 1000, +9 (TRIAL) at 1200. The English bands above cannot help: they are sized for English
+   labels, and the widest Russian item alone ("Панель управления", 195px) is wider than four English
+   ones. `<html lang>` is set by LabelsProvider, so this is scoped with :lang(ru); only ru, en, ko and zh
+   are available locales and only ru was measured wide.
+   These trims (gap 28->12, item padding 12/8->5, letter-spacing .1->.03em, 10px type, tighter wordmark
+   tracking) are NOT enough on their own - prototyped in the browser: still +68 at 768, +36 at 800 and, with
+   a TRIAL badge, +49 at 945. They clear only together with the shorter Russian Dashboard label
+   (NAV_DASHBOARD ru, "Панель", migration 20260919e, owner-approved 2026-09-19), which brings the minimum
+   slack to 22-26px at 768. Above 1279px the shipped spacing already fits, so nothing changes there.
+   Specificity, not !important: html[data-design][lang] beats the shipped `[data-design] .tnav-*` rules
+   and the band rules above without shouting. */
+@media (min-width: 768px) and (max-width: 1279px) {
+  html[data-design="terminal"]:lang(ru) .tnav { gap: 12px; }
+  html[data-design="terminal"]:lang(ru) .tnav-item {
+    padding-left: 5px; padding-right: 5px; letter-spacing: .03em; font-size: 10px;
+  }
+  html[data-design="terminal"]:lang(ru) .tnav-wordmark { letter-spacing: .06em; }
+}
 [data-design="terminal"] .tnav-kbd {
   color: var(--txt3);
   border: 1px solid var(--bdr);
@@ -8559,7 +8588,13 @@ main.app-content[data-chrome="none"] {
   font-family: var(--font-mono), monospace; font-size: 10px;
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt);
 }
-[data-design="terminal"] .strat-aux { color: var(--txt4); font-size: 9px; letter-spacing: .1em; }
+/* #1271. The PRO / FREE tag was --txt4: 1.72:1 dark, 1.91:1 light on --bg1 (measured, not
+   estimated). --txt4 is the DISABLED tier (the token's own comment says so), and this is the one
+   line in the panel that names the plan - the reader has to be able to read it. --txt2 is
+   5.62:1 dark / 5.56:1 light on --bg1. The same fix, and the same reason, applies to the other
+   text in this block below, including the dimmed chip states (owner, 2026-09-19): nothing in the
+   Strategy panel is --txt4 any more. */
+[data-design="terminal"] .strat-aux { color: var(--txt2); font-size: 9px; letter-spacing: .1em; }
 
 [data-design="terminal"] .strat-sect { padding: 10px 9px; border-bottom: 1px solid var(--bdr3); }
 [data-design="terminal"] .strat-sect:last-child { border-bottom: 0; }
@@ -8569,7 +8604,7 @@ main.app-content[data-chrome="none"] {
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
   display: flex; justify-content: space-between; margin-bottom: 6px;
 }
-[data-design="terminal"] .strat-cap { color: var(--txt4); }
+[data-design="terminal"] .strat-cap { color: var(--txt3); } /* #1271: 4.71 dark / 5.07 light on --bg1 (was 1.72 / 1.91) */
 
 [data-design="terminal"] .strat-sel {
   width: 100%; height: 26px; background: var(--bg2);
@@ -8582,7 +8617,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-grp:last-of-type { margin-bottom: 0; }
 [data-design="terminal"] .strat-gname {
   font-family: var(--font-mono), monospace; font-size: 8.5px;
-  letter-spacing: .14em; text-transform: uppercase; color: var(--txt4);
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt3); /* #1271: 4.71 / 5.07 on --bg1 (was 1.72 / 1.91) */
   margin-bottom: 3px;
 }
 
@@ -8601,7 +8636,11 @@ main.app-content[data-chrome="none"] {
 /* Past the limit. Dimmed, still focusable, still says why on hover - a
    `disabled` chip would leave the tab order and a keyboard user would never
    find out what stopped them. */
-[data-design="terminal"] .strat-chip.blocked { color: var(--txt4); border-color: var(--bdr3); cursor: default; }
+/* Owner, 2026-09-19 (#1387): the dimmed chips must be readable (AA) and still look dimmed. --txt3 is
+   the darkest passing token: 4.71:1 dark / 5.07:1 light on --bg1 (was --txt4: 1.72 / 1.91). No token
+   sits between them, so the "dimmed" cue is now carried by the border (--bdr3, dashed on .notyet) and
+   the default cursor, not by the text tone. */
+[data-design="terminal"] .strat-chip.blocked { color: var(--txt3); border-color: var(--bdr3); cursor: default; }
 [data-design="terminal"] .strat-n {
   background: var(--on-accent); color: var(--accent);
   width: 11px; height: 11px; display: inline-flex;
@@ -8622,11 +8661,11 @@ main.app-content[data-chrome="none"] {
 }
 
 [data-design="terminal"] .strat-chip.notyet {
-  color: var(--txt4); border-color: var(--bdr3);
+  color: var(--txt3); border-color: var(--bdr3); /* 4.71 / 5.07 on --bg1, see .blocked above */
   border-style: dashed; cursor: default;
 }
 [data-design="terminal"] .strat-notyet-note {
-  margin-top: 7px; font-size: 10.5px; line-height: 1.4; color: var(--txt4);
+  margin-top: 7px; font-size: 10.5px; line-height: 1.4; color: var(--txt3); /* #1271: 4.71 / 5.07 on --bg1 (was 1.72 / 1.91) */
 }
 
 [data-design="terminal"] .strat-limit {
@@ -8659,7 +8698,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-pv:disabled { color: var(--txt3); }
 [data-design="terminal"] .strat-ro {
   margin-top: 5px; font-family: var(--font-mono), monospace; font-size: 8.5px;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--txt4);
+  letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); /* #1271: 4.77 dark / 4.70 light on --bg2 (was 1.74 / 1.77) */
 }
 
 [data-design="terminal"] .strat-actions { display: flex; gap: 3px; }

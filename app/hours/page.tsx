@@ -167,9 +167,9 @@ export default function BestHours() {
 
       {/* 24h timeline */}
       <div className="card" style={{ marginBottom: 14 }}>
-        <div className="lbl" style={{ marginBottom: 10 }}>
+        <div className="lbl tip-row" style={{ marginBottom: 10 }}>
           <Tip width={260} text={t('HOURS_SESSION_MAP_TIP')}>{t('HOURS_SESSION_MAP_TITLE')}</Tip>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>{t('HOURS_SESSION_MAP_SUBTITLE')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)' }}>{t('HOURS_SESSION_MAP_SUBTITLE')}</span>
         </div>
 
         {/* Bar + needle wrapper - overflow visible so needle tip shows */}
