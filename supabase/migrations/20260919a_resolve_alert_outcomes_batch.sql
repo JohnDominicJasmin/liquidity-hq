@@ -31,7 +31,11 @@
 --
 -- Run against BOTH projects: prod qdpwhnvmhqgzijuwopso gets the first block,
 -- dev wdtjhrilakoitfcezxpx (and so the qa and staging deploys) the second.
--- lib names them the same way it names tables (env-prefixed), see
+-- The dev block is COMMENTED OUT per 20260912b's convention - apply one section at a
+-- time. Running this file against prod must not create lhq_dev_resolve_alert_outcomes
+-- there (it would point at a table that does not exist on prod, and plpgsql does not
+-- check that at create time - #1310's class). The route names the functions the same
+-- way lib/tables.ts names tables (env-prefixed), see
 -- app/api/alert-outcomes/resolve/route.ts.
 
 -- ── prod: qdpwhnvmhqgzijuwopso ──────────────────────────────────────────────
@@ -65,33 +69,36 @@ $$;
 revoke execute on function lhq_resolve_alert_outcomes(integer, jsonb) from public, anon, authenticated;
 grant execute on function lhq_resolve_alert_outcomes(integer, jsonb) to service_role;
 
+-- DEV: the same function against lhq_dev_alert_fires - apply separately, per 20260912b.
+--
 -- ── dev: wdtjhrilakoitfcezxpx (byte-identical except the names) ─────────────
-create or replace function lhq_dev_resolve_alert_outcomes(p_hours integer, p_rows jsonb)
-returns integer
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  n integer;
-begin
-  if p_hours = 24 then
-    update lhq_dev_alert_fires f
-       set price_24h = v.price, outcome_pct_24h = v.pct, resolved_24h = true
-      from jsonb_to_recordset(p_rows) as v(id bigint, price numeric, pct numeric)
-     where f.id = v.id and not f.resolved_24h;
-  elsif p_hours = 48 then
-    update lhq_dev_alert_fires f
-       set price_48h = v.price, outcome_pct_48h = v.pct, resolved_48h = true
-      from jsonb_to_recordset(p_rows) as v(id bigint, price numeric, pct numeric)
-     where f.id = v.id and not f.resolved_48h;
-  else
-    raise exception 'lhq_dev_resolve_alert_outcomes: p_hours must be 24 or 48, got %', p_hours;
-  end if;
-  get diagnostics n = row_count;
-  return n;
-end;
-$$;
-
-revoke execute on function lhq_dev_resolve_alert_outcomes(integer, jsonb) from public, anon, authenticated;
-grant execute on function lhq_dev_resolve_alert_outcomes(integer, jsonb) to service_role;
+-- create or replace function lhq_dev_resolve_alert_outcomes(p_hours integer, p_rows jsonb)
+-- returns integer
+-- language plpgsql
+-- security definer
+-- set search_path = public
+-- as $$
+-- declare
+--   n integer;
+-- begin
+--   if p_hours = 24 then
+--     update lhq_dev_alert_fires f
+--        set price_24h = v.price, outcome_pct_24h = v.pct, resolved_24h = true
+--       from jsonb_to_recordset(p_rows) as v(id bigint, price numeric, pct numeric)
+--      where f.id = v.id and not f.resolved_24h;
+--   elsif p_hours = 48 then
+--     update lhq_dev_alert_fires f
+--        set price_48h = v.price, outcome_pct_48h = v.pct, resolved_48h = true
+--       from jsonb_to_recordset(p_rows) as v(id bigint, price numeric, pct numeric)
+--      where f.id = v.id and not f.resolved_48h;
+--   else
+--     raise exception 'lhq_dev_resolve_alert_outcomes: p_hours must be 24 or 48, got %', p_hours;
+--   end if;
+--   get diagnostics n = row_count;
+--   return n;
+-- end;
+-- $$;
+--
+-- revoke execute on function lhq_dev_resolve_alert_outcomes(integer, jsonb) from public, anon, authenticated;
+-- grant execute on function lhq_dev_resolve_alert_outcomes(integer, jsonb) to service_role;
+--
