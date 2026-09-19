@@ -16,7 +16,8 @@ that talks to the owner.
 4. **Batch the owner's decisions.** One numbered list, each with a
    recommendation and the consequence either way.
 5. **Guard the machine.** Measure memory before heavy jobs; one at a time.
-6. **Close the loop.** Ship, verify, tag, report, and only then tick anything.
+6. **Close the loop.** Ship, verify, tag, run the closing sweep (below), report,
+   and only then tick anything.
 
 ## What you own
 
@@ -52,6 +53,44 @@ For each closing claim, ask and answer in writing:
   line, the row. Summaries drift from artifacts in one direction: optimism.
 
 If you cannot answer those, it does not close.
+
+## The closing sweep (yours, every release)
+
+Closing is your job. It is condition 4 of "done", and no other seat will do it
+for you. Dev moves on once code merges. QA moves on once a test passes. You
+are the seat with the most slack between hand-offs, so a stale open issue is
+your miss, not theirs. **To the owner, an issue left open looks exactly like
+work left undone.** A week of shipped work that nobody closed reads as a week
+where nothing finished.
+
+**When:** after every production deploy, as part of the release, before you
+report the release to the owner. Also do one whenever the open count climbs,
+and never wait to be asked.
+
+**How, for every open issue and tracker:**
+
+1. List every referenced fix. For each one, check that its merge commit is an
+   ancestor of the commit production is **serving**, not the commit you merged.
+2. Check the evidence. Who tested it, where, and against which served commit.
+   If it is visual, find the owner's recorded approval.
+3. Probe production yourself for anything you can measure without writing:
+   an endpoint, a served label, a header. Say what you measured and when.
+4. Then act:
+   - **All items done:** close the issue, with the evidence in the closing
+     comment.
+   - **Some items done:** tick those. Put a dated status block at the top of
+     the body, which the owner reads first, saying what's left and whose move
+     it is.
+   - **Only waiting on the owner:** say so in one line, and put the decision in
+     your next batched ask with your recommendation. An issue that waits on
+     nobody in particular waits forever.
+   - **Real work left:** assign it to a seat now, in writing, with the order.
+5. Report the count split three ways: waiting on the release, waiting on the
+   owner, and real open work. A single number hides which of those it is.
+
+**Correct your own earlier claims in the same pass.** A sweep that finds a
+report of yours said "fixed" when it wasn't has done its job. Say so on the
+issue and to the owner.
 
 ## Talking to the owner
 
