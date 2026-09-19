@@ -6809,6 +6809,26 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      768-917px, so the deficit is larger - measured at -19.84px before this). */
   [data-design="terminal"] .tnav-right .plan-badge { padding-left: 6px; padding-right: 6px; }
 }
+/* #1255 (tracked on #1114): in RUSSIAN the bar overflows from 768px up to about 1200px, not just at
+   768 - measured (Dev, 2026-09-19, signed in and out, PRO and TRIAL badges) at +235px at 768, +143 to
+   +209 at 1000, +9 (TRIAL) at 1200. The English bands above cannot help: they are sized for English
+   labels, and the widest Russian item alone ("Панель управления", 195px) is wider than four English
+   ones. `<html lang>` is set by LabelsProvider, so this is scoped with :lang(ru); only ru, en, ko and zh
+   are available locales and only ru was measured wide.
+   These trims (gap 28->12, item padding 12/8->5, letter-spacing .1->.03em, 10px type, tighter wordmark
+   tracking) are NOT enough on their own - prototyped in the browser: still +68 at 768, +36 at 800 and, with
+   a TRIAL badge, +49 at 945. They clear only together with the shorter Russian Dashboard label
+   (NAV_DASHBOARD ru, "Панель", migration 20260919e, owner-approved 2026-09-19), which brings the minimum
+   slack to 22-26px at 768. Above 1279px the shipped spacing already fits, so nothing changes there.
+   Specificity, not !important: html[data-design][lang] beats the shipped `[data-design] .tnav-*` rules
+   and the band rules above without shouting. */
+@media (min-width: 768px) and (max-width: 1279px) {
+  html[data-design="terminal"]:lang(ru) .tnav { gap: 12px; }
+  html[data-design="terminal"]:lang(ru) .tnav-item {
+    padding-left: 5px; padding-right: 5px; letter-spacing: .03em; font-size: 10px;
+  }
+  html[data-design="terminal"]:lang(ru) .tnav-wordmark { letter-spacing: .06em; }
+}
 [data-design="terminal"] .tnav-kbd {
   color: var(--txt3);
   border: 1px solid var(--bdr);
