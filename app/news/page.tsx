@@ -71,30 +71,43 @@ function askGrok(headline: string, t: TFn) {
 /* ── BTC sentiment from headline keywords ── */
 type BtcSentiment = 'bullish' | 'bearish' | 'neutral';
 
+/* #1309 item 18: these were matched with `h.includes(kw)`, so a keyword hit INSIDE another word - "ban" in
+   "bank", "war" in "toward" and "reward" - tagged the headline Bearish (and skewed Coin Buzz, which reads the
+   same function). Two match modes now:
+     STEMS  match at the START of a word (`\bcrash` still catches "crashes" and "crashed", but a stem no
+            longer matches from the middle of another word);
+     WORDS  are short stems that are also the front of unrelated words, so they must be the whole word or a
+            plain inflection: "ban"/"bans"/"banned"..., "war"/"wars", "ath". */
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const startOfWord = (kws: readonly string[]) => new RegExp(`\\b(?:${kws.map(escapeRe).join('|')})`, 'i');
+const wholeWord   = (kws: readonly string[]) => new RegExp(`\\b(?:${kws.map(escapeRe).join('|')})\\b`, 'i');
+const BEARISH_STEMS = startOfWord([
+  'crash','dump','plunge','collapse','decline','drop','fall','slump',
+  'banned','restriction','crackdown','sanction',
+  'hack','exploit','theft','stolen','robbery','kidnapping','arrested',
+  'controversy','flaw','underperform','suspicious','warning','risk',
+  'tightening','rate hike','hawkish','inflation rise','pressured',
+  'attack','conflict','missile','invasion','airstrike',
+  'lawsuit','charges','seized','fraud','scam',
+  'bearish','bear market','sell-off','liquidation wave','weakening',
+]);
+const BEARISH_WORDS = wholeWord(['ban','bans','banning','war','wars']);
+const BULLISH_STEMS = startOfWord([
+  'rally','surge','pump','breakout','record','all-time high',
+  'buy','bought','purchase','accumulate','inflow','flows into','flowing into','returns to crypto',
+  'etf approved','approval','approved','adoption','launch',
+  'institutional','strategic reserve',
+  'rate cut','dovish','easing',
+  'saylor','microstrategy','blackrock buys','grayscale',
+  'bullish','bull run','upside','relief rally',
+  'super pac','crypto-friendly','pro-crypto','crypto pac',
+]);
+const BULLISH_WORDS = wholeWord(['ath']);
+
 function getBtcSentiment(headline: string): BtcSentiment {
   const h = headline.toLowerCase();
-  const bearishKw = [
-    'crash','dump','plunge','collapse','decline','drop','fall','slump',
-    'ban','banned','restriction','crackdown','sanction',
-    'hack','exploit','theft','stolen','robbery','kidnapping','arrested',
-    'controversy','flaw','underperform','suspicious','warning','risk',
-    'tightening','rate hike','hawkish','inflation rise','pressured',
-    'war','attack','conflict','missile','invasion','airstrike',
-    'lawsuit','charges','seized','fraud','scam',
-    'bearish','bear market','sell-off','liquidation wave','weakening',
-  ];
-  const bullishKw = [
-    'rally','surge','pump','breakout','record','all-time high','ath',
-    'buy','bought','purchase','accumulate','inflow','flows into','flowing into','returns to crypto',
-    'etf approved','approval','approved','adoption','launch',
-    'institutional','strategic reserve',
-    'rate cut','dovish','easing',
-    'saylor','microstrategy','blackrock buys','grayscale',
-    'bullish','bull run','upside','relief rally',
-    'super pac','crypto-friendly','pro-crypto','crypto pac',
-  ];
-  for (const kw of bearishKw) if (h.includes(kw)) return 'bearish';
-  for (const kw of bullishKw) if (h.includes(kw)) return 'bullish';
+  if (BEARISH_STEMS.test(h) || BEARISH_WORDS.test(h)) return 'bearish';
+  if (BULLISH_STEMS.test(h) || BULLISH_WORDS.test(h)) return 'bullish';
   return 'neutral';
 }
 
