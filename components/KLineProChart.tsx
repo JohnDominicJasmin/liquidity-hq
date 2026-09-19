@@ -391,8 +391,12 @@ interface Props {
   onStructure?:  (sig: PASignal | null) => void;
   /* The strategy panel's selection (#930). ADDITIVE ONLY - see the effect that
      consumes it for why an empty selection must leave this chart exactly as it
-     was before the panel existed. */
-  indicators?:   readonly string[];
+     was before the panel existed. REQUIRED (#1347 item 11, same shape as #1370's
+     useEMAStrategy `selection`): it used to be optional with an `?? []`, which made
+     a caller that forgot to pass it indistinguishable from a trader who selected
+     nothing. The one caller (app/arena/page.tsx) always passes it; an empty array
+     is the honest way to say "none". */
+  indicators:    readonly string[];
   /* Per-indicator edited parameter values for `indicators` (#1008), keyed by
      indicator id then param key. An indicator with no entry here uses
      strategyRegistry's defaultParams - see the sync effect below and
@@ -2491,7 +2495,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (!chart || !chartReady) return;
 
     const wanted = new Map<string, IndicatorEntry>();
-    for (const id of indicators ?? []) {
+    for (const id of indicators) {
       const entry = findIndicator(id);
       if (entry && entry.source === 'builtin') wanted.set(id, entry);
     }

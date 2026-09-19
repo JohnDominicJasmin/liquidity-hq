@@ -89,7 +89,12 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
         });
         if (!res.ok) return { failed: true };
         const body = await res.json() as { accepted?: string[]; rejected?: string[]; settings?: Record<string, unknown> | null };
-        return { failed: false, accepted: body.accepted ?? [], rejected: body.rejected ?? [], settings: body.settings ?? null };
+        /* #1347 item 10: the route ALWAYS answers a save with both lists (app/api/settings/route.ts). A 200
+           without them - an error page, a proxy's body, `{}` - confirmed nothing, and defaulting them to []
+           landed here as "nothing rejected", i.e. `saveStatus: 'saved'` for a write that was never
+           acknowledged. Treat it as a failed attempt so it retries and, if it keeps happening, reads 'error'. */
+        if (!Array.isArray(body.accepted) || !Array.isArray(body.rejected)) return { failed: true };
+        return { failed: false, accepted: body.accepted, rejected: body.rejected, settings: body.settings ?? null };
       } catch {
         return { failed: true };
       }
