@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
+import { servedLabels } from './_shared';
 
 /* #1347 item 11, the lock-icon half (#1370, fix by Dev Team) - #1338 made the
  * Arena QUICK and DEEP buttons `disabled` while `authLoading` is true, so a
@@ -64,11 +65,11 @@ const expiredSession = (ref: string) => {
 
 test.describe('QUICK/DEEP lock icon and tooltip do not claim "signed out" while auth is still resolving (#1347 item 11)', () => {
   test('unknown auth shows neither lock nor sign-in tooltip; confirmed signed-out shows both', async ({ browser, request }) => {
-    const labels = await (await request.get('/api/labels?locale=en')).json() as Record<string, string>;
+    const labels = await servedLabels(request);
     const quickSignin = labels.ARENA_QUICK_SIGNIN_TITLE;
     const deepSignin = labels.ARENA_DEEP_SIGNIN_TITLE;
-    expect(quickSignin, 'ARENA_QUICK_SIGNIN_TITLE missing from /api/labels').toBeTruthy();
-    expect(deepSignin, 'ARENA_DEEP_SIGNIN_TITLE missing from /api/labels').toBeTruthy();
+    expect(quickSignin, 'ARENA_QUICK_SIGNIN_TITLE missing from the served labels and shipped defaults').toBeTruthy();
+    expect(deepSignin, 'ARENA_DEEP_SIGNIN_TITLE missing from the served labels and shipped defaults').toBeTruthy();
 
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
@@ -118,7 +119,7 @@ test.describe('QUICK/DEEP lock icon and tooltip do not claim "signed out" while 
   });
 
   test('CONTROL: a signed-in user whose session resolved sees the ordinary unlocked buttons', async ({ browser, request }) => {
-    const labels = await (await request.get('/api/labels?locale=en')).json() as Record<string, string>;
+    const labels = await servedLabels(request);
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {

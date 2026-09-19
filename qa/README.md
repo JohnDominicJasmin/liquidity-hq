@@ -779,3 +779,11 @@ any result, including your own.
   attempts at one bug lost most of a day; a human answered it in thirty seconds.
 - **A comment describing an invariant is the thing that goes stale.** The
   durable version is a check.
+- **`/api/labels` serves database rows only - it is not what a page renders.**
+  The client layers those rows over `lib/labelDefaults.en.json`, so a key with no
+  row (a brand-new one, or one no migration ever seeded) is absent from the API
+  and perfectly fine on the page. A spec that looks a key up there fails on a
+  correct page, or worse, passes for the wrong reason. Made twice on consecutive
+  days (#1366, then #1371). Use `servedLabels()` from `qa/e2e/_shared.ts` for "what
+  would a user see"; read `/api/labels` raw only when the question really is "is
+  there a database row for this locale", as `support-contact-address.spec.ts` does.

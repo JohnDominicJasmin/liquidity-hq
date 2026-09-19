@@ -197,14 +197,27 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       const chipCount = await panel.locator('button.strat-chip').count();
       const unknownCard = await panel.locator(UNKNOWN_CARD).count();
       await panel.locator('select.strat-sel').selectOption('custom').catch(() => {});
-      const firstChip = panel.locator('button.strat-chip').first();
-      let params = 'not reachable';
-      if (await firstChip.isVisible().catch(() => false)) {
-        await firstChip.click();
-        const input = panel.locator('.strat-params input[type="number"]').first();
+
+      // SMA has a params box; RSI is a second usable chip. Picking one and then
+      // trying the other is what exposes BOTH free-tier enforcements: the
+      // limit of one (the second chip gets `blocked` and a "Deselect one first"
+      // note) and read-only params. The first chip in the grid has no params
+      // box, which is why an earlier version of this test observed neither.
+      const sma = panel.locator('button.strat-chip', { hasText: 'SMA' }).first();
+      const rsi = panel.locator('button.strat-chip', { hasText: 'RSI' }).first();
+      let params = 'SMA chip not reachable';
+      let limit = 'not observed';
+      if (await sma.isVisible().catch(() => false)) {
+        await sma.click();
+        const input = panel.locator('.strat-params input').first();
         params = await input.isVisible().catch(() => false)
           ? ((await input.isDisabled()) ? 'params inputs DISABLED (read-only)' : 'params inputs enabled')
-          : 'no params box for the first chip';
+          : 'no params box for SMA';
+        const rsiBlocked = ((await rsi.getAttribute('class')) ?? '').includes('blocked');
+        const limitNote = (await panel.locator('.strat-limit').innerText().catch(() => '')).trim();
+        await rsi.click().catch(() => {});
+        const rsiPressed = await rsi.getAttribute('aria-pressed');
+        limit = `second chip (RSI) blocked class: ${rsiBlocked} | limit note: ${limitNote ? `"${limitNote}"` : 'none'} | RSI pressed after click: ${rsiPressed}`;
       }
       const freeNote = await panel.getByText(/Defaults on free/i).count();
 
@@ -212,6 +225,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
         `chip grid rendered: ${chipCount > 0} (${chipCount} chips)`,
         `EntitlementUnknownCard in panel: ${unknownCard > 0}`,
         params,
+        limit,
         `"Defaults on free" note visible: ${freeNote > 0}`,
       ].join(' | ');
       test.info().annotations.push({
