@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl, isCheckoutConfigured, getCheckoutUrlAnnual, isCheckoutConfiguredAnnual } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
+import { EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
@@ -68,7 +69,7 @@ const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
 ];
 
 export default function UpgradePage() {
-  const { user, loading, isPro } = useAuth();
+  const { user, loading, isPro, entitlementsLoading, entitlementStatus, retryEntitlements } = useAuth();
   const router = useRouter();
   const [redirecting, setRedirecting] = useState(false);
   const { t } = useLabels();
@@ -101,8 +102,22 @@ export default function UpgradePage() {
     window.location.href = getCheckoutUrlAnnual(user);
   }
 
-  if (loading || isPro) {
+  /* #1309 item 12: this used to wait only for sign-in. `isPro` is false until the subscription read settles,
+     so a Pro account saw the checkout buttons for as long as that took (payments are not live, so nobody
+     could be charged twice today - fix before they open). A signed-in visitor now waits for the plan; if it
+     could not be read at all, the page says so and offers a retry rather than selling Pro to someone who may
+     already have it. Signed-out visitors are unaffected: entitlementsLoading settles false for them. */
+  if (loading || (user && entitlementsLoading) || isPro) {
     return <LoadingState message={isPro ? t('UPGRADE_LOADING_REDIRECTING') : t('UPGRADE_LOADING')} fullPage />;
+  }
+  if (user && entitlementStatus === 'unknown') {
+    return (
+      <div className="upgrade-term-wrap" style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--txt)', padding: '56px 24px' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <EntitlementUnknownCard title={t('UPGRADE_HERO_TITLE')} onRetry={retryEntitlements} />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -142,7 +157,9 @@ export default function UpgradePage() {
 
           {/* Free card */}
           <div style={{ borderRadius: 16, padding: '24px 28px', border: '0.5px solid var(--bdr)', background: 'var(--bg1)' }}>
-            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>{t('UPGRADE_FREE_CARD_EYEBROW')}</div>
+            {/* #1309 item 22: "Current plan" is only true for a signed-in visitor on Free; a signed-out visitor has no plan, so the
+                caption is left empty (a non-breaking space, so the cards keep their height). */}
+            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>{user ? t('UPGRADE_FREE_CARD_EYEBROW') : ' '}</div>
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_FREE_CARD_NAME')}</div>
             <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>$0<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>

@@ -669,6 +669,25 @@ export default function GrokChat() {
   const clearChat    = () => { setMsgs([]); setError(''); };
   const closeAll     = () => { setOpen(false); setExpanded(false); setHistView(false); setShowLoginModal(false); };
   const toggleExpand = () => setExpanded(v => !v);
+  // Refs, not selector strings: __tests__/testIdParity counts the literal data-testid text in the source.
+  const panelRef    = useRef<HTMLDivElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  /* #1309 item 3 (R-32): the chat panel had no Escape. Closes the login overlay first if it is up, then the
+     panel, and puts focus back on the launcher. Only when the key came from inside the panel or the panel is
+     the expanded full-screen one - a page-level Escape must not close a side panel the user is not in. */
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      const fromPanel = !!(e.target instanceof Node && panelRef.current?.contains(e.target));
+      if (!fromPanel && !expanded) return;
+      if (showLoginModal) { setShowLoginModal(false); return; }
+      setOpen(false); setExpanded(false); setHistView(false);
+      launcherRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, expanded, showLoginModal]);
 
   /* ── Mode + the quota it spends ────────────────────────────────────────
    * The counter follows the SELECTED mode, because that is the quota the next
@@ -725,6 +744,7 @@ export default function GrokChat() {
           for the mini-panel case, but the button is unclickable (and
           invisible) while open, so that path is effectively unreachable. */}
       <button
+        ref={launcherRef}
         data-testid="grok-launcher"
         className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
@@ -749,6 +769,7 @@ export default function GrokChat() {
           from both the tab order and the accessibility tree in one attribute,
           which is exactly the semantics opacity:0 was being asked to imply. */}
       <div
+        ref={panelRef}
         className={`gchat-panel${open ? ' gchat-open' : ''}${expanded ? ' gchat-expanded' : ''}`}
         data-testid="grok-panel"
         inert={!open}
@@ -824,10 +845,11 @@ export default function GrokChat() {
               className="gchat-icon-btn"
               onClick={toggleExpand}
               title={expanded ? 'Collapse' : 'Expand'}
+              aria-label={expanded ? 'Collapse' : 'Expand'}
             >
               {expanded ? '⊡' : '⊞'}
             </button>
-            <button className="gchat-icon-btn" onClick={closeAll} title="Close">✕</button>
+            <button className="gchat-icon-btn" onClick={closeAll} title="Close" aria-label="Close">✕</button>
           </div>
         </div>
 
@@ -1159,6 +1181,7 @@ export default function GrokChat() {
                 onClick={handleSend}
                 disabled={loading || !input.trim()}
                 title="Send"
+                aria-label="Send"
               >↑</button>
             </div>
           </>

@@ -701,6 +701,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   };
   const [activeTool,   setActiveTool]  = useState<string | null>(null);
   const [drawMenuOpen, setDrawMenuOpen] = useState(false);
+  /* #1309 item 3 (R-32): the Draw menu ignored Escape and clicks outside it, so once open it stayed open over
+     the chart until a tool or the button itself was chosen. Escape returns focus to the button. */
+  const drawWrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!drawMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setDrawMenuOpen(false);
+      drawWrapRef.current?.querySelector<HTMLElement>('.klc-draw-btn')?.focus();
+    };
+    const onDown = (e: PointerEvent) => { if (!drawWrapRef.current?.contains(e.target as Node)) setDrawMenuOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onDown);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
+  }, [drawMenuOpen]);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   /* Set only when getBars EXHAUSTS its retries with nothing usable - not for
      an upstream that answered OK with a genuinely empty coin. #1073's real
@@ -2714,7 +2729,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         <div className="klc-sep" />
 
         {/* Drawing tools collapsed into a Draw menu so the toolbar stays clean */}
-        <div className="klc-draw-wrap">
+        <div className="klc-draw-wrap" ref={drawWrapRef}>
           <button
             className={`klc-tool-btn klc-draw-btn${activeTool ? ' on' : ''}`}
             onClick={() => setDrawMenuOpen(v => !v)}
