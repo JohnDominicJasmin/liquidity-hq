@@ -14,6 +14,7 @@ import {
 import { useLabels } from '@/lib/labels';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 import { rendersOwnNav } from '@/lib/navRoutes';
+import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 import type { LabelKey } from '@/lib/labelKeys';
 import type { ComponentType } from 'react';
 
@@ -90,6 +91,10 @@ export default function NavDrawer() {
   const isDesktop = useIsDesktop();
   const pathname = usePathname();
   const { user, loading: authLoading, signOut } = useAuth();
+  /* #1309 item 3 (R-32): the drawer had no Escape, no dialog role and did not move focus. The shared hook
+     (#1243) gives it the three behaviours a modal panel owes: focus moves in on open, Tab stays inside,
+     Escape closes and focus returns to whatever opened it. */
+  const drawerRef = useDialogFocusTrap<HTMLDivElement>(drawerOpen, () => setDrawerOpen(false));
 
   // Hide the floating Ask AI button while the mobile nav drawer is open -
   // it otherwise sits on top of the bottom nav links and eats their taps.
@@ -178,6 +183,11 @@ export default function NavDrawer() {
       {!isDesktop && (
       <div
         id="nav-drawer"
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
+        tabIndex={-1}
         className={`nav-drawer${drawerOpen ? ' open' : ''}`}
         /* inert while closed - the same fix as GrokChat. The drawer is hidden
            with a transform and pointer-events:none, so its 23 focusable
