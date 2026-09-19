@@ -3799,6 +3799,11 @@ html[data-theme="light"] { background: var(--bg0); }
 .frh-row:hover   { background: rgba(255,255,255,0.04); }
 .frh-row.on      { background: rgba(26,122,255,0.11) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
 .frh-row.on .frh-coin { color: var(--purple) !important; }
+/* #1309 item 6: the coin cell's real button. Looks exactly like the bare text it replaced;
+   the only visible difference is the focus ring, which is the point. */
+.frh-coin-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-align: left; }
+.frh-coin-btn:disabled { cursor: default; }
+.frh-coin-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .frh-spark-th    { min-width: 120px; }
 .frh-spark-cell  { min-width: 120px; width: 160px; padding: 3px 8px !important; }
 

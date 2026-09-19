@@ -597,8 +597,21 @@ export default function FundingTerminal() {
                           style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${withAlpha(frSignal(current).color, '44')}` } : undefined}
                         >
                           <td className="frh-coin" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <CoinIcon coin={id} size={16} color={coinBadgeColor(id)} bg={withAlpha(coinBadgeColor(id), '24')} />
-                            {COIN_LABELS[id]}
+                            {/* #1309 item 6: the row's onClick was the ONLY way to choose a coin, and a <tr>
+                                is not focusable, so a keyboard user could never leave BTC. A real button
+                                in the coin cell is: focusable, Enter/Space, announced with its pressed
+                                state. The row click stays for the mouse (the button's own click bubbles to
+                                it, so it is not handled twice). Disabled for a coin with too little history
+                                to chart - the same rule the row's click already had. */}
+                            <button
+                              type="button"
+                              className="frh-coin-btn"
+                              aria-pressed={selected === id}
+                              disabled={noData}
+                            >
+                              <CoinIcon coin={id} size={16} color={coinBadgeColor(id)} bg={withAlpha(coinBadgeColor(id), '24')} />
+                              {COIN_LABELS[id]}
+                            </button>
                           </td>
                           <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
                             {current != null ? frFmt(current) : '-'}
