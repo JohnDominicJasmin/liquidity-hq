@@ -588,6 +588,22 @@ function ArenaContent() {
   // Derived - current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
   const result     = cacheEntry?.result ?? null;
+  /* #985 gap 3 / #1347 item 4: lifted here from inside the signal card's own
+     render (it used to be computed twice - once there, once nowhere - for
+     the reasoning/chart-analysis/patterns block and the ASK AI prompt,
+     which both need the SAME answer, not a second copy of the comparison
+     that could drift from the first). This read was built from the
+     selection at request time and nothing else watches strategySelection to
+     invalidate it, so a trader who changes indicators keeps reading a
+     recommendation computed from the set they no longer have selected, with
+     nothing on screen saying so - unless every place that shows `result`
+     checks this, not just the banner. Order-independent: re-selecting the
+     same indicators in a different click order is not a change. */
+  const selectionChanged = (() => {
+    const before = [...(cacheEntry?.selectionAtAnalysis ?? [])].sort().join(' ');
+    const now = [...strategySelection].sort().join(' ');
+    return before !== now;
+  })();
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Seed coin + TF from settings once settings are loaded ── */
@@ -903,7 +919,7 @@ function ArenaContent() {
 
   }, [store, selectedCoin, notifEnabled, fireNotif, settings]);
 
-  const gatherContext = (): GrokContext => {
+  const gatherContext = (emaLoading: boolean): GrokContext => {
     const coin = store.coins[selectedCoin];
     const session = getSessionName(new Date());
 
@@ -1252,7 +1268,33 @@ function ArenaContent() {
          give the model a second vocabulary for one fact, and a user reading the
          dashboard and the AI answer would see two claims instead of one. */
       perpSpot: perpSpotRef.current?.explanation ?? 'Perps vs spot could not be measured for this coin.',
-      emaStrategy: strategyToGrokLine(emaSignalRef.current, readTf),
+      /* #1347 item 5: emaSignalRef (below) freezes at the last resolved
+         value while emaSignal.loading is true (:704-705) - correct on its
+         own, so a coin/TF switch doesn't flash "no data" for one render.
+         But nothing downstream checked emaSignal.loading before reading the
+         ref, so on a coin or TF change the prompt asserted the PREVIOUS
+         coin/TF's EMA technicals as present-tense fact for the one now
+         selected, with no caveat. One label at the top of the bundle, not
+         four (emaStrategy/emaATR/ema50Slope/waveTrend all derive from the
+         same frozen ref for the same reason) - repeating it per field would
+         be noise for one root cause.
+
+         `emaLoading` is an ARGUMENT, not `emaSignal.loading` read here.
+         This function is only ever called from inside `readMarket`, a
+         useCallback whose dependency array does not list `emaSignal`, and
+         the hook flips to loading in an effect - one render AFTER the
+         coin/TF change that recreates that callback. Reading it from the
+         closure therefore captured `false` and only turned true if an
+         unrelated `store` tick happened to recreate the callback first
+         (observed on the built app: caveat present in 1 of 8 reads made
+         while EMA was provably loading; 3 of 3 once ticks had intervened).
+         That is #1347 item 1's shape - a memoised callback's freshness
+         riding on websocket traffic - so it is passed in from the click
+         handler, whose closure is fresh at click time, exactly as
+         `selection` is. */
+      emaStrategy: (emaLoading
+        ? '[Still loading EMA technicals for the current coin/timeframe - the line below is the PREVIOUS selection\'s, not this one\'s] '
+        : '') + strategyToGrokLine(emaSignalRef.current, readTf),
       emaATR: emaSignalRef.current.atrLast != null
         ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 35% buf = $${(emaSignalRef.current.atrLast * 0.35).toFixed(2)} min clearance above/below EMA50`
         : '-',
@@ -1271,7 +1313,12 @@ function ArenaContent() {
     };
   };
 
-  const readMarket = useCallback(async (selection: readonly string[], mode: 'quick' | 'deep' = 'deep', force = false) => {
+  // `mode`, `force` and `emaLoading` carry no defaults on purpose: the one
+  // caller (runStrategy) passes all of them, and a default `emaLoading` of
+  // false would make a future caller that forgets it indistinguishable from
+  // one that checked and found EMA resolved - the same "dropped argument
+  // reads as a deliberate empty one" shape as #1347 item 11.
+  const readMarket = useCallback(async (selection: readonly string[], mode: 'quick' | 'deep', force: boolean, emaLoading: boolean) => {
     // #1309 item 24: the toolbar's own Quick/Deep buttons are `disabled`
     // while a read is running, but StrategyPanel's copies of the same three
     // buttons (wired through runStrategy below) were not - a click there
@@ -1413,7 +1460,7 @@ function ArenaContent() {
 
       // Step 2 - gather 34 market signals
       setReadStep('Reading market…');
-      const ctx = { ...gatherContext(), rsiDaily: rsiDailyStr, structureBreak };
+      const ctx = { ...gatherContext(emaLoading), rsiDaily: rsiDailyStr, structureBreak };
 
       // Step 3 - ask Grok via server proxy (key hidden, rate-limited)
       setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
@@ -1555,7 +1602,15 @@ function ArenaContent() {
         detail: {
           coin: selectedCoin,
           selection,
-          prompt: (result
+          /* #1347 item 4, the "worst case" the audit named: citing a stale
+             result's signal/confidence/reasoning as fact while appending
+             the CURRENT selection below was one message asserting two
+             different states as one. `result && !selectionChanged` means a
+             result computed from a selection the trader has since changed
+             is treated the same as having no result at all here - honest,
+             and it costs nothing: Quick/Deep are one click away for a
+             fresh read against the current selection. */
+          prompt: (result && !selectionChanged
             ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
                 coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
                 entryZone: '-',  // #260: no levels; ARENA_CHAT_PROMPT_WITH_RESULT still names one - needs a DB row edit
@@ -1573,7 +1628,7 @@ function ArenaContent() {
     if (!user) { window.location.href = '/login'; return; }
     const entry = resultsCache[selectedCoin];
     const force = !!(entry && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-    readMarket(selection, kind, force);
+    readMarket(selection, kind, force, emaSignal.loading);
     window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
   };
 
@@ -1942,17 +1997,27 @@ function ArenaContent() {
       {/* ── AI READ · answer-first hero ── */}
       <div className="arena-below-chart">
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        {/* Quick button - requires sign-in */}
+        {/* Quick button - requires sign-in.
+            #1347 item 11: #1338 fixed `disabled` to also check `authLoading`
+            (a click before sign-in resolves must not bounce a signed-in
+            user to /login) but left the lock icon, title and CSS class
+            keyed on `!user` alone - so while auth was still resolving, a
+            signed-in user saw the "sign in to use this" lock icon and
+            tooltip on a button that was correctly disabled for a different
+            reason. `!user && !authLoading` is the confirmed-signed-out
+            state; unknown-yet renders as neither locked nor unlocked,
+            matching the same "don't claim a fact we haven't confirmed"
+            pattern as this file's other #1347 fixes. */}
         <button
-          className={`arena-fire-btn arena-quick-btn${!user ? ' arena-deep-locked' : ''}`}
+          className={`arena-fire-btn arena-quick-btn${!user && !authLoading ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
+          title={!user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {!user && (
+              {!user && !authLoading && (
                 <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
                   <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -1963,17 +2028,17 @@ function ArenaContent() {
           )}
         </button>
 
-        {/* Deep button - requires sign-in */}
+        {/* Deep button - requires sign-in. Same fix as Quick above. */}
         <button
-          className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
+          className={`arena-fire-btn${!user && !authLoading ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
+          title={!user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {!user && (
+              {!user && !authLoading && (
                 <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
                   <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -2354,6 +2419,20 @@ function ArenaContent() {
       {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
       {result && (
         <>
+          {/* #1347 item 4: the banner in the signal card (above, in a
+              different column at wider widths) marks the SAME result as
+              stale - this repeats that marker here because a reader can
+              reach the chart-analysis/patterns/reasoning text without ever
+              scrolling past the signal card, and this content was the
+              "no marker at all" half of the audit's finding. Same labels,
+              same condition, not a second wording for the same fact. */}
+          {selectionChanged && (
+            <div className="arena-override-notice" style={{ margin: '0 0 10px' }}>
+              {describeSelection(strategySelection)
+                ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(strategySelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
+                : t('ARENA_STALE_SELECTION_CLEARED')}
+            </div>
+          )}
           {result.chartAnalysis && (
             <div className="arena-reasoning" style={{ margin: '10px 0' }}>
               <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>

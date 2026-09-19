@@ -1,0 +1,243 @@
+import { test, expect } from '@playwright/test';
+import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
+
+/* #1347 item 6 (#1362, fix by Dev Team) - the Strategy Panel's `entitled`
+ * boolean (`entitlementStatus === 'entitled'`) fed the indicator limit, the
+ * at-limit block and the read-only params box, so 'not_entitled' and
+ * 'unknown' were enforced identically. A paying user whose entitlements read
+ * had not resolved (or had failed) was told, by the interactive UI, that they
+ * were on the free plan: chips capped at 1, params read-only. The header badge
+ * already rendered '···' for unknown; the controls beneath it did not.
+ *
+ * THE FIX: while `entitlementStatus === 'unknown'` the strategy-set selector,
+ * the indicator chips and the params box are replaced by the SAME
+ * `EntitlementUnknownCard` + `retryEntitlements` the Arena page's Confluence
+ * card already uses. "Run the read" (QUICK / DEEP / ASK AI) is untouched - it
+ * was never gated on entitlement.
+ *
+ * SAME HOOK AS entitlement-unknown.spec.ts (#1184): `window.__LHQ_QA_FORCE_
+ * ENTITLEMENTS_FAIL__`, set with an init script so it beats the reload race.
+ * That file's header explains why route-stubbing and re-signing-in do not work
+ * here; this file does not re-derive it.
+ *
+ * SCOPED TO `.strat-panel`, not the page. The Confluence card on the same page
+ * renders an identical [data-testid="entitlement-unknown"], so an unscoped
+ * assertion would pass on that card and say nothing about the panel - the
+ * exact defect this PR fixes lived in the panel while the card next to it was
+ * already correct.
+ *
+ * Not run yet: the fix is unmerged and the machine is Dev's. Expected against
+ * `dev`/`qa` without #1362: the forced-unknown tests are RED (the chip grid,
+ * capped at one, is what renders); the two controls are green either way and
+ * exist to prove the fix did not change confirmed-free or confirmed-Pro.
+ * No AI credits - nothing here presses QUICK/DEEP/ASK AI.
+ */
+
+test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
+const PANEL = '.strat-panel';
+const UNKNOWN_CARD = '[data-testid="entitlement-unknown"]';
+
+/** The measurement test clicks a chip, which persists a selection to account A
+ *  on the shared dev database. Put it back so no later spec inherits it. */
+async function clearSavedSelection(page: import('@playwright/test').Page) {
+  await page.evaluate(async () => {
+    const raw = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    const token = raw ? JSON.parse(localStorage.getItem(raw)!).access_token : null;
+    await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ strategy_selection: [], knownAsOf: { strategy_selection: new Date().toISOString() } }),
+    });
+    localStorage.removeItem('lhq_settings_v1');
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('lhq_settings_unconfirmed_v1')) localStorage.removeItem(k);
+    }
+  });
+}
+
+const forceEntitlementsFail = () => {
+  (window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__ = true;
+};
+
+test.describe('Strategy Panel does not assert a free plan while entitlement is unknown (#1347 item 6)', () => {
+  test('a Pro account whose entitlements read fails sees the couldn\'t-verify card in the panel, not a free-capped chip grid', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    await ctx.addInitScript(forceEntitlementsFail);
+    const page = await ctx.newPage();
+    try {
+      await gotoSignedIn(page, '/arena');
+      const panel = page.locator(PANEL);
+      await expect(panel, 'the Strategy Panel never rendered on /arena - this run measured nothing').toBeVisible({ timeout: 15_000 });
+
+      await expect(panel.locator(UNKNOWN_CARD),
+        'the panel must show EntitlementUnknownCard while the plan cannot be verified - the Confluence card being correct is not enough, ' +
+        'the panel is where the defect lived').toBeVisible({ timeout: 15_000 });
+
+      await expect(panel.locator('button.strat-chip'),
+        'the indicator chip grid must not render while the plan is unknown - a Pro account capped at one chip is the fail-closed ' +
+        'direction #1119 forbids').toHaveCount(0);
+      await expect(panel.locator('select.strat-sel'),
+        'the strategy-set selector must not render while the plan is unknown').toHaveCount(0);
+
+      // Untouched by the fix, and worth pinning: the card replaces the
+      // selection UI, not the whole panel.
+      for (const name of ['QUICK', 'DEEP', 'ASK AI']) {
+        await expect(panel.getByRole('button', { name, exact: true }),
+          `"${name}" must still be present - the fix replaces the selection UI only, "Run the read" was never gated on entitlement`).toBeVisible();
+      }
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('the panel\'s Try again is the SHARED retry - one click clears the panel card AND the Confluence card, and restores the chips', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    await ctx.addInitScript(forceEntitlementsFail);
+    const page = await ctx.newPage();
+    try {
+      await gotoSignedIn(page, '/arena');
+      const panel = page.locator(PANEL);
+      await expect(panel.locator(UNKNOWN_CARD)).toBeVisible({ timeout: 15_000 });
+
+      // Two cards showing at once (panel + Confluence) is what makes the next
+      // check meaningful: a private retry inside the panel would clear one and
+      // leave the other.
+      await expect.poll(() => page.locator(UNKNOWN_CARD).count(), {
+        message: 'expected the panel card AND the Confluence card to both show while entitlements are unknown',
+        timeout: 10_000,
+      }).toBeGreaterThanOrEqual(2);
+
+      // The real backend "recovering", then the user's own action - the same
+      // order entitlement-unknown.spec.ts uses and for the same reason.
+      await page.evaluate(() => {
+        (window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__ = false;
+      });
+      // ENTITLEMENT_UNKNOWN_RETRY_BUTTON resolves to "Try again" (not "Retry").
+      await panel.locator(UNKNOWN_CARD).getByRole('button', { name: 'Try again' }).click();
+
+      await expect(page.locator(UNKNOWN_CARD),
+        'clicking the PANEL\'s Try again left an unknown card on the page - the panel is not calling the shared retryEntitlements ' +
+        '(a second implementation of the same pattern is exactly what this PR says it did not add)').toHaveCount(0, { timeout: 15_000 });
+      await expect(panel.locator('button.strat-chip').first(),
+        'once the plan is confirmed the chip grid must come back').toBeVisible({ timeout: 15_000 });
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('CONTROL: a confirmed-FREE account (B) still sees the ordinary chip grid, not the unknown card', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'b');
+    const page = await ctx.newPage();
+    try {
+      await gotoSignedIn(page, '/arena');
+      const panel = page.locator(PANEL);
+      await expect(panel).toBeVisible({ timeout: 15_000 });
+      await expect(panel.locator('button.strat-chip').first(),
+        'a confirmed-free account must still get the chip grid (limit 1) - the fix must not have turned not_entitled into unknown').toBeVisible({ timeout: 15_000 });
+      await expect(panel.locator(UNKNOWN_CARD), 'a confirmed-free account must not be shown the couldn\'t-verify card').toHaveCount(0);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('CONTROL: a confirmed-PRO account (A) is unaffected', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    const page = await ctx.newPage();
+    try {
+      await gotoSignedIn(page, '/arena');
+      const panel = page.locator(PANEL);
+      await expect(panel).toBeVisible({ timeout: 15_000 });
+      await expect(panel.locator('button.strat-chip').first(), 'a confirmed-Pro account must get the chip grid').toBeVisible({ timeout: 15_000 });
+      await expect(panel.locator(UNKNOWN_CARD), 'a confirmed-Pro account must not be shown the couldn\'t-verify card').toHaveCount(0);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  /* MEASUREMENT, NOT A GATE - and it cannot fail on what it measures, by design.
+   *
+   * #1362 fixes entitlement `unknown` (retries EXHAUSTED). It does not touch the
+   * window BEFORE that, while the read is still in flight: AuthProvider reports
+   * `not_entitled` for it on purpose ("covers both a confirmed free account AND
+   * the window while entitlementsLoading is still true"), and StrategyPanel does
+   * not look at `entitlementsLoading`. So a Pro account's panel is built from
+   * `indicatorLimit(false)` and `readOnly={!entitled}` for as long as the read
+   * takes. From reading only, as of QA's review comment on #1362.
+   *
+   * There is no assertion of what the panel SHOULD show here, because that is a
+   * design decision that is not made (a skeleton, or something else - #1119
+   * rules out both fail-open and fail-closed, so "enable everything" is not the
+   * answer either). A test asserting one shape would encode a guess. So this
+   * holds the entitlements request, reads what a Pro account is actually shown,
+   * and records it as annotations for whoever makes that call. The only hard
+   * assertion is the PRECONDITION: the request was held, i.e. we really were
+   * inside the loading window - without that the annotations would describe a
+   * different state.
+   *
+   * If the decision lands and the panel changes, replace this with an assertion
+   * of the chosen behaviour. */
+  test('MEASUREMENT: what a Pro account\'s panel shows while the entitlements read is still in flight', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    const page = await ctx.newPage();
+    const held: Array<import('@playwright/test').Route> = [];
+    try {
+      // Held, never answered - the read neither resolves nor rejects, so the
+      // account stays in the loading window until this test lets go.
+      await page.route('**/rest/v1/*user_subscriptions*', route => { held.push(route); });
+      await gotoSignedIn(page, '/arena');
+
+      const panel = page.locator(PANEL);
+      await expect(panel).toBeVisible({ timeout: 15_000 });
+      await expect.poll(() => held.length, {
+        message: 'the entitlements request was never issued, so this run is not inside the loading window and measures nothing',
+        timeout: 15_000,
+      }).toBeGreaterThan(0);
+
+      const chipCount = await panel.locator('button.strat-chip').count();
+      const unknownCard = await panel.locator(UNKNOWN_CARD).count();
+      await panel.locator('select.strat-sel').selectOption('custom').catch(() => {});
+
+      // SMA has a params box; RSI is a second usable chip. Picking one and then
+      // trying the other is what exposes BOTH free-tier enforcements: the
+      // limit of one (the second chip gets `blocked` and a "Deselect one first"
+      // note) and read-only params. The first chip in the grid has no params
+      // box, which is why an earlier version of this test observed neither.
+      const sma = panel.locator('button.strat-chip', { hasText: 'SMA' }).first();
+      const rsi = panel.locator('button.strat-chip', { hasText: 'RSI' }).first();
+      let params = 'SMA chip not reachable';
+      let limit = 'not observed';
+      if (await sma.isVisible().catch(() => false)) {
+        await sma.click();
+        const input = panel.locator('.strat-params input').first();
+        params = await input.isVisible().catch(() => false)
+          ? ((await input.isDisabled()) ? 'params inputs DISABLED (read-only)' : 'params inputs enabled')
+          : 'no params box for SMA';
+        const rsiBlocked = ((await rsi.getAttribute('class')) ?? '').includes('blocked');
+        const limitNote = (await panel.locator('.strat-limit').innerText().catch(() => '')).trim();
+        await rsi.click().catch(() => {});
+        const rsiPressed = await rsi.getAttribute('aria-pressed');
+        limit = `second chip (RSI) blocked class: ${rsiBlocked} | limit note: ${limitNote ? `"${limitNote}"` : 'none'} | RSI pressed after click: ${rsiPressed}`;
+      }
+      const freeNote = await panel.getByText(/Defaults on free/i).count();
+
+      const observed = [
+        `chip grid rendered: ${chipCount > 0} (${chipCount} chips)`,
+        `EntitlementUnknownCard in panel: ${unknownCard > 0}`,
+        params,
+        limit,
+        `"Defaults on free" note visible: ${freeNote > 0}`,
+      ].join(' | ');
+      test.info().annotations.push({
+        type: 'measurement',
+        description: `Pro account A, entitlements request held (in flight): ${observed}. ` +
+          'If the grid renders and params are disabled or the free note shows, the panel is asserting a free plan for an account whose plan is not yet known - #1347 item 6\'s loading-window half, not covered by #1362.',
+      });
+      console.log(`[strategy-panel loading window] ${observed}`);
+    } finally {
+      await Promise.allSettled(held.map(r => r.abort()));
+      await clearSavedSelection(page).catch(() => {});
+      await ctx.close();
+    }
+  });
+});
