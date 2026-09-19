@@ -577,6 +577,7 @@ export default function HypothesisTracker() {
                               onClick={() => deleteEvidence(h.id, ev.id)}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: '0.875rem', padding: 0, opacity: 0.5, flexShrink: 0 }}
                               title={t('HYPOTHESIS_TRACKER_DELETE_EVIDENCE_TOOLTIP')}
+                              aria-label={t('HYPOTHESIS_TRACKER_DELETE_EVIDENCE_TOOLTIP')}
                             >×</button>
                           </div>
                         );

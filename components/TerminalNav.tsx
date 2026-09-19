@@ -237,8 +237,17 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
        the wrapper - matched deliberately rather than reinvented, so the two
        behave identically for someone moving between designs. */
     const close = () => setOpenDrop(null);
+    /* Escape closes it too (#1309 item 3, R-32) and puts focus back on the trigger that owns the menu -
+       otherwise a keyboard user who opened it is left on a control that no longer exists. */
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const trigger = document.querySelector<HTMLElement>(`[data-drop-trigger="${openDrop}"]`);
+      setOpenDrop(null);
+      trigger?.focus();
+    };
     document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('click', close); document.removeEventListener('keydown', onKey); };
   }, [openDrop]);
 
   /* Resolved after mount, never during render: getLocalNow() reads the
@@ -347,6 +356,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                   type="button"
                   className={`tnav-item tnav-drop-btn${open || groupActive ? ' on' : ''}`}
                   onClick={() => setOpenDrop(v => (v === d.key ? null : d.key))}
+                  data-drop-trigger={d.key}
                   aria-haspopup="menu"
                   aria-expanded={open}
                 >
@@ -476,6 +486,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                 type="button"
                 className={`tnav-avatar${openDrop === 'account' ? ' on' : ''}`}
                 onClick={() => setOpenDrop(v => (v === 'account' ? null : 'account'))}
+                data-drop-trigger="account"
                 aria-haspopup="menu"
                 aria-expanded={openDrop === 'account'}
                 /* No label key exists for this and I am not adding one:

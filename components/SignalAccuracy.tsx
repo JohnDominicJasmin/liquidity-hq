@@ -149,7 +149,7 @@ export default function SignalAccuracy() {
                     <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)' }}>{sig.label}</span>
                   </div>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
-                    {t('SIGNAL_ACCURACY_AVG_RETURN', { sign: sig.direction === 'long' ? '+' : '', value: sig.avgReturn6.toFixed(2) })}
+                    {t('SIGNAL_ACCURACY_AVG_RETURN', { sign: sig.direction === 'long' && sig.avgReturn6 > 0 ? '+' : '', value: sig.avgReturn6.toFixed(2) })}
                   </span>
                 </div>
 

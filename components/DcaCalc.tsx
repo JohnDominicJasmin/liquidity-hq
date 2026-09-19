@@ -108,6 +108,7 @@ export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
               <button
                 onClick={() => removeEntry(i)}
                 disabled={entries.length <= 2}
+                aria-label="Remove entry"
                 style={{
                   width: 26, height: 34, borderRadius: 6, border: '0.5px solid var(--bdr)',
                   background: 'transparent', color: entries.length <= 2 ? 'var(--txt-dim)' : 'var(--txt3)',
