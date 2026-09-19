@@ -4,45 +4,20 @@ import { useRouter } from 'next/navigation';
 import { useOnboarding } from './OnboardingProvider';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
-import { useTheme } from '@/lib/theme';
-import { useDesignMode } from '@/components/DesignModeProvider';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 
 const MONO = "var(--font-mono, 'IBM Plex Mono', monospace)";
 const SANS = "var(--font-sans, 'Figtree', system-ui, sans-serif)";
 
-// Every color here used to be a flat module-level dark-only constant - this
-// whole component is inline-style (no CSS classes), so it never picked up
-// [data-theme="light"] at all. Values below match the app's real light-theme
-// tokens (app/globals.css's [data-theme="light"] block), not guesses.
-const DARK = {
-  ACCENT: 'var(--accent)', GREEN: 'var(--green)', RED: 'var(--red)', ORANGE: '#f97316',
-  BG0: '#07090f', BG1: '#0c0f1c', BG2: '#101324',
-  TXT1: '#eef0fa', TXT2: '#9296b5', TXT3: '#4e5374',
-  BDR: 'rgba(26,122,255,0.1)', TRACK_BG: 'rgba(26,122,255,0.06)', GRID: 'rgba(26,122,255,0.05)',
-  TG_BG: 'rgba(34,158,217,0.06)', TG_BDR: 'rgba(34,158,217,0.28)', TG_TXT: '#4db8e8',
-  MODAL_SHADOW: '0 32px 80px rgba(0,0,0,0.7)',
-};
-const LIGHT = {
-  ACCENT: '#0052CC', GREEN: '#047857', RED: '#B91C1C', ORANGE: '#C2410C',
-  BG0: '#F2F3F5', BG1: '#FFFFFF', BG2: '#F2F3F5',
-  TXT1: '#111318', TXT2: '#44475A', TXT3: '#63656F',
-  BDR: 'rgba(0,82,204,0.14)', TRACK_BG: 'rgba(0,82,204,0.08)', GRID: 'rgba(0,82,204,0.08)',
-  TG_BG: 'rgba(34,158,217,0.08)', TG_BDR: 'rgba(34,158,217,0.35)', TG_TXT: '#0e7fae',
-  MODAL_SHADOW: '0 20px 48px rgba(20,25,40,0.18)',
-};
 /* THE TERMINAL PALETTE (#926).
  *
- * This component is 100% inline-style with no CSS classes, which is why it
- * needed DARK and LIGHT as objects in the first place - it picks up no
- * stylesheet at all, so `[data-design="terminal"]` never reached it either.
- * It rendered identically in both designs: 19 restated hex, 13 rgba() and 20
- * non-zero radii, on the FIRST screen a new account sees.
- *
- * Adding a third palette rather than editing twenty inline sites, because the
- * file already solved this shape once for theme and the fix should look like
- * the one that is there.
+ * This component is 100% inline-style with no CSS classes, which is why its
+ * colours live in an object - it picks up no stylesheet at all, so
+ * `[data-design="terminal"]` never reached it. It used to render identically
+ * in both designs (19 restated hex, 13 rgba() and 20 non-zero radii, on the
+ * FIRST screen a new account sees), so this palette was added beside the old
+ * DARK and LIGHT ones; #1111 removed the current design and those two with it.
  *
  * Every value is a token by name. The tinted borders and tracks are the
  * current design's blue at low alpha - `rgba(26,122,255,0.1)` and friends -
@@ -63,12 +38,9 @@ const TERMINAL = {
   MODAL_SHADOW: 'none',
 };
 
-type Palette = typeof DARK;
+type Palette = typeof TERMINAL;
 function usePalette(): Palette {
-  const { theme } = useTheme();
-  const design = useDesignMode();
-  if (design === 'terminal') return TERMINAL;
-  return theme === 'light' ? LIGHT : DARK;
+  return TERMINAL;
 }
 
 /* ── Step 1 visual: three metric cards ── */
@@ -522,7 +494,6 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
     setStep(s => s - 1);
   }
 
-  const terminal = useDesignMode() === 'terminal';
   const Visual = current.Visual;
   // #1243: this component has no `open` prop - it IS the dialog for its
   // entire mount lifetime (the parent conditionally renders it), so `open`
@@ -543,7 +514,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
          an unconditional rule rather than a per-element decision.
          This is NOT the whole conversion, which is the failure #926 is about:
          the palette handles colour and type, this handles radius. */
-      className={terminal ? 'tour-term-wrap' : undefined}
+      className="tour-term-wrap"
       style={{
         position: 'fixed', inset: 0, zIndex: 10001,
         // Was 0.92 - much heavier than this app's own backdrop convention
