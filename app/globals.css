@@ -8579,7 +8579,12 @@ main.app-content[data-chrome="none"] {
   font-family: var(--font-mono), monospace; font-size: 10px;
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt);
 }
-[data-design="terminal"] .strat-aux { color: var(--txt4); font-size: 9px; letter-spacing: .1em; }
+/* #1271. The PRO / FREE tag was --txt4: 1.72:1 dark, 1.91:1 light on --bg1 (measured, not
+   estimated). --txt4 is the DISABLED tier (the token's own comment says so), and this is the one
+   line in the panel that names the plan - the reader has to be able to read it. --txt2 is
+   5.62:1 dark / 5.56:1 light on --bg1. The same fix, and the same reason, applies to the other
+   information text in this block below; only the two deliberately dimmed chip states keep --txt4. */
+[data-design="terminal"] .strat-aux { color: var(--txt2); font-size: 9px; letter-spacing: .1em; }
 
 [data-design="terminal"] .strat-sect { padding: 10px 9px; border-bottom: 1px solid var(--bdr3); }
 [data-design="terminal"] .strat-sect:last-child { border-bottom: 0; }
@@ -8589,7 +8594,7 @@ main.app-content[data-chrome="none"] {
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
   display: flex; justify-content: space-between; margin-bottom: 6px;
 }
-[data-design="terminal"] .strat-cap { color: var(--txt4); }
+[data-design="terminal"] .strat-cap { color: var(--txt3); } /* #1271: 4.71 dark / 5.07 light on --bg1 (was 1.72 / 1.91) */
 
 [data-design="terminal"] .strat-sel {
   width: 100%; height: 26px; background: var(--bg2);
@@ -8602,7 +8607,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-grp:last-of-type { margin-bottom: 0; }
 [data-design="terminal"] .strat-gname {
   font-family: var(--font-mono), monospace; font-size: 8.5px;
-  letter-spacing: .14em; text-transform: uppercase; color: var(--txt4);
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt3); /* #1271: 4.71 / 5.07 on --bg1 (was 1.72 / 1.91) */
   margin-bottom: 3px;
 }
 
@@ -8646,7 +8651,7 @@ main.app-content[data-chrome="none"] {
   border-style: dashed; cursor: default;
 }
 [data-design="terminal"] .strat-notyet-note {
-  margin-top: 7px; font-size: 10.5px; line-height: 1.4; color: var(--txt4);
+  margin-top: 7px; font-size: 10.5px; line-height: 1.4; color: var(--txt3); /* #1271: 4.71 / 5.07 on --bg1 (was 1.72 / 1.91) */
 }
 
 [data-design="terminal"] .strat-limit {
@@ -8679,7 +8684,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-pv:disabled { color: var(--txt3); }
 [data-design="terminal"] .strat-ro {
   margin-top: 5px; font-family: var(--font-mono), monospace; font-size: 8.5px;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--txt4);
+  letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); /* #1271: 4.77 dark / 4.70 light on --bg2 (was 1.74 / 1.77) */
 }
 
 [data-design="terminal"] .strat-actions { display: flex; gap: 3px; }
