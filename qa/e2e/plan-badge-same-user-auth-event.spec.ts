@@ -181,7 +181,15 @@ test.describe('The plan badge survives a same-user auth event, and a different u
       }
       expect(sawBlank, 'a SIGNED_IN for a DIFFERENT user did not blank the badge - the fix disabled the loading flag for a new id too, ' +
         'which reopens the race (a new user paired with a stale `false`) the line exists for').toBe(true);
-      expect(entitlementReads, 'no fresh entitlements read was issued for the new user').toBeGreaterThan(0);
+      // POLLED, not read once: the badge blanks when the loading flag is set at
+      // render, and the fetch effect issues its request AFTER that commit, so an
+      // instantaneous read the moment the blank is seen races the request itself.
+      // (The first version of this test did exactly that and failed on a correct
+      // build with 0 reads.)
+      await expect.poll(() => entitlementReads, {
+        message: 'no fresh entitlements read was issued for the new user',
+        timeout: 5_000,
+      }).toBeGreaterThan(0);
 
       // ...and comes back once the read settles - not stuck. Any plan text: what
       // the read resolves to for B is B's own answer, not something asserted here.
