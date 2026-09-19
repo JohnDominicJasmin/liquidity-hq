@@ -3,7 +3,6 @@ import localFont from 'next/font/local';
 import Script from 'next/script';
 import './globals.css';
 import AppShell from '@/components/AppShell';
-import DesignModeProvider from '@/components/DesignModeProvider';
 
 // Self-hosted, previously next/font/google.
 //
@@ -103,40 +102,12 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  /* data-design is a static attribute on <html> (#1111). It used to be resolved from ?design= and localStorage by an
+     inline script and by DesignModeProvider; with the current-design markup deleted from every page, the only thing
+     that switch could still do was strip the terminal tokens off terminal markup. So it is gone, `?design=` no longer
+     does anything, and a stale `lhq-design-mode` value in someone's storage is simply never read. */
   return (
-    <html lang="en" data-theme="dark" className={`${figtree.variable} ${plexSans.variable} ${plexMono.variable}`} suppressHydrationWarning>
-      {/* data-design before the first paint (#719).
-       *
-       * A RAW <script>, NOT <Script strategy="beforeInteractive">, and that
-       * distinction is the whole fix. next/script routes even
-       * beforeInteractive through Next's own loader: the served HTML carries
-       * it as a JSON payload (`[{"children":"…","id":"design-init"}]`) that
-       * runs during the hydration bootstrap. Measured - at
-       * readyState === 'interactive' the attribute was still absent. A plain
-       * inline script in <head> is executed synchronously by the browser
-       * before it paints anything, which is what this needs.
-       *
-       * Why it needs it at all: DesignModeProvider sets this attribute in a
-       * useEffect. That was fine while terminal was opt-in - someone who typed
-       * ?design=terminal tolerates one frame of the old palette. It stops
-       * being fine now that `/` is terminal for EVERY visitor: the landing
-       * page would paint the current design's light ground and then swap to
-       * terminal's near-black, on the first frame a prospective user sees.
-       *
-       * The precedence MUST match resolveDesignMode in lib/designMode.ts.
-       * It is duplicated because this runs before any module is loaded, which
-       * is the point. It is kept in step by __tests__/designMode.test.mts,
-       * which extracts this exact string and runs both against every
-       * combination of inputs rather than trusting this comment.
-       *
-       * #748 removed the interpolated route list. Terminal is the default on
-       * every route now, so there is no list to mirror and no pathname to
-       * read - the script is the param, the stored value, then terminal. */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `(function(){try{var q=new URLSearchParams(window.location.search).get('design');var s=null;try{s=localStorage.getItem('lhq-design-mode');}catch(e){}var m=q==='terminal'?'terminal':q==='current'?'current':s==='terminal'?'terminal':s==='current'?'current':'terminal';if(m==='terminal'){document.documentElement.setAttribute('data-design','terminal');}else{document.documentElement.removeAttribute('data-design');}}catch(e){}})();`,
-        }}
-      />
+    <html lang="en" data-theme="dark" data-design="terminal" className={`${figtree.variable} ${plexSans.variable} ${plexMono.variable}`} suppressHydrationWarning>
       {/* No manual apple-touch-icon <link> here - app/apple-icon.png's file
           convention already generates the correct tag automatically. The old
           hardcoded one pointed at /icons/icon-192.jpg, which the icon
@@ -221,9 +192,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}
         </Script>
-        <DesignModeProvider>
-          <AppShell>{children}</AppShell>
-        </DesignModeProvider>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
