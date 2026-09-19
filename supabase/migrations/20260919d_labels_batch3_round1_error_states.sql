@@ -14,8 +14,9 @@
 -- user. The keys also carry English defaults in lib/labelDefaults.en.json, which is what
 -- renders until these rows are applied.
 --
--- PROPOSED WORDING, NOT APPROVED. The owner signs it off in one pass with item 14's
--- (20260919b). ar/ko/ru/zh are MACHINE-TRANSLATED and not reviewed by a native speaker, the
+-- WORDING APPROVED as written by the owner on 2026-09-19 (in chat, relayed by PM/DevOps;
+-- the approval covers the English). PM/DevOps applies the rows at release time.
+-- ar/ko/ru/zh are MACHINE-TRANSLATED and not reviewed by a native speaker, the
 -- same standard as the rest of this audit's translation waves.
 --
 -- Purely additive: three new keys, no existing row is touched, so `on conflict do update` is
