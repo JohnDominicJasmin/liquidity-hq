@@ -9,8 +9,9 @@
 -- chart's indicator selection."). This is the one surface that still promises
 -- parity, and it is the sentence a trader reads before turning the alert on.
 --
--- PROPOSED WORDING, NOT APPROVED. The owner approves the wording; nothing here
--- is applied until they do. English reuses the alert message's own phrase
+-- WORDING APPROVED by the owner on 2026-09-19 (in chat, relayed by PM/DevOps; the
+-- approval covers the English). Nothing here is applied until PM/DevOps applies it
+-- at release time. English reuses the alert message's own phrase
 -- ("not your chart's indicator selection") on purpose, so the page and the
 -- message a trader later receives do not describe the same rule two ways
 -- (#1347 item 16 is about exactly that drift).
