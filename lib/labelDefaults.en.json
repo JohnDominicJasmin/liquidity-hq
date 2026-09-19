@@ -2642,5 +2642,8 @@
   "COIN_HEALTH_GRADE_C": "Mixed signals",
   "COIN_HEALTH_GRADE_D": "Weak signal",
   "COIN_HEALTH_GRADE_F": "No clear setup",
-  "COIN_HEALTH_NO_DATA": "No data"
+  "COIN_HEALTH_NO_DATA": "No data",
+  "STATE_LOAD_FAILED": "Couldn't load this - try again",
+  "STATE_UNAVAILABLE": "Unavailable",
+  "STATE_MARKET_DATA_UNAVAILABLE": "Market data is unavailable right now - try again in a moment"
 }

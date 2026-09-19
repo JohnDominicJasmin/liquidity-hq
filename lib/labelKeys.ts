@@ -1270,6 +1270,9 @@ export const LABEL_KEYS = [
   'ALERTS_CONNECT_FAILED', 'ALERTS_CONNECT_SECURITY_NOTE', 'ALERTS_CONNECT_WEBHOOK_WARNING',
   'ALERTS_CONNECTED_DESC', 'ALERTS_DISCONNECT_BUTTON', 'ALERTS_DISCONNECTING',
   'ALERTS_DISCONNECT_FAILED',
+  // #1309 round 2b (items 14, 19, 20): the three states a panel can be in that are NOT "nothing here" -
+  // the read failed, the value is not known, the shared market feed never answered.
+  'STATE_LOAD_FAILED', 'STATE_UNAVAILABLE', 'STATE_MARKET_DATA_UNAVAILABLE',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];

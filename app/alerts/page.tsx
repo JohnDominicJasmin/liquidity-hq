@@ -129,6 +129,9 @@ export default function AlertsPage() {
   // Price alerts
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
   const [paLoading, setPaLoading]     = useState(false);
+  /* #1309 item 19: `paError` is shared with add/remove, and `priceAlerts` stays [] when the LOAD fails, so a failed
+     load rendered its error above a "No price alerts yet" empty state - the failure read as "you have none". */
+  const [paLoadFailed, setPaLoadFailed] = useState(false);
   const [paCoin, setPaCoin]           = useState('btc');
   const [paPrice, setPaPrice]         = useState('');
   const [paDir, setPaDir]             = useState<'above' | 'below'>('above');
@@ -359,8 +362,10 @@ export default function AlertsPage() {
       if (!res.ok) throw new Error(d.error ?? t('ALERTS_NETWORK_ERROR'));
       setPriceAlerts(d.alerts ?? []);
       setPaError('');
+      setPaLoadFailed(false);
     } catch (e) {
       setPaError(e instanceof Error ? e.message : t('ALERTS_NETWORK_ERROR'));
+      setPaLoadFailed(true);
     }
     setPaLoading(false);
   }, [t]);
@@ -867,7 +872,7 @@ export default function AlertsPage() {
           {paError && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{paError}</div>}
           {paLoading ? (
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10 }}>{t('ALERTS_LOADING')}</div>
-          ) : priceAlerts.length === 0 ? (
+          ) : paLoadFailed ? null : priceAlerts.length === 0 ? (
             <div className="empty-state" style={{ marginTop: 8 }}>
               <div className="empty-state-title">{t('ALERTS_NO_PRICE_ALERTS_TITLE')}</div>
               <div className="empty-state-sub">{t('ALERTS_NO_PRICE_ALERTS_SUB')}</div>

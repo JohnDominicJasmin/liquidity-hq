@@ -381,6 +381,7 @@ function Inner() {
   const riskUsd = riskFromLevels ?? autoRiskUSD;
 
   /* Load trades */
+  const [loadFailed, setLoadFailed] = useState(false);
   const loadTrades = async () => {
     const db = getSupabase();
     if (!db) { setNoDb(true); return; }
@@ -390,7 +391,8 @@ function Inner() {
       .select('*')
       .order('created_at', { ascending: false })
       .limit(200);
-    if (!error && data) setTrades(data as Trade[]);
+    if (!error && data) { setTrades(data as Trade[]); setLoadFailed(false); }
+    else setLoadFailed(true);   // #1309 item 19: a failed read is not "no trades yet"
     setLoading(false);
   };
 
@@ -1052,7 +1054,12 @@ function Inner() {
       {tab === 'history' && (
         <div>
           {loading && <LoadingState message={t('TRADE_JOURNAL_HISTORY_LOADING_MESSAGE')} />}
-          {!loading && trades.length === 0 && (
+          {!loading && loadFailed && (
+            <div role="alert" style={{ fontSize: 'var(--fs-label)', color: 'var(--red)', padding: '20px 0', textAlign: 'center' }}>
+              {t('STATE_LOAD_FAILED')}
+            </div>
+          )}
+          {!loading && !loadFailed && trades.length === 0 && (
             <div style={{
               border: '0.5px solid var(--bdr)', borderRadius: 10,
               padding: '24px 20px', margin: '8px 0', textAlign: 'center',
