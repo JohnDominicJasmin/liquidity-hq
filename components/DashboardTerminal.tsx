@@ -1,7 +1,7 @@
 'use client';
 /* Monochrome Terminal rendering of the dashboard (Desk 2a, #413).
  *
- * Activated by useDesignMode() === 'terminal' in app/dashboard/page.tsx.
+ * Rendered by app/dashboard/page.tsx (it used to be selected there by useDesignMode(); #1111).
  * Mirrors Dashboard's data logic and component structure exactly; the only
  * differences are visual: no GlobalSpotlight, no mb-glow-card, border-radius
  * 0 on any inline style that sets one. CSS token overrides in globals.css
