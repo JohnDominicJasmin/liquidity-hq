@@ -8,7 +8,6 @@ import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
 import Tip from '@/components/Tip';
-import { useDesignMode } from '@/components/DesignModeProvider';
 import { barsAfter } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
@@ -93,62 +92,8 @@ function loadDrawings(coin: CoinId): PersistedOverlay[] {
 // candles + price axis on a short mobile chart pane. "follow_cross" only
 // shows it while the user is actively touching/dragging the crosshair,
 // which is how most trading apps handle a short chart on a phone.
-const DARK: Record<string, unknown> = {
-  grid: {
-    horizontal: { color: 'rgba(255,255,255,0.04)', size: 1 },
-    vertical:   { color: 'rgba(255,255,255,0.04)', size: 1 },
-  },
-  candle: {
-    bar: {
-      upColor:            '#26a69a',
-      downColor:          '#ef5350',
-      upBorderColor:      '#26a69a',
-      downBorderColor:    '#ef5350',
-      noChangeBorderColor:'#888',
-      upWickColor:        '#26a69a',
-      downWickColor:      '#ef5350',
-    },
-    tooltip: { showRule: 'follow_cross' },
-    priceMark: {
-      high: { show: true, color: 'rgba(255,255,255,0.45)', textSize: 10 },
-      low:  { show: true, color: 'rgba(255,255,255,0.45)', textSize: 10 },
-      last: {
-        show: true,
-        line: { show: true, color: 'rgba(255,255,255,0.18)' },
-        text: { show: true, color: '#e8e8e8', size: 11 },
-      },
-    },
-  },
-  xAxis: {
-    tickText: { color: 'rgba(255,255,255,0.35)', size: 10 },
-    axisLine: { color: 'rgba(255,255,255,0.07)' },
-    tickLine: { color: 'rgba(255,255,255,0.07)' },
-  },
-  yAxis: {
-    tickText: { color: 'rgba(255,255,255,0.35)', size: 10 },
-    axisLine: { color: 'rgba(255,255,255,0.07)' },
-    tickLine: { color: 'rgba(255,255,255,0.07)' },
-  },
-  crosshair: {
-    horizontal: {
-      line:  { color: 'rgba(255,255,255,0.12)' },
-      text:  { color: '#e8e8e8', background: '#1e1e1e', size: 11 },
-    },
-    vertical: {
-      line:  { color: 'rgba(255,255,255,0.12)' },
-      text:  { color: '#e8e8e8', background: '#1e1e1e', size: 11 },
-    },
-  },
-  overlay: {
-    line: { color: 'var(--accent-2)', size: 1 },
-  },
-  indicator: {
-    tooltip: { showRule: 'follow_cross' },
-  },
-};
-
 // #598 D1: KLineProChart is shared and correct elsewhere, but on the
-// terminal Arena it kept rendering DARK's teal/red candles and the current
+// terminal Arena it kept rendering the old DARK palette's teal/red candles (that palette is gone, #1111) and the current
 // design's blue/orange, because klinecharts draws to a <canvas> - CSS
 // (`[data-design="terminal"] .at-chart .klc-*`) can only reach the toolbar's
 // own DOM buttons, not anything painted onto the canvas itself. Every value
@@ -206,7 +151,7 @@ const TERMINAL_DARK: Record<string, unknown> = {
   // below (S/R, GEX, analysis levels, structure) each set their own colour
   // per instance and are unaffected by this. --accent's terminal value
   // (#d9a626, gold) resolved to a literal hex - unlike 'var(--accent-2)' in
-  // DARK/LIGHT above, a canvas fillStyle cannot resolve a CSS custom
+  // LIGHT below, a canvas fillStyle cannot resolve a CSS custom
   // property string at all.
   overlay: {
     line: { color: '#d9a626', size: 1 },
@@ -323,27 +268,17 @@ const OVERLAY_INK = {
    effect re-runs on the same signal. */
 let overlayInk: typeof OVERLAY_INK.dark | typeof OVERLAY_INK.light = OVERLAY_INK.dark;
 
-/** Which of the three palettes a given theme and design gets.
+/** Which palette a given theme gets. LIGHT wins over terminal dark (#758): there is
+ *  no terminal-light palette, and that is the end state, not a stopgap.
  *
- *  ONE EXPRESSION, TWO CALL SITES. It was two expressions: the theme-sync
- *  effect knew about terminal and the init call did not
- *  (`setStyles(dark ? DARK : LIGHT)`), so at creation terminal dark was painted
- *  with DARK and corrected a moment later. QA raised it on #763 as "probably
- *  one frame, your call".
- *
- *  It is not reliably one frame. The correcting effect depends on `mode` from
- *  useDesignMode(), and #753's bug was exactly that value arriving LATE - a
- *  read that fired before DesignModeProvider had set its attribute. If `mode`
- *  resolves after the effect's first run, the wrong dark palette persists
- *  until it does rather than flashing.
- *
- *  The deeper reason is the one this codebase keeps paying for: two
- *  expressions encoding one rule is the two-sources shape from #736 and #663,
- *  and here the two had already drifted - the init site never learned about
- *  terminal at all. Light-wins-over-terminal (#758) now lives in one place. */
-function paletteFor(dark: boolean, terminal: boolean): Record<string, unknown> {
+ *  ONE EXPRESSION, TWO CALL SITES (the init call and the theme-sync effect). It
+ *  was two expressions once and they drifted - the init site never learned about
+ *  terminal, so terminal dark was painted with the wrong palette and corrected
+ *  later (#763). Until #1111 this also took the design mode and picked between
+ *  three palettes; the current design is gone, so there are two. */
+function paletteFor(dark: boolean): Record<string, unknown> {
   if (!dark) return LIGHT;
-  return terminal ? TERMINAL_DARK : DARK;
+  return TERMINAL_DARK;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -650,15 +585,6 @@ function qaForcedChartFailure(): QaChartFailMode | null {
 }
 
 export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams }: Props) {
-  const mode = useDesignMode();
-  /* The init effect below runs once and must not re-run when the design mode
-     resolves - re-creating the chart would throw away its data. So it reads
-     the mode through a ref rather than closing over the value it happened to
-     have at mount. The theme-sync effect still corrects a late resolve; this
-     only means the FIRST paint is already right when the mode is known by
-     then, which it usually is. */
-  const modeRef = useRef(mode);
-  useEffect(() => { modeRef.current = mode; }, [mode]);
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -881,16 +807,16 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     };
   }, [chartReady]);
 
-  // ── Theme sync - apply DARK/LIGHT/TERMINAL_DARK styles when theme or
-  //    design mode changes. #598 D1 follow-up: this used to run once at
+  // ── Theme sync - apply LIGHT/TERMINAL_DARK styles when the theme
+  //    changes. #598 D1 follow-up: this used to run once at
   //    mount with `[]` deps and read `data-design` off the DOM directly -
   //    chartRef.current was still null the first time (every sibling effect
   //    gates on chartReady for exactly this reason), so setStyles() was a
   //    silent no-op, and nothing ever re-ran it once the chart mounted or
-  //    once design mode resolved. QA caught it via canvas pixel sampling:
+  //    once the design resolved. QA caught it via canvas pixel sampling:
   //    candles were still painting DARK.upColor, tags were still painting
-  //    klinecharts' own untouched default. `mode` from useDesignMode() is
-  //    now a real dependency, so this re-fires on both. ─────────────────
+  //    klinecharts' own untouched default. `chartReady` is now a real
+  //    dependency, so this fires once the chart exists. ─────────────────
   useEffect(() => {
     if (!chartReady) return;
     const apply = () => {
@@ -913,7 +839,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
          place beats one whose price readout is at 1.01. That is the end state,
          not a stopgap: no fourth palette is booked. */
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chartRef.current?.setStyles(resolveStyleVars(paletteFor(dark, mode === 'terminal')) as any);
+      chartRef.current?.setStyles(resolveStyleVars(paletteFor(dark)) as any);
       /* The RSI line has to be re-applied, not just re-styled with the palette.
          Its colour is an indicator style, resolved from `var(--accent-2)` when
          createIndicator runs, and createIndicator runs once. Fixing the
@@ -937,9 +863,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       setThemeInk(dark ? 'dark' : 'light');
     };
     apply();
-    // Theme (not design mode) can still change without a re-render of this
-    // component - 'theme-change' covers that; `mode` in the dependency
-    // array below covers design mode resolving or changing.
+    // The theme can change without a re-render of this component -
+    // 'theme-change' covers that.
     window.addEventListener('theme-change', apply);
     /* And an observer, because this effect READS an attribute rather than
        being told about it. On #707 that exact shape was wrong: a page effect
@@ -956,7 +881,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       observer.disconnect();
       window.removeEventListener('theme-change', apply);
     };
-  }, [chartReady, mode]);
+  }, [chartReady]);
 
   // Keep coinRef fresh for the DataLoader closure
   useEffect(() => { coinRef.current = coin; }, [coin]);
@@ -1044,7 +969,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       // Apply current theme via setStyles (avoids DeepPartial type gymnastics)
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chart.setStyles(resolveStyleVars(paletteFor(dark, modeRef.current === 'terminal')) as any);
+      chart.setStyles(resolveStyleVars(paletteFor(dark)) as any);
 
       // EMA 9/20/50/200 ribbon - drawn as 4 emaRibbonLine overlays (registered
       // below, synced via syncEmaRibbon), not a klinecharts built-in indicator.
