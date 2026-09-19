@@ -840,10 +840,11 @@ export default function GrokChat() {
               className="gchat-icon-btn"
               onClick={toggleExpand}
               title={expanded ? 'Collapse' : 'Expand'}
+              aria-label={expanded ? 'Collapse' : 'Expand'}
             >
               {expanded ? '⊡' : '⊞'}
             </button>
-            <button className="gchat-icon-btn" onClick={closeAll} title="Close">✕</button>
+            <button className="gchat-icon-btn" onClick={closeAll} title="Close" aria-label="Close">✕</button>
           </div>
         </div>
 
@@ -1175,6 +1176,7 @@ export default function GrokChat() {
                 onClick={handleSend}
                 disabled={loading || !input.trim()}
                 title="Send"
+                aria-label="Send"
               >↑</button>
             </div>
           </>
