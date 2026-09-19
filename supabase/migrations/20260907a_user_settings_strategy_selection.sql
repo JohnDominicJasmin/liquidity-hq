@@ -20,10 +20,15 @@
 -- keys fall back to the registry default, both client-side and here; this
 -- column never needs a full snapshot of every param for every indicator.
 --
--- Apply to both projects when ready:
+-- Applies to both projects:
 --   prod qdpwhnvmhqgzijuwopso -> lhq_user_settings
 --   dev  wdtjhrilakoitfcezxpx -> lhq_dev_user_settings
--- NOT YET APPLIED to either - shared-database writes go to the owner (#1020).
+-- APPLIED to both - strategy_selection and strategy_params exist as jsonb on
+-- each project, read from information_schema on 2026-09-18 (#1347 item 15).
+-- This line used to say "NOT YET APPLIED to either", which was false by then and
+-- would have led a reader to conclude the whole persistence path is a silent
+-- no-op. The statements below are kept as the record of what was run;
+-- shared-database writes go to the owner (#1020).
 
 alter table lhq_user_settings
   add column if not exists strategy_selection jsonb,
