@@ -8592,7 +8592,8 @@ main.app-content[data-chrome="none"] {
    estimated). --txt4 is the DISABLED tier (the token's own comment says so), and this is the one
    line in the panel that names the plan - the reader has to be able to read it. --txt2 is
    5.62:1 dark / 5.56:1 light on --bg1. The same fix, and the same reason, applies to the other
-   information text in this block below; only the two deliberately dimmed chip states keep --txt4. */
+   text in this block below, including the dimmed chip states (owner, 2026-09-19): nothing in the
+   Strategy panel is --txt4 any more. */
 [data-design="terminal"] .strat-aux { color: var(--txt2); font-size: 9px; letter-spacing: .1em; }
 
 [data-design="terminal"] .strat-sect { padding: 10px 9px; border-bottom: 1px solid var(--bdr3); }
@@ -8635,7 +8636,11 @@ main.app-content[data-chrome="none"] {
 /* Past the limit. Dimmed, still focusable, still says why on hover - a
    `disabled` chip would leave the tab order and a keyboard user would never
    find out what stopped them. */
-[data-design="terminal"] .strat-chip.blocked { color: var(--txt4); border-color: var(--bdr3); cursor: default; }
+/* Owner, 2026-09-19 (#1387): the dimmed chips must be readable (AA) and still look dimmed. --txt3 is
+   the darkest passing token: 4.71:1 dark / 5.07:1 light on --bg1 (was --txt4: 1.72 / 1.91). No token
+   sits between them, so the "dimmed" cue is now carried by the border (--bdr3, dashed on .notyet) and
+   the default cursor, not by the text tone. */
+[data-design="terminal"] .strat-chip.blocked { color: var(--txt3); border-color: var(--bdr3); cursor: default; }
 [data-design="terminal"] .strat-n {
   background: var(--on-accent); color: var(--accent);
   width: 11px; height: 11px; display: inline-flex;
@@ -8656,7 +8661,7 @@ main.app-content[data-chrome="none"] {
 }
 
 [data-design="terminal"] .strat-chip.notyet {
-  color: var(--txt4); border-color: var(--bdr3);
+  color: var(--txt3); border-color: var(--bdr3); /* 4.71 / 5.07 on --bg1, see .blocked above */
   border-style: dashed; cursor: default;
 }
 [data-design="terminal"] .strat-notyet-note {
