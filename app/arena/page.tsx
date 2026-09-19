@@ -117,8 +117,8 @@ const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', read
 
 /* ── Result cache ── */
 // #985 gap 3: selectionAtAnalysis is optional because entries persisted to
-// localStorage before this shipped won't have it - treated as [] on read,
-// which only matters if the trader currently has a non-empty selection.
+// localStorage before this shipped won't have it. #1347 item 9: such an entry is
+// "unknown", NOT "computed with no selection" - it never claims the trader changed it.
 interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[] }
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
@@ -271,6 +271,12 @@ function ArenaContent() {
      EMA signal block rather than staying with the other page state further
      down: a hook call reading it has to come after its declaration. */
   const [strategySelection, setStrategySelection] = useState<readonly string[]>([]);
+  /* #1347 item 9: `strategySelection` is `[]` until the seed effect below has read the account's saved
+     selection, so anything comparing it to a restored result's `selectionAtAnalysis` on a cold load
+     briefly read as "you changed your selection". This flips in the SAME commit as the seed's
+     setStrategySelection (batched), so the comparison has one honest state to read: not yet known. A
+     failed settings read never seeds, so it stays false and the banner never claims a change. */
+  const [selectionSeeded, setSelectionSeeded] = useState(false);
   /* Per-indicator edited parameter values (#1008) - lives here for the same
      reason strategySelection does: the chart needs it and lives outside
      StrategyPanel. Keyed by indicator id then param key; an indicator with
@@ -608,7 +614,11 @@ function ArenaContent() {
      checks this, not just the banner. Order-independent: re-selecting the
      same indicators in a different click order is not a change. */
   const selectionChanged = (() => {
-    const before = [...(cacheEntry?.selectionAtAnalysis ?? [])].sort().join(' ');
+    /* #1347 item 9: two "we cannot tell" cases must read as NOT changed, not as changed. (1) the selection
+       has not been seeded yet (cold load), (2) the entry predates `selectionAtAnalysis` - it was NOT computed
+       with "no selection", it recorded nothing. Only a real comparison may say the trader changed it. */
+    if (!selectionSeeded || cacheEntry?.selectionAtAnalysis === undefined) return false;
+    const before = [...cacheEntry.selectionAtAnalysis].sort().join(' ');
     const now = [...strategySelection].sort().join(' ');
     return before !== now;
   })();
@@ -665,6 +675,7 @@ function ArenaContent() {
     // before this effect's own check passes.
     if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);
     if (settings.strategy_params) setStrategyParams(settings.strategy_params);
+    setSelectionSeeded(true); // an account with no saved selection is seeded too: empty is then the real answer
   }, [settingsLoadStatus, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Pro gate: fast timeframes ──
@@ -2253,20 +2264,9 @@ function ArenaContent() {
           prevQuickSignal &&
           prevQuickSignal !== result.signal
         );
-        /* #985 gap 3: this read was built from the selection at request time
-           and nothing else watches strategySelection to invalidate it, so a
-           trader who changes indicators keeps reading a recommendation
-           computed from the set they no longer have selected, with nothing
-           on screen saying so. Marked stale rather than re-run - a re-run
-           spends a Grok call the trader did not ask for, and they already
-           have Quick/Deep to ask for a fresh one once they see this.
-           Order-independent: re-selecting the same indicators in a different
-           click order is not a change. */
-        const selectionChanged = (() => {
-          const before = [...(cacheEntry?.selectionAtAnalysis ?? [])].sort().join(' ');
-          const now = [...strategySelection].sort().join(' ');
-          return before !== now;
-        })();
+        /* `selectionChanged` is the one lifted above (#1347 items 4 and 9): a second copy here shadowed it and
+           lacked the not-yet-seeded guard. Marked stale rather than re-run - a re-run spends a Grok call the
+           trader did not ask for, and they already have Quick/Deep to ask for a fresh one once they see it. */
         const secsDiff = Math.floor((nowMs - result.analyzedAt) / 1000);
         const freshness = secsDiff < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secsDiff < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secsDiff/60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secsDiff/3600) });
         // Live invalidation/target-hit check - the entry/stop/target grid used to be a
