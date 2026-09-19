@@ -64,7 +64,11 @@ const LINK_CODE_TTL_SEC = 600;
 
 export default function AlertsPage() {
   const { t } = useLabels();
-  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, entitlementsLoading, retryEntitlements, loading: authLoading } = useAuth();
+  /* #1309 item 12: `entitlementStatus` reads 'not_entitled' while a signed-in user's subscription is still
+     being read, so a Pro/trial account was shown "Unlock Pro" until the read settled. Nothing is claimed
+     about the plan until it has. */
+  const entitlementsResolving = !authLoading && !!user && entitlementsLoading;
   const { settings, loading: settingsLoading, refresh: refreshSettings } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
@@ -572,7 +576,9 @@ export default function AlertsPage() {
           upgrade pitch. Free users now get a single locked-feature card
           (same component/pattern as Arena's other Pro-gated cards) instead
           of a form they can look at but not touch. */}
-      {!authLoading && entitlementStatus === 'unknown' ? (
+      {entitlementsResolving ? (
+        <div className="card" style={{ marginBottom: 10 }}><SkeletonBar width={160} height={14} /></div>
+      ) : !authLoading && entitlementStatus === 'unknown' ? (
         <EntitlementUnknownCard title={t('ALERTS_CONNECT_TELEGRAM_TITLE')} onRetry={retryEntitlements} />
       ) : !authLoading && entitlementStatus !== 'entitled' ? (
         <LockedFeatureCard
@@ -828,7 +834,9 @@ export default function AlertsPage() {
         title={t('ALERTS_AUTHGATE_TITLE')}
         desc={t('ALERTS_AUTHGATE_DESC')}
       >
-        {!authLoading && entitlementStatus === 'unknown' ? (
+        {entitlementsResolving ? (
+          <div className="card" style={{ marginBottom: 10 }}><SkeletonBar width={160} height={14} /></div>
+        ) : !authLoading && entitlementStatus === 'unknown' ? (
           <EntitlementUnknownCard title={t('ALERTS_PRICE_ALERTS_LABEL')} onRetry={retryEntitlements} />
         ) : !authLoading && entitlementStatus !== 'entitled' ? (
           /* Price alerts are delivered over Telegram, which the alert cron
