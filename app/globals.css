@@ -910,6 +910,15 @@ body::after {
 /* ── PRIMARY ACTION BUTTON - shared base for all confirm/submit actions ── */
 
 .lbl { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--txt3); margin-bottom: 10px; }
+/* #1272. A <Tip> title followed by a sub-label ("Session map" + "Your local time..."). Tip's
+   wrapper is inline-flex with a 24px-minimum icon, i.e. a 24px-tall box sharing an inline line
+   with ~12px text; QA's text-under-control probe found the sub-label's box overlapping it.
+   As flex items the two are separate boxes (measured: the sub-label's box no longer reaches the
+   Tip's). Baselines still line up on one line; where there is no room the sub-label drops to its
+   own line as one block instead of flowing on after the title and wrapping mid-phrase. The gap is
+   direction-independent (the old `margin-left` sat on the far side in Arabic). Used where a Tip
+   label is followed by a sub-label. */
+.tip-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; }
 /* ── Side-by-side tile pair (2 columns on desktop, stacks on mobile) ── */
 @media (max-width: 1099px) {
 }
