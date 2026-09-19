@@ -393,6 +393,10 @@ function ArenaContent() {
   const [alertSuccess,  setAlertSuccess]  = useState(false);
   const [alertError,    setAlertError]    = useState('');
   const [chartAlerts,   setChartAlerts]   = useState<ChartAlert[]>([]);
+  /* #1347 item 11 (`if (!res.ok || cancelled) return;`): which coin the alert lines above belong to. A
+     ChartAlert carries no coin, so when the coin changed and the fetch for the new one failed, the previous
+     coin's lines stayed drawn on the new coin's chart at the old coin's prices. */
+  const chartAlertsCoinRef = useRef<string | null>(null);
 
   function openAlertForm() {
     const price = store.coins[selectedCoin]?.price;
@@ -428,6 +432,7 @@ function ArenaContent() {
         return;
       }
       const { alert } = await res.json() as { alert: { id: string } };
+      chartAlertsCoinRef.current = selectedCoin;
       setChartAlerts(prev => [...prev, { id: alert.id, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }]);
       window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
       setAlertSuccess(true);
@@ -471,6 +476,9 @@ function ArenaContent() {
     // "confirmed signed out", same fix already applied elsewhere.
     if (authLoading || !user) return;
     let cancelled = false;
+    // Lines held for a DIFFERENT coin are wrong on this chart whatever the fetch does next, so drop them now.
+    // The same coin keeps its last known lines through a failed refetch (no flicker on a token refresh).
+    if (chartAlertsCoinRef.current !== selectedCoin) { chartAlertsCoinRef.current = null; setChartAlerts([]); }
     async function load() {
       // getAuthToken(), not a raw getSession() - #1168.
       const token = await getAuthToken();
@@ -478,7 +486,7 @@ function ArenaContent() {
       const res = await fetch('/api/price-alerts', { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok || cancelled) return;
       const { alerts } = await res.json() as { alerts: Array<{ id: string; coin: string; target_price: number; direction: 'above' | 'below'; label?: string }> };
-      if (!cancelled) setChartAlerts(alerts.filter(a => a.coin === selectedCoin));
+      if (!cancelled) { chartAlertsCoinRef.current = selectedCoin; setChartAlerts(alerts.filter(a => a.coin === selectedCoin)); }
     }
     load();
     return () => { cancelled = true; };
