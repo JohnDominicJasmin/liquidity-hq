@@ -1999,6 +1999,7 @@
   "ONBOARDING_FLOW_SOURCE_OTHER": "Other",
   "ONBOARDING_FLOW_BACK": "← Back",
   "ONBOARDING_FLOW_SAVING": "Setting up…",
+  "ONBOARDING_FLOW_SAVE_FAILED": "Couldn't save your answers. Check your connection and try again.",
   "ONBOARDING_FLOW_LAUNCH_DASHBOARD": "Launch Dashboard →",
   "ONBOARDING_FLOW_CONTINUE": "Continue →",
   "ONBOARDING_FLOW_SKIP_QUESTION": "Skip this question →",
