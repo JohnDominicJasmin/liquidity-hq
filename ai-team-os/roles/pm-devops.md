@@ -21,10 +21,17 @@ one, by any seat:
 | `priority: medium` | Worth doing, not urgent |
 | `priority: low` | UI audits, wording, contrast, tap sizes, visual tweaks, rare edge cases |
 
-**Low-priority work has a window, and it isn't the working day.** UI audits and
-polish run only when the owner grants a window, such as overnight while they
-sleep and the machine is free. They never run during the day, never ahead of
-critical or high work, and never because a review happened to find them.
+**Low-priority work waits for all four of these, in the owner's words:**
+
+1. Everything is running fine.
+2. **There are paying users.**
+3. Every critical and high item is finished.
+4. There is spare time.
+
+Until all four hold, UI audits and polish are parked — whatever a review finds,
+and however small the fix looks. When they do hold, that work runs in a window
+the owner grants, such as overnight while the machine is free, never in the
+working day and never ahead of critical or high work.
 
 **Never start an audit the owner didn't scope.** A bare command or a skill
 invocation is not a scope. Ask what they want audited and why, before
