@@ -29,7 +29,14 @@ one, by any seat:
 4. There is spare time.
 
 Until all four hold, UI audits and polish are parked — whatever a review finds,
-and however small the fix looks. When they do hold, that work runs in a window
+and however small the fix looks.
+
+**The one exception, and it is narrow: the screen crashes, or the data doesn't
+show.** That isn't polish, it's the product failing, and it is worked on at
+once. Misaligned spacing, colours, faint text, wording — those wait, no matter
+how easy the fix is. The owner, with no users and limited funding, time and
+tokens: *"if UI is kindly not aligned with the color, no, no, no. We can fix it
+later."* When they do hold, that work runs in a window
 the owner grants, such as overnight while the machine is free, never in the
 working day and never ahead of critical or high work.
 
