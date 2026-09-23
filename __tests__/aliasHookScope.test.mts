@@ -34,24 +34,53 @@ const ROOT = path.join(fileURLToPath(import.meta.url), '..', '..');
 /** Every `next/*` subpath the hook currently rescues. Add to this deliberately. */
 const EXPECTED_RESCUES = ['next/headers', 'next/link', 'next/navigation', 'next/script', 'next/server'];
 
+/* Comments are REMOVED, not skipped line by line.
+ *
+ * The first version skipped lines starting with `//`, `*` or `/*`, which misses the
+ * CONTINUATION line of a block comment. This codebase comments in full prose, so those
+ * lines are full of English of the form `separates "no clear setup" from "no data"` - and
+ * `from "no data"` matches an import regex exactly.
+ *
+ * That is why the sweep originally read single quotes only, and the restriction turned out
+ * to be load-bearing by accident: widening it to double quotes without this change would
+ * have added four prose fragments to the package list on day one, each then "resolved" as
+ * a module. Measured, not guessed - they are at egress-ip/route.ts:99,
+ * market/klines/route.ts:385, KLineProChart.tsx:920 and marketStore.ts:363.
+ *
+ * With comments actually stripped, both quote styles and dynamic `import()` are safe to
+ * match, which closes the gap Dev Team flagged on #1417 rather than parking it. */
+function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')        // block comments, including continuations
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');    // line comments, without eating `https://`
+}
+
+/** Package specifiers in ONE source text. Separated from the file walk so the parser can be
+ *  tested against a fixture - the repo happens to contain no double-quoted or
+ *  dynamic-only package import today, so scanning the repo cannot prove those two
+ *  patterns work, and an untested pattern is indistinguishable from a broken one. */
+function specifiersIn(source: string): string[] {
+  const src = stripComments(source);
+  const out = new Set<string>();
+  // Static `from '…'` / `from "…"`, and dynamic `import('…')` - the form a lazily loaded
+  // package uses, which a `from` sweep alone never sees.
+  for (const re of [/\bfrom\s+['"]([^'"]+)['"]/g, /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g]) {
+    for (const m of src.matchAll(re)) {
+      const s = m[1];
+      if (s.startsWith('.') || s.startsWith('@/')) continue;
+      out.add(s);
+    }
+  }
+  return [...out];
+}
+
 /** Package specifiers imported by app code - not `@/…`, not relative, not from a comment. */
 function packageSpecifiers(): string[] {
   const out = new Set<string>();
   const files = execFileSync('git', ['-C', ROOT, 'ls-files', 'app', 'lib', 'components'], { encoding: 'utf8' })
     .split(/\r?\n/).filter((f) => /\.tsx?$/.test(f));
   for (const rel of files) {
-    let src: string;
-    try { src = readFileSync(path.join(ROOT, rel), 'utf8'); } catch { continue; }
-    for (const line of src.split(/\r?\n/)) {
-      // Skip comments - `// … a separate state from 'denied'.` is not an import.
-      const t = line.trim();
-      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) continue;
-      for (const m of line.matchAll(/\bfrom\s+'([^']+)'/g)) {
-        const s = m[1];
-        if (s.startsWith('.') || s.startsWith('@/')) continue;
-        out.add(s);
-      }
-    }
+    try { for (const s of specifiersIn(readFileSync(path.join(ROOT, rel), 'utf8'))) out.add(s); } catch { continue; }
   }
   return [...out].sort();
 }
@@ -77,6 +106,42 @@ function resolveAll(specs: string[], withHook: boolean): Record<string, string> 
     { cwd: ROOT, encoding: 'utf8', windowsHide: true, timeout: 60_000 });
   return JSON.parse(stdout.trim().split(/\r?\n/).pop()!);
 }
+
+test('the sweep parser: both quote styles, dynamic import, and no prose from comments', () => {
+  /* Tested against a fixture rather than the repo, because the repo cannot currently prove
+     it: nothing here is double-quoted or dynamically-imported-only, so those two patterns
+     could be deleted and every repo-scanning test would stay green. An untested pattern is
+     indistinguishable from a broken one, which is this whole file's subject. */
+  const fixture = [
+    `import a from 'single-quoted-pkg';`,
+    `import b from "double-quoted-pkg";`,
+    `const c = await import('dynamically-loaded-pkg');`,
+    `import d from './relative-ignored';`,
+    `import e from '@/lib/alias-ignored';`,
+    `/* A block comment whose CONTINUATION line reads:`,
+    `   separates "no clear setup" from "no data" for the accessible name. */`,
+    `// and a line comment: distinguishes 'broken' from 'known'.`,
+    `const url = 'https://example.invalid/not//a//comment';`,
+  ].join('\n');
+
+  const found = specifiersIn(fixture).sort();
+  assert.deepEqual(found, ['double-quoted-pkg', 'dynamically-loaded-pkg', 'single-quoted-pkg'],
+    'the parser missed a real import form, or picked up prose from a comment');
+});
+
+test('CONTROL: the sweep finds package names, not English prose', () => {
+  /* The guard on the guard. A sweep that quietly scoops up comment text does not fail - it
+     silently enlarges the specifier list, every extra entry fails to resolve under BOTH
+     runs, so the with/without comparison still agrees and the real test stays green while
+     measuring nonsense. Exactly the shape of failure this file exists to catch, one level
+     up. `separates "no clear setup" from "no data"` would have contributed `no data`. */
+  const specs = packageSpecifiers();
+  const NAME = /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*(\/[\w.-]+)*$/i;
+  const prose = specs.filter((s) => !NAME.test(s));
+  assert.deepEqual(prose, [], `the import sweep picked up text that is not a package name: ${prose.join(' | ')}`);
+  assert.ok(specs.includes('next/server'), 'the sweep lost next/server - it is imported by every route handler');
+  assert.ok(specs.includes('klinecharts'), 'the sweep lost klinecharts - it is the one package loaded dynamically');
+});
 
 test('the hook changes resolution for exactly the known next/* subpaths and nothing else', () => {
   const specs = packageSpecifiers();
