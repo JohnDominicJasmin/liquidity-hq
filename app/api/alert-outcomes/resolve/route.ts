@@ -58,8 +58,39 @@ const RESOLVE_FN = process.env.NEXT_PUBLIC_APP_ENV === 'dev'
 
 interface WindowResult { resolved: number; error?: string }
 
-async function resolveWindow(hours: 24 | 48, prices: Record<string, number>): Promise<WindowResult> {
-  const admin    = getSupabaseAdmin();
+/* THE DATABASE SURFACE THIS ROUTE ACTUALLY USES, named so it can be doubled.
+ *
+ * Deliberately NOT `SupabaseClient`: a test double for the full client is not
+ * writable in a few lines, and every branch below - an unreadable table, a
+ * failing RPC, one window failing while the other succeeds - can only be forced
+ * by controlling what the database returns. QA spiked the alternative first:
+ * `node:test`'s `mock.module` works, but only behind
+ * `--experimental-test-module-mocks`, which would put an unstable Node flag
+ * under every test in the repo to buy one route's coverage.
+ *
+ * So the dependency is injected instead, the same move that made
+ * `decideSnapshot` testable in #1404: take the collaborator as an argument with
+ * a real default, and the call sites do not change. A double implements four
+ * chained methods and `rpc`. */
+export interface ResolverDb {
+  from(table: string): {
+    select(columns: string): {
+      eq(column: string, value: boolean): {
+        lte(column: string, value: string): {
+          limit(n: number): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+        };
+      };
+    };
+  };
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+}
+
+export async function resolveWindow(
+  hours: 24 | 48,
+  prices: Record<string, number>,
+  db: ResolverDb = getSupabaseAdmin() as unknown as ResolverDb,
+): Promise<WindowResult> {
+  const admin    = db;
   const resCol   = hours === 24 ? 'resolved_24h'    : 'resolved_48h';
   const cutoff   = new Date(Date.now() - hours * 3_600_000).toISOString();
 
@@ -118,11 +149,36 @@ async function resolveWindow(hours: 24 | 48, prices: Record<string, number>): Pr
   return { resolved: typeof data === 'number' ? data : 0 };
 }
 
-async function runResolve(): Promise<{ resolved24h: number; resolved48h: number; errors: string[] }> {
-  const prices = await fetchCurrentPrices();
+export interface ResolveDeps {
+  db?: ResolverDb;
+  fetchPrices?: () => Promise<Record<string, number>>;
+}
+
+export async function runResolve(deps: ResolveDeps = {}): Promise<{ resolved24h: number; resolved48h: number; errors: string[] }> {
+  const { db, fetchPrices = fetchCurrentPrices } = deps;
+  const prices = await fetchPrices();
+
+  /* NO PRICES AT ALL IS A FAILURE, not a quiet hour.
+   *
+   * `fetchCurrentPrices` swallows both upstreams with Promise.allSettled, so
+   * Binance and Bybit both being down returns an empty map - and then every row
+   * is skipped by the `current == null` guard below, the run resolves zero, and
+   * the route answers 200. A resolver that cannot reach a single price looked
+   * exactly like an hour with nothing due. That is the same defect this PR
+   * exists to remove, one level up from the read error.
+   *
+   * An empty map is unambiguous: it is not "this coin has no price", it is "no
+   * coin has a price", which cannot happen while either exchange is answering.
+   * Reported as an error so the handler's 500 carries it, and the windows are
+   * skipped because nothing could resolve without prices anyway. */
+  if (Object.keys(prices).length === 0) {
+    console.error('[alert-outcomes/resolve] no prices from either exchange - nothing can resolve this run');
+    return { resolved24h: 0, resolved48h: 0, errors: ['no prices: both Binance and Bybit failed or returned nothing'] };
+  }
+
   const [w24, w48] = await Promise.all([
-    resolveWindow(24, prices),
-    resolveWindow(48, prices),
+    resolveWindow(24, prices, db),
+    resolveWindow(48, prices, db),
   ]);
   const errors = [w24.error, w48.error].filter((e): e is string => !!e);
   return { resolved24h: w24.resolved, resolved48h: w48.resolved, errors };
@@ -131,10 +187,29 @@ async function runResolve(): Promise<{ resolved24h: number; resolved48h: number;
 export async function GET(req: Request) {
   if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Same 28s safety net as the other cron routes - never exceed Render's 30s limit.
+  /* WHAT A 200 MEANS ON THIS ROUTE, stated once because three separate defects
+   * in this file came from not having said it:
+   *
+   *     200 means the work was done. Anything that stopped the work from being
+   *     done is a non-2xx, even when nothing threw.
+   *
+   * "Nothing was due" is work done - zero rows needed resolving and zero were
+   * resolved, which is a true success and must stay 200. "The table could not be
+   * read", "no exchange answered" and "we ran out of time" are all the work NOT
+   * being done, and each one used to answer 200 with a cheerful zero.
+   *
+   * Same 28s safety net as the other cron routes - never exceed Render's 30s
+   * limit - but it now answers 503. Before this, a resolver that had become too
+   * slow to finish reported success every hour while resolving less and less,
+   * and the n8n execution history showed an unbroken run of green. 503 rather
+   * than 500: the work did not fail, it did not fit, and a retry is the right
+   * response. */
   let timerId: ReturnType<typeof setTimeout>;
   const timeout = new Promise<NextResponse>(res => {
-    timerId = setTimeout(() => res(NextResponse.json({ ok: true, note: 'timeout - some rows skipped, retried next run' })), 28_000);
+    timerId = setTimeout(() => res(NextResponse.json(
+      { ok: false, error: 'timeout', note: 'exceeded 28s - some rows unresolved, retried next run' },
+      { status: 503 },
+    )), 28_000);
   });
   const result = await Promise.race([runResolve(), timeout]);
   clearTimeout(timerId!);
