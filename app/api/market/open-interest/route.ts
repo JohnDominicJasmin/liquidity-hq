@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
         dataAgeMs: snap.dataAgeMs,
         overdueMs: snap.overdueMs,
         dataAges: snap.dataAges,
+        droppedSymbols: snap.droppedSymbols,
         stale: snap.stale,
         from: 'snapshot',
       }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } });

@@ -113,6 +113,9 @@ export type FeedSnapshot = {
   overdueMs: number;
   /** Per symbol, so one ancient item is visible as one ancient item. */
   dataAges: Record<string, number>;
+  /** Symbols removed from `body.data` because their own data is past the hard
+   *  limit - reported so the loss is auditable rather than silent. */
+  droppedSymbols: string[];
   stale: boolean;
 };
 
@@ -127,6 +130,117 @@ export type FeedSnapshot = {
  * Returning null rather than an error is deliberate: past the hard limit, or
  * with no row at all, the caller falls through to exactly the code path it used
  * before this feature existed. */
+/* THE DECISION, SEPARATED FROM THE DATABASE ON PURPOSE.
+ *
+ * Pure inputs, pure output: a payload, the row's write age and a clock. Every
+ * case below is forceable from fabricated inputs, which is what QA needs to test
+ * them at all - Bybit cannot be asked to fail 12 of 49 symbols on demand, and an
+ * end-to-end test that only sees whichever case the exchange happens to produce
+ * is a suite that passes because the interesting path never ran (PM/DevOps).
+ *
+ * Returns null for "serve live". */
+export function decideSnapshot(
+  feed: MarketFeed,
+  payload: unknown,
+  rowAgeMs: number,
+  now: number,
+  logLabel = 'snapshot',
+): FeedSnapshot | null {
+  const { bySymbol } = feed.dataAges(payload, now);
+
+  /* NOTHING TO JUDGE MEANS NOT FRESH, and this is decided HERE - above the
+   * write-age fallback, not as a consequence of it (PM/DevOps's requirement).
+   *
+   * The failure mode it closes is precise: with no symbol carrying a usable
+   * timestamp there is no oldest item, so the verdict would fall through to the
+   * row's write age - and the merge may have written that row a second ago. A
+   * snapshot holding nothing judgeable would read as brand new. Every input to
+   * that decision is honest; the verdict is wrong because nothing was asked.
+   *
+   * That is the third state collapsing into the affirmative one, which this
+   * codebase has been bitten by repeatedly. The write-age fallback is safe only
+   * where it can UNDER-state freshness; here it does the opposite, so the guard
+   * sits above it and the fallback is gone entirely. */
+  const ages = Object.entries(bySymbol);
+  if (!ages.length) {
+    console.log(`[${logLabel}] no symbol carries a usable timestamp - cannot judge freshness, serving live`);
+    return null;
+  }
+
+  /* The verdict is taken over the symbols this feed is actually refreshing.
+     `staleSymbols` are the ones a partial run carried over from the previous
+     snapshot; their ages are still reported, but letting them drive the verdict
+     would mean one permanently-failing symbol disables the snapshot path for all
+     49. When EVERY symbol is carried there is nothing to exclude, so they all
+     count and the feed falls back on the carried data's own age - never on the
+     write time (QA's edge case). */
+  const carried = new Set((payload as { staleSymbols?: string[] } | null)?.staleSymbols ?? []);
+  const judged = ages.filter(([sym]) => !carried.has(sym));
+  const pool = judged.length ? judged : ages;
+  const oldestMs = Math.max(...pool.map(([, v]) => v));
+
+  /* OVERDUE, NOT AGE. A feed sampled hourly hands back a bucket that is already
+     0-60 minutes old the instant it is fetched, so raw age compared against a
+     30-minute limit calls a just-written row "too old" and sends every request
+     back to the live path - which is exactly what the first run of the
+     verification did. What matters is how long PAST its own sampling interval
+     the newest item is. */
+  const overdueMs = Math.max(0, oldestMs - feed.samplingMs);
+
+  if (overdueMs >= SNAPSHOT_TOO_OLD_MS) {
+    console.log(`[${logLabel}] data ${Math.round(oldestMs / 60_000)}m old, ${Math.round(overdueMs / 60_000)}m overdue (row ${Math.round(rowAgeMs / 60_000)}m) - past the limit, serving live`);
+    return null;
+  }
+
+  /* A SYMBOL PAST THE LIMIT IS DROPPED, not served with its age attached.
+   *
+   * The per-symbol form of the rule the row already follows - past the limit,
+   * treat as absent - and it closes a hole this PR's own merge opened. Before
+   * merging, a symbol the fan-out failed to fetch simply was not in the payload,
+   * and MarketProvider's "absent means not fetched, not zero" handled it
+   * correctly. Carrying it forward would instead show its last known value
+   * INDEFINITELY, and nothing consumes `staleSymbols` or `dataAges` today, so
+   * "the age is in the response" and "the page acts on the age" are different
+   * claims with only the first true.
+   *
+   * Dropping restores the old behaviour for genuinely dead symbols while keeping
+   * the merge's benefit for transient ones, and safety then does not depend on a
+   * UI change that has not been built: a symbol is fresh enough to serve, or it
+   * is not there. A symbol with NO usable timestamp is dropped for the same
+   * reason - unknown age must never be served as current. Names are reported so
+   * the loss is auditable rather than silent. */
+  const body = payload as Record<string, unknown>;
+  const data = (body as { data?: Record<string, unknown> }).data;
+  const droppedSymbols = [
+    ...ages.filter(([, age]) => Math.max(0, age - feed.samplingMs) >= SNAPSHOT_TOO_OLD_MS).map(([sym]) => sym),
+    ...(data && typeof data === 'object' ? Object.keys(data).filter((sym) => !(sym in bySymbol)) : []),
+  ];
+
+  let served = body;
+  if (droppedSymbols.length && data && typeof data === 'object') {
+    const remaining: Record<string, unknown> = { ...data };
+    for (const sym of droppedSymbols) delete remaining[sym];
+    served = { ...body, data: remaining };
+    console.log(`[${logLabel}] dropped ${droppedSymbols.length} symbol(s) past the limit or without a timestamp: ${droppedSymbols.slice(0, 5).join(',')}${droppedSymbols.length > 5 ? '...' : ''}`);
+  }
+
+  return {
+    body: served,
+    rowAgeMs,
+    dataAgeMs: oldestMs,
+    overdueMs,
+    dataAges: bySymbol,
+    droppedSymbols,
+    stale: overdueMs >= SNAPSHOT_STALE_AFTER_MS,
+  };
+}
+
+/* Reads the row and hands it to `decideSnapshot`. The split is what makes every
+ * branch above testable from pure inputs; this half only touches the database.
+ *
+ * Returning null rather than an error is deliberate: past the hard limit, or
+ * with no row at all, the caller falls through to exactly the code path it used
+ * before this feature existed. */
 export async function resolveFeedSnapshot(
   feed: MarketFeed,
   logLabel: string,
@@ -136,45 +250,7 @@ export async function resolveFeedSnapshot(
     console.log(`[${logLabel}] no snapshot row yet - serving live`);
     return null;
   }
-
-  const { bySymbol } = feed.dataAges(snap.payload, Date.now());
-
-  /* The verdict is taken over the symbols this feed is actually refreshing.
-     `staleSymbols` are the ones a partial run carried over from the previous
-     snapshot; their ages are still reported, but letting them drive the verdict
-     would mean one permanently-failing symbol disables the snapshot path for all
-     49. If every symbol is stale there is nothing to exclude, so they all count
-     and the feed correctly falls back. */
-  const carried = new Set((snap.payload as { staleSymbols?: string[] } | null)?.staleSymbols ?? []);
-  const judged = Object.entries(bySymbol).filter(([sym]) => !carried.has(sym));
-  const pool = judged.length ? judged : Object.entries(bySymbol);
-  const oldestMs = pool.length ? Math.max(...pool.map(([, v]) => v)) : null;
-  /* No usable upstream timestamp anywhere falls back to the write age, which is
-     a lower bound on how old the data is - never an over-estimate of freshness. */
-  const verdictAge = oldestMs ?? snap.ageMs;
-
-  /* OVERDUE, NOT AGE. A feed sampled hourly hands back a bucket that is already
-     0-60 minutes old the instant it is fetched, so raw age compared against a
-     30-minute limit calls a just-written row "too old" and sends every request
-     back to the live path - which is exactly what the first run of the
-     verification did. What matters is how long PAST its own sampling interval
-     the newest item is. The fallback case uses write age with no subtraction,
-     because a row we wrote is not excused by the upstream's cadence. */
-  const overdueMs = oldestMs === null ? snap.ageMs : Math.max(0, oldestMs - feed.samplingMs);
-
-  if (overdueMs >= SNAPSHOT_TOO_OLD_MS) {
-    console.log(`[${logLabel}] data ${Math.round(verdictAge / 60_000)}m old, ${Math.round(overdueMs / 60_000)}m overdue (row ${Math.round(snap.ageMs / 60_000)}m) - past the limit, serving live`);
-    return null;
-  }
-
-  return {
-    body: snap.payload as Record<string, unknown>,
-    rowAgeMs: snap.ageMs,
-    dataAgeMs: oldestMs,
-    overdueMs,
-    dataAges: bySymbol,
-    stale: overdueMs >= SNAPSHOT_STALE_AFTER_MS,
-  };
+  return decideSnapshot(feed, snap.payload, snap.ageMs, Date.now(), logLabel);
 }
 
 /* COVERAGE MUST NEVER SHRINK (QA's criterion 2, #1404).
@@ -190,9 +266,8 @@ export async function resolveFeedSnapshot(
  * be worse: one permanently failing symbol would freeze the whole feed forever.
  * Merging takes every symbol this run DID return and keeps the previous value
  * for the ones it did not, so coverage only ever grows - and because each item
- * carries its own upstream timestamp, a symbol that stops updating shows up as
- * an ageing entry in `dataAges` instead of vanishing. The thing that was
- * invisible becomes visible in the data the route already returns.
+ * carries its own upstream timestamp, a symbol that stops updating is caught by
+ * the per-symbol drop in `decideSnapshot` rather than served for ever.
  *
  * This is a finding the change itself created: before this PR there was no row
  * to overwrite. */
@@ -211,7 +286,7 @@ export function mergeCoverage(previous: unknown, next: unknown): { payload: unkn
      and the freshness verdict excludes them - otherwise merging would hand a
      single delisted symbol the power to condemn the whole feed to the live path
      for ever, which trades a visible gap for an invisible one. Their ages are
-     still reported per symbol, so a consumer can grey out exactly those. */
+     still reported per symbol, and once past the limit they are dropped. */
   return { payload: { ...nextObj, data: merged, staleSymbols: kept }, kept };
 }
 
