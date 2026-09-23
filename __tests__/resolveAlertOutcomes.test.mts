@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { resolveWindow, runResolve, type ResolverDb } from '@/app/api/alert-outcomes/resolve/route';
+import { resolveWindow, runResolve, GET, type ResolverDb } from '@/app/api/alert-outcomes/resolve/route';
 
 /* #1384 / #1282: the hourly alert-outcome resolver, forced through every failure.
  *
@@ -231,6 +231,65 @@ test('CONTROL: one round trip per window regardless of row count', async () => {
   assert.equal(spy.rpcs.length, 1, 'more than one round trip - this is the stall #1282 was filed for');
   assert.equal((spy.rpcs[0].args.p_rows as unknown[]).length, 200);
   assert.equal(out.resolved, 200);
+});
+
+/* ── the gate: the one part of GET that is safe to invoke ──────────────────── */
+
+test('GATE: an unauthenticated request is refused 401 before anything is touched', async () => {
+  /* The only branch of `GET` reachable without a real database and real exchange calls,
+     and the one most worth pinning: this route is cron-only, and `checkCronAuth` fails
+     CLOSED - with no CRON_SECRET configured it denies rather than running unauthenticated,
+     which is how every route in this family used to behave (`lib/cronAuth.ts`).
+     A regression here would expose our own exchange egress to anyone who found the URL. */
+  const res = await GET(new Request('https://example.invalid/api/alert-outcomes/resolve'));
+  assert.equal(res.status, 401, 'an unauthenticated cron route answered something other than 401');
+  assert.deepEqual(await res.json(), { error: 'Unauthorized' });
+});
+
+test('GATE: with a secret CONFIGURED, a wrong one is still refused', async () => {
+  /* The test above passes trivially when CRON_SECRET is unset - `checkCronAuth` returns
+     false on the first line and the comparison never runs, so it proves fail-closed and
+     nothing about the check itself. This one configures a secret so the comparison
+     actually executes, and `GATE CONTROL` below proves the configured value would have
+     been accepted - otherwise both of these would pass against a function hard-wired to
+     deny. */
+  const saved = process.env.CRON_SECRET;
+  const SECRET = 'qa-known-value-for-this-test';
+  process.env.CRON_SECRET = SECRET;
+  /* A SAME-LENGTH wrong value is the important one, built from the secret so it cannot
+     drift out of sync. Every differing-length value is rejected by the cheap length check
+     before `timingSafeEqual` is ever called, so a suite of only those would pass against a
+     comparison that had been removed entirely. */
+  const sameLengthWrong = 'X'.repeat(SECRET.length);
+  assert.equal(sameLengthWrong.length, SECRET.length);
+  try {
+    for (const header of [sameLengthWrong, 'not-the-secret', '', SECRET.slice(0, -1), SECRET + 'X']) {
+      const res = await GET(new Request('https://example.invalid/api/alert-outcomes/resolve', {
+        headers: { 'x-cron-secret': header },
+      }));
+      assert.equal(res.status, 401, `header ${JSON.stringify(header)} passed the gate`);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = saved;
+  }
+});
+
+test('GATE CONTROL: the configured secret IS accepted, so the two tests above mean something', async () => {
+  /* Asserted on `checkCronAuth` rather than through `GET`, deliberately: the accepted path
+     continues into the real database and the real exchanges, which a unit test must not
+     do. This proves the gate can say yes without opening it. */
+  const { checkCronAuth } = await import('@/lib/cronAuth');
+  const saved = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'qa-known-value-for-this-test';
+  try {
+    const ok = checkCronAuth(new Request('https://example.invalid/x', {
+      headers: { 'x-cron-secret': 'qa-known-value-for-this-test' },
+    }));
+    assert.equal(ok, true, 'the correct secret was rejected - the 401 tests above prove nothing');
+    assert.equal(checkCronAuth(new Request('https://example.invalid/x')), false, 'a missing header was accepted');
+  } finally {
+    if (saved === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = saved;
+  }
 });
 
 /* ── the status-code rule, asserted against source ─────────────────────────── */
