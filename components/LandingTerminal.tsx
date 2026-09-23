@@ -479,7 +479,8 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
               </span>
             </div>
             <div style={{ fontSize: isDesktop ? 46 : 36, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)', lineHeight: 1, marginTop: 4 }}>
-              $25<span style={{ fontSize: 14, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>/mo</span>
+              {/* #1400: the monthly price is the headline; /upgrade shows all three plans. OWNER copy. */}
+              $35<span style={{ fontSize: 14, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>/mo</span>
             </div>
             <div style={{ fontSize: 13.5, color: 'var(--txt2)', marginTop: 12 }}>{dict.pricing.pro.sub}</div>
             <ul style={{ listStyle: 'none', margin: '22px 0 0', padding: 0 }}>

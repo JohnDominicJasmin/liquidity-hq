@@ -135,10 +135,13 @@ function priceTokens(t: { input: number; cachedInput: number; output: number }):
 export const PLAIN_CALL_COST_USD  = priceTokens(PLAIN_CALL_TOKENS);
 export const SEARCH_CALL_COST_USD = priceTokens(SEARCH_CALL_TOKENS);
 
-// Current Pro price - used only for the /ops margin column (cost vs revenue).
-// Keep in sync with app/upgrade/page.tsx + lib/i18n/dictionaries.ts if this
-// ever changes again; there's no single shared constant for it yet.
-export const PRO_PRICE_USD_PER_MONTH = 25;
+// Current MONTHLY Pro price - used only for the /ops margin column (cost vs
+// revenue). #1400 added two more plans ($20 / 2 weeks, $350 / year); this
+// column still assumes monthly for every Pro account because the webhook does
+// not record which variant was bought, so a fortnightly account's margin reads
+// slightly low and an annual one's slightly high. Keep in sync with the
+// UPGRADE_PRICE_* label defaults; there's no single shared constant for it yet.
+export const PRO_PRICE_USD_PER_MONTH = 35;
 
 // lhq_grok_usage columns that enable xAI's web/X search tools, billed at the
 // higher SEARCH_CALL_COST_USD rate. Every other count column is a "plain" call.

@@ -10,7 +10,7 @@ not live" as a flat fact and that is now true of only one environment.
 
 | | |
 |---|---|
-| Product/variant at $25/mo | created |
+| Product/variant at $25/mo | created (**superseded by #1400**: three variants are needed - $20 every 2 weeks, $35/month, $350/year - and the app reads a link per variant) |
 | Checkout URL | `checkout.liquidity-hq.com/checkout/buy/0e357d1e-…`, on our own subdomain |
 | `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` | **set**, and confirmed inlined into the deployed build |
 | Test-mode webhook | created, all 7 events, pointed at the staging route |
@@ -51,8 +51,8 @@ prod secret must never be copied to a non-prod service.
 Four steps, all outside this repo. Do them in this order; the webhook secret
 must exist before the first real purchase or that purchase grants nothing.
 
-1. **Create the product/variant in LemonSqueezy priced at $25/month.** The app
-   already displays $25 everywhere (`/upgrade`, landing page in 4 locales, the
+1. **Create the three variants in LemonSqueezy (#1400): $20 every 2 weeks, $35/month, $350/year**, and set their three checkout links (`NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL`, `_ANNUAL`, `_FORTNIGHTLY`). The app
+   already displays those prices everywhere (`/upgrade`, landing page in 4 locales, the
    DB-backed checkout CTA label in 5 locales, both Supabase projects) as of
    2026-07-24. Only the LemonSqueezy-side price still needs to match.
 2. **Set `LEMONSQUEEZY_WEBHOOK_SECRET`** in Render on prod. Without it
