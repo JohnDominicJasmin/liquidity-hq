@@ -39,7 +39,7 @@ function withExtension(url) {
   return null;
 }
 
-export function resolve(specifier, context, next) {
+export async function resolve(specifier, context, next) {
   // `@/lib/x` -> <repo>/lib/x, matching tsconfig's `"@/*": ["./*"]`.
   if (specifier.startsWith('@/')) {
     const mapped = new URL(specifier.slice(2), ROOT).href;
@@ -53,5 +53,24 @@ export function resolve(specifier, context, next) {
     const found = withExtension(mapped);
     if (found) return next(found, context);
   }
-  return next(specifier, context);
+
+  /* LAST RESORT, and only after Node has already refused.
+   *
+   * Next 16.2.6 ships NO `exports` map (checked - `Object.keys(exports)` is empty), so
+   * `import 'next/server'` resolves to `node_modules/next/server` with no extension and
+   * ESM will not add one. `node_modules/next/server.js` is right there; Next's own
+   * bundler finds it, Node does not. Without this, no route handler can be imported by a
+   * test at all, because every one of them imports `next/server`.
+   *
+   * Default resolution runs FIRST and this only fires on its failure, so nothing that
+   * already works can change behaviour, and a genuinely missing package still throws -
+   * with the ORIGINAL error, not a confusing one from here. */
+  try {
+    return await next(specifier, context);
+  } catch (err) {
+    if (err?.code !== 'ERR_MODULE_NOT_FOUND' || specifier.startsWith('node:') || path.isAbsolute(specifier)) throw err;
+    const found = withExtension(new URL('node_modules/' + specifier, ROOT).href);
+    if (!found) throw err;
+    return next(found, context);
+  }
 }
