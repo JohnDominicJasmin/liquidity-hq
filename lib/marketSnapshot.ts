@@ -107,6 +107,10 @@ export type FeedSnapshot = {
   /** How old the OLDEST item in it is, by the upstream's own timestamp - the
    *  market's clock. Null when nothing carried a usable timestamp. */
   dataAgeMs: number | null;
+  /** How far PAST its own sampling interval that oldest item is. This is what
+   *  `stale` and the hard limit are judged on; `dataAgeMs` alone would condemn
+   *  every hourly feed. */
+  overdueMs: number;
   /** Per symbol, so one ancient item is visible as one ancient item. */
   dataAges: Record<string, number>;
   stale: boolean;
@@ -138,8 +142,17 @@ export async function resolveFeedSnapshot(
      a lower bound on how old the data is - never an over-estimate of freshness. */
   const verdictAge = oldestMs ?? snap.ageMs;
 
-  if (verdictAge >= SNAPSHOT_TOO_OLD_MS) {
-    console.log(`[${logLabel}] data ${Math.round(verdictAge / 60_000)}m old (row ${Math.round(snap.ageMs / 60_000)}m) - past the limit, serving live`);
+  /* OVERDUE, NOT AGE. A feed sampled hourly hands back a bucket that is already
+     0-60 minutes old the instant it is fetched, so raw age compared against a
+     30-minute limit calls a just-written row "too old" and sends every request
+     back to the live path - which is exactly what the first run of the
+     verification did. What matters is how long PAST its own sampling interval
+     the newest item is. The fallback case uses write age with no subtraction,
+     because a row we wrote is not excused by the upstream's cadence. */
+  const overdueMs = oldestMs === null ? snap.ageMs : Math.max(0, oldestMs - feed.samplingMs);
+
+  if (overdueMs >= SNAPSHOT_TOO_OLD_MS) {
+    console.log(`[${logLabel}] data ${Math.round(verdictAge / 60_000)}m old, ${Math.round(overdueMs / 60_000)}m overdue (row ${Math.round(snap.ageMs / 60_000)}m) - past the limit, serving live`);
     return null;
   }
 
@@ -147,8 +160,9 @@ export async function resolveFeedSnapshot(
     body: snap.payload as Record<string, unknown>,
     rowAgeMs: snap.ageMs,
     dataAgeMs: oldestMs,
+    overdueMs,
     dataAges: bySymbol,
-    stale: verdictAge >= SNAPSHOT_STALE_AFTER_MS,
+    stale: overdueMs >= SNAPSHOT_STALE_AFTER_MS,
   };
 }
 

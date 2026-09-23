@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
         ts: Date.now() - snap.rowAgeMs,
         rowAgeMs: snap.rowAgeMs,
         dataAgeMs: snap.dataAgeMs,
+        overdueMs: snap.overdueMs,
         dataAges: snap.dataAges,
         stale: snap.stale,
         from: 'snapshot',

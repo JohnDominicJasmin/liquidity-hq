@@ -59,6 +59,19 @@ export type MarketFeed = {
   /** Health row name, matching what the page route already reports. */
   health: string;
   fetchLive: () => Promise<FeedResult>;
+  /* THE UPSTREAM'S OWN SAMPLING INTERVAL, and freshness is measured against it
+   * rather than against raw age.
+   *
+   * Found by running the check rather than reasoning about it: both feeds are
+   * requested at `1h`, so Bybit answers with hourly buckets and the newest item
+   * is routinely 0-60 minutes old the instant it is fetched. Comparing that raw
+   * age against a 30-minute limit declared a just-primed row "too old" and sent
+   * both routes back to the live path for most of every hour - the plumbing was
+   * right and the threshold was wrong.
+   *
+   * What matters is whether the feed is OVERDUE: a 1-hour feed whose newest
+   * bucket is 45 minutes old is on time; the same feed at 3 hours is stale. */
+  samplingMs: number;
   /* FRESHNESS COMES FROM THE DATA, NOT FROM OUR CLOCK (QA's acceptance criterion).
    *
    * The row's `updated_at` says when the JOB wrote it. A row written a minute
@@ -89,10 +102,66 @@ function agesFrom(payload: unknown, now: number, pickTs: (item: unknown) => numb
   return { oldestMs, bySymbol };
 }
 
+/* IS THE DECLARED `samplingMs` STILL TRUE? (QA, #1404)
+ *
+ * `samplingMs` is a constant, and constants drift from reality in silence. If
+ * Bybit changes its bucket size, or someone adds a five-minute feed and copies
+ * `samplingMs: 60 * 60_000` along with the rest of the definition, the overdue
+ * maths over-tolerates by 55 minutes and NOTHING fails - it just quietly serves
+ * older data than intended. The data already carries the answer, so it is
+ * checked against itself on every run rather than trusted.
+ *
+ * Two checks, because the two feeds expose different amounts:
+ *   - GAP: open-interest returns three items per symbol, so the interval between
+ *     consecutive items IS the real sampling interval. Directly comparable.
+ *   - ALIGNMENT: account-ratio is fetched with limit=1, so no gap is observable.
+ *     A bucketed feed stamps its buckets on the boundary, so an hourly bucket
+ *     divides evenly by an hour. A five-minute feed mislabelled as hourly fails
+ *     this eleven times out of twelve.
+ * Neither blocks a write - a feed that changed shape is still the only data we
+ * have - but it is reported as unhealthy so the drift is visible the day it
+ * happens rather than whenever someone notices the numbers look old. */
+export function checkSampling(feed: MarketFeed, payload: unknown): { ok: boolean; detail: string } {
+  const data = (payload as { data?: Record<string, unknown> } | null)?.data;
+  if (!data || typeof data !== 'object') return { ok: true, detail: 'no data to check' };
+
+  const gaps: number[] = [];
+  let misaligned = 0, checked = 0;
+  for (const item of Object.values(data)) {
+    const stamps: number[] = Array.isArray(item)
+      ? item.map((e) => Number((e as { timestamp?: string | number })?.timestamp)).filter(Number.isFinite)
+      : [Number((item as { ts?: number | null } | null)?.ts)].filter(Number.isFinite);
+    if (!stamps.length) continue;
+    checked++;
+    if (stamps[0] % feed.samplingMs !== 0) misaligned++;
+    for (let i = 1; i < stamps.length; i++) {
+      const gap = Math.abs(stamps[i - 1] - stamps[i]);
+      if (gap > 0) gaps.push(gap);
+    }
+  }
+  if (!checked) return { ok: true, detail: 'no timestamps to check' };
+
+  if (gaps.length) {
+    /* The median, not the mean: one duplicated or missing bucket should not move
+       the verdict, and a genuine change of interval moves every gap. */
+    const sorted = [...gaps].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    if (median !== feed.samplingMs) {
+      return { ok: false, detail: `declared samplingMs ${feed.samplingMs} but the observed median gap is ${median} over ${gaps.length} intervals` };
+    }
+  }
+  if (misaligned > checked / 2) {
+    return { ok: false, detail: `${misaligned}/${checked} timestamps do not align to the declared samplingMs ${feed.samplingMs}` };
+  }
+  return { ok: true, detail: gaps.length ? `sampling ${feed.samplingMs} confirmed by ${gaps.length} gaps` : `sampling ${feed.samplingMs} consistent with ${checked} aligned stamps` };
+}
+
 /** The Bybit account long/short ratio, for the one period the app asks for. */
 const accountRatio1h: MarketFeed = {
   key: 'bybit:account-ratio:1h',
   health: 'bybit:account-ratio',
+  samplingMs: 60 * 60_000, // period=1h: Bybit stamps one bucket an hour
+
   fetchLive: async () => {
     const { data, ok, total, stopped } = await bybitFanout(
       /* A DISTINCT cache key from the page route's own (`bybit:account-ratio:1h`
@@ -128,6 +197,8 @@ const accountRatio1h: MarketFeed = {
 const openInterest1h3: MarketFeed = {
   key: 'bybit:open-interest:1h:3',
   health: 'bybit:open-interest',
+  samplingMs: 60 * 60_000, // intervalTime=1h: likewise hourly buckets
+
   fetchLive: async () => {
     const { data, ok, total, stopped } = await bybitFanout(
       'ingest:bybit:open-interest:1h:3',

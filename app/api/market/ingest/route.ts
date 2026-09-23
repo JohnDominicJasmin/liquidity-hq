@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { recordApiHealth } from '@/lib/apiHealth';
-import { MARKET_FEEDS } from '@/lib/marketFeeds';
+import { MARKET_FEEDS, checkSampling } from '@/lib/marketFeeds';
 import { writeSnapshot } from '@/lib/marketSnapshot';
 
 /* The only thing in this app that calls an exchange for the snapshot feeds (#1404).
@@ -42,6 +42,9 @@ type FeedOutcome = {
   ok: number;
   total: number;
   stopped?: true;
+  /* The sampling verdict in the body as well as in api_health, so a run can be
+     checked without a database read - QA asserts it from the response. */
+  sampling?: string;
   error?: string;
 };
 
@@ -76,8 +79,21 @@ export async function POST(req: Request) {
       }
 
       await writeSnapshot(feed.key, payload, source);
-      outcomes.push({ key: feed.key, written: true, ok, total });
-      health.push({ source: feed.health, category: 'market', ok: true, detail: `${ok}/${total}`, items: ok });
+
+      /* The declared sampling interval, checked against the data that just
+         arrived. It does not block the write - a feed that changed shape is
+         still the only data we have - but a drifted constant makes the overdue
+         maths silently over-tolerant, so it is reported as unhealthy the day it
+         happens rather than whenever someone notices the numbers look old. */
+      const sampling = checkSampling(feed, payload);
+      outcomes.push({ key: feed.key, written: true, ok, total, sampling: (sampling.ok ? '' : 'DRIFT: ') + sampling.detail });
+      health.push({
+        source: feed.health,
+        category: 'market',
+        ok: sampling.ok,
+        detail: sampling.ok ? `${ok}/${total}` : `${ok}/${total} - SAMPLING DRIFT: ${sampling.detail}`,
+        items: ok,
+      });
     } catch (e) {
       /* One feed failing must not abandon the others - they are independent
          upstreams and a Bybit outage is not a reason to leave every row stale.
