@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getCheckoutUrl, isCheckoutConfigured, getCheckoutUrlAnnual, isCheckoutConfiguredAnnual } from '@/lib/checkout';
+import { getCheckoutUrl, isCheckoutConfigured, getCheckoutUrlAnnual, isCheckoutConfiguredAnnual, getCheckoutUrlFortnightly, isCheckoutConfiguredFortnightly } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
 import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
@@ -11,6 +11,9 @@ import type { LabelKey } from '@/lib/labelKeys';
 
 const CHECKOUT_CONFIGURED = isCheckoutConfigured();
 const CHECKOUT_ANNUAL_CONFIGURED = isCheckoutConfiguredAnnual();
+// #1400: the two-weekly plan is additive, like annual - it renders only where the
+// monthly link is set too, and never substitutes for it.
+const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCheckoutConfiguredFortnightly();
 
 const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
 
@@ -101,6 +104,30 @@ export default function UpgradePage() {
     window.location.href = getCheckoutUrlAnnual(user);
   }
 
+  function handleCheckoutFortnightly() {
+    if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
+    setRedirecting(true);
+    window.location.href = getCheckoutUrlFortnightly(user);
+  }
+
+  /* One button per plan, styled like the monthly one. Shown wherever its link is
+     set (the price and period are labels, so a price change is a row, not a
+     deploy). */
+  const fortnightlyButton = CHECKOUT_FORTNIGHTLY_CONFIGURED && (
+    <button
+      data-testid="checkout-cta-fortnightly"
+      onClick={handleCheckoutFortnightly}
+      disabled={redirecting}
+      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'transform 0.15s' }}
+      onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
+    >
+      {redirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
+        <>{t('UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_FORTNIGHTLY')}{t('UPGRADE_PRICE_SUFFIX_FORTNIGHTLY')}</span></>
+      )}
+    </button>
+  );
+
   if (loading || isPro) {
     return <LoadingState message={isPro ? t('UPGRADE_LOADING_REDIRECTING') : t('UPGRADE_LOADING')} fullPage />;
   }
@@ -181,7 +208,7 @@ export default function UpgradePage() {
             </div>
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>{t('UPGRADE_PRO_CARD_EYEBROW')}</div>
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_PRO_CARD_NAME')}</div>
-            <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>$25<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
+            <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>{t('UPGRADE_PRICE_MONTHLY')}<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
               {PRO_FEATURES.map(([k, vars]) => (
                 <li key={k} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -198,6 +225,7 @@ export default function UpgradePage() {
             /* State 1: both plans available — show monthly + annual side by side */
             <>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {fortnightlyButton}
                 <button
                   data-testid="checkout-cta-monthly"
                   onClick={handleCheckout}
@@ -217,7 +245,7 @@ export default function UpgradePage() {
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
                   {redirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
-                    <>{t('UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>${'250'}{t('UPGRADE_PRICE_SUFFIX_ANNUAL')} · {t('UPGRADE_ANNUAL_SAVE_BADGE')}</span></>
+                    <>{t('UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_ANNUAL')}{t('UPGRADE_PRICE_SUFFIX_ANNUAL')} · {t('UPGRADE_ANNUAL_SAVE_BADGE')}</span></>
                   )}
                 </button>
               </div>
@@ -230,8 +258,9 @@ export default function UpgradePage() {
               </div>
             </>
           ) : CHECKOUT_CONFIGURED ? (
-            /* State 2: monthly only — pixel-identical to today */
+            /* State 2: monthly only — pixel-identical to today unless the two-weekly link is also set */
             <>
+              {fortnightlyButton}
               <button
                 data-testid="checkout-cta-monthly"
                 onClick={handleCheckout}
