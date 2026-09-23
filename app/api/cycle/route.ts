@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
+import { cached } from '@/lib/apiCache';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export interface CyclePoint { day: number; ratio: number; }
@@ -91,7 +92,8 @@ export async function GET(req: NextRequest) {
   const currentDay = Math.floor((Date.now() - HALVING_2024_MS) / 86400000);
 
   try {
-    const cycle2024 = await fetchCycle2024();
+    // One fetch-and-map per hour for every visitor, not per visitor (#1397).
+    const cycle2024 = await cached('cycle:2024', 60 * 60_000, fetchCycle2024);
     /* Cycle position is a slow signal - `currentDay` moves once a day and the
        2016/2020 curves are constants. Five minutes changes nobody's decision.
        Success only; the 429 and 500 paths stay uncached (#177). */
