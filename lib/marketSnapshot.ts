@@ -53,13 +53,16 @@ export const SNAPSHOT_TOO_OLD_MS = 30 * 60_000;
 export type SnapshotRead = {
   payload: unknown;
   source: string | null;
-  /** Age at read time. Never null: an unreadable timestamp resolves to
-   *  Infinity, which sorts as stale rather than as fresh. */
+  /** Age of the ROW - when the job wrote it. Never null: an unreadable timestamp
+   *  resolves to Infinity, which sorts as stale rather than as fresh.
+   *
+   *  NOT a freshness verdict, and this type deliberately no longer carries one.
+   *  `stale` and `tooOld` used to be computed here from the write age; every
+   *  verdict now lives in `decideSnapshot`, judged on the data's own timestamps.
+   *  Leaving the old pair on an exported type under a confident doc comment
+   *  would hand the next caller who writes `if (snap.tooOld)` the exact model
+   *  three commits removed, reading as the blessed API (QA's review of #1412). */
   ageMs: number;
-  /** Past two cadences: serve it, but say how old it is. */
-  stale: boolean;
-  /** Past the hard limit: do not serve it at all - treat as absent. */
-  tooOld: boolean;
 };
 
 /** Reads one snapshot row. Returns null when the row does not exist - the job
@@ -84,15 +87,9 @@ export async function readSnapshot(key: string): Promise<SnapshotRead | null> {
        means we cannot show that the data is current, and "cannot show" is the
        caution state, not the happy one. */
     const ageMs = Number.isFinite(written) ? Math.max(0, Date.now() - written) : Infinity;
-    return {
-      payload: row.payload,
-      source: row.source,
-      ageMs,
-      stale:  ageMs >= SNAPSHOT_STALE_AFTER_MS,
-      /* Infinity satisfies both, so an unreadable timestamp is not served -
-         consistent with treating unknown age as the caution state. */
-      tooOld: ageMs >= SNAPSHOT_TOO_OLD_MS,
-    };
+    /* Infinity for an unreadable timestamp, so a row whose age cannot be known
+       is never judged fresh downstream - unknown age is the caution state. */
+    return { payload: row.payload, source: row.source, ageMs };
   } catch {
     return null;
   }
