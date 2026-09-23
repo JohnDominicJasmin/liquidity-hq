@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
+import { cached } from '@/lib/apiCache';
 
 const CMC_KEY = process.env.CMC_API_KEY ?? '';
 const BASE    = 'https://pro-api.coinmarketcap.com';
@@ -67,6 +68,20 @@ async function attributedUser(req: NextRequest): Promise<string> {
 const CMC_CACHE = (ok: boolean) =>
   ok ? { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } : undefined;
 
+/* SERVER-SIDE CACHE, because the header above never cached anything (#1397).
+   `s-maxage` is a shared-cache hint: staging has nothing in front of Render, and
+   production's Cloudflare is not caching these paths (`cf-cache-status: DYNAMIC`,
+   no rule). So until now every page load was one paid CoinMarketCap call. The
+   same five minutes the header promised, held in memory here - one upstream call
+   per window for every visitor, single-flight at expiry (lib/apiCache).
+   Errors are still never cached: the fetcher throws a CmcError carrying the body,
+   `cached()` drops a throwing fetcher, and the body goes out uncached exactly as
+   before. Health is reported per upstream call, so it now updates once per
+   window rather than once per visitor - which is what "is CMC answering" means. */
+const CMC_TTL = 5 * 60_000;
+class CmcError extends Error { constructor(public readonly body: unknown) { super('cmc error body'); } }
+function cmcOk(r: Response, d: unknown): boolean { return r.ok && !((d as CmcBody)?.status?.error_code); }
+
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
   if (!rateLimit(`cmc:${ip}`, 20, 60_000)) {
@@ -83,31 +98,42 @@ export async function GET(req: NextRequest) {
 
   try {
     if (type === 'global') {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
-      const r = await fetch(`${BASE}/v1/global-metrics/quotes/latest`, {
-        headers: cmcHeaders(),
-        cache: 'no-store',
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      const d = await r.json();
-      reportCmc('cmc:global-metrics', r, d);
-      return NextResponse.json(d, { headers: CMC_CACHE(r.ok) });
+      const d = await cached('cmc:global', CMC_TTL, async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        try {
+          const r = await fetch(`${BASE}/v1/global-metrics/quotes/latest`, {
+            headers: cmcHeaders(),
+            cache: 'no-store',
+            signal: controller.signal,
+          });
+          const body = await r.json();
+          reportCmc('cmc:global-metrics', r, body);
+          if (!cmcOk(r, body)) throw new CmcError(body);
+          return body;
+        } finally { clearTimeout(timer); }
+      }).catch(e => { if (e instanceof CmcError) return e.body; throw e; });
+      return NextResponse.json(d, { headers: CMC_CACHE(!((d as CmcBody)?.status?.error_code)) });
     }
 
     if (type === 'altseason') {
-      // Fetch top 100 by market cap with 90-day % change
-      const r = await fetch(
-        `${BASE}/v1/cryptocurrency/listings/latest?limit=100&sort=market_cap&convert=USD`,
-        {
-          headers: cmcHeaders(),
-          next: { revalidate: 300 },  // cache 5 min - 90d data doesn't move fast
-        }
-      );
-      const d = await r.json();
-      reportCmc('cmc:listings', r, d, (d as CmcBody)?.data?.length);
-      return NextResponse.json(d, { headers: CMC_CACHE(r.ok) });
+      // Top 100 by market cap with 90-day % change. The fetch's own revalidate
+      // covered the upstream call; the response cache also skips re-parsing a
+      // 100-row body per visitor (#1397).
+      const d = await cached('cmc:altseason', CMC_TTL, async () => {
+        const r = await fetch(
+          `${BASE}/v1/cryptocurrency/listings/latest?limit=100&sort=market_cap&convert=USD`,
+          {
+            headers: cmcHeaders(),
+            next: { revalidate: 300 },  // cache 5 min - 90d data doesn't move fast
+          }
+        );
+        const body = await r.json();
+        reportCmc('cmc:listings', r, body, (body as CmcBody)?.data?.length);
+        if (!cmcOk(r, body)) throw new CmcError(body);
+        return body;
+      }).catch(e => { if (e instanceof CmcError) return e.body; throw e; });
+      return NextResponse.json(d, { headers: CMC_CACHE(!((d as CmcBody)?.status?.error_code)) });
     }
 
     return NextResponse.json({ error: 'Unknown type' }, { status: 400 });
