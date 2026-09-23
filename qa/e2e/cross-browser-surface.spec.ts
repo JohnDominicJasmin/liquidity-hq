@@ -89,10 +89,21 @@ async function measure(page: Page, path: string): Promise<Surface> {
 
   await armInstrumentation(page);
   await page.goto(path, { waitUntil: 'domcontentloaded' });
-  // Hydration, first data, first paint of any canvas. Fixed rather than
-  // condition-based: the conditions are exactly what is under test, so waiting
-  // for them would hide the engine that never reaches them.
-  await page.waitForTimeout(8000);
+  /* SETTLE, THEN MEASURE. This was a flat 8s wait, and that made every COUNT it
+     recorded a sample of a moving target: /arena read 14 canvases in one run and 0 in
+     another, same page, same browser, same host - the chart simply had not mounted yet
+     in the second. The assertions below are state-independent and were unaffected, but
+     the recorded numbers were not comparable between runs.
+     So: wait for the canvas count to stop changing, with a floor and a ceiling. The
+     floor still gives a slow engine time; the ceiling means an engine that never settles
+     is measured anyway and shows up as the outlier it is, rather than hanging the run. */
+  await page.waitForTimeout(4000);
+  let last = -1, stable = 0;
+  for (let waited = 0; waited < 40_000 && stable < 4500; waited += 1500) {
+    const n = await page.evaluate(() => document.querySelectorAll('canvas').length);
+    if (n === last) stable += 1500; else { last = n; stable = 0; }
+    await page.waitForTimeout(1500);
+  }
 
   const data = await page.evaluate(() => {
     const vis = (el: Element) => {
@@ -196,6 +207,13 @@ for (const path of PAGES) {
     expect(s.docScrollWidth,
       `${path} scrolls sideways in ${engine}: scrollWidth ${s.docScrollWidth} > clientWidth ${s.docClientWidth}. Crossing the edge: ${s.overflowing.join(', ') || '(none identified)'}`)
       .toBeLessThanOrEqual(s.docClientWidth + 1);
+    /* ONLY zero-SIZED is asserted. "Has painted pixels" is NOT a health signal for a
+       layered-canvas chart library: klinecharts gives each pane a content layer and an
+       overlay for the crosshair, and an overlay with no pointer over it is legitimately
+       empty. Measured on /arena 2026-09-23 - 8 of 14 painted at rest, 11 of 14 after
+       hovering the chart - so a "blank" count conflates "nothing to draw yet" with
+       "failed to draw" and must not be asserted on. A canvas with no SIZE is different:
+       nothing can ever draw into it. */
     expect(s.canvases.zeroSized, `${path} has ${s.canvases.zeroSized} zero-sized canvas element(s) in ${engine} - a chart that was never given a size draws nothing`).toBe(0);
     expect(s.storage.localOk && s.storage.sessionOk,
       `storage does not round-trip on ${path} in ${engine} (local ${s.storage.localOk}, session ${s.storage.sessionOk}) - the theme, language and consent all live there`).toBe(true);
