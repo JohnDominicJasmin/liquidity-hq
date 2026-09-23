@@ -63,12 +63,31 @@ async function resolveWindow(hours: 24 | 48, prices: Record<string, number>): Pr
   const resCol   = hours === 24 ? 'resolved_24h'    : 'resolved_48h';
   const cutoff   = new Date(Date.now() - hours * 3_600_000).toISOString();
 
-  const { data: rows } = await admin
+  /* THE READ'S ERROR IS HANDLED, not dropped - the same rule as the RPC below,
+   * and for the same reason this PR exists (QA's review of #1384).
+   *
+   * Destructuring only `data` made an unreadable table indistinguishable from a
+   * quiet hour: `rows` comes back null, `updates` is empty, the function returns
+   * `{ resolved: 0 }` with no error, and the route answers 200 with
+   * `{ ok: true, resolved24h: 0, resolved48h: 0 }`. That is exactly the defect
+   * named forty lines below about the loop this replaced - "ignored every update
+   * error and counted the row as resolved anyway" - surviving on the read path
+   * while being fixed on the write path.
+   *
+   * Returned rather than thrown so it travels the route's existing failure
+   * machinery: `runResolve` collects it into `errors`, and the handler answers
+   * 500 with `ok: false`, which is what makes the hourly n8n execution show the
+   * failure instead of a green tick over a resolver that resolved nothing. */
+  const { data: rows, error: readError } = await admin
     .from(T.alert_fires)
     .select('id, coin, dir, price_at_fire')
     .eq(resCol, false)
     .lte('fired_at', cutoff)
     .limit(200);
+  if (readError) {
+    console.error(`[alert-outcomes/resolve] ${hours}h read of ${T.alert_fires} failed:`, readError.message);
+    return { resolved: 0, error: `${hours}h read: ${readError.message}` };
+  }
 
   const updates: Array<{ id: number; price: number; pct: number }> = [];
   for (const row of (rows ?? []) as FireRow[]) {
