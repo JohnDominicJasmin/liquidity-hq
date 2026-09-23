@@ -21,6 +21,7 @@
  */
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import type { MarketFeed } from '@/lib/marketFeeds';
 
 /** How often the scheduled job is expected to run. Must match the cron entry -
  *  every five minutes on cron-job.org, docs/INFRASTRUCTURE.md §2. */
@@ -95,6 +96,60 @@ export async function readSnapshot(key: string): Promise<SnapshotRead | null> {
   } catch {
     return null;
   }
+}
+
+/** What a page route serves when the snapshot can be used, with BOTH clocks in
+ *  it so the two can be compared rather than conflated. */
+export type FeedSnapshot = {
+  body: Record<string, unknown>;
+  /** How long ago the JOB wrote the row - our clock. */
+  rowAgeMs: number;
+  /** How old the OLDEST item in it is, by the upstream's own timestamp - the
+   *  market's clock. Null when nothing carried a usable timestamp. */
+  dataAgeMs: number | null;
+  /** Per symbol, so one ancient item is visible as one ancient item. */
+  dataAges: Record<string, number>;
+  stale: boolean;
+};
+
+/* Resolves a feed to either "serve this row" or null meaning "serve live".
+ *
+ * THE VERDICT USES THE MARKET'S CLOCK, NOT OURS. Freshness is judged on the
+ * oldest item's upstream timestamp, falling back to the row's write age only
+ * when no item carried one - a row written a minute ago holding six-hour-old
+ * ratios is six hours stale, and judging it by write time would call it fresh
+ * (QA's acceptance criterion for #1404).
+ *
+ * Returning null rather than an error is deliberate: past the hard limit, or
+ * with no row at all, the caller falls through to exactly the code path it used
+ * before this feature existed. */
+export async function resolveFeedSnapshot(
+  feed: MarketFeed,
+  logLabel: string,
+): Promise<FeedSnapshot | null> {
+  const snap = await readSnapshot(feed.key);
+  if (!snap) {
+    console.log(`[${logLabel}] no snapshot row yet - serving live`);
+    return null;
+  }
+
+  const { oldestMs, bySymbol } = feed.dataAges(snap.payload, Date.now());
+  /* No usable upstream timestamp anywhere falls back to the write age, which is
+     a lower bound on how old the data is - never an over-estimate of freshness. */
+  const verdictAge = oldestMs ?? snap.ageMs;
+
+  if (verdictAge >= SNAPSHOT_TOO_OLD_MS) {
+    console.log(`[${logLabel}] data ${Math.round(verdictAge / 60_000)}m old (row ${Math.round(snap.ageMs / 60_000)}m) - past the limit, serving live`);
+    return null;
+  }
+
+  return {
+    body: snap.payload as Record<string, unknown>,
+    rowAgeMs: snap.ageMs,
+    dataAgeMs: oldestMs,
+    dataAges: bySymbol,
+    stale: verdictAge >= SNAPSHOT_STALE_AFTER_MS,
+  };
 }
 
 /** Writes one snapshot row. Only the ingest route calls this, and only with the

@@ -43,6 +43,15 @@ import { bybitFanout } from '@/lib/bybitFanout';
 
 export type FeedResult = { payload: unknown; source: string; ok: number; total: number; stopped: boolean };
 
+/** Per-item freshness, read from the UPSTREAM's own timestamps. */
+export type DataAges = {
+  /** Age of the oldest item, or null when no item carries a usable timestamp. */
+  oldestMs: number | null;
+  /** Per symbol, so one ancient item among 48 fresh ones reads as one bad
+   *  symbol rather than dragging the whole row's verdict down (QA, #1404). */
+  bySymbol: Record<string, number>;
+};
+
 export type MarketFeed = {
   /** Snapshot row key. Carries the parameters, so a second combination is a
    *  second row rather than a schema change. */
@@ -50,7 +59,35 @@ export type MarketFeed = {
   /** Health row name, matching what the page route already reports. */
   health: string;
   fetchLive: () => Promise<FeedResult>;
+  /* FRESHNESS COMES FROM THE DATA, NOT FROM OUR CLOCK (QA's acceptance criterion).
+   *
+   * The row's `updated_at` says when the JOB wrote it. A row written a minute
+   * ago holding a six-hour-old ratio is six hours stale, and reporting it as one
+   * minute old is the exact lie this project keeps hunting - the write time is
+   * our clock, and a trader cares about the market's. Both Bybit endpoints stamp
+   * every item, so each feed knows how to read its own shape. */
+  dataAges: (payload: unknown, now: number) => DataAges;
 };
+
+/** Shared by both feeds: walk a `{ [symbol]: item }` map, pull a millisecond
+ *  timestamp out of each item, and report the ages. Items with no usable
+ *  timestamp are skipped rather than counted as age zero - an unknown age must
+ *  never read as fresh. */
+function agesFrom(payload: unknown, now: number, pickTs: (item: unknown) => number | null): DataAges {
+  const data = (payload as { data?: Record<string, unknown> } | null)?.data;
+  const bySymbol: Record<string, number> = {};
+  let oldestMs: number | null = null;
+  if (data && typeof data === 'object') {
+    for (const [sym, item] of Object.entries(data)) {
+      const ts = pickTs(item);
+      if (ts === null || !Number.isFinite(ts) || ts <= 0) continue;
+      const age = Math.max(0, now - ts);
+      bySymbol[sym] = age;
+      if (oldestMs === null || age > oldestMs) oldestMs = age;
+    }
+  }
+  return { oldestMs, bySymbol };
+}
 
 /** The Bybit account long/short ratio, for the one period the app asks for. */
 const accountRatio1h: MarketFeed = {
@@ -72,11 +109,19 @@ const accountRatio1h: MarketFeed = {
         return {
           longRatio:  parseFloat(item.buyRatio  || '0.5'),
           shortRatio: parseFloat(item.sellRatio || '0.5'),
+          /* ADDED field, never a reshape: the live route's parser is the same
+             code and MarketProvider, BriefingTerminal and GrokChat all read
+             longRatio/shortRatio by name, so an extra key is invisible to them. */
+          ts: Number(item.timestamp) || null,
         };
       },
     );
     return { payload: { data, ok, total, ...(stopped ? { stopped: true } : {}) }, source: 'bybit', ok, total, stopped };
   },
+  dataAges: (payload, now) => agesFrom(payload, now, (item) => {
+    const ts = (item as { ts?: number | null } | null)?.ts;
+    return typeof ts === 'number' ? ts : null;
+  }),
 };
 
 /** Bybit open interest, for the one window the app asks for. */
@@ -94,15 +139,26 @@ const openInterest1h3: MarketFeed = {
     );
     return { payload: { data, ok, total, ...(stopped ? { stopped: true } : {}) }, source: 'bybit', ok, total, stopped };
   },
+  /* This feed needed no parser change: it already keeps Bybit's list verbatim,
+     and every item in it carries `timestamp`. The newest entry is [0], since
+     Bybit sends newest-first - so the item that decides this symbol's freshness
+     is the first one, not the last. */
+  dataAges: (payload, now) => agesFrom(payload, now, (item) => {
+    const first = Array.isArray(item) ? (item[0] as { timestamp?: string | number } | undefined) : undefined;
+    const ts = first?.timestamp;
+    return ts === undefined ? null : Number(ts);
+  }),
 };
 
 export const MARKET_FEEDS: MarketFeed[] = [accountRatio1h, openInterest1h3];
 
-/** The key a page route looks up for a given set of parameters, or null when
+/** The feed a page route should read for a given set of parameters, or null when
  *  that combination is not one the job refreshes - in which case the route
- *  serves it live, as it always has. */
-export function feedKeyFor(feed: 'account-ratio' | 'open-interest', params: Record<string, string>): string | null {
-  if (feed === 'account-ratio' && params.period === '1h') return accountRatio1h.key;
-  if (feed === 'open-interest' && params.intervalTime === '1h' && params.limit === '3') return openInterest1h3.key;
+ *  serves it live, as it always has. Returns the whole feed rather than just its
+ *  key, because the route also needs `dataAges` to judge freshness from the
+ *  upstream's timestamps rather than from our write time. */
+export function feedFor(feed: 'account-ratio' | 'open-interest', params: Record<string, string>): MarketFeed | null {
+  if (feed === 'account-ratio' && params.period === '1h') return accountRatio1h;
+  if (feed === 'open-interest' && params.intervalTime === '1h' && params.limit === '3') return openInterest1h3;
   return null;
 }

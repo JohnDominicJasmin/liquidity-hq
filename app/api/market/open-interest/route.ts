@@ -9,8 +9,8 @@ import { bybitFanout } from '@/lib/bybitFanout';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
-import { feedKeyFor } from '@/lib/marketFeeds';
-import { readSnapshot } from '@/lib/marketSnapshot';
+import { feedFor } from '@/lib/marketFeeds';
+import { resolveFeedSnapshot } from '@/lib/marketSnapshot';
 
 const INTERVALS = new Set(['5min', '15min', '30min', '1h', '4h', '1d']);
 /* Capped, and small. Each distinct limit is another fan-out of 50 upstream
@@ -37,21 +37,23 @@ export async function GET(req: NextRequest) {
      Registered combination -> serve the job's row with its age and make no
      exchange call. `intervalTime=1h&limit=3` is the only one the app asks for
      (components/MarketProvider.tsx:986); anything else falls through to live. */
-  const snapKey = feedKeyFor('open-interest', { intervalTime, limit: String(limit) });
-  if (snapKey) {
-    const snap = await readSnapshot(snapKey);
-    if (snap && !snap.tooOld) {
-      const body = snap.payload as Record<string, unknown>;
-      return NextResponse.json(
-        { ...body, ts: Date.now() - snap.ageMs, ageMs: snap.ageMs, stale: snap.stale, from: 'snapshot' },
-        { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } },
-      );
+  const feed = feedFor('open-interest', { intervalTime, limit: String(limit) });
+  if (feed) {
+    const snap = await resolveFeedSnapshot(feed, 'open-interest');
+    if (snap) {
+      return NextResponse.json({
+        ...snap.body,
+        ts: Date.now() - snap.rowAgeMs,
+        rowAgeMs: snap.rowAgeMs,
+        dataAgeMs: snap.dataAgeMs,
+        dataAges: snap.dataAges,
+        stale: snap.stale,
+        from: 'snapshot',
+      }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } });
     }
     /* Transition state, removed once the cron entry exists and the UI can say
-       "not available yet" - identical reasoning to account-ratio, including the
-       hard age limit that degrades a stopped scheduler to today's behaviour. */
-    if (snap?.tooOld) console.log(`[open-interest] snapshot ${Math.round(snap.ageMs / 60_000)}m old - past the limit, serving live`);
-    else console.log('[open-interest] no snapshot row yet - serving live');
+       "not available yet" - identical reasoning and the same hard age limit as
+       account-ratio, which degrades a stopped scheduler to today's behaviour. */
   }
 
   try {

@@ -11,8 +11,8 @@ import { bybitFanout } from '@/lib/bybitFanout';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
-import { feedKeyFor } from '@/lib/marketFeeds';
-import { readSnapshot } from '@/lib/marketSnapshot';
+import { feedFor } from '@/lib/marketFeeds';
+import { resolveFeedSnapshot } from '@/lib/marketSnapshot';
 
 /* Only the periods the app actually asks for. An allowlist rather than a
    pass-through, because each distinct value is a separate cache entry and a
@@ -37,31 +37,31 @@ export async function GET(req: NextRequest) {
      Only `period=1h` is registered, because it is the only one the app asks for
      (components/MarketProvider.tsx:368). An unregistered period falls through to
      the live path below - refusing it would break a caller to win a statistic. */
-  const snapKey = feedKeyFor('account-ratio', { period });
-  if (snapKey) {
-    const snap = await readSnapshot(snapKey);
-    if (snap && !snap.tooOld) {
-      const body = snap.payload as Record<string, unknown>;
-      return NextResponse.json(
-        { ...body, ts: Date.now() - snap.ageMs, ageMs: snap.ageMs, stale: snap.stale, from: 'snapshot' },
-        { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } },
-      );
+  /* A MISSING OR TOO-OLD ROW SERVES LIVE, which is a deliberate transition state
+     rather than the finished behaviour: the panel consuming this has no label for
+     "not available yet" - MarketProvider drops a non-ok answer silently, which
+     would blank the ratios with no explanation - and adding one needs label keys
+     in five locales plus the owner's copy approval. Until that exists, a silent
+     blank is worse than one live call.
+     REMOVE THIS FALLBACK once the cron entry exists AND the UI can say it. */
+  const feed = feedFor('account-ratio', { period });
+  if (feed) {
+    const snap = await resolveFeedSnapshot(feed, 'account-ratio');
+    if (snap) {
+      return NextResponse.json({
+        ...snap.body,
+        /* BOTH CLOCKS, so nobody has to guess which one a number came from:
+           `ts`/`rowAgeMs` is when we wrote it, `dataAgeMs`/`dataAges` is how old
+           the market data in it actually is. The second is the one that decides
+           `stale`. */
+        ts: Date.now() - snap.rowAgeMs,
+        rowAgeMs: snap.rowAgeMs,
+        dataAgeMs: snap.dataAgeMs,
+        dataAges: snap.dataAges,
+        stale: snap.stale,
+        from: 'snapshot',
+      }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } });
     }
-    if (snap?.tooOld) {
-      /* Past SNAPSHOT_TOO_OLD_MS the row is treated as absent rather than served
-         with a `stale` flag no consumer can render yet - a stopped scheduler
-         should degrade to today's behaviour, not to quietly old numbers. */
-      console.log(`[account-ratio] snapshot ${Math.round(snap.ageMs / 60_000)}m old - past the limit, serving live`);
-    }
-    /* NO ROW YET - the job has never run, or the database is unreachable.
-       This serves LIVE rather than an explicit "not available yet", and that is
-       a deliberate transition state, not the finished behaviour: the panel that
-       consumes this has no label for "not available yet" (MarketProvider drops a
-       non-ok answer silently, which would blank the ratios with no explanation),
-       and adding one needs label keys in five locales plus the owner's copy
-       approval. Until that exists, a silent blank is worse than one live call.
-       REMOVE THIS FALLBACK once the cron entry exists AND the UI can say it. */
-    else console.log('[account-ratio] no snapshot row yet - serving live');
   }
 
   try {
@@ -75,6 +75,14 @@ export async function GET(req: NextRequest) {
         return {
           longRatio:  parseFloat(item.buyRatio  || '0.5'),
           shortRatio: parseFloat(item.sellRatio || '0.5'),
+          /* ADDED, never a reshape (#1404, QA's review). Bybit stamps each item
+             with the time the ratio was measured, and this parser used to drop
+             it - so nothing downstream could tell a fresh figure from a stale
+             one. Every existing consumer reads longRatio/shortRatio by name
+             (BriefingTerminal, GrokChat, MarketProvider), so an extra field is
+             invisible to them; changing the shape would have fixed the snapshot
+             job by breaking the route nobody was watching. */
+          ts: Number(item.timestamp) || null,
         };
       },
     );
