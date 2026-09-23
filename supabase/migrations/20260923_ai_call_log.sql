@@ -27,8 +27,9 @@
 --                null. Never zero: an unmeasured call is not a free call.
 --
 -- Registered in lib/tables.ts as T.ai_call_log (prefix-aware: lhq_ prod /
--- lhq_dev_ dev). Run once in the Supabase SQL Editor - both tables, matching the
--- repo's prefix workflow. Additive only; nothing existing is touched.
+-- lhq_dev_ dev). Run against BOTH projects, ONE SECTION AT A TIME: the prod block
+-- below is live, the dev block is commented (20260912b). Additive only; nothing
+-- existing is touched.
 
 create table if not exists lhq_ai_call_log (
   id                bigserial   primary key,
@@ -47,22 +48,25 @@ create index if not exists lhq_ai_call_log_created_at_idx on lhq_ai_call_log (cr
 -- Per-account totals over a window (part 2's monthly ceiling, /ops top spenders).
 create index if not exists lhq_ai_call_log_user_created_idx on lhq_ai_call_log (user_id, created_at desc);
 
--- Dev variant
-create table if not exists lhq_dev_ai_call_log (
-  id                bigserial   primary key,
-  user_id           uuid,
-  call_type         text        not null,
-  model             text        not null,
-  prompt_tokens     int,
-  completion_tokens int,
-  cost_usd          numeric,
-  cost_source       text        not null,
-  created_at        timestamptz not null default now()
-);
-
-alter table lhq_dev_ai_call_log enable row level security;
-create index if not exists lhq_dev_ai_call_log_created_at_idx on lhq_dev_ai_call_log (created_at desc);
-create index if not exists lhq_dev_ai_call_log_user_created_idx on lhq_dev_ai_call_log (user_id, created_at desc);
+-- DEV: same table against lhq_dev_ai_call_log - apply separately, per 20260912b's
+-- convention (the dev block is commented so running this file against prod can
+-- never create a dev object there - #1310's class; QA caught it on #1401).
+--
+-- create table if not exists lhq_dev_ai_call_log (
+--   id                bigserial   primary key,
+--   user_id           uuid,
+--   call_type         text        not null,
+--   model             text        not null,
+--   prompt_tokens     int,
+--   completion_tokens int,
+--   cost_usd          numeric,
+--   cost_source       text        not null,
+--   created_at        timestamptz not null default now()
+-- );
+--
+-- alter table lhq_dev_ai_call_log enable row level security;
+-- create index if not exists lhq_dev_ai_call_log_created_at_idx on lhq_dev_ai_call_log (created_at desc);
+-- create index if not exists lhq_dev_ai_call_log_user_created_idx on lhq_dev_ai_call_log (user_id, created_at desc);
 
 -- Useful query: real spend per account over the last 30 days, and how much of
 -- it xAI priced itself versus what we had to estimate or could not measure.
