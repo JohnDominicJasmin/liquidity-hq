@@ -30,4 +30,5 @@ export const T = {
   news:                `${p}news`,
   econ_snapshot:       `${p}econ_snapshot`,
   api_health:          `${p}api_health`,
+  ai_call_log:         `${p}ai_call_log`,
 } as const;
