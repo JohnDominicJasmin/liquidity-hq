@@ -843,9 +843,10 @@ work waited, three rules apply to every seat:
 
 - **Every issue gets one label:** `priority: critical`, `high`, `medium` or
   `low`. UI audits, wording, contrast, tap sizes and visual tweaks are `low`.
-- **Low work runs only in a window the owner grants** (e.g. overnight while
-  the machine is free), never in the working day and never ahead of critical or
-  high work.
+- **Low work waits for all four of the owner's conditions** (2026-09-20):
+  everything is running fine, **there are paying users**, every critical and
+  high item is finished, and there is spare time. Only then does it run, and
+  only in a window the owner grants (e.g. overnight while the machine is free).
 - **A new finding never joins an in-flight PR or release.** It goes on its
   tracker, labelled, for later, unless the change itself caused it.
 
