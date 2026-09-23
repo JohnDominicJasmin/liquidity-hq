@@ -2505,6 +2505,7 @@
   "UPGRADE_PRICE_FORTNIGHTLY": "$20",
   "UPGRADE_PRICE_MONTHLY": "$35",
   "UPGRADE_PRICE_ANNUAL": "$350",
+  "UPGRADE_TRUST_BILLED_ANNUALLY": "Billed annually",
   "ARENA_ERROR_BYBIT_API": "Bybit data unavailable",
   "ARENA_AUTH_NOTICE": "Sign in to run Quick and Deep analysis.",
   "HOURS_WIN_PRIME_DESC": "US session hours. Volume picks up. Best daily window for clean setups. 20:00–20:45 UTC is the single most consistent reversal sub-window.",

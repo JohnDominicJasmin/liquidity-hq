@@ -20,6 +20,10 @@
 --   + 5 new keys x 5 locales (UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA,
 --     UPGRADE_PRICE_SUFFIX_FORTNIGHTLY, UPGRADE_PRICE_FORTNIGHTLY,
 --     UPGRADE_PRICE_MONTHLY, UPGRADE_PRICE_ANNUAL)
+--   + UPGRADE_TRUST_BILLED_ANNUALLY x 5: declared since the annual plan shipped but
+--     with NO English default and no known rows - it rendered as its raw key name
+--     on /upgrade the moment all three links were set (found by rendering the
+--     build, 2026-09-23). Same class as the four keys item 22 fixed.
 --
 -- "CANCEL ANYTIME" IS DELIBERATELY GONE from the FAQ answer: it is not true until
 -- #1396 (the cancellation path) ships, and that PR puts it back. Do not restore
@@ -80,7 +84,13 @@ insert into lhq_labels (key, locale, value) values
 ('UPGRADE_PRICE_ANNUAL','ar','350$'),
 ('UPGRADE_PRICE_ANNUAL','ko','$350'),
 ('UPGRADE_PRICE_ANNUAL','ru','$350'),
-('UPGRADE_PRICE_ANNUAL','zh','$350')
+('UPGRADE_PRICE_ANNUAL','zh','$350'),
+
+('UPGRADE_TRUST_BILLED_ANNUALLY','en','Billed annually'),
+('UPGRADE_TRUST_BILLED_ANNUALLY','ar','تُدفع سنوياً'),
+('UPGRADE_TRUST_BILLED_ANNUALLY','ko','연간 결제'),
+('UPGRADE_TRUST_BILLED_ANNUALLY','ru','Оплата раз в год'),
+('UPGRADE_TRUST_BILLED_ANNUALLY','zh','按年计费')
 
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
@@ -127,6 +137,12 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 -- ('UPGRADE_PRICE_ANNUAL','ar','350$'),
 -- ('UPGRADE_PRICE_ANNUAL','ko','$350'),
 -- ('UPGRADE_PRICE_ANNUAL','ru','$350'),
--- ('UPGRADE_PRICE_ANNUAL','zh','$350')
+-- ('UPGRADE_PRICE_ANNUAL','zh','$350'),
+-- 
+-- ('UPGRADE_TRUST_BILLED_ANNUALLY','en','Billed annually'),
+-- ('UPGRADE_TRUST_BILLED_ANNUALLY','ar','تُدفع سنوياً'),
+-- ('UPGRADE_TRUST_BILLED_ANNUALLY','ko','연간 결제'),
+-- ('UPGRADE_TRUST_BILLED_ANNUALLY','ru','Оплата раз в год'),
+-- ('UPGRADE_TRUST_BILLED_ANNUALLY','zh','按年计费')
 --
 -- on conflict (key, locale) do update set value = excluded.value, updated_at = now();
