@@ -137,7 +137,18 @@ export async function resolveFeedSnapshot(
     return null;
   }
 
-  const { oldestMs, bySymbol } = feed.dataAges(snap.payload, Date.now());
+  const { bySymbol } = feed.dataAges(snap.payload, Date.now());
+
+  /* The verdict is taken over the symbols this feed is actually refreshing.
+     `staleSymbols` are the ones a partial run carried over from the previous
+     snapshot; their ages are still reported, but letting them drive the verdict
+     would mean one permanently-failing symbol disables the snapshot path for all
+     49. If every symbol is stale there is nothing to exclude, so they all count
+     and the feed correctly falls back. */
+  const carried = new Set((snap.payload as { staleSymbols?: string[] } | null)?.staleSymbols ?? []);
+  const judged = Object.entries(bySymbol).filter(([sym]) => !carried.has(sym));
+  const pool = judged.length ? judged : Object.entries(bySymbol);
+  const oldestMs = pool.length ? Math.max(...pool.map(([, v]) => v)) : null;
   /* No usable upstream timestamp anywhere falls back to the write age, which is
      a lower bound on how old the data is - never an over-estimate of freshness. */
   const verdictAge = oldestMs ?? snap.ageMs;
@@ -164,6 +175,44 @@ export async function resolveFeedSnapshot(
     dataAges: bySymbol,
     stale: overdueMs >= SNAPSHOT_STALE_AFTER_MS,
   };
+}
+
+/* COVERAGE MUST NEVER SHRINK (QA's criterion 2, #1404).
+ *
+ * `stopped || ok === 0` catches a banned run and a dead one, and lets a PARTIAL
+ * one straight through: 37 of 49 symbols with no 418 and no 429 is not
+ * "stopped", so a short row overwrote a full one and api_health called it
+ * healthy. Nobody sees a wrong number - they see twelve symbols quietly
+ * missing, reported as success. Lost coverage dressed as a healthy run is the
+ * worst shape a monitoring bug can take, because nothing ever asks about it.
+ *
+ * The fix is a merge rather than a refusal. Refusing to write a partial would
+ * be worse: one permanently failing symbol would freeze the whole feed forever.
+ * Merging takes every symbol this run DID return and keeps the previous value
+ * for the ones it did not, so coverage only ever grows - and because each item
+ * carries its own upstream timestamp, a symbol that stops updating shows up as
+ * an ageing entry in `dataAges` instead of vanishing. The thing that was
+ * invisible becomes visible in the data the route already returns.
+ *
+ * This is a finding the change itself created: before this PR there was no row
+ * to overwrite. */
+export function mergeCoverage(previous: unknown, next: unknown): { payload: unknown; kept: string[] } {
+  const prevData = (previous as { data?: Record<string, unknown> } | null)?.data;
+  const nextObj  = next as Record<string, unknown> | null;
+  const nextData = (nextObj as { data?: Record<string, unknown> } | null)?.data;
+  if (!prevData || !nextData || typeof prevData !== 'object' || typeof nextData !== 'object') {
+    return { payload: next, kept: [] };
+  }
+  const kept = Object.keys(prevData).filter((sym) => !(sym in nextData));
+  if (!kept.length) return { payload: { ...nextObj, staleSymbols: [] }, kept };
+  const merged: Record<string, unknown> = { ...nextData };
+  for (const sym of kept) merged[sym] = prevData[sym];
+  /* NAMED, not just carried. `staleSymbols` is the list this run did not refresh,
+     and the freshness verdict excludes them - otherwise merging would hand a
+     single delisted symbol the power to condemn the whole feed to the live path
+     for ever, which trades a visible gap for an invisible one. Their ages are
+     still reported per symbol, so a consumer can grey out exactly those. */
+  return { payload: { ...nextObj, data: merged, staleSymbols: kept }, kept };
 }
 
 /** Writes one snapshot row. Only the ingest route calls this, and only with the

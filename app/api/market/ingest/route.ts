@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { recordApiHealth } from '@/lib/apiHealth';
 import { MARKET_FEEDS, checkSampling } from '@/lib/marketFeeds';
-import { writeSnapshot } from '@/lib/marketSnapshot';
+import { writeSnapshot, readSnapshot, mergeCoverage } from '@/lib/marketSnapshot';
 
 /* The only thing in this app that calls an exchange for the snapshot feeds (#1404).
  *
@@ -42,6 +42,10 @@ type FeedOutcome = {
   ok: number;
   total: number;
   stopped?: true;
+  /* A partial fan-out that was merged over the previous row rather than
+     replacing it - coverage kept, and reported unhealthy. */
+  partial?: true;
+  keptFromPrevious?: number;
   /* The sampling verdict in the body as well as in api_health, so a run can be
      checked without a database read - QA asserts it from the response. */
   sampling?: string;
@@ -78,20 +82,43 @@ export async function POST(req: Request) {
         continue;
       }
 
-      await writeSnapshot(feed.key, payload, source);
+      /* A PARTIAL run must not shrink coverage. `stopped || ok === 0` above
+         catches a ban and a total failure; 37 of 49 with no 418 is neither, and
+         before this it overwrote a full row and was reported healthy. Merge the
+         symbols this run returned over the ones it did not, so coverage only
+         grows - and a symbol that has stopped updating ages visibly in
+         `dataAges` rather than disappearing. */
+      const previous = ok < total ? await readSnapshot(feed.key) : null;
+      const { payload: toWrite, kept } = previous
+        ? mergeCoverage(previous.payload, payload)
+        : { payload, kept: [] as string[] };
+
+      await writeSnapshot(feed.key, toWrite, source);
 
       /* The declared sampling interval, checked against the data that just
          arrived. It does not block the write - a feed that changed shape is
          still the only data we have - but a drifted constant makes the overdue
          maths silently over-tolerant, so it is reported as unhealthy the day it
          happens rather than whenever someone notices the numbers look old. */
-      const sampling = checkSampling(feed, payload);
-      outcomes.push({ key: feed.key, written: true, ok, total, sampling: (sampling.ok ? '' : 'DRIFT: ') + sampling.detail });
+      const sampling = checkSampling(feed, toWrite);
+      const partial = ok < total;
+      outcomes.push({
+        key: feed.key, written: true, ok, total,
+        ...(partial ? { partial: true, keptFromPrevious: kept.length } : {}),
+        sampling: (sampling.ok ? '' : 'DRIFT: ') + sampling.detail,
+      });
       health.push({
         source: feed.health,
         category: 'market',
-        ok: sampling.ok,
-        detail: sampling.ok ? `${ok}/${total}` : `${ok}/${total} - SAMPLING DRIFT: ${sampling.detail}`,
+        /* A partial fan-out is NOT a healthy run with fewer items. Same rule the
+           page routes already apply to `stopped` (#665): reported unhealthy, so
+           twelve missing symbols cannot read as success. */
+        ok: sampling.ok && !partial,
+        detail: [
+          `${ok}/${total}`,
+          partial ? `PARTIAL - kept ${kept.length} symbol(s) from the previous snapshot` : '',
+          sampling.ok ? '' : `SAMPLING DRIFT: ${sampling.detail}`,
+        ].filter(Boolean).join(' - '),
         items: ok,
       });
     } catch (e) {
