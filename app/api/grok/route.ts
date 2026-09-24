@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { recordAiCall } from '@/lib/aiCallLog';
 import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
@@ -167,6 +168,7 @@ export async function POST(req: NextRequest) {
         throw new Error(`xAI ${r.status}: ${e.error ?? r.statusText}`);
       }
       const d = await r.json();
+      await recordAiCall({ userId, callType: 'deep', model: d.model ?? 'grok-4.3', usage: d.usage });
       const msg = d.output?.find((o: { type: string }) => o.type === 'message');
       text = msg?.content?.[0]?.text ?? '';
     } else {
@@ -185,6 +187,7 @@ export async function POST(req: NextRequest) {
         throw new Error(`xAI ${r.status}: ${e.error ?? r.statusText}`);
       }
       const d = await r.json();
+      await recordAiCall({ userId, callType: 'quick', model: d.model ?? 'grok-4.3', usage: d.usage });
       text = d.choices?.[0]?.message?.content ?? '';
     }
   } catch (e: unknown) {
