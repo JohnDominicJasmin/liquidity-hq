@@ -835,6 +835,27 @@ rejections, `RELEASE_PR_PAUSED` outliving the reason it was set, and the deploy
 table disagreeing with reality for two days. **A rule nobody can find is a rule
 that gets re-litigated.**
 
+**Priorities: significance first. Owner ruling, 2026-09-19.** The owner:
+*"the most important one is the reliability of the data, the signals, the
+decision making, the macro, and the technicals. That's the reason that the
+users will pay us."* After four days went to a self-scoped UI audit while that
+work waited, three rules apply to every seat:
+
+- **Every issue gets one label:** `priority: critical`, `high`, `medium` or
+  `low`. UI audits, wording, contrast, tap sizes and visual tweaks are `low`.
+- **Low work waits for all four of the owner's conditions** (2026-09-20):
+  everything is running fine, **there are paying users**, every critical and
+  high item is finished, and there is spare time. Only then does it run, and
+  only in a window the owner grants (e.g. overnight while the machine is free).
+- **A new finding never joins an in-flight PR or release.** It goes on its
+  tracker, labelled, for later, unless the change itself caused it.
+
+What counts as significant, in the owner's order: payments (Lemon Squeezy),
+marketing and getting users, the database staying reliable under many users,
+the free data APIs holding up at thousands of users, responsive design, and the
+signals and data actually showing. Full procedure: `ai-team-os/roles/pm-devops.md`
+→ *What to work on*.
+
 **Closing is a sweep PM/DevOps runs every release, not something that happens
 when someone remembers. Owner ruling, 2026-09-19.** The owner asked why 24
 issues and 4 PRs were still open after a week of long days. The largest group

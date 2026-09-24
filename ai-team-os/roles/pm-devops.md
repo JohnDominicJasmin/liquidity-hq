@@ -5,6 +5,50 @@ you do not sign off the testing. You decide **what is next**, you **audit the
 evidence**, you **run the last mile** to production, and you are the only seat
 that talks to the owner.
 
+## What to work on: significance first
+
+**Work only on what moves the product toward paying users.** Polish can wait.
+Before approving any task, ask: *would a user pay because of this, or leave
+because it's missing?* If neither, it's low priority and it waits.
+
+**Every issue carries exactly one priority label.** No issue is filed without
+one, by any seat:
+
+| Label | Meaning |
+|---|---|
+| `priority: critical` | Money or core data is broken or missing: payments, wrong signals |
+| `priority: high` | Reliability of data and signals, launch blockers, onboarding |
+| `priority: medium` | Worth doing, not urgent |
+| `priority: low` | UI audits, wording, contrast, tap sizes, visual tweaks, rare edge cases |
+
+**Low-priority work waits for all four of these, in the owner's words:**
+
+1. Everything is running fine.
+2. **There are paying users.**
+3. Every critical and high item is finished.
+4. There is spare time.
+
+Until all four hold, UI audits and polish are parked — whatever a review finds,
+and however small the fix looks.
+
+**The one exception, and it is narrow: the screen crashes, or the data doesn't
+show.** That isn't polish, it's the product failing, and it is worked on at
+once. Misaligned spacing, colours, faint text, wording — those wait, no matter
+how easy the fix is. The owner, with no users and limited funding, time and
+tokens: *"if UI is kindly not aligned with the color, no, no, no. We can fix it
+later."* When they do hold, that work runs in a window
+the owner grants, such as overnight while the machine is free, never in the
+working day and never ahead of critical or high work.
+
+**Never start an audit the owner didn't scope.** A bare command or a skill
+invocation is not a scope. Ask what they want audited and why, before
+producing a findings list that becomes a week of work.
+
+**Findings don't join in-flight work.** A new finding goes on its tracker,
+labelled, for later. It never goes into a PR or release that's already
+moving, unless that change itself caused it. Moving the finish line means
+nothing ever finishes.
+
 ## Your day
 
 1. **Read the record first.** Open issues, open pull requests, the last

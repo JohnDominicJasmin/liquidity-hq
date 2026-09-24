@@ -334,6 +334,34 @@ export async function gotoSignedIn(
   await gotoGuarded(page, path);
   await page.waitForTimeout(4000);
 
+  /* WAIT OUT THE ONBOARDING *LOADING* SCREEN BEFORE JUDGING ANYTHING (2026-09-23).
+   *
+   * OnboardingFlow returns early on `!loaded` - a different subtree from the wizard,
+   * showing "Setting up your account...". The wizard check below cannot see it, because
+   * that matches the wizard's step text and this branch never renders the wizard at all.
+   * On a slow dev database it outlasts the 4s above, so every signed-in spec in this
+   * suite could measure that screen and report confident numbers about it: an Arena probe
+   * did exactly that for twelve seconds and read "0 canvases" off a page that had not
+   * reached the chart.
+   *
+   * MATCHED ON STRUCTURE, NOT COPY. The text is `ONBOARDING_FLOW_PREPARING_TITLE`, a
+   * database-backed label translated into five locales, so a string match breaks the first
+   * time a spec runs with a non-English preference. `.obw-loading` is the discriminator:
+   * the wizard's own root is `.obw-root` WITHOUT it. (Dev Team is adding a data-testid;
+   * switch to it when it lands.) */
+  const LOADING = '.obw-root.obw-loading';
+  await page.waitForFunction(
+    (sel) => !document.querySelector(sel),
+    LOADING,
+    { timeout: 90_000 },
+  ).catch(() => {
+    throw new Error(
+      `${path} is still on the onboarding LOADING screen ("Setting up your account...") after 90s. ` +
+      `The user_onboarding read has not resolved - usually the dev database being slow. ` +
+      `Nothing measured here would be about ${path}; re-run when it answers.`,
+    );
+  });
+
   const state = await page.evaluate(() => {
     const text = document.body.innerText || '';
     return {
