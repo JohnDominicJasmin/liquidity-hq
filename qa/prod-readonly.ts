@@ -133,6 +133,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   '_record-proxy': 'a recorder of live upstream payloads, not a test',
+  'cross-browser-surface': 'the #1410 cross-browser pass: staging-scoped by its own tracker, run through qa/crossbrowser.config.ts against Firefox and Brave, and it writes to the visitor\'s own localStorage to prove storage round-trips',
   'ops-admit': 'needs admin fixtures',
   'plan-badge-same-user-auth-event': 'signs in as BOTH a Pro and a free account: needs two production accounts',
   'arena-alert-resilience': 'clicks Save on a price alert on purpose; safe only while a route stub matches, and a missed match would create a real alert',
