@@ -79,7 +79,13 @@ const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
 export default function UpgradePage() {
   const { user, loading, isPro } = useAuth();
   const router = useRouter();
-  const [redirecting, setRedirecting] = useState(false);
+  /* WHICH plan is redirecting, not just whether one is (#1423). A single boolean
+     drove every button's label, so clicking one plan made all three read
+     "Redirecting to checkout…". Holding the plan lets only the clicked button
+     change label while all three still disable, so a second plan cannot be
+     clicked mid-navigation. */
+  const [redirecting, setRedirecting] = useState<null | 'monthly' | 'annual' | 'fortnightly'>(null);
+  const isRedirecting = redirecting !== null;
   const { t } = useLabels();
 
   useEffect(() => {
@@ -100,19 +106,19 @@ export default function UpgradePage() {
 
   function handleCheckout() {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
-    setRedirecting(true);
+    setRedirecting('monthly');
     window.location.href = getCheckoutUrl(user);
   }
 
   function handleCheckoutAnnual() {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
-    setRedirecting(true);
+    setRedirecting('annual');
     window.location.href = getCheckoutUrlAnnual(user);
   }
 
   function handleCheckoutFortnightly() {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
-    setRedirecting(true);
+    setRedirecting('fortnightly');
     window.location.href = getCheckoutUrlFortnightly(user);
   }
 
@@ -123,12 +129,12 @@ export default function UpgradePage() {
     <button
       data-testid="checkout-cta-fortnightly"
       onClick={handleCheckoutFortnightly}
-      disabled={redirecting}
-      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'transform 0.15s' }}
-      onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
+      disabled={isRedirecting}
+      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s' }}
+      onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
     >
-      {redirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
+      {redirecting === 'fortnightly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
         <>{t('UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_FORTNIGHTLY')}{t('UPGRADE_PRICE_SUFFIX_FORTNIGHTLY')}</span></>
       )}
     </button>
@@ -235,28 +241,33 @@ export default function UpgradePage() {
                 <button
                   data-testid="checkout-cta-monthly"
                   onClick={handleCheckout}
-                  disabled={redirecting}
-                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
-                  onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
+                  disabled={isRedirecting}
+                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
+                  onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
-                  {redirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_MONTHLY_CHECKOUT_BUTTON_CTA')}
+                  {redirecting === 'monthly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_MONTHLY_CHECKOUT_BUTTON_CTA')}
                 </button>
                 <button
                   data-testid="checkout-cta-annual"
                   onClick={handleCheckoutAnnual}
-                  disabled={redirecting}
-                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative' }}
-                  onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
+                  disabled={isRedirecting}
+                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative' }}
+                  onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
-                  {redirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
+                  {redirecting === 'annual' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
                     <>{t('UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_ANNUAL')}{t('UPGRADE_PRICE_SUFFIX_ANNUAL')} · {t('UPGRADE_ANNUAL_SAVE_BADGE')}</span></>
                   )}
                 </button>
               </div>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_BILLED_ANNUALLY', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
+                {/* No UPGRADE_TRUST_BILLED_ANNUALLY here (#1423): this row sits under all
+                    three plans, but monthly and fortnightly are not billed annually, so a
+                    shared "Billed annually" told two of three buyers the wrong cadence on
+                    the page where they pick it. The monthly-only state below already omits
+                    it; this now matches. */}
+                {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
                   <span key={label} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ color: 'var(--green)', fontSize: '0.6875rem' }}>✓</span> {t(label)}
                   </span>
@@ -270,12 +281,12 @@ export default function UpgradePage() {
               <button
                 data-testid="checkout-cta-monthly"
                 onClick={handleCheckout}
-                disabled={redirecting}
-                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
-                onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
+                disabled={isRedirecting}
+                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
+                onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
               >
-                {redirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_CHECKOUT_BUTTON_CTA')}
+                {redirecting === 'monthly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_CHECKOUT_BUTTON_CTA')}
               </button>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
