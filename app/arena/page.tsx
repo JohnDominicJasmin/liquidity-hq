@@ -2255,8 +2255,8 @@ function ArenaContent() {
            Order-independent: re-selecting the same indicators in a different
            click order is not a change. */
         const selectionChanged = (() => {
-          const before = [...(cacheEntry?.selectionAtAnalysis ?? [])].sort().join(' ');
-          const now = [...strategySelection].sort().join(' ');
+          const before = [...(cacheEntry?.selectionAtAnalysis ?? [])].sort().join('\0');
+          const now = [...strategySelection].sort().join('\0');
           return before !== now;
         })();
         const secsDiff = Math.floor((nowMs - result.analyzedAt) / 1000);
