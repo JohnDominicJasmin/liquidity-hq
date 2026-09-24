@@ -37,10 +37,69 @@ export interface EventAttributes {
 }
 
 /* Events whose payload `data` IS the subscription, so its id is the
-   subscription id and `status` is the subscription's status. */
+   subscription id and `status` is the subscription's status.
+   `subscription_payment_success` was in this set and is NOT one of them - see
+   IGNORED_INVOICE_EVENTS below (#1422). */
 const SUBSCRIPTION_EVENTS = new Set([
   'subscription_created',
   'subscription_updated',
+]);
+
+/* A SUCCESSFUL PAYMENT MUST NEVER BE ABLE TO DOWNGRADE THE PAYER. (#1422)
+ *
+ * `subscription_payment_success` was in SUBSCRIPTION_EVENTS, under the comment
+ * above asserting that the payload `data` IS the subscription. It is not: it is
+ * a subscription INVOICE. So `role: status === 'active' ? 'pro' : 'free'` read
+ * an invoice status of `paid`, which is not `active`, and **every successful
+ * payment set the payer to free**. Observed on a real test-mode purchase on
+ * `qa`, three webhooks one second apart:
+ *
+ *   05:21:01  subscription_created          -> role pro
+ *   05:21:29  subscription_updated          -> role pro
+ *   05:21:30  subscription_payment_success  -> role FREE, ls_status 'paid',
+ *                                              current_period_end wiped to null
+ *
+ * The payer was granted Pro and lost it one second later, with every webhook
+ * returning 200 so the delivery log stayed green. It was on the success path of
+ * every payment and would repeat on every renewal.
+ *
+ * THE EVIDENCE IS OUR OWN ROW, not LemonSqueezy's documentation: the stored
+ * `ls_status` was `paid`, and `paid` is not one of LS's subscription statuses
+ * (`on_trial`, `active`, `paused`, `past_due`, `unpaid`, `cancelled`,
+ * `expired`). Only an invoice payload could have written it.
+ *
+ * This file already knew the distinction and applied it in the other branch:
+ * `patchForEvent`'s `dataId` doc says an invoice's `data.id` is an invoice id
+ * and writing it into `ls_subscription_id` "would silently corrupt the link to
+ * the real subscription" - naming `subscription_payment_failed` while
+ * `subscription_payment_success`, the same payload shape, sat in the set that
+ * does exactly that.
+ *
+ * WHY IGNORED RATHER THAN RECORDED. Every column this event could write is
+ * either an invoice fact misfiled as a subscription fact, or already written
+ * correctly by the `subscription_updated` that accompanies it:
+ *
+ *   role                 an invoice cannot say whether a subscription is active
+ *   ls_status            'paid' is an invoice status; writing it into a column
+ *                        support and /ops read as the subscription's status is
+ *                        what made this defect invisible for so long
+ *   ls_subscription_id   `data.id` here is the INVOICE id
+ *   current_period_end   an invoice carries no `renews_at`/`ends_at`, so the
+ *                        `?? null` wiped the date `subscription_created` set
+ *
+ * The payment is not lost by ignoring it: the route records every delivery in
+ * `lhq_ls_webhook_events` before this function is consulted. Returning null
+ * skips the subscription-row write entirely, which is exactly what null means
+ * here per the note on the return value.
+ *
+ * ONE ASSUMPTION, STATED BECAUSE IT IS NOT VERIFIED: that LemonSqueezy also
+ * sends `subscription_updated` on a RENEWAL, carrying the new `renews_at`. The
+ * purchase above shows it does for a first payment. If it does not on renewal,
+ * `current_period_end` would stop advancing and `paidPeriodLapsed`'s 48-hour
+ * backstop (lib/paidPeriod.ts) would demote a paying subscriber two days after
+ * their old period ended - later and milder than the defect being fixed, but
+ * real. Flagged on #1422 for verification rather than guessed at here. */
+const IGNORED_INVOICE_EVENTS = new Set([
   'subscription_payment_success',
 ]);
 
@@ -111,6 +170,11 @@ export function patchForEvent(
   dataId?: string,
 ): SubscriptionPatch | null {
   const status = typeof attrs.status === 'string' ? attrs.status : '';
+
+  /* Checked FIRST so the invariant is structural rather than a consequence of
+     set membership: a successful payment cannot reach any branch that writes a
+     role, whatever a later edit does to the sets below. */
+  if (IGNORED_INVOICE_EVENTS.has(eventName)) return null;
 
   if (SUBSCRIPTION_EVENTS.has(eventName)) {
     return {
