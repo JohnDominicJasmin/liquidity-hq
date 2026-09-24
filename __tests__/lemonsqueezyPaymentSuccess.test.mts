@@ -162,6 +162,38 @@ test('4. a SECOND cycle keeps Pro and advances the period', () => {
   assert.equal(row.ls_subscription_id, 'sub_1');
 });
 
+test('4b. RECOVERY: a declined card then a successful retry ends on PRO, not stuck on free', () => {
+  /* `ENDS_ACCESS` says a failed payment ends Pro on the FIRST failure and "regains it if a
+     retry succeeds". Nothing tested that, and it is the path the #1422 fix most plausibly
+     touches: the retry's invoice arrives as payment_success, which used to be the event that
+     (wrongly) wrote `free`. Access must come back through `subscription_updated` with status
+     `active`, and the ignored invoice arriving after it must not take it away again.
+
+     SAME UNVERIFIED CLASS as test 4: this assumes LemonSqueezy sends subscription_updated
+     when a past_due subscription becomes active again. The decision function handles that
+     sequence correctly IF it arrives; this cannot show that it does. */
+  /* The precondition is `payment_failed` ALONE. An earlier draft also replayed a `past_due`
+     update before asserting, and that update downgrades on its own - so the assertion passed
+     even with `payment_failed` no longer ending access, and pinned nothing. Found by
+     mutating it, not by reading it. */
+  const row = replay([
+    ['subscription_created', ACTIVE, 'sub_1'],
+    ['subscription_payment_failed', { status: 'failed' }, 'inv_9'],
+  ]);
+  assert.equal(row.role, 'free', 'precondition: the failed payment must end access first (owner decision, 2026-08-08)');
+
+  const recovered = replay([
+    ['subscription_created', ACTIVE, 'sub_1'],
+    ['subscription_payment_failed', { status: 'failed' }, 'inv_9'],
+    ['subscription_updated', { status: 'past_due', customer_id: 42 }, 'sub_1'],
+    ['subscription_updated', { ...ACTIVE, renews_at: R2 }, 'sub_1'],
+    ['subscription_payment_success', { status: 'paid' }, 'inv_10'],
+  ]);
+  assert.equal(recovered.role, 'pro', 'a successful retry did not restore access');
+  assert.equal(recovered.ls_subscription_id, 'sub_1', 'the retry invoice overwrote the subscription id');
+  assert.equal(recovered.current_period_end, R2);
+});
+
 /* ── 5. the owner's two downgrade decisions must be exactly as they were ─────────── */
 
 test('5. OWNER DECISIONS INTACT: payment_failed ends access now, cancelled keeps it to ends_at', () => {
