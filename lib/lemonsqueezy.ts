@@ -99,7 +99,11 @@ const SUBSCRIPTION_EVENTS = new Set([
  * backstop (lib/paidPeriod.ts) would demote a paying subscriber two days after
  * their old period ended - later and milder than the defect being fixed, but
  * real. Flagged on #1422 for verification rather than guessed at here. */
-const IGNORED_INVOICE_EVENTS = new Set([
+/* Exported so the structural test can assert over the real set by import rather
+ * than parsing member names out of this source (QA, #1422). The invariant "no
+ * event in here ever returns a patch with a `role`" is only as strong as the set
+ * the test actually reads. */
+export const IGNORED_INVOICE_EVENTS = new Set([
   'subscription_payment_success',
 ]);
 
