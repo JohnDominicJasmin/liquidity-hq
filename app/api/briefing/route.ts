@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { recordAiCall } from '@/lib/aiCallLog';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUsageTier } from '@/lib/entitlements';
@@ -114,6 +115,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await res.json();
+    await recordAiCall({ userId, callType: 'briefing', model: data.model ?? 'grok-4.3', usage: data.usage });
     const briefing = (data.choices?.[0]?.message?.content ?? '').trim();
 
     return NextResponse.json({
