@@ -53,66 +53,96 @@ the week before, 154 issues had been opened and 107 closed.
 
 ---
 
+## How to read this file
+
+**Live state comes from `gh pr list`, `gh issue list` and `git ls-remote`, not from this
+file.** Rewritten 2026-09-24 by PM/DevOps, after a week in which it named finished work
+and pointed at releases that had long shipped. What is recorded below is the *shape* of
+each lane and the reasons, which survive; PR numbers are the durable handles, and a
+PR's state is whatever GitHub says it is today.
+
+**Priority is the label, and the owner's order is the tiebreak:** the reliability of the
+data, the signals, the macro and the technicals first; payments and getting users next;
+UI polish last and only when there are paying users (`CONTRIBUTING.md`, *What "closed"
+means*). **Every issue carries exactly one `priority:` label.**
+
 ## Dev lane
 
-**Rewritten a seventh time on 2026-09-12, at ~23:40Z.** Release #3 is on `staging`
-(`8fd6f76`), QA-signed-off, and the release PR (#1299) is open awaiting the owner's
-visual gates. Release #4 candidate is on `qa` (`c8903c9`), QA-passed. D4 (#1199)
-and D7 (#1266) both merged. **Next: D6, then the item after it, since D5 is
-blocked on a screenshot rather than done.** **A queue that names finished work is
-worse than an empty one: it costs a session the time to discover it is wrong.**
+| # | Item | Notes |
+|---|---|---|
+| D1 | **#1422 - paying REVOKES Pro** -> PR #1424 | **Critical.** `subscription_payment_success` carries an *invoice* (`status: 'paid'`), and the role rule read that as "not active". Fixed by ignoring the event; the two dated owner decisions in `lib/lemonsqueezy.ts` (payment failed ends access, cancelled keeps it to `ends_at`) are untouched. **It also stops the event overwriting `ls_subscription_id` with the invoice's id.** Still unverified on `qa` until the owner re-buys (Q2), and renewal plus recovery-after-decline are assumptions (Q6). |
+| D2 | **#1423 - upgrade page** -> PR #1425 | Per-plan redirect state (one shared flag made all three buttons say "Redirecting..."), and "Billed annually" removed from the three-plan trust row. **Visual: the merge does not need the owner, the close does** (condition 5). No automated guard exists and none is planned - the E2E harness signs in by typing passwords, which no seat does. |
+| D3 | **#1416 - NUL bytes in `app/arena/page.tsx`** | Two raw NULs made ripgrep treat the file as binary: a directory search returns *nothing and no warning*, so every "nothing calls this" claim about the Arena page was unproven. Two-character fix, approved by QA. Needs a build (app code). |
+| D4 | **Promote `dev` -> `qa`** after D1 and D2 | Ask QA "ok to push?" first. **QA deploys `qa`; the branch moving is not the service moving** - the claim is `/api/version`. |
+| D5 | **#1403 - record which plan a subscriber bought** | **Held.** The subscription row has no variant or plan column, so an account cannot say which plan it holds. Start after #1422 is verified on `qa`. |
+| D6 | **Build identity on `/api/version`** (medium) | The endpoint reports the *commit*, so a rebuild of the same commit with different `NEXT_PUBLIC_*` values is invisible to it - observed twice on 2026-09-24 (`cronSecret`, `lemonsqueezyWebhook` flipped, commit unchanged). One field beside `commit`/`branch`/`appEnv` closes it. |
+| D7 | **Small tracker lines** (low) | #1397: on a mixed row `dataAgeMs`/`overdueMs` report the age of refreshing symbols only (the verdict needs that exclusion; the reported age does not). The specifier sweep matches single-quoted `from '...'` only. The build guard's 350 MB line never fires before the harness reaper does - measure the single-worker build's real peak before giving it its own threshold. |
+| D8 | **#1396 - cancel a plan** | **Not started, and blocked on the owner:** it needs a Lemon Squeezy API key (customer-portal URLs are pre-signed and expire, so each click fetches one), and a decision on what happens when someone buys a *second* plan - the webhook keeps one row per user and lets any of a user's subscriptions overwrite it, last writer wins. |
 
-| # | Item | Size | Notes |
-|---|---|---|---|
-| D2 | **#1285: a stale tab keeps showing a rejected settings value until reload** | ~hours | **Built (PR #1292), QA-reviewed clean.** Holding on the owner's sign-off for the toast wording ("Updated from another device") and its look (amber, same corner as Saved/Failed) - screenshots already sent to PM for the batch. Merge once that lands. |
-| D5 | **#1200: direction/evidence glyphs and an unlabeled delete button** | ~hours | **Built (PR #1305), gates green.** Two of the three fixes (alerts row, DryPowder) are ARIA-only with zero visual difference. The one real visual change (HypothesisTracker's new small label under each evidence icon) is blocked on a screenshot - QA will take it locally after their release #4 pass, with a QA test account on dev, per PM. Not merging until the owner signs off. |
-| D6 | **#1113 tour rework · #1185 visual-rule instances** | mixed | Both visual. **Screenshots go to the owner before merge.** #1220 and #1225 are waiting on exactly that right now. |
-| AS-B | **#1309 item 10: alerts mute re-seed on prefs read failure** | ~small | **Merged (PR #1313).** |
-| AS-C | **#1309 item 13: onboarding read failure sends finished users back to the wizard** | ~small | **Merged (PR #1315).** |
-| AS-F | **#1309 items 23/24/25: dup checklist, Arena double AI call, F&G `&?limit` typo** | ~small | **Merged (PR #1319).** |
-| AS-A | **#1309 items 1/2: missing focus indicators** | ~small-med | **Merged (PR #1321).** QA's browser run went 8/8 green with element screenshots confirming the ring is unclipped on both prefix and suffix rows. |
-| AS-D | **#1309 item 11: macro panel invents DXY/VIX/gold/oil/10y on feed failure** | ~small | **Merged (PR #1324).** |
-| AS-E | **#1309 item 15: position sizer / R:R / funding-cost calculator bugs** | ~small | **Merged (PR #1325).** QA's #1322 (calculator directionality test) also merged. |
-| PR-A | **#1309 batch 2, factual corrections (items 36-44/54/57)** | ~med | **Merged (PR #1327).** Owner signed off the wording. |
-| PR-B | **#1309 batch 2, landing/product claims + About rewrite (items 31/32/33/35)** | ~med | **Merged (PR #1329).** Owner signed off the wording, including the 3-tile stats-bar call. Landing hard gate run clean. Migration applied to dev DB (295 rows / 59 keys, md5-verified) - `/about` shows the new copy on `qa`/`staging` now. Prod not applied yet (owner's go at release time). Item 34 held (no support email yet). |
-| PR-FU1 | **#1309 follow-up: FUNDING_SIG_LONGS_OVERCROWDED_DESC neutral ending + funding-payer extraction** | ~small | **Merged (PR #1331).** Owner approved the wording. QA's coverage (PR #1332, 22 subtests) also merged. Migration applied to dev DB (PM/DevOps, owner's go). Prod not applied yet (release time). |
+**Parked by the owner - do not start, do not reopen without an order:** all UI polish and
+accessibility audit work. The four trackers hold the built branches, which are kept:
+**#1309** (#1386, #1393, #1390), **#1347** (#1392), **#1185** (#1387, #1407),
+**#1111** (#1391, #1408). **The one exception: a screen that crashes or does not show
+data is worked at once.**
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
-asked; promote `dev` → `qa` when work accumulates, asking QA for timing but not
-waiting for an answer; apply the visual rule — **bordered outlines only for things
-that respond to a click; one corner radius for containers, one for controls** — to
-anything you touch.
+asked (QA writes every test; Dev reviews them); apply the visual rule - **bordered outlines
+only for things that respond to a click; one corner radius for containers, one for
+controls** - to anything you touch.
 
 **Machine rules, added 2026-09-12 after two memory kills and a 30-minute dev outage:**
 - **One local `next build` at a time, across all folders.** Check for another `next` process before starting.
 - **Stop local servers you aren't using.** Each one is ~0.5–1 GB, and it joins the retry storm whenever the dev database degrades.
 - **No DDL on the dev database while QA has a pass running.** Any DDL fires a PostgREST schema reload, and on 2026-09-12 one additive column caused 30+ minutes of degradation. See #1025.
 
+**Added 2026-09-24, from measurements rather than inference** (`docs/HANDOVER.md` section 14):
+- **The harness reaper, not the build guard, is the binding limit.** It kills background
+  shells at roughly **1.5-1.9 GB free**; the guard's 350 MB line has never fired first. A
+  build passed the 2.6 GB start floor at 3.56 GB free and was reaped mid-run.
+- **Launch bars: >= 4.5 GB free, held for five minutes, for a `next build`; >= 3.0 GB for a
+  narrowed gate.** **Read free memory again at the instant of launch** - a hold window
+  certifies the past, and a go-ahead given on a stale figure lost the race on 2026-09-24.
+- **`tsc` is the floor of a test-only gate (~2.3-2.6 GB); full `eslint .` is the heavy step
+  for app-code PRs (~1.4 GB).** File-scoped `eslint <file>` is ~150 MB and is enough for a
+  test-only PR whose base tree already lints clean - say in the PR that it was narrowed.
+  **The pre-push hook runs `tsc`, so any `git push` is itself a ~2.5 GB job.**
+- **Foreground commands are not subject to the idle reaper; background shells are.** Run a
+  quick push-and-merge in the foreground.
+- **A killed `next build` leaves `.next` partial**, so `tsc` afterwards reads a broken
+  `.next/types` and reports type errors that are not real. Delete `.next/types` first.
+- **The owner's own apps are usually the largest holders** (Brave 2.7-4.8 GB, VS Code 2.3 GB,
+  a chat app 0.4-0.9 GB). Attribute a dip with a per-step trace, not a guess.
+
 ## QA lane
 
-| # | Item | Size | Notes |
-|---|---|---|---|
-| Q1 | **Release #2 (#1252): what's left after the production re-check** | ~hours | **Re-checked on production at 20:34Z** (#1252). Steps 1–2 passed (settings save and the two-device conflict). **Step 3 was reported failing, but that was the capture tool's blind spot.** At 21:13Z, QA and Dev each re-verified it as a pass using Resource Timing and the rendered values (#1284, closed). Step 4 was inconclusive (the whale feed was quiet at the weekend). **Closed:** #1202, #1177 and #1107. **Reopened:** #1167, because its timeout path has never been forced live. Force it with a near-expiry token, or stub `getAuthToken` to time out. **#1192 is off hold**, because step 3 passes: close it if its five conditions are met. **Held:** #1059, until the whale feed has been re-checked during a busier session. **Record the capture-tool blind spot** in `TEST_GAPS.md` or the QA docs. `read_network_requests` misses requests made in roughly the first 2 s of a fresh load, so use `performance.getEntriesByType('resource')` for load-time questions. **Release #1's signed-in production check waits on the owner's A or B** (`docs/OWNER-BLOCKERS.md` row 12). |
-| Q2 | **Reviews, and release #3** | hours | Open for review: #1286 (docs). Dev reviews QA's #1273 and #1268. **#1220 and #1225 stay unmerged until the owner signs off their screenshots** (row 11). **Release #3:** `qa` holds #1222, #1244, #1250, #1253, #1256, #1257 and #1258. `dev` also holds #1245 and the whole D3/#1266/#1278/#1282 batch (checked with `git log --first-parent origin/staging..origin/qa` and `origin/qa..origin/dev` on 2026-09-12). **#1284 needed no fix, so promote `dev` → `qa` now**, then run the full pass. #1222 and #1244 need the owner's visual sign-off before release #3 ships. |
-| Q3 | **Tests for what merges** | per PR | QA owns every test (owner ruling, 2026-09-07). #1250's are done (#1256). **#1253's are still owed**, and its PR says what to assert. |
-| Q4 | **#950: `layout.spec.ts` against a live run** | read-only | **Answered by #1252's run on 2026-09-12:** `layout.spec.ts` **passed** at `:430`, `:478` and `:626`, on both desktop and mobile. Post that on #950 with the run id (`34701414071`), then close it or say what's left. |
-| Q5 | **Open issues whose fix may already be on production** | ~1 hour | #1168, #1191, #1020, #1075 and #1173. For each one, check production or the issue's own thread, then **close it, or say on the issue exactly what's left.** #1119 also needs the owner's sign-off (`docs/OWNER-BLOCKERS.md` row 6). |
-| Q5a | **#1259: make a red E2E run mean something again** | ~1 day | Six specs fail on production's own code, and three more depend on CI or account state. **For each one, fix it or quarantine it with a reason and an issue link.** For the ratchets, find what raised the count before re-baselining. Until this lands, every release needs a manual triage like #1252's. |
-| Q5b | **#1260: does the price ticker return to its WebSocket after ~30 s of failed retries?** | ~1 hour | Check the CI trace first (run `34701414071`), then reproduce on `main` with an outage longer than 30 s. **If it never reopens, it's a product defect on production (#306), and it goes to Dev.** |
-| Q5c | **#1290: two Resource Timing entries ~100 ms apart on most market endpoints** | ~1 hour | **Low priority. Take it after release #3's pass, on a quiet machine.** Found while verifying #1192, which is closed. It isn't the 12 s retry, and `<MarketProvider>` mounts once. The second entry is `initiatorType: "other"` with 0 bytes. Only the automation Chrome has shown it. **To settle it,** run `qa` locally in a clean browser and count `[proxy] type=bybit-tickers` server log lines against Resource Timing entries for the same reload. If the server sees 1, it's an artifact: close it. |
-| Q6 | **#1171: the ~2.5 s nobody can account for** | ~half day | **Two causes have been disproved: the triple `/api/grok` call (re-measured, no improvement) and the entitlements read (measured on the wrong environment, by PM/DevOps's instruction).** What survives: network is quiet by ~4.5 s, content settles ~7 s. **The gap is AFTER network activity ends**: client-side render cost, or a WebSocket feed Resource Timing cannot see. **Measurement noise on these dynos exceeds the effect**, so either take many samples or say the environment cannot settle it. |
-| Q7 | **`TEST_GAPS.md` §6: accessibility asserted, never heard** | ~1 day | No real assistive-technology pass has ever happened. **"Cannot be verified here, and here is what would be needed" is an acceptable result.** |
-| Q8 | **`TEST_GAPS.md` §1: server time is not controllable** | ~half day | Anything time-dependent is untestable at boundaries. |
+| # | Item | Notes |
+|---|---|---|
+| Q1 | **Deploy `qa` after the promotion** | Row 2 of the deploy table. Confirm the served commit from `/api/version`, then **diff the whole `configured` block** against the previous reading: `checkout`, `checkoutAnnual`, `checkoutFortnightly`, `lemonsqueezyWebhook` and `cronSecret` must still read true after the rebuild. |
+| Q2 | **#1422 on `qa`** | After the owner's one re-buy: `role` stays `pro`; `ls_status` is a subscription status, not `paid`; `current_period_end` is not null; `ls_subscription_id` differs from the pre-fix value; **`updated_at` equals the `subscription_updated` time and sits before the payment event** (the fix makes that event write nothing); still exactly one row. Assertions are written before the run so they cannot bend to fit it. **The owner re-buys first; old test subscriptions are cancelled only after the read is recorded** (`subscription_cancelled` writes to the row). |
+| Q3 | **#1423 on `qa`** | Manual before/after script, needs the owner's signed-in browser session. **Record "incomplete" if there is none - never sign in.** Passing is not "closed": the owner approves anything visual. |
+| Q4 | **Tests for what merges** | QA owns every test (owner ruling, 2026-09-07). Unit where the input can be forced; an E2E over whatever the exchange happens to produce passes because the interesting path never ran. |
+| Q5 | **Cross-browser harness (#1410)** | Ran clean 30/30 on 2026-09-23 (Chromium, Firefox, Brave; 1440 and 390 wide) against deployed staging. Open the PR into `dev` **stating it is manual-only and not to be wired into CI.** **WebKit is not installed: Safari is unclaimed** - keep that line on the tracker. |
+| Q6 | **Two Lemon Squeezy assumptions nobody has seen** | Renewal (does `subscription_updated` carry a fresh `renews_at`?) and **recovery after a declined card** (does `subscription_updated` with status `active` arrive when a retry succeeds?). Both are what the code depends on since #1422. Verify at the first real renewal and first real decline; until then they are assumptions, not findings. |
+| Q7 | **Load testing beyond one address** | A single source hits our own per-IP limit long before the service (`cmc`, `econ-calendar`, `cycle` cap at 20/min). Real load needs many source IPs - a paid tool, so the owner's cost decision. **The page ramp yielded no ceiling and none is claimed.** |
+| Q8 | **Older items still open** | #1259 (make a red E2E run mean something); `TEST_GAPS.md` §1 (server time not controllable) and §6 (accessibility asserted, never heard). |
 
-## Unassigned — take with a reason
+## PM/DevOps lane
+
+| # | Item | Notes |
+|---|---|---|
+| P1 | **The closing sweep, after every production deploy** | Five conditions per issue; a tracker ticks only when verified on production (`git merge-base --is-ancestor <merge> <prod sha>`). |
+| P2 | **Drift check by hand while Actions cannot run** | Production served commit vs `main`, plus tags, recorded on #1413 every run. **A gap in that record is an unmeasured window, not a clean one.** |
+| P3 | **The release batch** | Wording and database changes the owner must approve. See "Owner-only" below; nothing is applied without his word each time. |
+| P4 | **Owner's batch** | One list, recommendation first. Drop what the owner has acknowledged and cannot act on. |
+| P5 | **The heavy-job slot** | One heavy job at a time on the laptop; PM assigns it. |
+
+## Unassigned - take with a reason
 
 | Item | Why it is here |
 |---|---|
-| **#1025: why the dev Supabase project hangs** | **The trigger is known. Why dev can't absorb it is still a candidate.** Any DDL fires PostgREST schema reloads, including Realtime's hourly partition DDL and, on 2026-09-12, **one additive column at 09:16:24Z, which caused 30+ minutes of degradation**: `PGRST002` loops, `PGRST003` pool exhaustion, and PostgREST backends idle-in-transaction on `ClientRead`. **Postgres itself was idle, and PostgREST was the stalled side.** Two live candidates, not exclusive: **memory headroom** (dev at 99.77% of its commit limit) and **our own servers' retry storm**, which #1219 damps. #1219 shipped in release #2 on 2026-09-12. The **dashboard memory graph for 09:16–09:50Z** would confirm or kill the first. Production has never failed on a reload, and a manual DDL there under traffic has not been measured. |
-| **#1152 — the FREE plan described differently in two places** | **Root cause identified:** two independent sources. The landing page reads `dict.pricing.*` in `lib/i18n/dictionaries.ts`; the upgrade screen reads `UPGRADE_*` label keys. Nothing links them. **Editing both to match leaves the mechanism and they drift again.** The fix is one source — and it touches user-visible pricing, so the owner approves before anyone builds. |
-| **#1185 — the visual rule's remaining instances** | Corner consistency and the scroll affordance. The rule is adopted; these are what it applies to. **Owner approves anything visual.** |
-| **#1157: five unindexed foreign keys** | **Applied to production on 2026-09-12 at ~19:07Z** and read back (`docs/OWNER-BLOCKERS.md`, Settled). **They aren't on the dev database.** Checked at ~21:00Z: the four `lhq_dev_*` tables have only their primary keys. The dev versions are commented out at the bottom of `supabase/migrations/20260912b_fk_covering_indexes.sql`. **Low value for now**, because the tables hold a handful of rows, so don't raise it with the owner on its own. It's still a schema write: bundle it with the next dev-database schema ask, and apply it in a QA quiet window (machine rule 3). |
-| **`TEST_GAPS.md` §11 / §7** | CI being off is the owner's cost decision; the shared dev/staging database is a Supabase free-tier structural limit. Neither is actionable without a purchase. |
+| **#1411 - sign-in shows a machine-generated domain** | Needs a paid Supabase plan for a custom auth domain; **deferred by the owner.** |
+| **#1113 onboarding, #1342 auth-token races, #1282 database stalls, #1263 saved selections, #1157 database security and capacity** | High-priority trackers **not touched in the 2026-09-19 -> 24 push**, which went to payments and traffic. Read the tracker before assuming its status. |
+| **#1152 - the FREE plan described differently in two places** | The landing page reads `dict.pricing.*` and the upgrade screen reads `UPGRADE_*` label keys, with nothing linking them. Editing both leaves the mechanism. One source, and the owner approves anything user-visible. |
 
 ---
 
@@ -144,17 +174,28 @@ and QA to their next items. **Nobody stops.** The "never idle" rule outranks any
 
 Visual sign-off stays with the owner (condition 5).
 
-## Owner-only — do not queue these
+## Owner-only - do not queue these
 
-**#861 and #243** (payments — four steps on production, and a real purchase to prove
-Pro is granted). **#372** (annual subscription — *paused* by the owner, not blocked).
-**#1159** (leaked-password protection — deferred with the Supabase upgrade).
-**#1116** (redistribution rights for proxied exchange data — a legal question).
-**#1117** (whether to tell customers the AI is included).
+**Payments go-live (#861, #243):** test-mode plans exist and the test purchase has run end to
+end; what remains is the owner's. **Products created in test mode do not transfer to live
+mode** - copy them with "Copy to Live Mode" and set the *new* links on production. Activate
+the store (business details, identity), then production's own live-mode webhook and its own
+`LEMONSQUEEZY_WEBHOOK_SECRET`. **The API key is created only when #1396 is built.** A
+production secret is never copied to a non-prod service.
 
-**Backups remain deferred to funding** (`docs/OWNER-BLOCKERS.md` row 1), with the rule
-that follows: **while there is no backup, no destructive migration touches production.**
-Additive only — `add column if not exists`, new tables, new policies.
+**Also the owner's:** the recurring 5-minute `POST /api/market/ingest` entry with
+`x-cron-secret` (one entry per environment, each with its own secret - never a prod secret on
+`qa`/`staging`); the two dashboard checks (PostHog receipt, GlitchTip alert recipient);
+wording approval for #1346 and #1292 and the label rows they need; the pricing copy on the
+landing page ("$35/mo", "every 2 weeks", "2 months free"); **#1116** (redistribution rights
+for proxied exchange data - a legal question); **#1117** (whether to tell customers the AI
+is included); **#1159** (leaked-password protection, deferred with the Supabase upgrade);
+**#372** (annual subscription - paused by the owner). **#1413:** GitHub Actions cannot start
+while the account is locked; nothing else depends on it.
+
+**Backups remain deferred to funding** (`docs/OWNER-BLOCKERS.md` row 1), with the rule that
+follows: **while there is no backup, no destructive migration touches production.** Additive
+only - `add column if not exists`, new tables, new policies.
 
 ---
 
