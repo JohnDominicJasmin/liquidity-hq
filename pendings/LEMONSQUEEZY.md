@@ -10,7 +10,7 @@ on `qa`. Production is untouched - every production step below is still the owne
 | Store | one store, **test mode**, currency **USD** (it was PHP; switched 2026-09-23 before any price was entered - a price typed into the wrong currency is not a typo you catch later) |
 | Products | three, all published: **2 Weeks $20**, **Monthly $35**, **Annual $350** |
 | Checkout links | the three `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL`, `_ANNUAL`, `_FORTNIGHTLY` set on `qa`. Verified from the **built bundle** (variable -> checkout id) and by opening each page from the signed-in UI: right plan, right price, test mode. `/api/version` reports `checkout`, `checkoutAnnual`, `checkoutFortnightly` |
-| Webhook | created 2026-09-24 at `https://liquidity-hq-qa.onrender.com/api/lemonsqueezy/webhook`, **five events** (see "What the webhook must subscribe to" - five is one short). Signing secret set on `qa` as `LEMONSQUEEZY_WEBHOOK_SECRET`; **it is never written down in this repo** |
+| Webhook | created 2026-09-24 at `https://liquidity-hq-qa.onrender.com/api/lemonsqueezy/webhook`, **five events** (see "What the webhook must subscribe to" - the five are three short). Signing secret set on `qa` as `LEMONSQUEEZY_WEBHOOK_SECRET`; **it is never written down in this repo** |
 | Test purchase | **ran twice, 05:21Z and 05:27Z.** Delivery, signature and identity are proven from `lhq_dev_ls_webhook_events`: rows are written only after the signature check and the `custom_data.user_id` check, so their existence is the proof |
 | What it found | **#1422 - paying REVOKED Pro one second after granting it.** `subscription_payment_success` carries an *invoice* (`status: 'paid'`); the role rule read that as "not active". The same event also overwrote `ls_subscription_id` with the invoice's id. Fixed in #1424 (the event is now ignored). **Verification on `qa` waits for the owner's re-buy** |
 | Not yet seen | **renewal** (does `subscription_updated` carry a fresh `renews_at`?) and **recovery after a declined card** (does `subscription_updated` with status `active` arrive when a retry succeeds?). The code depends on both; nobody has observed either |
@@ -29,16 +29,34 @@ Whether that needs a fix or a decision on plan switching is the owner's and Dev'
 
 ### What the webhook must subscribe to
 
-**The handler acts on five events and receives a sixth it ignores.** `lib/lemonsqueezy.ts` handles
-`subscription_created`, `subscription_updated`, `subscription_cancelled`,
-`subscription_expired` and **`subscription_payment_failed`** (the owner's 2026-08-08 decision:
-a payment that did NOT go through ends access at once), and it **receives and deliberately
-ignores** `subscription_payment_success` (#1424). The `qa` webhook was created with the older
-five-event list, which has `payment_success` and **no `payment_failed`** - so the
-"declined card ends Pro immediately" decision cannot fire there. A failed renewal would still
-downgrade through `subscription_updated` with a non-`active` status (`past_due`), which is
-the path the recovery assumption above rests on. **Production's webhook must include
-`subscription_payment_failed`.** Tick it on `qa`'s too before anyone tests a decline.
+**The handler acts on SEVEN events and receives an eighth that it ignores.**
+`lib/lemonsqueezy.ts` (read against the code 2026-09-25, after a first version of this
+section counted wrong):
+
+| Event | What the handler does |
+|---|---|
+| `subscription_created` | writes the subscription: role from `status`, ids, `current_period_end` |
+| `subscription_updated` | same - this is how a renewal's fresh `renews_at`, and a recovered decline, arrive |
+| `subscription_payment_failed` | **ends access at once** - the owner's 2026-08-08 decision: they did NOT pay |
+| `subscription_payment_refunded` | ends access (stated assumption: the money is returned) |
+| `order_refunded` | ends access (same assumption) |
+| `subscription_expired` | ends access - the genuine end of a paid period |
+| `subscription_cancelled` | **records only**, keeps access to `ends_at` - the owner's opposite decision: they DID pay |
+| `subscription_payment_success` | **received and deliberately ignored** since #1424 (it carries an invoice, not a subscription) - may be left unsubscribed |
+
+**The `qa` webhook was created with five: created, updated, cancelled, expired and
+`payment_success`. It is missing `subscription_payment_failed`,
+`subscription_payment_refunded` and `order_refunded`.** So on `qa` neither a decline nor a
+refund can be tested, and "declined card ends Pro immediately" cannot fire there. A failed
+renewal would still downgrade through `subscription_updated` with a non-`active` status
+(`past_due`) - the indirect path the recovery assumption rests on - but that is not the path the
+owner decided on. **Production's webhook must subscribe to all seven acted-on events.** Tick the
+three on `qa`'s webhook before anyone tests a decline or a refund.
+
+*How the list went wrong:* the older step 4 said "those five are what the handler switches on",
+and it was passed on without checking it against the handler. It was already wrong before the
+2026-09-24 webhook was created; a first correction then said "one short", also unchecked. QA
+counted from the code and got seven.
 
 ### Earlier status - 2026-08-11 (superseded by the section above)
 
@@ -108,10 +126,10 @@ must exist before the first real purchase or that purchase grants nothing.
 4. **Point the LemonSqueezy webhook at**
    `https://liquidity-hq.com/api/lemonsqueezy/webhook` and subscribe to
    `subscription_created`, `subscription_updated`,
-   `subscription_payment_failed`, `subscription_cancelled` and `subscription_expired`
-   (five - see "What the webhook must subscribe to" above; `subscription_payment_success`
-   is received and deliberately ignored since #1424, so it may be left off).
-   Anything else is accepted and ignored.
+   `subscription_payment_failed`, `subscription_payment_refunded`, `order_refunded`,
+   `subscription_cancelled` and `subscription_expired` - **seven**, see "What the webhook
+   must subscribe to" above. `subscription_payment_success` is received and deliberately
+   ignored since #1424, so it may be left off. Anything else is accepted and ignored.
 
 Both env changes trigger a Render redeploy — `NEXT_PUBLIC_*` is inlined at
 build time, so setting it without rebuilding does nothing.
