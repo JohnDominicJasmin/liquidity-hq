@@ -211,6 +211,9 @@ test('D4. an event that is NOT handled writes nothing', () => {
   assert.equal(patchForEvent('subscription_resumed', { status: 'active' }, 'sub_1', NOW_EARLY), null);
 });
 
-/* ── C. NOT WRITTEN, on purpose: the guard belongs to Fix B and Fix B is not merged ─── */
-
-test.todo('cell C (Fix B, NOT merged): an event for a subscription OTHER than the stored one must not change role, ls_subscription_id, ls_status or current_period_end - today a cancelled OLD subscription still overwrites the id, the status and the period end, and only the role is now correct');
+/* ── C. Lives in lemonsqueezyOneActivePlan.test.mts ─────────────────────────────────────
+ * Cell C - an event for a subscription OTHER than the stored one must not change role,
+ * ls_subscription_id, ls_status or current_period_end - was a `test.todo` here while Fix B was
+ * unmerged. Fix B (#1432) puts the decision in resolveSubscriptionWrite and the wiring in the
+ * route, so it is pinned THERE, including against the real route handler (R1, R1b, C8). Nothing
+ * is repeated here: this file stays about what patchForEvent writes once it is allowed to. */
