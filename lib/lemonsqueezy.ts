@@ -365,11 +365,22 @@ export function resolveSubscriptionWrite(
   }
 
   const storedSubId = stored?.ls_subscription_id || '';
-  if (storedSubId && storedSubId === incomingSubId) {
+
+  // No stored SUBSCRIPTION to protect: no row at all, or a `pro` row with no
+  // subscription id - an admin grant or a row written before this column existed
+  // (dev has one). There is nothing to guard against, so apply; otherwise the
+  // account's first real purchase would be reported-and-dropped and never record,
+  // a regression on that row type (QA, #1429). "No stored subscription id = no
+  // stored subscription = apply."
+  if (!storedSubId) {
+    return { action: 'apply' };
+  }
+
+  if (storedSubId === incomingSubId) {
     return { action: 'apply' }; // the account's own subscription, plan changes included
   }
 
-  // A different subscription, or the row has none yet.
+  // A different subscription than the one the row holds.
   const storedLive = !!stored
     && stored.role === 'pro'
     && !paidPeriodLapsed('pro', stored.current_period_end, nowMs);

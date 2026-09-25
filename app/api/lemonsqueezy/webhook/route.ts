@@ -111,11 +111,25 @@ export async function POST(req: NextRequest) {
   // subscription wrote its cancelled id/status/period end over a live one (#1429).
   // Read the stored row and let the pure resolver decide whether THIS event's
   // subscription may write it. patchForEvent already decided WHAT to write.
-  const { data: stored } = await sb
+  const { data: stored, error: readErr } = await sb
     .from(T.user_subscriptions)
     .select('ls_subscription_id, role, ls_status, current_period_end')
     .eq('user_id', userId)
     .maybeSingle();
+
+  // A FAILED read is a third state - "unknown", not "no row". Treating it as "no
+  // row" would let a foreign cancel overwrite a live subscription whenever the
+  // read happened to fail (the #1429 defect, re-entered through the error path).
+  // Fail closed: report and do not write. 200, not 500: the replay guard already
+  // recorded this delivery's hash, so a 500 + LemonSqueezy retry would be dropped
+  // as a replay - the retry cannot be the recovery path here.
+  if (readErr) {
+    apiError('lemonsqueezy/webhook', new Error(
+      `stored-subscription read failed before the identity decision - not writing. ` +
+      `event=${eventName} user_id=${userId}: ${readErr.message ?? String(readErr)}`,
+    ));
+    return NextResponse.json({ received: true, ignored: 'stored_read_failed' });
+  }
 
   const incomingSubId = incomingSubscriptionId(eventName, attrs, dataId);
   const incomingStatus = typeof attrs.status === 'string' ? attrs.status : '';
