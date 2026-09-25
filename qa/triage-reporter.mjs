@@ -63,15 +63,47 @@ function causeOf(message) {
 export default class TriageReporter {
   constructor() {
     this.failures = [];
+    this.skips = [];
   }
 
   onTestEnd(test, result) {
+    if (result.status === 'skipped') {
+      /* #1348/#1347: `test.skip(condition, reason)` records the reason as a
+       * `type: 'skip'` annotation on the TestCase - Playwright's own
+       * reporters (list, github, html) print "N skipped" and nothing else,
+       * so a deliberately-gated spec (a billed AI path, an unready
+       * fixture) and a silently-rotted one are indistinguishable in every
+       * default view. #1259's whole point was that a skip that does not
+       * name its cause is a silent gap with extra steps - this is the same
+       * failure mode one layer up, in the REPORTER rather than the gate
+       * itself. Every default reporter already runs alongside this one
+       * (playwright.config.ts), so this is additive, not a replacement. */
+      const reason = test.annotations?.find(a => a.type === 'skip')?.description;
+      this.skips.push({ title: test.title, file: test.location?.file ?? '', reason });
+      return;
+    }
     if (result.status !== 'failed' && result.status !== 'timedOut') return;
     const message = result.errors?.[0]?.message ?? result.error?.message ?? '';
     this.failures.push({ title: test.title, file: test.location?.file ?? '', cause: causeOf(message) });
   }
 
   onEnd() {
+    if (this.skips.length > 0) {
+      const out = [];
+      out.push('');
+      out.push('─'.repeat(72));
+      out.push(`SKIPPED  ${this.skips.length} test(s) - reason, not just a count`);
+      out.push('─'.repeat(72));
+      for (const s of this.skips) {
+        out.push(`  ${s.title}`);
+        out.push(`      ${s.reason ? s.reason.split('\n')[0] : '(no reason given - test.skip() called without a message)'}`);
+      }
+      out.push('─'.repeat(72));
+      out.push('');
+      // eslint-disable-next-line no-console
+      console.log(out.join('\n'));
+    }
+
     if (this.failures.length === 0) return;
 
     const byCause = new Map();

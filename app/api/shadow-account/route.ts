@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { recordAiCall } from '@/lib/aiCallLog';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
@@ -142,6 +143,7 @@ export async function POST(req: NextRequest) {
   }
 
   const data = await res.json();
+  await recordAiCall({ userId: authData.user.id, callType: 'shadow_account', model: data.model ?? 'grok-4.3', usage: data.usage });
   const text: string = data.choices?.[0]?.message?.content ?? '';
 
   return NextResponse.json({ analysis: text, tradeCount: closed.length });

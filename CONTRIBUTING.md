@@ -835,6 +835,49 @@ rejections, `RELEASE_PR_PAUSED` outliving the reason it was set, and the deploy
 table disagreeing with reality for two days. **A rule nobody can find is a rule
 that gets re-litigated.**
 
+**Priorities: significance first. Owner ruling, 2026-09-19.** The owner:
+*"the most important one is the reliability of the data, the signals, the
+decision making, the macro, and the technicals. That's the reason that the
+users will pay us."* After four days went to a self-scoped UI audit while that
+work waited, three rules apply to every seat:
+
+- **Every issue gets one label:** `priority: critical`, `high`, `medium` or
+  `low`. UI audits, wording, contrast, tap sizes and visual tweaks are `low`.
+- **Low work waits for all four of the owner's conditions** (2026-09-20):
+  everything is running fine, **there are paying users**, every critical and
+  high item is finished, and there is spare time. Only then does it run, and
+  only in a window the owner grants (e.g. overnight while the machine is free).
+- **A new finding never joins an in-flight PR or release.** It goes on its
+  tracker, labelled, for later, unless the change itself caused it.
+
+What counts as significant, in the owner's order: payments (Lemon Squeezy),
+marketing and getting users, the database staying reliable under many users,
+the free data APIs holding up at thousands of users, responsive design, and the
+signals and data actually showing. Full procedure: `ai-team-os/roles/pm-devops.md`
+→ *What to work on*.
+
+**Closing is a sweep PM/DevOps runs every release, not something that happens
+when someone remembers. Owner ruling, 2026-09-19.** The owner asked why 24
+issues and 4 PRs were still open after a week of long days. The largest group
+was work already shipped that nobody had closed. Two trackers shipped on
+2026-09-17, two fixes had been live since 2026-09-12, and the audit trackers
+carried dozens of unticked boxes for items already on production. In the
+owner's words: *"If those tasks are finished... audited, tested, and
+everything is working. Then close it."* And on whose job it is: *"You guys
+are three on the team. Dev, QA, and you. And you have the most free time."*
+
+So **after every production deploy, PM/DevOps sweeps every open issue**, as
+part of the release and before reporting it. For each one: check each
+referenced fix against the commit production is *serving*, find the test
+evidence and (if visual) the owner's approval, and probe production for
+anything measurable. Then close it, or tick what's done and put a dated
+status block at the top of the body naming what's left and whose move it is.
+An item waiting only on the owner goes into the next batched ask with a
+recommendation. An item with real work left gets assigned to a seat that day.
+**A stale open issue looks exactly like undone work to the owner**, and it
+hides the issues that really are undone. Full procedure:
+`ai-team-os/roles/pm-devops.md` → *The closing sweep*.
+
 **Dev's authority stops at `dev` and `qa` for branches, and nowhere for
 deploys.** Dev may merge its own feature branches into `dev` and may promote
 `dev` → `qa`. It never promotes into `staging`, never merges to `main`, and

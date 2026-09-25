@@ -759,6 +759,23 @@ exactly like findings.
 Prefer one targeted spec over a full sweep — a 40-minute suite also wakes the
 free-plan services.
 
+**Production is guarded, and refuses by default (#1364).** With `E2E_BASE_URL` set to
+the production host the config will not load unless you also set
+`E2E_ALLOW_PRODUCTION=1`, and it refuses outright if `E2E_ALLOW_BILLED_CALLS=1` is
+also set. Once allowed, only the read-only allowlist in `qa/prod-readonly.ts` can run;
+any other spec, even one named on the command line, is "No tests found":
+
+```bash
+E2E_BASE_URL=https://liquidity-hq.com E2E_ALLOW_PRODUCTION=1 npx playwright test qa/e2e/<spec>.spec.ts --project=desktop --workers=1
+```
+
+The 16 signed-in specs on the allowlist need a production test account, which the owner
+creates and which does not exist yet; until then run only the anonymous ones. "Read-only"
+means the specs write nothing on purpose - the app itself still writes a signed-in
+account's own rows (the timezone sync, first-visit default mutes). A new spec must be added
+to the allowlist or to `PROD_EXCLUDED` with a reason, or `__tests__/prodReadonlyGuard.test.mts`
+fails. Dry-run the guard without touching production: `... npx playwright test --list`.
+
 ### The habits that took longest to learn
 
 The full versions are in `STATUS.md` §Standing risks. Read it before trusting
@@ -779,3 +796,11 @@ any result, including your own.
   attempts at one bug lost most of a day; a human answered it in thirty seconds.
 - **A comment describing an invariant is the thing that goes stale.** The
   durable version is a check.
+- **`/api/labels` serves database rows only - it is not what a page renders.**
+  The client layers those rows over `lib/labelDefaults.en.json`, so a key with no
+  row (a brand-new one, or one no migration ever seeded) is absent from the API
+  and perfectly fine on the page. A spec that looks a key up there fails on a
+  correct page, or worse, passes for the wrong reason. Made twice on consecutive
+  days (#1366, then #1371). Use `servedLabels()` from `qa/e2e/_shared.ts` for "what
+  would a user see"; read `/api/labels` raw only when the question really is "is
+  there a database row for this locale", as `support-contact-address.spec.ts` does.

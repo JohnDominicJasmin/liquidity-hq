@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { recordAiCall } from '@/lib/aiCallLog';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
@@ -146,6 +147,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: e.error ?? 'Grok error' }, { status: 502 });
     }
     const d = await r.json();
+    await recordAiCall({ userId: authData.user.id, callType: 'hypothesis_analyze', model: d.model ?? 'grok-4.3', usage: d.usage });
     analysis = d.choices?.[0]?.message?.content ?? '';
   } catch (e) {
     return apiError('hypotheses/[id]/analyze', e, 500, 'Request failed');

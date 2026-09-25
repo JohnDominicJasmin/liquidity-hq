@@ -352,3 +352,19 @@ first finding is that the baseline has been quietly wrong for some time.
 
 **It will be noisy until those surfaces are deterministic**, which is the
 argument for fixtures rather than against them.
+
+## Hand edits to a recorded fixture
+
+`qa/fixtures/proxy/labels.json` is a recording of `/api/labels?locale=en`, but a label's
+wording can change after the recording was taken (a migration rewrites the row). When that
+happens the fixture is edited **by hand, one value**, rather than re-recorded - a re-record
+would pull in every other label change and move 2,573 keys under a diff nobody can review.
+The `_recorded` timestamp is left alone on purpose: it says when the recording was taken,
+not when it was last touched.
+
+| Key | Why | Changed in |
+|---|---|---|
+| `ALERTS_EMA_SIGNAL_DESC` (en) | new wording: the alert is the standard EMA ribbon call and does not follow the chart's indicator selection (row rewritten by `20260919b_labels_alerts_ema_signal_desc_selection.sql`) | #1385 |
+
+No spec asserts on this key today, so the edit changes no result; it keeps the fixture from
+serving wording the site no longer shows. Add a row here for any further hand edit.

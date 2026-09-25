@@ -106,6 +106,30 @@ export const AUTH_SKIP_REASON =
   'But a skip is NOT a pass either - if you are seeing this, the authenticated surface ' +
   'is being verified by nothing at all in this run.';
 
+/* #1348/#1347 item 1: a spec that fires real, billed xAI calls (QUICK/DEEP
+ * against /api/grok) must not run as part of the ordinary suite - CI's
+ * `test:e2e` job runs unscoped on every push to a release PR (staging ->
+ * main), and because a release PR's head IS its base branch, every push to
+ * `staging` while one is open re-fires it via `synchronize`. AUTH_READY
+ * alone does not gate this: CI supplies the E2E_USER_* fixtures as real
+ * secrets, so an authenticated-only gate is satisfied there too - a
+ * SEPARATE, explicit opt-in is required, defaulting to skip, the same way
+ * a skip is loud and stated rather than silent.
+ *
+ * Deliberately not tied to AUTH_READY or NODE_ENV=test - both are true in
+ * CI, which is exactly the environment this must default OFF in. A human
+ * (or a deliberately configured job) sets E2E_ALLOW_BILLED_CALLS=1 to opt
+ * in; nothing else does. */
+export const BILLED_CALLS_READY = process.env.E2E_ALLOW_BILLED_CALLS === '1';
+
+export const BILLED_CALLS_SKIP_REASON =
+  'this spec fires real, billed xAI API calls (QUICK/DEEP via /api/grok) and does not run by ' +
+  'default - set E2E_ALLOW_BILLED_CALLS=1 to opt in deliberately. Not gated on AUTH_READY: CI ' +
+  'supplies real E2E_USER_* secrets, so an auth-only gate would let this fire on every push to ' +
+  'a release PR (staging -> main re-runs the whole suite via `synchronize` on every push while ' +
+  'one is open). Skipping rather than passing: this is not a pass on the mechanism it checks - ' +
+  'it is verifying nothing this run, deliberately, to avoid an unplanned recurring cost.';
+
 /* ENTITLEMENT FIXTURES ARE A AND B, PINNED.
  *
  *   A -> role='pro',  trial_ends_at NULL
@@ -309,6 +333,34 @@ export async function gotoSignedIn(
 ): Promise<void> {
   await gotoGuarded(page, path);
   await page.waitForTimeout(4000);
+
+  /* WAIT OUT THE ONBOARDING *LOADING* SCREEN BEFORE JUDGING ANYTHING (2026-09-23).
+   *
+   * OnboardingFlow returns early on `!loaded` - a different subtree from the wizard,
+   * showing "Setting up your account...". The wizard check below cannot see it, because
+   * that matches the wizard's step text and this branch never renders the wizard at all.
+   * On a slow dev database it outlasts the 4s above, so every signed-in spec in this
+   * suite could measure that screen and report confident numbers about it: an Arena probe
+   * did exactly that for twelve seconds and read "0 canvases" off a page that had not
+   * reached the chart.
+   *
+   * MATCHED ON STRUCTURE, NOT COPY. The text is `ONBOARDING_FLOW_PREPARING_TITLE`, a
+   * database-backed label translated into five locales, so a string match breaks the first
+   * time a spec runs with a non-English preference. `.obw-loading` is the discriminator:
+   * the wizard's own root is `.obw-root` WITHOUT it. (Dev Team is adding a data-testid;
+   * switch to it when it lands.) */
+  const LOADING = '.obw-root.obw-loading';
+  await page.waitForFunction(
+    (sel) => !document.querySelector(sel),
+    LOADING,
+    { timeout: 90_000 },
+  ).catch(() => {
+    throw new Error(
+      `${path} is still on the onboarding LOADING screen ("Setting up your account...") after 90s. ` +
+      `The user_onboarding read has not resolved - usually the dev database being slow. ` +
+      `Nothing measured here would be about ${path}; re-run when it answers.`,
+    );
+  });
 
   const state = await page.evaluate(() => {
     const text = document.body.innerText || '';
