@@ -172,6 +172,9 @@ export function patchForEvent(
   eventName: string,
   attrs: EventAttributes = {},
   dataId?: string,
+  /* Injected so the cancelled-in-grace comparison below is testable against a
+     fixed clock; defaults to now for the route caller. */
+  nowMs: number = Date.now(),
 ): SubscriptionPatch | null {
   const status = typeof attrs.status === 'string' ? attrs.status : '';
 
@@ -181,15 +184,52 @@ export function patchForEvent(
   if (IGNORED_INVOICE_EVENTS.has(eventName)) return null;
 
   if (SUBSCRIPTION_EVENTS.has(eventName)) {
-    return {
-      // Any status other than 'active' means no Pro. LemonSqueezy uses
-      // 'past_due' the moment a renewal fails, so this path can downgrade too -
-      // which is consistent with the decision, not a second opinion on it.
-      role:               status === 'active' ? 'pro' : 'free',
+    const periodEnd = pickDate(attrs.renews_at) ?? pickDate(attrs.ends_at) ?? null;
+    const common = {
       ls_status:          status,
       ls_subscription_id: dataId ?? '',
       ls_customer_id:     attrs.customer_id == null ? '' : String(attrs.customer_id),
-      current_period_end: pickDate(attrs.renews_at) ?? pickDate(attrs.ends_at) ?? null,
+    };
+
+    /* CANCELLED IS NOT INACTIVE. (#1429)
+     *
+     * A cancelled subscription has only turned off auto-renew; it keeps its paid
+     * time until `ends_at` - the owner's 2026-08-08 decision (see the ENDS_ACCESS
+     * comment above). That decision was applied only in the RECORD_ONLY branch,
+     * for the `subscription_cancelled` event. But a cancel on LemonSqueezy also
+     * fires `subscription_updated` with `status: 'cancelled'` - observed on `qa`
+     * 2026-09-25, TWICE, one on each side of the `subscription_cancelled` - and
+     * this branch's old rule (`status === 'active' ? 'pro' : 'free'`) revoked Pro
+     * on those, undoing the decision a second after it was recorded. It drove a
+     * paying row from pro to free. A customer cancelling from LemonSqueezy's own
+     * dashboard hits this even with no in-app cancel feature built.
+     *
+     * `ends_at` is PARSED and COMPARED here, never trusted as present. */
+    if (status === 'cancelled') {
+      const endMs = new Date(pickDate(attrs.ends_at) ?? '').getTime();
+      if (Number.isFinite(endMs)) {
+        // Keep Pro while paid time remains; end it once the paid period is past.
+        // `subscription_expired` and paidPeriodLapsed are the other two ends.
+        return { ...common, role: endMs > nowMs ? 'pro' : 'free', current_period_end: periodEnd };
+      }
+      /* ends_at unreadable or absent on a cancelled event. Do NOT invent a
+         verdict: omit `role` AND `current_period_end`, so the row keeps the role
+         and period end the preceding `active` event already set. This fails
+         TOWARDS the owner's decision - access is PRESERVED, not revoked - without
+         granting Pro forever: the stored period end still drives paidPeriodLapsed
+         and `subscription_expired` still ends it. Free would revoke a paying
+         customer (the #134 class); a null period end would strand them as pro. */
+      return { ...common };
+    }
+
+    return {
+      // 'active' -> pro. Everything else that is NOT 'cancelled' (past_due,
+      // unpaid, expired, paused) -> free. LemonSqueezy uses 'past_due' the moment
+      // a renewal fails, so this still downgrades a declining card on the first
+      // failure - the owner's 2026-08-08 "no grace period" decision, unchanged.
+      ...common,
+      role:               status === 'active' ? 'pro' : 'free',
+      current_period_end: periodEnd,
     };
   }
 
@@ -207,8 +247,10 @@ export function patchForEvent(
     // No `role`. The user keeps what they have until `subscription_expired`.
     return {
       ls_status: status || eventName.replace('subscription_', ''),
-      // ends_at is when access actually stops. renews_at is null on a cancelled
-      // subscription - there is no renewal - so this is the only date left.
+      // ends_at is when access actually stops. An earlier comment here claimed
+      // renews_at is null on a cancelled subscription; observed on `qa`
+      // 2026-09-25 (#1429), the cancelled event carries renews_at EQUAL to
+      // ends_at, not null - so read ends_at directly as the "access ends" date.
       current_period_end: pickDate(attrs.ends_at) ?? null,
     };
   }
