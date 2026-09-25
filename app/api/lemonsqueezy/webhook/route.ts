@@ -3,7 +3,14 @@ import crypto from 'crypto';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
-import { patchForEvent, payerOwnsAccount, verifyWebhookSignature } from '@/lib/lemonsqueezy';
+import {
+  patchForEvent,
+  payerOwnsAccount,
+  verifyWebhookSignature,
+  incomingSubscriptionId,
+  resolveSubscriptionWrite,
+  type StoredSubscription,
+} from '@/lib/lemonsqueezy';
 
 const SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? '';
 
@@ -94,8 +101,42 @@ export async function POST(req: NextRequest) {
   // database, a signature or a LemonSqueezy account - see the comment there.
   // null means an event we do not act on, which must stay distinguishable from
   // "act, and the result is no change".
-  const patch = patchForEvent(eventName, attrs, String(event.data?.id ?? ''));
+  const dataId = String(event.data?.id ?? '');
+  const patch = patchForEvent(eventName, attrs, dataId);
   if (!patch) return NextResponse.json({ received: true, ignored: 'unhandled_event' });
+
+  // ── One active plan per account (#1429 / #1396) ───────────────────────────
+  // The row keeps ONE record per user and upserts on user_id, so without this an
+  // event for ANY of the user's subscriptions overwrites it - cancelling an old
+  // subscription wrote its cancelled id/status/period end over a live one (#1429).
+  // Read the stored row and let the pure resolver decide whether THIS event's
+  // subscription may write it. patchForEvent already decided WHAT to write.
+  const { data: stored } = await sb
+    .from(T.user_subscriptions)
+    .select('ls_subscription_id, role, ls_status, current_period_end')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  const incomingSubId = incomingSubscriptionId(eventName, attrs, dataId);
+  const incomingStatus = typeof attrs.status === 'string' ? attrs.status : '';
+  const decision = resolveSubscriptionWrite(
+    (stored as StoredSubscription | null) ?? null,
+    incomingSubId,
+    incomingStatus,
+  );
+
+  if (decision.action === 'report') {
+    // Fails CLOSED and surfaces for a human: an unmatched event (order_refunded)
+    // or a second active subscription (billing error) must not silently overwrite.
+    apiError('lemonsqueezy/webhook', new Error(
+      `subscription-identity guard: ${decision.reason} - event=${eventName} user_id=${userId} ` +
+      `incoming_sub=${incomingSubId ?? '(none)'} stored_sub=${(stored as StoredSubscription | null)?.ls_subscription_id ?? '(none)'}`,
+    ));
+    return NextResponse.json({ received: true, ignored: 'subscription_mismatch_reported' });
+  }
+  if (decision.action === 'ignore') {
+    return NextResponse.json({ received: true, ignored: 'different_subscription' });
+  }
 
   await sb.from(T.user_subscriptions).upsert({
     user_id:    userId,

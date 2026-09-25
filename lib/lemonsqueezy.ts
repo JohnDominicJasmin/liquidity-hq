@@ -11,6 +11,8 @@
  * decision itself. Different halves.
  */
 
+import { paidPeriodLapsed } from './paidPeriod.ts';
+
 export type SubscriptionRole = 'pro' | 'free';
 
 /** The columns an event implies. `user_id` and `updated_at` are the caller's.
@@ -34,6 +36,11 @@ export interface EventAttributes {
   customer_id?: unknown;
   renews_at?: unknown;
   ends_at?: unknown;
+  /* On an INVOICE payload (payment_failed / payment_refunded) `data.id` is the
+     invoice id and the subscription is here instead (#1429 delivery log,
+     2026-09-25). Absent on subscription-shaped events, where `data.id` is the
+     subscription id. */
+  subscription_id?: unknown;
 }
 
 /* Events whose payload `data` IS the subscription, so its id is the
@@ -260,6 +267,124 @@ export function patchForEvent(
 
 function pickDate(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+/* ── ONE ACTIVE PLAN PER ACCOUNT (#1429 / #1396) ──────────────────────────────
+ *
+ * `patchForEvent` decides what an event MEANS; it never sees the stored row, so
+ * it cannot tell whether the event is even about the subscription the account
+ * currently holds. The row keeps ONE record per user and upserts on `user_id`,
+ * so an event for ANY of a user's subscriptions overwrote it - last writer wins.
+ * Observed on `qa` 2026-09-25: cancelling an OLD test subscription wrote its
+ * cancelled id, status and period end over a LIVE Monthly (#1429). Fix A stopped
+ * the ROLE flip; this stops the OVERWRITE.
+ *
+ * Owner's rule (2026-09-25, #1396): one active plan per account.
+ *
+ * Identity is read PER EVENT from real deliveries (#1429 delivery log 2026-09-25),
+ * never guessed:
+ *   created / updated / cancelled / expired -> `data.id` IS the subscription id
+ *   payment_failed / payment_refunded       -> `data.id` is an INVOICE id;
+ *                                              the subscription is attributes.subscription_id
+ *   order_refunded                           -> NOT observed; treated as UNMATCHED
+ *   payment_success                          -> returns null before this runs (#1422)
+ * A plan change (LS "Modify subscription") KEEPS the same subscription id
+ * (confirmed against a real delivery 2026-09-25), so it is a same-subscription
+ * write, never a second plan. */
+const SUB_ID_IN_DATA = new Set([
+  'subscription_created', 'subscription_updated',
+  'subscription_cancelled', 'subscription_expired',
+]);
+const SUB_ID_IN_ATTRS = new Set([
+  'subscription_payment_failed', 'subscription_payment_refunded',
+]);
+
+/** The subscription id an event refers to, or null when it cannot be tied to one
+ *  (order_refunded, or a missing field). Null means the caller must fail closed. */
+export function incomingSubscriptionId(
+  eventName: string,
+  attrs: EventAttributes = {},
+  dataId?: string,
+): string | null {
+  if (SUB_ID_IN_DATA.has(eventName)) return dataId && dataId.length > 0 ? dataId : null;
+  if (SUB_ID_IN_ATTRS.has(eventName)) {
+    const s = attrs.subscription_id;
+    if (typeof s === 'string' && s.length > 0) return s;
+    if (typeof s === 'number' && Number.isFinite(s)) return String(s);
+    return null;
+  }
+  return null; // order_refunded and anything else: unmatched
+}
+
+/** The stored row this decision needs. */
+export interface StoredSubscription {
+  ls_subscription_id: string | null;
+  role: SubscriptionRole;
+  ls_status: string;
+  current_period_end: string | null;
+}
+
+export type WriteDecision =
+  | { action: 'apply' }                    // write patchForEvent's patch
+  | { action: 'ignore'; reason: string }   // leave the row untouched
+  | { action: 'report'; reason: string };  // report (GlitchTip) and leave untouched
+
+/**
+ * Whether the event may be written to the user's single subscription row.
+ *
+ * PURE: the route reads the stored row and passes the incoming subscription id
+ * (from `incomingSubscriptionId`) and status.
+ *
+ * - unmatchable incoming (no subscription id, e.g. order_refunded) -> report,
+ *   fail closed: never act on an event we cannot tie to a subscription.
+ * - SAME subscription as the row holds -> apply (includes plan changes).
+ * - DIFFERENT subscription and the stored one is NOT live
+ *   (none / free / expired / cancelled-past-its-end) -> apply: a new subscription
+ *   legitimately takes over.
+ * - DIFFERENT subscription, stored one still live:
+ *     stored is CANCELLED-in-grace and incoming is ACTIVE -> apply: a resubscribe
+ *       taking over (else a customer who resubscribes in grace pays and gets
+ *       nothing when the old one expires - the trap on #1396).
+ *     stored is ACTIVE and incoming is ACTIVE -> report: two active plans is a
+ *       billing error; do not overwrite the first, refund by hand.
+ *     incoming is NOT active -> ignore: a different, non-active subscription must
+ *       not disturb the live one (this is the #1429 defect).
+ *
+ * `incomingStatus` is the SUBSCRIPTION status for subscription events; on invoice
+ * events it is the invoice status, which is never 'active', so the two-active and
+ * resubscribe branches only fire for genuine subscription events - as intended.
+ */
+export function resolveSubscriptionWrite(
+  stored: StoredSubscription | null,
+  incomingSubId: string | null,
+  incomingStatus: string,
+  nowMs: number = Date.now(),
+): WriteDecision {
+  if (!incomingSubId) {
+    return { action: 'report', reason: 'event carries no subscription id to match (e.g. order_refunded); not acting' };
+  }
+
+  const storedSubId = stored?.ls_subscription_id || '';
+  if (storedSubId && storedSubId === incomingSubId) {
+    return { action: 'apply' }; // the account's own subscription, plan changes included
+  }
+
+  // A different subscription, or the row has none yet.
+  const storedLive = !!stored
+    && stored.role === 'pro'
+    && !paidPeriodLapsed('pro', stored.current_period_end, nowMs);
+
+  if (!storedLive) {
+    return { action: 'apply' }; // none / free / expired / cancelled-past-end: take over
+  }
+
+  if (incomingStatus === 'active') {
+    if (stored!.ls_status === 'cancelled') {
+      return { action: 'apply' }; // resubscribe during grace takes over the cancelled one
+    }
+    return { action: 'report', reason: 'a second active subscription while the stored one is still live (one-active-plan rule, #1396); not overwriting - refund by hand' };
+  }
+  return { action: 'ignore', reason: 'event for a different, non-active subscription must not disturb the live subscription (#1429)' };
 }
 
 /* ── The two gates in front of patchForEvent ──────────────────────────────────
