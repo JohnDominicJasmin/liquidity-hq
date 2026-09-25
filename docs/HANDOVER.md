@@ -1000,6 +1000,82 @@ four mobile loads that cannot scroll — reproducing a phantom overflow QA had
 already reported and retracted on #641, on every run for weeks afterward.
 **When a check is corrected, grep for every other copy of the same comparison.**
 
+
+### One mistake, four layers - 2026-09-23/24: an instrument correct about what it measures, read as answering a question it does not
+
+Each of these was accurate about its own subject. The error was ours every time.
+
+1. **A key is not an event.** `/api/version`'s `configured` block says a variable is *set*
+   (`lib/configured.ts`), never that anything arrives. It reported PostHog and Sentry configured
+   while nobody had seen one event. Settled with a real exception thrown on production and found
+   in GlitchTip, by issue id.
+2. **A 200 is not an event in a project.** PostHog's ingestion endpoints answered 200; that proves
+   the network hop, not that anything is readable in a dashboard. **The same holds for our own
+   webhook:** the route returns 200 for events it *ignores* (`no custom_data.user_id`,
+   `email_mismatch`, `replay`), so "delivered with a 200" and "the payer got Pro" are different
+   claims. Read the row, not the log.
+3. **A passing test against a stub is not a working pipeline.** PII scrubbing had only ever run
+   against a stub transport. Proven on the real pipeline for the first time on 2026-09-24.
+4. **A matching commit is not the same build.** `NEXT_PUBLIC_*` is inlined at build time, so
+   `/api/version` reported `d4f425f` before and after two rebuilds in which `cronSecret` and
+   `lemonsqueezyWebhook` flipped to true. It answers *what code is live*, correctly; it cannot see
+   a rebuild of the same commit with different variables. **Read the flag, not the commit** - the
+   direction that bites is reading an unchanged commit as "it didn't take". (A build id beside
+   `commit` closes it; queued.)
+
+**Pinned is not observed.** Unit tests pin the too-old and partial-row branches of the market
+snapshot from pure inputs; nobody has seen either fire on a deployed service. Say which one a
+claim is.
+
+### Tools that returned "nothing" and meant "unknown"
+
+- **ripgrep and a raw NUL byte.** `app/arena/page.tsx` held two raw NULs, so ripgrep treated it as
+  binary. **Against a directory it printed nothing and no warning** (exit 1, or exit 0 with matches
+  from other files - the repo-root search was the dangerous one: a healthy-looking result set with a
+  hole in it). Against the explicit file it printed `binary file matches` with no lines, and `-c`
+  read straight through. Every "nothing calls this" claim about that page was unproven until #1416.
+  **A bare no-match on a large file is a measurement that can fail silently.**
+- **A `git push` that lied.** It printed an RPC error, then `Everything up-to-date`, and exited 0
+  with nothing sent (intermittent DNS on this machine). **Confirm a push with `git ls-remote` or
+  `git merge-base --is-ancestor`, never from the command's own output.** Refresh `origin/dev`
+  before relying on it - a stale local ref read as nine changed files instead of one.
+- **`nslookup` prints `Address:` for the DNS *server* and `Addresses:` for the answer.** A regex
+  that took the wrong line nearly became a reported DNS hijack across every host.
+- **No `jq` and no `bc` here.** A watch piped into a missing binary reports quiet forever. Run
+  `command -v` on every tool before arming, force the emit path to fire once, and never let a
+  watch's silence stand as a result. Poll several services in parallel: one sleeping free-plan
+  instance stalled a sequential poll for 100 seconds with no output.
+
+### Measurement discipline we paid for
+
+- **A control that could fail, or it is a number and not a measurement.** Three figures were
+  withdrawn in one day (a per-100-loads upstream count whose denominator tracked wall-clock time; a
+  -22% CPU change inside a 32% run-to-run spread; a "zero calls" reading taken against a stale
+  `next start` holding the port). A probe run *inside* the load generator read 8669 ms for a 183 ms
+  query - it was measuring itself.
+- **A memory figure is only good until someone else starts a heavy job.** Read free memory again at
+  the instant of launch. The harness reaper (~1.5-1.9 GB free), not the build guard's 350 MB
+  line, is what kills a build; see the machine rules in `docs/WORK-QUEUE.md`.
+- **"Pre-existing" is a claim about the OLD side of a diff.** A partial fan-out used to omit failed
+  symbols and the provider treated absent as not-fetched; the snapshot merge kept them alive, so a
+  dead symbol would have shown a stale value as current. That was created by the change and belonged
+  in that PR - and it took a teammate arguing against their own convenience to say so.
+- **Acknowledging a correction is not applying it.** A stale number stayed in a PR body after a
+  verbal "you're right". The artifact outlives the conversation.
+
+### Payments, in one place
+
+- **`subscription_payment_success` carries an invoice, not a subscription.** Its `status` is
+  `paid`, its `data.id` is the invoice's id, and it has no `renews_at`. `ls_status: 'paid'` on a
+  subscription row is an impossible value and was the proof, taken from our own data rather than
+  the vendor's documentation (#1422).
+- **The webhook keeps one row per user** and lets any of that user's subscriptions overwrite it;
+  see #1396 for what that means for cancellation.
+- **A test-mode product does not transfer to live mode**, and the copy has its own checkout link.
+- **No seat enters card details or passwords, in any mode, on anyone's authorisation.** Design the
+  test around the owner's minute at the checkout and have everything either side verified without a
+  payment form.
+
 ---
 
 ## 15. How we work — the two-session model
