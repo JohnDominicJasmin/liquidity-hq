@@ -143,6 +143,7 @@ const DIFFERENT: { name: string; stored: StoredSubscription | null; want: Record
   { name: 'no row at all', stored: null, want: ALL('apply') },
   { name: 'free, never paid', stored: row({ role: 'free', ls_subscription_id: null, ls_status: '', current_period_end: null }), want: ALL('apply') },
   { name: 'free, an old subscription expired', stored: row({ role: 'free', ls_status: 'expired', current_period_end: iso(NOW - 90 * DAY) }), want: ALL('apply') },
+  { name: 'free, access ended by a failed payment (the id and a FUTURE period end are kept)', stored: row({ role: 'free', ls_status: 'past_due', current_period_end: iso(NOW + 10 * DAY) }), want: ALL('apply') },
   { name: 'pro, cancelled and PAST its end by more than the backstop', stored: row({ ls_status: 'cancelled', current_period_end: iso(NOW - PAID_GRACE_MS - 1) }), want: ALL('apply') },
   { name: 'pro, active, period in the future', stored: row(), want: { ...ALL('ignore'), active: 'report' } },
   { name: 'pro, active, period ended but still inside the backstop', stored: row({ current_period_end: iso(NOW - DAY) }), want: { ...ALL('ignore'), active: 'report' } },
@@ -215,19 +216,39 @@ test('C8. THE PROVEN CASE, pure: the step-4 before-row and a foreign cancel is i
   assert.equal(resolveSubscriptionWrite(before, 'SUB_OLD_TWO_WEEK', 'cancelled', NOW).action, 'ignore');
 });
 
-/* ── FINDING (#1432 review) ─ a pro row with NO subscription on record ───────────────
- * `todo`: this test RUNS and is expected to fail today; it turns green on its own when the
- * behaviour changes, and never fails the suite. The rule asserted is MY PROPOSAL, not the
- * owner's: a guard exists to protect a KNOWN subscription's row, so a row with no
- * subscription id has nothing to protect. Dev/PM decide. As shipped, such a row is treated
- * as "live", so the first real purchase on it is reported and dropped. */
+/* ── A pro row with NO subscription on record (found in the #1432 review, fixed in 3359e2a9) ─
+ * Admin grants and rows written before the column existed have `role = pro` and no
+ * subscription id. There is no stored subscription for the guard to protect, so an event
+ * applies: "no stored subscription id = no stored subscription = apply" (Dev's rule, and
+ * the one I proposed). As first shipped such a row counted as "live", so the account's
+ * first real purchase was reported and dropped, and every later event for it was too.
+ * NOTE what the rule does not do: a first event that is NOT active (a purchase whose first
+ * delivery is a failure) also applies, so it can demote an admin grant. Reasoned, not
+ * observed; nothing here asserts otherwise. */
 const NO_SUB_PRO = row({ ls_subscription_id: null, ls_status: '', current_period_end: null });
-test('C9. FINDING: a pro row with no subscription id (admin grant / pre-column row) lets a first purchase take over',
-  { todo: 'finding on #1432: currently reported and dropped, so the purchase is never recorded' }, () => {
-    for (const status of STATUSES) {
-      assert.equal(resolveSubscriptionWrite(NO_SUB_PRO, 'SUB_FIRST', status, NOW).action, 'apply', `incoming "${status}"`);
-    }
-  });
+test('C9. a pro row with no subscription id (admin grant / pre-column row) lets a first purchase take over', () => {
+  for (const status of STATUSES) {
+    assert.equal(resolveSubscriptionWrite(NO_SUB_PRO, 'SUB_FIRST', status, NOW).action, 'apply', `incoming "${status}"`);
+  }
+});
+
+test('C10. the rule turns on the subscription ID alone: the same row WITH an id is still protected, and an empty id counts as none', () => {
+  const same = { role: 'pro', ls_status: 'active', current_period_end: iso(NOW + 30 * DAY) } as const;
+  for (const id of [null, '']) {
+    const r = { ...same, ls_subscription_id: id };
+    assert.equal(resolveSubscriptionWrite(r, 'SUB_B', 'cancelled', NOW).action, 'apply', `id ${JSON.stringify(id)} / cancelled`);
+    assert.equal(resolveSubscriptionWrite(r, 'SUB_B', 'active', NOW).action, 'apply', `id ${JSON.stringify(id)} / active`);
+  }
+  const held = { ...same, ls_subscription_id: 'SUB_A' };
+  assert.equal(resolveSubscriptionWrite(held, 'SUB_B', 'cancelled', NOW).action, 'ignore');
+  assert.equal(resolveSubscriptionWrite(held, 'SUB_B', 'active', NOW).action, 'report');
+});
+
+test('C11. an event with no subscription id is still REPORTED against an id-less row (unmatched comes before "nothing to protect")', () => {
+  for (const id of [null, '']) {
+    assert.equal(resolveSubscriptionWrite(NO_SUB_PRO, id, 'active', NOW).action, 'report');
+  }
+});
 
 /* ══ ROUTE — the real handler against a stand-in database ═══════════════════════ */
 
@@ -379,6 +400,24 @@ test('R4b. a new subscription takes over a PRO row whose period ended beyond the
   assert.equal(now()?.ls_subscription_id, 'SUB_NEW');
 });
 
+test('R15. after a FAILED PAYMENT ended access (role free, id and period end kept), a new subscription takes over', async () => {
+  /* The natural sequence: the card fails, then the customer subscribes again. payment_failed
+     writes only role and status, so the row keeps the old id and a period end in the FUTURE.
+     Treated as "live" that row would refuse the re-subscription: the customer pays and the
+     purchase is reported and dropped. Only the role check tells the two apart. */
+  resetDb();
+  seed();
+  const failed = await deliver('subscription_payment_failed', 'INVOICE_7', { subscription_id: 'SUB_MONTHLY', status: 'paid' });
+  assert.deepEqual(failed.body, { received: true });
+  assert.equal(now()?.role, 'free', 'precondition: the failed payment ended access');
+  assert.equal(now()?.current_period_end, MONTHLY.current_period_end, 'precondition: the period end is still in the future');
+  const res = await deliver('subscription_created', 'SUB_RESUBSCRIBED', { status: 'active', renews_at: '2100-01-01T00:00:00.000000Z' });
+  assert.deepEqual(res.body, { received: true });
+  const r = now()!;
+  assert.equal(r.ls_subscription_id, 'SUB_RESUBSCRIBED');
+  assert.equal(r.role, 'pro');
+});
+
 test('R5. RULE-BASED, never observed: a second ACTIVE subscription is reported and does not overwrite', async (t) => {
   resetDb();
   const before = seed();
@@ -465,24 +504,60 @@ test('R10. CONTROL: a byte-identical redelivery is still dropped as a replay', a
   assert.equal(db.upserts.length, 1);
 });
 
-/* ── FINDINGS (#1432 review) ─ `todo`: they RUN, are expected to fail today, turn green on
- * their own when fixed, and never fail the suite. Nothing here pins a defect as wanted. */
+/* ── Two findings from the #1432 review, fixed in 3359e2a9 ─────────────────────────────────
+ * They were `todo` tests (run, fail, never fail the suite) until the fix landed. */
 
-test('R11. FINDING: an unreadable stored row must not let a foreign cancel through (the guard fails OPEN today)',
-  { todo: 'finding on #1432: the route ignores the read error, treats it as "no row", and applies' }, async (t) => {
+/* A FAILED read of the stored row is a third state, "unknown", not "no row". Treated as "no
+   row" the guard applied whatever arrived - the #1429 defect re-entered through the error
+   path (found by running this against f543fe69). Fails closed: 200, nothing written, reported.
+   200 rather than 5xx on purpose: the replay hash is already recorded, so a retry would be
+   dropped. A consequence worth knowing, and NOT asserted as wanted: an event that arrives
+   while the read is failing is not applied and is not retried. */
+const READ_FAILS: { name: string; stored: boolean; event: string; id: string; attrs: Record<string, unknown> }[] = [
+  { name: 'a foreign cancel on a live row', stored: true, event: 'subscription_updated', id: 'SUB_OLD_TWO_WEEK', attrs: OLD_CANCELLED },
+  { name: "the account's own renewal", stored: true, event: 'subscription_updated', id: 'SUB_MONTHLY', attrs: { status: 'active', renews_at: '2100-01-01T00:00:00.000000Z' } },
+  { name: 'a first subscription on an account with no row', stored: false, event: 'subscription_created', id: 'SUB_FIRST', attrs: { status: 'active', renews_at: '2099-01-01T00:00:00.000000Z' } },
+];
+for (const c of READ_FAILS) {
+  test(`R11. a FAILED stored-row read fails closed - ${c.name}: nothing written, 200 not 5xx, reported`, async (t) => {
     resetDb();
-    const before = seed();
-    t.mock.method(console, 'error', () => {});
+    const before = c.stored ? seed() : undefined;
+    const err = t.mock.method(console, 'error', () => {});
     db.failStoredRead = true;
-    await deliver('subscription_updated', 'SUB_OLD_TWO_WEEK', OLD_CANCELLED);
-    assert.deepEqual(now(), before, 'the #1429 defect is back for any delivery that lands while the read fails');
+    const res = await deliver(c.event, c.id, c.attrs);
+    assert.equal(res.status, 200, 'a 5xx makes Lemon Squeezy retry, and the retry is dropped as a replay');
+    assert.deepEqual(res.body, { received: true, ignored: 'stored_read_failed' });
+    assert.equal(db.upserts.length, 0, 'the row was written while the read was failing');
+    assert.deepEqual(now(), before, 'the row changed');
+    assert.match(err.mock.calls.map((x) => String(x.arguments[0])).join('\n'), /stored-subscription read failed/, 'a failed read must reach GlitchTip');
   });
+}
 
-test('R12. FINDING: a pro row with no subscription id (admin grant / pre-column row) records the customer\'s first purchase',
-  { todo: 'finding on #1432: treated as live, so the purchase is reported and never written' }, async (t) => {
-    resetDb();
-    seed({ ls_subscription_id: null, ls_status: '', current_period_end: null });
-    t.mock.method(console, 'error', () => {});
-    await deliver('subscription_created', 'SUB_FIRST', { status: 'active', renews_at: '2099-01-01T00:00:00.000000Z' });
-    assert.equal(now()?.ls_subscription_id, 'SUB_FIRST');
-  });
+test('R12. a pro row with no subscription id (admin grant / pre-column row) records the customer\'s first purchase', async () => {
+  resetDb();
+  seed({ ls_subscription_id: null, ls_status: '', current_period_end: null });
+  const res = await deliver('subscription_created', 'SUB_FIRST', { status: 'active', renews_at: '2099-01-01T00:00:00.000000Z' });
+  assert.deepEqual(res.body, { received: true });
+  const r = now()!;
+  assert.equal(r.ls_subscription_id, 'SUB_FIRST');
+  assert.equal(r.role, 'pro');
+  assert.equal(r.current_period_end, '2099-01-01T00:00:00.000000Z');
+});
+
+test('R13. the same row WITH a subscription id is still protected from a foreign cancel (the id-less rule did not over-apply)', async () => {
+  resetDb();
+  const before = seed({ ls_subscription_id: 'SUB_HELD' });
+  const res = await deliver('subscription_updated', 'SUB_OLD_TWO_WEEK', OLD_CANCELLED);
+  assert.deepEqual(res.body, { received: true, ignored: 'different_subscription' });
+  assert.deepEqual(now(), before);
+});
+
+test('R14. once the first purchase has recorded, the id-less rule no longer applies: a later foreign cancel is ignored', async () => {
+  resetDb();
+  seed({ ls_subscription_id: null, ls_status: '', current_period_end: null });
+  await deliver('subscription_created', 'SUB_FIRST', { status: 'active', renews_at: '2099-01-01T00:00:00.000000Z' });
+  const recorded = now();
+  const res = await deliver('subscription_updated', 'SUB_OLD_TWO_WEEK', OLD_CANCELLED);
+  assert.deepEqual(res.body, { received: true, ignored: 'different_subscription' });
+  assert.deepEqual(now(), recorded);
+});
