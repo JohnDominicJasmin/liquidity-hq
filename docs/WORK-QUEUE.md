@@ -102,10 +102,16 @@ controls** - to anything you touch.
 - **Launch bars: >= 4.5 GB free, held for five minutes, for a `next build`; >= 3.0 GB for a
   narrowed gate.** **Read free memory again at the instant of launch** - a hold window
   certifies the past, and a go-ahead given on a stale figure lost the race on 2026-09-24.
-- **`tsc` is the floor of a test-only gate (~2.3-2.6 GB); full `eslint .` is the heavy step
-  for app-code PRs (~1.4 GB).** File-scoped `eslint <file>` is ~150 MB and is enough for a
-  test-only PR whose base tree already lints clean - say in the PR that it was narrowed.
-  **The pre-push hook runs `tsc`, so any `git push` is itself a ~2.5 GB job.**
+- **What the gates cost, measured as the LOWEST free memory reached (MIN_FREE) - not as memory
+  consumed.** Launched at >= 3.0 GB free, a test-only gate bottomed out at **~2.3-2.6 GB free
+  during `tsc`**, and a full `eslint .` reached **~1.67 GB free**, just above the reaper line;
+  a file-scoped `eslint <file>` (~150 MB) is the lightest step. **Do not read "floor" as
+  consumption:** a first version of this note said a push "is a 2.5 GB job", which misread those
+  figures. One run (3.15 GB start, 0.49 GB low) shows what happens when something else is also
+  running, and its cause was never attributed. **The pre-push hook runs lint, `tsc` and the unit
+  tests, so a `git push` is itself a gate run - start it with >= 3.5 GB free.** File-scoped
+  lint is enough for a test-only PR whose base tree already lints clean; say in the PR that it
+  was narrowed.
 - **Foreground commands are not subject to the idle reaper; background shells are.** Run a
   quick push-and-merge in the foreground.
 - **A killed `next build` leaves `.next` partial**, so `tsc` afterwards reads a broken
