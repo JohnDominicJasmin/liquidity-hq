@@ -14,6 +14,7 @@ import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
+import { subscriptionPanelView, futureDateOrNull, type SubPanelView } from '@/lib/subscriptionPanel';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
 import { readConsent, writeConsent, onConsentChange, type ConsentState } from '@/lib/consent';
@@ -96,6 +97,53 @@ export default function SettingsPage() {
   // this the button gave no indication anything was happening, same shape
   // as pwLoading below.
   const [signingOut,   setSigningOut]   = useState(false);
+
+  // ── Subscription / cancel-a-plan (#1396) ──
+  type SubState = { role: string; lsStatus: string | null; currentPeriodEnd: string | null; hasSubscription: boolean; canCancel: boolean };
+  const [sub, setSub] = useState<SubState | 'error' | null>(null);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelDone, setCancelDone] = useState<{ endsAt: string | null } | null>(null);
+  const [cancelError, setCancelError] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    (async () => {
+      try {
+        const token = await getAuthToken();
+        const r = await fetch('/api/subscription', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (!alive) return;
+        if (!r.ok) { setSub('error'); return; }
+        setSub(await r.json());
+      } catch { if (alive) setSub('error'); }
+    })();
+    return () => { alive = false; };
+  }, [user]);
+
+  const doCancel = async () => {
+    if (cancelling) return;
+    setCancelling(true); setCancelError(false);
+    try {
+      const token = await getAuthToken();
+      const r = await fetch('/api/lemonsqueezy/cancel', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) { setCancelDone({ endsAt: j.endsAt ?? null }); setCancelConfirm(false); }
+      else { setCancelError(true); }
+    } catch { setCancelError(true); }
+    finally { setCancelling(false); }
+  };
+
+  // Pure state -> view (lib/subscriptionPanel). A just-completed cancel overrides
+  // the fetched state so the panel updates without waiting for the webhook/refetch.
+  const subView: SubPanelView | 'error' | null =
+    sub === 'error' ? 'error'
+    : sub === null ? null
+    : cancelDone ? { kind: 'cancelled', untilDate: futureDateOrNull(cancelDone.endsAt, Date.now()) }
+    : subscriptionPanelView(sub);
 
   // ── Password (set or change) - the client User object has no reliable
   // "has a password" flag (a magic-link-only account and a password account
@@ -348,6 +396,55 @@ export default function SettingsPage() {
           {signingOut ? <span className="login-spinner" /> : t('SETTINGS_SIGN_OUT_BUTTON')}
         </button>
       </Section>
+
+      {/* ── Subscription / cancel-a-plan (#1396). VISUAL: wording + look need the
+             owner's approval before close (condition 5). Shown only to users who
+             have a plan to see; free/trial users get nothing here. ── */}
+      {subView === 'error' && (
+        <Section title={t('SETTINGS_SECTION_SUBSCRIPTION')}>
+          <div className="st-desc">{t('SETTINGS_SUB_LOAD_FAILED')}</div>
+        </Section>
+      )}
+      {subView && subView !== 'error' && subView.kind !== 'hidden' && (
+        <Section title={t('SETTINGS_SECTION_SUBSCRIPTION')}>
+          <div className="st-field">
+            <div className="st-field-label">{t('SETTINGS_SUB_PLAN_PRO')}</div>
+            {subView.kind === 'cancelled' ? (
+              <div className="st-field-value">
+                {subView.untilDate
+                  ? t('SETTINGS_SUB_CANCELLED_UNTIL', { date: new Date(subView.untilDate).toLocaleDateString() })
+                  : t('SETTINGS_SUB_CANCELLED_NO_DATE')}
+              </div>
+            ) : subView.kind === 'cancellable' ? (
+              <>
+                <div className="st-field-value">{t('SETTINGS_SUB_ACTIVE')}</div>
+                {!cancelConfirm ? (
+                  <button className="st-signout-btn" onClick={() => setCancelConfirm(true)} style={{ marginTop: 8 }}>
+                    {t('SETTINGS_SUB_CANCEL_BUTTON')}
+                  </button>
+                ) : (
+                  <div style={{ marginTop: 8 }}>
+                    <div className="st-desc">{t('SETTINGS_SUB_CANCEL_CONFIRM')}</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button className="st-signout-btn" disabled={cancelling} onClick={doCancel}>
+                        {cancelling ? <span className="login-spinner" /> : t('SETTINGS_SUB_CANCEL_CONFIRM_YES')}
+                      </button>
+                      <button className="st-save-btn" disabled={cancelling} onClick={() => setCancelConfirm(false)}>
+                        {t('SETTINGS_SUB_CANCEL_CONFIRM_NO')}
+                      </button>
+                    </div>
+                    {cancelError && <div className="login-error" data-testid="login-error">{t('SETTINGS_SUB_CANCEL_FAILED')}</div>}
+                  </div>
+                )}
+              </>
+            ) : subView.kind === 'managed' ? (
+              <div className="st-field-value">{t('SETTINGS_SUB_MANAGED')}</div>
+            ) : (
+              <div className="st-field-value">{t('SETTINGS_SUB_ACTIVE')}</div>
+            )}
+          </div>
+        </Section>
+      )}
 
       {/* ── 2. Watchlist ── */}
       <Section title={t('SETTINGS_SECTION_WATCHLIST')}>
