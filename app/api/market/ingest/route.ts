@@ -1,0 +1,142 @@
+import { NextResponse } from 'next/server';
+import { checkCronAuth } from '@/lib/cronAuth';
+import { recordApiHealth } from '@/lib/apiHealth';
+import { MARKET_FEEDS, checkSampling } from '@/lib/marketFeeds';
+import { writeSnapshot, readSnapshot, mergeCoverage } from '@/lib/marketSnapshot';
+
+/* The only thing in this app that calls an exchange for the snapshot feeds (#1404).
+ *
+ * Every five minutes, from cron-job.org - see docs/INFRASTRUCTURE.md §2 for the
+ * entry, and note the header: `x-cron-secret`, POST, fail-CLOSED. With no
+ * CRON_SECRET configured `checkCronAuth` denies, so an unscheduled or
+ * misconfigured caller gets 401 rather than silently driving exchange traffic.
+ *
+ * Page requests read `lhq_market_snapshot`; only this route writes it, and the
+ * table has no insert or update policy for anon or authenticated, so that
+ * division is enforced by the database rather than by everyone remembering it.
+ *
+ * ── THE BAN RISK GOVERNS THE DESIGN, NOT JUST THE CADENCE ───────────────────
+ *
+ * Moving exchange calls server-side concentrates onto ONE egress IP what used
+ * to be spread over every visitor's. That is not hypothetical here:
+ * app/api/market/klines' header records Binance already banning the qa and
+ * staging IPs for /v3/klines - `binance:klines ok=false detail="418/429 after
+ * 0/45"`. A scheduled job is the same concentration with a metronome. So:
+ *
+ *   - Only the registered feeds, which is the closed set in lib/marketFeeds -
+ *     never a symbol or interval taken from a request.
+ *   - Feeds run SEQUENTIALLY, not Promise.all. Two 49-symbol fan-outs fired
+ *     together is a 98-request burst from one address every five minutes, which
+ *     is what a rate limiter is built to notice. The job has 300 seconds and
+ *     needs about two, so there is nothing to win by hurrying.
+ *   - A rate-limited or banned run WRITES NOTHING and keeps the previous row.
+ *   - And it says so: `stopped` is recorded to api_health as a FAILURE with the
+ *     partial count, so a ban is visible in the data instead of looking like a
+ *     quiet market. #228's lesson - an empty 200 for hours while the health
+ *     table knew - is the one being avoided.
+ */
+
+type FeedOutcome = {
+  key: string;
+  written: boolean;
+  ok: number;
+  total: number;
+  stopped?: true;
+  /* A partial fan-out that was merged over the previous row rather than
+     replacing it - coverage kept, and reported unhealthy. */
+  partial?: true;
+  keptFromPrevious?: number;
+  /* The sampling verdict in the body as well as in api_health, so a run can be
+     checked without a database read - QA asserts it from the response. */
+  sampling?: string;
+  error?: string;
+};
+
+export async function POST(req: Request) {
+  if (!checkCronAuth(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const outcomes: FeedOutcome[] = [];
+  const health: Parameters<typeof recordApiHealth>[0] = [];
+
+  for (const feed of MARKET_FEEDS) {
+    try {
+      const { payload, source, ok, total, stopped } = await feed.fetchLive();
+
+      /* A run cut short by a rate limit is not a success with fewer rows (#665),
+         and a fan-out that produced nothing is an outage, not an empty market.
+         Either way the previous row stands: overwriting good data with a partial
+         or empty payload would degrade the page for everyone on the strength of
+         one bad minute, which is the rule app/api/econ-calendar/ingest already
+         follows for the calendar snapshot. */
+      if (stopped || ok === 0) {
+        outcomes.push({ key: feed.key, written: false, ok, total, ...(stopped ? { stopped: true } : {}) });
+        health.push({
+          source: feed.health,
+          category: 'market',
+          ok: false,
+          detail: stopped ? `${ok}/${total} then rate-limited - kept previous snapshot` : `${ok}/${total} - kept previous snapshot`,
+          items: ok,
+        });
+        continue;
+      }
+
+      /* A PARTIAL run must not shrink coverage. `stopped || ok === 0` above
+         catches a ban and a total failure; 37 of 49 with no 418 is neither, and
+         before this it overwrote a full row and was reported healthy. Merge the
+         symbols this run returned over the ones it did not, so coverage only
+         grows - and a symbol that has stopped updating ages visibly in
+         `dataAges` rather than disappearing. */
+      const previous = ok < total ? await readSnapshot(feed.key) : null;
+      const { payload: toWrite, kept } = previous
+        ? mergeCoverage(previous.payload, payload)
+        : { payload, kept: [] as string[] };
+
+      await writeSnapshot(feed.key, toWrite, source);
+
+      /* The declared sampling interval, checked against the data that just
+         arrived. It does not block the write - a feed that changed shape is
+         still the only data we have - but a drifted constant makes the overdue
+         maths silently over-tolerant, so it is reported as unhealthy the day it
+         happens rather than whenever someone notices the numbers look old. */
+      const sampling = checkSampling(feed, toWrite);
+      const partial = ok < total;
+      outcomes.push({
+        key: feed.key, written: true, ok, total,
+        ...(partial ? { partial: true, keptFromPrevious: kept.length } : {}),
+        sampling: (sampling.ok ? '' : 'DRIFT: ') + sampling.detail,
+      });
+      health.push({
+        source: feed.health,
+        category: 'market',
+        /* A partial fan-out is NOT a healthy run with fewer items. Same rule the
+           page routes already apply to `stopped` (#665): reported unhealthy, so
+           twelve missing symbols cannot read as success. */
+        ok: sampling.ok && !partial,
+        detail: [
+          `${ok}/${total}`,
+          partial ? `PARTIAL - kept ${kept.length} symbol(s) from the previous snapshot` : '',
+          sampling.ok ? '' : `SAMPLING DRIFT: ${sampling.detail}`,
+        ].filter(Boolean).join(' - '),
+        items: ok,
+      });
+    } catch (e) {
+      /* One feed failing must not abandon the others - they are independent
+         upstreams and a Bybit outage is not a reason to leave every row stale.
+         The message only; no URL, which would carry parameters. */
+      const message = e instanceof Error ? e.message : String(e);
+      outcomes.push({ key: feed.key, written: false, ok: 0, total: 0, error: message.slice(0, 200) });
+      health.push({ source: feed.health, category: 'market', ok: false, detail: message.slice(0, 200), items: 0 });
+    }
+  }
+
+  await recordApiHealth(health);
+
+  const written = outcomes.filter(o => o.written).length;
+  /* 200 even when nothing was written: the job ran, and the scheduler's own
+     success/failure should reflect whether the JOB is alive, not whether an
+     exchange was answering. The per-feed detail is in the body and in
+     api_health, which is where a failing upstream belongs. */
+  return NextResponse.json({ ok: true, written, feeds: outcomes });
+}

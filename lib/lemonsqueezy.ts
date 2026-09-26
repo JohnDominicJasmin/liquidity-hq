@@ -11,6 +11,8 @@
  * decision itself. Different halves.
  */
 
+import { paidPeriodLapsed } from './paidPeriod.ts';
+
 export type SubscriptionRole = 'pro' | 'free';
 
 /** The columns an event implies. `user_id` and `updated_at` are the caller's.
@@ -34,13 +36,81 @@ export interface EventAttributes {
   customer_id?: unknown;
   renews_at?: unknown;
   ends_at?: unknown;
+  /* On an INVOICE payload (payment_failed / payment_refunded) `data.id` is the
+     invoice id and the subscription is here instead (#1429 delivery log,
+     2026-09-25). Absent on subscription-shaped events, where `data.id` is the
+     subscription id. */
+  subscription_id?: unknown;
 }
 
 /* Events whose payload `data` IS the subscription, so its id is the
-   subscription id and `status` is the subscription's status. */
+   subscription id and `status` is the subscription's status.
+   `subscription_payment_success` was in this set and is NOT one of them - see
+   IGNORED_INVOICE_EVENTS below (#1422). */
 const SUBSCRIPTION_EVENTS = new Set([
   'subscription_created',
   'subscription_updated',
+]);
+
+/* A SUCCESSFUL PAYMENT MUST NEVER BE ABLE TO DOWNGRADE THE PAYER. (#1422)
+ *
+ * `subscription_payment_success` was in SUBSCRIPTION_EVENTS, under the comment
+ * above asserting that the payload `data` IS the subscription. It is not: it is
+ * a subscription INVOICE. So `role: status === 'active' ? 'pro' : 'free'` read
+ * an invoice status of `paid`, which is not `active`, and **every successful
+ * payment set the payer to free**. Observed on a real test-mode purchase on
+ * `qa`, three webhooks one second apart:
+ *
+ *   05:21:01  subscription_created          -> role pro
+ *   05:21:29  subscription_updated          -> role pro
+ *   05:21:30  subscription_payment_success  -> role FREE, ls_status 'paid',
+ *                                              current_period_end wiped to null
+ *
+ * The payer was granted Pro and lost it one second later, with every webhook
+ * returning 200 so the delivery log stayed green. It was on the success path of
+ * every payment and would repeat on every renewal.
+ *
+ * THE EVIDENCE IS OUR OWN ROW, not LemonSqueezy's documentation: the stored
+ * `ls_status` was `paid`, and `paid` is not one of LS's subscription statuses
+ * (`on_trial`, `active`, `paused`, `past_due`, `unpaid`, `cancelled`,
+ * `expired`). Only an invoice payload could have written it.
+ *
+ * This file already knew the distinction and applied it in the other branch:
+ * `patchForEvent`'s `dataId` doc says an invoice's `data.id` is an invoice id
+ * and writing it into `ls_subscription_id` "would silently corrupt the link to
+ * the real subscription" - naming `subscription_payment_failed` while
+ * `subscription_payment_success`, the same payload shape, sat in the set that
+ * does exactly that.
+ *
+ * WHY IGNORED RATHER THAN RECORDED. Every column this event could write is
+ * either an invoice fact misfiled as a subscription fact, or already written
+ * correctly by the `subscription_updated` that accompanies it:
+ *
+ *   role                 an invoice cannot say whether a subscription is active
+ *   ls_status            'paid' is an invoice status; writing it into a column
+ *                        support and /ops read as the subscription's status is
+ *                        what made this defect invisible for so long
+ *   ls_subscription_id   `data.id` here is the INVOICE id
+ *   current_period_end   an invoice carries no `renews_at`/`ends_at`, so the
+ *                        `?? null` wiped the date `subscription_created` set
+ *
+ * The payment is not lost by ignoring it: the route records every delivery in
+ * `lhq_ls_webhook_events` before this function is consulted. Returning null
+ * skips the subscription-row write entirely, which is exactly what null means
+ * here per the note on the return value.
+ *
+ * ONE ASSUMPTION, STATED BECAUSE IT IS NOT VERIFIED: that LemonSqueezy also
+ * sends `subscription_updated` on a RENEWAL, carrying the new `renews_at`. The
+ * purchase above shows it does for a first payment. If it does not on renewal,
+ * `current_period_end` would stop advancing and `paidPeriodLapsed`'s 48-hour
+ * backstop (lib/paidPeriod.ts) would demote a paying subscriber two days after
+ * their old period ended - later and milder than the defect being fixed, but
+ * real. Flagged on #1422 for verification rather than guessed at here. */
+/* Exported so the structural test can assert over the real set by import rather
+ * than parsing member names out of this source (QA, #1422). The invariant "no
+ * event in here ever returns a patch with a `role`" is only as strong as the set
+ * the test actually reads. */
+export const IGNORED_INVOICE_EVENTS = new Set([
   'subscription_payment_success',
 ]);
 
@@ -109,19 +179,64 @@ export function patchForEvent(
   eventName: string,
   attrs: EventAttributes = {},
   dataId?: string,
+  /* Injected so the cancelled-in-grace comparison below is testable against a
+     fixed clock; defaults to now for the route caller. */
+  nowMs: number = Date.now(),
 ): SubscriptionPatch | null {
   const status = typeof attrs.status === 'string' ? attrs.status : '';
 
+  /* Checked FIRST so the invariant is structural rather than a consequence of
+     set membership: a successful payment cannot reach any branch that writes a
+     role, whatever a later edit does to the sets below. */
+  if (IGNORED_INVOICE_EVENTS.has(eventName)) return null;
+
   if (SUBSCRIPTION_EVENTS.has(eventName)) {
-    return {
-      // Any status other than 'active' means no Pro. LemonSqueezy uses
-      // 'past_due' the moment a renewal fails, so this path can downgrade too -
-      // which is consistent with the decision, not a second opinion on it.
-      role:               status === 'active' ? 'pro' : 'free',
+    const periodEnd = pickDate(attrs.renews_at) ?? pickDate(attrs.ends_at) ?? null;
+    const common = {
       ls_status:          status,
       ls_subscription_id: dataId ?? '',
       ls_customer_id:     attrs.customer_id == null ? '' : String(attrs.customer_id),
-      current_period_end: pickDate(attrs.renews_at) ?? pickDate(attrs.ends_at) ?? null,
+    };
+
+    /* CANCELLED IS NOT INACTIVE. (#1429)
+     *
+     * A cancelled subscription has only turned off auto-renew; it keeps its paid
+     * time until `ends_at` - the owner's 2026-08-08 decision (see the ENDS_ACCESS
+     * comment above). That decision was applied only in the RECORD_ONLY branch,
+     * for the `subscription_cancelled` event. But a cancel on LemonSqueezy also
+     * fires `subscription_updated` with `status: 'cancelled'` - observed on `qa`
+     * 2026-09-25, TWICE, one on each side of the `subscription_cancelled` - and
+     * this branch's old rule (`status === 'active' ? 'pro' : 'free'`) revoked Pro
+     * on those, undoing the decision a second after it was recorded. It drove a
+     * paying row from pro to free. A customer cancelling from LemonSqueezy's own
+     * dashboard hits this even with no in-app cancel feature built.
+     *
+     * `ends_at` is PARSED and COMPARED here, never trusted as present. */
+    if (status === 'cancelled') {
+      const endMs = new Date(pickDate(attrs.ends_at) ?? '').getTime();
+      if (Number.isFinite(endMs)) {
+        // Keep Pro while paid time remains; end it once the paid period is past.
+        // `subscription_expired` and paidPeriodLapsed are the other two ends.
+        return { ...common, role: endMs > nowMs ? 'pro' : 'free', current_period_end: periodEnd };
+      }
+      /* ends_at unreadable or absent on a cancelled event. Do NOT invent a
+         verdict: omit `role` AND `current_period_end`, so the row keeps the role
+         and period end the preceding `active` event already set. This fails
+         TOWARDS the owner's decision - access is PRESERVED, not revoked - without
+         granting Pro forever: the stored period end still drives paidPeriodLapsed
+         and `subscription_expired` still ends it. Free would revoke a paying
+         customer (the #134 class); a null period end would strand them as pro. */
+      return { ...common };
+    }
+
+    return {
+      // 'active' -> pro. Everything else that is NOT 'cancelled' (past_due,
+      // unpaid, expired, paused) -> free. LemonSqueezy uses 'past_due' the moment
+      // a renewal fails, so this still downgrades a declining card on the first
+      // failure - the owner's 2026-08-08 "no grace period" decision, unchanged.
+      ...common,
+      role:               status === 'active' ? 'pro' : 'free',
+      current_period_end: periodEnd,
     };
   }
 
@@ -139,8 +254,10 @@ export function patchForEvent(
     // No `role`. The user keeps what they have until `subscription_expired`.
     return {
       ls_status: status || eventName.replace('subscription_', ''),
-      // ends_at is when access actually stops. renews_at is null on a cancelled
-      // subscription - there is no renewal - so this is the only date left.
+      // ends_at is when access actually stops. An earlier comment here claimed
+      // renews_at is null on a cancelled subscription; observed on `qa`
+      // 2026-09-25 (#1429), the cancelled event carries renews_at EQUAL to
+      // ends_at, not null - so read ends_at directly as the "access ends" date.
       current_period_end: pickDate(attrs.ends_at) ?? null,
     };
   }
@@ -150,6 +267,135 @@ export function patchForEvent(
 
 function pickDate(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+/* ── ONE ACTIVE PLAN PER ACCOUNT (#1429 / #1396) ──────────────────────────────
+ *
+ * `patchForEvent` decides what an event MEANS; it never sees the stored row, so
+ * it cannot tell whether the event is even about the subscription the account
+ * currently holds. The row keeps ONE record per user and upserts on `user_id`,
+ * so an event for ANY of a user's subscriptions overwrote it - last writer wins.
+ * Observed on `qa` 2026-09-25: cancelling an OLD test subscription wrote its
+ * cancelled id, status and period end over a LIVE Monthly (#1429). Fix A stopped
+ * the ROLE flip; this stops the OVERWRITE.
+ *
+ * Owner's rule (2026-09-25, #1396): one active plan per account.
+ *
+ * Identity is read PER EVENT from real deliveries (#1429 delivery log 2026-09-25),
+ * never guessed:
+ *   created / updated / cancelled / expired -> `data.id` IS the subscription id
+ *   payment_failed / payment_refunded       -> `data.id` is an INVOICE id;
+ *                                              the subscription is attributes.subscription_id
+ *   order_refunded                           -> NOT observed; treated as UNMATCHED
+ *   payment_success                          -> returns null before this runs (#1422)
+ * A plan change (LS "Modify subscription") KEEPS the same subscription id
+ * (confirmed against a real delivery 2026-09-25), so it is a same-subscription
+ * write, never a second plan. */
+const SUB_ID_IN_DATA = new Set([
+  'subscription_created', 'subscription_updated',
+  'subscription_cancelled', 'subscription_expired',
+]);
+const SUB_ID_IN_ATTRS = new Set([
+  'subscription_payment_failed', 'subscription_payment_refunded',
+]);
+
+/** The subscription id an event refers to, or null when it cannot be tied to one
+ *  (order_refunded, or a missing field). Null means the caller must fail closed. */
+export function incomingSubscriptionId(
+  eventName: string,
+  attrs: EventAttributes = {},
+  dataId?: string,
+): string | null {
+  if (SUB_ID_IN_DATA.has(eventName)) return dataId && dataId.length > 0 ? dataId : null;
+  if (SUB_ID_IN_ATTRS.has(eventName)) {
+    const s = attrs.subscription_id;
+    if (typeof s === 'string' && s.length > 0) return s;
+    if (typeof s === 'number' && Number.isFinite(s)) return String(s);
+    return null;
+  }
+  return null; // order_refunded and anything else: unmatched
+}
+
+/** The stored row this decision needs. */
+export interface StoredSubscription {
+  ls_subscription_id: string | null;
+  role: SubscriptionRole;
+  ls_status: string;
+  current_period_end: string | null;
+}
+
+export type WriteDecision =
+  | { action: 'apply' }                    // write patchForEvent's patch
+  | { action: 'ignore'; reason: string }   // leave the row untouched
+  | { action: 'report'; reason: string };  // report (GlitchTip) and leave untouched
+
+/**
+ * Whether the event may be written to the user's single subscription row.
+ *
+ * PURE: the route reads the stored row and passes the incoming subscription id
+ * (from `incomingSubscriptionId`) and status.
+ *
+ * - unmatchable incoming (no subscription id, e.g. order_refunded) -> report,
+ *   fail closed: never act on an event we cannot tie to a subscription.
+ * - SAME subscription as the row holds -> apply (includes plan changes).
+ * - DIFFERENT subscription and the stored one is NOT live
+ *   (none / free / expired / cancelled-past-its-end) -> apply: a new subscription
+ *   legitimately takes over.
+ * - DIFFERENT subscription, stored one still live:
+ *     stored is CANCELLED-in-grace and incoming is ACTIVE -> apply: a resubscribe
+ *       taking over (else a customer who resubscribes in grace pays and gets
+ *       nothing when the old one expires - the trap on #1396).
+ *     stored is ACTIVE and incoming is ACTIVE -> report: two active plans is a
+ *       billing error; do not overwrite the first, refund by hand.
+ *     incoming is NOT active -> ignore: a different, non-active subscription must
+ *       not disturb the live one (this is the #1429 defect).
+ *
+ * `incomingStatus` is the SUBSCRIPTION status for subscription events; on invoice
+ * events it is the invoice status, which is never 'active', so the two-active and
+ * resubscribe branches only fire for genuine subscription events - as intended.
+ */
+export function resolveSubscriptionWrite(
+  stored: StoredSubscription | null,
+  incomingSubId: string | null,
+  incomingStatus: string,
+  nowMs: number = Date.now(),
+): WriteDecision {
+  if (!incomingSubId) {
+    return { action: 'report', reason: 'event carries no subscription id to match (e.g. order_refunded); not acting' };
+  }
+
+  const storedSubId = stored?.ls_subscription_id || '';
+
+  // No stored SUBSCRIPTION to protect: no row at all, or a `pro` row with no
+  // subscription id - an admin grant or a row written before this column existed
+  // (dev has one). There is nothing to guard against, so apply; otherwise the
+  // account's first real purchase would be reported-and-dropped and never record,
+  // a regression on that row type (QA, #1429). "No stored subscription id = no
+  // stored subscription = apply."
+  if (!storedSubId) {
+    return { action: 'apply' };
+  }
+
+  if (storedSubId === incomingSubId) {
+    return { action: 'apply' }; // the account's own subscription, plan changes included
+  }
+
+  // A different subscription than the one the row holds.
+  const storedLive = !!stored
+    && stored.role === 'pro'
+    && !paidPeriodLapsed('pro', stored.current_period_end, nowMs);
+
+  if (!storedLive) {
+    return { action: 'apply' }; // none / free / expired / cancelled-past-end: take over
+  }
+
+  if (incomingStatus === 'active') {
+    if (stored!.ls_status === 'cancelled') {
+      return { action: 'apply' }; // resubscribe during grace takes over the cancelled one
+    }
+    return { action: 'report', reason: 'a second active subscription while the stored one is still live (one-active-plan rule, #1396); not overwriting - refund by hand' };
+  }
+  return { action: 'ignore', reason: 'event for a different, non-active subscription must not disturb the live subscription (#1429)' };
 }
 
 /* ── The two gates in front of patchForEvent ──────────────────────────────────

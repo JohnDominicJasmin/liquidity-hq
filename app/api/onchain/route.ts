@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
@@ -163,6 +164,7 @@ export async function GET(req: NextRequest) {
         throw new Error(e.error ?? 'Grok error');
       }
       const d = await r.json();
+      await recordAiCall({ userId: authData.user.id, callType: 'onchain', model: d.model ?? 'grok-4.3', usage: d.usage });
       const msg = (d.output as Array<{ type: string; content?: Array<{ text: string }> }>)
         ?.find(o => o.type === 'message');
       const raw = msg?.content?.[0]?.text ?? '';

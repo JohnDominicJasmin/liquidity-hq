@@ -9,6 +9,8 @@ import { bybitFanout } from '@/lib/bybitFanout';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
+import { feedFor } from '@/lib/marketFeeds';
+import { resolveFeedSnapshot } from '@/lib/marketSnapshot';
 
 const INTERVALS = new Set(['5min', '15min', '30min', '1h', '4h', '1d']);
 /* Capped, and small. Each distinct limit is another fan-out of 50 upstream
@@ -29,6 +31,31 @@ export async function GET(req: NextRequest) {
   }
   if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LIMIT) {
     return NextResponse.json({ error: `limit must be an integer between 1 and ${MAX_LIMIT}` }, { status: 400 });
+  }
+
+  /* SNAPSHOT FIRST (#1404) - see the fuller note in ../account-ratio/route.ts.
+     Registered combination -> serve the job's row with its age and make no
+     exchange call. `intervalTime=1h&limit=3` is the only one the app asks for
+     (components/MarketProvider.tsx:986); anything else falls through to live. */
+  const feed = feedFor('open-interest', { intervalTime, limit: String(limit) });
+  if (feed) {
+    const snap = await resolveFeedSnapshot(feed, 'open-interest');
+    if (snap) {
+      return NextResponse.json({
+        ...snap.body,
+        ts: Date.now() - snap.rowAgeMs,
+        rowAgeMs: snap.rowAgeMs,
+        dataAgeMs: snap.dataAgeMs,
+        overdueMs: snap.overdueMs,
+        dataAges: snap.dataAges,
+        droppedSymbols: snap.droppedSymbols,
+        stale: snap.stale,
+        from: 'snapshot',
+      }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } });
+    }
+    /* Transition state, removed once the cron entry exists and the UI can say
+       "not available yet" - identical reasoning and the same hard age limit as
+       account-ratio, which degrades a stopped scheduler to today's behaviour. */
   }
 
   try {
