@@ -1282,6 +1282,8 @@ export const LABEL_KEYS = [
   'SETTINGS_SUB_CANCEL_CONFIRM_NO', 'SETTINGS_SUB_CANCELLING', 'SETTINGS_SUB_CANCELLED_UNTIL',
   'SETTINGS_SUB_CANCELLED_NO_DATE', 'SETTINGS_SUB_CANCEL_FAILED', 'SETTINGS_SUB_MANAGED',
   'SETTINGS_SUB_LOAD_FAILED',
+  // AI dollar caps (#1399 part 2). Owner-approved copy (PM batch with cancel copy).
+  'AI_CAP_PRO_DAILY', 'AI_CAP_PRO_MONTHLY', 'AI_CAP_FREE_DAILY', 'AI_CAP_FUSE',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];

@@ -16,6 +16,8 @@
 import { AI_LIMITS, ExtraTool, UsageTier } from '@/lib/limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isFeatureEnabled } from '@/lib/featureFlags';
+import { spendCapBlock, spendCapLabelKey, type SpendReason } from '@/lib/aiSpendCap';
+import labelDefaults from '@/lib/labelDefaults.en.json';
 
 // The ONLY place "what day is it" gets decided for daily-cap bucketing.
 // Every route that checks or increments a cap must call this - never
@@ -79,7 +81,10 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
 // count right next to that message) and simply wrong about the cause. `limit`
 // is the number that was actually hit, so the message can't quote a different
 // cap than the one that blocked the call.
-export type UsageBlockReason = 'user' | 'global' | 'pool' | 'disabled';
+// The dollar-cap reasons (SpendReason: pro_daily/pro_monthly/free_daily/fuse) are
+// part of this union so a route passes `usageResult.reason` straight through to
+// rateLimitMessage unchanged, and the message builder maps each to owner copy.
+export type UsageBlockReason = 'user' | 'global' | 'pool' | 'disabled' | SpendReason;
 
 export type UsageIncrementResult =
   | { blocked: false; count: number }
@@ -94,7 +99,7 @@ export type UsageIncrementResult =
 // AI for the rest of the UTC day. `userId` is safe to pass because all 14
 // callers derive it from a verified token server-side, never from the body.
 export async function incrementUsageColumn(
-  userId: string, column: string, limit: number,
+  userId: string, tier: UsageTier, column: string, limit: number,
   poolLimit: number | null = null,
 ): Promise<UsageIncrementResult> {
   // Single choke point for all 14 AI routes (see this file's header comment) -
@@ -102,6 +107,15 @@ export async function incrementUsageColumn(
   // (/ops/config) covers every one of them, including the 11 one-shot tools
   // that have no other Grok-specific gate of their own.
   if (!(await isFeatureEnabled('grok'))) return { blocked: true, reason: 'disabled', limit };
+
+  // Dollar caps (#1399 part 2) - checked here, at the same choke point as the
+  // count reserve and before the xAI call, so all 14 routes get them. Reads the
+  // ledger's measured cost_usd (lib/aiSpendCap.ts); Pro fails OPEN on a read
+  // error, free/trial fail CLOSED. `capKey` is the owner-approved message.
+  const dollar = await spendCapBlock(tier, userId);
+  if (dollar.blocked) {
+    return { blocked: true, reason: dollar.reason, limit: 0 };
+  }
 
   const today = todayUtc();
   const { data, error } = await getSupabaseAdmin().rpc('increment_ai_usage', {
@@ -141,15 +155,23 @@ export async function incrementToolUsage(
   userId: string, tool: ExtraTool, tier: UsageTier,
 ): Promise<UsageIncrementResult> {
   return incrementUsageColumn(
-    userId, EXTRA_TOOL_COLUMN[tool],
+    userId, tier, EXTRA_TOOL_COLUMN[tool],
     AI_LIMITS[tier][tool], AI_LIMITS[tier].toolPool,
   );
 }
 
-// Shared message builder so all 14 call sites word this identically.
+// Shared message builder so all 14 call sites word this identically. Unchanged
+// signature: routes still pass (reason, limit, label). The dollar-cap reasons are
+// handled here by mapping to owner-approved copy, single-sourced from the en
+// defaults (the lhq_labels migration seeds the same keys for client localization).
+const SPEND_REASONS: UsageBlockReason[] = ['pro_daily', 'pro_monthly', 'free_daily', 'fuse'];
 export function rateLimitMessage(
   reason: UsageBlockReason, limit: number, label: string,
 ): string {
+  if (SPEND_REASONS.includes(reason)) {
+    const defaults = labelDefaults as Record<string, string>;
+    return defaults[spendCapLabelKey(reason as SpendReason)] || 'You have reached your AI usage limit for now.';
+  }
   if (reason === 'disabled') {
     return 'AI features are temporarily disabled.';
   }

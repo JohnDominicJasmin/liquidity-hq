@@ -2665,5 +2665,9 @@
   "SETTINGS_SUB_CANCELLED_NO_DATE": "Cancelled · access continues until your period ends",
   "SETTINGS_SUB_CANCEL_FAILED": "Couldn't cancel. Please try again or contact support.",
   "SETTINGS_SUB_MANAGED": "Managed by support",
-  "SETTINGS_SUB_LOAD_FAILED": "Couldn't load your subscription."
+  "SETTINGS_SUB_LOAD_FAILED": "Couldn't load your subscription.",
+  "AI_CAP_PRO_DAILY": "You've reached today's AI limit. It resets at midnight UTC.",
+  "AI_CAP_PRO_MONTHLY": "You've reached this month's AI limit. It resets on the 1st.",
+  "AI_CAP_FREE_DAILY": "You've reached today's free AI limit. Upgrade to Pro for more, or try again tomorrow.",
+  "AI_CAP_FUSE": "AI is paused for free accounts today. Please try again tomorrow, or upgrade to Pro."
 }
