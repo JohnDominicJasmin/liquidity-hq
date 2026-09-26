@@ -4,6 +4,7 @@
    is on in tsconfig, so both are happy. Without this the unit test cannot load
    the module at all, and the leak invariant goes unasserted. */
 import { isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly } from './checkout.ts';
+import { isLsApiConfigured } from './lemonsqueezyApi.ts';
 import { analyticsKey } from './analytics.ts';
 
 /* Which integrations does THIS host actually have? (#282)
@@ -44,6 +45,11 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
     checkoutAnnual:      isCheckoutConfiguredAnnual(env),
     checkoutFortnightly: isCheckoutConfiguredFortnightly(env),
     lemonsqueezyWebhook: set(env.LEMONSQUEEZY_WEBHOOK_SECRET),
+    /* The LS REST API key the cancel route needs (#1396). Same read the route
+       and the settings panel gate on (isLsApiConfigured), so cancel-availability
+       is observable per environment - set on qa (test), unset on staging/prod
+       until payments go live. */
+    lsApi:               isLsApiConfigured(env),
 
     adminEmails: set(env.ADMIN_EMAILS),
 
