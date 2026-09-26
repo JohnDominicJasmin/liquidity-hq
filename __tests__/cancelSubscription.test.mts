@@ -13,7 +13,9 @@
  *     `data.attributes.status` / `ends_at` fields, the status codes. No real call has been made. The response
  *     bodies below are SYNTHETIC, shaped from the docs the client's own header cites, and no assertion here
  *     treats a Lemon Squeezy field as fact: they pin what OUR code does with each answer it might get.
- *   OBSERVED: nothing yet. The first call on qa is the capture; this file changes after it, not before.
+ *   OBSERVED on qa, 2026-09-26, by the owner's real signed-in cancel: HTTP 200 with the WHOLE subscription object,
+ *     status "cancelled", cancelled true, ends_at = the renewal date; webhooks cancelled, updated, updated. The
+ *     fixtures use those field names with synthetic values. Still unobserved: any error answer.
  *
  * REVISED for fcdc62ce, the fixes for the review of e9216cd1: `reason` no longer carries the upstream body (it moved
  * to `bodyRedacted`, logged on success too), the route refuses a non-Pro row (`not_pro`) as GET's canCancel does, the
@@ -23,11 +25,12 @@
  * Every expectation is written from the design in the PR (BOLA, fail closed, the webhook is the single writer of the
  * row), as literal cases, not computed from the code under test. Ids and the "key" are synthetic; the key is
  * JWT-shaped because Lemon Squeezy's keys are. */
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { cancelSubscription, isLsApiConfigured } from '../lib/lemonsqueezyApi.ts';
+import { configuredFlags } from '../lib/configured.ts';
 import { subscriptionPanelView, futureDateOrNull, type SubPanelInput } from '../lib/subscriptionPanel.ts';
 
 const LS_BASE = 'https://api.lemonsqueezy.com/v1';
@@ -60,7 +63,7 @@ const calls: Call[] = [];
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-const lsSuccess = (attrs: Record<string, unknown> = { status: 'cancelled', ends_at: '2098-10-08T05:26:55.000000Z' }) =>
+const lsSuccess = (attrs: Record<string, unknown> = { status: 'cancelled', cancelled: true, ends_at: '2098-10-08T05:26:55.000000Z', product_name: 'Synthetic Pro - Annual', variant_name: 'Default' }) =>
   () => json({ data: { type: 'subscriptions', id: 'x', attributes: attrs } });
 
 const world = {
@@ -69,6 +72,7 @@ const world = {
   dbError: false,
   lsThrows: false,
   lsHangs: false,
+  lsThrowMessage: undefined as string | undefined,
   lastSignal: undefined as AbortSignal | undefined,
   ls: lsSuccess() as (id: string) => Response,
 };
@@ -79,6 +83,7 @@ function reset(over: { key?: string | undefined } = { key: LS_KEY }) {
   world.dbError = false;
   world.lsThrows = false;
   world.lsHangs = false;
+  world.lsThrowMessage = undefined;
   world.lastSignal = undefined;
   world.ls = lsSuccess();
   if (over.key === undefined) delete process.env.LEMONSQUEEZY_API_KEY;
@@ -98,7 +103,7 @@ globalThis.fetch = (async (input: unknown, init: { method?: string; headers?: He
   calls.push({ method, url: url.toString(), headers: Object.fromEntries(headers.entries()), body: typeof init.body === 'string' ? init.body : undefined });
 
   if (url.host === 'api.lemonsqueezy.com') {
-    if (world.lsThrows) throw new TypeError('fetch failed (stand-in)');
+    if (world.lsThrows) throw new TypeError(world.lsThrowMessage ?? 'fetch failed (stand-in)');
     world.lastSignal = (init as { signal?: AbortSignal }).signal;
     if (world.lsHangs) {
       return new Promise<Response>((_, reject) => {
@@ -149,14 +154,14 @@ async function subRoute(token: string | null) {
 test('L1. no API key: fails closed with ls_api_key_unset and makes NO request', async () => {
   reset({ key: undefined });
   const r = await cancelSubscription('SUB_A');
-  assert.deepEqual([r.ok, r.reason, r.status, r.bodyRedacted], [false, 'ls_api_key_unset', 0, '']);
+  assert.deepEqual([r.ok, r.reason, r.status], [false, 'ls_api_key_unset', 0]);
   assert.equal(calls.length, 0, 'a request was made without a key');
 });
 
 test('L2. no subscription id: fails closed and makes NO request', async () => {
   reset();
   const r = await cancelSubscription('');
-  assert.deepEqual([r.ok, r.reason, r.bodyRedacted], [false, 'no_subscription_id', '']);
+  assert.deepEqual([r.ok, r.reason], [false, 'no_subscription_id']);
   assert.equal(calls.length, 0);
 });
 
@@ -182,10 +187,10 @@ test('L4. the id is URL-encoded: a hostile-looking id cannot add path segments o
 
 test('L5. a 2xx whose status is "cancelled" succeeds and carries ends_at', async () => {
   reset();
-  world.ls = lsSuccess({ status: 'cancelled', ends_at: '2098-10-08T05:26:55.000000Z' });
+  world.ls = lsSuccess({ status: 'cancelled', cancelled: true, ends_at: '2098-10-08T05:26:55.000000Z', product_name: 'Synthetic Pro - Annual', variant_name: 'Default' });
   const r = await cancelSubscription('SUB_A');
   assert.deepEqual([r.ok, r.reason, r.status, r.lsStatus, r.endsAt], [true, 'cancelled', 200, 'cancelled', '2098-10-08T05:26:55.000000Z']);
-  assert.match(r.bodyRedacted, /cancelled/, 'a success must carry its (redacted) body for the capture log');
+  assert.deepEqual([r.cancelled, r.productName, r.variantName], [true, 'Synthetic Pro - Annual', 'Default']);
 });
 
 test('L6. a 2xx "cancelled" with no ends_at still succeeds, with endsAt null', async () => {
@@ -212,7 +217,7 @@ test('L7b. a 2xx with NO status field at all fails closed', async () => {
   reset();
   world.ls = () => json({ data: { attributes: {} } });
   const r = await cancelSubscription('SUB_A');
-  assert.deepEqual([r.ok, r.reason, r.lsStatus], [false, 'ok_but_status_missing', null]);
+  assert.deepEqual([r.ok, r.reason, r.lsStatus], [false, 'ok_status_unparsable_body', null]);
 });
 
 for (const [label, body] of [['empty', ''], ['html', '<html>maintenance</html>'], ['json null', 'null'], ['json array', '[]'], ['plain text', 'ok']] as const) {
@@ -233,7 +238,7 @@ for (const status of [400, 401, 404, 409, 422, 429, 500, 503]) {
     assert.equal(r.ok, false);
     assert.equal(r.status, status);
     assert.equal(r.reason, `ls_status_${status}`, 'the upstream body must not ride in `reason`');
-    assert.match(r.bodyRedacted, /stand-in refusal/, 'the body is kept, redacted, in bodyRedacted');
+    assert.equal(JSON.stringify(r).includes('stand-in refusal'), false, 'an error body must not be returned');
   });
 }
 
@@ -245,34 +250,44 @@ test('L10. a network error fails closed with status 0', async () => {
   assert.match(r.reason, /^fetch_failed:/);
 });
 
-test('L11. redaction: a Bearer token, a JWT and an api_key echoed in an error body reach neither `reason` nor `bodyRedacted`', async () => {
+test('L11. an error body that echoes secrets is never parsed or returned: nothing of it reaches the result', async () => {
   reset();
   const secrets = ['abc123SECRETtokenXYZ', 'eyJhbGciOiJSUzI1NiJ9.payloadpayloadpayload.signaturesignature', 'sk_live_verylongsecretvalue0123'];
   world.ls = () => new Response(
     `Authorization: Bearer ${secrets[0]} ... token ${secrets[1]} ... {"api_key": "${secrets[2]}"}`, { status: 401 });
   const r = await cancelSubscription('SUB_A');
-  for (const s of secrets) {
-    assert.equal(r.reason.includes(s), false, `"${s.slice(0, 12)}..." leaked into the reason`);
-    assert.equal(r.bodyRedacted.includes(s), false, `"${s.slice(0, 12)}..." leaked into bodyRedacted`);
-  }
-  assert.match(r.bodyRedacted, /\[redacted/);
+  for (const s of secrets) assert.equal(JSON.stringify(r).includes(s), false, `"${s.slice(0, 12)}..." is in the result`);
 });
 
-test('L12. the configured key, echoed back by a server, is in neither `reason` nor `bodyRedacted` (JWT-shaped, as Lemon Squeezy keys are)', async () => {
+test('L11b. redaction still covers the one free-text field left: an error MESSAGE echoing a token or a JWT', async () => {
+  reset();
+  world.lsThrows = true;
+  world.lsThrowMessage = 'connect failed for Bearer abc123SECRETtokenXYZ and eyJhbGciOiJSUzI1NiJ9.payloadpayloadpayload.signaturesignature';
+  const r = await cancelSubscription('SUB_A');
+  assert.match(r.reason, /^fetch_failed:/);
+  assert.equal(r.reason.includes('abc123SECRETtokenXYZ'), false);
+  assert.equal(r.reason.includes('payloadpayloadpayload'), false);
+  assert.match(r.reason, /\[redacted/);
+});
+
+test('L12. the configured key, echoed back by a server or in a transport error, is nowhere in the result (JWT-shaped, as Lemon Squeezy keys are)', async () => {
   reset();
   world.ls = () => new Response(`bad request for key ${LS_KEY}`, { status: 400 });
   const r = await cancelSubscription('SUB_A');
-  for (const field of [r.reason, r.bodyRedacted]) {
-    assert.equal(field.includes(LS_KEY), false);
-    assert.equal(field.includes('stand-in-payload'), false);
-  }
+  assert.equal(JSON.stringify(r).includes(LS_KEY), false);
+  assert.equal(JSON.stringify(r).includes('stand-in-payload'), false);
+  reset();
+  world.lsThrows = true;
+  world.lsThrowMessage = `dns failure while sending ${LS_KEY}`;
+  const t = await cancelSubscription('SUB_A');
+  assert.equal(JSON.stringify(t).includes('stand-in-payload'), false, 'the key echoed in a transport error reached the result');
 });
 
-test('L13. the captured body is length-capped: a huge error body cannot flood a log', async () => {
+test('L13. a huge error body cannot flood anything: it is not read into the result at all', async () => {
   reset();
   world.ls = () => new Response('x'.repeat(50_000), { status: 500 });
   const r = await cancelSubscription('SUB_A');
-  assert.ok(r.bodyRedacted.length <= 600, `bodyRedacted is ${r.bodyRedacted.length} chars`);
+  assert.ok(JSON.stringify(r).length < 400, `the result is ${JSON.stringify(r).length} chars`);
   assert.ok(r.reason.length < 40, 'reason must stay a short machine string');
 });
 
@@ -380,7 +395,7 @@ for (const status of [400, 401, 404, 422, 429, 500]) {
     assert.deepEqual(r.body, { ok: false, error: 'Cancel failed' }, 'the client must get a generic failure, not the upstream text');
     assert.equal(dbWrites().length, 0);
     const logged = err.mock.calls.map((c) => String(c.arguments[0])).join('\n');
-    assert.match(logged, new RegExp(`LS cancel failed for user=${UID_A} - reason=ls_status_${status} http=${status} body=`));
+    assert.match(logged, new RegExp(`LS cancel failed for user=${UID_A} - reason=ls_status_${status} http=${status} lsStatus=null cancelled=null endsAt=null`));
     assert.equal(logged.includes('leakedtokenvalue123'), false, 'a bearer token reached the log');
     assert.equal(logged.includes(LS_KEY), false, 'the API key reached the log');
     assert.equal(logged.includes(TOKEN_A), false, 'the caller\'s token reached the log');
@@ -507,15 +522,14 @@ test('G5. a failed read: 503 with a neutral error, never a guessed state', async
 
 /* ══ Added for fcdc62ce (the fixes for the #1435 review) ═════════════════════════════════════════ */
 
-test('L16. a SUCCESS body that echoes secrets is redacted too (it is what the success log prints)', async () => {
+test('L16. a SUCCESS body that echoes secrets: only the allow-listed fields come back', async () => {
   reset();
   const echoed = 'Bearer leakedtokenvalue123 and ' + LS_KEY;
-  world.ls = () => json({ data: { attributes: { status: 'cancelled', ends_at: '2098-10-08T05:26:55.000000Z' } }, echoed });
+  world.ls = () => json({ data: { attributes: { status: 'cancelled', cancelled: true, ends_at: '2098-10-08T05:26:55.000000Z' } }, echoed });
   const r = await cancelSubscription('SUB_A');
   assert.equal(r.ok, true);
-  assert.equal(r.bodyRedacted.includes('leakedtokenvalue123'), false);
-  assert.equal(r.bodyRedacted.includes('stand-in-payload'), false);
-  assert.match(r.bodyRedacted, /\[redacted/);
+  assert.equal(JSON.stringify(r).includes('leakedtokenvalue123'), false);
+  assert.equal(JSON.stringify(r).includes('stand-in-payload'), false);
 });
 
 test('L17. TIMEOUT: a Lemon Squeezy that never answers is aborted at 10 s and fails closed, not before', async (t) => {
@@ -533,7 +547,7 @@ test('L17. TIMEOUT: a Lemon Squeezy that never answers is aborted at 10 s and fa
   t.mock.timers.tick(1);
   const r = await pending;
   assert.equal(world.lastSignal?.aborted, true);
-  assert.deepEqual([r.ok, r.status, r.bodyRedacted], [false, 0, '']);
+  assert.deepEqual([r.ok, r.status], [false, 0]);
   assert.match(r.reason, /^fetch_failed:/);
 });
 
@@ -575,15 +589,16 @@ test('P16. THE BUTTON AND THE GUARD AGREE, across every row of the canCancel mat
   }
 });
 
-test('P17. SUCCESS is logged for the capture: status, lsStatus, endsAt and the redacted body, and no secret', async (t) => {
+test('P17. SUCCESS is logged for the capture: http, lsStatus, cancelled and ends_at, NO body, and no secret', async (t) => {
   reset();
   seed(UID_A);
-  world.ls = () => json({ data: { attributes: { status: 'cancelled', ends_at: '2098-10-08T05:26:55.000000Z' } }, echoed: 'Bearer leakedtokenvalue123 ' + LS_KEY });
+  world.ls = () => json({ data: { attributes: { status: 'cancelled', cancelled: true, ends_at: '2098-10-08T05:26:55.000000Z' } }, echoed: 'Bearer leakedtokenvalue123 ' + LS_KEY });
   const log = t.mock.method(console, 'log', () => {});
   const r = await cancelRoute(TOKEN_A);
   assert.equal(r.status, 200);
   const out = log.mock.calls.map((c) => c.arguments.join(' ')).join('\n');
-  assert.match(out, new RegExp(`\\[lemonsqueezy/cancel\\] ok user=${UID_A} http=200 lsStatus=cancelled endsAt=2098-10-08T05:26:55.000000Z body=`));
+  assert.match(out, new RegExp(`\\[lemonsqueezy/cancel\\] ok user=${UID_A} http=200 lsStatus=cancelled cancelled=true endsAt=2098-10-08T05:26:55.000000Z`));
+  assert.equal(out.includes('body='), false, 'the success log prints a body again');
   assert.equal(out.includes('leakedtokenvalue123'), false, 'a bearer token reached the success log');
   assert.equal(out.includes('stand-in-payload'), false, 'the API key reached the success log');
   assert.equal(out.includes(TOKEN_A), false);
@@ -668,15 +683,221 @@ test('S5. WIRING: the settings page asks the pure function and no longer decides
     'the old visibility rule (the one that showed a free user "Active") is back in the page');
 });
 
-/* ── FINDING (re-review of fcdc62ce) ────────────────────────────────────────────────────────────────
- * `subscriptionPanelView` checks `lsStatus === 'cancelled'` BEFORE the role. A FREE user whose cancelled
- * subscription has already run out (Fix A demotes it once the period ends) therefore gets
- * { kind: 'cancelled', untilDate: null }, and the panel says "Cancelled · access continues until your
- * period ends" to someone whose period ended. The rule the fix states for every other free row ("no live Pro
- * entitlement -> show nothing") should apply here too. `todo`: runs, fails today, turns green when the role
- * check moves first (or the branch is split), and never fails the suite. */
-test('S6. FINDING: a FREE user whose cancelled subscription has already ended is shown nothing, not "access continues"',
-  { todo: 'finding on #1435: cancelled is tested before the role, so an ended subscription reads "access continues until your period ends"' }, () => {
-    const v = subscriptionPanelView(panel({ role: 'free', lsStatus: 'cancelled', currentPeriodEnd: PAST, hasSubscription: true, canCancel: false }), NOW);
-    assert.equal(v.kind, 'hidden', JSON.stringify(v));
+test('S6. a FREE user whose cancelled subscription has already ended is shown nothing, not "access continues" (fixed in the follow-up)', () => {
+  const v = subscriptionPanelView(panel({ role: 'free', lsStatus: 'cancelled', currentPeriodEnd: PAST, hasSubscription: true, canCancel: false }), NOW);
+  assert.equal(v.kind, 'hidden', JSON.stringify(v));
+});
+
+test('S7. a PRO user who cancelled and is still in grace keeps the cancelled view (the role check moved first, not the cancelled branch away)', () => {
+  const v = subscriptionPanelView(panel({ role: 'pro', lsStatus: 'cancelled', currentPeriodEnd: FUTURE, canCancel: false }), NOW);
+  assert.deepEqual(v, { kind: 'cancelled', untilDate: FUTURE });
+});
+
+
+/* ══ PRIVACY — what a cancel may put in a log or hand back (found on the first real cancel, 2026-09-26) ═════
+ *
+ * The first real Cancel on `qa` logged Lemon Squeezy's WHOLE subscription object: the customer's name and
+ * email, the card brand and last four digits, and the customer, order and store ids. `redact()` only strips
+ * secrets (bearer tokens, JWTs, api_key), so none of that was caught. On production that would be a real
+ * customer's identity in Render's logs on every cancel, and the failure path sends the same body to GlitchTip.
+ *
+ * The fixture below uses the REAL field names of that object (observed, 2026-09-26) with SYNTHETIC values, so a
+ * value that leaks is recognisable and nothing here is anyone's data. What is asserted: nothing in
+ * NEVER_LOGGED appears in what `cancelSubscription` returns, in the success log line, or in the failure log
+ * line on ANY path (a 2xx with the wrong status carries the same object). What may appear is an allow-list:
+ * http status, status, cancelled, ends_at, and the product and variant NAME. */
+
+type PvFn = (t: TestContext) => Promise<void> | void;
+/* These were todo tests that failed with the leak (found on the first real cancel, 2026-09-26). The fix landed
+   in the follow-up (b41be0e2) and `PII_PENDING` is false: they are ordinary tests now. */
+const PII_PENDING: string | false = false;
+const pv = (name: string, fn: PvFn) => (PII_PENDING ? test(name, { todo: PII_PENDING }, fn) : test(name, fn));
+const PII = {
+  name: 'Synthetic Person',
+  email: 'synthetic.person@example.invalid',
+  cardLast4: '9137',
+  customerId: '7100200',
+  orderId: '7100300',
+  storeId: '7100100',
+  signedToken: 'synthetic-signed-token-abc123',
+};
+const NEVER_LOGGED = Object.values(PII);
+
+const subscriptionObject = (attrs: Record<string, unknown> = {}) => ({
+  jsonapi: { version: '1.0' },
+  links: { self: `${LS_BASE}/subscriptions/SUB_A` },
+  data: {
+    type: 'subscriptions',
+    id: 'SUB_A',
+    attributes: {
+      store_id: Number(PII.storeId),
+      customer_id: Number(PII.customerId),
+      order_id: Number(PII.orderId),
+      order_item_id: 7100400,
+      product_id: 7100500,
+      variant_id: 7100600,
+      product_name: 'Synthetic Pro - Annual',
+      variant_name: 'Default',
+      user_name: PII.name,
+      user_email: PII.email,
+      status: 'cancelled',
+      status_formatted: 'Cancelled',
+      card_brand: 'visa',
+      card_last_four: PII.cardLast4,
+      payment_processor: 'stripe',
+      pause: null,
+      cancelled: true,
+      trial_ends_at: null,
+      billing_anchor: 25,
+      urls: { update_payment_method: `https://synthetic.example/update?signature=${PII.signedToken}`, customer_portal: `https://synthetic.example/portal?signature=${PII.signedToken}` },
+      renews_at: '2098-10-08T05:26:55.000000Z',
+      ends_at: '2098-10-08T05:26:55.000000Z',
+      test_mode: true,
+      ...attrs,
+    },
+  },
+});
+
+function leaked(text: string): string[] {
+  return NEVER_LOGGED.filter((v) => text.includes(v));
+}
+
+pv('PV1. the client returns NONE of the customer\'s data, on a success', async () => {
+  reset();
+  world.ls = () => json(subscriptionObject());
+  const r = await cancelSubscription('SUB_A');
+  assert.equal(r.ok, true, 'precondition: the real-shaped success is still a success');
+  assert.equal(r.endsAt, '2098-10-08T05:26:55.000000Z');
+  assert.deepEqual(leaked(JSON.stringify(r)), [], 'customer data is in what cancelSubscription hands back');
+});
+
+for (const [label, make] of [
+  ['a 2xx with the WRONG status (the whole object comes back)', () => json(subscriptionObject({ status: 'active', cancelled: false }))],
+  ['an error answer whose body carries the object', () => json(subscriptionObject(), 422)],
+] as const) {
+  pv(`PV2. the client returns NONE of the customer's data on ${label}`, async () => {
+    reset();
+    world.ls = make;
+    const r = await cancelSubscription('SUB_A');
+    assert.equal(r.ok, false);
+    assert.deepEqual(leaked(JSON.stringify(r)), [], 'customer data is in what cancelSubscription hands back');
   });
+}
+
+pv('PV3. the client\'s result carries only allow-listed fields', async () => {
+  reset();
+  world.ls = () => json(subscriptionObject());
+  const r = await cancelSubscription('SUB_A');
+  const allowed = new Set(['ok', 'reason', 'status', 'lsStatus', 'cancelled', 'endsAt', 'productName', 'variantName']);
+  const extra = Object.keys(r).filter((k) => !allowed.has(k));
+  assert.deepEqual(extra, [], `fields outside the allow-list: ${extra.join(', ')}`);
+});
+
+pv('PV4. the SUCCESS log line carries the status, cancelled and ends_at, and NONE of the customer\'s data', async (t) => {
+  reset();
+  seed(UID_A);
+  world.ls = () => json(subscriptionObject());
+  const log = t.mock.method(console, 'log', () => {});
+  const r = await cancelRoute(TOKEN_A);
+  assert.equal(r.status, 200);
+  const out = log.mock.calls.map((c) => c.arguments.join(' ')).join('\n');
+  assert.match(out, /lemonsqueezy\/cancel\] ok /);
+  assert.match(out, /http=200/);
+  assert.match(out, /lsStatus=cancelled/);
+  assert.match(out, /2098-10-08T05:26:55\.000000Z/);
+  assert.deepEqual(leaked(out), [], 'the success log prints customer data');
+});
+
+for (const [label, make] of [
+  ['a 2xx with the wrong status', () => json(subscriptionObject({ status: 'active', cancelled: false }))],
+  ['a 422 whose body carries the object', () => json(subscriptionObject(), 422)],
+  ['a 500 whose body carries the object', () => json(subscriptionObject(), 500)],
+] as const) {
+  pv(`PV5. the FAILURE log (which also goes to GlitchTip) carries NONE of the customer's data: ${label}`, async (t) => {
+    reset();
+    seed(UID_A);
+    world.ls = make;
+    const err = t.mock.method(console, 'error', () => {});
+    const r = await cancelRoute(TOKEN_A);
+    assert.equal(r.status, 502);
+    const out = err.mock.calls.map((c) => c.arguments.join(' ')).join('\n');
+    assert.match(out, /LS cancel failed for user=/);
+    assert.deepEqual(leaked(out), [], 'the failure log prints customer data');
+  });
+}
+
+pv('PV6. the response the BROWSER gets carries none of it either', async () => {
+  reset();
+  seed(UID_A);
+  world.ls = () => json(subscriptionObject());
+  const r = await cancelRoute(TOKEN_A);
+  assert.deepEqual(leaked(JSON.stringify(r.body)), []);
+  assert.deepEqual(Object.keys(r.body).sort(), ['endsAt', 'ok']);
+});
+/* ══ Added for the follow-up (b41be0e2): body read under the timeout, whitespace keys, the lsApi flag ═════ */
+
+test('L20. TIMEOUT covers the BODY READ too: the headers arrive, the body never does, and the call is still aborted at 10 s', async (t) => {
+  reset();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const standIn = globalThis.fetch;
+  let signal: AbortSignal | undefined;
+  globalThis.fetch = (async (_input: unknown, init: { signal?: AbortSignal } = {}) => {
+    signal = init.signal;
+    return {
+      ok: true,
+      status: 200,
+      text: () => new Promise<string>((_, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted', 'AbortError')));
+      }),
+    } as unknown as Response;
+  }) as typeof fetch;
+  try {
+    const pending = cancelSubscription('SUB_A');
+    let settled = false;
+    pending.then(() => { settled = true; }, () => { settled = true; });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(signal, 'the outbound call carries no abort signal, so nothing can stop a hung body read');
+    t.mock.timers.tick(9_999);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(settled, false, 'the body read was abandoned before 10 s');
+    t.mock.timers.tick(1);
+    const r = await pending;
+    assert.equal(signal?.aborted, true, 'the abort signal was never fired');
+    assert.equal(r.ok, false, 'a body that never arrived was treated as a cancellation');
+    /* An aborted body read is swallowed by `.text().catch(() => '')` and reported as an unreadable 2xx
+       (status 200), not as a transport failure (status 0). Both fail closed; what matters is that it ends. */
+    assert.match(r.reason, /^(fetch_failed:|ok_status_unparsable_body)/);
+  } finally {
+    globalThis.fetch = standIn;
+  }
+});
+
+test('L15b. a whitespace-only key counts as unset, and an explicit env bag is read instead of process.env', () => {
+  process.env.LEMONSQUEEZY_API_KEY = '   ';
+  assert.equal(isLsApiConfigured(), false);
+  process.env.LEMONSQUEEZY_API_KEY = LS_KEY;
+  assert.equal(isLsApiConfigured({}), false, 'the bag was ignored and the process environment was read');
+  assert.equal(isLsApiConfigured({ LEMONSQUEEZY_API_KEY: 'x' }), true);
+  assert.equal(isLsApiConfigured({ LEMONSQUEEZY_API_KEY: '  ' }), false);
+});
+
+test('V1. /api/version reports lsApi from the SAME read the cancel route gates on, and never the key', () => {
+  const on = configuredFlags({ LEMONSQUEEZY_API_KEY: LS_KEY }) as Record<string, unknown>;
+  const off = configuredFlags({}) as Record<string, unknown>;
+  const blank = configuredFlags({ LEMONSQUEEZY_API_KEY: '   ' }) as Record<string, unknown>;
+  assert.equal(on.lsApi, true);
+  assert.equal(off.lsApi, false);
+  assert.equal(blank.lsApi, false);
+  assert.equal(JSON.stringify(on).includes('stand-in-payload'), false, 'the key is in the version block');
+  for (const [k, v] of Object.entries(on)) assert.equal(typeof v, 'boolean', `${k} is not a boolean`);
+});
+
+test('V2. lsApi agrees with what the route does: the route answers "unavailable" exactly when lsApi is false', async () => {
+  for (const key of [LS_KEY, undefined, '   ']) {
+    reset({ key });
+    seed(UID_A);
+    const flag = (configuredFlags({ LEMONSQUEEZY_API_KEY: key }) as Record<string, unknown>).lsApi;
+    const r = await cancelRoute(TOKEN_A);
+    assert.equal(r.body.reason === 'unavailable', flag === false, `key ${JSON.stringify(key)}: lsApi=${flag}, route said ${JSON.stringify(r.body)}`);
+  }
+});
