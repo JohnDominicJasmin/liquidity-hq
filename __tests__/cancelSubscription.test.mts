@@ -15,13 +15,20 @@
  *     treats a Lemon Squeezy field as fact: they pin what OUR code does with each answer it might get.
  *   OBSERVED: nothing yet. The first call on qa is the capture; this file changes after it, not before.
  *
+ * REVISED for fcdc62ce, the fixes for the review of e9216cd1: `reason` no longer carries the upstream body (it moved
+ * to `bodyRedacted`, logged on success too), the route refuses a non-Pro row (`not_pro`) as GET's canCancel does, the
+ * outbound call has a 10 s timeout, and the panel's state-to-text choice is the pure `subscriptionPanelView`. Each
+ * test that changed did so because the DESIGN changed, and the change is listed in the commit.
+ *
  * Every expectation is written from the design in the PR (BOLA, fail closed, the webhook is the single writer of the
  * row), as literal cases, not computed from the code under test. Ids and the "key" are synthetic; the key is
  * JWT-shaped because Lemon Squeezy's keys are. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { cancelSubscription, isLsApiConfigured } from '../lib/lemonsqueezyApi.ts';
+import { subscriptionPanelView, futureDateOrNull, type SubPanelInput } from '../lib/subscriptionPanel.ts';
 
 const LS_BASE = 'https://api.lemonsqueezy.com/v1';
 const LS_KEY = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.stand-in-payload-not-a-real-key.stand-in-signature';
@@ -61,6 +68,8 @@ const world = {
   rows: new Map<string, Row>(),
   dbError: false,
   lsThrows: false,
+  lsHangs: false,
+  lastSignal: undefined as AbortSignal | undefined,
   ls: lsSuccess() as (id: string) => Response,
 };
 function reset(over: { key?: string | undefined } = { key: LS_KEY }) {
@@ -69,6 +78,8 @@ function reset(over: { key?: string | undefined } = { key: LS_KEY }) {
   world.rows = new Map();
   world.dbError = false;
   world.lsThrows = false;
+  world.lsHangs = false;
+  world.lastSignal = undefined;
   world.ls = lsSuccess();
   if (over.key === undefined) delete process.env.LEMONSQUEEZY_API_KEY;
   else process.env.LEMONSQUEEZY_API_KEY = over.key;
@@ -80,7 +91,7 @@ const seed = (uid: string, over: Row = {}) => {
   });
 };
 
-globalThis.fetch = (async (input: unknown, init: { method?: string; headers?: HeadersInit; body?: unknown } = {}) => {
+globalThis.fetch = (async (input: unknown, init: { method?: string; headers?: HeadersInit; body?: unknown; signal?: AbortSignal } = {}) => {
   const url = new URL(String((input as { url?: string })?.url ?? input));
   const method = (init.method ?? 'GET').toUpperCase();
   const headers = new Headers(init.headers ?? {});
@@ -88,6 +99,12 @@ globalThis.fetch = (async (input: unknown, init: { method?: string; headers?: He
 
   if (url.host === 'api.lemonsqueezy.com') {
     if (world.lsThrows) throw new TypeError('fetch failed (stand-in)');
+    world.lastSignal = (init as { signal?: AbortSignal }).signal;
+    if (world.lsHangs) {
+      return new Promise<Response>((_, reject) => {
+        world.lastSignal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted', 'AbortError')));
+      });
+    }
     return world.ls(url.pathname.split('/').pop() ?? '');
   }
   if (url.pathname === '/auth/v1/user') {
@@ -132,14 +149,14 @@ async function subRoute(token: string | null) {
 test('L1. no API key: fails closed with ls_api_key_unset and makes NO request', async () => {
   reset({ key: undefined });
   const r = await cancelSubscription('SUB_A');
-  assert.deepEqual([r.ok, r.reason, r.status], [false, 'ls_api_key_unset', 0]);
+  assert.deepEqual([r.ok, r.reason, r.status, r.bodyRedacted], [false, 'ls_api_key_unset', 0, '']);
   assert.equal(calls.length, 0, 'a request was made without a key');
 });
 
 test('L2. no subscription id: fails closed and makes NO request', async () => {
   reset();
   const r = await cancelSubscription('');
-  assert.deepEqual([r.ok, r.reason], [false, 'no_subscription_id']);
+  assert.deepEqual([r.ok, r.reason, r.bodyRedacted], [false, 'no_subscription_id', '']);
   assert.equal(calls.length, 0);
 });
 
@@ -168,6 +185,7 @@ test('L5. a 2xx whose status is "cancelled" succeeds and carries ends_at', async
   world.ls = lsSuccess({ status: 'cancelled', ends_at: '2098-10-08T05:26:55.000000Z' });
   const r = await cancelSubscription('SUB_A');
   assert.deepEqual([r.ok, r.reason, r.status, r.lsStatus, r.endsAt], [true, 'cancelled', 200, 'cancelled', '2098-10-08T05:26:55.000000Z']);
+  assert.match(r.bodyRedacted, /cancelled/, 'a success must carry its (redacted) body for the capture log');
 });
 
 test('L6. a 2xx "cancelled" with no ends_at still succeeds, with endsAt null', async () => {
@@ -214,7 +232,8 @@ for (const status of [400, 401, 404, 409, 422, 429, 500, 503]) {
     const r = await cancelSubscription('SUB_A');
     assert.equal(r.ok, false);
     assert.equal(r.status, status);
-    assert.match(r.reason, new RegExp(`^ls_status_${status}:`));
+    assert.equal(r.reason, `ls_status_${status}`, 'the upstream body must not ride in `reason`');
+    assert.match(r.bodyRedacted, /stand-in refusal/, 'the body is kept, redacted, in bodyRedacted');
   });
 }
 
@@ -226,29 +245,35 @@ test('L10. a network error fails closed with status 0', async () => {
   assert.match(r.reason, /^fetch_failed:/);
 });
 
-test('L11. redaction: a Bearer token, a JWT and an api_key echoed in an error body never reach `reason`', async () => {
+test('L11. redaction: a Bearer token, a JWT and an api_key echoed in an error body reach neither `reason` nor `bodyRedacted`', async () => {
   reset();
   const secrets = ['abc123SECRETtokenXYZ', 'eyJhbGciOiJSUzI1NiJ9.payloadpayloadpayload.signaturesignature', 'sk_live_verylongsecretvalue0123'];
   world.ls = () => new Response(
     `Authorization: Bearer ${secrets[0]} ... token ${secrets[1]} ... {"api_key": "${secrets[2]}"}`, { status: 401 });
   const r = await cancelSubscription('SUB_A');
-  for (const s of secrets) assert.equal(r.reason.includes(s), false, `"${s.slice(0, 12)}..." leaked into the reason`);
-  assert.match(r.reason, /\[redacted/);
+  for (const s of secrets) {
+    assert.equal(r.reason.includes(s), false, `"${s.slice(0, 12)}..." leaked into the reason`);
+    assert.equal(r.bodyRedacted.includes(s), false, `"${s.slice(0, 12)}..." leaked into bodyRedacted`);
+  }
+  assert.match(r.bodyRedacted, /\[redacted/);
 });
 
-test('L12. the configured key, echoed back by a server, is not in `reason` (JWT-shaped, as Lemon Squeezy keys are)', async () => {
+test('L12. the configured key, echoed back by a server, is in neither `reason` nor `bodyRedacted` (JWT-shaped, as Lemon Squeezy keys are)', async () => {
   reset();
   world.ls = () => new Response(`bad request for key ${LS_KEY}`, { status: 400 });
   const r = await cancelSubscription('SUB_A');
-  assert.equal(r.reason.includes(LS_KEY), false);
-  assert.equal(r.reason.includes('stand-in-payload'), false);
+  for (const field of [r.reason, r.bodyRedacted]) {
+    assert.equal(field.includes(LS_KEY), false);
+    assert.equal(field.includes('stand-in-payload'), false);
+  }
 });
 
-test('L13. `reason` is length-capped: a huge error body cannot flood a log', async () => {
+test('L13. the captured body is length-capped: a huge error body cannot flood a log', async () => {
   reset();
   world.ls = () => new Response('x'.repeat(50_000), { status: 500 });
   const r = await cancelSubscription('SUB_A');
-  assert.ok(r.reason.length <= 'ls_status_500:'.length + 600, `reason is ${r.reason.length} chars`);
+  assert.ok(r.bodyRedacted.length <= 600, `bodyRedacted is ${r.bodyRedacted.length} chars`);
+  assert.ok(r.reason.length < 40, 'reason must stay a short machine string');
 });
 
 test('L14. the client touches only Lemon Squeezy and never the database', async () => {
@@ -319,10 +344,10 @@ test('P4b. BOLA, the other direction: B\'s token cancels B\'s subscription and A
   assert.deepEqual(lsCalls().map((c) => c.url), [`${LS_BASE}/subscriptions/SUB_B`]);
 });
 
-test('P5. a user with no subscription row: "no_subscription", nothing sent', async () => {
+test('P5. a user with no subscription row: "not_pro", nothing sent', async () => {
   reset();
   const r = await cancelRoute(TOKEN_A);
-  assert.deepEqual([r.status, r.body], [200, { ok: false, reason: 'no_subscription' }]);
+  assert.deepEqual([r.status, r.body], [200, { ok: false, reason: 'not_pro' }]);
   assert.equal(lsCalls().length, 0);
 });
 
@@ -355,7 +380,7 @@ for (const status of [400, 401, 404, 422, 429, 500]) {
     assert.deepEqual(r.body, { ok: false, error: 'Cancel failed' }, 'the client must get a generic failure, not the upstream text');
     assert.equal(dbWrites().length, 0);
     const logged = err.mock.calls.map((c) => String(c.arguments[0])).join('\n');
-    assert.match(logged, new RegExp(`LS cancel failed for user=${UID_A} - reason=ls_status_${status}`));
+    assert.match(logged, new RegExp(`LS cancel failed for user=${UID_A} - reason=ls_status_${status} http=${status} body=`));
     assert.equal(logged.includes('leakedtokenvalue123'), false, 'a bearer token reached the log');
     assert.equal(logged.includes(LS_KEY), false, 'the API key reached the log');
     assert.equal(logged.includes(TOKEN_A), false, 'the caller\'s token reached the log');
@@ -480,18 +505,178 @@ test('G5. a failed read: 503 with a neutral error, never a guessed state', async
   assert.equal('canCancel' in r.body, false, 'a failed read must not carry a canCancel');
 });
 
-/* ── FINDING (#1435 review): the comment says the button and the route's guard agree. They do not. ───────
- * `app/api/subscription/route.ts` says `canCancel` is computed there "so the button's presence and the route's
- * guard agree". The route checks the id and `ls_status === 'cancelled'` and never the role, so a row where
- * canCancel is FALSE (a free user whose payment failed or whose subscription expired, the id kept) still gets a
- * cancel sent to Lemon Squeezy by anyone who calls the route. It is their own subscription (BOLA holds), so this
- * is a consistency gap, not a leak. `todo`: it runs, fails today, and turns green when the route or the comment
- * is changed; Dev decides which. */
-test('D1. FINDING: wherever canCancel is false, the route also refuses (the comment says they agree)',
-  { todo: 'finding on #1435: POST does not check the role, so a free user with a kept subscription id is cancelled upstream' }, async () => {
+/* ══ Added for fcdc62ce (the fixes for the #1435 review) ═════════════════════════════════════════ */
+
+test('L16. a SUCCESS body that echoes secrets is redacted too (it is what the success log prints)', async () => {
+  reset();
+  const echoed = 'Bearer leakedtokenvalue123 and ' + LS_KEY;
+  world.ls = () => json({ data: { attributes: { status: 'cancelled', ends_at: '2098-10-08T05:26:55.000000Z' } }, echoed });
+  const r = await cancelSubscription('SUB_A');
+  assert.equal(r.ok, true);
+  assert.equal(r.bodyRedacted.includes('leakedtokenvalue123'), false);
+  assert.equal(r.bodyRedacted.includes('stand-in-payload'), false);
+  assert.match(r.bodyRedacted, /\[redacted/);
+});
+
+test('L17. TIMEOUT: a Lemon Squeezy that never answers is aborted at 10 s and fails closed, not before', async (t) => {
+  reset();
+  world.lsHangs = true;
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = cancelSubscription('SUB_A');
+  let settled = false;
+  pending.then(() => { settled = true; }, () => { settled = true; });
+  assert.ok(world.lastSignal, 'the outbound call carries no abort signal, so nothing can stop a hang');
+  t.mock.timers.tick(9_999);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(settled, false, 'the call was abandoned before 10 s');
+  assert.equal(world.lastSignal?.aborted, false);
+  t.mock.timers.tick(1);
+  const r = await pending;
+  assert.equal(world.lastSignal?.aborted, true);
+  assert.deepEqual([r.ok, r.status, r.bodyRedacted], [false, 0, '']);
+  assert.match(r.reason, /^fetch_failed:/);
+});
+
+test('L18. the same subscription cancelled twice: our client neither throws nor caches, and mirrors each answer (Lemon Squeezy\'s own answer to a double cancel is UNOBSERVED)', async () => {
+  reset();
+  const a = await cancelSubscription('SUB_A');
+  const b = await cancelSubscription('SUB_A');
+  assert.deepEqual([a.ok, b.ok], [true, true]);
+  assert.equal(lsCalls().length, 2, 'the second call was answered from a cache instead of asking');
+  for (const status of [404, 409, 422]) {
     reset();
-    seed(UID_A, { role: 'free', ls_status: 'past_due' });
-    assert.equal((await subRoute(TOKEN_A)).body.canCancel, false, 'precondition: the button would not be offered');
+    assert.equal((await cancelSubscription('SUB_A')).ok, true);
+    world.ls = () => json({ errors: [{ detail: 'stand-in: already cancelled' }] }, status);
+    const second = await cancelSubscription('SUB_A');
+    assert.deepEqual([second.ok, second.status, second.reason], [false, status, `ls_status_${status}`]);
+  }
+});
+
+/* ── The fix for the review's D1: the route now refuses a non-Pro row, as GET's canCancel does ───── */
+
+for (const status of ['past_due', 'expired', 'unpaid', 'cancelled', '', null]) {
+  test(`P15. a FREE row that still carries a subscription id (status ${JSON.stringify(status)}): "not_pro", nothing sent`, async () => {
+    reset();
+    seed(UID_A, { role: 'free', ls_status: status });
+    const r = await cancelRoute(TOKEN_A);
+    assert.deepEqual([r.status, r.body], [200, { ok: false, reason: 'not_pro' }]);
+    assert.equal(lsCalls().length, 0, 'a cancel was sent for a user who has no Pro');
+  });
+}
+
+test('P16. THE BUTTON AND THE GUARD AGREE, across every row of the canCancel matrix: canCancel is true exactly when the route calls Lemon Squeezy', async () => {
+  for (const c of CAN_CANCEL) {
+    reset({ key: c.key ? LS_KEY : undefined });
+    if (c.row) seed(UID_A, c.row);
+    const offered = (await subRoute(TOKEN_A)).body.canCancel === true;
+    calls.length = 0;
     await cancelRoute(TOKEN_A);
-    assert.equal(lsCalls().length, 0, 'the route sent a cancel for a row the button would not offer');
+    assert.equal(lsCalls().length === 1, offered, `${c.name}: canCancel=${offered} but the route ${lsCalls().length === 1 ? 'did' : 'did not'} call Lemon Squeezy`);
+  }
+});
+
+test('P17. SUCCESS is logged for the capture: status, lsStatus, endsAt and the redacted body, and no secret', async (t) => {
+  reset();
+  seed(UID_A);
+  world.ls = () => json({ data: { attributes: { status: 'cancelled', ends_at: '2098-10-08T05:26:55.000000Z' } }, echoed: 'Bearer leakedtokenvalue123 ' + LS_KEY });
+  const log = t.mock.method(console, 'log', () => {});
+  const r = await cancelRoute(TOKEN_A);
+  assert.equal(r.status, 200);
+  const out = log.mock.calls.map((c) => c.arguments.join(' ')).join('\n');
+  assert.match(out, new RegExp(`\\[lemonsqueezy/cancel\\] ok user=${UID_A} http=200 lsStatus=cancelled endsAt=2098-10-08T05:26:55.000000Z body=`));
+  assert.equal(out.includes('leakedtokenvalue123'), false, 'a bearer token reached the success log');
+  assert.equal(out.includes('stand-in-payload'), false, 'the API key reached the success log');
+  assert.equal(out.includes(TOKEN_A), false);
+});
+
+test('P18. a FAILED cancel does not print the success line', async (t) => {
+  reset();
+  seed(UID_A);
+  world.ls = () => json({ errors: [] }, 500);
+  const log = t.mock.method(console, 'log', () => {});
+  t.mock.method(console, 'error', () => {});
+  await cancelRoute(TOKEN_A);
+  assert.equal(log.mock.calls.map((c) => c.arguments.join(' ')).join('\n').includes('] ok user='), false);
+});
+
+/* ══ S — the settings panel's state-to-text choice (lib/subscriptionPanel.ts) ═════════════════════
+ * Written from the rules in the review of e9216cd1, not from the function: a free user must never be told
+ * "Active", and a date is only ever shown when it is in the future. The clock is injected. */
+
+const NOW = Date.UTC(2030, 5, 1);
+const DAY = 86_400_000;
+const iso = (ms: number) => new Date(ms).toISOString();
+const panel = (over: Partial<SubPanelInput> = {}): SubPanelInput => ({
+  role: 'pro', lsStatus: 'active', currentPeriodEnd: iso(NOW + 30 * DAY), hasSubscription: true, canCancel: true, ...over,
+});
+const FUTURE = iso(NOW + 30 * DAY);
+const PAST = iso(NOW - DAY);
+
+const PANEL_CASES: { name: string; input: SubPanelInput; want: unknown }[] = [
+  { name: 'free, never paid', input: panel({ role: 'free', lsStatus: '', currentPeriodEnd: null, hasSubscription: false, canCancel: false }), want: { kind: 'hidden' } },
+  { name: 'free, failed payment, id kept', input: panel({ role: 'free', lsStatus: 'past_due', hasSubscription: true, canCancel: false }), want: { kind: 'hidden' } },
+  { name: 'free, subscription expired, id kept', input: panel({ role: 'free', lsStatus: 'expired', hasSubscription: true, canCancel: false }), want: { kind: 'hidden' } },
+  { name: 'free, id kept, status unknown', input: panel({ role: 'free', lsStatus: null, hasSubscription: true, canCancel: false }), want: { kind: 'hidden' } },
+  { name: 'free, id kept, status unpaid', input: panel({ role: 'free', lsStatus: 'unpaid', hasSubscription: true, canCancel: false }), want: { kind: 'hidden' } },
+  { name: 'pro, live subscription: Cancel is offered', input: panel(), want: { kind: 'cancellable' } },
+  { name: 'pro, live subscription, server cannot call Lemon Squeezy: status only', input: panel({ canCancel: false }), want: { kind: 'active' } },
+  { name: 'pro with no subscription id (admin grant)', input: panel({ hasSubscription: false, lsStatus: '', canCancel: false }), want: { kind: 'managed' } },
+  { name: 'pro with no subscription id, status null', input: panel({ hasSubscription: false, lsStatus: null, canCancel: false }), want: { kind: 'managed' } },
+  { name: 'pro, cancelled, paid through a FUTURE date', input: panel({ lsStatus: 'cancelled', canCancel: false }), want: { kind: 'cancelled', untilDate: FUTURE } },
+  { name: 'pro, cancelled, end date already PAST (inside the backstop): no past date is shown', input: panel({ lsStatus: 'cancelled', currentPeriodEnd: PAST, canCancel: false }), want: { kind: 'cancelled', untilDate: null } },
+  { name: 'pro, cancelled, no end date recorded', input: panel({ lsStatus: 'cancelled', currentPeriodEnd: null, canCancel: false }), want: { kind: 'cancelled', untilDate: null } },
+  { name: 'pro, cancelled, end date unreadable', input: panel({ lsStatus: 'cancelled', currentPeriodEnd: 'not a date', canCancel: false }), want: { kind: 'cancelled', untilDate: null } },
+  { name: 'pro, cancelled, end date is exactly NOW: not in the future, so no date', input: panel({ lsStatus: 'cancelled', currentPeriodEnd: iso(NOW), canCancel: false }), want: { kind: 'cancelled', untilDate: null } },
+  { name: 'pro, cancelled, end date one millisecond ahead', input: panel({ lsStatus: 'cancelled', currentPeriodEnd: iso(NOW + 1), canCancel: false }), want: { kind: 'cancelled', untilDate: iso(NOW + 1) } },
+];
+for (const c of PANEL_CASES) {
+  test(`S1. panel: ${c.name}`, () => {
+    assert.deepEqual(subscriptionPanelView(c.input, NOW), c.want);
+  });
+}
+
+test('S2. THE REVIEW\'S BUG, stated as a rule: no FREE user is ever shown "active", "cancellable" or "managed", whatever else the row carries', () => {
+  for (const lsStatus of [null, '', 'active', 'past_due', 'expired', 'unpaid', 'paused', 'on_trial']) {
+    for (const hasSubscription of [true, false]) {
+      for (const canCancel of [true, false]) {
+        const v = subscriptionPanelView(panel({ role: 'free', lsStatus, hasSubscription, canCancel }), NOW);
+        assert.equal(v.kind, 'hidden', `role free / ${lsStatus} / hasSubscription ${hasSubscription} / canCancel ${canCancel} -> ${JSON.stringify(v)}`);
+      }
+    }
+  }
+});
+
+test('S3. futureDateOrNull: only a parseable date strictly in the future comes back', () => {
+  assert.equal(futureDateOrNull(null, NOW), null);
+  assert.equal(futureDateOrNull(undefined, NOW), null);
+  assert.equal(futureDateOrNull('', NOW), null);
+  assert.equal(futureDateOrNull('garbage', NOW), null);
+  assert.equal(futureDateOrNull(PAST, NOW), null);
+  assert.equal(futureDateOrNull(iso(NOW), NOW), null);
+  assert.equal(futureDateOrNull(FUTURE, NOW), FUTURE);
+});
+
+test('S4. the panel function does not touch its input', () => {
+  const frozen = Object.freeze(panel());
+  assert.doesNotThrow(() => subscriptionPanelView(frozen, NOW));
+});
+
+test('S5. WIRING: the settings page asks the pure function and no longer decides by hand', () => {
+  const page = readFileSync(new URL('../app/settings/page.tsx', import.meta.url), 'utf8');
+  assert.match(page, /subscriptionPanelView\(sub\)/, 'the page does not call subscriptionPanelView');
+  assert.equal(/sub\.role === 'pro' \|\| sub\.hasSubscription/.test(page), false,
+    'the old visibility rule (the one that showed a free user "Active") is back in the page');
+});
+
+/* ── FINDING (re-review of fcdc62ce) ────────────────────────────────────────────────────────────────
+ * `subscriptionPanelView` checks `lsStatus === 'cancelled'` BEFORE the role. A FREE user whose cancelled
+ * subscription has already run out (Fix A demotes it once the period ends) therefore gets
+ * { kind: 'cancelled', untilDate: null }, and the panel says "Cancelled · access continues until your
+ * period ends" to someone whose period ended. The rule the fix states for every other free row ("no live Pro
+ * entitlement -> show nothing") should apply here too. `todo`: runs, fails today, turns green when the role
+ * check moves first (or the branch is split), and never fails the suite. */
+test('S6. FINDING: a FREE user whose cancelled subscription has already ended is shown nothing, not "access continues"',
+  { todo: 'finding on #1435: cancelled is tested before the role, so an ended subscription reads "access continues until your period ends"' }, () => {
+    const v = subscriptionPanelView(panel({ role: 'free', lsStatus: 'cancelled', currentPeriodEnd: PAST, hasSubscription: true, canCancel: false }), NOW);
+    assert.equal(v.kind, 'hidden', JSON.stringify(v));
   });
