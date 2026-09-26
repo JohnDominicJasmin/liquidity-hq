@@ -40,7 +40,15 @@ export interface CancelResult {
   /** ends_at from the response when present (documented: access continues to
    *  this date). null when absent/unreadable. */
   endsAt: string | null;
+  /** The response body, REDACTED and length-capped, for the capture log on BOTH
+   *  success and failure (QA #1435: the first real qa call must capture even when
+   *  it succeeds). Empty when there was no body (key unset, no id, transport). */
+  bodyRedacted: string;
 }
+
+/** How long to wait for LS before failing closed. The user is watching a button;
+ *  a hung outbound call must not hang the request. */
+const LS_TIMEOUT_MS = 10_000;
 
 /** Strip anything secret-shaped from a value before it can reach a log.
  *  Belt-and-braces: the body should not contain the key, but a mistaken echo,
@@ -70,12 +78,15 @@ function redact(s: string): string {
 export async function cancelSubscription(subscriptionId: string): Promise<CancelResult> {
   const key = apiKey();
   if (!key) {
-    return { ok: false, reason: 'ls_api_key_unset', status: 0, lsStatus: null, endsAt: null };
+    return { ok: false, reason: 'ls_api_key_unset', status: 0, lsStatus: null, endsAt: null, bodyRedacted: '' };
   }
   if (!subscriptionId) {
-    return { ok: false, reason: 'no_subscription_id', status: 0, lsStatus: null, endsAt: null };
+    return { ok: false, reason: 'no_subscription_id', status: 0, lsStatus: null, endsAt: null, bodyRedacted: '' };
   }
 
+  // Bound the outbound call - a hung LS request must not hang the user's request.
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), LS_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${LS_API_BASE}/subscriptions/${encodeURIComponent(subscriptionId)}`, {
@@ -85,17 +96,21 @@ export async function cancelSubscription(subscriptionId: string): Promise<Cancel
         Accept: 'application/vnd.api+json',
         'Content-Type': 'application/vnd.api+json',
       },
+      signal: ctl.signal,
     });
   } catch (e) {
-    // Network/DNS/timeout: unknown outcome. Fail closed - the cancel may or may
-    // not have reached LS, so make no state change and let the user retry; the
-    // webhook remains the source of truth if it did land.
-    return { ok: false, reason: `fetch_failed:${redact(e instanceof Error ? e.message : String(e))}`, status: 0, lsStatus: null, endsAt: null };
+    // Network/DNS/timeout/abort: unknown outcome. Fail closed - the cancel may or
+    // may not have reached LS, so make no state change and let the user retry;
+    // the webhook remains the source of truth if it did land.
+    return { ok: false, reason: `fetch_failed:${redact(e instanceof Error ? e.message : String(e))}`, status: 0, lsStatus: null, endsAt: null, bodyRedacted: '' };
+  } finally {
+    clearTimeout(timer);
   }
 
   const raw = await res.text().catch(() => '');
+  const bodyRedacted = redact(raw);
   if (!res.ok) {
-    return { ok: false, reason: `ls_status_${res.status}:${redact(raw)}`, status: res.status, lsStatus: null, endsAt: null };
+    return { ok: false, reason: `ls_status_${res.status}`, status: res.status, lsStatus: null, endsAt: null, bodyRedacted };
   }
 
   // 2xx. Parse defensively; a 2xx with an unreadable body still fails closed,
@@ -108,14 +123,14 @@ export async function cancelSubscription(subscriptionId: string): Promise<Cancel
     if (attrs && typeof attrs.status === 'string') lsStatus = attrs.status;
     if (attrs && typeof attrs.ends_at === 'string') endsAt = attrs.ends_at;
   } catch {
-    return { ok: false, reason: `ok_status_unparsable_body:${redact(raw)}`, status: res.status, lsStatus: null, endsAt: null };
+    return { ok: false, reason: 'ok_status_unparsable_body', status: res.status, lsStatus: null, endsAt: null, bodyRedacted };
   }
 
   // Documented success is status 'cancelled'. Anything else on a 2xx is
   // unexpected - surface it (fail closed) rather than assume success.
   if (lsStatus !== 'cancelled') {
-    return { ok: false, reason: `ok_but_status_${lsStatus ?? 'missing'}`, status: res.status, lsStatus, endsAt };
+    return { ok: false, reason: `ok_but_status_${lsStatus ?? 'missing'}`, status: res.status, lsStatus, endsAt, bodyRedacted };
   }
 
-  return { ok: true, reason: 'cancelled', status: res.status, lsStatus, endsAt };
+  return { ok: true, reason: 'cancelled', status: res.status, lsStatus, endsAt, bodyRedacted };
 }

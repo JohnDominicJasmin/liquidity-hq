@@ -14,6 +14,7 @@ import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
+import { subscriptionPanelView, futureDateOrNull, type SubPanelView } from '@/lib/subscriptionPanel';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
 import { readConsent, writeConsent, onConsentChange, type ConsentState } from '@/lib/consent';
@@ -135,6 +136,14 @@ export default function SettingsPage() {
     } catch { setCancelError(true); }
     finally { setCancelling(false); }
   };
+
+  // Pure state -> view (lib/subscriptionPanel). A just-completed cancel overrides
+  // the fetched state so the panel updates without waiting for the webhook/refetch.
+  const subView: SubPanelView | 'error' | null =
+    sub === 'error' ? 'error'
+    : sub === null ? null
+    : cancelDone ? { kind: 'cancelled', untilDate: futureDateOrNull(cancelDone.endsAt, Date.now()) }
+    : subscriptionPanelView(sub);
 
   // ── Password (set or change) - the client User object has no reliable
   // "has a password" flag (a magic-link-only account and a password account
@@ -391,25 +400,22 @@ export default function SettingsPage() {
       {/* ── Subscription / cancel-a-plan (#1396). VISUAL: wording + look need the
              owner's approval before close (condition 5). Shown only to users who
              have a plan to see; free/trial users get nothing here. ── */}
-      {sub === 'error' && (
+      {subView === 'error' && (
         <Section title={t('SETTINGS_SECTION_SUBSCRIPTION')}>
           <div className="st-desc">{t('SETTINGS_SUB_LOAD_FAILED')}</div>
         </Section>
       )}
-      {sub && sub !== 'error' && (sub.role === 'pro' || sub.hasSubscription) && (
+      {subView && subView !== 'error' && subView.kind !== 'hidden' && (
         <Section title={t('SETTINGS_SECTION_SUBSCRIPTION')}>
           <div className="st-field">
             <div className="st-field-label">{t('SETTINGS_SUB_PLAN_PRO')}</div>
-            {(cancelDone || sub.lsStatus === 'cancelled') ? (
+            {subView.kind === 'cancelled' ? (
               <div className="st-field-value">
-                {(() => {
-                  const d = cancelDone?.endsAt ?? sub.currentPeriodEnd;
-                  return d
-                    ? t('SETTINGS_SUB_CANCELLED_UNTIL', { date: new Date(d).toLocaleDateString() })
-                    : t('SETTINGS_SUB_CANCELLED_NO_DATE');
-                })()}
+                {subView.untilDate
+                  ? t('SETTINGS_SUB_CANCELLED_UNTIL', { date: new Date(subView.untilDate).toLocaleDateString() })
+                  : t('SETTINGS_SUB_CANCELLED_NO_DATE')}
               </div>
-            ) : sub.canCancel ? (
+            ) : subView.kind === 'cancellable' ? (
               <>
                 <div className="st-field-value">{t('SETTINGS_SUB_ACTIVE')}</div>
                 {!cancelConfirm ? (
@@ -431,7 +437,7 @@ export default function SettingsPage() {
                   </div>
                 )}
               </>
-            ) : (sub.role === 'pro' && !sub.hasSubscription) ? (
+            ) : subView.kind === 'managed' ? (
               <div className="st-field-value">{t('SETTINGS_SUB_MANAGED')}</div>
             ) : (
               <div className="st-field-value">{t('SETTINGS_SUB_ACTIVE')}</div>

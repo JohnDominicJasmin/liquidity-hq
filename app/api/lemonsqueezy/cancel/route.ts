@@ -50,12 +50,12 @@ export async function POST(req: NextRequest) {
 
   // Derive the subscription id from the caller's OWN row. Service-role read
   // filtered by user_id; the filter is the boundary (same as alert-prefs).
-  let stored: { ls_subscription_id: string | null; ls_status: string | null } | null = null;
+  let stored: { role: string | null; ls_subscription_id: string | null; ls_status: string | null } | null = null;
   try {
     const db = getSupabaseAdmin();
     const { data, error } = await db
       .from(T.user_subscriptions)
-      .select('ls_subscription_id, ls_status')
+      .select('role, ls_subscription_id, ls_status')
       .eq('user_id', userId)
       .maybeSingle();
     if (error) {
@@ -63,15 +63,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Failed to read subscription' }, { status: 503 });
     }
     // supabase-js infers `never` for a dynamic table name, so cast through unknown.
-    stored = (data as unknown) as { ls_subscription_id: string | null; ls_status: string | null } | null;
+    stored = (data as unknown) as { role: string | null; ls_subscription_id: string | null; ls_status: string | null } | null;
   } catch (e) {
     apiError('lemonsqueezy/cancel', e instanceof Error ? e : new Error(String(e)));
     return NextResponse.json({ ok: false, error: 'Failed to read subscription' }, { status: 503 });
   }
 
   const subId = stored?.ls_subscription_id ?? '';
-  // Nothing to cancel: free/trial, an admin/pre-column pro grant with no id, or
-  // already cancelled. Not an error - the UI should not have offered it.
+  // Guards mirror GET /api/subscription's `canCancel`, so the button and this
+  // route agree (QA #1435 D1). All are 200 with a clean reason - the UI should
+  // not have offered cancel in these states, so they are not errors.
+  //   - not pro: free/trial, or a demoted row (past_due/expired left role free)
+  //     that still carries a stale subscription id.
+  //   - no id: an admin/pre-column pro grant with nothing at LS to cancel.
+  //   - already cancelled.
+  if (stored?.role !== 'pro') {
+    return NextResponse.json({ ok: false, reason: 'not_pro' }, { status: 200 });
+  }
   if (!subId) {
     return NextResponse.json({ ok: false, reason: 'no_subscription' }, { status: 200 });
   }
@@ -86,13 +94,20 @@ export async function POST(req: NextRequest) {
     // an unexpected LS shape is observed rather than silently mishandled. No row
     // write happened. Reported to GlitchTip; the client gets a generic failure.
     apiError('lemonsqueezy/cancel', new Error(
-      `LS cancel failed for user=${userId} - reason=${result.reason} http=${result.status}`,
+      `LS cancel failed for user=${userId} - reason=${result.reason} http=${result.status} body=${result.bodyRedacted}`,
     ));
     return NextResponse.json({ ok: false, error: 'Cancel failed' }, { status: 502 });
   }
 
-  // Success. The webhook will write the row (role stays pro, ls_status
-  // 'cancelled', current_period_end = ends_at). Return the ends_at LS reported so
-  // the UI can say "access until <date>" without waiting for the webhook.
+  // Success. Log the redacted response too (QA #1435): the first real qa call
+  // must capture a SUCCESS shape, not only failures. Not an error - console, not
+  // apiError/GlitchTip.
+  console.log(
+    `[lemonsqueezy/cancel] ok user=${userId} http=${result.status} ` +
+    `lsStatus=${result.lsStatus ?? 'null'} endsAt=${result.endsAt ?? 'null'} body=${result.bodyRedacted}`,
+  );
+  // The webhook writes the row (role stays pro, ls_status 'cancelled',
+  // current_period_end = ends_at). Return the ends_at LS reported so the UI can
+  // say "access until <date>" without waiting for the webhook.
   return NextResponse.json({ ok: true, endsAt: result.endsAt });
 }
