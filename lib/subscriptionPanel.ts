@@ -34,13 +34,17 @@ export function futureDateOrNull(iso: string | null | undefined, nowMs: number):
 }
 
 export function subscriptionPanelView(sub: SubPanelInput, nowMs: number = Date.now()): SubPanelView {
-  // Cancelled (the webhook recorded it, or we just did) -> access-until.
+  // No live Pro entitlement -> show nothing, even if a stale subscription id
+  // lingers from a failed payment or an expired/cancelled-and-ended subscription.
+  // Checked BEFORE 'cancelled' (QA #1435 S6): a FREE user whose cancelled sub has
+  // already run out must be hidden, not shown "access continues until your period
+  // ends". A pro-cancelled-in-grace user is still role 'pro' (Fix A), so they pass
+  // this and reach the cancelled branch below.
+  if (sub.role !== 'pro') return { kind: 'hidden' };
+  // Cancelled but still in grace (role is pro) -> access-until.
   if (sub.lsStatus === 'cancelled') {
     return { kind: 'cancelled', untilDate: futureDateOrNull(sub.currentPeriodEnd, nowMs) };
   }
-  // No live Pro entitlement -> show nothing, even if a stale subscription id
-  // lingers from a failed payment or an expired subscription. THE BUG FIX.
-  if (sub.role !== 'pro') return { kind: 'hidden' };
   // Pro but nothing at LS to cancel -> admin / pre-column grant.
   if (!sub.hasSubscription) return { kind: 'managed' };
   // Pro + LS-backed + cancellable.

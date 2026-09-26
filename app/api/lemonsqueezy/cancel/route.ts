@@ -94,7 +94,8 @@ export async function POST(req: NextRequest) {
     // an unexpected LS shape is observed rather than silently mishandled. No row
     // write happened. Reported to GlitchTip; the client gets a generic failure.
     apiError('lemonsqueezy/cancel', new Error(
-      `LS cancel failed for user=${userId} - reason=${result.reason} http=${result.status} body=${result.bodyRedacted}`,
+      `LS cancel failed for user=${userId} - reason=${result.reason} http=${result.status} ` +
+      `lsStatus=${result.lsStatus ?? 'null'} cancelled=${result.cancelled ?? 'null'} endsAt=${result.endsAt ?? 'null'}`,
     ));
     return NextResponse.json({ ok: false, error: 'Cancel failed' }, { status: 502 });
   }
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
   // apiError/GlitchTip.
   console.log(
     `[lemonsqueezy/cancel] ok user=${userId} http=${result.status} ` +
-    `lsStatus=${result.lsStatus ?? 'null'} endsAt=${result.endsAt ?? 'null'} body=${result.bodyRedacted}`,
+    `lsStatus=${result.lsStatus ?? 'null'} cancelled=${result.cancelled ?? 'null'} endsAt=${result.endsAt ?? 'null'}`,
   );
   // The webhook writes the row (role stays pro, ls_status 'cancelled',
   // current_period_end = ends_at). Return the ends_at LS reported so the UI can
