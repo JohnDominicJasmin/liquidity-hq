@@ -25,17 +25,34 @@ export default function SettingsSaveToast() {
   const { t } = useLabels();
   const [visible, setVisible] = useState(false);
   useEffect(() => {
-    if (saveStatus === 'saved' || saveStatus === 'error') {
+    if (saveStatus === 'saved' || saveStatus === 'error' || saveStatus === 'conflict') {
       setVisible(true);
-      const timer = setTimeout(() => setVisible(false), 2000);
+      // #1285: the provider already clears saveStatus back to 'idle' after
+      // 3000ms for 'conflict' (same window as 'error') - this timer only
+      // controls the toast's own visibility and must not outlive that, or a
+      // second conflict landing inside the gap would show nothing.
+      const timer = setTimeout(() => setVisible(false), saveStatus === 'saved' ? 2000 : 3000);
       return () => clearTimeout(timer);
     }
     if (saveStatus === 'saving') setVisible(true);
   }, [saveStatus]);
+  // Found reviewing #1292's own release screenshot, not in the code: this
+  // toast and the Ask AI FAB share the same bottom-right corner, and the
+  // FAB (z-index 9995) sits on top of the toast's text - "Updated from
+  // another de[FAB]" - defeating the whole point of a toast the user is
+  // meant to read. Same pattern this file's header comment already links to
+  // for PWA-prompt-vs-FAB (body.pwa-prompt-open); reusing it here rather
+  // than computing an offset keeps the fix consistent with that precedent
+  // and needs no separate mobile safe-area math.
+  useEffect(() => {
+    document.body.classList.toggle('settings-toast-open', visible);
+    return () => { document.body.classList.remove('settings-toast-open'); };
+  }, [visible]);
   if (!visible) return null;
-  return (
-    <div className={`st-save-toast${saveStatus === 'error' ? ' error' : saveStatus === 'saving' ? ' saving' : ''}`}>
-      {saveStatus === 'saving' ? t('SETTINGS_STATUS_SAVING') : saveStatus === 'saved' ? t('SETTINGS_STATUS_SAVED') : t('SETTINGS_STATUS_FAILED')}
-    </div>
-  );
+  const cls = saveStatus === 'error' ? ' error' : saveStatus === 'conflict' ? ' conflict' : saveStatus === 'saving' ? ' saving' : '';
+  const text = saveStatus === 'saving' ? t('SETTINGS_STATUS_SAVING')
+    : saveStatus === 'saved' ? t('SETTINGS_STATUS_SAVED')
+    : saveStatus === 'conflict' ? t('SETTINGS_STATUS_CONFLICT')
+    : t('SETTINGS_STATUS_FAILED');
+  return <div className={`st-save-toast${cls}`}>{text}</div>;
 }
