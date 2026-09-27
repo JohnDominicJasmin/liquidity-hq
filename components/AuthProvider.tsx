@@ -397,9 +397,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (userIdRef.current) clearPlanBadgeCache(userIdRef.current);
       }
       if (u) touchActivity();
-      // Identify / reset in PostHog so all events are tied to this user
+      // Identify / reset in PostHog so all events are tied to this user.
+      // distinct_id is the account's own uuid (u.id), never the email, and NO
+      // email is sent as a person property: PostHog must not hold PII (#1398,
+      // owner-approved). Purging the email already stored on old person records
+      // is a separate cleanup, tracked elsewhere - not done here.
       try {
-        if (u) posthog.identify(u.id, { email: u.email });
+        if (u) posthog.identify(u.id);
         else    posthog.reset();
       } catch { /* PostHog may not be initialised yet */ }
       // Best-effort welcome-email trigger, covers all 3 signup methods (they
