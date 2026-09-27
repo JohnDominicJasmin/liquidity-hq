@@ -9,8 +9,11 @@
 --
 -- Run against BOTH lhq_labels (prod) and lhq_dev_labels (dev, commented out
 -- below per 20260912b's convention) - shared-database write, owner-gated at
--- release time. `{date}` in the CANCELLED_UNTIL string is a runtime placeholder
--- the client fills; it is stored literally.
+-- release time. `{date}` in the CANCELLED_UNTIL and CANCEL_CONFIRM_DATED strings
+-- is a runtime placeholder the client fills (the subscription's current period
+-- end, locale-formatted); it is stored literally. CANCEL_CONFIRM_DATED is the
+-- confirm prompt when that date is known; CANCEL_CONFIRM (no date) is the
+-- fallback when it is not (owner, 2026-09-27).
 
 insert into lhq_labels (key, locale, value) values
 ('SETTINGS_SECTION_SUBSCRIPTION','en','Subscription'),
@@ -18,6 +21,7 @@ insert into lhq_labels (key, locale, value) values
 ('SETTINGS_SUB_ACTIVE','en','Active'),
 ('SETTINGS_SUB_CANCEL_BUTTON','en','Cancel subscription'),
 ('SETTINGS_SUB_CANCEL_CONFIRM','en','Cancel Pro? You''ll keep access until the end of your current paid period.'),
+('SETTINGS_SUB_CANCEL_CONFIRM_DATED','en','Cancel Pro? You''ll keep access until {date}.'),
 ('SETTINGS_SUB_CANCEL_CONFIRM_YES','en','Yes, cancel'),
 ('SETTINGS_SUB_CANCEL_CONFIRM_NO','en','Keep Pro'),
 ('SETTINGS_SUB_CANCELLING','en','Cancelling…'),
@@ -37,6 +41,7 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 -- ('SETTINGS_SUB_ACTIVE','en','Active'),
 -- ('SETTINGS_SUB_CANCEL_BUTTON','en','Cancel subscription'),
 -- ('SETTINGS_SUB_CANCEL_CONFIRM','en','Cancel Pro? You''ll keep access until the end of your current paid period.'),
+-- ('SETTINGS_SUB_CANCEL_CONFIRM_DATED','en','Cancel Pro? You''ll keep access until {date}.'),
 -- ('SETTINGS_SUB_CANCEL_CONFIRM_YES','en','Yes, cancel'),
 -- ('SETTINGS_SUB_CANCEL_CONFIRM_NO','en','Keep Pro'),
 -- ('SETTINGS_SUB_CANCELLING','en','Cancelling…'),

@@ -424,7 +424,11 @@ export default function SettingsPage() {
                   </button>
                 ) : (
                   <div style={{ marginTop: 8 }}>
-                    <div className="st-desc">{t('SETTINGS_SUB_CANCEL_CONFIRM')}</div>
+                    <div className="st-desc">
+                      {subView.untilDate
+                        ? t('SETTINGS_SUB_CANCEL_CONFIRM_DATED', { date: new Date(subView.untilDate).toLocaleDateString() })
+                        : t('SETTINGS_SUB_CANCEL_CONFIRM')}
+                    </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button className="st-confirm-btn st-signout-btn" disabled={cancelling} onClick={doCancel}>
                         {cancelling ? <span className="login-spinner" /> : t('SETTINGS_SUB_CANCEL_CONFIRM_YES')}
