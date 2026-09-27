@@ -568,22 +568,39 @@ for (const [tier, uid] of [['free', FREE], ['trial', TRIAL]] as const) {
   });
 }
 
-/* Found while writing R2/R3, for PM and Dev to decide (not asserted as a defect): a Pro read failure discards a
-   sum that DID come back over its cap. The month read says $12.00, the day read errors, and the call is let through,
-   although the month cap is known to be exceeded. "A read error must not lock out a paying customer" is about the
-   unknown part; the known part is a real overage. Rare (both reads hit the same function), so recorded, not urgent. */
-test('R10. Pro: the month read says OVER the cap and the day read fails: the known overage should still block', { todo: 'design decision for PM/Dev (see comment)' }, async () => {
+/* Found while writing R2/R3 and fixed by Dev (#1437): a Pro read failure used to discard a sum that DID come back over
+   its cap. The month read says $12.00, the day read errors: the month cap is KNOWN to be exceeded, so the call must
+   still block. "A read error must not lock out a paying customer" is about the unknown part, not a known overage. */
+test('R10. Pro: the month read says OVER the cap and the day read fails: the known overage still blocks', async () => {
   reset();
   world.ledger = rows(50, PRO, Q, EARLIER);
   world.fault = failing(`user@${DAY_START}`);
   assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: true, reason: 'pro_monthly' });
 });
 
-test('R11. Pro: the day read says OVER the cap and the month read fails: the known overage should still block', { todo: 'design decision for PM/Dev (see R10)' }, async () => {
+test('R11. Pro: the day read says OVER the cap and the month read fails: the known overage still blocks', async () => {
   reset();
   world.ledger = rows(8, PRO, Q, TODAY);
   world.fault = failing(`user@${MONTH_START}`);
   assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: true, reason: 'pro_daily' });
+});
+
+test('R12. Pro: a known overage still blocks when the OTHER read fails at the network, not just with an error answer', async () => {
+  reset();
+  world.ledger = rows(50, PRO, Q, EARLIER);
+  world.fault = (fn, args) => (fn === USER_FN && args.p_since === DAY_START ? 'throw' : null);
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: true, reason: 'pro_monthly' });
+});
+
+test('R13. Pro: only a CONFIRMED overage blocks; a failed read next to an under-cap read, or two failed reads, still let the call through', async () => {
+  reset();
+  world.ledger = rows(3, PRO, Q, TODAY);                          // day $0.75, month $0.75: under both
+  world.fault = failing(`user@${MONTH_START}`);
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: false }, 'month failed, day under');
+  world.fault = failing(`user@${DAY_START}`);
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: false }, 'day failed, month under');
+  world.fault = () => 'error';
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: false }, 'both failed, nothing confirmed');
 });
 
 /* ══ A: the choke point, incrementUsageColumn ═════════════════════════════════════════════ */
