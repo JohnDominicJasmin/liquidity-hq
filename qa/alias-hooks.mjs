@@ -39,7 +39,7 @@ function withExtension(url) {
   return null;
 }
 
-export async function resolve(specifier, context, next) {
+async function resolveInner(specifier, context, next) {
   // `@/lib/x` -> <repo>/lib/x, matching tsconfig's `"@/*": ["./*"]`.
   if (specifier.startsWith('@/')) {
     const mapped = new URL(specifier.slice(2), ROOT).href;
@@ -73,4 +73,19 @@ export async function resolve(specifier, context, next) {
     if (!found) throw err;
     return next(found, context);
   }
+}
+
+/* JSON WITHOUT AN IMPORT ATTRIBUTE. Next's bundler accepts `import labels from '@/lib/labelDefaults.en.json'`; Node
+ * refuses it (ERR_IMPORT_ATTRIBUTE_MISSING) unless the import carries `with { type: 'json' }`. Three source files import
+ * that JSON bare (lib/aiUsage.ts among them), so anything importing them was unreachable from a test. This is the sixth
+ * kind of forgiveness, decided on purpose: bounded to `.json` files INSIDE this repo and never node_modules, so a
+ * package's own JSON stays exactly as Node treats it. __tests__/aliasHookScope.test.mts fails if the set of bare JSON
+ * imports in the source changes. */
+export async function resolve(specifier, context, next) {
+  const r = await resolveInner(specifier, context, next);
+  if (r && typeof r.url === 'string' && r.url.endsWith('.json') && r.url.startsWith(ROOT)
+      && !r.url.includes('/node_modules/') && context.importAttributes?.type !== 'json') {
+    return { ...r, importAttributes: { ...(r.importAttributes ?? {}), type: 'json' } };
+  }
+  return r;
 }
