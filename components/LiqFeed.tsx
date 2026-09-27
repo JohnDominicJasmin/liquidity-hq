@@ -114,6 +114,15 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
   const cascadeTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sbSaveTimer     = useRef<ReturnType<typeof setInterval> | null>(null);
+  // #925: natural-key set of liq_events rows this client already knows are in
+  // Supabase - seeded from the initial DB read, extended after each save. The
+  // flush below inserts ONLY keys not in here, so a client never re-inserts an
+  // event it loaded from the DB or already saved. This kills the dominant
+  // write-amplification source (a fresh browser with lastTs=0 was re-inserting
+  // the whole loaded 24h history) measured at 97.8% duplicate rows on dev
+  // (#1025). Cross-CLIENT races (two tabs saving the same brand-new liquidation)
+  // still need the DB unique constraint - that half is the owner-gated DDL.
+  const persistedKeysRef = useRef<Set<string>>(new Set());
 
   /* ── Rebuild derived state from history ── */
   const rebuild = useCallback((history: LiqEvent[]) => {
@@ -323,6 +332,12 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
         .limit(5000)
         .then(({ data }) => {
           if (!data || data.length === 0) return;
+          // #925: every row returned here is already in Supabase - record its
+          // key so the periodic save never re-inserts it (the fresh-browser
+          // lastTs=0 case used to re-save this entire loaded history).
+          for (const r of data as Array<{ coin: string; side: string; price: number; source: string; ts: number }>) {
+            persistedKeysRef.current.add(`${r.ts}_${r.coin}_${r.price}_${r.side}_${r.source}`);
+          }
           const seen = new Set(
             historyRef.current.map(e => `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`)
           );
@@ -350,13 +365,32 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
       // ── Periodic save of new events to Supabase ──────────────────────
       sbSaveTimer.current = setInterval(() => {
         const lastTs = parseInt(localStorage.getItem(SB_SAVE_TS_KEY) || '0');
-        const toSave = historyRef.current.filter(e => e.ts > lastTs);
-        if (toSave.length === 0) return;
+        // #925: dedup before insert. The ts>lastTs filter alone let a client
+        // re-insert events it had loaded from the DB (worst case, a fresh
+        // browser with lastTs=0 re-saved the whole 24h history), which is the
+        // bulk of the 97.8% duplicate rows measured on dev (#1025). Skip any key
+        // already known persisted, and collapse duplicates within this batch.
+        const batchKeys = new Set<string>();
+        const toSave = historyRef.current.filter(e => {
+          if (e.ts <= lastTs) return false;
+          const key = `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`;
+          if (persistedKeysRef.current.has(key) || batchKeys.has(key)) return false;
+          batchKeys.add(key);
+          return true;
+        });
+        if (toSave.length === 0) {
+          // Nothing new, but still advance the cursor so the range shrinks.
+          localStorage.setItem(SB_SAVE_TS_KEY, String(Date.now()));
+          return;
+        }
         const rows = toSave.map(e => ({
           coin: e.coin, side: e.side, usd: e.usd, price: e.price, source: e.source, ts: e.ts,
         }));
         sb.from(T.liq_events).insert(rows).then(({ error }) => {
           if (error) { console.error('[liq] sb save failed:', error.message); return; }
+          // Only mark keys persisted once the insert actually succeeded, so a
+          // failed save is retried on the next tick rather than silently dropped.
+          for (const key of batchKeys) persistedKeysRef.current.add(key);
           localStorage.setItem(SB_SAVE_TS_KEY, String(Date.now()));
           // Occasional purge - delete events older than 7 days
           const cutoff = Date.now() - SB_RETAIN_MS;
