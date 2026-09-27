@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { recordAiCall } from '@/lib/aiCallLog';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUsageTier } from '@/lib/entitlements';
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const column = isSearch ? 'chat_search_count' : 'chat_count';
   const limit  = isSearch ? searchLimit : chatLimit;
-  const usageResult = await incrementUsageColumn(userId, column, limit);
+  const usageResult = await incrementUsageColumn(userId, role, column, limit);
   if (usageResult.blocked) {
     const label = isSearch ? 'live search messages' : 'chat messages';
     return NextResponse.json(
@@ -160,6 +161,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (status >= 200 && status < 300) {
+      const body = data as { usage?: unknown; model?: string } | null;
+      await recordAiCall({ userId, callType: isSearch ? 'chat_search' : 'chat', model: body?.model ?? MODEL, usage: body?.usage });
       const newChat   = isSearch ? chatUsed   : usageResult.count;
       const newSearch = isSearch ? usageResult.count : searchUsed;
       return NextResponse.json({

@@ -7,6 +7,7 @@ import {
 import { getSessionName } from '@/lib/session';
 import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
+import { useSettings } from '@/lib/settings';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { Warn } from '@/components/icons';
 import { getAuthToken } from '@/lib/supabase';
@@ -277,18 +278,36 @@ export default function GrokChat() {
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
   const { user }                       = useAuth();
+  const { settings, settingsLoadStatus } = useSettings();
 
   const [open,           setOpen]           = useState(false);
   const [expanded,       setExpanded]       = useState(false);
   const [liveSearch,     setLiveSearch]     = useState(false);
   const [histView,       setHistView]       = useState(false);
   const [coin,           setCoin]           = useState<CoinId>('btc');
-  /* #985 gap 2: seeded from the 'grok-chat' open event, then kept aligned by
-     a live 'strategy-selection-changed' event Arena fires on every change -
-     not just captured once at open. Read fresh into the system context on
-     every sendMsg call, so a mid-conversation change reaches the very next
-     turn without resending anything into the visible transcript. */
+  /* #985 gap 2: seeded from the account's saved settings on mount (#1347
+     item 18), then kept aligned by a live 'strategy-selection-changed' event
+     Arena fires on every change, and by the 'grok-chat' open event when it
+     explicitly carries one (item 3) - not just captured once at open. Read
+     fresh into the system context on every sendMsg call, so a mid-
+     conversation change reaches the very next turn without resending
+     anything into the visible transcript. */
   const [chatSelection,  setChatSelection]  = useState<readonly string[]>([]);
+  /* #1347 item 18: this component has no direct settings access other than
+     the mount-seed effect below - before this, a session that never visited
+     Arena had chatSelection stuck at [] forever, regardless of what the
+     account actually had saved. The seed only WRITES when nothing else has
+     yet (checks the ref); the two live paths (the listener below and the
+     open-event handler) always write unconditionally when they fire and
+     mark the ref too, so "whoever writes first owns the value" - a live
+     change arriving before the slower settings read resolves must not be
+     overwritten once that read finally lands. */
+  const chatSelectionSeededRef = useRef(false);
+  useEffect(() => {
+    if (settingsLoadStatus !== 'ready' || chatSelectionSeededRef.current) return;
+    chatSelectionSeededRef.current = true;
+    setChatSelection(settings.strategy_selection ?? []);
+  }, [settingsLoadStatus, settings.strategy_selection]);
   // Structure read needs candles, which this component otherwise has no reason
   // to hold. Fetched once per coin selection rather than per message - the
   // answer only changes on a new hourly close, so re-fetching on every send
@@ -581,7 +600,19 @@ export default function GrokChat() {
     const handler = (e: Event) => {
       const ev = e as CustomEvent<{ coin: CoinId; prompt?: string; selection?: readonly string[] }>;
       setCoin(ev.detail.coin);
-      setChatSelection(ev.detail.selection ?? []);
+      // #1347 item 3: `?? []` used to run unconditionally, so an opener that
+      // never carries a selection (EMASignal.tsx, app/news/page.tsx - both
+      // dispatch with no `selection` field at all) wiped out whatever
+      // chatSelection the live listener below had already correctly set
+      // from Arena. "This opener doesn't know about the selection" and
+      // "the trader has selected nothing" are different facts; only write
+      // when the event explicitly carries one, and mark the seed ref so a
+      // still-pending mount-seed (item 18) doesn't later overwrite this
+      // fresher value with an account's on-disk one.
+      if (ev.detail.selection !== undefined) {
+        chatSelectionSeededRef.current = true;
+        setChatSelection(ev.detail.selection);
+      }
       setOpen(true);
       setHistView(false);
       if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, ev.detail.coin), 200);
@@ -596,10 +627,14 @@ export default function GrokChat() {
      next turn - not the set the panel had when the chat was opened. Listens
      unconditionally (this component is always mounted, per AppShell) rather
      than only while the panel is open, since the selection can change before
-     the panel is ever opened for this session too. */
+     the panel is ever opened for this session too. Marks the seed ref
+     (#1347 item 18) for the same reason the open-event handler above does -
+     a live change always wins over a slower settings read that hasn't
+     resolved yet. */
   useEffect(() => {
     const handler = (e: Event) => {
       const ev = e as CustomEvent<{ selection: readonly string[] }>;
+      chatSelectionSeededRef.current = true;
       setChatSelection(ev.detail.selection);
     };
     window.addEventListener('strategy-selection-changed', handler);

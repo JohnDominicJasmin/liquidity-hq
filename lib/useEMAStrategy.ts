@@ -200,7 +200,14 @@ export function useEMAStrategy(
      the registry's SMA chip defaults to a 12-period length nothing here
      computes - labelling the existing 200D condition as if it reflected a
      user-configurable SMA would be wrong, not incomplete. */
-  selection: readonly string[] = [],
+  // #1347 item 11: was `= []`, an optional param a caller could silently
+  // omit and get the unpersonalised signal with no warning - the same
+  // "dropped argument indistinguishable from a deliberate empty one" shape
+  // as KLineProChart's own `indicators` prop (#1369). The one real caller
+  // (app/arena/page.tsx) already always passes this explicitly; making it
+  // required turns a future accidental omission into a compile error
+  // instead of a silent wrong default.
+  selection: readonly string[],
 ): StrategySignal {
   const { spreadMinPct, atrMult, persistBoost } = filterParams;
   const [sig, setSig] = useState<StrategySignal>(STRATEGY_LOADING);

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { isProductionTarget, assertProductionRunAllowed, PROD_READONLY_TEST_MATCH } from './qa/prod-readonly';
 
 // E2E config for the QA suite in qa/e2e.
 //
@@ -42,8 +43,22 @@ const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = process.env.E2E_BASE_URL?.replace(/\/$/, '');
 const IS_REMOTE = Boolean(BASE_URL);
 
+// ── THE PRODUCTION GUARD (#1364, #1259) ───────────────────────────────────────
+//
+// Pointing the suite at production is refused unless it is asked for explicitly
+// (E2E_ALLOW_PRODUCTION=1), and even then only the read-only allowlist in
+// qa/prod-readonly.ts can run: everything else is "No tests found", not "ran".
+// Most of this suite writes to the account it signs in as, on purpose - PATCHing
+// settings to reset a known starting state - and one spec makes a real purchase.
+// __tests__/prodReadonlyGuard.test.mts keeps the allowlist from rotting.
+const TARGETS_PRODUCTION = isProductionTarget(BASE_URL);
+if (TARGETS_PRODUCTION) assertProductionRunAllowed(process.env);
+
 export default defineConfig({
   testDir: './qa/e2e',
+  // Only when the target IS production: the allowlist. Undefined elsewhere, so every
+  // other target runs the whole suite exactly as before.
+  ...(TARGETS_PRODUCTION ? { testMatch: PROD_READONLY_TEST_MATCH } : {}),
   // Each spec sweeps ~32 routes; the default 30s is not enough on a cold start.
   //
   // 240s, not 120s. Measured 2026-08-04: a 32-route sweep (a11y, seo) takes

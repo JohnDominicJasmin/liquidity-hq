@@ -82,3 +82,4 @@ session*.json
 session-*.json
 mint-session*.mjs
 *.session.json
+qa/crossbrowser-report.json

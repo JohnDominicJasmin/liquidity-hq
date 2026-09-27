@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
+import { cached } from '@/lib/apiCache';
 
 function emaArr(closes: number[], period: number): number[] {
   const result = new Array<number>(closes.length).fill(NaN);
@@ -47,8 +48,13 @@ export interface SignalStat {
   avgReturn6: number;   // avg % return at +6 candles
 }
 
-export async function GET() {
-  try {
+/* The whole computation, cached as one (#1397). The fetch's own revalidate only
+   covered the upstream body: every visitor still re-ran EMA9/20/50, RSI14 and
+   four signal scans over 300 candles. Staging is CPU-bound, not DB-bound (QA's
+   load test), so this is exactly the work worth not repeating. */
+const SIGNAL_ACCURACY_TTL = 10 * 60_000;
+
+async function computeSignalAccuracy(): Promise<{ stats: SignalStat[]; candles: number }> {
     const r = await fetch(
       'https://api.bybit.com/v5/market/kline?category=linear&symbol=BTCUSDT&interval=240&limit=300',
       { next: { revalidate: 600 } }
@@ -188,9 +194,15 @@ export async function GET() {
       });
     }
 
+    return { stats, candles: closes.length };
+}
+
+export async function GET() {
+  try {
+    const payload = await cached('signal-accuracy', SIGNAL_ACCURACY_TTL, computeSignalAccuracy);
     /* Historical hit-rates. They only change when an outcome resolves, which
        is hours apart, so an hour of edge cache is conservative (#177). */
-    return NextResponse.json({ stats, candles: closes.length }, {
+    return NextResponse.json(payload, {
       headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200' },
     });
   } catch (e) {

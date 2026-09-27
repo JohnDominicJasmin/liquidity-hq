@@ -29,5 +29,7 @@ export const T = {
   ls_webhook_events:   `${p}ls_webhook_events`,
   news:                `${p}news`,
   econ_snapshot:       `${p}econ_snapshot`,
+  market_snapshot:     `${p}market_snapshot`,
   api_health:          `${p}api_health`,
+  ai_call_log:         `${p}ai_call_log`,
 } as const;

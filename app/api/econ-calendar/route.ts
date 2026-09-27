@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { classifyEcon } from '@/lib/classify';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { fetchFredRows, FRED_TTL_DEFAULT } from '@/lib/fred';
+import { cached } from '@/lib/apiCache';
 
 const FINNHUB_KEY = process.env.FINNHUB_KEY ?? '';
 
@@ -357,13 +358,33 @@ function computeMacroSchedule(now: Date): CalEvent[] {
   return events;
 }
 
-export async function GET(req: NextRequest) {
-  const ip = getClientIp(req);
-  if (!rateLimit(`econ-calendar:${ip}`, 20, 60_000)) {
-    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
-  }
-  const user = await attributedUser(req);
-  console.log(`[econ-calendar] ip=${ip} user=${user}`);
+/* ONE HOUR, THE SAME HOUR THE RESPONSE HEADER HAS ALWAYS PROMISED (#1397).
+ *
+ * `tryFinnhub` already declared `next: { revalidate: 3600 }` and this route
+ * already sent `s-maxage=3600`. Neither was doing anything. Measured on a local
+ * production build over 100 page loads: 50 loads of /dashboard produced 50 calls
+ * to finnhub.io - one per visitor, exactly the 1:1 that made uncached
+ * CoinMarketCap the top gap in this issue. The counter sits BELOW Next's fetch
+ * patch, so a data-cache hit could never have reached it: those calls left the
+ * box. Why L2 misses is still unverified (candidates: the data cache silently
+ * skips bodies over 2MB and a 90-day calendar is plausibly over it; or the
+ * route's dynamic mode opts the fetch out) - and this fix does not depend on the
+ * answer, because it does not use that layer. */
+const CALENDAR_TTL_MS = 60 * 60_000;
+
+/* Thrown when NO source produced an event, so `cached()` never stores an empty
+ * calendar - a throwing fetcher is never remembered.
+ *
+ * An empty result here is an outage, not a quiet quarter: this route merges four
+ * sources and one of them, computeMacroSchedule, is arithmetic over a fixed
+ * release schedule that cannot legitimately return nothing. Caching the empty
+ * body would turn a one-minute Finnhub blip into an hour of "no economic events"
+ * for every visitor. `app/api/news/ingest` reached the same conclusion about the
+ * same upstream in its own words: an empty Finnhub array is a failure, not an
+ * empty news day. */
+class NoCalendarData extends Error {}
+
+async function buildCalendar(): Promise<{ events: CalEvent[]; source: string }> {
   const now  = new Date();
   const from = new Date(+now - 864e5).toISOString().slice(0, 10);
   const to   = new Date(+now + 90 * 864e5).toISOString().slice(0, 10);
@@ -371,10 +392,7 @@ export async function GET(req: NextRequest) {
   // Source 1: Finnhub - comprehensive 90-day when key is configured
   try {
     const events = await tryFinnhub(from, to);
-    if (events.length > 0) {
-      return NextResponse.json({ events, source: 'finnhub' },
-        { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200' } });
-    }
+    if (events.length > 0) return { events, source: 'finnhub' };
   } catch { /* fall through */ }
 
   // Source 2+3+4: ForexFactory (near-term) + Fed FOMC + computed macro schedule
@@ -426,9 +444,32 @@ export async function GET(req: NextRequest) {
     await enrichWithFRED(merged, now);
 
     const source = ffEvents.length > 0 ? 'forexfactory+fed+computed' : 'fed+computed';
-    return NextResponse.json({ events: merged, source },
-      { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200' } });
+    if (merged.length > 0) return { events: merged, source };
   } catch { /* */ }
 
-  return NextResponse.json({ events: [], source: 'none' });
+  throw new NoCalendarData();
+}
+
+export async function GET(req: NextRequest) {
+  const ip = getClientIp(req);
+  if (!rateLimit(`econ-calendar:${ip}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+  /* Attribution stays OUTSIDE the cache and still runs on every request. The
+     comment above `attributedUser` explains why it exists - so a FINNHUB_KEY
+     quota spike is attributable to an account rather than an IP - and a cache
+     that silenced the log would have removed exactly that. What the cache
+     removes is the upstream call, not the record of who asked. */
+  const user = await attributedUser(req);
+  console.log(`[econ-calendar] ip=${ip} user=${user}`);
+
+  try {
+    const { events, source } = await cached('econ-calendar', CALENDAR_TTL_MS, buildCalendar);
+    return NextResponse.json({ events, source },
+      { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200' } });
+  } catch {
+    /* Uncached, and deliberately without the Cache-Control header the good path
+       carries: the next request should try the upstreams again immediately. */
+    return NextResponse.json({ events: [], source: 'none' });
+  }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
+import { cached } from '@/lib/apiCache';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export interface CyclePoint { day: number; ratio: number; }
@@ -70,13 +71,22 @@ async function fetchCycle2024(): Promise<CyclePoint[]> {
   const d = await r.json();
   if (d.retCode !== 0) throw new Error(`Bybit retCode ${d.retCode}: ${d.retMsg}`);
 
+  /* THROW, NEVER RETURN EMPTY - the cache is why (#1397, QA's review of #1409).
+   *
+   * These two guards returned `[]` before the hour-long cache went in, and an
+   * empty array cost nothing then: the next request tried again. Under
+   * `cached()` an empty result would be STORED, so one odd answer from Bybit
+   * blanks the cycle chart for a full hour after the upstream has recovered.
+   * A throwing fetcher is never remembered, so this is the difference between a
+   * one-request blip and an hour of a blank chart. Same guard as
+   * `NoCalendarData` in app/api/econ-calendar. */
   const candles = (d.result?.list as string[][] | undefined);
-  if (!candles || candles.length === 0) return [];
+  if (!candles || candles.length === 0) throw new Error('Bybit returned no weekly candles');
 
   // Bybit returns newest first - reverse to chronological
   const sorted = [...candles].reverse();
   const halvingClose = parseFloat(sorted[0][4]);
-  if (!halvingClose) return [];
+  if (!halvingClose) throw new Error('Bybit returned no usable halving-week close');
 
   return sorted.map(c => ({
     day: Math.round((parseInt(c[0]) - HALVING_2024_MS) / 86400000),
@@ -91,7 +101,8 @@ export async function GET(req: NextRequest) {
   const currentDay = Math.floor((Date.now() - HALVING_2024_MS) / 86400000);
 
   try {
-    const cycle2024 = await fetchCycle2024();
+    // One fetch-and-map per hour for every visitor, not per visitor (#1397).
+    const cycle2024 = await cached('cycle:2024', 60 * 60_000, fetchCycle2024);
     /* Cycle position is a slow signal - `currentDay` moves once a day and the
        2016/2020 curves are constants. Five minutes changes nobody's decision.
        Success only; the 429 and 500 paths stay uncached (#177). */

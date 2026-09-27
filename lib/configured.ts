@@ -3,7 +3,8 @@
    extensionless relative import - Next's bundler will. `allowImportingTsExtensions`
    is on in tsconfig, so both are happy. Without this the unit test cannot load
    the module at all, and the leak invariant goes unasserted. */
-import { isCheckoutConfigured } from './checkout.ts';
+import { isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly } from './checkout.ts';
+import { isLsApiConfigured } from './lemonsqueezyApi.ts';
 import { analyticsKey } from './analytics.ts';
 
 /* Which integrations does THIS host actually have? (#282)
@@ -38,7 +39,17 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
        with /upgrade, the upsell modal or the trial-ending email - all four now
        gate on that one function. */
     checkout:            isCheckoutConfigured(env),
+    /* The other two plans (#1400). Reported separately because each is its own
+       link, and "monthly is set" says nothing about whether the annual or the
+       two-weekly button will render. Same read /upgrade uses. */
+    checkoutAnnual:      isCheckoutConfiguredAnnual(env),
+    checkoutFortnightly: isCheckoutConfiguredFortnightly(env),
     lemonsqueezyWebhook: set(env.LEMONSQUEEZY_WEBHOOK_SECRET),
+    /* The LS REST API key the cancel route needs (#1396). Same read the route
+       and the settings panel gate on (isLsApiConfigured), so cancel-availability
+       is observable per environment - set on qa (test), unset on staging/prod
+       until payments go live. */
+    lsApi:               isLsApiConfigured(env),
 
     adminEmails: set(env.ADMIN_EMAILS),
 

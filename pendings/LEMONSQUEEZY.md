@@ -1,7 +1,67 @@
 # LemonSqueezy — Payment Feature
 
-**Status 2026-08-11: a test-mode dry run is in progress on STAGING. Production
-is untouched — every step in the list below is still outstanding for prod.**
+**Status 2026-09-24: the test-mode store exists and one full test purchase has run
+on `qa`. Production is untouched - every production step below is still the owner's.**
+
+### `qa` (`liquidity-hq-qa`, dev Supabase), test mode - as of 2026-09-24
+
+| | |
+|---|---|
+| Store | one store, **test mode**, currency **USD** (it was PHP; switched 2026-09-23 before any price was entered - a price typed into the wrong currency is not a typo you catch later) |
+| Products | three, all published: **2 Weeks $20**, **Monthly $35**, **Annual $350** |
+| Checkout links | the three `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL`, `_ANNUAL`, `_FORTNIGHTLY` set on `qa`. Verified from the **built bundle** (variable -> checkout id) and by opening each page from the signed-in UI: right plan, right price, test mode. `/api/version` reports `checkout`, `checkoutAnnual`, `checkoutFortnightly` |
+| Webhook | created 2026-09-24 at `https://liquidity-hq-qa.onrender.com/api/lemonsqueezy/webhook`, **five events** (see "What the webhook must subscribe to" - the five are three short). Signing secret set on `qa` as `LEMONSQUEEZY_WEBHOOK_SECRET`; **it is never written down in this repo** |
+| Test purchase | **ran twice, 05:21Z and 05:27Z.** Delivery, signature and identity are proven from `lhq_dev_ls_webhook_events`: rows are written only after the signature check and the `custom_data.user_id` check, so their existence is the proof |
+| What it found | **#1422 - paying REVOKED Pro one second after granting it.** `subscription_payment_success` carries an *invoice* (`status: 'paid'`); the role rule read that as "not active". The same event also overwrote `ls_subscription_id` with the invoice's id. Fixed in #1424 (the event is now ignored). **Verification on `qa` waits for the owner's re-buy** |
+| Not yet seen | **renewal** (does `subscription_updated` carry a fresh `renews_at`?) and **recovery after a declined card** (does `subscription_updated` with status `active` arrive when a retry succeeds?). The code depends on both; nobody has observed either |
+
+**Reading the result, so a green run is not mistaken for more than it is.** The flags in
+`/api/version` are `NEXT_PUBLIC_*`-derived, so they describe **the build currently running**,
+and the commit does not change when only a variable changes - `cronSecret` and
+`lemonsqueezyWebhook` both flipped to true on `qa` with the commit unchanged. **Read the flag,
+not the commit.**
+
+**Also found: two live test subscriptions on one account.** The webhook keeps ONE row per user
+and upserts on `user_id`; nothing compares the incoming subscription id with the stored one, so
+last writer wins. A user who buys a second plan would hold two subscriptions against one row,
+and cancel (#1396) would act on whichever was written last while the other kept billing.
+Whether that needs a fix or a decision on plan switching is the owner's and Dev's - tracked on #1396.
+
+### What the webhook must subscribe to
+
+**The handler acts on SEVEN events and receives an eighth that it ignores.**
+`lib/lemonsqueezy.ts` (read against the code 2026-09-25, after a first version of this
+section counted wrong):
+
+| Event | What the handler does |
+|---|---|
+| `subscription_created` | writes the subscription: role from `status`, ids, `current_period_end` |
+| `subscription_updated` | same - this is how a renewal's fresh `renews_at`, and a recovered decline, arrive |
+| `subscription_payment_failed` | **ends access at once** - the owner's 2026-08-08 decision: they did NOT pay |
+| `subscription_payment_refunded` | ends access (stated assumption: the money is returned) |
+| `order_refunded` | ends access (same assumption) |
+| `subscription_expired` | ends access - the genuine end of a paid period |
+| `subscription_cancelled` | **records only**, keeps access to `ends_at` - the owner's opposite decision: they DID pay |
+| `subscription_payment_success` | **received and deliberately ignored** since #1424 (it carries an invoice, not a subscription) - may be left unsubscribed |
+
+**The `qa` webhook was created with five: created, updated, cancelled, expired and
+`payment_success`. It is missing `subscription_payment_failed`,
+`subscription_payment_refunded` and `order_refunded`.** So on `qa` neither a decline nor a
+refund can be tested, and "declined card ends Pro immediately" cannot fire there. A failed
+renewal would still downgrade through `subscription_updated` with a non-`active` status
+(`past_due`) - the indirect path the recovery assumption rests on - but that is not the path the
+owner decided on. **Production's webhook must subscribe to all seven acted-on events.** Tick the
+three on `qa`'s webhook before anyone tests a decline or a refund.
+
+*How the list went wrong:* the older step 4 said "those five are what the handler switches on",
+and it was passed on without checking it against the handler. It was already wrong before the
+2026-09-24 webhook was created; a first correction then said "one short", also unchecked. QA
+counted from the code and got seven.
+
+### Earlier status - 2026-08-11 (superseded by the section above)
+
+**A test-mode dry run was in progress on STAGING. Production
+was untouched - every step in the list below was still outstanding for prod.**
 
 Read that distinction carefully, because this file used to state "payments are
 not live" as a flat fact and that is now true of only one environment.
@@ -10,7 +70,7 @@ not live" as a flat fact and that is now true of only one environment.
 
 | | |
 |---|---|
-| Product/variant at $25/mo | created |
+| Product/variant at $25/mo | created (**superseded by #1400**: three variants are needed - $20 every 2 weeks, $35/month, $350/year - and the app reads a link per variant) |
 | Checkout URL | `checkout.liquidity-hq.com/checkout/buy/0e357d1e-…`, on our own subdomain |
 | `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` | **set**, and confirmed inlined into the deployed build |
 | Test-mode webhook | created, all 7 events, pointed at the staging route |
@@ -39,20 +99,23 @@ webhooks are separate objects in LemonSqueezy), its own secret, and its own
 build with the URL inlined. Nothing configured on staging carries over, and a
 prod secret must never be copied to a non-prod service.
 
-> ⚠️ **Before the first real purchase, someone has to decide what Pro actually
-> includes.** `/backtest` and `/live-tracking` were hidden on 2026-08-11 (#264),
-> but the Pro sales copy still advertises "Full strategy backtesting" on the
-> `/upgrade` pricing card, in the upsell modal, and on the public `/faq`. As of
-> today a buyer would be paying for a feature that redirects to the Dashboard.
-> Owner decision — raised on #265, not resolved.
+> **Resolved: the "Full strategy backtesting" claim is gone.** The owner ruled that
+> `/backtest` is an internal testing tool that was never for sale and was advertised by
+> accident, so the line was **deleted, not commented out**, from the `/upgrade` feature list and
+> from the upsell modal (`app/upgrade/page.tsx`, `components/UpgradeGateModal.tsx`,
+> `UPGRADE_GATE_BULLET_3`). QA measured **zero mentions of "backtest" anywhere on the rendered,
+> signed-in `/upgrade`** on 2026-09-24. **Not checked:** the DB-backed label rows on production
+> (labels live in `lhq_labels`, so a copy change needs a row per locale) and the public `/faq`
+> as rendered. A real customer-facing backtest feature would be a new decision and a new label
+> key, not a restoration of this one.
 
 ## ❓ YOUR action — the only thing standing between here and revenue
 
 Four steps, all outside this repo. Do them in this order; the webhook secret
 must exist before the first real purchase or that purchase grants nothing.
 
-1. **Create the product/variant in LemonSqueezy priced at $25/month.** The app
-   already displays $25 everywhere (`/upgrade`, landing page in 4 locales, the
+1. **The three variants exist in TEST mode (#1400): $20 every 2 weeks, $35/month, $350/year - and test-mode products do not transfer to live mode.** Copy them with "Copy to Live Mode"; **each copy has its own new checkout link**, so the three links set on `qa` are test-only and must never be pasted into production. Set the new links as `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL`, `_ANNUAL`, `_FORTNIGHTLY`. The app
+   already displays those prices everywhere (`/upgrade`, landing page in 4 locales, the
    DB-backed checkout CTA label in 5 locales, both Supabase projects) as of
    2026-07-24. Only the LemonSqueezy-side price still needs to match.
 2. **Set `LEMONSQUEEZY_WEBHOOK_SECRET`** in Render on prod. Without it
@@ -63,9 +126,10 @@ must exist before the first real purchase or that purchase grants nothing.
 4. **Point the LemonSqueezy webhook at**
    `https://liquidity-hq.com/api/lemonsqueezy/webhook` and subscribe to
    `subscription_created`, `subscription_updated`,
-   `subscription_payment_success`, `subscription_cancelled`,
-   `subscription_expired`. Those five are what the handler switches on;
-   anything else is accepted and ignored.
+   `subscription_payment_failed`, `subscription_payment_refunded`, `order_refunded`,
+   `subscription_cancelled` and `subscription_expired` - **seven**, see "What the webhook
+   must subscribe to" above. `subscription_payment_success` is received and deliberately
+   ignored since #1424, so it may be left off. Anything else is accepted and ignored.
 
 Both env changes trigger a Render redeploy — `NEXT_PUBLIC_*` is inlined at
 build time, so setting it without rebuilding does nothing.

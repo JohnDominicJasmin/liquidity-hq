@@ -27,6 +27,17 @@
 import { useState, useMemo, useId } from 'react';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
+import { EntitlementUnknownCard } from './UpgradeGateModal';
+import type { SettingsLoadStatus } from '@/lib/settings';
+// #1347 item 12: first real useLabels() call in this file. The header
+// comment above claims a key added here "would not survive labels:regen" -
+// that premise is false for a PROPER key (declared in lib/labelKeys.ts,
+// with DB rows), which is exactly what this is; the premise was only ever
+// true of hand-editing the JSON snapshot directly. Rest of this file's
+// copy stays hardcoded pending item 17's single-pass conversion - this key
+// alone needed the owner's sign-off on its exact wording, which a hardcoded
+// string can't carry.
+import { useLabels } from '@/lib/labels';
 import {
   GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS,
   AUTO_SET_ID, CUSTOM_SET_ID,
@@ -37,15 +48,24 @@ import {
 export type RunKind = 'quick' | 'deep' | 'ask';
 
 interface Props {
-  /** #1246: whether the caller's saved selection has actually been read from
-   *  the server (or confirmed there is none - a signed-out visitor). Until
-   *  true, `selected` is NOT the user's real answer, just whatever local
-   *  state happened to start as - so this component must not accept input
-   *  that would write it out as if it were. False on a genuinely new setup
-   *  is indistinguishable from false on a load that just hasn't landed yet,
-   *  which is exactly why this is a separate flag rather than inferred from
-   *  `selected.length === 0`. */
-  loaded: boolean;
+  /** #1246/#1347: whether the caller's saved selection has actually been
+   *  read from the server (or confirmed there is none - a signed-out
+   *  visitor). Until 'ready', `selected` is NOT the user's real answer, just
+   *  whatever local state happened to start as - so this component must not
+   *  accept input that would write it out as if it were. A genuinely new
+   *  setup and a load that just hasn't landed yet both start as an empty
+   *  `selected`, which is exactly why this is a separate status rather than
+   *  inferred from `selected.length === 0`. 'error' is its own state, not
+   *  folded into 'loading': a failed read must render as a real error with a
+   *  retry, never as either a permanent skeleton (item 8) or a confirmed
+   *  empty selection that the next chip click would persist over the user's
+   *  real saved one (item 2 - the finding this whole type exists for). */
+  status: SettingsLoadStatus;
+  /** Retry action for the 'error' state - SettingsProvider's `refresh()`.
+   *  Returns a Promise (refresh() already is async) so this component can
+   *  show a pending state for the round trip - a click that changes nothing
+   *  on screen is indistinguishable from a click that didn't register. */
+  onRetry: () => Promise<void>;
   /** The current selection. CONTROLLED, and that is the point of this change:
    *  the chart, QUICK, DEEP and ASK AI all need to know what is selected, and
    *  three of those live outside this component. State that two consumers read
@@ -130,9 +150,32 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   );
 }
 
-export default function StrategyPanel({ loaded, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
-  const { entitlementStatus } = useAuth();
+export default function StrategyPanel({ status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
+  const loaded = status === 'ready';
+  const { entitlementStatus, retryEntitlements } = useAuth();
   const entitled = entitlementStatus === 'entitled';
+  // #1347 item 6: `entitled` (used for `limit`/`atLimit`/`readOnly` below)
+  // collapses 'not_entitled' and 'unknown' into the same false - so a Pro
+  // user whose entitlements read hadn't resolved yet was capped at the
+  // free-tier limit=1 and shown a read-only params box, a confident "you
+  // are on free" the owner's #1119 ruling forbids asserting. The selection
+  // UI itself is replaced with EntitlementUnknownCard below while unknown -
+  // same component and Retry action arena/page.tsx already uses for its
+  // Confluence card (:2524-2534), not a second implementation of the same
+  // three states.
+  const entitlementUnknown = entitlementStatus === 'unknown';
+  const { t } = useLabels();
+  // #1347: local, not global - a USER-initiated retry gets its own pending
+  // state so the button visibly does something, without reintroducing the
+  // flash `refresh()` deliberately skips for a background poll. Cleared in
+  // a finally so a rejected refresh() (network throw, not just a reported
+  // 'error' status) still releases the button rather than leaving it
+  // permanently disabled.
+  const [retrying, setRetrying] = useState(false);
+  const handleRetry = async () => {
+    setRetrying(true);
+    try { await onRetry(); } finally { setRetrying(false); }
+  };
   const limitNoteId = useId();
   const limit = indicatorLimit(entitled);
 
@@ -223,6 +266,10 @@ export default function StrategyPanel({ loaded, selected, onSelectedChange, para
         </span>
       </div>
 
+      {entitlementUnknown ? (
+        <EntitlementUnknownCard title="Strategy indicators" onRetry={retryEntitlements} />
+      ) : (
+      <>
       <div className="strat-sect">
         <div className="strat-lbl">
           <span>Strategy set</span>
@@ -252,12 +299,33 @@ export default function StrategyPanel({ loaded, selected, onSelectedChange, para
             selection is genuinely unknown, not genuinely zero - showing every
             chip unselected asserts the second when only the first is true,
             the same "unknown shown as a definite answer" class as #1119/#1201. */}
-        {!loaded && (
+        {status === 'loading' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} role="status" aria-live="polite">
             <span className="sr-only">Loading your saved strategy…</span>
             {[0, 1, 2].map(i => (
               <SkeletonBar key={i} height={28} radius={8} style={{ opacity: 1 - i * 0.18 }} />
             ))}
+          </div>
+        )}
+
+        {/* #1347 item 2/8: a failed read is its own state, not "still
+            loading" (item 8's permanent-skeleton symptom) or "confirmed
+            empty" (item 2's data-loss symptom - the chip guards above stay
+            closed via `loaded`, this is just what the user sees while
+            they're closed). Hardcoded English, matching every other string
+            in this panel today (see file header) - converts with the rest
+            in item 17's single pass rather than holding this fix behind a
+            copy sign-off. */}
+        {status === 'error' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }} role="alert">
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>Couldn&apos;t load your saved indicators.</span>
+            <button
+              onClick={handleRetry}
+              disabled={retrying}
+              style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '2px 8px', cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1 }}
+            >
+              {retrying ? 'Retrying…' : 'Retry'}
+            </button>
           </div>
         )}
 
@@ -391,9 +459,18 @@ export default function StrategyPanel({ loaded, selected, onSelectedChange, para
               />
             ))}
             {!entitled && <div className="strat-ro">Defaults on free · editable on Pro</div>}
+            {/* #1347 item 12, owner-approved wording: a Pro user who edits a
+                param sees the chart line move but not the verdict card,
+                which still gates on the registry's default values
+                (lib/useEMAStrategy.ts) - owner ruling on #1347 accepted
+                this as a real limitation, provided it's labelled here where
+                the editing happens. */}
+            {entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
           </div>
         )}
       </div>
+      </>
+      )}
 
       <div className="strat-sect">
         <div className="strat-lbl"><span>Run the read</span></div>

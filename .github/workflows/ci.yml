@@ -461,20 +461,68 @@ jobs:
         env:
           CI: true
 
-          # ── EGRESS COUNTING, dispatch-only and off unless asked for ────────
+          # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
-          # Empty on every ordinary run, so the preload is not loaded at all and
-          # this step behaves exactly as it did before.
+          # This job only ever runs as the release gate (`if: github.base_ref
+          # == 'main'` above, on the staging->main pull_request). The two lines
+          # below used to read:
           #
-          # NODE_OPTIONS applies to EVERY node process in the tree, including the
-          # `npm` wrapper and the `npm run build` that playwright.config.ts's
-          # webServer runs as a child. That is intended - build-time fetches are
-          # real egress from this IP and belong in the tally - but it is also why
-          # qa/server-intercept.mjs writes exclusively to stderr: npm parses its
-          # own stdout while resolving npm-prefix.js, and one console.log there
-          # stopped the server from starting at all.
-          NODE_OPTIONS: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && '--import ./qa/server-intercept.mjs' || '' }}
-          QA_INTERCEPT_UPSTREAM: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && 'count' || '' }}
+          #   NODE_OPTIONS: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && '--import ./qa/server-intercept.mjs' || '' }}
+          #   QA_INTERCEPT_UPSTREAM: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && 'count' || '' }}
+          #
+          # which checked `github.event_name == 'workflow_dispatch'` - an event
+          # this job can never see, since `workflow_dispatch` never carries a
+          # `base_ref` and the job condition above requires one. So this step
+          # has run with the preload OFF on every release gate to date; the two
+          # lines only looked live.
+          #
+          # #1259: the #1354 gate run was killed at 120 minutes, ~685/964 tests
+          # in, against ~92,925 blocked-exchange requests (Binance 451, Bybit
+          # 403 - both fully geo/IP-blocked from a GitHub runner). Neither
+          # exchange ever answers here, so `MarketProvider`'s app-wide
+          # WS-reconnect/REST-fallback loop spins for the lifetime of every
+          # authenticated page in every test, regardless of that test's own
+          # subject - a background tax, not a per-spec cost. Measured from that
+          # same run, the five spec files with no market-data assertion of
+          # their own (`entitlement-survives-redesign`, `no-duplicate-controls`,
+          # `smoke`, `responsive`, `terminal-default`) still accounted for
+          # 2,838 of the top-11 files' ~2,975s combined - consistent with that
+          # tax being the dominant cost, not proof of it.
+          #
+          # `qa/server-intercept.mjs` already stubs both exchange hosts (STUB
+          # MODE, `QA_INTERCEPT_UPSTREAM=1`) - built for #114, wired everywhere
+          # else only in 'count' mode. Turning STUB mode on here, for the
+          # release gate only, removes that background tax without touching a
+          # single spec file: nothing currently depends on a live response to
+          # pass (every market-*logic* spec - perp-spot, signal-freshness,
+          # perps-unknown-disclosure, score-perps-coupling, market-scenarios -
+          # already mocks its own klines input before asserting; confirmed on
+          # #1259 rather than assumed).
+          #
+          # THIS IS A PREDICTION, NOT A MEASUREMENT. Nobody has run the gate
+          # with STUB mode on before this PR. Expected: the five files above
+          # lose most of their share of that ~2,838s, and the gate has a
+          # realistic chance of finishing inside the 120-minute cap instead of
+          # being killed mid-run. If the next release run still cannot finish
+          # inside the cap, that is a result, not a failure of this change - it
+          # would mean the background tax was not the dominant cost after all,
+          # and this comment is what makes that a clean finding rather than a
+          # vibe. #1259 carries the before number (#1354) for that comparison;
+          # the next real release run is the after, at zero extra cost.
+          #
+          # ONE KNOWN, UN-MEASURED RISK: STUB mode answers every stubbed host
+          # with `200 []` (an empty array), the shape most `/api/proxy` and
+          # `/api/market/*` handlers expect - but not verified against every
+          # handler this stubs (`depth`, `premium-index`, `oi-hist`, ...).
+          # `market-scenarios.spec.ts` already asserts an upstream 500 must not
+          # blank the page, so a handler that cannot survive a stubbed response
+          # is exactly the kind of thing this run should surface, same as any
+          # other regression the gate exists to catch.
+          #
+          # REVERT: put the two lines above back. One commit, no other file
+          # touched by this change depends on them.
+          NODE_OPTIONS: '--import ./qa/server-intercept.mjs'
+          QA_INTERCEPT_UPSTREAM: '1'
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
 

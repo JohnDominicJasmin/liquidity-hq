@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
@@ -115,6 +116,7 @@ export async function GET(req: NextRequest) {
       }
 
       const aiData = await aiRes.json();
+      await recordAiCall({ userId: authData.user.id, callType: 'dry_powder', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
       const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
 
       return { current, prev30, prev90, series: series.slice(-30), analysis };

@@ -52,6 +52,7 @@
  * build time rather than to an object that is empty in the browser. */
 const INLINED_MONTHLY = process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL;
 const INLINED_ANNUAL  = process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL_ANNUAL;
+const INLINED_FORTNIGHTLY = process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL_FORTNIGHTLY;
 
 export function checkoutBase(env?: Record<string, string | undefined>): string | null {
   const base = env ? env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL : INLINED_MONTHLY;
@@ -93,6 +94,32 @@ export function isCheckoutConfiguredAnnual(env?: Record<string, string | undefin
 
 export function getCheckoutUrlAnnual(user: { id: string; email?: string } | null): string {
   const base = checkoutBaseAnnual();
+  if (!base) return '/login?signup=1';
+  try {
+    const url = new URL(base);
+    if (user?.email) url.searchParams.set('checkout[email]', user.email);
+    if (user?.id)    url.searchParams.set('checkout[custom][user_id]', user.id);
+    return url.toString();
+  } catch {
+    return base;
+  }
+}
+
+/* The third plan (#1400): $20 every two weeks. Same three-function shape as
+   annual, same rules - a build-time inlined read, '#' and empty are unset, and
+   an unset link renders nothing rather than a dead button. Never substituted by
+   the monthly link. */
+export function checkoutBaseFortnightly(env?: Record<string, string | undefined>): string | null {
+  const base = env ? env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL_FORTNIGHTLY : INLINED_FORTNIGHTLY;
+  return base && base !== '#' ? base : null;
+}
+
+export function isCheckoutConfiguredFortnightly(env?: Record<string, string | undefined>): boolean {
+  return checkoutBaseFortnightly(env) !== null;
+}
+
+export function getCheckoutUrlFortnightly(user: { id: string; email?: string } | null): string {
+  const base = checkoutBaseFortnightly();
   if (!base) return '/login?signup=1';
   try {
     const url = new URL(base);

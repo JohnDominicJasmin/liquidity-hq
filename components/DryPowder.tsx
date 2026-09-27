@@ -220,7 +220,8 @@ export default function DryPowder() {
               padding: '3px 9px', borderRadius: 20, marginBottom: 8,
               background: sm.bg, border: `0.5px solid ${sm.bdr}`,
             }}>
-              <span style={{ fontSize: 'var(--fs-caption)', color: sm.col }}>{sm.icon}</span>
+              {/* #1200: decorative - signalKey below already carries this in words. */}
+              <span aria-hidden="true" style={{ fontSize: 'var(--fs-caption)', color: sm.col }}>{sm.icon}</span>
               <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: sm.col, letterSpacing: '0.04em' }}>
                 {signalKey}
               </span>
