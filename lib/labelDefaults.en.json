@@ -2658,6 +2658,7 @@
   "SETTINGS_SUB_ACTIVE": "Active",
   "SETTINGS_SUB_CANCEL_BUTTON": "Cancel subscription",
   "SETTINGS_SUB_CANCEL_CONFIRM": "Cancel Pro? You'll keep access until the end of your current paid period.",
+  "SETTINGS_SUB_CANCEL_CONFIRM_DATED": "Cancel Pro? You'll keep access until {date}.",
   "SETTINGS_SUB_CANCEL_CONFIRM_YES": "Yes, cancel",
   "SETTINGS_SUB_CANCEL_CONFIRM_NO": "Keep Pro",
   "SETTINGS_SUB_CANCELLING": "Cancelling…",

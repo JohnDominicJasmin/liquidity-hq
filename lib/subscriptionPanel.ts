@@ -20,7 +20,7 @@ export interface SubPanelInput {
 
 export type SubPanelView =
   | { kind: 'hidden' }                             // nothing to show (free/trial/expired-with-stale-id)
-  | { kind: 'cancellable' }                        // pro, active, LS-backed: offer Cancel
+  | { kind: 'cancellable'; untilDate: string | null } // pro, active, LS-backed: offer Cancel; untilDate for the confirm copy
   | { kind: 'cancelled'; untilDate: string | null } // cancelled: access until untilDate (null if past/unknown)
   | { kind: 'managed' }                            // pro with no LS subscription (admin/pre-column grant)
   | { kind: 'active' };                            // pro, LS-backed, but not cancellable (e.g. no API key)
@@ -47,8 +47,10 @@ export function subscriptionPanelView(sub: SubPanelInput, nowMs: number = Date.n
   }
   // Pro but nothing at LS to cancel -> admin / pre-column grant.
   if (!sub.hasSubscription) return { kind: 'managed' };
-  // Pro + LS-backed + cancellable.
-  if (sub.canCancel) return { kind: 'cancellable' };
+  // Pro + LS-backed + cancellable. Carry the (future-only) period end so the
+  // cancel-confirm copy can name the real "access until" date, same rule and
+  // formatting as the cancelled branch above (owner, 2026-09-27).
+  if (sub.canCancel) return { kind: 'cancellable', untilDate: futureDateOrNull(sub.currentPeriodEnd, nowMs) };
   // Pro + LS-backed but not cancellable (server has no API key) -> status, no
   // button; the route would answer 'unavailable'.
   return { kind: 'active' };
