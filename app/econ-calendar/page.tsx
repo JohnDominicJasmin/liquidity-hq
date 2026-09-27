@@ -131,20 +131,15 @@ export default function EconCalendarPage() {
 
   return (
     <div className="econ-term-wrap" style={{ maxWidth: 960, margin: '0 auto', padding: '0 16px 48px' }}>
-      {/* #1113: PageHint is the page intro now; the old subtitle duplicated its
-          body almost verbatim, so it was dropped (owner-approved option b). The
-          data-source credit that shared the subtitle line is kept, standalone. */}
+      {/* #1113: PageHint is the sole page intro now - both the old subtitle
+          (duplicated its body) and the h1 (duplicated its title) were dropped,
+          owner-approved, matching scanner/journal. The data-source credit that
+          shared the old subtitle line is kept, standalone. */}
       <PageHint pageKey="econ-calendar" title={t('ECON_CALENDAR_HINT_TITLE')} body={t('ECON_CALENDAR_HINT_BODY')} />
 
-      {/* Page header */}
-      <div style={{ padding: '20px 0 16px' }}>
-        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 800, color: 'var(--txt)', letterSpacing: '-.02em', marginBottom: 4 }}>
-          {t('ECON_CALENDAR_TITLE')}
-        </div>
-        {source && (
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{source}</div>
-        )}
-      </div>
+      {source && (
+        <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{source}</div>
+      )}
 
       {/* Next event banner */}
       {next && (() => {
