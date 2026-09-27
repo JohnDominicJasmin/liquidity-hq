@@ -1039,6 +1039,25 @@ improvise with `--no-verify`.
 gate this project has while CI is off, and an exception carved for one case is an
 exception available to every case.
 
+**The design-break variant, and its mechanism (2026-09-26).** The hazard above assumes new
+code whose test is red until the code exists. There is a second shape: **an implementation
+intentionally breaks tests that are already merged** (a log line's format changes, a field
+leaves a result type). The app change is red alone (QA's old tests fail) and QA's new tests
+are red without the app change, so **neither branch can be pushed alone**, and it looks like a
+reason to `--no-verify` "just once". It is not. **Use a patch handoff on the same machine, so
+one green set of commits is pushed:**
+
+1. **Dev** exports the app commit: `git format-patch -1 <sha> -o <handoff folder>`.
+2. **QA** `git am`s it on a **local throwaway branch** cut from `dev`, updates and adds the
+   tests, runs the full gate on the combined tree, and exports only its test commit(s):
+   `git format-patch <base>..HEAD -- __tests__/ -o <handoff folder>/tests/`.
+3. **Dev** `git am`s QA's patch on top of the app commit (**QA stays the author, so QA still
+   wrote every test and dev wrote none**), runs the gate on the identical tree, and pushes
+   through the hook.
+
+First used on #1436 (2026-09-26): green on the combined tree, the hook passed, nothing was
+bypassed. The handoff folder lives outside every repo.
+
 **This is not a new kind of exception.** The reverse already exists and is
 documented: **dev commits directly into `qa/` when a dev-side revert makes a QA
 fixture assert something false** — `4c11930a` and `f1325264`, both narrow, both
