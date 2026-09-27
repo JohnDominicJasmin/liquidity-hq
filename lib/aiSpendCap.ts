@@ -105,7 +105,10 @@ function firstRow(data: unknown): SpendSumRow | null {
  * THREE STATES on a ledger-read failure ("unknown is not no", PM 2026-09-27),
  * applied to EACH RPC call (QA #1437):
  *   Pro        -> fails OPEN (returns not-blocked): a read error must not lock out
- *                 a paying customer; the count reserve still bounds them.
+ *                 a paying customer; the count reserve still bounds them. But a
+ *                 read that SUCCEEDED and is over its cap still blocks even if the
+ *                 other read errored - fail-open never discards a confirmed
+ *                 over-cap (R10/R11).
  *   free/trial -> fails CLOSED (blocked, reason 'free_daily'): do not spend on an
  *                 account whose cheap cap we cannot confirm. A missing migration
  *                 (function not yet created) is an RPC error and lands here, which
@@ -123,16 +126,25 @@ export async function spendCapBlock(
     if (tier === 'pro') {
       const monthStart = monthStartIsoUtc(nowMs);
       // Month and day are separate windows (day is not derivable from the month
-      // total), so two aggregate calls. Both must succeed; either error trips the
-      // catch and Pro fails open.
+      // total), so two aggregate calls, in parallel.
       const [monthRes, dayRes] = await Promise.all([
         db.rpc('lhq_ai_spend_user_since', { p_user: userId, p_since: monthStart }),
         db.rpc('lhq_ai_spend_user_since', { p_user: userId, p_since: dayStart }),
       ]);
-      if (monthRes.error) throw monthRes.error;
-      if (dayRes.error) throw dayRes.error;
-      if (spendSumToUsd(firstRow(monthRes.data)) >= PRO_MONTHLY_CAP_USD) return { blocked: true, reason: 'pro_monthly' };
-      if (spendSumToUsd(firstRow(dayRes.data))   >= PRO_DAILY_CAP_USD)   return { blocked: true, reason: 'pro_daily' };
+      // Evaluate each read on its own. A read that SUCCEEDED and is at/over its
+      // cap is a CONFIRMED over-limit and must block, even if the OTHER read
+      // errored - fail-open is only for a read we could not obtain, and must not
+      // discard a cap we already know was exceeded (QA #1437 R10/R11: month came
+      // back $12 but the day read errored -> the call must still block on the month).
+      if (!monthRes.error && spendSumToUsd(firstRow(monthRes.data)) >= PRO_MONTHLY_CAP_USD) {
+        return { blocked: true, reason: 'pro_monthly' };
+      }
+      if (!dayRes.error && spendSumToUsd(firstRow(dayRes.data)) >= PRO_DAILY_CAP_USD) {
+        return { blocked: true, reason: 'pro_daily' };
+      }
+      // Neither cap confirmed exceeded. A read may have errored (then we could not
+      // fully confirm under-cap), but Pro fails OPEN by policy - the count reserve
+      // still bounds them; if both reads succeeded, the caller is genuinely under both.
       return { blocked: false };
     }
 
