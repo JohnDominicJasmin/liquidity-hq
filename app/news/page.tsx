@@ -7,6 +7,7 @@ import LoadingState from '@/components/LoadingState';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import PageHint from '@/components/PageHint';
 
 type Tab = 'foryou' | 'breaking' | 'all' | 'geo' | 'crypto' | 'events';
 
@@ -459,6 +460,7 @@ export default function NewsPage() {
 
   return (
     <div className="news-term-wrap">
+      <PageHint pageKey="news" title={t('NEWS_HINT_TITLE')} body={t('NEWS_HINT_BODY')} />
       {/* ── Header ── */}
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2, letterSpacing: '-0.3px' }}>

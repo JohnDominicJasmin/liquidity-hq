@@ -9,6 +9,7 @@ import ThemeChips from '@/components/ThemeChips';
 import { track } from '@/lib/analytics';
 import { COINS } from '@/lib/marketStore';
 import LoadingState from '@/components/LoadingState';
+import PageHint from '@/components/PageHint';
 import { SkeletonBar } from '@/components/Skeleton';
 import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
@@ -259,6 +260,7 @@ export default function SettingsPage() {
     ];
     return (
       <div className="st-page settings-term-wrap" data-testid="settings-page">
+        <PageHint pageKey="settings" title={t('SETTINGS_HINT_TITLE')} body={t('SETTINGS_HINT_BODY')} />
         <div className="st-header"><h1 className="st-header-title">{t('SETTINGS_PAGE_TITLE')}</h1></div>
 
         <Section title={t('SETTINGS_SECTION_APPEARANCE')}>

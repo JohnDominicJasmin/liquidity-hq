@@ -14,6 +14,7 @@ import CoinMultiSelect from '@/components/CoinMultiSelect';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { STRUCTURE_TFS, structureOnKey } from '@/lib/structurePrefs';
+import PageHint from '@/components/PageHint';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -557,6 +558,7 @@ export default function AlertsPage() {
 
   return (
     <div className="alerts-term-wrap">
+      <PageHint pageKey="alerts" title={t('ALERTS_HINT_TITLE')} body={t('ALERTS_HINT_BODY')} />
       {/* Header */}
       <div className="mb-header">
         <h1 className="mb-title">{t('ALERTS_PAGE_TITLE')}</h1>
