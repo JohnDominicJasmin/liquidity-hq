@@ -2131,6 +2131,8 @@
   "TRADE_JOURNAL_HISTORY_LOADING_MESSAGE": "Loading trades…",
   "TRADE_JOURNAL_HISTORY_EMPTY_TITLE": "Your trade history starts here",
   "TRADE_JOURNAL_HISTORY_EMPTY_DESC": "Log your first trade to start tracking P&L, win rate, R-factor, and behavioral patterns across your entire trading history.",
+  "TRADE_JOURNAL_HISTORY_LOAD_FAILED": "Couldn't load your trades - this doesn't mean they're gone.",
+  "TRADE_JOURNAL_HISTORY_LOAD_RETRY": "Try again",
   "TRADE_JOURNAL_HISTORY_EMPTY_BULLET_PNL": "Track P&L and R-factor",
   "TRADE_JOURNAL_HISTORY_EMPTY_BULLET_WINRATE": "Win rate by setup type",
   "TRADE_JOURNAL_HISTORY_EMPTY_BULLET_BIAS": "Spot your behavioral biases",
