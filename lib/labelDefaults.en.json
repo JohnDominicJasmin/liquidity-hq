@@ -92,6 +92,7 @@
   "NAV_NO_MATCHES": "No pages match \"{query}\"",
   "NAV_VIEW_USAGE": "LiquidityAI - view usage",
   "PAGE_HINT_DISMISS_LABEL": "Dismiss hint",
+  "PAGE_HINT_REPLAY_LABEL": "How this page works",
   "AUTH_GATE_TITLE": "Sign in required",
   "AUTH_GATE_DESC": "Create a free account to access this feature.",
   "AUTH_GATE_SIGN_IN_BUTTON": "Sign In",
