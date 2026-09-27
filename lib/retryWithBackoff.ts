@@ -27,6 +27,15 @@ export interface RetryOptions {
    *  loop without setting state for an unmount it already missed - SettingsProvider
    *  has no such lifecycle and simply omits this. */
   isCancelled?: () => boolean;
+  /** #1173: optional overall wall-clock budget for the WHOLE sequence, from the
+   *  first attempt. Once it's spent, no further attempt (or backoff) is started,
+   *  so the worst case is capped ONCE instead of accumulating per-attempt bounds
+   *  (entitlements was 15s x 3 + backoff = ~48s). The remaining budget is passed
+   *  to each `attempt` as its second argument so the attempt can bound its OWN
+   *  in-flight work (e.g. an AbortSignal capped at min(perAttempt, remaining)),
+   *  making the cap tight rather than "one fewer retry". Attempt 1 always runs.
+   *  Omitted by callers that want the pure attempt-count behaviour (SettingsProvider). */
+  overallBudgetMs?: number;
 }
 
 export interface RetryOutcome<T> {
@@ -52,17 +61,29 @@ export interface RetryOutcome<T> {
  * function never inspects those fields, only `failed`.
  */
 export async function retryWithBackoff<T extends { failed: boolean }>(
-  attempt: (attemptNumber: number) => Promise<T>,
+  attempt: (attemptNumber: number, remainingBudgetMs: number) => Promise<T>,
   options: RetryOptions,
 ): Promise<RetryOutcome<T>> {
-  const { maxAttempts, backoffMs, isCancelled } = options;
+  const { maxAttempts, backoffMs, isCancelled, overallBudgetMs } = options;
+  const start = Date.now();
+  // Infinity when no budget is set, so `Math.min(perAttempt, remaining)` in a
+  // caller collapses to the per-attempt bound and existing callers are unchanged.
+  const remaining = () =>
+    overallBudgetMs === undefined ? Infinity : Math.max(0, overallBudgetMs - (Date.now() - start));
   let result: T;
   for (let n = 1; n <= maxAttempts; n++) {
-    result = await attempt(n);
+    // #1173: past the budget, don't start another attempt. Attempt 1 always
+    // runs (elapsed ~0), so there is always a result to return.
+    if (n > 1 && remaining() <= 0) return { result: result!, attempts: n - 1, cancelled: false };
+    result = await attempt(n, remaining());
     if (isCancelled?.()) return { result, attempts: n, cancelled: true };
     if (!result.failed) return { result, attempts: n, cancelled: false };
 
     if (n < maxAttempts) {
+      // #1173: don't wait out a backoff that would itself run past the budget.
+      if (overallBudgetMs !== undefined && remaining() <= backoffMs[n - 1]) {
+        return { result, attempts: n, cancelled: false };
+      }
       await new Promise(resolve => setTimeout(resolve, backoffMs[n - 1]));
       if (isCancelled?.()) return { result, attempts: n, cancelled: true };
     }
