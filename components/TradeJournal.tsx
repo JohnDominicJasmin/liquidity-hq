@@ -314,6 +314,10 @@ function Inner() {
     { result: 'OPEN', exit_price: '', pnl_usd: '', notes: '' }
   );
   const [noDb,      setNoDb]      = useState(false);
+  // #1342: a failed/401 trades read is distinct from a genuinely empty journal.
+  // Without this the History/Stats tabs render "no trades yet" on a read error -
+  // the same confident-empty defect as loadPriceAlerts (#1165).
+  const [tradesError, setTradesError] = useState(false);
   const [historyPage, setHistoryPage] = useState(0);
 
   /* Behavioral Bias state */
@@ -385,12 +389,19 @@ function Inner() {
     const db = getSupabase();
     if (!db) { setNoDb(true); return; }
     setLoading(true);
+    setTradesError(false);
     const { data, error } = await db
       .from(T.trades)
       .select('*')
       .order('created_at', { ascending: false })
       .limit(200);
-    if (!error && data) setTrades(data as Trade[]);
+    // #1342: an error (a failed read, a 401 before the token is ready) must NOT
+    // leave `trades` at [] and fall through to the "no trades yet" empty state -
+    // that reads as "you have no trades" to someone who has trades. Flag it so
+    // the tabs can show an error + retry instead, the way the sibling GETs in
+    // this file already do (#1168).
+    if (error) { setTradesError(true); setLoading(false); return; }
+    setTrades((data ?? []) as Trade[]);
     setLoading(false);
   };
 
@@ -1052,7 +1063,24 @@ function Inner() {
       {tab === 'history' && (
         <div>
           {loading && <LoadingState message={t('TRADE_JOURNAL_HISTORY_LOADING_MESSAGE')} />}
-          {!loading && trades.length === 0 && (
+          {/* #1342: a read error shows retry, NOT the "no trades yet" empty state. */}
+          {!loading && tradesError && (
+            <div style={{
+              border: '0.5px solid var(--bdr)', borderRadius: 10,
+              padding: '24px 20px', margin: '8px 0', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.65, marginBottom: 12, maxWidth: 320, margin: '0 auto 12px' }}>
+                {t('TRADE_JOURNAL_HISTORY_LOAD_FAILED')}
+              </div>
+              <button
+                onClick={loadTrades}
+                style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}
+              >
+                {t('TRADE_JOURNAL_HISTORY_LOAD_RETRY')}
+              </button>
+            </div>
+          )}
+          {!loading && !tradesError && trades.length === 0 && (
             <div style={{
               border: '0.5px solid var(--bdr)', borderRadius: 10,
               padding: '24px 20px', margin: '8px 0', textAlign: 'center',
@@ -1905,7 +1933,18 @@ function Inner() {
       {/* ──────── STATS TAB ──────── */}
       {tab === 'stats' && (
         <div>
-          {stats.closed === 0 ? (
+          {/* #1342: a read error is not "no stats yet" - offer retry instead. */}
+          {tradesError ? (
+            <div className="tj-empty-state">
+              {t('TRADE_JOURNAL_HISTORY_LOAD_FAILED')}{' '}
+              <button
+                onClick={loadTrades}
+                style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}
+              >
+                {t('TRADE_JOURNAL_HISTORY_LOAD_RETRY')}
+              </button>
+            </div>
+          ) : stats.closed === 0 ? (
             <div className="tj-empty-state">{t('TRADE_JOURNAL_STATS_EMPTY_STATE')}</div>
           ) : (
             <>

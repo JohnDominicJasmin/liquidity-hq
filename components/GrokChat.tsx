@@ -277,7 +277,7 @@ function buildSystemCtx(
 export default function GrokChat() {
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
-  const { user }                       = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { settings, settingsLoadStatus } = useSettings();
 
   const [open,           setOpen]           = useState(false);
@@ -461,6 +461,11 @@ export default function GrokChat() {
   /* ── Send message ── */
   const sendMsg = useCallback(async (text: string, coinOverride?: CoinId) => {
     /* ── Auth gate: show login modal if not signed in ── */
+    // #1342: wait for auth to resolve before deciding. Branching on `!user`
+    // alone bounced a signed-in user to the login modal if a send (or the
+    // auto-open `grok-chat` event) landed in the token-resolve window - the same
+    // "not yet known treated as a definite no" defect as runStrategy (#1335).
+    if (authLoading) return;
     if (!user) {
       setOpen(true);
       setShowLoginModal(true);
@@ -593,7 +598,7 @@ export default function GrokChat() {
       setLoading(false);
       setPendingText(null);
     }
-  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, usage, setUsage, chatSelection]);
+  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, authLoading, usage, setUsage, chatSelection]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
@@ -1023,7 +1028,12 @@ export default function GrokChat() {
                       <path d="M15.6 12.6C15.8 14 16.2 14.4 17.6 14.6 16.2 14.8 15.8 15.2 15.6 16.6 15.4 15.2 15 14.8 13.6 14.6 15 14.4 15.4 14 15.6 12.6Z" fill="currentColor" opacity="0.65" />
                     </svg>
                   </div>
-                  {user ? (
+                  {/* #1342: while auth is still resolving, show a spinner - not the
+                      "Sign in" branch, which would flash at a signed-in user whose
+                      token hasn't landed yet (same class as runStrategy #1335). */}
+                  {authLoading ? (
+                    <span className="login-spinner" aria-label="Loading" />
+                  ) : user ? (
                     <>
                       <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt-dim)' }}>Ask anything about</div>
                       <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--accent-2)', margin: '2px 0 6px' }}>
