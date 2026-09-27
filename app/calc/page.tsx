@@ -10,6 +10,7 @@ import RiskRewardCalc   from '@/components/RiskRewardCalc';
 import FundingCostCalc  from '@/components/FundingCostCalc';
 import DcaCalc          from '@/components/DcaCalc';
 import { useLabels } from '@/lib/labels';
+import PageHint from '@/components/PageHint';
 
 const TABS = [
   { id: 'sizer',       key: 'CALC_TAB_SIZER'       },
@@ -57,10 +58,10 @@ function CalcPageContent() {
 
   return (
     <div className="calc-term-wrap">
-      <div style={{ padding: '1rem 0 0.75rem' }}>
-        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_PAGE_TITLE')}</h1>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_PAGE_SUBTITLE')}</div>
-      </div>
+      {/* #1113: the PageHint is the sole page intro now - both the old subtitle
+          (duplicated its body) and the h1 (duplicated its title) were dropped,
+          owner-approved, matching scanner/journal exactly. */}
+      <PageHint pageKey="calc" title={t('CALC_HINT_TITLE')} body={t('CALC_HINT_BODY')} />
 
       <div className="ps-presets" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
         {TABS.map(tabDef => (

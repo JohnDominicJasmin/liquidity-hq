@@ -9,6 +9,7 @@ import ThemeChips from '@/components/ThemeChips';
 import { track } from '@/lib/analytics';
 import { COINS } from '@/lib/marketStore';
 import LoadingState from '@/components/LoadingState';
+import PageHint from '@/components/PageHint';
 import { SkeletonBar } from '@/components/Skeleton';
 import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
@@ -327,6 +328,7 @@ export default function SettingsPage() {
 
   return (
     <div className="st-page" data-testid="settings-page">
+      <PageHint pageKey="settings" title={t('SETTINGS_HINT_TITLE')} body={t('SETTINGS_HINT_BODY')} />
 
       {/* ── Header ── */}
       <div className="st-header">
