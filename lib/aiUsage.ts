@@ -13,7 +13,7 @@
 // No refund on a failed xAI call after a successful increment - see the
 // migration file's comment for why that tradeoff was chosen over a second
 // compensating-write path.
-import { AI_LIMITS, ExtraTool, UsageTier } from '@/lib/limits';
+import { AI_LIMITS, type ExtraTool, type UsageTier } from '@/lib/limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { spendCapBlock, spendCapLabelKey, type SpendReason } from '@/lib/aiSpendCap';

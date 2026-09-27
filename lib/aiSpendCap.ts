@@ -10,17 +10,27 @@
  * it would let a heavy user run ~4x over. The ledger's cost_usd is xAI's reported
  * cost (parseAiUsage prefers cost_in_usd_ticks), so summing it is accurate.
  *
+ * WHY the sum happens in SQL, not here: this project's PostgREST caps every read
+ * at 1000 rows. Reading the ledger rows into JS and summing them TRUNCATED once a
+ * window passed 1000 rows (a Pro month, worst case ~3.9k rows; or the whole site
+ * in a day), producing a sum that was too LOW - so the monthly cap and the fuse
+ * could under-count and never trip (QA, #1437). The two aggregate functions in
+ * supabase/migrations/20260927b_ai_spend_sums.sql do the SUM server-side where no
+ * row cap applies. They return the exact sum of known costs plus a COUNT of
+ * NULL-cost rows per type; the per-type NULL estimate is applied here
+ * (spendSumToUsd), so the estimate constants exist in exactly one place and no
+ * cost literal lives in SQL.
+ *
  * TIMING: cost is only known AFTER a call (recordAiCall runs post-response), so
  * this gate measures PRIOR cumulative spend; one in-flight call can push a touch
  * over the cap. That is the same accepted "no refund" overshoot the call counts
  * already carry (lib/aiUsage.ts) - read-then-decide, not an atomic reserve.
  *
- * Cost is summed ad-hoc from the ledger (no rollup table, PM 2026-09-27): the
- * (user_id, created_at) and (created_at) indexes on lhq_ai_call_log support the
- * windowed reads. Revisit if a day's rows pass ~50k.
+ * The window boundary is decided HERE (dayStartIsoUtc / monthStartIsoUtc) and
+ * passed to the functions as p_since, so "today"/"this month" stays UTC-aligned
+ * with the call-count day (lib/aiUsage.ts todayUtc) in one place, never in SQL.
  */
 import { getSupabaseAdmin } from './supabase-admin.ts';
-import { T } from './tables.ts';
 import { PLAIN_CALL_COST_USD } from './aiCost.ts';
 import type { UsageTier } from './limits.ts';
 
@@ -33,26 +43,35 @@ export const SITE_FUSE_DAILY_USD   = 10.00;
  * explicit "null = UNKNOWN, never 0", so an unmeasured call must not count as free
  * toward a cap). Both are ESTIMATES until the ledger has real rows per type
  * (PM 2026-09-27): chat_search from the one measured search call ($0.0372); every
- * other type from the plain-call estimate already in lib/aiCost.ts. */
+ * other type from the plain-call estimate already in lib/aiCost.ts. These are the
+ * ONLY copy of these numbers - the SQL aggregate returns NULL-row counts, never a
+ * cost, precisely so these cannot be duplicated (and drift) in the migration. */
 export const NULL_COST_SEARCH_ESTIMATE_USD = 0.0372;
 export const NULL_COST_OTHER_ESTIMATE_USD  = PLAIN_CALL_COST_USD;
 
-function fallbackCostUsd(callType: string): number {
-  return callType === 'chat_search' ? NULL_COST_SEARCH_ESTIMATE_USD : NULL_COST_OTHER_ESTIMATE_USD;
+/** One aggregate row returned by lhq_ai_spend_user_since / lhq_ai_spend_all_since:
+ *  the DB's exact sum of known costs, plus counts of NULL-cost rows by type. The
+ *  fields arrive as numbers (float8/int casts) but are typed to accept the string
+ *  form Postgres numeric/bigint would produce, so a change of cast can't break the
+ *  reader. */
+export interface SpendSumRow {
+  cost: number | string | null;
+  null_search: number | string | null;
+  null_other: number | string | null;
 }
 
-interface LedgerRow { cost_usd: number | null; call_type: string; created_at?: string }
-
-/** Sum a set of ledger rows in dollars, substituting the per-type estimate for a
- *  NULL (unknown) cost so unmeasured calls still count. */
-export function sumLedgerUsd(rows: LedgerRow[]): number {
-  let total = 0;
-  for (const r of rows) {
-    total += typeof r.cost_usd === 'number' && Number.isFinite(r.cost_usd)
-      ? r.cost_usd
-      : fallbackCostUsd(r.call_type);
-  }
-  return total;
+/** Combine one aggregate row into dollars: the exact summed cost of measured
+ *  calls, plus the per-type NULL estimate for each unmeasured row. Pure and
+ *  DB-free so it is unit-testable on its own. */
+export function spendSumToUsd(row: SpendSumRow | null | undefined): number {
+  if (!row) return 0;
+  const num = (v: number | string | null | undefined): number => {
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  return num(row.cost)
+    + num(row.null_search) * NULL_COST_SEARCH_ESTIMATE_USD
+    + num(row.null_other)  * NULL_COST_OTHER_ESTIMATE_USD;
 }
 
 /** Start of the current UTC day as an ISO timestamp (matches lib/aiUsage.ts
@@ -72,15 +91,25 @@ export function monthStartIsoUtc(nowMs: number): string {
 export type SpendReason = 'pro_daily' | 'pro_monthly' | 'free_daily' | 'fuse';
 export type SpendDecision = { blocked: false } | { blocked: true; reason: SpendReason };
 
+/** A set-returning RPC comes back as an array of rows; take the first (there is
+ *  always exactly one aggregate row), tolerating a non-array shape defensively. */
+function firstRow(data: unknown): SpendSumRow | null {
+  if (Array.isArray(data)) return (data[0] ?? null) as SpendSumRow | null;
+  return (data ?? null) as SpendSumRow | null;
+}
+
 /**
  * Whether this call must be blocked for exceeding a dollar cap. Called BEFORE the
  * xAI call, alongside the per-feature count reserve.
  *
- * THREE STATES on a ledger-read failure ("unknown is not no", PM 2026-09-27):
+ * THREE STATES on a ledger-read failure ("unknown is not no", PM 2026-09-27),
+ * applied to EACH RPC call (QA #1437):
  *   Pro        -> fails OPEN (returns not-blocked): a read error must not lock out
  *                 a paying customer; the count reserve still bounds them.
  *   free/trial -> fails CLOSED (blocked, reason 'free_daily'): do not spend on an
- *                 account whose cheap cap we cannot confirm.
+ *                 account whose cheap cap we cannot confirm. A missing migration
+ *                 (function not yet created) is an RPC error and lands here, which
+ *                 is why the migration is applied BEFORE the deploy.
  */
 export async function spendCapBlock(
   tier: UsageTier,
@@ -92,40 +121,33 @@ export async function spendCapBlock(
 
   try {
     if (tier === 'pro') {
-      // One read over the month window covers both the month and (by filter) the day.
       const monthStart = monthStartIsoUtc(nowMs);
-      const { data, error } = await db
-        .from(T.ai_call_log)
-        .select('cost_usd, call_type, created_at')
-        .eq('user_id', userId)
-        .gte('created_at', monthStart);
-      if (error) throw error;
-      const rows = (data ?? []) as LedgerRow[];
-      if (sumLedgerUsd(rows) >= PRO_MONTHLY_CAP_USD) return { blocked: true, reason: 'pro_monthly' };
-      const dayRows = rows.filter((r) => (r.created_at ?? '') >= dayStart);
-      if (sumLedgerUsd(dayRows) >= PRO_DAILY_CAP_USD) return { blocked: true, reason: 'pro_daily' };
+      // Month and day are separate windows (day is not derivable from the month
+      // total), so two aggregate calls. Both must succeed; either error trips the
+      // catch and Pro fails open.
+      const [monthRes, dayRes] = await Promise.all([
+        db.rpc('lhq_ai_spend_user_since', { p_user: userId, p_since: monthStart }),
+        db.rpc('lhq_ai_spend_user_since', { p_user: userId, p_since: dayStart }),
+      ]);
+      if (monthRes.error) throw monthRes.error;
+      if (dayRes.error) throw dayRes.error;
+      if (spendSumToUsd(firstRow(monthRes.data)) >= PRO_MONTHLY_CAP_USD) return { blocked: true, reason: 'pro_monthly' };
+      if (spendSumToUsd(firstRow(dayRes.data))   >= PRO_DAILY_CAP_USD)   return { blocked: true, reason: 'pro_daily' };
       return { blocked: false };
     }
 
     // free / trial: own daily cap, then the whole-site fuse.
-    const { data: mine, error: myErr } = await db
-      .from(T.ai_call_log)
-      .select('cost_usd, call_type')
-      .eq('user_id', userId)
-      .gte('created_at', dayStart);
-    if (myErr) throw myErr;
-    if (sumLedgerUsd((mine ?? []) as LedgerRow[]) >= FREE_DAILY_CAP_USD) {
+    const mineRes = await db.rpc('lhq_ai_spend_user_since', { p_user: userId, p_since: dayStart });
+    if (mineRes.error) throw mineRes.error;
+    if (spendSumToUsd(firstRow(mineRes.data)) >= FREE_DAILY_CAP_USD) {
       return { blocked: true, reason: 'free_daily' };
     }
 
     // Whole-site fuse: sum today's cost across ALL users. Only free/trial calls are
     // stopped by it (Pro keeps its own per-account caps and never reaches here).
-    const { data: site, error: siteErr } = await db
-      .from(T.ai_call_log)
-      .select('cost_usd, call_type')
-      .gte('created_at', dayStart);
-    if (siteErr) throw siteErr;
-    if (sumLedgerUsd((site ?? []) as LedgerRow[]) >= SITE_FUSE_DAILY_USD) {
+    const siteRes = await db.rpc('lhq_ai_spend_all_since', { p_since: dayStart });
+    if (siteRes.error) throw siteRes.error;
+    if (spendSumToUsd(firstRow(siteRes.data)) >= SITE_FUSE_DAILY_USD) {
       // The owner-ALERT on trip is the immediate /ops follow-up (it needs a
       // once-a-day dedup store - one `cost_fuse_alerted` column - which this PR
       // deliberately avoids, PM 2026-09-27 option A). Until that lands a tripped
