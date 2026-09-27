@@ -426,10 +426,10 @@ export default function SettingsPage() {
                   <div style={{ marginTop: 8 }}>
                     <div className="st-desc">{t('SETTINGS_SUB_CANCEL_CONFIRM')}</div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button className="st-signout-btn" disabled={cancelling} onClick={doCancel}>
+                      <button className="st-confirm-btn st-signout-btn" disabled={cancelling} onClick={doCancel}>
                         {cancelling ? <span className="login-spinner" /> : t('SETTINGS_SUB_CANCEL_CONFIRM_YES')}
                       </button>
-                      <button className="st-save-btn" disabled={cancelling} onClick={() => setCancelConfirm(false)}>
+                      <button className="st-confirm-btn st-save-btn" disabled={cancelling} onClick={() => setCancelConfirm(false)}>
                         {t('SETTINGS_SUB_CANCEL_CONFIRM_NO')}
                       </button>
                     </div>

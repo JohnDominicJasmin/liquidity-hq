@@ -4114,6 +4114,35 @@ html[data-theme="light"] { background: var(--bg0); }
 }
 .st-signout-btn:hover { background: rgba(248,113,113,0.18); }
 
+/* Cancel-a-plan confirm row (#1396). The two confirm buttons reuse the color
+   classes above (.st-signout-btn = "Yes, cancel", .st-save-btn = "Keep Pro"),
+   which the owner rejected for looking mismatched: .st-signout-btn carries
+   margin-top:10px, so in the flex row the red button sat 10px LOWER than the
+   purple one, and the two labels differ in length so the boxes were different
+   widths. This class, applied ON TOP of the color class on both buttons, makes
+   them one size: same min box (44px touch target), a shared min-width so the
+   labels no longer set the width, centered content, and margin-top:0 to undo
+   the sign-out push in this context only. It changes geometry, not color. */
+.st-confirm-btn {
+  margin-top: 0;
+  min-height: 44px;
+  min-width: 128px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Contrast: measured over the composited button background in all four themes,
+   only the default LIGHT theme's "Yes, cancel" red (--red #B91C1C over the
+   0.1-alpha red tint over --accent-bg over #E8EAED = rgb(219,212,223)) came in
+   at 4.47:1, just under AA 4.5. The global --red token is deliberately audited
+   across ~28 places (see the terminal-theme --red comment), so it is NOT
+   touched; this darkens ONLY this one confirm button in ONLY that theme to
+   #A81818 = 5.16:1. Dark 6.58, terminal-dark 5.00, terminal-light 5.60 already
+   pass and are left alone. */
+[data-theme="light"]:not([data-design="terminal"]) .st-confirm-btn.st-signout-btn {
+  color: #A81818;
+}
+
 /* Telegram status */
 .st-tg-status { display: flex; align-items: center; gap: 6px; font-size: var(--fs-label); color: var(--txt); font-weight: 600; }
 .st-tg-dot    { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
