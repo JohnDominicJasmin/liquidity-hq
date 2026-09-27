@@ -115,6 +115,8 @@ controls** - to anything you touch.
   shortfall is solved by the window, not by closing his things. Why: on 2026-09-26 the shotgun pattern
   (a push per small change) produced repeated reaped jobs and made the owner close his browser five
   times in one day.
+  **Light work stays allowed between windows:** a single-file `node --test`, a mutation run of one
+  test file (~300 MB) and file-scoped lint are not "heavy"; "any full suite" means the whole suite.
 - **What the gates cost, measured as the LOWEST free memory reached (MIN_FREE) - not as memory
   consumed.** Launched at >= 3.0 GB free, a test-only gate bottomed out at **~2.3-2.6 GB free
   during `tsc`**, and a full `eslint .` reached **~1.67 GB free**, just above the reaper line;

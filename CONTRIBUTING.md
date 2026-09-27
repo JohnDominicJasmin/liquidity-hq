@@ -1049,14 +1049,18 @@ one green set of commits is pushed:**
 
 1. **Dev** exports the app commit: `git format-patch -1 <sha> -o <handoff folder>`.
 2. **QA** `git am`s it on a **local throwaway branch** cut from `dev`, updates and adds the
-   tests, runs the full gate on the combined tree, and exports only its test commit(s):
-   `git format-patch <base>..HEAD -- __tests__/ -o <handoff folder>/tests/`.
+   tests, and runs the hook's three commands **by hand** on the combined tree (`npm run lint`,
+   `npx tsc --noEmit`, `npm test`); QA pushes nothing in this mechanism. QA then **squashes the
+   test work into ONE commit** on a branch cut from the app commit (intermediate test commits
+   can be red against the app commit), exports it with `git format-patch -1 <sha>`, and **proves
+   the export**: `git am` on a throwaway branch and an empty `git diff` against the tested tree.
+   The test commit's message lists which existing tests changed and why.
 3. **Dev** `git am`s QA's patch on top of the app commit (**QA stays the author, so QA still
    wrote every test and dev wrote none**), runs the gate on the identical tree, and pushes
    through the hook.
 
-First used on #1436 (2026-09-26): green on the combined tree, the hook passed, nothing was
-bypassed. The handoff folder lives outside every repo.
+First used on #1436 (2026-09-26 UTC, 27 Sep in Manila; dates here are UTC): green on the
+combined tree, the hook passed, nothing was bypassed. The handoff folder lives outside every repo.
 
 **This is not a new kind of exception.** The reverse already exists and is
 documented: **dev commits directly into `qa/` when a dev-side revert makes a QA
