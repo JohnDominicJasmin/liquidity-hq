@@ -102,6 +102,21 @@ controls** - to anything you touch.
 - **Launch bars: >= 4.5 GB free, held for five minutes, for a `next build`; >= 3.0 GB for a
   narrowed gate.** **Read free memory again at the instant of launch** - a hold window
   certifies the past, and a go-ahead given on a stale figure lost the race on 2026-09-24.
+- **Heavy jobs run in BATCHED WINDOWS, not one push at a time (owner's order, 2026-09-27).** A window
+  is opened by PM, once or twice a day at a time the owner names (default: the end of his day).
+  **Heavy = any `git push` (the hook runs lint, `tsc` and every unit test), any full suite, any
+  browser spec run, any local `next build`.** Between windows Dev and QA code and commit LOCALLY
+  (file-scoped lint is fine) and post what is waiting on the issue or PR; in the window everything
+  queued is pushed sequentially in one pass. The owner should not have to close his browser or stop
+  what he is doing more than once a day. **Emergencies only** (production down, a security problem)
+  may break the rule, and need the owner's word. **No local `next build` as a routine gate:** Render's
+  hosted build on the `qa` deploy is the build gate; build locally only when a change touches build
+  settings or dependencies. **Never terminate the owner's programs** (game, browser): a memory
+  shortfall is solved by the window, not by closing his things. Why: on 2026-09-26 the shotgun pattern
+  (a push per small change) produced repeated reaped jobs and made the owner close his browser five
+  times in one day.
+  **Light work stays allowed between windows:** a single-file `node --test`, a mutation run of one
+  test file (~300 MB) and file-scoped lint are not "heavy"; "any full suite" means the whole suite.
 - **What the gates cost, measured as the LOWEST free memory reached (MIN_FREE) - not as memory
   consumed.** Launched at >= 3.0 GB free, a test-only gate bottomed out at **~2.3-2.6 GB free
   during `tsc`**, and a full `eslint .` reached **~1.67 GB free**, just above the reaper line;
