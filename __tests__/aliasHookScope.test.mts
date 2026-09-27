@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 /* BOUNDS WHAT `qa/alias-hooks.mjs` FORGIVES.
@@ -178,4 +178,89 @@ test('CONTROL: the five rescued subpaths really are broken without the hook', ()
     assert.ok(wth[s].startsWith('file:') && wth[s].endsWith('.js'),
       `the hook did not rescue ${s} (got ${wth[s]})`);
   }
+});
+
+/* ── The JSON rescue (added 2026-09-27, so lib/aiUsage.ts can be imported by a test) ────────────────
+ *
+ * Next accepts `import labels from '@/lib/labelDefaults.en.json'`. Node refuses it unless the import carries
+ * `with { type: 'json' }`, so every module importing that file (lib/aiUsage.ts, the AI cost gate for all 14 routes,
+ * among them) was unreachable from a unit test. The hook now supplies the attribute. Same reasoning as the next/*
+ * rescues above: it makes test-time resolution more forgiving than Next's, so what it forgives is written down and
+ * a change is a decision, and it is BOUNDED: repo JSON only, never node_modules. */
+
+/** Repo JSON files the source imports WITHOUT an attribute today. Add to this deliberately. */
+const EXPECTED_BARE_JSON = ['lib/labelDefaults.en.json'];
+
+/** JSON specifiers imported without `with {`, from ONE source text, resolved to repo-relative paths. */
+function bareJsonImportsIn(source: string, fileRel: string): string[] {
+  const src = stripComments(source);
+  const out: string[] = [];
+  for (const m of src.matchAll(/\bfrom\s+['"]([^'"]+\.json)['"]\s*(with\b)?/g)) {
+    if (m[2]) continue;                                   // already carries an attribute
+    const spec = m[1];
+    const rel = spec.startsWith('@/') ? spec.slice(2) : path.posix.normalize(path.posix.join(path.posix.dirname(fileRel), spec));
+    out.push(rel);
+  }
+  return out;
+}
+
+function bareJsonImports(): string[] {
+  const out = new Set<string>();
+  const files = execFileSync('git', ['-C', ROOT, 'ls-files', 'app', 'lib', 'components'], { encoding: 'utf8' })
+    .split(/\r?\n/).filter((f) => /\.tsx?$/.test(f));
+  for (const rel of files) {
+    try { for (const j of bareJsonImportsIn(readFileSync(path.join(ROOT, rel), 'utf8'), rel)) out.add(j); } catch { continue; }
+  }
+  return [...out].sort();
+}
+
+/** Import one file bare, in a child process, with or without the hook. Returns "OK <n>" or the error code. */
+function importBare(absPath: string, withHook: boolean): string {
+  const url = pathToFileURL(absPath).href;
+  const script = `
+    try { const m = await import(${JSON.stringify(url)}); console.log('OK ' + Object.keys(m.default ?? {}).length); }
+    catch (e) { console.log('ERR ' + (e && e.code)); }
+  `;
+  const args = withHook ? ['--import', './qa/alias-register.mjs'] : [];
+  const stdout = execFileSync('node', [...args, '--input-type=module', '-e', script],
+    { cwd: ROOT, encoding: 'utf8', windowsHide: true, timeout: 60_000 });
+  return stdout.trim().split(/\r?\n/).pop()!;
+}
+
+test('the JSON sweep parser: bare imports found, ones with an attribute and prose ignored', () => {
+  const fixture = [
+    `import a from '@/lib/one.json';`,
+    `import b from './two.json';`,
+    `import c from '@/lib/three.json' with { type: 'json' };`,
+    `// import d from '@/lib/in-a-comment.json';`,
+    `/* separates "config.json" from "data" */`,
+  ].join('\n');
+  assert.deepEqual(bareJsonImportsIn(fixture, 'lib/here.ts').sort(), ['lib/one.json', 'lib/two.json']);
+});
+
+test('the source imports exactly the known JSON files without an attribute', () => {
+  const found = bareJsonImports();
+  assert.deepEqual(found, EXPECTED_BARE_JSON,
+    'the set of bare JSON imports changed. That is not automatically wrong, but it is the set the hook forgives, so update\n' +
+    'EXPECTED_BARE_JSON deliberately (and check the module still builds under Next).');
+});
+
+test('CONTROL: the rescue is real - the file imports bare WITH the hook and fails WITHOUT it', () => {
+  const abs = path.join(ROOT, 'lib', 'labelDefaults.en.json');
+  assert.match(importBare(abs, true), /^OK \d+$/, 'the hook did not rescue a bare JSON import');
+  assert.equal(importBare(abs, false), 'ERR ERR_IMPORT_ATTRIBUTE_MISSING',
+    'Node now accepts a bare JSON import on its own - the rescue is no longer needed and should be removed');
+});
+
+test('the rescue is BOUNDED: a package\'s own JSON inside node_modules is left exactly as Node treats it', () => {
+  const pkg = path.join(ROOT, 'node_modules', 'next', 'package.json');
+  assert.equal(importBare(pkg, true), 'ERR ERR_IMPORT_ATTRIBUTE_MISSING',
+    'the hook now forgives JSON inside node_modules too');
+});
+
+test('an ordinary TypeScript module still imports through the hook (sanity control for the rescue)', () => {
+  /* NOT a bound: widening the rescue to every repo file is invisible under Node 24 (measured: a json attribute on a .ts
+     import is tolerated), so no test can tell. The bound that matters, node_modules, is the test above. This only
+     proves the rescue did not break normal imports. */
+  assert.match(importBare(path.join(ROOT, 'lib', 'paidPeriod.ts'), true), /^OK \d+$/);
 });
