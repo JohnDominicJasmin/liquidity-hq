@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
   // Atomic check-and-increment (reserve before spending on xAI) - closes the
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
-  const usageResult = await incrementUsageColumn(userId, 'briefing_count', briefingLimit);
+  const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit);
   if (usageResult.blocked) {
     return NextResponse.json(
       {

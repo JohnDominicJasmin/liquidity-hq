@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const column = isSearch ? 'chat_search_count' : 'chat_count';
   const limit  = isSearch ? searchLimit : chatLimit;
-  const usageResult = await incrementUsageColumn(userId, column, limit);
+  const usageResult = await incrementUsageColumn(userId, role, column, limit);
   if (usageResult.blocked) {
     const label = isSearch ? 'live search messages' : 'chat messages';
     return NextResponse.json(
