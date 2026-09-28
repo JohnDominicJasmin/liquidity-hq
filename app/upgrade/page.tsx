@@ -8,6 +8,7 @@ import LoadingState from '@/components/LoadingState';
 import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { FREE_PLAN_FEATURES } from '@/lib/planFeatures';
 
 /* #861 Phase 1: a plan is buyable when it has a payment link. Lemon Squeezy
    rejected the store, so these no longer read its links - today the only rail
@@ -29,9 +30,13 @@ const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly();
    method that unlocks automatically exists. The label key stays. */
 const TRUST_LABELS = ['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
 
-const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
+const P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
 
-// Keep this list in sync with the actual gates: the timeframe clamp and
+// The Free list now lives in lib/planFeatures.ts (FREE_PLAN_FEATURES), shared
+// with the landing page so the two surfaces can't drift again (#1152). Its
+// numbers still come from lib/limits.ts, same as before.
+//
+// Keep the PRO list below in sync with the actual gates: the timeframe clamp and
 // locked cards in app/arena/page.tsx, the /backtest paywall, and the
 // PRO_REQUIRED check in all 11 one-shot AI tool routes (thesis-check,
 // strategy-research, shadow-account, behavioral-bias, pine-script,
@@ -41,19 +46,7 @@ const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-
 // that was the bug: the Pro column here has always sold the tool pool
 // (UPGRADE_PRO_FEATURE_TOOL_POOL) while 5 of the 11 routes never enforced it,
 // so a free account really could run them. All 11 now enforce it.
-// The free ExtraTool numbers in lib/limits.ts stay non-zero on purpose - they
-// are the TRIAL allowance, not a free-tier grant. See the long comment there.
 // (AI limit numbers come from lib/limits.ts - they can't drift from the API.)
-const FREE_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
-  ['UPGRADE_FREE_FEATURE_DASHBOARD'],
-  ['UPGRADE_FREE_FEATURE_BRIEFING'],
-  ['UPGRADE_FREE_FEATURE_NEWS'],
-  ['UPGRADE_FREE_FEATURE_SCANNER'],
-  ['UPGRADE_FREE_FEATURE_CHARTS'],
-  ['UPGRADE_FREE_FEATURE_AI_ANALYSES', { quick: F.quick, deep: F.deep }],
-  ['UPGRADE_FREE_FEATURE_AI_CHAT', { chat: F.chat }],
-];
-
 const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
   ['UPGRADE_PRO_FEATURE_EVERYTHING_FREE'],
   ['UPGRADE_PRO_FEATURE_FAST_TIMEFRAMES'],
@@ -252,9 +245,13 @@ export default function UpgradePage() {
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_FREE_CARD_NAME')}</div>
             <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>$0<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {FREE_FEATURES.map(([k, vars]) => (
-                <li key={k} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  {/* #705: var(--green), not #22c55e. That literal is Tailwind's green-500 and
+              {FREE_PLAN_FEATURES.map(({ id, labelKey, vars, included }) => (
+                /* #1152: excluded rows (no Telegram/price alerts) now render here
+                   too, as the landing page already did - so an upgrade screen
+                   finally states what Free does NOT include, muted with a ✗. */
+                <li key={id} style={{ fontSize: 'var(--fs-label)', color: included ? 'var(--txt2)' : 'var(--txt3)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  {included ? (
+                    /* #705: var(--green), not #22c55e. That literal is Tailwind's green-500 and
     is in NEITHER palette - not the current design's --green (#4ade80 dark,
     #046B4E light) nor terminal's (#3fb950 / #14702c) - so it tracked no theme
     and measured 1.88:1 on terminal light's --bg1. Dark passed at 7.4, which is
@@ -271,8 +268,12 @@ export default function UpgradePage() {
     terminal only, so that half was never counted - the literal tracked no
     theme, and both light themes land it on a light ground. Dark passed in both
     designs, which is why seven checkmarks sat at under 2:1 without anyone
-    noticing. */}
-                  <span style={{ color: 'var(--green)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(k, vars)}
+    noticing. */
+                    <span style={{ color: 'var(--green)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>
+                  ) : (
+                    <span style={{ color: 'var(--txt4)', fontWeight: 700, flexShrink: 0, marginTop: 1 }} aria-hidden="true">✗</span>
+                  )}
+                  {t(labelKey, vars)}
                 </li>
               ))}
             </ul>

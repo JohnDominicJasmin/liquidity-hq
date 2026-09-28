@@ -65,7 +65,12 @@ export interface LandingDict {
   pricing: {
     label: string;
     h2: string;
-    free: { name: string; sub: string; features: Array<{ text: string; included: boolean }>; cta: string };
+    /* #1152: `features` is keyed by the shared FREE_PLAN_FEATURES row id (not an
+       array), and carries ONLY the localized text - the row set, order and
+       included/excluded flag now come from lib/planFeatures.ts so this surface
+       and /upgrade can't drift. Numeric rows are templates ({quick}/{deep}/
+       {chat}), interpolated at render with the real caps from lib/limits. */
+    free: { name: string; sub: string; features: Record<string, string>; cta: string };
     pro: { badge: string; name: string; sub: string; features: string[]; cta: string };
   };
   finalCta: { h2: string; sub: string; cta: string };
@@ -126,16 +131,20 @@ export const en: LandingDict = {
     h2: 'Start free. Upgrade when ready.',
     free: {
       name: 'Free', sub: 'Always free, no card needed',
-      features: [
-        { text: 'Dashboard + market overview', included: true },
-        { text: 'Morning briefing', included: true },
-        { text: 'News feed', included: true },
-        { text: 'All 50 markets - squeeze scanner', included: true },
-        { text: '5 Quick + 3 Deep AI analyses / day', included: true },
-        { text: '5 AI chat messages / day', included: true },
-        { text: 'Telegram alerts', included: false },
-        { text: 'Price alerts', included: false },
-      ],
+      // Keyed by FREE_PLAN_FEATURES id. English text MUST match labelDefaults.en
+      // for the matching UPGRADE_FREE_* key (QA guard test pins this equal).
+      features: {
+        dashboard: 'Dashboard + market overview',
+        briefing: 'Morning briefing',
+        news: 'News feed',
+        scanner: 'Squeeze scanner on every tracked coin',
+        charts: 'Charts + signals on 30 minute and higher timeframes',
+        aiIncluded: 'AI included - no API key or separate subscription',
+        aiAnalyses: '{quick} Quick + {deep} Deep AI analyses / day',
+        aiChat: '{chat} AI chat messages / day',
+        telegram: 'Telegram alerts',
+        priceAlerts: 'Price alerts',
+      },
       cta: 'Get started free',
     },
     pro: {
@@ -198,16 +207,18 @@ export const ko: LandingDict = {
     h2: '무료로 시작하고, 준비되면 업그레이드하세요.',
     free: {
       name: '무료', sub: '항상 무료, 카드 필요 없음',
-      features: [
-        { text: '대시보드 + 시장 개요', included: true },
-        { text: '모닝 브리핑', included: true },
-        { text: '뉴스 피드', included: true },
-        { text: '전체 50개 마켓 - 스퀴즈 스캐너', included: true },
-        { text: '일일 퀵 분석 5회 + 딥 분석 3회', included: true },
-        { text: '일일 AI 채팅 5회', included: true },
-        { text: '텔레그램 알림', included: false },
-        { text: '가격 알림', included: false },
-      ],
+      features: {
+        dashboard: '대시보드 + 시장 개요',
+        briefing: '모닝 브리핑',
+        news: '뉴스 피드',
+        scanner: '추적하는 모든 코인의 스퀴즈 스캐너',
+        charts: '30분 이상 시간대 차트 + 시그널',
+        aiIncluded: 'AI 포함 - API 키나 별도 구독 불필요',
+        aiAnalyses: '일일 퀵 분석 {quick}회 + 딥 분석 {deep}회',
+        aiChat: '일일 AI 채팅 {chat}회',
+        telegram: '텔레그램 알림',
+        priceAlerts: '가격 알림',
+      },
       cta: '무료로 시작하기',
     },
     pro: {
@@ -270,16 +281,18 @@ export const zh: LandingDict = {
     h2: '免费开始,准备好后再升级。',
     free: {
       name: '免费版', sub: '永久免费,无需信用卡',
-      features: [
-        { text: '仪表盘+市场概览', included: true },
-        { text: '晨间简报', included: true },
-        { text: '新闻资讯', included: true },
-        { text: '全部50个市场--挤压扫描器', included: true },
-        { text: '每日5次快速+3次深度AI分析', included: true },
-        { text: '每日5条AI聊天消息', included: true },
-        { text: 'Telegram提醒', included: false },
-        { text: '价格提醒', included: false },
-      ],
+      features: {
+        dashboard: '仪表盘+市场概览',
+        briefing: '晨间简报',
+        news: '新闻资讯',
+        scanner: '每个追踪币种的挤压扫描器',
+        charts: '30分钟及以上周期的图表+信号',
+        aiIncluded: '内置AI--无需API密钥或单独订阅',
+        aiAnalyses: '每日{quick}次快速+{deep}次深度AI分析',
+        aiChat: '每日{chat}条AI聊天消息',
+        telegram: 'Telegram提醒',
+        priceAlerts: '价格提醒',
+      },
       cta: '免费开始使用',
     },
     pro: {
@@ -342,16 +355,18 @@ export const ar: LandingDict = {
     h2: 'ابدأ مجانًا. قم بالترقية عندما تكون جاهزًا.',
     free: {
       name: 'مجاني', sub: 'مجاني دائمًا، بدون الحاجة لبطاقة',
-      features: [
-        { text: 'لوحة التحكم + نظرة عامة على السوق', included: true },
-        { text: 'الموجز الصباحي', included: true },
-        { text: 'خلاصة الأخبار', included: true },
-        { text: 'جميع العملات الـ50 - ماسح الانضغاط', included: true },
-        { text: '5 تحليلات سريعة + 3 تحليلات معمّقة يوميًا', included: true },
-        { text: '5 رسائل دردشة ذكاء اصطناعي يوميًا', included: true },
-        { text: 'تنبيهات تيليجرام', included: false },
-        { text: 'تنبيهات الأسعار', included: false },
-      ],
+      features: {
+        dashboard: 'لوحة التحكم + نظرة عامة على السوق',
+        briefing: 'الموجز الصباحي',
+        news: 'خلاصة الأخبار',
+        scanner: 'ماسح الانضغاط لكل عملة متتبَّعة',
+        charts: 'الرسوم البيانية والإشارات على الأطر الزمنية 30 دقيقة فأعلى',
+        aiIncluded: 'الذكاء الاصطناعي مضمّن - بدون مفتاح API أو اشتراك منفصل',
+        aiAnalyses: '{quick} تحليلات سريعة + {deep} تحليلات معمّقة يوميًا',
+        aiChat: '{chat} رسائل دردشة ذكاء اصطناعي يوميًا',
+        telegram: 'تنبيهات تيليجرام',
+        priceAlerts: 'تنبيهات الأسعار',
+      },
       cta: 'ابدأ مجانًا',
     },
     pro: {
