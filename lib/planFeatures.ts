@@ -39,14 +39,16 @@ import { AI_LIMITS } from './limits.ts';
  * entry in every offered locale, so the two localized copies cannot
  * structurally drift or fall out of English sync again.
  *
- * PRO is intentionally NOT consolidated in this pass: #1152's reported defect
- * and the owner's four wording decisions are all about the FREE list. The Pro
- * lists also differ in shape (the landing page splits AI chat and live search
- * into two rows where /upgrade combines them), which is its own wording call.
- * When that is taken on, add PRO_PLAN_FEATURES here in the same shape.
+ * PRO is consolidated the same way (PRO_PLAN_FEATURES below). The two Pro lists
+ * differed in shape - the landing page split "AI chat" and "live searches" into
+ * two rows where /upgrade combined them into one - and the owner's call (relayed
+ * via PM/DevOps 2026-09-28) was to keep the COMBINED /upgrade shape as canonical,
+ * so the landing page now shows one combined row too. Same locale reasoning as
+ * FREE: structure and numbers here, text in each surface's own layer.
  */
 
 const F = AI_LIMITS.free; // numbers derived, never hand-typed - see reason (4) above
+const P = AI_LIMITS.pro;
 
 export interface PlanFeature {
   /** Stable id. This is the key the landing i18n dict stores this row's text
@@ -76,4 +78,34 @@ export const FREE_PLAN_FEATURES: PlanFeature[] = [
   { id: 'aiChat',     labelKey: 'UPGRADE_FREE_FEATURE_AI_CHAT',     vars: { chat: F.chat }, included: true },
   { id: 'telegram',   labelKey: 'UPGRADE_FREE_EXCL_TELEGRAM',       included: false },
   { id: 'priceAlerts', labelKey: 'UPGRADE_FREE_EXCL_PRICE_ALERTS',  included: false },
+];
+
+// Keep this list in sync with the actual gates: the timeframe clamp and locked
+// cards in app/arena/page.tsx, the /backtest paywall, and the PRO_REQUIRED check
+// in all 11 one-shot AI tool routes (thesis-check, strategy-research,
+// shadow-account, behavioral-bias, pine-script, hypotheses/[id]/analyze,
+// token-unlock, smc-snapshot, dry-powder, macro-context, onchain).
+//
+// There is NO "Full strategy backtesting" row, on purpose - not a placeholder.
+// /backtest was advertised here by accident (#264/#273); the owner ruled it an
+// internal tool never meant to be sold (it redirects to /dashboard). If a real
+// customer-facing backtest ships, that is a new decision and a new label key.
+//
+// There is NO "Priority support" row, on purpose. Owner ruling (#1309 item 34):
+// support is one shared mailbox for every plan, so there is no priority tier to
+// sell. UPGRADE_PRO_FEATURE_PRIORITY_SUPPORT is RETIRED (production is
+// additive-only), not deleted, so nothing renders it.
+//
+// Pro has no excluded rows - it is the everything tier - so every entry is
+// included: true.
+export const PRO_PLAN_FEATURES: PlanFeature[] = [
+  { id: 'everythingFree',  labelKey: 'UPGRADE_PRO_FEATURE_EVERYTHING_FREE',  included: true },
+  { id: 'fastTimeframes',  labelKey: 'UPGRADE_PRO_FEATURE_FAST_TIMEFRAMES',  included: true },
+  { id: 'confluence',      labelKey: 'UPGRADE_PRO_FEATURE_CONFLUENCE',       included: true },
+  { id: 'onchainMacro',    labelKey: 'UPGRADE_PRO_FEATURE_ONCHAIN_MACRO',    included: true },
+  { id: 'telegram',        labelKey: 'UPGRADE_PRO_FEATURE_TELEGRAM',         included: true },
+  { id: 'unlimitedAlerts', labelKey: 'UPGRADE_PRO_FEATURE_UNLIMITED_ALERTS', included: true },
+  { id: 'aiAnalyses',      labelKey: 'UPGRADE_PRO_FEATURE_AI_ANALYSES',      vars: { quick: P.quick, deep: P.deep }, included: true },
+  { id: 'aiChatSearch',    labelKey: 'UPGRADE_PRO_FEATURE_AI_CHAT_SEARCH',   vars: { chat: P.chat, search: P.search }, included: true },
+  { id: 'toolPool',        labelKey: 'UPGRADE_PRO_FEATURE_TOOL_POOL',        vars: { tools: P.toolPool ?? 0 }, included: true },
 ];

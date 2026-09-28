@@ -71,7 +71,7 @@ export interface LandingDict {
        and /upgrade can't drift. Numeric rows are templates ({quick}/{deep}/
        {chat}), interpolated at render with the real caps from lib/limits. */
     free: { name: string; sub: string; features: Record<string, string>; cta: string };
-    pro: { badge: string; name: string; sub: string; features: string[]; cta: string };
+    pro: { badge: string; name: string; sub: string; features: Record<string, string>; cta: string };
   };
   finalCta: { h2: string; sub: string; cta: string };
   footer: {
@@ -122,10 +122,12 @@ export const en: LandingDict = {
       { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Quick or Deep. Grok reads dozens of live signals and gives you a direct, actionable trade bias.' },
     ],
   },
-  // AI limit numbers below (5 Quick / 3 Deep / 5 chat, and 30/10/50/10 for Pro)
-  // must match lib/limits.ts, the enforced source of truth. These are embedded in
-  // localized prose across en/ko/zh/ar so they can't be templated - update by hand
-  // (all four locales) if a limit changes. The /upgrade page IS derived from limits.ts.
+  // #1152: the Free AND Pro feature rows now come from lib/planFeatures.ts, the
+  // same source /upgrade renders, and the AI-limit numbers are interpolated from
+  // lib/limits.ts at render ({quick}/{deep}/{chat}/{search}/{tools}) rather than
+  // hand-typed here - so they can no longer drift per-locale. `features` below is
+  // keyed by the shared row id and holds ONLY the localized text. `name`/`sub`/
+  // `cta` stay local (landing-specific copy, not entitlement facts).
   pricing: {
     label: 'Pricing',
     h2: 'Start free. Upgrade when ready.',
@@ -149,7 +151,19 @@ export const en: LandingDict = {
     },
     pro: {
       badge: 'Recommended', name: 'Pro', sub: 'Every feature unlocked, generous daily limits',
-      features: ['Everything in Free', 'Signals on 1m/5m/15m charts', 'Confluence Score, Order Flow, and Absorption Detector', 'On-chain and macro AI analysis', 'Telegram alerts - all signal types', 'Unlimited price alerts', '30 Quick + 10 Deep analyses / day', '50 AI chat messages / day', '10 live searches / day', '25 AI tool runs / day (shared)'],
+      // Keyed by PRO_PLAN_FEATURES id. English text MUST match labelDefaults.en
+      // for the matching UPGRADE_PRO_* key (QA guard test pins this equal).
+      features: {
+        everythingFree: 'Everything in Free',
+        fastTimeframes: 'Signals on the 1 minute, 5 minute, and 15 minute charts',
+        confluence: 'Confluence Score, Order Flow, and Absorption Detector',
+        onchainMacro: 'On-chain and global macro AI analysis',
+        telegram: 'Telegram alerts - all signal types',
+        unlimitedAlerts: 'Unlimited price alerts',
+        aiAnalyses: '{quick} Quick + {deep} Deep AI analyses / day',
+        aiChatSearch: '{chat} AI chat messages + {search} live searches / day',
+        toolPool: '{tools} AI tool runs / day, shared across every analysis tool',
+      },
       cta: 'Get Pro - $35/mo',
     },
   },
@@ -223,7 +237,17 @@ export const ko: LandingDict = {
     },
     pro: {
       badge: '추천', name: 'Pro', sub: '모든 기능 잠금 해제, 넉넉한 일일 한도',
-      features: ['무료 플랜의 모든 기능', '1분, 5분, 15분 차트 시그널', '컨플루언스 점수, 오더 플로우, 앱소프션 디텍터', '온체인 및 글로벌 매크로 AI 분석', '텔레그램 알림 - 전체 신호 유형', '무제한 가격 알림', '일일 퀵 분석 30회 + 딥 분석 10회', '일일 AI 채팅 50회', '일일 실시간 검색 10회', '일일 AI 도구 실행 25회 (공용)'],
+      features: {
+        everythingFree: '무료 플랜의 모든 기능',
+        fastTimeframes: '1분, 5분, 15분 차트 시그널',
+        confluence: '컨플루언스 점수, 오더 플로우, 앱소프션 디텍터',
+        onchainMacro: '온체인 및 글로벌 매크로 AI 분석',
+        telegram: '텔레그램 알림 - 전체 신호 유형',
+        unlimitedAlerts: '무제한 가격 알림',
+        aiAnalyses: '일일 퀵 분석 {quick}회 + 딥 분석 {deep}회',
+        aiChatSearch: '일일 AI 채팅 {chat}회 + 실시간 검색 {search}회',
+        toolPool: '일일 AI 도구 실행 {tools}회 (공용)',
+      },
       cta: 'Pro 시작하기 - $35/월',
     },
   },
@@ -297,7 +321,17 @@ export const zh: LandingDict = {
     },
     pro: {
       badge: '推荐', name: 'Pro', sub: '解锁全部功能,每日额度充裕',
-      features: ['免费版全部功能', '1 分钟、5 分钟、15 分钟图表信号', '共振评分、订单流与吸筹探测器', '链上数据与全球宏观 AI 分析', 'Telegram提醒--全部信号类型', '无限价格提醒', '每日30次快速+10次深度分析', '每日50条AI聊天消息', '每日10次实时搜索', '每日25次AI工具调用(共享额度)'],
+      features: {
+        everythingFree: '免费版全部功能',
+        fastTimeframes: '1 分钟、5 分钟、15 分钟图表信号',
+        confluence: '共振评分、订单流与吸筹探测器',
+        onchainMacro: '链上数据与全球宏观 AI 分析',
+        telegram: 'Telegram提醒--全部信号类型',
+        unlimitedAlerts: '无限价格提醒',
+        aiAnalyses: '每日{quick}次快速+{deep}次深度分析',
+        aiChatSearch: '每日{chat}条AI聊天消息+{search}次实时搜索',
+        toolPool: '每日{tools}次AI工具调用(共享额度)',
+      },
       cta: '升级Pro--$35/月',
     },
   },
@@ -371,7 +405,17 @@ export const ar: LandingDict = {
     },
     pro: {
       badge: 'الأكثر شيوعًا', name: 'Pro', sub: 'كل الميزات مفتوحة، بحدود يومية سخية',
-      features: ['كل ما في الخطة المجانية', 'إشارات على الرسوم البيانية لدقيقة و5 دقائق و15 دقيقة', 'درجة التقاطع، تدفق الأوامر، وكاشف الامتصاص', 'تحليل ذكاء اصطناعي للبيانات على السلسلة والاقتصاد الكلي العالمي', 'تنبيهات تيليجرام - جميع أنواع الإشارات', 'تنبيهات أسعار غير محدودة', '30 تحليلًا سريعًا + 10 تحليلات معمّقة يوميًا', '50 رسالة دردشة ذكاء اصطناعي يوميًا', '10 عمليات بحث مباشر يوميًا', '25 تشغيلًا لأدوات الذكاء الاصطناعي يوميًا (رصيد مشترك)'],
+      features: {
+        everythingFree: 'كل ما في الخطة المجانية',
+        fastTimeframes: 'إشارات على الرسوم البيانية لدقيقة و5 دقائق و15 دقيقة',
+        confluence: 'درجة التقاطع، تدفق الأوامر، وكاشف الامتصاص',
+        onchainMacro: 'تحليل ذكاء اصطناعي للبيانات على السلسلة والاقتصاد الكلي العالمي',
+        telegram: 'تنبيهات تيليجرام - جميع أنواع الإشارات',
+        unlimitedAlerts: 'تنبيهات أسعار غير محدودة',
+        aiAnalyses: '{quick} تحليلًا سريعًا + {deep} تحليلات معمّقة يوميًا',
+        aiChatSearch: '{chat} رسالة دردشة ذكاء اصطناعي + {search} عمليات بحث مباشر يوميًا',
+        toolPool: '{tools} تشغيلًا لأدوات الذكاء الاصطناعي يوميًا (رصيد مشترك)',
+      },
       cta: 'احصل على Pro - 35$/شهريًا',
     },
   },

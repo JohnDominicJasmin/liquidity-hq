@@ -5,10 +5,8 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCryptoCheckoutUrl, isProBuyable, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
-import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
-import type { LabelKey } from '@/lib/labelKeys';
-import { FREE_PLAN_FEATURES } from '@/lib/planFeatures';
+import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
 
 /* #861 Phase 1: a plan is buyable when it has a payment link. Lemon Squeezy
    rejected the store, so these no longer read its links - today the only rail
@@ -30,58 +28,11 @@ const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly();
    method that unlocks automatically exists. The label key stays. */
 const TRUST_LABELS = ['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
 
-const P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
-
-// The Free list now lives in lib/planFeatures.ts (FREE_PLAN_FEATURES), shared
-// with the landing page so the two surfaces can't drift again (#1152). Its
-// numbers still come from lib/limits.ts, same as before.
-//
-// Keep the PRO list below in sync with the actual gates: the timeframe clamp and
-// locked cards in app/arena/page.tsx, the /backtest paywall, and the
-// PRO_REQUIRED check in all 11 one-shot AI tool routes (thesis-check,
-// strategy-research, shadow-account, behavioral-bias, pine-script,
-// hypotheses/[id]/analyze, token-unlock, smc-snapshot, dry-powder,
-// macro-context, onchain).
-// This comment used to name only /api/onchain and /api/macro-context, and
-// that was the bug: the Pro column here has always sold the tool pool
-// (UPGRADE_PRO_FEATURE_TOOL_POOL) while 5 of the 11 routes never enforced it,
-// so a free account really could run them. All 11 now enforce it.
-// (AI limit numbers come from lib/limits.ts - they can't drift from the API.)
-const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
-  ['UPGRADE_PRO_FEATURE_EVERYTHING_FREE'],
-  ['UPGRADE_PRO_FEATURE_FAST_TIMEFRAMES'],
-  ['UPGRADE_PRO_FEATURE_CONFLUENCE'],
-  /* There is no "Full strategy backtesting" entry, on purpose - not a
-   * commented-out placeholder for a feature waiting to ship.
-   *
-   * /backtest was hidden in #264/#273 on the assumption it was an unfinished
-   * Pro feature. The owner's actual ruling: it's an internal/testing tool
-   * that was never meant to be sold, and got advertised here by accident.
-   * This list was selling "Full strategy backtesting" at $25/mo for a route
-   * that redirects to /dashboard - someone paying partly for that line would
-   * have gotten nothing.
-   *
-   * If a real customer-facing backtest feature ever ships, that's a new
-   * decision and a new label key - not a restoration of this one, since this
-   * one was never describing something for sale in the first place.
-   *
-   * The redirect in proxy.ts stays regardless - that block is correct on its
-   * own terms (an internal tool should not be reachable by URL), independent
-   * of this list. */
-  ['UPGRADE_PRO_FEATURE_ONCHAIN_MACRO'],
-  ['UPGRADE_PRO_FEATURE_TELEGRAM'],
-  ['UPGRADE_PRO_FEATURE_UNLIMITED_ALERTS'],
-  ['UPGRADE_PRO_FEATURE_AI_ANALYSES', { quick: P.quick, deep: P.deep }],
-  ['UPGRADE_PRO_FEATURE_AI_CHAT_SEARCH', { chat: P.chat, search: P.search }],
-  ['UPGRADE_PRO_FEATURE_TOOL_POOL', { tools: P.toolPool ?? 0 }],
-  /* There is no "Priority support" entry, on purpose. Owner ruling (#1309 item 34):
-   * support is one shared mailbox for every plan, so there is no priority tier to
-   * sell, and this line promised one to Pro subscribers. Removed rather than
-   * reworded, along with the landing copy's matching line. The label key
-   * UPGRADE_PRO_FEATURE_PRIORITY_SUPPORT is RETIRED, not deleted (production is
-   * additive-only; see labelKeys.ts), so nothing renders it any more. If a real
-   * priority channel ever exists, that is a new decision and a new key. */
-];
+// Both plan lists now live in lib/planFeatures.ts (FREE_PLAN_FEATURES /
+// PRO_PLAN_FEATURES), shared with the landing page so the two surfaces can't
+// drift again (#1152). The gate-sync notes and the reasons certain rows are
+// deliberately absent (backtest, priority support) moved there with the lists.
+// Numbers still come from lib/limits.ts.
 
 export default function UpgradePage() {
   const { user, loading, isPro } = useAuth();
@@ -288,9 +239,9 @@ export default function UpgradePage() {
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_PRO_CARD_NAME')}</div>
             <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>{t('UPGRADE_PRICE_MONTHLY')}<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {PRO_FEATURES.map(([k, vars]) => (
-                <li key={k} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(k, vars)}
+              {PRO_PLAN_FEATURES.map(({ id, labelKey, vars }) => (
+                <li key={id} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(labelKey, vars)}
                 </li>
               ))}
             </ul>
