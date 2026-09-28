@@ -31,7 +31,7 @@ import BrandMark from '@/components/BrandMark';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import LandingTicker from '@/components/LandingTicker';
 import type { LandingDict, Locale } from '@/lib/i18n/dictionaries';
-import { FREE_PLAN_FEATURES } from '@/lib/planFeatures';
+import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
 import { interpolate } from '@/lib/labels';
 
 interface Props {
@@ -494,10 +494,13 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             </div>
             <div style={{ fontSize: 13.5, color: 'var(--txt2)', marginTop: 12 }}>{dict.pricing.pro.sub}</div>
             <ul style={{ listStyle: 'none', margin: '22px 0 0', padding: 0 }}>
-              {dict.pricing.pro.features.map((f, i) => (
-                <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--bdr2)' }}>
+              {/* #1152: Pro rows/order/numbers from the shared PRO_PLAN_FEATURES,
+                  same source /upgrade renders; text stays local per-locale. Pro
+                  has no excluded rows, so every one is a ✓. */}
+              {PRO_PLAN_FEATURES.map((row) => (
+                <li key={row.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--bdr2)' }}>
                   <span style={{ width: 12, fontSize: 12, fontFamily: 'var(--font-mono), monospace', color: 'var(--green)' }}>✓</span>
-                  <span style={{ fontSize: 13.5, color: 'var(--txt)' }}>{f}</span>
+                  <span style={{ fontSize: 13.5, color: 'var(--txt)' }}>{interpolate(dict.pricing.pro.features[row.id] ?? '', row.vars)}</span>
                 </li>
               ))}
             </ul>
