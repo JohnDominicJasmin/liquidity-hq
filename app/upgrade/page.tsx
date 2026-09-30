@@ -38,6 +38,14 @@ const TRUST_LABELS = ['UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
 // deliberately absent (backtest, priority support) moved there with the lists.
 // Numbers still come from lib/limits.ts.
 
+/* The price badge inside the two-weekly and annual buttons (#861, owner
+   2026-09-30: "fix it"). At 390 wide the badge used to break in the middle,
+   "$20" on one line and "/2 weeks" on the next. Now it never breaks: the button
+   lays out as a wrapping row, so on a narrow screen the badge drops whole onto
+   its own line, centred under the label, and on a wide one it sits beside it. */
+const PRICE_BADGE: React.CSSProperties = { fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' };
+const PRICE_BUTTON_LAYOUT: React.CSSProperties = { display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8, rowGap: 6 };
+
 export default function UpgradePage() {
   const { user, loading, isPro } = useAuth();
   const router = useRouter();
@@ -110,12 +118,12 @@ export default function UpgradePage() {
       data-testid="checkout-cta-fortnightly"
       onClick={handleCheckoutFortnightly}
       disabled={isRedirecting}
-      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s' }}
+      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s', ...PRICE_BUTTON_LAYOUT }}
       onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
     >
       {redirecting === 'fortnightly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
-        <>{t('UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_FORTNIGHTLY')}{t('UPGRADE_PRICE_SUFFIX_FORTNIGHTLY')}</span></>
+        <><span>{t('UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA')}</span><span style={PRICE_BADGE}>{t('UPGRADE_PRICE_FORTNIGHTLY')}{t('UPGRADE_PRICE_SUFFIX_FORTNIGHTLY')}</span></>
       )}
     </button>
   );
@@ -274,12 +282,12 @@ export default function UpgradePage() {
                   data-testid="checkout-cta-annual"
                   onClick={handleCheckoutAnnual}
                   disabled={isRedirecting}
-                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative' }}
+                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative', ...PRICE_BUTTON_LAYOUT }}
                   onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
                   {redirecting === 'annual' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
-                    <>{t('UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_ANNUAL')}{t('UPGRADE_PRICE_SUFFIX_ANNUAL')} · {t('UPGRADE_ANNUAL_SAVE_BADGE')}</span></>
+                    <><span>{t('UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA')}</span><span style={PRICE_BADGE}>{t('UPGRADE_PRICE_ANNUAL')}{t('UPGRADE_PRICE_SUFFIX_ANNUAL')} · {t('UPGRADE_ANNUAL_SAVE_BADGE')}</span></>
                   )}
                 </button>
               </div>
