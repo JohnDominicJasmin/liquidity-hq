@@ -2,7 +2,6 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getCheckoutUrl, isCheckoutConfigured } from '@/lib/checkout';
 import { useLabels } from '@/lib/labels';
 import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 
@@ -165,17 +164,22 @@ export function FullPageEntitlementUnknown({ title, onRetry }: { title: string; 
   );
 }
 
-// Shared by the modal below and FullPageUpgradeGate - while LemonSqueezy
-// checkout is not configured, getCheckoutUrl falls back to the signup page,
-// a dead end for someone already signed in. Send signed-in users to /upgrade
-// instead (it explains payments are launching soon), signed-out users to
-// signup with /upgrade as the destination.
-function useCheckoutHref() {
+// Shared by the modal below and FullPageUpgradeGate. Both send the buyer to
+// /upgrade and NEVER to a payment page (#861).
+//
+// This used to hand out a Lemon Squeezy checkout link whenever that link was
+// set. Lemon Squeezy rejected the store, so on a host where the variable
+// survived, "Upgrade" on any locked card opened a dead store and skipped
+// /upgrade altogether. There is nothing to deep-link to any more in any case:
+// paying is a choice of plan and then of payment method, and both live on
+// /upgrade, which also says so plainly when nothing is on sale yet.
+//
+// So this reads no payment setting at all. Signed-in users go to /upgrade;
+// signed-out users go to sign-up with /upgrade as the destination, because a
+// payment has to be matched to an account.
+function useUpgradeHref() {
   const { user } = useAuth();
-  const checkoutConfigured = isCheckoutConfigured();
-  return checkoutConfigured
-    ? getCheckoutUrl(user)
-    : user ? '/upgrade' : '/login?signup=1&next=/upgrade';
+  return user ? '/upgrade' : '/login?signup=1&next=/upgrade';
 }
 
 // Full-page stand-in for when an entire route is Pro-only (e.g. /backtest),
@@ -183,7 +187,7 @@ function useCheckoutHref() {
 // (UpgradeGateModal). Same copy conventions as both - one "Pro Feature"
 // eyebrow + CTA pattern instead of three hand-rolled versions drifting apart.
 export function FullPageUpgradeGate({ title, description }: { title: string; description: string }) {
-  const ctaHref = useCheckoutHref();
+  const ctaHref = useUpgradeHref();
   const { t } = useLabels();
   return (
     <div className="upgrade-gate-term-wrap" style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -229,11 +233,9 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
 }
 
 // Paywall modal shown when a free user taps a Pro-only feature. The CTA goes
-// through getCheckoutUrl, which pre-fills the LemonSqueezy checkout with the
-// user's email + id (or falls back to /login?signup=1 while checkout is not
-// configured yet).
+// to /upgrade (see useUpgradeHref above), never straight to a payment page.
 export default function UpgradeGateModal({ open, onClose, feature }: Props) {
-  const ctaHref = useCheckoutHref();
+  const ctaHref = useUpgradeHref();
   const { t } = useLabels();
   // #1243: focus-in/trap/restore. Escape is now handled inside this hook -
   // the window keydown listener below is body-scroll-lock only.

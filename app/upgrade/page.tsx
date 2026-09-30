@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getCryptoCheckoutUrl, isCryptoCheckoutConfigured, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
+import { getCryptoCheckoutUrl, isProBuyable, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
 import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
@@ -14,7 +14,9 @@ import type { LabelKey } from '@/lib/labelKeys';
    is crypto (BoomFi). When card payments arrive (Polar, Phase 3) each flag
    becomes "crypto OR card" and the method panel below gains a second button;
    nothing else on the page changes shape. */
-const CHECKOUT_CONFIGURED = isCryptoCheckoutConfigured();
+// isProBuyable, not the crypto reader directly: it is the same answer the
+// trial-ending email and /api/version give, so the three cannot disagree.
+const CHECKOUT_CONFIGURED = isProBuyable();
 const CHECKOUT_ANNUAL_CONFIGURED = isCryptoCheckoutConfiguredAnnual();
 // #1400: the two-weekly plan is additive, like annual - it renders only where the
 // monthly link is set too, and never substitutes for it.

@@ -195,6 +195,25 @@ export function isCryptoCheckoutConfiguredFortnightly(env?: Record<string, strin
   return cryptoCheckoutBaseFortnightly(env) !== null;
 }
 
+/** Can Pro be bought on this host at all, by any payment method?
+ *
+ *  ONE answer, for everything that has to say whether Pro is on sale: /upgrade
+ *  (plan buttons or the coming-soon block), the trial-ending email ("Keep Pro"
+ *  or "not on sale yet") and /api/version. They used to agree because all of
+ *  them read the Lemon Squeezy link. When /upgrade moved to BoomFi the others
+ *  were left reading a link to a store that had rejected us, so on a host with
+ *  that link still set, "Upgrade" on a locked card opened the dead store, and
+ *  on a host without it the email would have said Pro was not on sale while
+ *  /upgrade was selling it.
+ *
+ *  Pro is buyable when the monthly plan has a working payment link: every
+ *  other plan only renders alongside the monthly one. Today that is the BoomFi
+ *  link. When card payments arrive this becomes "crypto OR card" HERE, and
+ *  every caller follows without being touched. */
+export function isProBuyable(env?: Record<string, string | undefined>): boolean {
+  return isCryptoCheckoutConfigured(env);
+}
+
 export type CheckoutPlan = 'monthly' | 'annual' | 'fortnightly';
 
 /** The BoomFi link for a plan with the account id bound to it, or null when

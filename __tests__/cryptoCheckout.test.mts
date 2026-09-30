@@ -245,7 +245,11 @@ test('C11. /api/version reports the three crypto flags from the same read the pa
 /* ══ /upgrade: source-asserted ══ */
 
 test('U1. /upgrade gates every plan on its crypto link, and imports nothing that could send a buyer to the rejected store', () => {
-  assert.match(UPGRADE, /const CHECKOUT_CONFIGURED = isCryptoCheckoutConfigured\(\);/);
+  /* The monthly gate goes through isProBuyable() since 58f64e3d - the one answer
+     the trial-ending email and /api/version also give. Today it IS the BoomFi
+     monthly link (proBuyable.test.mts pins that), so the page still shows plan
+     buttons exactly when that link is set. */
+  assert.match(UPGRADE, /const CHECKOUT_CONFIGURED = isProBuyable\(\);/);
   assert.match(UPGRADE, /const CHECKOUT_ANNUAL_CONFIGURED = isCryptoCheckoutConfiguredAnnual\(\);/);
   assert.match(UPGRADE, /const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly\(\);/);
   assert.equal(/\bgetCheckoutUrl(Annual|Fortnightly)?\b|\bisCheckoutConfigured(Annual|Fortnightly)?\b/.test(UPGRADE), false, '/upgrade still references a Lemon Squeezy checkout function');

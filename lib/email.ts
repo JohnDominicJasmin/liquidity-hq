@@ -33,7 +33,7 @@ interface TrialEndingArgs {
 }
 
 import { reportHealth, healthError } from '@/lib/apiHealth';
-import { isCheckoutConfigured } from './checkout.ts';
+import { isProBuyable } from './checkout.ts';
 
 /* Every sender in this file ends in `return res.ok` inside a try/catch that
    returns false - so a bounced welcome email, an expired Brevo key or a
@@ -318,14 +318,16 @@ export async function sendTrialEndingEmail(args: TrialEndingArgs): Promise<boole
   const when = args.daysLeft <= 1 ? 'tomorrow' : `in ${args.daysLeft} days`;
   const subject = `Your ${APP_NAME} Pro trial ends ${when}`;
 
-  /* Only promise a purchase path when one actually exists. Until checkout is
-     configured, /upgrade renders "Pro payments launching soon" - so a plain
-     "Keep Pro" link would send the most interested user we have, on the day
-     they are most willing to pay, to a page that cannot take their money. Same
-     env check /upgrade and UpgradeGateModal already use, so the three agree by
-     construction. The rest of the email still sends either way: its real job is
+  /* Only promise a purchase path when one actually exists. Until Pro is on
+     sale, /upgrade renders "Pro payments launching soon" - so a plain "Keep
+     Pro" link would send the most interested user we have, on the day they are
+     most willing to pay, to a page that cannot take their money. isProBuyable is
+     the same answer /upgrade renders from, so the email and the page agree by
+     construction (#861: this read the Lemon Squeezy link after /upgrade had
+     moved to BoomFi, and would have said "not on sale yet" while the page was
+     selling). The rest of the email still sends either way: its real job is
      warning that features are about to lock, which is true regardless. */
-  const checkoutLive = isCheckoutConfigured();
+  const checkoutLive = isProBuyable();
   const cta = checkoutLive
     ? `<p style="margin:0 0 12px">Keep Pro: <a href="${upgradeUrl}">${upgradeUrl}</a></p>`
     : `<p style="margin:0 0 12px">Pro is not on sale yet, so there is nothing to buy today - the features above still lock ${when}, and we will email you as soon as there is a way to keep them.</p>`;
