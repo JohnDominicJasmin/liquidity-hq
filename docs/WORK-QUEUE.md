@@ -76,7 +76,6 @@ means*). **Every issue carries exactly one `priority:` label.**
 
 | # | Item | Notes |
 |---|---|---|
-| D1 | **One "is Pro buyable" check** (`fix/pro-buyable-one-predicate`) | `/upgrade`, the upgrade prompts on locked features and the trial-ending email each decided "can Pro be bought" from the Lemon Squeezy link. On `qa` that link is still set, so a locked-feature prompt sent a Free user to the rejected store. Blocks crypto on production. |
 | D1 | **#1434 - unknown URLs return 200 on production again** (high) | Cause found 2026-09-30: `app/not-found.tsx` called `headers()`, which made every page render per request and let unknown URLs answer 200; production's log confirms it. Fix merged to `dev` (#1471). **Needs a production release, which is the owner's approval.** |
 | D2 | **#1263 - Arena and Strategy Panel: saved selections vs settings load** (high) | Read the tracker first; say on it what you are taking. |
 | D3 | **#1113 - onboarding and first run** (high) | Same. |
