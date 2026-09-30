@@ -130,3 +130,87 @@ export function getCheckoutUrlFortnightly(user: { id: string; email?: string } |
     return base;
   }
 }
+
+/* ── Pay with crypto: BoomFi (#861, Phase 1) ──────────────────────────────────
+ *
+ * Lemon Squeezy rejected the store, so the card links above now point nowhere
+ * and /upgrade no longer reads them. They stay in this file only because the
+ * upsell modal and the trial-ending email still import them; removing them is
+ * its own sweep, so that a payments change cannot silently break either.
+ *
+ * One link per plan, the same rules as every reader above: a literal
+ * `process.env.NEXT_PUBLIC_*` read at module scope (#243 - anything else is not
+ * inlined into the client bundle), '#' and empty mean unset, an unset link
+ * renders nothing rather than a dead button, and no plan ever falls back to
+ * another plan's link (a wrong-product link charges the wrong amount and looks
+ * like it worked).
+ *
+ * TWO DIFFERENCES FROM THE CARD LINKS, both deliberate:
+ *
+ * 1. Only ONE parameter is added, and it is BoomFi's own: `customer_ident`,
+ *    set to the account id. Their docs (payments/paylink-features): "Bind the
+ *    session to a customer id you already store with `customer_ident`" -
+ *    "Webhook and dashboard activity can then use this identifier
+ *    consistently." That is what lets the webhook (Phase 1b) tie a payment to
+ *    an account without guessing from an email. Email and name are NOT
+ *    prefilled: BoomFi requires both together when prefilling and the account
+ *    has no reliable name. Nothing else is appended.
+ *
+ *    The id is put there by the browser, so the payer can change it. As with
+ *    the card links, it identifies who to credit and proves nothing about who
+ *    paid; the webhook has to treat it that way.
+ *
+ * 2. The two-weekly plan is a WEEKLY link. BoomFi has no "every two weeks"
+ *    interval, so its version of that plan bills $10 each week. /upgrade says so
+ *    beside the button; the variable keeps the plan's name, not the interval's,
+ *    so the three names line up with the three plans. */
+const INLINED_CRYPTO_MONTHLY = process.env.NEXT_PUBLIC_BOOMFI_CHECKOUT_URL;
+const INLINED_CRYPTO_ANNUAL = process.env.NEXT_PUBLIC_BOOMFI_CHECKOUT_URL_ANNUAL;
+const INLINED_CRYPTO_FORTNIGHTLY = process.env.NEXT_PUBLIC_BOOMFI_CHECKOUT_URL_FORTNIGHTLY;
+
+export function cryptoCheckoutBase(env?: Record<string, string | undefined>): string | null {
+  const base = env ? env.NEXT_PUBLIC_BOOMFI_CHECKOUT_URL : INLINED_CRYPTO_MONTHLY;
+  return base && base !== '#' ? base : null;
+}
+
+export function isCryptoCheckoutConfigured(env?: Record<string, string | undefined>): boolean {
+  return cryptoCheckoutBase(env) !== null;
+}
+
+export function cryptoCheckoutBaseAnnual(env?: Record<string, string | undefined>): string | null {
+  const base = env ? env.NEXT_PUBLIC_BOOMFI_CHECKOUT_URL_ANNUAL : INLINED_CRYPTO_ANNUAL;
+  return base && base !== '#' ? base : null;
+}
+
+export function isCryptoCheckoutConfiguredAnnual(env?: Record<string, string | undefined>): boolean {
+  return cryptoCheckoutBaseAnnual(env) !== null;
+}
+
+export function cryptoCheckoutBaseFortnightly(env?: Record<string, string | undefined>): string | null {
+  const base = env ? env.NEXT_PUBLIC_BOOMFI_CHECKOUT_URL_FORTNIGHTLY : INLINED_CRYPTO_FORTNIGHTLY;
+  return base && base !== '#' ? base : null;
+}
+
+export function isCryptoCheckoutConfiguredFortnightly(env?: Record<string, string | undefined>): boolean {
+  return cryptoCheckoutBaseFortnightly(env) !== null;
+}
+
+export type CheckoutPlan = 'monthly' | 'annual' | 'fortnightly';
+
+/** The BoomFi link for a plan with the account id bound to it, or null when
+ *  that plan's link is not set. A link that does not parse as a URL is returned
+ *  as it was given rather than dropped - the same choice the card links make. */
+export function getCryptoCheckoutUrl(plan: CheckoutPlan, user: { id: string } | null): string | null {
+  const base = plan === 'annual' ? cryptoCheckoutBaseAnnual()
+    : plan === 'fortnightly' ? cryptoCheckoutBaseFortnightly()
+    : cryptoCheckoutBase();
+  if (!base) return null;
+  if (!user?.id) return base;
+  try {
+    const url = new URL(base);
+    url.searchParams.set('customer_ident', user.id);
+    return url.toString();
+  } catch {
+    return base;
+  }
+}
