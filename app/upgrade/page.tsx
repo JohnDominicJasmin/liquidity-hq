@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
@@ -25,14 +25,26 @@ const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly();
    is left out, owner's decision 2026-09-30 (#861): a crypto payment does not
    unlock the account by itself until the BoomFi webhook does it, so the line
    would be untrue for the only way there is to pay. It comes back when a payment
-   method that unlocks automatically exists. The label key stays. */
-const TRUST_LABELS = ['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
+   method that unlocks automatically exists. The label key stays.
+   "Cancel anytime" (UPGRADE_TRUST_CANCEL_ANYTIME) is left out for the same
+   reason, owner's decision 2026-09-30 (#861): a BoomFi subscriber cannot cancel
+   from here yet, and copy says only what the product does today. It comes back
+   when that cancel exists. The label key stays. */
+const TRUST_LABELS = ['UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
 
 // Both plan lists now live in lib/planFeatures.ts (FREE_PLAN_FEATURES /
 // PRO_PLAN_FEATURES), shared with the landing page so the two surfaces can't
 // drift again (#1152). The gate-sync notes and the reasons certain rows are
 // deliberately absent (backtest, priority support) moved there with the lists.
 // Numbers still come from lib/limits.ts.
+
+/* The price badge inside the two-weekly and annual buttons (#861, owner
+   2026-09-30: "fix it"). At 390 wide the badge used to break in the middle,
+   "$20" on one line and "/2 weeks" on the next. Now it never breaks: the button
+   lays out as a wrapping row, so on a narrow screen the badge drops whole onto
+   its own line, centred under the label, and on a wide one it sits beside it. */
+const PRICE_BADGE: React.CSSProperties = { fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' };
+const PRICE_BUTTON_LAYOUT: React.CSSProperties = { display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8, rowGap: 6 };
 
 export default function UpgradePage() {
   const { user, loading, isPro } = useAuth();
@@ -49,6 +61,8 @@ export default function UpgradePage() {
      the panel still shows, so the page does not change shape for the buyer on
      the day a second method is added. */
   const [selectedPlan, setSelectedPlan] = useState<null | CheckoutPlan>(null);
+  /** The plan button that opened the panel, so closing it can return focus there. */
+  const panelOpener = useRef<HTMLElement | null>(null);
   const { t } = useLabels();
 
   useEffect(() => {
@@ -83,8 +97,27 @@ export default function UpgradePage() {
      account has nothing to unlock. */
   function choosePlan(plan: CheckoutPlan) {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
+    if (document.activeElement instanceof HTMLElement) panelOpener.current = document.activeElement;
     setSelectedPlan(plan);
   }
+
+  /* Closing the panel (#861, owner 2026-09-30): an X, and Escape from anywhere
+     on the page. Focus goes back to the plan button that opened it, so a
+     keyboard user is not dropped at the top of the page. Not while redirecting:
+     the payment page is already loading. */
+  const closePanel = useCallback(() => {
+    setSelectedPlan(null);
+    const opener = panelOpener.current;
+    panelOpener.current = null;
+    if (opener?.isConnected) opener.focus();
+  }, []);
+  useEffect(() => {
+    if (!selectedPlan || isRedirecting) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePanel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedPlan, isRedirecting, closePanel]);
+
   const handleCheckout = () => choosePlan('monthly');
   const handleCheckoutAnnual = () => choosePlan('annual');
   const handleCheckoutFortnightly = () => choosePlan('fortnightly');
@@ -105,12 +138,12 @@ export default function UpgradePage() {
       data-testid="checkout-cta-fortnightly"
       onClick={handleCheckoutFortnightly}
       disabled={isRedirecting}
-      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s' }}
+      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s', ...PRICE_BUTTON_LAYOUT }}
       onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
     >
       {redirecting === 'fortnightly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
-        <>{t('UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_FORTNIGHTLY')}{t('UPGRADE_PRICE_SUFFIX_FORTNIGHTLY')}</span></>
+        <><span>{t('UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA')}</span><span style={PRICE_BADGE}>{t('UPGRADE_PRICE_FORTNIGHTLY')}{t('UPGRADE_PRICE_SUFFIX_FORTNIGHTLY')}</span></>
       )}
     </button>
   );
@@ -121,9 +154,22 @@ export default function UpgradePage() {
       data-plan={selectedPlan}
       role="group"
       aria-labelledby="checkout-method-title"
-      style={{ width: '100%', maxWidth: 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
+      style={{ position: 'relative', width: '100%', maxWidth: 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
     >
-      <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
+      {/* 32x32 hit area, above SC 2.5.8's 24px minimum; the glyph stays small. */}
+      <button
+        type="button"
+        data-testid="checkout-method-close"
+        onClick={closePanel}
+        disabled={isRedirecting}
+        aria-label={t('UPGRADE_METHOD_PANEL_CLOSE_ARIA')}
+        title={t('UPGRADE_METHOD_PANEL_CLOSE_ARIA')}
+        style={{ position: 'absolute', top: 8, right: 8, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--fs-body)', lineHeight: 1, color: 'var(--txt3)', background: 'transparent', border: 'none', borderRadius: 8, cursor: isRedirecting ? 'default' : 'pointer' }}
+      >
+        ✕
+      </button>
+      {/* Side padding keeps a long title clear of the X. */}
+      <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', padding: '0 28px', textAlign: 'center' }}>
         {t('UPGRADE_METHOD_PANEL_TITLE')}
       </div>
       {cryptoUrl && (
@@ -269,12 +315,12 @@ export default function UpgradePage() {
                   data-testid="checkout-cta-annual"
                   onClick={handleCheckoutAnnual}
                   disabled={isRedirecting}
-                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative' }}
+                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative', ...PRICE_BUTTON_LAYOUT }}
                   onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
                   {redirecting === 'annual' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
-                    <>{t('UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_ANNUAL')}{t('UPGRADE_PRICE_SUFFIX_ANNUAL')} · {t('UPGRADE_ANNUAL_SAVE_BADGE')}</span></>
+                    <><span>{t('UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA')}</span><span style={PRICE_BADGE}>{t('UPGRADE_PRICE_ANNUAL')}{t('UPGRADE_PRICE_SUFFIX_ANNUAL')} · {t('UPGRADE_ANNUAL_SAVE_BADGE')}</span></>
                   )}
                 </button>
               </div>

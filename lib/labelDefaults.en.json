@@ -2534,6 +2534,7 @@
   "UPGRADE_METHOD_CRYPTO_CTA": "Pay with Crypto",
   "UPGRADE_METHOD_CRYPTO_NOTE": "At checkout, use the same email as your LiquidityHQ account so we can match the payment to you.",
   "UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE": "Paid in crypto, this plan is billed $10 every week.",
+  "UPGRADE_METHOD_PANEL_CLOSE_ARIA": "Close payment options",
   "ARENA_ERROR_BYBIT_API": "Bybit data unavailable",
   "ARENA_AUTH_NOTICE": "Sign in to run Quick and Deep analysis.",
   "HOURS_WIN_PRIME_DESC": "US session hours. Volume picks up. Best daily window for clean setups. 20:00–20:45 UTC is the single most consistent reversal sub-window.",
