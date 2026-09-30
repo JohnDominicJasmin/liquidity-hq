@@ -6,6 +6,7 @@
 import {
   isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly,
   isCryptoCheckoutConfigured, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly,
+  isProBuyable,
 } from './checkout.ts';
 import { isLsApiConfigured } from './lemonsqueezyApi.ts';
 import { analyticsKey } from './analytics.ts';
@@ -50,6 +51,9 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
     /* The crypto links (#861). These three, not the three above, are what
        /upgrade gates on now - so these are the flags that say whether a plan
        button renders on this host. Same read the page uses. */
+    /* What /upgrade and the trial-ending email both go by: is Pro on sale here
+       at all. One flag to read instead of inferring it from the links. */
+    proBuyable:                isProBuyable(env),
     cryptoCheckout:            isCryptoCheckoutConfigured(env),
     cryptoCheckoutAnnual:      isCryptoCheckoutConfiguredAnnual(env),
     cryptoCheckoutFortnightly: isCryptoCheckoutConfiguredFortnightly(env),
