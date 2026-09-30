@@ -25,8 +25,12 @@ const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly();
    is left out, owner's decision 2026-09-30 (#861): a crypto payment does not
    unlock the account by itself until the BoomFi webhook does it, so the line
    would be untrue for the only way there is to pay. It comes back when a payment
-   method that unlocks automatically exists. The label key stays. */
-const TRUST_LABELS = ['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
+   method that unlocks automatically exists. The label key stays.
+   "Cancel anytime" (UPGRADE_TRUST_CANCEL_ANYTIME) is left out for the same
+   reason, owner's decision 2026-09-30 (#861): a BoomFi subscriber cannot cancel
+   from here yet, and copy says only what the product does today. It comes back
+   when that cancel exists. The label key stays. */
+const TRUST_LABELS = ['UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
 
 // Both plan lists now live in lib/planFeatures.ts (FREE_PLAN_FEATURES /
 // PRO_PLAN_FEATURES), shared with the landing page so the two surfaces can't
@@ -85,6 +89,7 @@ export default function UpgradePage() {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
     setSelectedPlan(plan);
   }
+
   const handleCheckout = () => choosePlan('monthly');
   const handleCheckoutAnnual = () => choosePlan('annual');
   const handleCheckoutFortnightly = () => choosePlan('fortnightly');
