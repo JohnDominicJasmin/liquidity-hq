@@ -172,24 +172,29 @@ function titleCase(s: string): string {
 /* The real routes that show this bar and have no entry above. These, and only
  * these, still get their name from the URL (#1434).
  *
- * The fallback used to run for ANY path with no entry, which is only safe when
- * the server and the browser see the same path. For the not-found page they do
- * not: it is prerendered once, under Next's internal path `/_not-found`, and
- * then served at whatever unknown URL was asked for. So the server's HTML said
- * "_not Found" while the browser computed "Zz Not A Page" from the real URL,
- * and React threw a hydration error (#418) on every 404 view - one thrown error
- * per view in the error tracker, and "_not Found" in the HTML crawlers read.
+ * EVERY MATCH HERE IS EXACT, and that is the fix, not a tidy-up. The not-found
+ * page is prerendered once, under Next's internal path `/_not-found`, and then
+ * served at whatever unknown URL was asked for. So on a 404 the server renders
+ * this bar for `/_not-found` and the browser renders it again for the real
+ * address. Anything this file derives from the path has to come out the SAME
+ * for both, or React throws a hydration error (#418) on every 404 view.
  *
- * A path that is none of our routes now has NO name, on both sides, so the two
- * agree. The cost is deliberate: a new route added without a name here or
- * above shows an empty header, not a guessed one. */
-const URL_NAMED_ROUTES = new Set(['/admin', '/learn', '/offline']);
+ * Two ways it did not:
+ *   - an unmatched path was title-cased from the URL: the server's HTML said
+ *     "_not Found", the browser said "Zz Not A Page";
+ *   - a named path matched by PREFIX: for /arena/old-link the server found
+ *     nothing and the browser found "Arena" (QA, on #1474).
+ * Exact matching loses nothing: no page route sits below any named path. A
+ * path that is none of our routes has no name and no active tab, on both sides.
+ * The cost is deliberate: a new route added without an entry shows an empty
+ * header, not a guessed one. (/learn, /, /ko, /zh, the sign-in pages and /ops
+ * never show this bar at all, so they need no entry.) */
+const URL_NAMED_ROUTES = new Set(['/admin', '/offline']);
 
 function screenNameFor(pathname: string, t: (k: LabelKey) => string): string {
-  const item = ITEMS.find(i => pathname === i.href || pathname.startsWith(i.href + '/'));
+  const item = ITEMS.find(i => pathname === i.href);
   if (item) return t(item.tabLabelKey);
-  const matchPath = Object.keys(SCREEN_NAMES).find(p => pathname === p || pathname.startsWith(p + '/'));
-  if (matchPath) return t(SCREEN_NAMES[matchPath]);
+  if (pathname in SCREEN_NAMES) return t(SCREEN_NAMES[pathname]);
   if (!URL_NAMED_ROUTES.has(pathname)) return '';
   const seg = pathname.split('/').filter(Boolean).pop();
   return seg ? titleCase(seg.replace(/-/g, ' ')) : '';
@@ -210,8 +215,11 @@ const DROPDOWNS = [
   { key: 'tools'    as const, labelKey: 'NAV_DROPDOWN_TOOLS'    as const, items: TOOLS },
 ];
 
+/* Exact, for the same reason as screenNameFor above: on a 404 the server and
+   the browser see different paths, and a prefix match would mark a tab active
+   in one and not the other. */
 function isActive(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(href + '/');
+  return pathname === href;
 }
 
 interface TerminalNavProps {
