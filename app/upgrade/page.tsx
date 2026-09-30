@@ -114,8 +114,20 @@ export default function UpgradePage() {
     // they already pay for.
   }, [isPro, loading, router]);
 
+  /* Coming BACK from the payment page. The browser can restore this page from
+     its back/forward cache with its state intact, which would leave
+     `redirecting` set and every button disabled with no way to clear it but a
+     reload. A restored page is one the buyer returned to, so nothing is
+     redirecting any more. */
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) setRedirecting(null); };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
   /* Step 1. An account is still required before paying: the payment is matched
-     to it afterwards by email, so a payer with no account has nothing to unlock. */
+     to it afterwards by the account id bound to the link, so a payer with no
+     account has nothing to unlock. */
   function choosePlan(plan: CheckoutPlan) {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
     setSelectedPlan(plan);
@@ -125,7 +137,7 @@ export default function UpgradePage() {
   const handleCheckoutFortnightly = () => choosePlan('fortnightly');
 
   /* Step 2. The link is read for the plan that was picked, never another one. */
-  const cryptoUrl = selectedPlan ? getCryptoCheckoutUrl(selectedPlan) : null;
+  const cryptoUrl = selectedPlan ? getCryptoCheckoutUrl(selectedPlan, user) : null;
   function payWithCrypto() {
     if (!selectedPlan || !cryptoUrl) return;
     setRedirecting(selectedPlan);

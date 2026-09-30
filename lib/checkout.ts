@@ -147,11 +147,18 @@ export function getCheckoutUrlFortnightly(user: { id: string; email?: string } |
  *
  * TWO DIFFERENCES FROM THE CARD LINKS, both deliberate:
  *
- * 1. The URL is returned untouched. A BoomFi payment link is static - it takes
- *    no email or user id - so nothing is appended to it. Inventing a query
- *    parameter would either do nothing or break the link. The payer is matched
- *    to an account afterwards, by the email BoomFi collects at checkout
- *    (Phase 1b, the webhook).
+ * 1. Only ONE parameter is added, and it is BoomFi's own: `customer_ident`,
+ *    set to the account id. Their docs (payments/paylink-features): "Bind the
+ *    session to a customer id you already store with `customer_ident`" -
+ *    "Webhook and dashboard activity can then use this identifier
+ *    consistently." That is what lets the webhook (Phase 1b) tie a payment to
+ *    an account without guessing from an email. Email and name are NOT
+ *    prefilled: BoomFi requires both together when prefilling and the account
+ *    has no reliable name. Nothing else is appended.
+ *
+ *    The id is put there by the browser, so the payer can change it. As with
+ *    the card links, it identifies who to credit and proves nothing about who
+ *    paid; the webhook has to treat it that way.
  *
  * 2. The two-weekly plan is a WEEKLY link. BoomFi has no "every two weeks"
  *    interval, so its version of that plan bills $10 each week. /upgrade says so
@@ -190,9 +197,20 @@ export function isCryptoCheckoutConfiguredFortnightly(env?: Record<string, strin
 
 export type CheckoutPlan = 'monthly' | 'annual' | 'fortnightly';
 
-/** The BoomFi link for a plan, or null when that plan's link is not set. */
-export function getCryptoCheckoutUrl(plan: CheckoutPlan): string | null {
-  if (plan === 'annual') return cryptoCheckoutBaseAnnual();
-  if (plan === 'fortnightly') return cryptoCheckoutBaseFortnightly();
-  return cryptoCheckoutBase();
+/** The BoomFi link for a plan with the account id bound to it, or null when
+ *  that plan's link is not set. A link that does not parse as a URL is returned
+ *  as it was given rather than dropped - the same choice the card links make. */
+export function getCryptoCheckoutUrl(plan: CheckoutPlan, user: { id: string } | null): string | null {
+  const base = plan === 'annual' ? cryptoCheckoutBaseAnnual()
+    : plan === 'fortnightly' ? cryptoCheckoutBaseFortnightly()
+    : cryptoCheckoutBase();
+  if (!base) return null;
+  if (!user?.id) return base;
+  try {
+    const url = new URL(base);
+    url.searchParams.set('customer_ident', user.id);
+    return url.toString();
+  } catch {
+    return base;
+  }
 }
