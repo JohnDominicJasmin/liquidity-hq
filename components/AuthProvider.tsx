@@ -127,6 +127,17 @@ const ENTITLEMENTS_FETCH_MS = 15000;
    on attempt 1, same as before this existed. */
 const ENTITLEMENTS_MAX_ATTEMPTS = 3;
 const ENTITLEMENTS_RETRY_BACKOFF_MS = [1000, 2000];
+/* #1173: overall wall-clock budget for the whole retry sequence. Per-attempt
+ * bounds accumulated to ~48s worst case (15s x 3 + backoff) against a dead
+ * `/rest/v1`, the biggest number in the auth path. This caps the sequence ONCE
+ * without shortening the deliberate 15s per-attempt read (#1089): each attempt's
+ * AbortSignal is min(ENTITLEMENTS_FETCH_MS, remaining budget), and no attempt or
+ * backoff starts once the budget is spent, so the worst case is ~22s to resolve
+ * or settle to 'unknown' (#1119) instead of ~48s. Chosen > one full 15s attempt
+ * so a single slow-but-working read still completes; the trigger has never been
+ * observed on prod (auth mean 0.5s), so this is a worst-case ceiling, not a
+ * tuning of the common path. */
+const ENTITLEMENTS_OVERALL_BUDGET_MS = 22000;
 
 /* QA-only hook, #1119 follow-up. QA's own finding: the retry-EXHAUSTION path
    (every attempt failing, landing on entitlementStatus 'unknown') had been
@@ -490,14 +501,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
        at the type level, even though it behaves like a real promise at
        runtime. try/catch (not just .catch() below) covers a genuine
        rejection from that same call, for the same reason. */
-    async function attempt(n: number): Promise<{ data: { role?: string; trial_ends_at?: string | null } | null; failed: boolean }> {
+    async function attempt(n: number, remainingBudgetMs: number): Promise<{ data: { role?: string; trial_ends_at?: string | null } | null; failed: boolean }> {
       if (qaForcedEntitlementsFailure()) return { data: null, failed: true };
       try {
+        // #1173: bound this attempt at whichever is shorter - the per-attempt
+        // read timeout, or what's left of the overall sequence budget - so a
+        // late attempt can't run the full 15s past the budget.
         const { data, error } = await Promise.resolve(
           sb!.from(T.user_subscriptions)
             .select('role, trial_ends_at')
             .eq('user_id', userId!)
-            .abortSignal(AbortSignal.timeout(ENTITLEMENTS_FETCH_MS))
+            .abortSignal(AbortSignal.timeout(Math.min(ENTITLEMENTS_FETCH_MS, remainingBudgetMs)))
             .maybeSingle(),
         );
         return { data: data ?? null, failed: Boolean(error) };
@@ -511,6 +525,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         maxAttempts: ENTITLEMENTS_MAX_ATTEMPTS,
         backoffMs: ENTITLEMENTS_RETRY_BACKOFF_MS,
         isCancelled: () => cancelled,
+        overallBudgetMs: ENTITLEMENTS_OVERALL_BUDGET_MS,
       });
       if (bailedEarly) return;
       const { data, failed } = result;

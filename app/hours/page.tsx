@@ -7,6 +7,7 @@ import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { readableOn } from '@/lib/readableOn';
+import PageHint from '@/components/PageHint';
 
 /* Typical-weekday session blocks, as UTC hour ranges - the same windows
    lib/session.ts enforces. These used to be PHT hours on a fixed PHT axis
@@ -132,6 +133,7 @@ export default function BestHours() {
 
   return (
     <div className="hours-term-wrap">
+      <PageHint pageKey="hours" title={t('HOURS_HINT_TITLE')} body={t('HOURS_HINT_BODY')} />
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('HOURS_TITLE')}</h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('HOURS_SUBTITLE')}</div>

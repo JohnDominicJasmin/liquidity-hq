@@ -33,6 +33,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import PageHint from '@/components/PageHint';
 import PerpSpotCard from '@/components/PerpSpotCard';
 
 const SPARK_W = 36;
@@ -532,6 +533,7 @@ export default function DashboardTerminal() {
 
   return (
     <div className="dashboard-grid" data-spotlight-section>
+      <PageHint pageKey="dashboard" title={t('DASHBOARD_HINT_TITLE')} body={t('DASHBOARD_HINT_BODY')} />
       {/* #1309 item 23: SetupChecklist is already rendered app-wide by
           AppShell (every route, not just this one) - a second copy here
           duplicated it at the same fixed position, so dismissing one

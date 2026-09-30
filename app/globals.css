@@ -2289,6 +2289,13 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 /* The FAB sits above the mobile nav drawer (z-index 9995 vs 999) and otherwise
    covers the bottom nav links, eating their taps - hide it while the drawer is open. */
 body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
+/* #1292 release screenshot: the settings save toast (bottom:24/right:24) and
+   this FAB (bottom:24/right:20) share the same corner, so the FAB (z-index
+   9995 vs the toast's 9999 - still visually on top since it isn't
+   transparent) covered the end of the toast's text. Same treatment as
+   body.pwa-prompt-open above - hide the FAB rather than compute an offset,
+   so mobile's safe-area math never has to know about the toast at all. */
+body.settings-toast-open .gchat-fab { opacity: 0; pointer-events: none; }
 
 
 /* ── backdrop (expanded mode) ── */
@@ -4171,8 +4178,23 @@ html[data-theme="light"] { background: var(--bg0); }
   animation: stToastIn 0.2s ease;
   pointer-events: none;
 }
-.st-save-toast.saving { background: rgba(255,255,255,0.06); border-color: var(--bdr); color: var(--txt3); }
-.st-save-toast.error  { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.4); color: var(--red); }
+.st-save-toast.saving   { background: rgba(255,255,255,0.06); border-color: var(--bdr); color: var(--txt3); }
+.st-save-toast.error    { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.4); color: var(--red); }
+/* #1285: amber, not red - the save succeeded, a field just adopted another
+   device's newer value. Sharing --error's colour would read as a failure the
+   user should retry, which is the exact wrong message for this case. */
+.st-save-toast.conflict { background: var(--amber-bg); border-color: var(--amber-bdr); color: var(--amber); }
+/* #1455: the live mobile bottom bar is the terminal nav, [data-design="terminal"]
+   .tnav-tabs - fixed at bottom:0, 60px tall, shown at <=767px (TerminalNav.tsx).
+   The toast's 24px offset put it over that bar and covered the SCAN label. Lift
+   it clear of the bar plus the iOS home-indicator safe area, mirroring the
+   terminal .app-content reservation (calc(60px + safe-area + 1rem)). Scoped to
+   terminal + <=767px because that is exactly where the bar renders; non-terminal
+   designs no longer render a bottom bar (the old .mobile-tab-bar block was
+   deleted). Same family as #1292's FAB-occlusion fix. */
+@media (max-width: 767px) {
+  [data-design="terminal"] .st-save-toast { bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 16px); }
+}
 @keyframes stToastIn  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 [data-theme="light"] .st-section { background: #fff; }

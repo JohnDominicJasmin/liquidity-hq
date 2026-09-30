@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { SECRETS, Secret } from '@/lib/secrets';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import PageHint from '@/components/PageHint';
 
 type Cat = 'all' | 'hunt' | 'time' | 'trap' | 'psych' | 'fav';
 
@@ -37,6 +38,7 @@ export default function LiquidityPlaybook() {
 
   return (
     <div className="playbook-term-wrap">
+      <PageHint pageKey="playbook" title={t('PLAYBOOK_HINT_TITLE')} body={t('PLAYBOOK_HINT_BODY')} />
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('PLAYBOOK_PAGE_TITLE')}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('PLAYBOOK_SUBTITLE', { count: SECRETS.length })}</div>

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
 import { getAuthToken } from '@/lib/supabase';
+import { fetchStateFromResult, isConfirmedEmpty, type FetchState } from '@/lib/fetchState';
 import EmptyState from '@/components/EmptyState';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
@@ -74,7 +75,7 @@ export default function HypothesisTracker() {
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [evidenceMap, setEvidenceMap] = useState<Record<string, Evidence[]>>({});
+  const [evidenceState, setEvidenceState] = useState<Record<string, FetchState<Evidence[]>>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   // Set when the server refuses the analysis with a Pro gate, so entitlement
@@ -120,20 +121,34 @@ export default function HypothesisTracker() {
 
   useEffect(() => { fetchHypotheses(); }, [fetchHypotheses]);
 
+  // #1342: "never fetched," "in flight" and "failed" used to collapse into
+  // the same `evidenceMap[id] ?? []` empty render (found on #1345, before
+  // this fix - see that PR). Loading and error are now distinct states, so
+  // a failed read shows a retry, not a false "no evidence logged yet."
   const fetchEvidence = useCallback(async (id: string) => {
-    const res = await apiFetch(`/api/hypotheses/${id}/evidence`);
-    if (!res.ok) return; // keep whatever evidence (if any) is already shown
-    const json = await res.json() as { evidence?: Evidence[] };
-    setEvidenceMap(prev => ({ ...prev, [id]: json.evidence ?? [] }));
-  }, []);
+    setEvidenceState(prev => ({ ...prev, [id]: { status: 'loading' } }));
+    let result: { ok: true; data: Evidence[] } | { ok: false; message: string };
+    try {
+      const res = await apiFetch(`/api/hypotheses/${id}/evidence`);
+      if (!res.ok) {
+        result = { ok: false, message: t('HYPOTHESIS_TRACKER_EVIDENCE_ERROR') };
+      } else {
+        const json = await res.json() as { evidence?: Evidence[] };
+        result = { ok: true, data: json.evidence ?? [] };
+      }
+    } catch {
+      result = { ok: false, message: t('HYPOTHESIS_TRACKER_EVIDENCE_ERROR') };
+    }
+    setEvidenceState(prev => ({ ...prev, [id]: fetchStateFromResult(result) }));
+  }, [t]);
 
   const toggleExpand = useCallback(async (id: string) => {
     if (expandedId === id) { setExpandedId(null); return; }
     setExpandedId(id);
     setEvContent('');
     setEvSource('');
-    if (!evidenceMap[id]) await fetchEvidence(id);
-  }, [expandedId, evidenceMap, fetchEvidence]);
+    if (!evidenceState[id]) await fetchEvidence(id);
+  }, [expandedId, evidenceState, fetchEvidence]);
 
   const createHypothesis = async () => {
     if (!cfTitle.trim() || !cfHypothesis.trim()) return;
@@ -199,10 +214,11 @@ export default function HypothesisTracker() {
   const deleteEvidence = async (hypothesisId: string, evidenceId: string) => {
     const res = await apiFetch(`/api/hypotheses/${hypothesisId}/evidence?evidenceId=${evidenceId}`, { method: 'DELETE' });
     if (res.ok) {
-      setEvidenceMap(prev => ({
-        ...prev,
-        [hypothesisId]: (prev[hypothesisId] ?? []).filter(e => e.id !== evidenceId),
-      }));
+      setEvidenceState(prev => {
+        const cur = prev[hypothesisId];
+        if (cur?.status !== 'ready') return prev;
+        return { ...prev, [hypothesisId]: { status: 'ready', data: cur.data.filter(e => e.id !== evidenceId) } };
+      });
     }
   };
 
@@ -366,7 +382,8 @@ export default function HypothesisTracker() {
           const sm = STATUS_META[h.status] ?? STATUS_META.active;
           const vm = h.grok_verdict ? VERDICT_META[h.grok_verdict] : null;
           const isExpanded = expandedId === h.id;
-          const evList = evidenceMap[h.id] ?? [];
+          const evState = evidenceState[h.id];
+          const evList = evState?.status === 'ready' ? evState.data : [];
           const isAnalyzing = analyzingId === h.id;
 
           return (
@@ -535,12 +552,29 @@ export default function HypothesisTracker() {
                     </button>
                   )}
 
-                  {/* Evidence log */}
+                  {/* Evidence log.
+                      evState undefined/loading and 'error' render distinctly
+                      from a confirmed-empty ready state (#1342) - a failed or
+                      not-yet-settled read must never look like "no evidence." */}
                   <div style={{ marginBottom: 10 }}>
+                    {evState?.status === 'error' ? (
+                      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {evState.message}
+                        <button
+                          onClick={() => fetchEvidence(h.id)}
+                          style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}
+                        >
+                          {t('DRY_POWDER_RETRY')}
+                        </button>
+                      </div>
+                    ) : evState?.status !== 'ready' ? (
+                      <LoadingState message={t('HYPOTHESIS_TRACKER_EVIDENCE_LOADING')} />
+                    ) : (
+                    <>
                     <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {t('HYPOTHESIS_TRACKER_EVIDENCE_HEADING', { count: evList.length })}
                     </div>
-                    {evList.length === 0 ? (
+                    {isConfirmedEmpty(evState) ? (
                       <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontStyle: 'italic' }}>
                         {t('HYPOTHESIS_TRACKER_NO_EVIDENCE')}
                       </div>
@@ -581,6 +615,8 @@ export default function HypothesisTracker() {
                           </div>
                         );
                       })
+                    )}
+                    </>
                     )}
                   </div>
 

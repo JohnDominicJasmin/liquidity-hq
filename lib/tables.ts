@@ -27,6 +27,7 @@ export const T = {
   labels:              `${p}labels`,
   telegram_link_codes: `${p}telegram_link_codes`,
   ls_webhook_events:   `${p}ls_webhook_events`,
+  boomfi_webhook_events: `${p}boomfi_webhook_events`,
   news:                `${p}news`,
   econ_snapshot:       `${p}econ_snapshot`,
   market_snapshot:     `${p}market_snapshot`,

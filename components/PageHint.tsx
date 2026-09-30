@@ -24,22 +24,48 @@ export default function PageHint({ pageKey, title, body }: Props) {
    * is a shift too, but it happens for people who have seen the hint before
    * and are scrolling past it, and it is one frame rather than a reflow of
    * everything below. */
-  const [state, setState] = useState<'pending' | 'show' | 'hide'>('pending');
+  // #1113 (owner option 4): the hint is now REPLAYABLE. Dismissing it no longer
+  // removes it for good - it collapses to a small "?" affordance that reopens
+  // it, so the "I skipped it and now I'm lost" case has a way back. A returning
+  // visitor (localStorage marker set) starts collapsed, not gone.
+  const [state, setState] = useState<'pending' | 'show' | 'collapsed'>('pending');
   const { t } = useLabels();
 
   useEffect(() => {
     try {
-      setState(localStorage.getItem(key) ? 'hide' : 'show');
+      setState(localStorage.getItem(key) ? 'collapsed' : 'show');
     } catch {
       setState('show');
     }
   }, [key]);
 
-  if (state === 'hide') return null;
-
   function dismiss() {
     try { localStorage.setItem(key, '1'); } catch {}
-    setState('hide');
+    setState('collapsed');
+  }
+  function reopen() {
+    // Reopen for this session; the seen-marker stays set so the next visit still
+    // starts collapsed rather than re-showing the full banner unprompted.
+    setState('show');
+  }
+
+  if (state === 'collapsed') {
+    return (
+      <button
+        onClick={reopen}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)',
+          borderRadius: 8, padding: '4px 10px', marginBottom: 14, cursor: 'pointer',
+          color: 'var(--accent)', fontSize: 'var(--fs-caption)', fontWeight: 700,
+          minHeight: 24,
+        }}
+        aria-label={t('PAGE_HINT_REPLAY_LABEL')}
+      >
+        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: 'var(--accent)', background: 'var(--accent-bg)', borderRadius: '50%', width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>?</span>
+        {t('PAGE_HINT_REPLAY_LABEL')}
+      </button>
+    );
   }
 
   return (

@@ -3,17 +3,31 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getCheckoutUrl, isCheckoutConfigured, getCheckoutUrlAnnual, isCheckoutConfiguredAnnual, getCheckoutUrlFortnightly, isCheckoutConfiguredFortnightly } from '@/lib/checkout';
+import { getCryptoCheckoutUrl, isProBuyable, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
 import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 
-const CHECKOUT_CONFIGURED = isCheckoutConfigured();
-const CHECKOUT_ANNUAL_CONFIGURED = isCheckoutConfiguredAnnual();
+/* #861 Phase 1: a plan is buyable when it has a payment link. Lemon Squeezy
+   rejected the store, so these no longer read its links - today the only rail
+   is crypto (BoomFi). When card payments arrive (Polar, Phase 3) each flag
+   becomes "crypto OR card" and the method panel below gains a second button;
+   nothing else on the page changes shape. */
+// isProBuyable, not the crypto reader directly: it is the same answer the
+// trial-ending email and /api/version give, so the three cannot disagree.
+const CHECKOUT_CONFIGURED = isProBuyable();
+const CHECKOUT_ANNUAL_CONFIGURED = isCryptoCheckoutConfiguredAnnual();
 // #1400: the two-weekly plan is additive, like annual - it renders only where the
 // monthly link is set too, and never substitutes for it.
-const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCheckoutConfiguredFortnightly();
+const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly();
+
+/* The row under the plan buttons. "Instant access" (UPGRADE_TRUST_INSTANT_ACCESS)
+   is left out, owner's decision 2026-09-30 (#861): a crypto payment does not
+   unlock the account by itself until the BoomFi webhook does it, so the line
+   would be untrue for the only way there is to pay. It comes back when a payment
+   method that unlocks automatically exists. The label key stays. */
+const TRUST_LABELS = ['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
 
 const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
 
@@ -84,8 +98,13 @@ export default function UpgradePage() {
      "Redirecting to checkout…". Holding the plan lets only the clicked button
      change label while all three still disable, so a second plan cannot be
      clicked mid-navigation. */
-  const [redirecting, setRedirecting] = useState<null | 'monthly' | 'annual' | 'fortnightly'>(null);
+  const [redirecting, setRedirecting] = useState<null | CheckoutPlan>(null);
   const isRedirecting = redirecting !== null;
+  /* #861: paying is two steps. A plan button no longer navigates - it picks the
+     plan, and a panel then asks HOW to pay. One payment method exists today, and
+     the panel still shows, so the page does not change shape for the buyer on
+     the day a second method is added. */
+  const [selectedPlan, setSelectedPlan] = useState<null | CheckoutPlan>(null);
   const { t } = useLabels();
 
   useEffect(() => {
@@ -104,22 +123,34 @@ export default function UpgradePage() {
     // they already pay for.
   }, [isPro, loading, router]);
 
-  function handleCheckout() {
-    if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
-    setRedirecting('monthly');
-    window.location.href = getCheckoutUrl(user);
-  }
+  /* Coming BACK from the payment page. The browser can restore this page from
+     its back/forward cache with its state intact, which would leave
+     `redirecting` set and every button disabled with no way to clear it but a
+     reload. A restored page is one the buyer returned to, so nothing is
+     redirecting any more. */
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) setRedirecting(null); };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
 
-  function handleCheckoutAnnual() {
+  /* Step 1. An account is still required before paying: the payment is matched
+     to it afterwards by the account id bound to the link, so a payer with no
+     account has nothing to unlock. */
+  function choosePlan(plan: CheckoutPlan) {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
-    setRedirecting('annual');
-    window.location.href = getCheckoutUrlAnnual(user);
+    setSelectedPlan(plan);
   }
+  const handleCheckout = () => choosePlan('monthly');
+  const handleCheckoutAnnual = () => choosePlan('annual');
+  const handleCheckoutFortnightly = () => choosePlan('fortnightly');
 
-  function handleCheckoutFortnightly() {
-    if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
-    setRedirecting('fortnightly');
-    window.location.href = getCheckoutUrlFortnightly(user);
+  /* Step 2. The link is read for the plan that was picked, never another one. */
+  const cryptoUrl = selectedPlan ? getCryptoCheckoutUrl(selectedPlan, user) : null;
+  function payWithCrypto() {
+    if (!selectedPlan || !cryptoUrl) return;
+    setRedirecting(selectedPlan);
+    window.location.href = cryptoUrl;
   }
 
   /* One button per plan, styled like the monthly one. Shown wherever its link is
@@ -138,6 +169,40 @@ export default function UpgradePage() {
         <>{t('UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_FORTNIGHTLY')}{t('UPGRADE_PRICE_SUFFIX_FORTNIGHTLY')}</span></>
       )}
     </button>
+  );
+
+  const methodPanel = selectedPlan && (
+    <div
+      data-testid="checkout-method-panel"
+      data-plan={selectedPlan}
+      role="group"
+      aria-labelledby="checkout-method-title"
+      style={{ width: '100%', maxWidth: 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
+    >
+      <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
+        {t('UPGRADE_METHOD_PANEL_TITLE')}
+      </div>
+      {cryptoUrl && (
+        <button
+          data-testid="checkout-method-crypto"
+          onClick={payWithCrypto}
+          disabled={isRedirecting}
+          style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: isRedirecting ? 0.7 : 1 }}
+        >
+          {isRedirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_METHOD_CRYPTO_CTA')}
+        </button>
+      )}
+      {/* BoomFi has no two-week interval: its version of that plan bills weekly,
+          and the buyer is told before leaving the page, not on the checkout. */}
+      {selectedPlan === 'fortnightly' && (
+        <p data-testid="checkout-method-crypto-weekly-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+          {t('UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE')}
+        </p>
+      )}
+      <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+        {t('UPGRADE_METHOD_CRYPTO_NOTE')}
+      </p>
+    </div>
   );
 
   if (loading || isPro) {
@@ -261,13 +326,14 @@ export default function UpgradePage() {
                   )}
                 </button>
               </div>
+              {methodPanel}
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {/* No UPGRADE_TRUST_BILLED_ANNUALLY here (#1423): this row sits under all
                     three plans, but monthly and fortnightly are not billed annually, so a
                     shared "Billed annually" told two of three buyers the wrong cadence on
                     the page where they pick it. The monthly-only state below already omits
                     it; this now matches. */}
-                {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
+                {TRUST_LABELS.map(label => (
                   <span key={label} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ color: 'var(--green)', fontSize: '0.6875rem' }}>✓</span> {t(label)}
                   </span>
@@ -288,8 +354,9 @@ export default function UpgradePage() {
               >
                 {redirecting === 'monthly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_CHECKOUT_BUTTON_CTA')}
               </button>
+              {methodPanel}
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
+                {TRUST_LABELS.map(label => (
                   <span key={label} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ color: 'var(--green)', fontSize: '0.6875rem' }}>✓</span> {t(label)}
                   </span>

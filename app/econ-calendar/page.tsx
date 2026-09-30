@@ -5,6 +5,7 @@ import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
+import PageHint from '@/components/PageHint';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -130,23 +131,15 @@ export default function EconCalendarPage() {
 
   return (
     <div className="econ-term-wrap" style={{ maxWidth: 960, margin: '0 auto', padding: '0 16px 48px' }}>
+      {/* #1113: PageHint is the sole page intro now - both the old subtitle
+          (duplicated its body) and the h1 (duplicated its title) were dropped,
+          owner-approved, matching scanner/journal. The data-source credit that
+          shared the old subtitle line is kept, standalone. */}
+      <PageHint pageKey="econ-calendar" title={t('ECON_CALENDAR_HINT_TITLE')} body={t('ECON_CALENDAR_HINT_BODY')} />
 
-      {/* Page header */}
-      <div style={{ padding: '20px 0 16px' }}>
-        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 800, color: 'var(--txt)', letterSpacing: '-.02em', marginBottom: 4 }}>
-          {t('ECON_CALENDAR_TITLE')}
-        </div>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          {t('ECON_CALENDAR_SUBTITLE')}
-          {/* No `opacity` (#836). The parent is already `--txt3` and 0.5 of it
-              computed to #abacad = 2.10:1 in light terminal. Same trap the
-              comment at line ~272 of this file already refuses for the
-              estimated-date fade (#692), and the same one globals.css names at
-              .lp-footer-ack. The separator dot is what marks this as secondary;
-              it does not need dimmer ink as well. */}
-          {source && <span style={{ marginLeft: 8 }}>· {source}</span>}
-        </div>
-      </div>
+      {source && (
+        <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{source}</div>
+      )}
 
       {/* Next event banner */}
       {next && (() => {

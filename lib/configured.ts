@@ -3,7 +3,11 @@
    extensionless relative import - Next's bundler will. `allowImportingTsExtensions`
    is on in tsconfig, so both are happy. Without this the unit test cannot load
    the module at all, and the leak invariant goes unasserted. */
-import { isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly } from './checkout.ts';
+import {
+  isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly,
+  isCryptoCheckoutConfigured, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly,
+  isProBuyable,
+} from './checkout.ts';
 import { isLsApiConfigured } from './lemonsqueezyApi.ts';
 import { analyticsKey } from './analytics.ts';
 
@@ -44,7 +48,19 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
        two-weekly button will render. Same read /upgrade uses. */
     checkoutAnnual:      isCheckoutConfiguredAnnual(env),
     checkoutFortnightly: isCheckoutConfiguredFortnightly(env),
+    /* The crypto links (#861). These three, not the three above, are what
+       /upgrade gates on now - so these are the flags that say whether a plan
+       button renders on this host. Same read the page uses. */
+    /* What /upgrade and the trial-ending email both go by: is Pro on sale here
+       at all. One flag to read instead of inferring it from the links. */
+    proBuyable:                isProBuyable(env),
+    cryptoCheckout:            isCryptoCheckoutConfigured(env),
+    cryptoCheckoutAnnual:      isCryptoCheckoutConfiguredAnnual(env),
+    cryptoCheckoutFortnightly: isCryptoCheckoutConfiguredFortnightly(env),
     lemonsqueezyWebhook: set(env.LEMONSQUEEZY_WEBHOOK_SECRET),
+    /* Both, because either one missing refuses every delivery: no key fails
+       the signature check, no organisation id fails the check after it. */
+    boomfiWebhook: set(env.BOOMFI_WEBHOOK_PUBLIC_KEY) && set(env.BOOMFI_ORG_ID),
     /* The LS REST API key the cancel route needs (#1396). Same read the route
        and the settings panel gate on (isLsApiConfigured), so cancel-availability
        is observable per environment - set on qa (test), unset on staging/prod

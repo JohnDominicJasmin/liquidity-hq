@@ -102,163 +102,6 @@ function Step1Visual() {
   );
 }
 
-/* ── Step 2 visual: funding rate bar ── */
-function Step2Visual() {
-  const { t } = useLabels();
-  const { ACCENT, RED, BG2, TXT2, TXT3, BDR, TRACK_BG } = usePalette();
-  const [width, setWidth] = useState(0);
-  useEffect(() => { const tid = setTimeout(() => setWidth(78), 120); return () => clearTimeout(tid); }, []);
-  const ticks = ['+0.10%', '+0.05%', '0%', '-0.05%', '-0.10%'];
-  return (
-    <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 'var(--fs-micro)', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>{t('SPOTLIGHT_TOUR_FUNDING_HEADER')}</span>
-        <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: RED, fontFamily: MONO }}>-0.07%</span>
-      </div>
-      {/* Scale */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-        {ticks.map(tick => (
-          <span key={tick} style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO }}>{tick}</span>
-        ))}
-      </div>
-      {/* Track */}
-      <div style={{ position: 'relative', height: 10, background: TRACK_BG, borderRadius: 100, overflow: 'hidden' }}>
-        {/* neutral center line */}
-        <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: BDR }} />
-        {/* fill from center leftward (negative) */}
-        <div style={{
-          position: 'absolute', right: '50%', top: 0, bottom: 0,
-          width: `${width * 0.7}%`, background: RED,
-          borderRadius: '100px 0 0 100px',
-          transition: 'width 0.9s cubic-bezier(0.16,1,0.3,1)',
-          opacity: 0.85,
-        }} />
-      </div>
-      <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {([
-          { id: 'shortsPaying', labelKey: 'SPOTLIGHT_TOUR_CHIP_SHORTS_PAYING', col: RED },
-          { id: 'overcrowded', labelKey: 'SPOTLIGHT_TOUR_CHIP_OVERCROWDED', col: RED },
-          { id: 'squeezeFuel', labelKey: 'SPOTLIGHT_TOUR_CHIP_SQUEEZE_FUEL', col: ACCENT },
-        ] as const).map(chip => (
-          <span key={chip.id} style={{
-            fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px',
-            borderRadius: 100, border: `1px solid ${withAlpha(chip.col, '30')}`,
-            background: withAlpha(chip.col, '10'), color: chip.col, fontFamily: MONO,
-          }}>
-            {t(chip.labelKey)}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── Step 3 visual: OI change bars ── */
-function Step3Visual() {
-  const { t } = useLabels();
-  const { RED, BG2, TXT2, TXT3, BDR } = usePalette();
-  const bars = [
-    { label: '20h', val: 18, color: TXT3 },
-    { label: '16h', val: 24, color: TXT3 },
-    { label: '12h', val: 22, color: TXT3 },
-    { label: '8h',  val: 31, color: RED  },
-    { label: '4h',  val: 55, color: RED  },
-    { label: 'Now', val: 72, color: RED  },
-  ];
-  const [animated, setAnimated] = useState(false);
-  useEffect(() => { const tid = setTimeout(() => setAnimated(true), 100); return () => clearTimeout(tid); }, []);
-  return (
-    <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 'var(--fs-micro)', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>{t('SPOTLIGHT_TOUR_OI_HEADER')}</span>
-        <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: RED, fontFamily: MONO }}>+$38.4M</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 64 }}>
-        {bars.map(b => (
-          <div key={b.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-            <div style={{
-              width: '100%', borderRadius: '4px 4px 0 0',
-              background: b.color,
-              height: animated ? `${(b.val / 72) * 52}px` : '0px',
-              opacity: animated ? (b.color === TXT3 ? 0.3 : 0.75) : 0,
-              transition: 'height 0.7s cubic-bezier(0.16,1,0.3,1), opacity 0.4s',
-              transitionDelay: `${bars.indexOf(b) * 60}ms`,
-            }} />
-            <span style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO }}>{b.label}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 12, fontSize: 'var(--fs-caption)', color: TXT3, lineHeight: 1.5 }}>
-        {t('SPOTLIGHT_TOUR_OI_CAPTION')}
-      </div>
-    </div>
-  );
-}
-
-/* ── Step 4 visual: fake signal card ── */
-function Step4Visual() {
-  const { t } = useLabels();
-  const { ACCENT, GREEN, RED, BG2, TXT1, TXT2, TXT3, BDR } = usePalette();
-  const [alertShown, setAlertShown] = useState(false);
-  useEffect(() => { const tid = setTimeout(() => setAlertShown(true), 600); return () => clearTimeout(tid); }, []);
-  return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Signal card */}
-      <div style={{
-        background: BG2, border: `1px solid ${BDR}`,
-        borderRadius: 10, padding: '14px 16px',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
-            <span style={{
-              fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 8px',
-              borderRadius: 100, background: withAlpha(RED, '18'), color: RED, fontFamily: MONO,
-              letterSpacing: '.06em',
-            }}>SHORT_SQ</span>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '1.25rem', fontWeight: 900, color: RED, fontFamily: MONO, lineHeight: 1 }}>82</div>
-            <div style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO }}>/ 100</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-          {[
-            { label: 'FR -0.07%', col: RED },
-            { label: 'OI +$38M', col: RED },
-            { label: 'Vol 1.8×', col: ACCENT },
-            { label: 'RSI 28', col: ACCENT },
-            { label: 'VWAP below', col: TXT2 },
-          ].map(chip => (
-            <span key={chip.label} style={{
-              fontSize: 'var(--fs-caption)', padding: '3px 8px', borderRadius: 6,
-              background: withAlpha(chip.col, '12'), color: chip.col,
-              border: `1px solid ${withAlpha(chip.col, '25')}`, fontFamily: MONO, fontWeight: 600,
-            }}>
-              {chip.label}
-            </span>
-          ))}
-        </div>
-      </div>
-      {/* Telegram alert toast */}
-      <div style={{
-        background: withAlpha(GREEN, '08'), border: `1px solid ${withAlpha(GREEN, '30')}`,
-        borderRadius: 10, padding: '10px 14px',
-        display: 'flex', alignItems: 'center', gap: 10,
-        opacity: alertShown ? 1 : 0,
-        transform: alertShown ? 'translateY(0)' : 'translateY(6px)',
-        transition: 'opacity 0.4s, transform 0.4s',
-      }}>
-        <span style={{ fontSize: '1.125rem', flexShrink: 0 }}>✈</span>
-        <div>
-          <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: GREEN, fontFamily: MONO }}>{t('SPOTLIGHT_TOUR_TELEGRAM_SENT')}</div>
-          <div style={{ fontSize: 'var(--fs-caption)', color: TXT3, marginTop: 1 }}>{t('SPOTLIGHT_TOUR_TELEGRAM_BODY')}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Step 5 visual: animated arena chart mockup ── */
 function Step5Visual() {
   const { t } = useLabels();
@@ -447,29 +290,17 @@ const STEPS: {
   bodyKey:  LabelKey;
   Visual:   () => ReactElement;
 }[] = [
+  // #1113 (owner option 4): trimmed to the two essentials - what LiquidityHQ
+  // shows you (step 1) and how to act on it in Arena (step 5). The old steps
+  // 2-4 (funding / open interest / Telegram alerts) are now taught in-context by
+  // the per-page PageHint on each relevant page, where they're relevant, rather
+  // than as a long signup modal everyone skips. Their Step2-4 Visual components
+  // and the SPOTLIGHT_TOUR_STEP2-4 labels are retired with them.
   {
     tagKey:   'SPOTLIGHT_TOUR_STEP1_TAG',
     titleKey: 'SPOTLIGHT_TOUR_STEP1_TITLE',
     bodyKey:  'SPOTLIGHT_TOUR_STEP1_BODY',
     Visual:   Step1Visual,
-  },
-  {
-    tagKey:   'SPOTLIGHT_TOUR_STEP2_TAG',
-    titleKey: 'SPOTLIGHT_TOUR_STEP2_TITLE',
-    bodyKey:  'SPOTLIGHT_TOUR_STEP2_BODY',
-    Visual:   Step2Visual,
-  },
-  {
-    tagKey:   'SPOTLIGHT_TOUR_STEP3_TAG',
-    titleKey: 'SPOTLIGHT_TOUR_STEP3_TITLE',
-    bodyKey:  'SPOTLIGHT_TOUR_STEP3_BODY',
-    Visual:   Step3Visual,
-  },
-  {
-    tagKey:   'SPOTLIGHT_TOUR_STEP4_TAG',
-    titleKey: 'SPOTLIGHT_TOUR_STEP4_TITLE',
-    bodyKey:  'SPOTLIGHT_TOUR_STEP4_BODY',
-    Visual:   Step4Visual,
   },
   {
     tagKey:   'SPOTLIGHT_TOUR_STEP5_TAG',
