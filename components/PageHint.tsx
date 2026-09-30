@@ -52,6 +52,7 @@ export default function PageHint({ pageKey, title, body }: Props) {
   if (state === 'collapsed') {
     return (
       <button
+        data-page-hint={pageKey}
         onClick={reopen}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -68,8 +69,11 @@ export default function PageHint({ pageKey, title, body }: Props) {
     );
   }
 
+  /* data-page-hint marks the hint's root in both states, so a layout check can
+     find it and ask what its parent does with it (#1487: inside the dashboard's
+     grid it took a column track and broke the page). */
   return (
-    <div style={{
+    <div data-page-hint={pageKey} style={{
       /* Invisible but occupying its full height until the localStorage read
          resolves, so the hint arrives in space that was already reserved
          rather than inserting itself and pushing the page down. */
