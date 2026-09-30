@@ -116,9 +116,12 @@ function testPlan(plan: 'free' | 'pro', rows: PlanFeature[], expectedShape: Arra
   });
 }
 
+/* 2026-09-30: the 'aiIncluded' row ("AI included - no API key or separate subscription") is removed, by the
+   owner's standing copy rule - copy must not mention setups or features the product does not offer (relayed by
+   PM). Free is nine rows now; P8 below keeps the removed claim from coming back in any locale. */
 testPlan('free', FREE_PLAN_FEATURES, [
   ['dashboard', true], ['briefing', true], ['news', true], ['scanner', true], ['charts', true],
-  ['aiIncluded', true], ['aiAnalyses', true], ['aiChat', true],
+  ['aiAnalyses', true], ['aiChat', true],
   ['telegram', false], ['priceAlerts', false],
 ], ['aiAnalyses', 'aiChat'], {
   aiAnalyses: { quick: AI_LIMITS.free.quick, deep: AI_LIMITS.free.deep },
@@ -167,4 +170,18 @@ test('P7. components/LandingTerminal.tsx renders FREE_PLAN_FEATURES and PRO_PLAN
   assert.match(source, /PRO_PLAN_FEATURES\.map\(/, 'PRO_PLAN_FEATURES is not mapped over in the render');
   assert.doesNotMatch(source, /dict\.pricing\.free\.features\.map\(/, 'still mapping dict.pricing.free.features as an array - it is a Record now, keyed by row id');
   assert.doesNotMatch(source, /dict\.pricing\.pro\.features\.map\(/, 'still mapping dict.pricing.pro.features as an array - it is a Record now, keyed by row id');
+});
+
+test('P8. the removed "AI included - no API key or separate subscription" row stays removed, in every plan and every locale (owner copy rule, 2026-09-30)', () => {
+  for (const [plan, rows] of [['free', FREE_PLAN_FEATURES], ['pro', PRO_PLAN_FEATURES]] as const) {
+    assert.equal(rows.some((r) => r.id === 'aiIncluded'), false, `${plan}: the aiIncluded row is back`);
+    for (const { name, dict } of LOCALES) {
+      assert.equal('aiIncluded' in dict.pricing[plan].features, false, `[${name}] dict.pricing.${plan}.features still carries aiIncluded`);
+    }
+    for (const r of rows) {
+      const text = `${labelDefaults[r.labelKey] ?? ''} ${en.pricing[plan].features[r.id as keyof typeof en.pricing[typeof plan]['features']] ?? ''}`;
+      assert.doesNotMatch(text, /api key|separate subscription/i, `${plan}/${r.id} mentions an API key or a separate subscription - the product offers neither setup, and the owner ruled such copy out`);
+    }
+  }
+  assert.ok(FREE_PLAN_FEATURES.every((r) => (labelDefaults[r.labelKey] ?? '').length > 0), 'CONTROL: a free row has no English text, so the wording check above read nothing');
 });
