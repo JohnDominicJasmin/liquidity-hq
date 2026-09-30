@@ -54,6 +54,18 @@ test.describe('checkout hand-off', () => {
   });
 
   test('the checkout button sends the SIGNED-IN user\'s own id', async ({ browser }) => {
+    /* QUARANTINED 2026-09-30 (#1259; the subject moved to #861). This test clicks
+     * the monthly button and waits for a Lemon Squeezy `/checkout/buy/` URL that
+     * carries `checkout[custom][user_id]`. Lemon Squeezy rejected the store, and
+     * since #1468 no button on /upgrade leads there: the button opens a
+     * payment-method panel, and "Pay with Crypto" goes to BoomFi with
+     * `customer_ident=<account id>`. That URL is pinned at unit level
+     * (__tests__/cryptoCheckout.test.mts C6/C7, proBuyable.test.mts), and the
+     * rendered hand-off was checked on qa with a synthetic session (#861).
+     * Rewriting this test for BoomFi is BoomFi test work, which the owner put
+     * last (#861). Until then it could only ever go red, which is the thing
+     * #1259 exists to stop. */
+    test.skip(true, 'QUARANTINED (#1259): asserts the retired Lemon Squeezy hand-off; the BoomFi hand-off replaces it under #861');
     /* `signedInContext`, NOT `signIn`.
      *
      * The first version called `signIn()` for a token and then opened a PLAIN
@@ -121,34 +133,64 @@ test.describe('checkout hand-off', () => {
     } finally { await ctx.close(); }
   });
 
-  /* A signed-out visitor must not reach checkout at all - they are sent to
-   * signup. Without this, the test above is satisfied by a page that sends
-   * everyone to the same URL regardless of who they are. */
-  test('a signed-out visitor is sent to signup, not to checkout', async ({ browser }) => {
+});
+
+/* A signed-out visitor must not reach ANY payment page - they are sent to signup.
+ *
+ * REWRITTEN 2026-09-30 (#1259). This used to live under the signed-in describe
+ * above, so it was skipped wherever the test accounts were not configured - which
+ * is everywhere but CI - although it needs no account at all. And it only watched
+ * for Lemon Squeezy's `/checkout/buy/` path, so once the buttons moved to BoomFi it
+ * could no longer fail: a signed-out click that went straight to a BoomFi page
+ * would have passed. It now:
+ *   - watches for ANY navigation off the app's own host (allowlist, not a name
+ *     pattern - a pattern missed the store's custom domain once, #861), and
+ *     answers it locally, so no payment host is ever contacted;
+ *   - asserts where the visitor DID go: /login?signup=1, returning to /upgrade.
+ * A build with no plan for sale shows no button; that is skipped with its reason,
+ * not passed. */
+test.describe('checkout hand-off, signed out', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+  test.beforeEach(({}, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'a navigation URL is viewport-independent');
+  });
+
+  test('a signed-out visitor is sent to signup, not to a payment page', async ({ browser, baseURL }) => {
+    const appHost = new URL(baseURL!).host;
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await ctx.addInitScript(() => {
       try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
     });
     const page = await ctx.newPage();
 
-    let reachedCheckout = false;
-    await page.route(CHECKOUT_PATH, route => { reachedCheckout = true; return route.abort(); });
+    const leftTheApp: string[] = [];
+    await page.route('**/*', (route) => {
+      const req = route.request();
+      if (req.isNavigationRequest() && req.frame() === page.mainFrame() && new URL(req.url()).host !== appHost) {
+        leftTheApp.push(req.url().slice(0, 120));
+        return route.fulfill({ status: 200, contentType: 'text/html', body: '<title>stand-in</title>QA stand-in: a payment page was not loaded.' });
+      }
+      return route.fallback();
+    });
 
     try {
       await gotoGuarded(page, '/upgrade', { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(2500);
+      const cta = page.getByTestId('checkout-cta-monthly');
+      const forSale = await cta.waitFor({ state: 'visible', timeout: 20_000 }).then(() => true).catch(() => false);
+      test.skip(!forSale, 'this build offers no plan (no crypto link at build time), so there is no button to click - see checkout-config-agrees.spec.ts for whether that is intended');
 
-      const cta = page.locator('button', { hasText: /upgrade|pro|checkout|continue/i }).first();
-      if (await cta.isVisible().catch(() => false)) {
-        await cta.click();
-        await page.waitForTimeout(2000);
-      }
+      await cta.click();
+      await page.waitForURL(/\/login\?/, { timeout: 15_000 }).catch(() => {});
 
-      expect(reachedCheckout,
-        'a signed-out visitor reached the checkout host. getCheckoutUrl(null) must return ' +
-        '/login?signup=1 - a checkout with no user_id produces a payment the webhook cannot ' +
-        'match to an account.',
-      ).toBe(false);
+      expect(leftTheApp,
+        'a signed-out visitor left the app for another host. A payment without an account id ' +
+        'cannot be matched to an account.',
+      ).toEqual([]);
+      const landed = new URL(page.url());
+      expect(landed.pathname, `a signed-out click on the monthly button landed on ${landed.pathname}${landed.search}, not the signup page`).toBe('/login');
+      expect(landed.searchParams.get('signup')).toBe('1');
+      expect(landed.searchParams.get('next'), 'signup does not return the visitor to /upgrade').toBe('/upgrade');
+      await expect(page.getByTestId('checkout-method-panel'), 'the payment-method panel opened for a signed-out visitor').toHaveCount(0);
     } finally { await ctx.close(); }
   });
 });

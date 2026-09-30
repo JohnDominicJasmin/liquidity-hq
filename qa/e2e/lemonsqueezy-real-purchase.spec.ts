@@ -68,6 +68,15 @@ interface SubRow {
 }
 
 test.describe('#243 real LemonSqueezy purchase', () => {
+  /* QUARANTINED 2026-09-30 (#1259; the subject moved to #861). Lemon Squeezy
+   * rejected the store, so the purchase this file waits for can never happen, and
+   * its hand-off test asserts a Lemon Squeezy URL no button produces any more
+   * (#1468). The question it asks - does a REAL payment reach the right account -
+   * now belongs to BoomFi: the owner's own test payment and the webhook's recorded
+   * event, tracked on #861, which the owner put last. Kept rather than deleted:
+   * the structure (a dedicated account, the row-and-page-gate pair, the manual
+   * reset step) is what the BoomFi version should reuse. */
+  test.skip(true, 'QUARANTINED (#1259): Lemon Squeezy rejected the store; the real-payment check moves to BoomFi under #861');
   test.skip(!ACCOUNT_C_READY, ACCOUNT_C_SKIP_REASON);
   test.beforeEach(({}, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'HTTP/navigation-level checks, viewport irrelevant');
