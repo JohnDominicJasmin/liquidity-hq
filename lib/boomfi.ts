@@ -33,10 +33,24 @@ import crypto from 'crypto';
 /** BoomFi's own example window. */
 export const BOOMFI_TIMESTAMP_TOLERANCE_S = 300;
 
-/** The key as BoomFi documents loading it from an environment variable: a
- *  single-line value carries its line breaks as the two characters `\n`. */
+/** The key, however the settings field it was pasted into mangled it.
+ *
+ *  BoomFi documents one case: a single-line value carrying its line breaks as
+ *  the two characters `\n`. A host's settings form produces a second: the line
+ *  breaks pasted away entirely, or turned into spaces, which leaves a PEM no
+ *  parser accepts and a webhook that refuses every delivery with nothing to say
+ *  why. Both are put back here. A PEM is two marker lines around Base64 text,
+ *  and whitespace inside Base64 carries no meaning, so re-wrapping the middle
+ *  changes nothing about the key.
+ *
+ *  Anything that does not look like a PEM is returned as it came: the parser
+ *  refuses it, which is the right answer for garbage. */
 export function normalizeBoomfiPublicKey(raw: string | undefined | null): string {
-  return (raw ?? '').replace(/\\n/g, '\n').trim();
+  const unescaped = (raw ?? '').replace(/\\n/g, '\n').trim();
+  const m = /^(-----BEGIN [A-Z ]+-----)([\s\S]*?)(-----END [A-Z ]+-----)$/.exec(unescaped);
+  if (!m) return unescaped;
+  const wrapped = m[2].replace(/\s+/g, '').match(/.{1,64}/g)?.join('\n') ?? '';
+  return `${m[1]}\n${wrapped}\n${m[3]}`;
 }
 
 export type BoomfiVerifyFailure =

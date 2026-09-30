@@ -28,11 +28,21 @@ import { verifyBoomfiWebhook, boomfiOrgMatches } from '@/lib/boomfi';
  *
  *   - 401  the request is not verifiably BoomFi's. Nothing is stored.
  *   - 400  verified, but the body is not a JSON object. Nothing to act on.
- *   - 403  verified, but for another organisation or none we can name. Reported.
- *   - 500  verified and ours, but it could NOT be written down. BoomFi's own
- *          guidance is "return 2xx only after a durable write"; a failed mark
- *          on their side is what keeps this event recoverable by Replay.
+ *   - 500  verified, but it could NOT be written down. BoomFi's own guidance is
+ *          "return 2xx only after a durable write"; a failed mark on their side
+ *          is what keeps this event recoverable by Replay.
  *   - 200  written down (or already written down on an earlier delivery).
+ *
+ * THE ORGANISATION CHECK COMES AFTER THE RECORD, NOT BEFORE IT, and that order
+ * is deliberate. The key is per organisation, so a delivery that verifies
+ * against ours is already ours; BoomFi's docs still say to confirm `org_id`.
+ * But nobody here has seen what that field holds - the dashboard shows a
+ * "Merchant ID" with no `org_` prefix, the API reference shows ids with one.
+ * Refusing before recording would mean a BOOMFI_ORG_ID in the wrong format
+ * throws away the very body that shows the right one. So the delivery is
+ * recorded first, and a mismatch is reported WITH the value that arrived. The
+ * check is the gate for the entitlement step when that is written: nothing may
+ * ever be granted on an event that fails it.
  */
 
 const PUBLIC_KEY = process.env.BOOMFI_WEBHOOK_PUBLIC_KEY ?? '';
@@ -70,18 +80,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Body is not a JSON object' }, { status: 400 });
   }
 
-  // The signature proves BoomFi sent it with the key we hold. BoomFi's docs
-  // still say to confirm the organisation, and an unset BOOMFI_ORG_ID must
-  // refuse rather than accept everything.
-  if (!boomfiOrgMatches(body, ORG_ID)) {
-    return apiError(
-      'boomfi/webhook',
-      new Error(`verified event is not for our organisation - not recording. configured=${ORG_ID ? 'yes' : 'NO (BOOMFI_ORG_ID unset)'}`),
-      403,
-      'Organisation mismatch',
-    );
-  }
-
   const event = body as Record<string, unknown>;
   const eventName = text(event.event);
 
@@ -106,6 +104,19 @@ export async function POST(req: NextRequest) {
   // A duplicate key is the expected "already recorded" path, not a failure.
   if (recordErr && recordErr.code !== '23505') return apiError('boomfi/webhook', recordErr);
   if (!firstSeen) return NextResponse.json({ received: true, ignored: 'replay' });
+
+  // ── Organisation gate (see the header for why it sits here) ──────────────
+  // An unset BOOMFI_ORG_ID fails this too: a missing setting must never read
+  // as "every organisation is ours".
+  if (!boomfiOrgMatches(event, ORG_ID)) {
+    const nested = typeof event.org === 'object' && event.org !== null ? (event.org as { id?: unknown }).id : undefined;
+    apiError('boomfi/webhook', new Error(
+      `verified and recorded, but the organisation does not match - nothing may be granted on this event. ` +
+      `event=${eventName ?? '(none)'} org_id=${text(event.org_id) ?? '(absent)'} org.id=${text(nested) ?? '(absent)'} ` +
+      `BOOMFI_ORG_ID=${ORG_ID ? 'set' : 'UNSET'}`,
+    ));
+    return NextResponse.json({ received: true, recorded: true, ignored: 'org_mismatch' });
+  }
 
   // Recorded, and deliberately not acted on. The reason string is what stops a
   // green delivery in BoomFi's dashboard being read as "the account unlocked".
