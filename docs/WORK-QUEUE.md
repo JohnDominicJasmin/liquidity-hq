@@ -1,10 +1,10 @@
 # Work queue — pull from here, never idle
 
-**RESUMED 2026-09-30 ~15:16Z, after a same-day funding pause (~02:33Z).** The owner paused
-the team in the morning (*"No work for today we're running out of funds"*) and lifted it
-the same day, in the PM session: *"Full resume now"*, then *"FULL RESUME EVERYTHING"*.
-Recorded on #861. Read the Owner-only section's payments update before touching anything
-payments-related; it replaced the old Lemon Squeezy plan.
+**Lanes rewritten 2026-09-30 by PM/DevOps, after the closing sweep.** The owner resumed the
+team the same day he paused it (recorded on #861), then said to work every open item, with
+payments (BoomFi, Polar) last. Rows below name open work only; the Lemon Squeezy rows are
+gone because those issues closed (#1422, #1423, #1429, #1400, #1428) and the processor
+rejected the store.
 
 **This file exists because the PM was the bottleneck.** On 2026-09-06 both the Dev
 and QA sessions finished their work and then *waited* for the next assignment.
@@ -76,20 +76,22 @@ means*). **Every issue carries exactly one `priority:` label.**
 
 | # | Item | Notes |
 |---|---|---|
-| D1 | **#1422 - paying REVOKES Pro** -> PR #1424 | **Critical.** `subscription_payment_success` carries an *invoice* (`status: 'paid'`), and the role rule read that as "not active". Fixed by ignoring the event; the two dated owner decisions in `lib/lemonsqueezy.ts` (payment failed ends access, cancelled keeps it to `ends_at`) are untouched. **It also stops the event overwriting `ls_subscription_id` with the invoice's id.** Still unverified on `qa` until the owner re-buys (Q2), and renewal plus recovery-after-decline are assumptions (Q6). |
-| D2 | **#1423 - upgrade page** -> PR #1425 | Per-plan redirect state (one shared flag made all three buttons say "Redirecting..."), and "Billed annually" removed from the three-plan trust row. **Visual: the merge does not need the owner, the close does** (condition 5). No automated guard exists and none is planned - the E2E harness signs in by typing passwords, which no seat does. |
-| D3 | **#1416 - NUL bytes in `app/arena/page.tsx`** | Two raw NULs made ripgrep treat the file as binary: a directory search returns *nothing and no warning*, so every "nothing calls this" claim about the Arena page was unproven. Two-character fix, approved by QA. Needs a build (app code). |
-| D4 | **Promote `dev` -> `qa`** after D1 and D2 | Ask QA "ok to push?" first. **QA deploys `qa`; the branch moving is not the service moving** - the claim is `/api/version`. |
-| D5 | **#1403 - record which plan a subscriber bought** | **Held.** The subscription row has no variant or plan column, so an account cannot say which plan it holds. Start after #1422 is verified on `qa`. |
-| D6 | **Build identity on `/api/version`** (medium) | The endpoint reports the *commit*, so a rebuild of the same commit with different `NEXT_PUBLIC_*` values is invisible to it - observed twice on 2026-09-24 (`cronSecret`, `lemonsqueezyWebhook` flipped, commit unchanged). One field beside `commit`/`branch`/`appEnv` closes it. |
-| D7 | **Small tracker lines** (low) | #1397: on a mixed row `dataAgeMs`/`overdueMs` report the age of refreshing symbols only (the verdict needs that exclusion; the reported age does not). The specifier sweep matches single-quoted `from '...'` only. The build guard's 350 MB line never fires before the harness reaper does - measure the single-worker build's real peak before giving it its own threshold. |
-| D8 | **#1396 - cancel a plan** | **Not started, and blocked on the owner:** it needs a Lemon Squeezy API key (customer-portal URLs are pre-signed and expire, so each click fetches one), and a decision on what happens when someone buys a *second* plan - the webhook keeps one row per user and lets any of a user's subscriptions overwrite it, last writer wins. |
+| D1 | **One "is Pro buyable" check** (`fix/pro-buyable-one-predicate`) | `/upgrade`, the upgrade prompts on locked features and the trial-ending email each decided "can Pro be bought" from the Lemon Squeezy link. On `qa` that link is still set, so a locked-feature prompt sent a Free user to the rejected store. Blocks crypto on production. |
+| D2 | **#1434 - unknown URLs return 200 on production again** (medium) | #157 regressed. Small and production-facing, so it goes first among the backlog. |
+| D3 | **#1263 - Arena and Strategy Panel: saved selections vs settings load** (high) | Read the tracker first; say on it what you are taking. |
+| D4 | **#1113 - onboarding and first run** (high) | Same. |
+| D5 | **#1404 and #1397 - zero upstream calls per visitor, traffic readiness** (high) | Partly shipped. The trackers say what is left; do not assume from this row. |
+| D6 | **#1173 - auth and session timeouts** (medium) | |
+| D7 | **#1403 - record which plan a subscriber bought** | Rethink: the issue was written for Lemon Squeezy variants. Under BoomFi it is `billing_provider` plus which plan. Say on the issue what it becomes before building. |
+| D8 | **Payments (#861), parked by the owner on 2026-09-30: "put boomfi in last"** | Built and waiting: the entitlement decision as a pure function (`feature/boomfi-entitlement-prep`, local), the landing reframe for Polar (`feature/landing-reframe-review`, local). Blocked on the owner: his $10 test payment (the only source of a real BoomFi event), a cancel route for a BoomFi subscriber, the Polar application. |
 
-**Parked by the owner - do not start, do not reopen without an order:** all UI polish and
-accessibility audit work. The four trackers hold the built branches, which are kept:
-**#1309** (#1386, #1393, #1390), **#1347** (#1392), **#1185** (#1387, #1407),
-**#1111** (#1391, #1408). **The one exception: a screen that crashes or does not show
-data is worked at once.**
+**UI polish and accessibility audit work: last, not parked.** The owner parked it on
+2026-09-19 and on 2026-09-30 said to work "all items, issues, PRs and backlogs". So it is
+in the queue after everything above, lowest priority first to be dropped if time runs out.
+The trackers hold the built branches, which are kept: **#1309** (#1386, #1393, #1390),
+**#1347** (#1392), **#1185** (#1387, #1407), **#1111** (#1391, #1408), plus **#1455** and
+**#1114**. Anything visual still needs the owner's look before it closes. **A screen that
+crashes or does not show data is worked at once.**
 
 **Standing, not numbered:** review and merge QA's open PRs into `dev` without being
 asked (QA writes every test; Dev reviews them); apply the visual rule - **bordered outlines
@@ -144,14 +146,14 @@ controls** - to anything you touch.
 
 | # | Item | Notes |
 |---|---|---|
-| Q1 | **Deploy `qa` after the promotion** | Row 2 of the deploy table. Confirm the served commit from `/api/version`, then **diff the whole `configured` block** against the previous reading: `checkout`, `checkoutAnnual`, `checkoutFortnightly`, `lemonsqueezyWebhook` and `cronSecret` must still read true after the rebuild. |
-| Q2 | **#1422 on `qa`** | After the owner's one re-buy: `role` stays `pro`; `ls_status` is a subscription status, not `paid`; `current_period_end` is not null; `ls_subscription_id` differs from the pre-fix value; **`updated_at` equals the `subscription_updated` time and sits before the payment event** (the fix makes that event write nothing); still exactly one row. Assertions are written before the run so they cannot bend to fit it. **The owner re-buys first; old test subscriptions are cancelled only after the read is recorded** (`subscription_cancelled` writes to the row). |
-| Q3 | **#1423 on `qa`** | Manual before/after script, needs the owner's signed-in browser session. **Record "incomplete" if there is none - never sign in.** Passing is not "closed": the owner approves anything visual. |
-| Q4 | **Tests for what merges** | QA owns every test (owner ruling, 2026-09-07). Unit where the input can be forced; an E2E over whatever the exchange happens to produce passes because the interesting path never ran. |
-| Q5 | **Cross-browser harness (#1410)** | Ran clean 30/30 on 2026-09-23 (Chromium, Firefox, Brave; 1440 and 390 wide) against deployed staging. Open the PR into `dev` **stating it is manual-only and not to be wired into CI.** **WebKit is not installed: Safari is unclaimed** - keep that line on the tracker. |
-| Q6 | **Two Lemon Squeezy assumptions nobody has seen** | Renewal (does `subscription_updated` carry a fresh `renews_at`?) and **recovery after a declined card** (does `subscription_updated` with status `active` arrive when a retry succeeds?). Both are what the code depends on since #1422. Verify at the first real renewal and first real decline; until then they are assumptions, not findings. |
-| Q7 | **Load testing beyond one address** | A single source hits our own per-IP limit long before the service (`cmc`, `econ-calendar`, `cycle` cap at 20/min). Real load needs many source IPs - a paid tool, so the owner's cost decision. **The page ramp yielded no ceiling and none is claimed.** |
-| Q8 | **Older items still open** | #1259 (make a red E2E run mean something); `TEST_GAPS.md` §1 (server time not controllable) and §6 (accessibility asserted, never heard). |
+| Q1 | **Tests for what merges** | QA owns every test (owner ruling, 2026-09-07). A test file must pass the PROJECT typecheck, not only a file-scoped one: on 2026-09-30 a new test passed alone and failed the hook, costing a push. |
+| Q2 | **Review Dev's open PRs** | Dev's blockers first, then open PRs, then your own specs. |
+| Q3 | **Cross-browser harness (#1410)** | Unparked 2026-09-30. Two extra routes (`/`, `/funding`) to commit, then a run against staging. A browser run is a heavy job: one at a time, measure first. **WebKit is not installed: Safari is unclaimed.** |
+| Q4 | **#1259 - make a red E2E run mean something** | |
+| Q5 | **`qa` and `staging` deploys** | Yours. **Setting a variable on a Render service deploys it by itself** (PM learned this on 2026-09-30 by doing it); expect a deploy id from whoever sets one, and read `/api/version` after. |
+| Q6 | **Payments (#861), parked with Dev's D8** | Waiting on the owner's test payment: the second reading of the recorded event, then tests for the entitlement decision. Two PM rulings are on #861 (an email mismatch credits the account the link named; "overdue" does not end access, the paid-through date does). |
+| Q7 | **Load testing beyond one address** | A single source hits our own per-IP limit long before the service. Real load needs many source IPs, a paid tool, so the owner's cost decision. **The page ramp yielded no ceiling and none is claimed.** |
+| Q8 | **Older items still open** | `TEST_GAPS.md` §1 (server time not controllable) and §6 (accessibility asserted, never heard). |
 
 ## PM/DevOps lane
 
@@ -167,9 +169,9 @@ controls** - to anything you touch.
 
 | Item | Why it is here |
 |---|---|
-| **#1411 - sign-in shows a machine-generated domain** | Needs a paid Supabase plan for a custom auth domain; **deferred by the owner.** |
-| **#1113 onboarding, #1342 auth-token races, #1282 database stalls, #1263 saved selections, #1157 database security and capacity** | High-priority trackers **not touched in the 2026-09-19 -> 24 push**, which went to payments and traffic. Read the tracker before assuming its status. |
-| **#1152 - the FREE plan described differently in two places** | The landing page reads `dict.pricing.*` and the upgrade screen reads `UPGRADE_*` label keys, with nothing linking them. Editing both leaves the mechanism. One source, and the owner approves anything user-visible. |
+| **#1411 - sign-in shows a machine-generated domain** | Needs a paid Supabase plan for a custom auth domain; **deferred by the owner.** The Supabase paid-plan decision lives on that issue now. |
+| **#1152 - plans and upgrade messaging** | PR #1463 (one source for the Free and Pro feature lists) and its test #1464 are built and pushed; **held for the owner's look**, screenshots taken 2026-09-30. Do not merge #1464 first: it sits on #1463. |
+| **#1413 - GitHub Actions cannot start** | The account is locked for billing; acknowledged by the owner. The drift check is done by hand meanwhile. |
 
 ---
 
@@ -215,10 +217,19 @@ Mode" / store-activation flow below never happens now. Full record and the curre
 - **Polar (fiat/card) is spec'd, not started.** No entity needed (individual/sole-proprietor
   onboarding), needs a landing-page copy reframe before applying (exact swaps + a footer
   disclaimer are on #861), then the application itself (~14 day review).
-- **Dev's first pickup on resume: Phase 1 from #861** — wire "Pay with Crypto" into
-  `app/upgrade/page.tsx` using the 3 BoomFi links above (`lib/checkout.ts` needs a Crypto
-  variant per tier, same additive `'#'`-unset pattern as today's three functions). Don't wait
-  on Polar — ship the working rail first, add "Pay with Card" as Phase 3 once Polar's approved.
+- **Phase 1 is on `qa` and `staging` (commit `c67a61b`, 2026-09-30), not on production.**
+  `/upgrade` on `qa` shows a "Pay with Crypto" step; a record-only webhook at
+  `/api/boomfi/webhook` stores what BoomFi sends and grants nothing. BoomFi's one webhook
+  address points at `qa`. `staging` has none of the BoomFi variables, so it shows the
+  coming-soon card; that is the parked state, not a fault.
+- **What keeps crypto off production, all the owner's:** his one real $10 payment (BoomFi has
+  no test mode and publishes no example event, so auto-unlock is built from that recording);
+  a cancel route for a BoomFi subscriber; then the migration, the variables and the webhook
+  address on production. He ruled on 2026-09-30 that the buttons wait for auto-unlock, and
+  later the same day that BoomFi goes last.
+- **Known about the network:** from the owner's home connection `pay.boomfi.xyz` resolves to
+  an address that is not BoomFi's and the page does not open. Record which network any
+  checkout result came from.
 
 **Also the owner's:** the recurring 5-minute `POST /api/market/ingest` entry with
 `x-cron-secret` (one entry per environment, each with its own secret - never a prod secret on
