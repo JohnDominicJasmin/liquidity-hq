@@ -31,6 +31,8 @@ import BrandMark from '@/components/BrandMark';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import LandingTicker from '@/components/LandingTicker';
 import type { LandingDict, Locale } from '@/lib/i18n/dictionaries';
+import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
+import { interpolate } from '@/lib/labels';
 
 interface Props {
   dict: LandingDict;
@@ -442,20 +444,28 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             </div>
             <div style={{ fontSize: 13.5, color: 'var(--txt2)', marginTop: 12 }}>{dict.pricing.free.sub}</div>
             <ul style={{ listStyle: 'none', margin: '22px 0 0', padding: 0 }}>
-              {dict.pricing.free.features.map((f, i) => (
-                <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--bdr2)' }}>
+              {/* #1152: the ROW SET, order, included/excluded flags and the
+                  AI-limit numbers all come from the shared FREE_PLAN_FEATURES
+                  (lib/planFeatures.ts), the same source /upgrade renders - so
+                  the two surfaces can't drift again. Only the TEXT is still
+                  local: dict.pricing.free.features[id] is the URL-locale-correct
+                  string for this row (see planFeatures.ts for why label text
+                  can't be used on the logged-out landing page), interpolated
+                  with the row's numbers so the caps track lib/limits. */}
+              {FREE_PLAN_FEATURES.map((row) => (
+                <li key={row.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--bdr2)' }}>
                   <span style={{ width: 12, fontSize: 12, fontFamily: 'var(--font-mono), monospace', /* --txt3, not --txt4 (#639, owner ruled). landing.md:506 exempts
                        this ✕ from 4.5:1 as "non-essential decoration paired
                        with a text label" - but the clause revokes itself if
                        the glyph "ever becomes the only carrier of meaning",
-                       and it has: f.text below names the FEATURE and never
+                       and it has: the text below names the FEATURE and never
                        its inclusion, so the ✕ plus a colour shift are the
                        only signals, and colour alone is not a carrier. The
                        exemption's own condition, not an override of it.
                        The route strings in the card footers keep --txt4 -
                        same clause, and their pairing genuinely holds. */
-                    color: f.included ? 'var(--green)' : 'var(--txt3)' }}>{f.included ? '✓' : '✕'}</span>
-                  <span style={{ fontSize: 13.5, color: f.included ? 'var(--txt)' : 'var(--txt3)' }}>{f.text}</span>
+                    color: row.included ? 'var(--green)' : 'var(--txt3)' }}>{row.included ? '✓' : '✕'}</span>
+                  <span style={{ fontSize: 13.5, color: row.included ? 'var(--txt)' : 'var(--txt3)' }}>{interpolate(dict.pricing.free.features[row.id] ?? '', row.vars)}</span>
                 </li>
               ))}
             </ul>
@@ -484,10 +494,13 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             </div>
             <div style={{ fontSize: 13.5, color: 'var(--txt2)', marginTop: 12 }}>{dict.pricing.pro.sub}</div>
             <ul style={{ listStyle: 'none', margin: '22px 0 0', padding: 0 }}>
-              {dict.pricing.pro.features.map((f, i) => (
-                <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--bdr2)' }}>
+              {/* #1152: Pro rows/order/numbers from the shared PRO_PLAN_FEATURES,
+                  same source /upgrade renders; text stays local per-locale. Pro
+                  has no excluded rows, so every one is a ✓. */}
+              {PRO_PLAN_FEATURES.map((row) => (
+                <li key={row.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--bdr2)' }}>
                   <span style={{ width: 12, fontSize: 12, fontFamily: 'var(--font-mono), monospace', color: 'var(--green)' }}>✓</span>
-                  <span style={{ fontSize: 13.5, color: 'var(--txt)' }}>{f}</span>
+                  <span style={{ fontSize: 13.5, color: 'var(--txt)' }}>{interpolate(dict.pricing.pro.features[row.id] ?? '', row.vars)}</span>
                 </li>
               ))}
             </ul>
