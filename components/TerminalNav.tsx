@@ -52,7 +52,7 @@ import type { LabelKey } from '@/lib/labelKeys';
    copied (#714). The owner's complaint was that this bar reaches less than the
    nav it replaced; two lists that must agree and nothing making them agree is
    how that gap reappears a month from now. */
-import { SCANNERS, TOOLS, PRIMARY, TAIL } from '@/lib/navRoutes';
+import { SCANNERS, TOOLS, PRIMARY, TAIL, TERMINAL_TABS as ITEMS, screenNameFor, isActive } from '@/lib/navRoutes';
 import { getCurrentWindow, getLocalNow } from '@/lib/session';
 
 /* Icon paths transcribed from the frames' own ICON map (Dashboard
@@ -66,23 +66,6 @@ const ICON: Record<string, string> = {
   book:  'M5 2.8h8.5A1.5 1.5 0 0 1 15 4.3v12.9H6.5A1.5 1.5 0 0 1 5 15.7V2.8ZM5 14.2h10M7.5 6h4.5M7.5 9h4.5',
 };
 
-interface NavItem {
-  key: string;
-  href: string;
-  /** Desktop bar label. 'desk' is the one key whose two labels differ - the
-   *  frames draw OVERVIEW in the bar and DESK in the tab bar. */
-  labelKey: LabelKey;
-  /** Bottom tab label. */
-  tabLabelKey: LabelKey;
-}
-
-const ITEMS: NavItem[] = [
-  { key: 'desk',  href: '/dashboard', labelKey: 'TNAV_DESK_LABEL',  tabLabelKey: 'TNAV_DESK_TAB_LABEL' },
-  { key: 'arena', href: '/arena',     labelKey: 'TNAV_ARENA_LABEL', tabLabelKey: 'TNAV_ARENA_LABEL' },
-  { key: 'scan',  href: '/scanner',   labelKey: 'TNAV_SCAN_LABEL',  tabLabelKey: 'TNAV_SCAN_LABEL' },
-  { key: 'flow',  href: '/funding',   labelKey: 'TNAV_FLOW_LABEL',  tabLabelKey: 'TNAV_FLOW_LABEL' },
-  { key: 'book',  href: '/journal',   labelKey: 'TNAV_BOOK_LABEL',  tabLabelKey: 'TNAV_BOOK_LABEL' },
-];
 
 /* Minutes left in the window that is running right now.
  *
@@ -117,88 +100,7 @@ function formatRemaining(mins: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-/** "Desk", "Arena", … for one of the five; otherwise the route's own last
- *  path segment. Derived from the URL rather than a hand-kept table, so a
- *  route with no nav entry still names itself instead of showing a generic
- *  placeholder or, worse, the wrong screen's name. */
-/* #1121: every route beyond ITEMS' five fell back to the raw URL segment,
- * lowercased with hyphens turned to spaces - so /econ-calendar rendered as
- * literal "econ calendar" in the mobile header. The design's mockups show
- * curated names in that slot (CALENDAR, ALERTS, SETTINGS) and only ITEMS'
- * five were ever wired up.
- *
- * A dedicated key per route, not a reuse of the (often longer) NAV_* label
- * the drawer shows for the same route - Economic Calendar there, Calendar
- * here, Liquidation Map there, Liq Map here. Short on purpose: #1120 makes
- * this element truncate with an ellipsis when the header runs out of room,
- * so a name that always truncates is a badly chosen name, same reasoning
- * ITEMS' own five short labels already follow.
- *
- * Legal/marketing pages (about, faq, terms, privacy, refund, disclaimer)
- * included even though they're rarely the active tab on mobile - they still
- * render inside the app shell (see lib/navRoutes.ts's OWN_NAV_ROUTES
- * comment on which pages do and don't), so they still hit this header. */
-const SCREEN_NAMES: Record<string, LabelKey> = {
-  '/briefing':      'TNAV_BRIEFING_LABEL',
-  '/markets':       'TNAV_MARKETS_LABEL',
-  '/liq':           'TNAV_LIQ_LABEL',
-  '/correlation':   'TNAV_CORRELATION_LABEL',
-  '/research':      'TNAV_RESEARCH_LABEL',
-  '/calc':          'TNAV_CALC_LABEL',
-  '/econ-calendar': 'TNAV_CALENDAR_LABEL',
-  '/alerts':        'TNAV_ALERTS_LABEL',
-  '/hours':         'TNAV_HOURS_LABEL',
-  '/playbook':      'TNAV_PLAYBOOK_LABEL',
-  '/news':          'TNAV_NEWS_LABEL',
-  '/settings':      'TNAV_SETTINGS_LABEL',
-  '/upgrade':       'TNAV_UPGRADE_LABEL',
-  '/about':         'TNAV_ABOUT_LABEL',
-  '/faq':           'TNAV_FAQ_LABEL',
-  '/terms':         'TNAV_TERMS_LABEL',
-  '/privacy':       'TNAV_PRIVACY_LABEL',
-  '/refund':        'TNAV_REFUND_LABEL',
-  '/disclaimer':    'TNAV_DISCLAIMER_LABEL',
-};
 
-// Title-cases each word of a raw route segment - "econ calendar" becomes
-// "Econ Calendar" rather than staying lowercase. This is deliberately still
-// only a fallback: a future route added without a SCREEN_NAMES entry reads
-// as a reasonable placeholder instead of the URL slug verbatim, but the
-// right fix for THAT route is still adding it above, not relying on this.
-function titleCase(s: string): string {
-  return s.split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
-}
-
-/* The real routes that show this bar and have no entry above. These, and only
- * these, still get their name from the URL (#1434).
- *
- * EVERY MATCH HERE IS EXACT, and that is the fix, not a tidy-up. The not-found
- * page is prerendered once, under Next's internal path `/_not-found`, and then
- * served at whatever unknown URL was asked for. So on a 404 the server renders
- * this bar for `/_not-found` and the browser renders it again for the real
- * address. Anything this file derives from the path has to come out the SAME
- * for both, or React throws a hydration error (#418) on every 404 view.
- *
- * Two ways it did not:
- *   - an unmatched path was title-cased from the URL: the server's HTML said
- *     "_not Found", the browser said "Zz Not A Page";
- *   - a named path matched by PREFIX: for /arena/old-link the server found
- *     nothing and the browser found "Arena" (QA, on #1474).
- * Exact matching loses nothing: no page route sits below any named path. A
- * path that is none of our routes has no name and no active tab, on both sides.
- * The cost is deliberate: a new route added without an entry shows an empty
- * header, not a guessed one. (/learn, /, /ko, /zh, the sign-in pages and /ops
- * never show this bar at all, so they need no entry.) */
-const URL_NAMED_ROUTES = new Set(['/admin', '/offline']);
-
-function screenNameFor(pathname: string, t: (k: LabelKey) => string): string {
-  const item = ITEMS.find(i => pathname === i.href);
-  if (item) return t(item.tabLabelKey);
-  if (pathname in SCREEN_NAMES) return t(SCREEN_NAMES[pathname]);
-  if (!URL_NAMED_ROUTES.has(pathname)) return '';
-  const seg = pathname.split('/').filter(Boolean).pop();
-  return seg ? titleCase(seg.replace(/-/g, ' ')) : '';
-}
 
 /* The two groups the current design's nav discloses, same names and same
    contents (#714). NAV_* label keys, not TNAV_*: these are the words the other
@@ -215,12 +117,6 @@ const DROPDOWNS = [
   { key: 'tools'    as const, labelKey: 'NAV_DROPDOWN_TOOLS'    as const, items: TOOLS },
 ];
 
-/* Exact, for the same reason as screenNameFor above: on a 404 the server and
-   the browser see different paths, and a prefix match would mark a tab active
-   in one and not the other. */
-function isActive(pathname: string, href: string): boolean {
-  return pathname === href;
-}
 
 interface TerminalNavProps {
   /** Opens the existing nav drawer. The frames draw no opener on mobile, and
