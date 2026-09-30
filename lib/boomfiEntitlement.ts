@@ -44,10 +44,15 @@
  *    is in the future. Without one, the stored role and date are left exactly
  *    as they are - never revoked on a guess, never extended on one.
  *
- * 5. NOT PAID ENDS ACCESS. Owner's decision, 2026-08-08: a failed renewal ends
- *    access at once, no grace period. Applied here to BoomFi's overdue state BY
- *    ANALOGY - flagged on #861, because how BoomFi collects a renewal is not
- *    documented and "overdue" may not mean what a declined card means.
+ * 5. OVERDUE CHANGES NOTHING, AND IS REPORTED. PM/DevOps' ruling for the
+ *    owner, 2026-09-30 (#861): do not end access on the word alone. Nobody has
+ *    seen what BoomFi's overdue means - how it collects a renewal is not
+ *    documented, so it may not mean what a declined card means. An overdue
+ *    event grants nothing and extends nothing; access still ends at the
+ *    paid-through date already stored, through lib/paidPeriod.ts. The event is
+ *    reported so a person sees it. Revisit once a real one has been recorded.
+ *    (For Lemon Squeezy the owner's 2026-08-08 rule is the opposite: a failed
+ *    payment ends access at once. That rule is NOT carried over by analogy.)
  *
  * 6. ONE ACTIVE PLAN PER ACCOUNT. Owner's rule, 2026-09-25 (#1396). An active
  *    BoomFi subscription arriving for an account that already holds a live plan
@@ -207,7 +212,9 @@ export function decideBoomfiEntitlement(
       // No date on the event: record the cancellation, leave role and date alone.
       return { action: 'apply', patch: { ...base }, ...note };
     }
-    case 'overdue':   // rule 5
+    case 'overdue':
+      // Rule 5: nothing is written. The stored paid-through date still ends access.
+      return { action: 'report', reason: 'subscription reported overdue; nothing granted, extended or revoked - access ends at the stored paid-through date' };
     case 'ended':
       return { action: 'apply', patch: { ...base, role: 'free' }, ...note };
     default:
