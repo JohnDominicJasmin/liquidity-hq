@@ -71,9 +71,6 @@ export const FREE_PLAN_FEATURES: PlanFeature[] = [
   { id: 'news',       labelKey: 'UPGRADE_FREE_FEATURE_NEWS',        included: true },
   { id: 'scanner',    labelKey: 'UPGRADE_FREE_FEATURE_SCANNER',     included: true },
   { id: 'charts',     labelKey: 'UPGRADE_FREE_FEATURE_CHARTS',      included: true },
-  // #1117: AI is included in the plan, not rented via a separate API key/bill -
-  // stated plainly, once, as its own line above the specific daily allowances.
-  { id: 'aiIncluded', labelKey: 'UPGRADE_FREE_FEATURE_AI_INCLUDED', included: true },
   { id: 'aiAnalyses', labelKey: 'UPGRADE_FREE_FEATURE_AI_ANALYSES', vars: { quick: F.quick, deep: F.deep }, included: true },
   { id: 'aiChat',     labelKey: 'UPGRADE_FREE_FEATURE_AI_CHAT',     vars: { chat: F.chat }, included: true },
   { id: 'telegram',   labelKey: 'UPGRADE_FREE_EXCL_TELEGRAM',       included: false },

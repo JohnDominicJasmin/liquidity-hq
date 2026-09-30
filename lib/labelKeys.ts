@@ -217,8 +217,6 @@ export const LABEL_KEYS = [
   // Upgrade page
   'UPGRADE_FREE_FEATURE_DASHBOARD', 'UPGRADE_FREE_FEATURE_BRIEFING', 'UPGRADE_FREE_FEATURE_NEWS',
   'UPGRADE_FREE_FEATURE_SCANNER', 'UPGRADE_FREE_FEATURE_CHARTS',
-  // #1117: AI included in the plan, not rented via a separate key/bill.
-  'UPGRADE_FREE_FEATURE_AI_INCLUDED',
   'UPGRADE_FREE_FEATURE_AI_ANALYSES', 'UPGRADE_FREE_FEATURE_AI_CHAT',
   // #1152: Free's excluded features, now shown on /upgrade too (not just landing).
   'UPGRADE_FREE_EXCL_TELEGRAM', 'UPGRADE_FREE_EXCL_PRICE_ALERTS',
