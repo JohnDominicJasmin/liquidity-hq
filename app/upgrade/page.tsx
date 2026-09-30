@@ -20,6 +20,13 @@ const CHECKOUT_ANNUAL_CONFIGURED = isCryptoCheckoutConfiguredAnnual();
 // monthly link is set too, and never substitutes for it.
 const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly();
 
+/* The row under the plan buttons. "Instant access" (UPGRADE_TRUST_INSTANT_ACCESS)
+   is left out, owner's decision 2026-09-30 (#861): a crypto payment does not
+   unlock the account by itself until the BoomFi webhook does it, so the line
+   would be untrue for the only way there is to pay. It comes back when a payment
+   method that unlocks automatically exists. The label key stays. */
+const TRUST_LABELS = ['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
+
 const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
 
 // Keep this list in sync with the actual gates: the timeframe clamp and
@@ -324,7 +331,7 @@ export default function UpgradePage() {
                     shared "Billed annually" told two of three buyers the wrong cadence on
                     the page where they pick it. The monthly-only state below already omits
                     it; this now matches. */}
-                {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
+                {TRUST_LABELS.map(label => (
                   <span key={label} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ color: 'var(--green)', fontSize: '0.6875rem' }}>✓</span> {t(label)}
                   </span>
@@ -347,7 +354,7 @@ export default function UpgradePage() {
               </button>
               {methodPanel}
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
+                {TRUST_LABELS.map(label => (
                   <span key={label} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ color: 'var(--green)', fontSize: '0.6875rem' }}>✓</span> {t(label)}
                   </span>
