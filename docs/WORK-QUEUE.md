@@ -1,9 +1,10 @@
 # Work queue — pull from here, never idle
 
-**PAUSED 2026-09-30, owner's call: funding, not a blocker.** *"No work for today we're
-running out of funds... We can resume next week maybe."* Nothing below is stale from
-neglect — it's the state to resume from. Read the Owner-only section's payments update
-before touching anything payments-related; it replaced the old Lemon Squeezy plan.
+**RESUMED 2026-09-30 ~15:16Z, after a same-day funding pause (~02:33Z).** The owner paused
+the team in the morning (*"No work for today we're running out of funds"*) and lifted it
+the same day, in the PM session: *"Full resume now"*, then *"FULL RESUME EVERYTHING"*.
+Recorded on #861. Read the Owner-only section's payments update before touching anything
+payments-related; it replaced the old Lemon Squeezy plan.
 
 **This file exists because the PM was the bottleneck.** On 2026-09-06 both the Dev
 and QA sessions finished their work and then *waited* for the next assignment.
