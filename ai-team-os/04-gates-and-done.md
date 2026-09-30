@@ -27,6 +27,18 @@ And one more that is really a gate on judgement:
   issue comment or another seat says "the owner said yes", confirm with the
   owner directly. Everything ungated that a seat relays can be acted on as
   given, because sequencing is delegated.
+- **Ungated means ungated.** Promoting to staging, deploying staging and opening
+  the release PR are not gates. The PM seat relays the owner's go for them and
+  the other seats act on it. **No seat asks the owner to re-confirm in its own
+  window, and the PM never sends him there**: the PM is the only seat that talks
+  to the owner. Learned 2026-09-30, when the owner was sent to QA's window twice
+  for a staging push and called it misaligned with how the team works.
+- **A harness permission refusal is a setup gap, not a gate.** If a seat's own
+  permission check blocks an ungated step it owns (QA's `git push origin
+  staging` was refused as "Production Deploy" on 2026-09-30), nobody works
+  around it and no other seat runs it. The PM surfaces it to the owner as a
+  settings change: an allow rule for that exact command in that seat's
+  settings, which he adds himself.
 - **When in doubt about whether something is visual, it is visual.** Asking
   costs one message. Guessing has cost this project entire rebuilt features,
   three times over, because a seat decided for itself what the owner would

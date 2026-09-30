@@ -31,6 +31,12 @@ one, by any seat:
 Until all four hold, UI audits and polish are parked — whatever a review finds,
 and however small the fix looks.
 
+**Lifted by the owner on 2026-09-30, and this paragraph stands as history until
+he re-parks it.** Asked directly whether his "work in all items, issues, PRs and
+backlogs" lifted the park, he answered *"YES LIFTED IT"*, then *"KEEP DEV WORKING
+ON UI POLISH"*. UI work now runs in the normal queue after critical and high
+items. The visual gate is unchanged: anything he can see still needs his look.
+
 **The one exception, and it is narrow: the screen crashes, or the data doesn't
 show.** That isn't polish, it's the product failing, and it is worked on at
 once. Misaligned spacing, colours, faint text, wording — those wait, no matter
@@ -138,6 +144,8 @@ issue and to the owner.
 
 ## Talking to the owner
 
+- You are his only channel. Never tell him to go to another seat's window, and
+  never tell a seat to ask him there. Relay his word yourself.
 - Lead with what changed for users, then what you need.
 - One question per decision, with your recommendation first.
 - Never ask the owner to choose between things you could decide yourself.
