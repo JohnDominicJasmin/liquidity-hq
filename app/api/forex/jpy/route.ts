@@ -10,13 +10,15 @@ import { cached } from '@/lib/apiCache';
  * That declaration was measured doing nothing on /api/econ-calendar (one
  * upstream call per visitor; see that route). It has not been measured here, so
  * it is not claimed broken. But the Arena, the briefing and the macro strip all
- * call this route, and `cached()` makes the bound certain: one request to the
- * rate provider per five minutes per instance, however many visitors there are.
+ * call this route, and `cached()` bounds it: while the rate provider answers,
+ * one request per five minutes per instance, however many visitors there are.
  * The fetch is `no-store` so there is one cache with one age, not two stacked.
  *
- * The fetcher throws on both failure shapes and `cached()` never stores a
- * throw, so a failed read is retried by the next caller, not remembered. */
+ * The fetcher throws on both failure shapes and `cached()` holds the throw for
+ * 30 seconds (#1473): while the provider refuses, at most one request per 30
+ * seconds, and each caller in between gets the same 502 without a new call. */
 const JPY_TTL_MS = 5 * 60_000;
+const JPY_FAIL_TTL_MS = 30_000;
 
 export async function GET(req: NextRequest) {
   if (!rateLimit(`forex-jpy:${getClientIp(req)}`, 20, 60_000)) {
@@ -36,7 +38,7 @@ export async function GET(req: NextRequest) {
       const rate = d?.rates?.JPY;
       if (!rate) throw new Error('no JPY in response');
       return rate;
-    }, rate => ({ detail: String(rate) })));
+    }, rate => ({ detail: String(rate) })), { failTtlMs: JPY_FAIL_TTL_MS });
     /* `s-maxage`, not `max-age`. The old header cached per-BROWSER only, so
        every new visitor still cost an upstream call - the shared cache is the
        whole point of #177. Kept at 300s; added swr so a slow upstream serves

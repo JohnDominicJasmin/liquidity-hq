@@ -48,19 +48,24 @@ function extract(json: unknown): { price: number; chg: number } | null {
  * page loads produced 50 upstream calls (see that route). Nobody has measured it
  * here, so it is not claimed broken - but every visitor's page calls this route
  * on load and again every ten minutes (MarketProvider), five Yahoo requests each
- * time, from one IP, to an endpoint that blocks by IP. `cached()` makes the
- * bound certain instead of hoped for: at most one request per symbol per minute
- * per instance, however many visitors there are, with concurrent callers
- * sharing one request rather than each starting their own.
+ * time, from one IP, to an endpoint that blocks by IP. `cached()` bounds it:
+ * while Yahoo answers, at most one request per symbol per minute per instance,
+ * however many visitors there are, with concurrent callers sharing one request
+ * rather than each starting their own.
  *
  * The fetch itself is `no-store` so there is exactly one cache with one age,
  * not this one stacked on Next's.
  *
- * A FAILURE IS NEVER REMEMBERED. `cached()` only stores what its fetcher
- * returns, so the fetcher THROWS for every failure shape and `yf` turns the
- * throw back into the `null` the response has always carried. Caching a null
- * would pin a one-off Yahoo hiccup on the dashboard for a minute for everyone. */
+ * A FAILURE IS HELD FOR 30 SECONDS, NOT A MINUTE (QA and PM/DevOps, #1473).
+ * Without a hold, the bound above is gone exactly when it matters: while Yahoo
+ * blocks this IP, every visitor load retries every failing series. With it, a
+ * refusing Yahoo gets at most one request per symbol per 30 seconds. Shorter
+ * than the success TTL because a one-off hiccup is served as a dash to everyone
+ * for the whole hold. The fetcher THROWS for every failure shape, `cached()`
+ * holds the throw, and `yf` turns it back into the `null` the response has
+ * always carried. */
 const YF_TTL_MS = 60_000;
+const YF_FAIL_TTL_MS = 30_000;
 
 /** Distinguishes "already reported to health" from an unexpected throw. */
 class YfUnavailable extends Error {}
@@ -101,7 +106,8 @@ async function fetchYf(sym: string, label: string): Promise<{ price: number; chg
 
 async function yf(sym: string, label: string) {
   try {
-    return await cached(`macro:yahoo:${label}`, YF_TTL_MS, () => fetchYf(sym, label));
+    return await cached(`macro:yahoo:${label}`, YF_TTL_MS, () => fetchYf(sym, label),
+      { failTtlMs: YF_FAIL_TTL_MS });
   } catch {
     return null;
   }
