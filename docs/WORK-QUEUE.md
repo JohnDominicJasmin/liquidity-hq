@@ -77,13 +77,13 @@ means*). **Every issue carries exactly one `priority:` label.**
 | # | Item | Notes |
 |---|---|---|
 | D1 | **One "is Pro buyable" check** (`fix/pro-buyable-one-predicate`) | `/upgrade`, the upgrade prompts on locked features and the trial-ending email each decided "can Pro be bought" from the Lemon Squeezy link. On `qa` that link is still set, so a locked-feature prompt sent a Free user to the rejected store. Blocks crypto on production. |
-| D2 | **#1434 - unknown URLs return 200 on production again** (medium) | #157 regressed. Small and production-facing, so it goes first among the backlog. |
-| D3 | **#1263 - Arena and Strategy Panel: saved selections vs settings load** (high) | Read the tracker first; say on it what you are taking. |
-| D4 | **#1113 - onboarding and first run** (high) | Same. |
-| D5 | **#1404 and #1397 - zero upstream calls per visitor, traffic readiness** (high) | Partly shipped. The trackers say what is left; do not assume from this row. |
-| D6 | **#1173 - auth and session timeouts** (medium) | |
-| D7 | **#1403 - record which plan a subscriber bought** | Rethink: the issue was written for Lemon Squeezy variants. Under BoomFi it is `billing_provider` plus which plan. Say on the issue what it becomes before building. |
-| D8 | **Payments (#861), parked by the owner on 2026-09-30: "put boomfi in last"** | Built and waiting: the entitlement decision as a pure function (`feature/boomfi-entitlement-prep`, local), the landing reframe for Polar (`feature/landing-reframe-review`, local). Blocked on the owner: his $10 test payment (the only source of a real BoomFi event), a cancel route for a BoomFi subscriber, the Polar application. |
+| D1 | **#1434 - unknown URLs return 200 on production again** (high) | Cause found 2026-09-30: `app/not-found.tsx` called `headers()`, which made every page render per request and let unknown URLs answer 200; production's log confirms it. Fix merged to `dev` (#1471). **Needs a production release, which is the owner's approval.** |
+| D2 | **#1263 - Arena and Strategy Panel: saved selections vs settings load** (high) | Read the tracker first; say on it what you are taking. |
+| D3 | **#1113 - onboarding and first run** (high) | Same. |
+| D4 | **#1404 and #1397 - zero upstream calls per visitor, traffic readiness** (high) | Partly shipped. The trackers say what is left; do not assume from this row. |
+| D5 | **#1173 - auth and session timeouts** (medium) | |
+| D6 | **#1403 - record which plan a subscriber bought** | Rethink: the issue was written for Lemon Squeezy variants. Under BoomFi it is `billing_provider` plus which plan. Say on the issue what it becomes before building. |
+| D7 | **Payments (#861), parked by the owner on 2026-09-30: "put boomfi in last"** | Built and waiting: the entitlement decision as a pure function (`feature/boomfi-entitlement-prep`, local), the landing reframe for Polar (`feature/landing-reframe-review`, local). Blocked on the owner: his $10 test payment (the only source of a real BoomFi event), a cancel route for a BoomFi subscriber, the Polar application. |
 
 **UI polish and accessibility audit work: last, not parked.** The owner parked it on
 2026-09-19 and on 2026-09-30 said to work "all items, issues, PRs and backlogs". So it is
@@ -151,7 +151,7 @@ controls** - to anything you touch.
 | Q3 | **Cross-browser harness (#1410)** | Unparked 2026-09-30. Two extra routes (`/`, `/funding`) to commit, then a run against staging. A browser run is a heavy job: one at a time, measure first. **WebKit is not installed: Safari is unclaimed.** |
 | Q4 | **#1259 - make a red E2E run mean something** | |
 | Q5 | **`qa` and `staging` deploys** | Yours. **Setting a variable on a Render service deploys it by itself** (PM learned this on 2026-09-30 by doing it); expect a deploy id from whoever sets one, and read `/api/version` after. |
-| Q6 | **Payments (#861), parked with Dev's D8** | Waiting on the owner's test payment: the second reading of the recorded event, then tests for the entitlement decision. Two PM rulings are on #861 (an email mismatch credits the account the link named; "overdue" does not end access, the paid-through date does). |
+| Q6 | **Payments (#861), parked with Dev's D7** | Waiting on the owner's test payment: the second reading of the recorded event, then tests for the entitlement decision. Two PM rulings are on #861 (an email mismatch credits the account the link named; "overdue" does not end access, the paid-through date does). |
 | Q7 | **Load testing beyond one address** | A single source hits our own per-IP limit long before the service. Real load needs many source IPs, a paid tool, so the owner's cost decision. **The page ramp yielded no ceiling and none is claimed.** |
 | Q8 | **Older items still open** | `TEST_GAPS.md` §1 (server time not controllable) and §6 (accessibility asserted, never heard). |
 
@@ -217,7 +217,7 @@ Mode" / store-activation flow below never happens now. Full record and the curre
 - **Polar (fiat/card) is spec'd, not started.** No entity needed (individual/sole-proprietor
   onboarding), needs a landing-page copy reframe before applying (exact swaps + a footer
   disclaimer are on #861), then the application itself (~14 day review).
-- **Phase 1 is on `qa` and `staging` (commit `c67a61b`, 2026-09-30), not on production.**
+- **Phase 1 is on `qa` and `staging` (first deployed as `c67a61b` on 2026-09-30; read `/api/version` for the commit served now), not on production.**
   `/upgrade` on `qa` shows a "Pay with Crypto" step; a record-only webhook at
   `/api/boomfi/webhook` stores what BoomFi sends and grants nothing. BoomFi's one webhook
   address points at `qa`. `staging` has none of the BoomFi variables, so it shows the
