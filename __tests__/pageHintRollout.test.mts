@@ -50,9 +50,30 @@ test('S2. calc: PageHint is present with the right key/copy, and the old CALC_PA
   assert.doesNotMatch(source, /CALC_PAGE_SUBTITLE/, 'the old subtitle text is still referenced in calc/page.tsx');
 });
 
-test('S2b. calc: the old h1 (CALC_PAGE_TITLE) is dropped too, per the owner\'s final h1-drop (d4bf1cdf) - PageHint is the sole intro, not a duplicate title above it', () => {
+/* S2b was "CALC_PAGE_TITLE is not referenced at all". That held the owner's call (no visible title above the
+ * hint) but also forbade the page having any heading, and qa/e2e/seo.spec.ts caught the cost on qa (2656e4c):
+ * pages without an <h1> went 13 -> 14, the new one being /calc. The fix keeps the owner's call exactly - nothing
+ * visible - and gives the page a heading only screen readers and search engines get. So the title key may appear
+ * once, inside an sr-only h1, and nowhere a visitor can see it. */
+test('S2b. calc: no VISIBLE title above the hint (owner\'s h1-drop, d4bf1cdf) - CALC_PAGE_TITLE appears only in the screen-reader heading', () => {
   const source = stripComments(read('app/calc/page.tsx'));
-  assert.doesNotMatch(source, /CALC_PAGE_TITLE/, 'CALC_PAGE_TITLE (the old h1) is still referenced in calc/page.tsx - it should have been dropped alongside the subtitle');
+  const uses = source.split('CALC_PAGE_TITLE').length - 1;
+  assert.equal(uses, 1, `CALC_PAGE_TITLE is referenced ${uses} time(s) in calc/page.tsx - expected exactly once, in the sr-only h1`);
+  anchorOnce(source, `<h1 className="sr-only">{t('CALC_PAGE_TITLE')}</h1>`, 'calc\'s screen-reader heading');
+  const h1s = source.match(/<h1\b[^>]*>/g) ?? [];
+  assert.deepEqual(h1s, ['<h1 className="sr-only">'], `calc/page.tsx has a visible h1 again (${h1s.join(', ')}) - the owner dropped the visible title; only the sr-only one is allowed`);
+});
+
+test('S2c. calc: the screen-reader heading is really invisible - `.sr-only` is the visually-hidden pattern, defined once', () => {
+  const css = read('app/globals.css');
+  const rules = css.match(/(^|\n)\s*\.sr-only\s*\{[^}]*\}/g) ?? [];
+  assert.equal(rules.length, 1, `.sr-only is defined ${rules.length} time(s) in app/globals.css - a second rule could make the calc heading visible`);
+  const r = rules[0].replace(/\s+/g, ' ');
+  for (const decl of ['position: absolute', 'width: 1px', 'height: 1px', 'overflow: hidden', 'clip: rect(0,0,0,0)']) {
+    assert.ok(r.includes(decl), `.sr-only no longer has "${decl}" - the calc h1 may show on screen, which the owner's h1-drop forbids`);
+  }
+  const overrides = css.match(/[^\n{}]*\.sr-only\b[^{\n]*\{/g) ?? [];
+  assert.equal(overrides.length, 1, `.sr-only is also targeted by another selector (${overrides.map((o) => o.trim()).join(' | ')}) - check it does not un-hide the heading`);
 });
 
 /* ══ econ-calendar: PageHint replaces the subtitle, but the standalone source credit survives ══ */
