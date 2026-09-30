@@ -43,6 +43,13 @@ regressions enter.
 - [ ] **Compared side by side with the previous build**: same page, at 1280,
       1440, 1920 and 390 wide, for every page the change touches, not only the
       page it was written for. Any difference the PR does not name is a finding.
+- [ ] **Layout measured, before and after (Dev's check before the PR):** for any
+      change that adds, moves or wraps an element, record each top-level
+      container's position and width, and every piece of text that overflows its
+      box (`scrollWidth > clientWidth`), at 1280, 1440, 1920 and 390, on the base
+      branch and on the change. Attach the diff to the PR. Any difference is
+      explained in the PR or it is a defect. This would have caught the
+      2026-09-30 dashboard break in its first run (58 px cells, values clipped).
 - [ ] **Judged by looking, never by DOM text or status codes alone.** On
       2026-09-30 a page hint pushed the whole desktop dashboard into its narrow
       column; every check passed because all the text was still on the page,

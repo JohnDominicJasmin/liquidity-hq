@@ -19,6 +19,11 @@ column in a test screenshot was called a fence artifact, passed to the owner
 unchecked, and was in fact the release breaking the layout for every desktop
 visitor.
 
+**Text present is not layout correct.** A check that reads `innerText` or a
+status code is not evidence for how a page looks: every word can be on the page
+while the page is broken. Layout is evidenced by positions and widths measured
+against the previous build, or by paired screenshots.
+
 **Say which source answered.** "The check passed" is half a claim. "The check
 passed, reading the live function definition, not the migration file that
 defines it" is the whole claim. A resolver that returned `true` by accident once
