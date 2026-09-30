@@ -169,11 +169,28 @@ function titleCase(s: string): string {
   return s.split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
 }
 
+/* The real routes that show this bar and have no entry above. These, and only
+ * these, still get their name from the URL (#1434).
+ *
+ * The fallback used to run for ANY path with no entry, which is only safe when
+ * the server and the browser see the same path. For the not-found page they do
+ * not: it is prerendered once, under Next's internal path `/_not-found`, and
+ * then served at whatever unknown URL was asked for. So the server's HTML said
+ * "_not Found" while the browser computed "Zz Not A Page" from the real URL,
+ * and React threw a hydration error (#418) on every 404 view - one thrown error
+ * per view in the error tracker, and "_not Found" in the HTML crawlers read.
+ *
+ * A path that is none of our routes now has NO name, on both sides, so the two
+ * agree. The cost is deliberate: a new route added without a name here or
+ * above shows an empty header, not a guessed one. */
+const URL_NAMED_ROUTES = new Set(['/admin', '/learn', '/offline']);
+
 function screenNameFor(pathname: string, t: (k: LabelKey) => string): string {
   const item = ITEMS.find(i => pathname === i.href || pathname.startsWith(i.href + '/'));
   if (item) return t(item.tabLabelKey);
   const matchPath = Object.keys(SCREEN_NAMES).find(p => pathname === p || pathname.startsWith(p + '/'));
   if (matchPath) return t(SCREEN_NAMES[matchPath]);
+  if (!URL_NAMED_ROUTES.has(pathname)) return '';
   const seg = pathname.split('/').filter(Boolean).pop();
   return seg ? titleCase(seg.replace(/-/g, ' ')) : '';
 }
