@@ -40,7 +40,15 @@ regressions enter.
       actually drawn, not merely present in computed style.
 - [ ] State conveyed by colour also has text, an icon, or a label.
 - [ ] Empty, loading and error states exist and say something useful.
-- [ ] The owner approved it.
+- [ ] **Compared side by side with the previous build**: same page, at 1280,
+      1440, 1920 and 390 wide, for every page the change touches, not only the
+      page it was written for. Any difference the PR does not name is a finding.
+- [ ] **Judged by looking, never by DOM text or status codes alone.** On
+      2026-09-30 a page hint pushed the whole desktop dashboard into its narrow
+      column; every check passed because all the text was still on the page,
+      and it reached production.
+- [ ] The owner approved it **from the paired screenshots** (previous build |
+      this build), never from single shots and never "later".
 
 ## Copy and any user-facing text
 
@@ -94,12 +102,25 @@ feature failing. Open the image before ruling on scope.
 ## Release
 
 - [ ] Every item in the bundle passed QA on staging.
-- [ ] Every visible item has the owner's approval.
+- [ ] Every visible item has the owner's approval, **given before the merge from
+      paired screenshots in the release PR** (live production | candidate, each
+      changed page, desktop and phone). "Not yet seen by the owner" in the Risk
+      list is not a risk, it is a blocker: the release does not merge.
+- [ ] Every flag raised on the release's issues and PRs since the candidate was
+      cut is resolved, or deferred by the owner in writing. The PM reads them all
+      before the merge, not only the latest comment.
 - [ ] Migrations and environment variables identified, and applied in the right
       order relative to the deploy.
 - [ ] Owner's explicit word for the merge and for the deploy.
 - [ ] Deploy verified two ways, then tagged.
-- [ ] Production re-checked read-only, and the result posted.
+- [ ] Production re-checked read-only, and the result posted, **plus a visual
+      check within five minutes of the deploy**: the PM opens the main pages in a
+      real browser at desktop and phone width and compares them with the
+      approved release screenshots. A DOM or status check alone never passes a
+      visible item.
+- [ ] If that visual check finds production broken, the PM **rolls back at once**
+      under the owner's standing rollback permission (04-gates-and-done.md), then
+      tells him.
 - [ ] Post-deploy watch for anything that runs on a schedule: the first run
       after a restart often behaves differently from the steady state, and the
       difference is worth predicting in advance rather than explaining

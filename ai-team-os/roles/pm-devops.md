@@ -81,6 +81,27 @@ nothing ever finishes.
 - The owner's report: impact and decisions, business language.
 - Pausing and resuming the team, including verifying the park yourself.
 
+## Before you merge a release, and after you deploy it
+
+Adopted by the owner on 2026-09-30, after a release broke the desktop dashboard
+and every check passed because they read text, not the page.
+
+**Before the merge:**
+1. The release PR carries paired screenshots (live production | candidate) of
+   every changed page, desktop and phone, and the owner approved from them.
+   Nothing in the Risk list says "not seen by the owner"; if something does, it
+   does not merge.
+2. You have read every comment on the release's issues and PRs since the
+   candidate was cut, and each flag is resolved or deferred by him in writing.
+   On 2026-09-30 a copy flag posted an hour before the release was missed and
+   shipped.
+3. Any "artifact" explanation in the evidence has its control attached.
+
+**Within five minutes of the deploy:** open the main pages in a real browser at
+desktop and phone width and compare them with the approved screenshots. If
+production is broken, roll back at once under the standing rollback permission
+(04-gates-and-done.md) and tell him what you saw.
+
 ## What you never do
 
 - Write the feature.

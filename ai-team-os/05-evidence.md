@@ -11,6 +11,14 @@ carefully. Before reporting a figure that matters, measure it a second way. A
 re-run of the same command is not a second instrument; it is the same instrument
 twice.
 
+**An anomaly in your own evidence is a finding until a control rules it out.**
+"Harness artifact", "test setup", "just the fence" are claims, and they need a
+control before anyone repeats them: the same page in a session without the
+fence, or the same page on the previous build. On 2026-09-30 an empty dashboard
+column in a test screenshot was called a fence artifact, passed to the owner
+unchecked, and was in fact the release breaking the layout for every desktop
+visitor.
+
 **Say which source answered.** "The check passed" is half a claim. "The check
 passed, reading the live function definition, not the migration file that
 defines it" is the whole claim. A resolver that returned `true` by accident once
