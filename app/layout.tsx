@@ -72,19 +72,19 @@ export const metadata: Metadata = {
     default: 'LiquidityHQ',
     template: '%s - LiquidityHQ',
   },
-  description: 'Crypto trading intelligence - whale trades, funding rates, squeeze alerts, and AI analysis.',
+  description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
   manifest: '/manifest.json',
   openGraph: {
     type: 'website',
     siteName: 'LiquidityHQ',
-    title: 'LiquidityHQ - Crypto Trading Intelligence',
-    description: 'Crypto trading intelligence - whale trades, funding rates, squeeze alerts, and AI analysis.',
+    title: 'LiquidityHQ - Crypto Market Analytics',
+    description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
     images: [{ url: '/icons/icon-512.jpg', width: 512, height: 512, alt: 'LiquidityHQ' }],
   },
   twitter: {
     card: 'summary',
     title: 'LiquidityHQ',
-    description: 'Crypto trading intelligence - whale trades, funding rates, squeeze alerts, and AI analysis.',
+    description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
   },
   appleWebApp: {
     capable: true,

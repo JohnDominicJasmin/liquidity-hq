@@ -93,7 +93,7 @@ export const en: LandingDict = {
   hero: {
     badge: '50 markets · Signals + alerts',
     h1Line1: 'Read the map.',
-    h1Line2: 'Hunt the stops.',
+    h1Line2: 'See where liquidity sits.',
     sub: 'Professional-grade crypto intelligence for retail traders. Squeeze scores, whale alerts, AI analysis, and macro events - all in one dashboard.',
     ctaPrimary: 'Start for free →',
     ctaGhost: 'See live briefing',
@@ -115,11 +115,11 @@ export const en: LandingDict = {
   },
   howItWorks: {
     label: 'How it works',
-    h2: 'From signal to trade',
+    h2: 'From raw data to a clear read',
     steps: [
       { title: 'Connect Telegram', desc: 'Link your Telegram in Settings. Alerts fire automatically - squeeze setups, whale trades, FR extremes, breaking news.' },
       { title: 'Pick your coins', desc: 'Choose from 50 markets across majors, alts, meme, gold, and the S&P 500. The Squeeze Scanner watches all of them live, 24/7.' },
-      { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Quick or Deep. Grok reads dozens of live signals and gives you a direct, actionable trade bias.' },
+      { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Quick or Deep. Grok reads dozens of live signals and gives you a plain-language read of where the market is leaning.' },
     ],
   },
   // #1152: the Free AND Pro feature rows now come from lib/planFeatures.ts, the
@@ -186,7 +186,7 @@ export const ko: LandingDict = {
   hero: {
     badge: '50개 마켓 · 신호 + 알림',
     h1Line1: '지도를 읽으세요.',
-    h1Line2: '손절을 사냥하세요.',
+    h1Line2: '유동성이 어디에 있는지 확인하세요.',
     sub: '리테일 트레이더를 위한 전문가급 암호화폐 인텔리전스. 스퀴즈 점수, 고래 알림, AI 분석, 매크로 이벤트까지 하나의 대시보드에서 확인하세요.',
     ctaPrimary: '무료로 시작하기 →',
     ctaGhost: '실시간 브리핑 보기',
@@ -208,11 +208,11 @@ export const ko: LandingDict = {
   },
   howItWorks: {
     label: '이용 방법',
-    h2: '신호에서 거래까지',
+    h2: '원시 데이터에서 명확한 해석까지',
     steps: [
       { title: '텔레그램 연결', desc: '설정에서 텔레그램을 연결하세요. 스퀴즈 셋업, 고래 거래, 펀딩비 극값, 속보까지 알림이 자동으로 발송됩니다.' },
       { title: '마켓 선택', desc: '메이저, 알트, 밈, 금, S&P 500까지 50개 마켓 중에서 선택하세요. 스퀴즈 스캐너가 24시간 실시간으로 모두 감시합니다.' },
-      { title: 'AI 분석 실행', desc: 'AI 아레나를 열고 마켓을 선택한 뒤 퀵 또는 딥을 누르세요. Grok이 수십 개의 신호를 읽고 명확하고 실행 가능한 트레이딩 방향을 제시합니다.' },
+      { title: 'AI 분석 실행', desc: 'AI 아레나를 열고 마켓을 선택한 뒤 퀵 또는 딥을 누르세요. Grok이 수십 개의 신호를 읽고 시장이 어느 쪽으로 기울어 있는지 쉬운 말로 설명합니다.' },
     ],
   },
   pricing: {
@@ -269,7 +269,7 @@ export const zh: LandingDict = {
   hero: {
     badge: '50个市场 · 信号 + 提醒',
     h1Line1: '读懂地图。',
-    h1Line2: '猎取止损点。',
+    h1Line2: '看清流动性所在。',
     sub: '为散户交易者打造的专业级加密货币情报系统。挤压评分、巨鲸警报、AI分析和宏观事件--尽在一个仪表盘。',
     ctaPrimary: '免费开始 →',
     ctaGhost: '查看实时简报',
@@ -291,11 +291,11 @@ export const zh: LandingDict = {
   },
   howItWorks: {
     label: '使用方法',
-    h2: '从信号到交易',
+    h2: '从原始数据到清晰解读',
     steps: [
       { title: '连接Telegram', desc: '在设置中连接您的Telegram。警报将自动触发--挤压形态、巨鲸交易、资金费率极值、突发新闻。' },
       { title: '选择市场', desc: '从主流币、山寨币、meme币到黄金、标普500,共50个市场可供选择。挤压扫描器24/7实时监控全部市场。' },
-      { title: '运行AI分析', desc: '打开AI Arena,选择市场,点击快速或深度分析。Grok读取数十个信号,为您提供直接、可执行的交易倾向。' },
+      { title: '运行AI分析', desc: '打开AI Arena,选择市场,点击快速或深度分析。Grok读取数十个信号,用通俗的语言说明市场目前的倾向。' },
     ],
   },
   pricing: {
