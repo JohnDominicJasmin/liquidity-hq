@@ -44,7 +44,8 @@
 --
 -- Run against BOTH lhq_labels (prod) and lhq_dev_labels (dev, commented out
 -- below per 20260912b's convention). Shared-database write, owner-gated: PM/DevOps
--- applies it on the owner's word, right before the production deploy.
+-- applies it on the owner's word, as its own write after the current release
+-- (new findings do not join in-flight work; PM/DevOps, 2026-10-01).
 -- The dev block has one more row than production (DASH_EDGE_CB_LABEL en).
 
 insert into lhq_labels (key, locale, value) values
