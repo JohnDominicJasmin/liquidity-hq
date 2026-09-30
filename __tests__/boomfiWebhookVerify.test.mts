@@ -58,6 +58,38 @@ test('B2. the key as it sits in an environment variable - line breaks written as
   assert.equal(normalizeBoomfiPublicKey(undefined), '');
 });
 
+test('B2b. a key whose line breaks were flattened on the way into a settings field still verifies - spaces, no breaks at all, CRLF, PKCS#1', () => {
+  /* 9feedebf: a dashboard's single-line input turns a PEM's line breaks into
+     spaces or drops them. The key is public, so repairing its layout gives
+     nothing away; refusing it would refuse every delivery for a formatting
+     accident. */
+  const lines = PUBLIC_PEM.trim().split('\n');
+  const spaceJoined = lines.join(' ');
+  const unbroken = lines[0] + lines.slice(1, -1).join('') + lines[lines.length - 1];
+  const crlf = lines.join('\r\n');
+  const pkcs1 = rsa.publicKey.export({ type: 'pkcs1', format: 'pem' }) as string;
+  const pkcs1Flat = pkcs1.trim().split('\n').join(' ');
+  for (const [what, key] of [['space-joined', spaceJoined], ['unbroken', unbroken], ['CRLF', crlf], ['PKCS#1', pkcs1], ['PKCS#1 space-joined', pkcs1Flat]] as const) {
+    assert.deepEqual(verify({ publicKeyPem: key }), { ok: true }, `${what} key was refused`);
+  }
+  assert.equal(normalizeBoomfiPublicKey(spaceJoined), PUBLIC_PEM.trim(), 'a space-joined key is not restored to the original');
+  assert.equal(normalizeBoomfiPublicKey(unbroken), PUBLIC_PEM.trim());
+});
+
+test('B2c. the repair does not make a wrong key right: truncated, EC, another RSA key and non-PEM text are still refused, flattened or not', () => {
+  const flat = (pem: string) => pem.trim().split('\n').join(' ');
+  const lines = PUBLIC_PEM.trim().split('\n');
+  const truncated = [lines[0], ...lines.slice(1, 3), lines[lines.length - 1]].join('\n');
+  assert.equal(reason({ publicKeyPem: truncated }), 'bad_public_key');
+  assert.equal(reason({ publicKeyPem: flat(truncated) }), 'bad_public_key');
+  assert.equal(reason({ publicKeyPem: flat(EC_PUBLIC_PEM) }), 'bad_public_key');
+  assert.equal(reason({ publicKeyPem: flat(otherRsa.publicKey.export({ type: 'spki', format: 'pem' }) as string) }), 'bad_signature');
+  assert.equal(reason({ publicKeyPem: lines.slice(1, -1).join('') }), 'bad_public_key', 'bare Base64 with no BEGIN/END lines was accepted as a key');
+  assert.equal(normalizeBoomfiPublicKey('not a pem'), 'not a pem', 'text that is not PEM-shaped must be returned unchanged');
+  assert.doesNotThrow(() => normalizeBoomfiPublicKey('-----BEGIN PUBLIC KEY----------END PUBLIC KEY-----'));
+  assert.equal(reason({ publicKeyPem: '-----BEGIN PUBLIC KEY----------END PUBLIC KEY-----' }), 'bad_public_key');
+});
+
 test('B3. a changed body is rejected - one byte, and a re-serialised copy of the same JSON', () => {
   assert.equal(reason({ rawBody: BODY.replace('35.00', '0.35') }), 'bad_signature');
   assert.equal(reason({ rawBody: BODY + ' ' }), 'bad_signature');
