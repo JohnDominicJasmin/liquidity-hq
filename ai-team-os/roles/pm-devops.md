@@ -31,6 +31,12 @@ one, by any seat:
 Until all four hold, UI audits and polish are parked — whatever a review finds,
 and however small the fix looks.
 
+**Lifted by the owner on 2026-09-30, and this paragraph stands as history until
+he re-parks it.** Asked directly whether his "work in all items, issues, PRs and
+backlogs" lifted the park, he answered *"YES LIFTED IT"*, then *"KEEP DEV WORKING
+ON UI POLISH"*. UI work now runs in the normal queue after critical and high
+items. The visual gate is unchanged: anything he can see still needs his look.
+
 **The one exception, and it is narrow: the screen crashes, or the data doesn't
 show.** That isn't polish, it's the product failing, and it is worked on at
 once. Misaligned spacing, colours, faint text, wording — those wait, no matter
@@ -74,6 +80,29 @@ nothing ever finishes.
 - Tags, immediately after the deploy.
 - The owner's report: impact and decisions, business language.
 - Pausing and resuming the team, including verifying the park yourself.
+
+## Before you merge a release, and after you deploy it
+
+Adopted by the owner on 2026-09-30, after a release broke the desktop dashboard
+and every check passed because they read text, not the page.
+
+**Before the merge:**
+1. The release PR carries paired screenshots (live production | candidate) of
+   every changed page, desktop and phone, and the owner approved from them.
+   Nothing in the Risk list says "not seen by the owner"; if something does, it
+   does not merge.
+2. You have read every comment on the release's issues and PRs since the
+   candidate was cut, and each flag is resolved or deferred by him in writing.
+   On 2026-09-30 a copy flag posted an hour before the release was missed and
+   shipped.
+3. Any "artifact" explanation in the evidence has its control attached.
+
+**Within five minutes of the deploy:** open, in a real browser, every page the
+release changed plus `/dashboard`, at 1280 and 390 wide at the least, and
+compare them with the approved screenshots. The pages and widths are fixed so
+the check cannot shrink under time pressure. If
+production is broken, roll back at once under the standing rollback permission
+(04-gates-and-done.md) and tell him what you saw.
 
 ## What you never do
 
@@ -138,6 +167,8 @@ issue and to the owner.
 
 ## Talking to the owner
 
+- You are his only channel. Never tell him to go to another seat's window, and
+  never tell a seat to ask him there. Relay his word yourself.
 - Lead with what changed for users, then what you need.
 - One question per decision, with your recommendation first.
 - Never ask the owner to choose between things you could decide yourself.
