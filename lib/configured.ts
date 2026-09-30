@@ -3,7 +3,10 @@
    extensionless relative import - Next's bundler will. `allowImportingTsExtensions`
    is on in tsconfig, so both are happy. Without this the unit test cannot load
    the module at all, and the leak invariant goes unasserted. */
-import { isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly } from './checkout.ts';
+import {
+  isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly,
+  isCryptoCheckoutConfigured, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly,
+} from './checkout.ts';
 import { isLsApiConfigured } from './lemonsqueezyApi.ts';
 import { analyticsKey } from './analytics.ts';
 
@@ -44,6 +47,12 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
        two-weekly button will render. Same read /upgrade uses. */
     checkoutAnnual:      isCheckoutConfiguredAnnual(env),
     checkoutFortnightly: isCheckoutConfiguredFortnightly(env),
+    /* The crypto links (#861). These three, not the three above, are what
+       /upgrade gates on now - so these are the flags that say whether a plan
+       button renders on this host. Same read the page uses. */
+    cryptoCheckout:            isCryptoCheckoutConfigured(env),
+    cryptoCheckoutAnnual:      isCryptoCheckoutConfiguredAnnual(env),
+    cryptoCheckoutFortnightly: isCryptoCheckoutConfiguredFortnightly(env),
     lemonsqueezyWebhook: set(env.LEMONSQUEEZY_WEBHOOK_SECRET),
     /* The LS REST API key the cancel route needs (#1396). Same read the route
        and the settings panel gate on (isLsApiConfigured), so cancel-availability
