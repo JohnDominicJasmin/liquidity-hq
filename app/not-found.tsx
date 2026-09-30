@@ -1,45 +1,34 @@
-import { headers } from 'next/headers';
 import NotFoundContent from '@/components/NotFoundContent';
 
-export const dynamic = 'force-dynamic';
-
-/* #1251: production logs a bare `NoFallbackError` for an ungenerated dynamic
- * route (e.g. app/[locale]/page.tsx's `dynamicParams = false`) with no path
- * attached, so a crawler probe, a stale tab requesting an old build's route
- * after a deploy, and a genuinely broken link are indistinguishable after
- * the fact. The not-found boundary itself receives no information about the
- * URL that triggered it - that's a React Server Components limitation, not
- * an oversight here - so proxy.ts tags every page request with its own
- * pathname via a request header, and this reads it back.
+/* THIS FILE MUST STAY STATIC. No `headers()`, no `cookies()`, no `dynamic =
+ * 'force-dynamic'`, no request-time read of any kind. (#1434)
  *
- * Warn level, not error: a 404 render is not, by itself, a server fault.
- * Pathname only - `x-lhq-pathname` is set from `request.nextUrl.pathname`
- * in proxy.ts, which excludes the query string by construction.
+ * It looks like a page that only runs when something is not found. It is not.
+ * Next builds the root not-found element for EVERY page render and hands it to
+ * the boundary that would show it (node_modules/next/dist/server/app-render/
+ * create-component-tree.js: `notFound: notFoundElement` on the
+ * HTTPAccessFallbackBoundary). So whatever this component does, every page in
+ * the app does, on every request.
  *
- * The referer is NEVER logged raw (PM caught this in review). next.config.ts
- * sets `Referrer-Policy: strict-origin-when-cross-origin`, which only trims
- * the referer on CROSS-origin navigation - a same-origin navigation (the
- * common case for a 404 reached by clicking a stale in-app link) still sends
- * the full previous URL, query string included. That previous page could be
- * an auth callback (`?code=`), a password reset, or a checkout link - any of
- * those tokens would land in production logs the moment the next request
- * happens to 404. `refererOrigin` below keeps only the scheme+host+pathname
- * via `new URL()`, which drops the query and hash by construction, and never
- * throws into the render path if the referer isn't a parseable URL. */
-function safeRefererOriginAndPath(referer: string | null): string | null {
-  if (!referer) return null;
-  try {
-    const u = new URL(referer);
-    return `${u.origin}${u.pathname}`;
-  } catch {
-    return '(unparseable referer)';
-  }
-}
-
-export default async function NotFound() {
-  const h = await headers();
-  const pathname = h.get('x-lhq-pathname') ?? '(unknown path)';
-  const referer = safeRefererOriginAndPath(h.get('referer'));
-  console.warn('[not-found]', pathname, referer ? `referer=${referer}` : '(no referer)');
+ * On 2026-09-13 (#1251) this file started calling `headers()` to log which
+ * path had 404'd. That one call, running inside every page's render, opted the
+ * whole site out of static rendering:
+ *
+ *   - every page, /faq and /terms included, was rendered on the server per
+ *     request and sent `Cache-Control: private, no-cache, no-store`;
+ *   - app/[locale]/page.tsx was no longer prerendered, so its
+ *     `dynamicParams = false` had nothing to compare against, the page rendered
+ *     for ANY single-segment path and called notFound() after the response had
+ *     started - and every made-up URL answered 200 again, the exact soft-404
+ *     #157 reported and #163 had fixed;
+ *   - and the log line it existed for, `[not-found] <path>`, was written for
+ *     every page view of every page, not for 404s.
+ *
+ * The path of a real 404 does not need logging from here: once unknown URLs
+ * answer 404 again, the host's request log carries the path and the status for
+ * each one. What is lost is the referer #1251 also recorded; if that is wanted
+ * back it has to come from somewhere that does not render with every page (a
+ * beacon from the client component below, for example), never from this file. */
+export default function NotFound() {
   return <NotFoundContent />;
 }
