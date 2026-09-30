@@ -62,6 +62,11 @@ function CalcPageContent() {
           (duplicated its body) and the h1 (duplicated its title) were dropped,
           owner-approved, matching scanner/journal exactly. */}
       <PageHint pageKey="calc" title={t('CALC_HINT_TITLE')} body={t('CALC_HINT_BODY')} />
+      {/* The visible h1 was dropped on purpose (above). This one is for screen
+          readers and search engines only: a page still needs a heading that
+          names it, and the hint collapses to a chip for returning visitors, so
+          it cannot be that heading. Nothing changes on screen. */}
+      <h1 className="sr-only">{t('CALC_PAGE_TITLE')}</h1>
 
       <div className="ps-presets" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
         {TABS.map(tabDef => (
