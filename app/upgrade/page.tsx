@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
@@ -61,6 +61,8 @@ export default function UpgradePage() {
      the panel still shows, so the page does not change shape for the buyer on
      the day a second method is added. */
   const [selectedPlan, setSelectedPlan] = useState<null | CheckoutPlan>(null);
+  /** The plan button that opened the panel, so closing it can return focus there. */
+  const panelOpener = useRef<HTMLElement | null>(null);
   const { t } = useLabels();
 
   useEffect(() => {
@@ -95,8 +97,26 @@ export default function UpgradePage() {
      account has nothing to unlock. */
   function choosePlan(plan: CheckoutPlan) {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
+    if (document.activeElement instanceof HTMLElement) panelOpener.current = document.activeElement;
     setSelectedPlan(plan);
   }
+
+  /* Closing the panel (#861, owner 2026-09-30): an X, and Escape from anywhere
+     on the page. Focus goes back to the plan button that opened it, so a
+     keyboard user is not dropped at the top of the page. Not while redirecting:
+     the payment page is already loading. */
+  const closePanel = useCallback(() => {
+    setSelectedPlan(null);
+    const opener = panelOpener.current;
+    panelOpener.current = null;
+    if (opener?.isConnected) opener.focus();
+  }, []);
+  useEffect(() => {
+    if (!selectedPlan || isRedirecting) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePanel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedPlan, isRedirecting, closePanel]);
 
   const handleCheckout = () => choosePlan('monthly');
   const handleCheckoutAnnual = () => choosePlan('annual');
@@ -134,9 +154,22 @@ export default function UpgradePage() {
       data-plan={selectedPlan}
       role="group"
       aria-labelledby="checkout-method-title"
-      style={{ width: '100%', maxWidth: 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
+      style={{ position: 'relative', width: '100%', maxWidth: 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
     >
-      <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
+      {/* 32x32 hit area, above SC 2.5.8's 24px minimum; the glyph stays small. */}
+      <button
+        type="button"
+        data-testid="checkout-method-close"
+        onClick={closePanel}
+        disabled={isRedirecting}
+        aria-label={t('UPGRADE_METHOD_PANEL_CLOSE_ARIA')}
+        title={t('UPGRADE_METHOD_PANEL_CLOSE_ARIA')}
+        style={{ position: 'absolute', top: 8, right: 8, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--fs-body)', lineHeight: 1, color: 'var(--txt3)', background: 'transparent', border: 'none', borderRadius: 8, cursor: isRedirecting ? 'default' : 'pointer' }}
+      >
+        ✕
+      </button>
+      {/* Side padding keeps a long title clear of the X. */}
+      <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', padding: '0 28px', textAlign: 'center' }}>
         {t('UPGRADE_METHOD_PANEL_TITLE')}
       </div>
       {cryptoUrl && (
