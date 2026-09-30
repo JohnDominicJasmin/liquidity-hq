@@ -34,7 +34,12 @@ import { test, expect, type Page } from '@playwright/test';
  * ANONYMOUS AND READ-ONLY. Signed out, no account, staging only, no writes beyond
  * the visitor's own browser storage. No AI credits. */
 
-const PAGES = ['/dashboard', '/scanner', '/arena', '/upgrade', '/about'] as const;
+/* #1410 follow-up (2026-09-28): the first run covered /arena, the only one of the three
+ * canvas-bearing routes (KLineProChart, BeamsBackground, FundingTerminal - #1419's own
+ * PR comment) that was in the original five. / (landing -> BeamsBackground) and /funding
+ * (-> FundingTerminal) are added here so canvas rendering - precisely where engines are
+ * most likely to differ - is actually covered on all three surfaces, not one of three. */
+const PAGES = ['/dashboard', '/scanner', '/arena', '/upgrade', '/about', '/', '/funding'] as const;
 
 interface Surface {
   url: string;
