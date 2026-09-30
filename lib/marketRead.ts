@@ -18,8 +18,15 @@ export type FundingSide = 'pos' | 'neg' | 'neu';
 export interface Factor { key: string; label: string; value: string; sub?: string }
 export interface Contrarian { dir: 'bull' | 'bear'; label: string; count: number; desc: string }
 export interface MarketRead {
-  score: number;
-  band: Band;
+  /* PENDING (#1494): Fear & Greed or funding has not loaded yet. There is no
+     score, no band and no verdict then - only a "reading" line - because the
+     old defaults (F&G 50, funding 'neu') scored as real, pessimistic inputs and
+     a cold load read "Weak setup - better to wait" at 40/100 before any data
+     existed. `missing` names what is still loading. */
+  pending: boolean;
+  missing: Array<'fng' | 'funding'>;
+  score: number | null;
+  band: Band | null;
   verdict: string;
   sub: string;
   factors: Factor[];
@@ -97,8 +104,19 @@ export function computeContrarian(store: MarketStore): Contrarian | null {
 /* ── The full read ── */
 export function computeMarketRead(store: MarketStore, manualFund: FundingSide | null = null): MarketRead {
   const coin = store.coins[store.selectedCoin];
-  const fng = store.fng ?? 50;
   const price = coin?.price ?? 0;
+
+  /* An input that has not loaded is not scored (#1494). "Unknown reads as no"
+     is the defect class: `store.fng ?? 50` and a missing funding rate read as
+     'neu' used to score as Neutral F&G (12/25) and neutral funding (8/30, the
+     lowest funding score). Order walls were already left out of the maximum
+     when missing; F&G and funding are too central to the score to leave out,
+     so the read waits for them instead. A manual funding override counts as
+     the funding input - the visitor has supplied it. */
+  const missing: Array<'fng' | 'funding'> = [];
+  if (store.fng == null) missing.push('fng');
+  if (coin?.fundingRate == null && manualFund == null) missing.push('funding');
+  const fng = store.fng;
 
   const autoFundingSide: FundingSide = coin?.fundingRate != null ? classifyFunding(coin.fundingRate).rpm : 'neu';
   const fundingSide = manualFund ?? autoFundingSide;
@@ -129,7 +147,8 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
   const dayLabel = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][day];
 
   let fngScore = 12, fngLabel = 'Neutral';
-  if (fng <= 15)      { fngScore = 25; fngLabel = 'Extreme fear'; }
+  if (fng == null)    { fngScore = 0;  fngLabel = 'Reading…'; }
+  else if (fng <= 15) { fngScore = 25; fngLabel = 'Extreme fear'; }
   else if (fng <= 30) { fngScore = 22; fngLabel = 'Fear'; }
   else if (fng <= 45) { fngScore = 18; fngLabel = 'Mild fear'; }
   else if (fng <= 55) { fngScore = 12; fngLabel = 'Neutral'; }
@@ -138,19 +157,24 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
   else                { fngScore = 25; fngLabel = 'Extreme greed'; }
 
   const fundScore = fundingSide === 'neu' ? 8 : 30;
-  const fundLabel = fundingSide === 'pos' ? 'Long-heavy' : fundingSide === 'neg' ? 'Short-heavy' : 'Neutral';
+  const fundLabel = missing.includes('funding') ? 'Reading…'
+    : fundingSide === 'pos' ? 'Long-heavy' : fundingSide === 'neg' ? 'Short-heavy' : 'Neutral';
 
   const wall = wallProximity(price, coin?.orderBidWalls ?? null, coin?.orderAskWalls ?? null);
 
+  const pending = missing.length > 0;
   const raw = timeScore + dayScore + fngScore + fundScore + wall.score;
   const maxTotal = 30 + 15 + 25 + 30 + (wall.has ? 30 : 0);
-  const score = Math.min(100, Math.round((raw / maxTotal) * 100));
+  const score = pending ? null : Math.min(100, Math.round((raw / maxTotal) * 100));
 
-  const band: Band = score >= 70 ? 'good' : score >= 45 ? 'mid' : 'weak';
-  const verdict = band === 'good' ? 'Good time to trade'
+  const band: Band | null = score == null ? null : score >= 70 ? 'good' : score >= 45 ? 'mid' : 'weak';
+  const verdict = band == null ? 'Reading the market…'
+    : band === 'good' ? 'Good time to trade'
     : band === 'mid' ? 'Decent conditions - be selective'
     : 'Weak setup - better to wait';
-  const sub = band === 'good'
+  const sub = band == null
+    ? `Waiting for ${missing.map(m => (m === 'fng' ? 'Fear & Greed' : 'funding')).join(' and ')} data before giving a read.`
+    : band === 'good'
     ? 'Several signals line up in your favor. A cleaner, higher-confidence window - still mind your risk.'
     : band === 'mid'
     ? 'Conditions are mixed but tradeable. Be picky with entries and keep your size modest.'
@@ -160,10 +184,10 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
 
   const factors: Factor[] = [];
   if (wall.has) factors.push({ key: 'wall', label: 'Order wall', value: wall.pct != null && wall.pct <= 1 ? 'Tight' : wall.label ? 'Nearby' : 'Far', sub: wall.label || undefined });
-  factors.push({ key: 'fng', label: 'Fear & Greed', value: fngLabel, sub: String(fng) });
+  factors.push({ key: 'fng', label: 'Fear & Greed', value: fngLabel, sub: fng == null ? undefined : String(fng) });
   factors.push({ key: 'day', label: 'Day', value: dayLabel });
   factors.push({ key: 'fund', label: 'Funding', value: fundLabel });
   factors.push({ key: 'sm', label: 'Smart money', value: sm.label, sub: `${sm.total > 0 ? '+' : ''}${sm.total}/${sm.max}` });
 
-  return { score, band, verdict, sub, factors, fundingSide, autoFundingSide, contrarian: computeContrarian(store) };
+  return { pending, missing, score, band, verdict, sub, factors, fundingSide, autoFundingSide, contrarian: computeContrarian(store) };
 }
