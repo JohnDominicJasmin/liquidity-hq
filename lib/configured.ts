@@ -54,6 +54,9 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
     cryptoCheckoutAnnual:      isCryptoCheckoutConfiguredAnnual(env),
     cryptoCheckoutFortnightly: isCryptoCheckoutConfiguredFortnightly(env),
     lemonsqueezyWebhook: set(env.LEMONSQUEEZY_WEBHOOK_SECRET),
+    /* Both, because either one missing refuses every delivery: no key fails
+       the signature check, no organisation id fails the check after it. */
+    boomfiWebhook: set(env.BOOMFI_WEBHOOK_PUBLIC_KEY) && set(env.BOOMFI_ORG_ID),
     /* The LS REST API key the cancel route needs (#1396). Same read the route
        and the settings panel gate on (isLsApiConfigured), so cancel-availability
        is observable per environment - set on qa (test), unset on staging/prod
