@@ -19,10 +19,15 @@
 --   - the admin console (OPS_*, 25 keys): only the owner uses /ops.
 --
 -- Translated from the English in lib/labelDefaults.en.json. One of these keys,
--- FAQ_Q_FREE_VS_PRO_A, has an older English row in both databases that still
--- says Pro includes backtesting; the translations here follow the corrected
--- code English (no backtesting). The English row itself is a separate item
--- (#1152), not changed here.
+-- FAQ_Q_FREE_VS_PRO_A, had an older English row that said Pro includes
+-- backtesting; the translations here follow the corrected code English (no
+-- backtesting). The English row is fixed by 20261001b (#1152; applied to
+-- production 2026-09-30, dev pending).
+--
+-- SETTINGS_HINT_BODY and ALERTS_HINT_BODY are translated from their CORRECTED
+-- English (#1113, owner-approved 2026-09-30, migration 20261001d): no
+-- "connected accounts" in Settings and no "funding" in Alerts. Those two
+-- phrases named things the pages do not have.
 --
 -- Run against BOTH lhq_labels (prod) and lhq_dev_labels (dev, commented out
 -- below per 20260912b's convention). Shared-database write: the dev block is
@@ -37,9 +42,9 @@ insert into lhq_labels (key, locale, value) values
 ('NEWS_HINT_TITLE','ko','뉴스'),
 ('NEWS_HINT_BODY','ko','코인과 영향도별로 태그된 암호화폐 속보와 촉매 요인 - 지금 실제로 시장을 움직이는 것과 단순한 노이즈를 구분하세요.'),
 ('ALERTS_HINT_TITLE','ko','알림'),
-('ALERTS_HINT_BODY','ko','코인별로 가격, 펀딩비, RSI, 고래, 미결제약정 알림을 설정하세요. 알림이 발동되면 텔레그램 또는 푸시 알림을 받습니다 - 활성화할 알림을 켜고 끄고, 필요 없는 알림은 음소거하세요.'),
+('ALERTS_HINT_BODY','ko','코인별로 가격, RSI, 고래, 미결제약정 알림을 설정하세요. 알림이 발동되면 텔레그램 또는 푸시 알림을 받습니다 - 활성화할 알림을 켜고 끄고, 필요 없는 알림은 음소거하세요.'),
 ('SETTINGS_HINT_TITLE','ko','설정'),
-('SETTINGS_HINT_BODY','ko','트레이딩 프로필, 기본 리스크 설정, 관심종목, 알림, 연결된 계정, 구독 - LiquidityHQ를 나에게 맞게 설정하는 모든 것.'),
+('SETTINGS_HINT_BODY','ko','트레이딩 프로필, 기본 리스크 설정, 관심종목, 알림, 구독 - LiquidityHQ를 나에게 맞게 설정하는 모든 것.'),
 ('DASHBOARD_HINT_TITLE','ko','대시보드'),
 ('DASHBOARD_HINT_BODY','ko','한눈에 보는 시장 진단 - 전반적인 시장 상황, 지금 가장 좋은 셋업, 그리고 거래하기 전에 확인할 가치가 있는 신호.'),
 ('CALC_HINT_TITLE','ko','계산기'),
@@ -233,9 +238,9 @@ insert into lhq_labels (key, locale, value) values
 ('NEWS_HINT_TITLE','zh','资讯'),
 ('NEWS_HINT_BODY','zh','按币种和影响力标记的加密货币突发头条与催化事件 - 看清当前真正推动市场的是什么，哪些只是噪音。'),
 ('ALERTS_HINT_TITLE','zh','提醒'),
-('ALERTS_HINT_BODY','zh','按币种设置价格、资金费率、RSI、巨鲸和持仓量提醒。提醒触发时，您会收到 Telegram 或推送通知 - 可切换启用哪些提醒，并将不需要的提醒静音。'),
+('ALERTS_HINT_BODY','zh','按币种设置价格、RSI、巨鲸和持仓量提醒。提醒触发时，您会收到 Telegram 或推送通知 - 可切换启用哪些提醒，并将不需要的提醒静音。'),
 ('SETTINGS_HINT_TITLE','zh','设置'),
-('SETTINGS_HINT_BODY','zh','您的交易资料、默认风险设置、自选列表、通知、已连接账户和订阅 - 一切让 LiquidityHQ 按您的方式运作的个性化设置。'),
+('SETTINGS_HINT_BODY','zh','您的交易资料、默认风险设置、自选列表、通知和订阅 - 一切让 LiquidityHQ 按您的方式运作的个性化设置。'),
 ('DASHBOARD_HINT_TITLE','zh','仪表盘'),
 ('DASHBOARD_HINT_BODY','zh','一目了然的市场解读 - 整体行情、当前最佳机会，以及下单前值得查看的信号。'),
 ('CALC_HINT_TITLE','zh','计算器'),
@@ -429,9 +434,9 @@ insert into lhq_labels (key, locale, value) values
 ('NEWS_HINT_TITLE','ar','الأخبار'),
 ('NEWS_HINT_BODY','ar','عناوين العملات الرقمية العاجلة والمحفزات، مصنفة حسب العملة والتأثير - اعرف ما الذي يحرك السوق فعلًا الآن وما هو مجرد ضجيج.'),
 ('ALERTS_HINT_TITLE','ar','التنبيهات'),
-('ALERTS_HINT_BODY','ar','عيّن تنبيهات للسعر ومعدل التمويل وRSI والحيتان والفائدة المفتوحة لكل عملة. عند إطلاق أحدها يصلك إشعار عبر تيليجرام أو إشعار فوري - اختر التنبيهات النشطة واكتم التي لا تحتاجها.'),
+('ALERTS_HINT_BODY','ar','عيّن تنبيهات للسعر وRSI والحيتان والفائدة المفتوحة لكل عملة. عند إطلاق أحدها يصلك إشعار عبر تيليجرام أو إشعار فوري - اختر التنبيهات النشطة واكتم التي لا تحتاجها.'),
 ('SETTINGS_HINT_TITLE','ar','الإعدادات'),
-('SETTINGS_HINT_BODY','ar','ملف التداول الخاص بك، والإعدادات الافتراضية للمخاطرة، وقائمة المتابعة، والإشعارات، والحسابات المرتبطة، والاشتراك - كل ما يخصص طريقة عمل LiquidityHQ لك.'),
+('SETTINGS_HINT_BODY','ar','ملف التداول الخاص بك، والإعدادات الافتراضية للمخاطرة، وقائمة المتابعة، والإشعارات، والاشتراك - كل ما يخصص طريقة عمل LiquidityHQ لك.'),
 ('DASHBOARD_HINT_TITLE','ar','لوحة التحكم'),
 ('DASHBOARD_HINT_BODY','ar','قراءتك السريعة للسوق - الظروف العامة، وأفضل إعداد حاليًا، والإشارات التي تستحق التحقق منها قبل تنفيذ أي صفقة.'),
 ('CALC_HINT_TITLE','ar','الحاسبات'),
@@ -625,9 +630,9 @@ insert into lhq_labels (key, locale, value) values
 ('NEWS_HINT_TITLE','ru','Новости'),
 ('NEWS_HINT_BODY','ru','Срочные криптоновости и катализаторы с пометками по монете и важности - смотрите, что действительно двигает рынок прямо сейчас, а что просто шум.'),
 ('ALERTS_HINT_TITLE','ru','Оповещения'),
-('ALERTS_HINT_BODY','ru','Настраивайте оповещения по цене, фандингу, RSI, китам и открытому интересу для каждой монеты. Когда одно из них срабатывает, вы получаете уведомление в Telegram или push-уведомление - выбирайте, какие активны, и заглушайте ненужные.'),
+('ALERTS_HINT_BODY','ru','Настраивайте оповещения по цене, RSI, китам и открытому интересу для каждой монеты. Когда одно из них срабатывает, вы получаете уведомление в Telegram или push-уведомление - выбирайте, какие активны, и заглушайте ненужные.'),
 ('SETTINGS_HINT_TITLE','ru','Настройки'),
-('SETTINGS_HINT_BODY','ru','Ваш торговый профиль, параметры риска по умолчанию, список отслеживания, уведомления, подключённые аккаунты и подписка - всё, что настраивает работу LiquidityHQ под вас.'),
+('SETTINGS_HINT_BODY','ru','Ваш торговый профиль, параметры риска по умолчанию, список отслеживания, уведомления и подписка - всё, что настраивает работу LiquidityHQ под вас.'),
 ('DASHBOARD_HINT_TITLE','ru','Панель управления'),
 ('DASHBOARD_HINT_BODY','ru','Картина рынка с первого взгляда - общие условия, лучший сетап прямо сейчас и сигналы, которые стоит проверить перед открытием сделки.'),
 ('CALC_HINT_TITLE','ru','Калькуляторы'),
@@ -827,9 +832,9 @@ on conflict (key, locale) do nothing;
 -- ('NEWS_HINT_TITLE','ko','뉴스'),
 -- ('NEWS_HINT_BODY','ko','코인과 영향도별로 태그된 암호화폐 속보와 촉매 요인 - 지금 실제로 시장을 움직이는 것과 단순한 노이즈를 구분하세요.'),
 -- ('ALERTS_HINT_TITLE','ko','알림'),
--- ('ALERTS_HINT_BODY','ko','코인별로 가격, 펀딩비, RSI, 고래, 미결제약정 알림을 설정하세요. 알림이 발동되면 텔레그램 또는 푸시 알림을 받습니다 - 활성화할 알림을 켜고 끄고, 필요 없는 알림은 음소거하세요.'),
+-- ('ALERTS_HINT_BODY','ko','코인별로 가격, RSI, 고래, 미결제약정 알림을 설정하세요. 알림이 발동되면 텔레그램 또는 푸시 알림을 받습니다 - 활성화할 알림을 켜고 끄고, 필요 없는 알림은 음소거하세요.'),
 -- ('SETTINGS_HINT_TITLE','ko','설정'),
--- ('SETTINGS_HINT_BODY','ko','트레이딩 프로필, 기본 리스크 설정, 관심종목, 알림, 연결된 계정, 구독 - LiquidityHQ를 나에게 맞게 설정하는 모든 것.'),
+-- ('SETTINGS_HINT_BODY','ko','트레이딩 프로필, 기본 리스크 설정, 관심종목, 알림, 구독 - LiquidityHQ를 나에게 맞게 설정하는 모든 것.'),
 -- ('DASHBOARD_HINT_TITLE','ko','대시보드'),
 -- ('DASHBOARD_HINT_BODY','ko','한눈에 보는 시장 진단 - 전반적인 시장 상황, 지금 가장 좋은 셋업, 그리고 거래하기 전에 확인할 가치가 있는 신호.'),
 -- ('CALC_HINT_TITLE','ko','계산기'),
@@ -1023,9 +1028,9 @@ on conflict (key, locale) do nothing;
 -- ('NEWS_HINT_TITLE','zh','资讯'),
 -- ('NEWS_HINT_BODY','zh','按币种和影响力标记的加密货币突发头条与催化事件 - 看清当前真正推动市场的是什么，哪些只是噪音。'),
 -- ('ALERTS_HINT_TITLE','zh','提醒'),
--- ('ALERTS_HINT_BODY','zh','按币种设置价格、资金费率、RSI、巨鲸和持仓量提醒。提醒触发时，您会收到 Telegram 或推送通知 - 可切换启用哪些提醒，并将不需要的提醒静音。'),
+-- ('ALERTS_HINT_BODY','zh','按币种设置价格、RSI、巨鲸和持仓量提醒。提醒触发时，您会收到 Telegram 或推送通知 - 可切换启用哪些提醒，并将不需要的提醒静音。'),
 -- ('SETTINGS_HINT_TITLE','zh','设置'),
--- ('SETTINGS_HINT_BODY','zh','您的交易资料、默认风险设置、自选列表、通知、已连接账户和订阅 - 一切让 LiquidityHQ 按您的方式运作的个性化设置。'),
+-- ('SETTINGS_HINT_BODY','zh','您的交易资料、默认风险设置、自选列表、通知和订阅 - 一切让 LiquidityHQ 按您的方式运作的个性化设置。'),
 -- ('DASHBOARD_HINT_TITLE','zh','仪表盘'),
 -- ('DASHBOARD_HINT_BODY','zh','一目了然的市场解读 - 整体行情、当前最佳机会，以及下单前值得查看的信号。'),
 -- ('CALC_HINT_TITLE','zh','计算器'),
@@ -1219,9 +1224,9 @@ on conflict (key, locale) do nothing;
 -- ('NEWS_HINT_TITLE','ar','الأخبار'),
 -- ('NEWS_HINT_BODY','ar','عناوين العملات الرقمية العاجلة والمحفزات، مصنفة حسب العملة والتأثير - اعرف ما الذي يحرك السوق فعلًا الآن وما هو مجرد ضجيج.'),
 -- ('ALERTS_HINT_TITLE','ar','التنبيهات'),
--- ('ALERTS_HINT_BODY','ar','عيّن تنبيهات للسعر ومعدل التمويل وRSI والحيتان والفائدة المفتوحة لكل عملة. عند إطلاق أحدها يصلك إشعار عبر تيليجرام أو إشعار فوري - اختر التنبيهات النشطة واكتم التي لا تحتاجها.'),
+-- ('ALERTS_HINT_BODY','ar','عيّن تنبيهات للسعر وRSI والحيتان والفائدة المفتوحة لكل عملة. عند إطلاق أحدها يصلك إشعار عبر تيليجرام أو إشعار فوري - اختر التنبيهات النشطة واكتم التي لا تحتاجها.'),
 -- ('SETTINGS_HINT_TITLE','ar','الإعدادات'),
--- ('SETTINGS_HINT_BODY','ar','ملف التداول الخاص بك، والإعدادات الافتراضية للمخاطرة، وقائمة المتابعة، والإشعارات، والحسابات المرتبطة، والاشتراك - كل ما يخصص طريقة عمل LiquidityHQ لك.'),
+-- ('SETTINGS_HINT_BODY','ar','ملف التداول الخاص بك، والإعدادات الافتراضية للمخاطرة، وقائمة المتابعة، والإشعارات، والاشتراك - كل ما يخصص طريقة عمل LiquidityHQ لك.'),
 -- ('DASHBOARD_HINT_TITLE','ar','لوحة التحكم'),
 -- ('DASHBOARD_HINT_BODY','ar','قراءتك السريعة للسوق - الظروف العامة، وأفضل إعداد حاليًا، والإشارات التي تستحق التحقق منها قبل تنفيذ أي صفقة.'),
 -- ('CALC_HINT_TITLE','ar','الحاسبات'),
@@ -1415,9 +1420,9 @@ on conflict (key, locale) do nothing;
 -- ('NEWS_HINT_TITLE','ru','Новости'),
 -- ('NEWS_HINT_BODY','ru','Срочные криптоновости и катализаторы с пометками по монете и важности - смотрите, что действительно двигает рынок прямо сейчас, а что просто шум.'),
 -- ('ALERTS_HINT_TITLE','ru','Оповещения'),
--- ('ALERTS_HINT_BODY','ru','Настраивайте оповещения по цене, фандингу, RSI, китам и открытому интересу для каждой монеты. Когда одно из них срабатывает, вы получаете уведомление в Telegram или push-уведомление - выбирайте, какие активны, и заглушайте ненужные.'),
+-- ('ALERTS_HINT_BODY','ru','Настраивайте оповещения по цене, RSI, китам и открытому интересу для каждой монеты. Когда одно из них срабатывает, вы получаете уведомление в Telegram или push-уведомление - выбирайте, какие активны, и заглушайте ненужные.'),
 -- ('SETTINGS_HINT_TITLE','ru','Настройки'),
--- ('SETTINGS_HINT_BODY','ru','Ваш торговый профиль, параметры риска по умолчанию, список отслеживания, уведомления, подключённые аккаунты и подписка - всё, что настраивает работу LiquidityHQ под вас.'),
+-- ('SETTINGS_HINT_BODY','ru','Ваш торговый профиль, параметры риска по умолчанию, список отслеживания, уведомления и подписка - всё, что настраивает работу LiquidityHQ под вас.'),
 -- ('DASHBOARD_HINT_TITLE','ru','Панель управления'),
 -- ('DASHBOARD_HINT_BODY','ru','Картина рынка с первого взгляда - общие условия, лучший сетап прямо сейчас и сигналы, которые стоит проверить перед открытием сделки.'),
 -- ('CALC_HINT_TITLE','ru','Калькуляторы'),
