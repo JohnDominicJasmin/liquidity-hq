@@ -1,114 +1,116 @@
 import { test, expect } from '@playwright/test';
 
-/* DOES THE UPGRADE BUTTON ACTUALLY HAVE A CHECKOUT URL? (#243)
+/* DO THE UPGRADE BUTTONS MATCH WHAT THE SERVER SAYS IS FOR SALE? (#243, #1259)
  *
- * `/api/version` cannot answer this, and it is the natural place to look:
+ * `/api/version` cannot answer this on its own, and it is the natural place to look:
  *
- *   /api/version   lib/configured.ts, runs SERVER-side per request,
- *                  reads live process.env
+ *   /api/version   lib/configured.ts, runs SERVER-side per request, reads live
+ *                  process.env
  *
- *   /upgrade       'use client', and isCheckoutConfigured() is called at
- *                  MODULE SCOPE (app/upgrade/page.tsx:13), so
- *                  NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL is baked into the
- *                  client bundle at BUILD time
+ *   /upgrade       'use client'; its CHECKOUT_* constants are computed at MODULE
+ *                  SCOPE from NEXT_PUBLIC_* payment links, so the links are baked
+ *                  into the client bundle at BUILD time
  *
- * Set the variable after a build and the two disagree: `/api/version` reports
- * `configured.checkout: true` while the shipped bundle still holds `'#'` and
- * the button is dead. #243 names that as the most likely way the task fails
- * quietly - and the check meant to rule it out would confirm the wrong thing.
+ * Set a link after a build and the two disagree: `/api/version` reports the plan
+ * configured while the shipped page still has no button for it. #243 named that
+ * as the way checkout fails quietly. So this compares the two sources rather than
+ * trusting either. It is a config-agreement check, not a UI test.
  *
- * SO THIS COMPARES THE TWO SOURCES rather than trusting either. It is a
- * config-agreement check, not a UI test.
+ * REWRITTEN 2026-09-30 (#1259). The first version compared `configured.checkout`
+ * (the Lemon Squeezy monthly link) with the monthly button. Since #861/#1468 the
+ * buttons are gated on the crypto links instead - Lemon Squeezy rejected the store
+ * - so that comparison asked about a link no button reads any more, and went red
+ * on every host where the Lemon Squeezy variable was still set. It now compares each
+ * button with the flag the deployed build itself gates it on - see expectedButtons()
+ * below. On a current build:
  *
- * NO SESSION NEEDED, contrary to where this started. `/upgrade` gates only on
- * `loading || isPro` (page.tsx:105) and deliberately shows pricing to anonymous
- * visitors - login is required at the click, not to see the price. So an
- * unauthenticated check is sufficient AND is the cleaner instrument: it removes
- * the fixture, the fake session and the Supabase interception from a test whose
- * subject is a build-time constant.
+ *   monthly button      <=>  configured.proBuyable
+ *   annual button       <=>  proBuyable AND cryptoCheckoutAnnual
+ *   two-weekly button   <=>  proBuyable AND cryptoCheckoutFortnightly
  *
- * QA loaded /upgrade on staging signed out, found no CTA, and concluded an
- * authenticated session was required. It was not - the CTA was missing because
- * of the #243 inlining defect this spec now guards. Worth recording: "the
- * button is absent" and "I am not allowed to see the button" looked identical
- * from outside.
+ * (annual and two-weekly only render in the states where monthly does - page.tsx's
+ * CTA block - hence the AND.) The first rewrite read proBuyable alone, and failed on
+ * staging, whose build (c67a61b) predates that flag - QA's own premise error, caught
+ * by running it there.
+ *
+ * NO SESSION. `/upgrade` shows pricing to anonymous visitors; login is required at
+ * the click, not to see the price. Nothing is clicked here, so nothing leaves the
+ * app for a payment host.
  *
  * RUN IT AGAINST A DEPLOYED HOST:
  *
- *   E2E_BASE_URL=https://liquidity-hq-staging.onrender.com \
+ *   E2E_BASE_URL=https://liquidity-hq-qa.onrender.com \
  *     npx playwright test qa/e2e/checkout-config-agrees.spec.ts --project=desktop
- *
- * The fixture routes Supabase by absolute URL, so it works on any app origin
- * pointing at the same Supabase project.
  */
 
 interface VersionPayload {
   commit?: string;
-  configured?: { checkout?: boolean };
+  configured?: {
+    proBuyable?: boolean; cryptoCheckout?: boolean; cryptoCheckoutAnnual?: boolean; cryptoCheckoutFortnightly?: boolean;
+    checkout?: boolean; checkoutAnnual?: boolean; checkoutFortnightly?: boolean;
+  };
+}
+
+/* THREE GENERATIONS OF THE PAGE ARE DEPLOYED AT ONCE, and this spec runs against
+ * all of them (qa, staging, and production through qa/prod-readonly.ts). Each gates
+ * its buttons on a different flag, so the flag compared is the one THAT build
+ * reports and gates on - chosen by which flags its /api/version carries:
+ *
+ *   has proBuyable            (#1468 on)   buttons gate on proBuyable + crypto links
+ *   has cryptoCheckout only   (#1466)      buttons gate on the crypto monthly link
+ *   has neither               (before)     buttons gate on the Lemon Squeezy links
+ *
+ * In all three, annual and two-weekly render only in the states where monthly does
+ * (the CTA block in app/upgrade/page.tsx, the same in each generation). */
+function expectedButtons(c: NonNullable<VersionPayload['configured']>) {
+  if (typeof c.proBuyable === 'boolean') {
+    return { era: 'proBuyable (#1468+)', monthly: c.proBuyable, annual: c.proBuyable && c.cryptoCheckoutAnnual === true, fortnightly: c.proBuyable && c.cryptoCheckoutFortnightly === true };
+  }
+  if (typeof c.cryptoCheckout === 'boolean') {
+    return { era: 'crypto links (#1466)', monthly: c.cryptoCheckout, annual: c.cryptoCheckout && c.cryptoCheckoutAnnual === true, fortnightly: c.cryptoCheckout && c.cryptoCheckoutFortnightly === true };
+  }
+  expect(typeof c.checkout, '/api/version reports none of proBuyable, cryptoCheckout or checkout - re-derive this spec from lib/configured.ts').toBe('boolean');
+  return { era: 'Lemon Squeezy links (pre-#1466)', monthly: c.checkout === true, annual: c.checkout === true && c.checkoutAnnual === true, fortnightly: c.checkout === true && c.checkoutFortnightly === true };
 }
 
 test.describe('#243 checkout config', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('the server and the shipped bundle agree about whether checkout is configured', async ({ page, baseURL }) => {
-    /* The server's claim, from the same read the app gates on (#282). */
+  test('the server and the shipped bundle agree about which plans are for sale', async ({ page, baseURL }) => {
     const res = await page.request.get('/api/version');
     expect(res.ok(), `/api/version returned ${res.status()}`).toBe(true);
     const version = (await res.json()) as VersionPayload;
-    const serverSaysConfigured = version.configured?.checkout === true;
+    const c = version.configured ?? {};
+    const expected = expectedButtons(c);
 
-    /* Anonymous. A 'pro' session would be REDIRECTED to /arena
-       (page.tsx:84) - my first version used one and reported a config
-       disagreement that was really the wrong session state. */
     await page.goto('/upgrade');
+    /* Wait for the page to settle into ONE of its states before reading: either a
+       plan button, or the coming-soon block. Reading earlier would record "no
+       button" for a page that simply had not rendered yet. */
+    await page.locator('[data-testid^="checkout-cta"], h1').first().waitFor({ state: 'attached', timeout: 20_000 });
+    await page.waitForTimeout(1_500);
 
-    /* THE CTA IS A <button>, NOT AN <a>. It navigates via
-       `window.location.href = getCheckoutUrl(user)` in an onClick
-       (page.tsx:96), so there is no href to read - which is also why QA's
-       sweep for anchors matching `lemon` or `href="#"` found neither and
-       could not settle this.
-       Matched on a testid rather than text or styling: the labels are
-       DB-driven through useLabels(), so matching copy binds this to whatever
-       the labels table says today, in one locale. Same reasoning as #441's
-       `locked-feature` marker. */
-    const cta = page.getByTestId('checkout-cta-monthly');
-    const appeared = await cta.waitFor({ state: 'attached', timeout: 20_000 })
-      .then(() => true).catch(() => false);
+    /* THE BUTTONS ARE <button>s with test ids, not links: the page navigates in an
+       onClick, so there is no href to read. Matched on test ids, not text - the
+       labels are DB-driven and differ by locale. */
+    const rendered = {
+      monthly: await page.getByTestId('checkout-cta-monthly').count() > 0,
+      annual: await page.getByTestId('checkout-cta-annual').count() > 0,
+      fortnightly: await page.getByTestId('checkout-cta-fortnightly').count() > 0,
+    };
 
-    /* The button's PRESENCE is the bundle's `CHECKOUT_CONFIGURED`, evaluated at
-       module scope from the inlined build-time value. That is exactly the
-       reading `/api/version` cannot give. */
-    const bundleHasUrl = appeared;
+    const readings = `/api/version commit=${version.commit ?? 'unknown'} gating=${expected.era} expects=${JSON.stringify({ monthly: expected.monthly, annual: expected.annual, fortnightly: expected.fortnightly })} | buttons rendered: ${JSON.stringify(rendered)} | base=${baseURL}`;
 
-    /* Report both readings whichever way this goes - a bare pass/fail here
-       tells whoever runs it nothing about which side was wrong. */
-    const readings = `/api/version commit=${version.commit ?? 'unknown'} configured.checkout=${serverSaysConfigured} | checkout CTA rendered=${appeared} | base=${baseURL}`;
-
-    if (serverSaysConfigured) {
-      expect(
-        bundleHasUrl,
-        `THE SERVER AND THE BUNDLE DISAGREE. ${readings}\n` +
-        'The environment has NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL set, but the ' +
-        'shipped client bundle does not carry it - so the button is dead while ' +
-        '/api/version reports it configured. The variable was almost certainly ' +
-        'set after this build: redeploy so it is inlined, then re-run. This is ' +
-        'the exact silent failure #243 warns about.',
-      ).toBe(true);
-    } else {
-      /* Not configured is a legitimate state - most environments have never had
-         a store. What must NOT happen is the bundle carrying a live URL the
-         server does not know about, which would mean buyers reaching a checkout
-         nothing else in the app believes exists. */
-      expect(
-        bundleHasUrl,
-        `The bundle carries a checkout URL but the server reports none. ${readings}\n` +
-        'Inverted form of the same drift - the build has a URL the current ' +
-        'environment does not.',
-      ).toBe(false);
+    for (const plan of ['monthly', 'annual', 'fortnightly'] as const) {
+      expect(rendered[plan],
+        expected[plan]
+          ? `THE SERVER AND THE BUNDLE DISAGREE on ${plan}. ${readings}\nThe server says this plan is for sale, but the shipped page has no button for it. Its NEXT_PUBLIC_ payment link was almost certainly set after this build: redeploy so it is inlined, then re-run (#243).`
+          : `The page offers ${plan} but the server says it is not for sale. ${readings}\nThe build carries a payment link the current environment does not - buyers could reach a checkout nothing else in the app believes exists.`,
+      ).toBe(expected[plan]);
     }
 
-    /* Not an assertion - the run's own record, so a green result still says
-       WHICH state was verified. "Agrees" is meaningless without it. */
-    console.log(`[#243] ${readings} | verdict=${serverSaysConfigured ? 'configured, bundle agrees' : 'not configured, bundle agrees'}`);
+    /* Not an assertion - the run's own record, so a green result still says WHICH
+       state was verified. "Agrees" is meaningless without it. */
+    console.log(`[#243] ${readings} | verdict=agree`);
   });
 });
