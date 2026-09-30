@@ -97,8 +97,10 @@ and every check passed because they read text, not the page.
    shipped.
 3. Any "artifact" explanation in the evidence has its control attached.
 
-**Within five minutes of the deploy:** open the main pages in a real browser at
-desktop and phone width and compare them with the approved screenshots. If
+**Within five minutes of the deploy:** open, in a real browser, every page the
+release changed plus `/dashboard`, at 1280 and 390 wide at the least, and
+compare them with the approved screenshots. The pages and widths are fixed so
+the check cannot shrink under time pressure. If
 production is broken, roll back at once under the standing rollback permission
 (04-gates-and-done.md) and tell him what you saw.
 

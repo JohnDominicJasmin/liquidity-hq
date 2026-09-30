@@ -111,7 +111,10 @@ feature failing. Open the image before ruling on scope.
 - [ ] Every item in the bundle passed QA on staging.
 - [ ] Every visible item has the owner's approval, **given before the merge from
       paired screenshots in the release PR** (live production | candidate, each
-      changed page, desktop and phone). "Not yet seen by the owner" in the Risk
+      changed page, desktop and phone). QA produces the pairs from **one harness
+      run against both builds**: a harness has effects of its own (a synthetic
+      session's "Unauthorized" card, a "Couldn't save" toast), and they cancel
+      out only when both sides come from the same run. "Not yet seen by the owner" in the Risk
       list is not a risk, it is a blocker: the release does not merge.
 - [ ] Every flag raised on the release's issues and PRs since the candidate was
       cut is resolved, or deferred by the owner in writing. The PM reads them all
