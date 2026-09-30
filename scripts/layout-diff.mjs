@@ -9,7 +9,7 @@
  *
  * TWO STEPS, so base and branch never need to be served at the same time:
  *
- *   node scripts/layout-diff.mjs measure --url <origin> --out <dir> [--routes /a,/b] [--widths 1280,1440,1920,390]
+ *   node scripts/layout-diff.mjs measure --url <origin> --out <dir> [--routes /a,/b] [--widths 1280,1440,1920,390] [--lang ru]
  *   node scripts/layout-diff.mjs diff <baseDir> <headDir> [--md <report.md>]
  *
  * `measure` loads each route signed out (analytics consent denied, first-run
@@ -53,6 +53,9 @@ async function measure(args) {
   if (!origin || !out) throw new Error('measure needs --url <origin> and --out <dir>');
   const routes = arg(args, '--routes', DEFAULT_ROUTES.join(',')).split(',');
   const widths = arg(args, '--widths', DEFAULT_WIDTHS.join(',')).split(',').map(Number);
+  // --lang ko|zh|ru: the in-app language (the label locale), for checking a
+  // translation's fit. The landing page follows its URL (/ko, /zh) instead.
+  const lang = arg(args, '--lang', null);
   const require = createRequire(path.join(process.cwd(), 'package.json'));
   const { chromium } = require('playwright');
   fs.mkdirSync(out, { recursive: true });
@@ -62,12 +65,13 @@ async function measure(args) {
     for (const route of routes) {
       for (const width of widths) {
         const ctx = await browser.newContext({ viewport: { width, height: 1000 }, colorScheme: 'dark' });
-        await ctx.addInitScript(() => {
+        await ctx.addInitScript((l) => {
           try {
             localStorage.setItem('lhq_analytics_consent_v1', 'denied');
             localStorage.setItem('lhq_tour_seen', '1');
+            if (l) localStorage.setItem('lhq_lang_v1', l);
           } catch { /* storage unavailable */ }
-        });
+        }, lang);
         const page = await ctx.newPage();
         const res = await page.goto(origin + route, { waitUntil: 'domcontentloaded', timeout: 240_000 });
         await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
@@ -122,7 +126,7 @@ async function measure(args) {
     }
   } finally {
     await browser.close();
-    fs.writeFileSync(path.join(out, 'layout.json'), JSON.stringify({ origin, measuredAt: new Date().toISOString(), pages }, null, 2));
+    fs.writeFileSync(path.join(out, 'layout.json'), JSON.stringify({ origin, lang, measuredAt: new Date().toISOString(), pages }, null, 2));
   }
 }
 
