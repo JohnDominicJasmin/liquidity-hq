@@ -88,7 +88,14 @@ export async function POST(req: NextRequest) {
   // identify a repeat. No event id is documented in the body either. The hash
   // of the raw body is the one thing a repeat of the same delivery shares.
   const payloadHash = crypto.createHash('sha256').update(rawBody).digest('hex');
-  const sb = getSupabaseAdmin();
+  // getSupabaseAdmin throws when its settings are missing. Caught so that it is
+  // REPORTED like every other failure here, not only turned into a bare 500.
+  let sb: ReturnType<typeof getSupabaseAdmin>;
+  try {
+    sb = getSupabaseAdmin();
+  } catch (e) {
+    return apiError('boomfi/webhook', e);
+  }
   const { data: firstSeen, error: recordErr } = await sb
     .from(T.boomfi_webhook_events)
     .insert({
@@ -113,7 +120,7 @@ export async function POST(req: NextRequest) {
     apiError('boomfi/webhook', new Error(
       `verified and recorded, but the organisation does not match - nothing may be granted on this event. ` +
       `event=${eventName ?? '(none)'} org_id=${text(event.org_id) ?? '(absent)'} org.id=${text(nested) ?? '(absent)'} ` +
-      `BOOMFI_ORG_ID=${ORG_ID ? 'set' : 'UNSET'}`,
+      `BOOMFI_ORG_ID=${ORG_ID.trim() ? 'set' : 'UNSET'}`,
     ));
     return NextResponse.json({ received: true, recorded: true, ignored: 'org_mismatch' });
   }
