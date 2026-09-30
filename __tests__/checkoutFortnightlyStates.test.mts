@@ -87,8 +87,15 @@ test('/api/version reports the two-weekly flag beside the other two, booleans on
 });
 
 test('/upgrade: the two-weekly button is ADDITIVE - only inside a monthly-anchored state, and the annual branching order is untouched', () => {
-  /* Source-asserted, like the annual test, because the states are a render. */
-  assert.match(UPGRADE, /const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCheckoutConfiguredFortnightly\(\);/);
+  /* Source-asserted, like the annual test, because the states are a render.
+
+     #861 Phase 1: /upgrade gates on the BoomFi (crypto) link now, not the Lemon
+     Squeezy one - that store was rejected, so its link is never coming. The page
+     kept the constant's NAME and swapped the read behind it. Pinned to the crypto
+     reader on purpose: a revert to isCheckoutConfiguredFortnightly() would hide
+     the two-weekly button on every host, because no host has that variable. The
+     placement rules below are unchanged and are what this test is for. */
+  assert.match(UPGRADE, /const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly\(\);/);
   assert.match(UPGRADE, /const fortnightlyButton = CHECKOUT_FORTNIGHTLY_CONFIGURED && \(/, 'the button must be gated on its own flag');
   assert.match(UPGRADE, /data-testid="checkout-cta-fortnightly"/);
 
