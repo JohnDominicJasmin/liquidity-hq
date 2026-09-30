@@ -460,6 +460,15 @@ body::after {
      horizontal-scroll news banner) and overflows the viewport. */
   .dash-main  { min-width: 0; overflow-x: hidden; }
 
+  /* ONLY THE TWO COLUMNS TAKE A TRACK (#1487 rollback). The grid auto-places
+     every child, so anything else rendered inside it - the page hint (#1113),
+     the cascade alert banner - took the wide first track itself and pushed
+     .dash-main into the 360px rail track and the rail down below it. On
+     production that squeezed the whole dashboard into the narrow column and
+     truncated every Market Read cell. Anything that is not one of the two
+     columns spans the full width above them instead. */
+  .dashboard-grid > :not(.dash-main):not(.dash-right) { grid-column: 1 / -1; }
+
   /* Sticky right rail. Before the page scrolls enough to actually pin
      top:68, this box sits at its natural in-flow position - well below 68,
      since the trial/announcement banners push it down - and max-height
@@ -547,6 +556,8 @@ body::after {
   /* min-width:0 stops the 1fr track expanding to its widest child (news
      banner) and overflowing - same guard the >=1100 block uses. */
   .dash-main { min-width: 0; overflow-x: hidden; }
+  /* Same rule as the >=1100 block: only the two columns take a track. */
+  .dashboard-grid > :not(.dash-main):not(.dash-right) { grid-column: 1 / -1; }
   .dash-sidebar {
     display: flex;
     flex-direction: column;
