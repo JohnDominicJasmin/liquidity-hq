@@ -322,6 +322,17 @@ test('U8. coming BACK from the payment page: a page restored from the back/forwa
   assert.match(UPGRADE, /return \(\) => window\.removeEventListener\('pageshow', onPageShow\);/, 'the listener is never removed');
 });
 
+test('U9. "Instant access" is not shown under the plan buttons - a crypto payment does not unlock the account by itself yet', () => {
+  /* Owner's decision 2026-09-30 (0abd586c): the line would be untrue for the
+     only way there is to pay. It comes back when a payment method that unlocks
+     automatically exists - and this test is changed on purpose that day. */
+  assert.match(UPGRADE, /const TRUST_LABELS = \['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_SECURE_CHECKOUT'\] as const;/, 'the trust row\'s label list changed');
+  assert.equal(/UPGRADE_TRUST_INSTANT_ACCESS/.test(UPGRADE), false, '"Instant access" is referenced in /upgrade\'s code again');
+  assert.equal((UPGRADE.match(/TRUST_LABELS\.map\(/g) ?? []).length, 2, 'the two buyable states no longer both render the shared trust row');
+  assert.equal(/UPGRADE_TRUST_[A-Z_]+'\s*[,\]]/.test(UPGRADE.replace(/const TRUST_LABELS = [^;]+;/, '')), false, 'a trust label is rendered from somewhere other than TRUST_LABELS');
+  assert.ok((LABEL_KEYS as readonly string[]).includes('UPGRADE_TRUST_INSTANT_ACCESS'), 'the label key was deleted - production is additive-only; it should stay registered');
+});
+
 test('L1. the four new labels are registered, have English defaults, and are rendered through t()', () => {
   /* Wording is NOT pinned: the two-weekly note's text is with the owner (#861). */
   for (const key of ['UPGRADE_METHOD_PANEL_TITLE', 'UPGRADE_METHOD_CRYPTO_CTA', 'UPGRADE_METHOD_CRYPTO_NOTE', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE']) {

@@ -288,7 +288,10 @@ test('R9. BOOMFI_ORG_ID unset: nothing matches - a missing setting must not mean
   assert.ok(logged.mock.calls.slice(0, 6).every((c) => String(c.arguments[0]).includes('BOOMFI_ORG_ID=UNSET')), 'the report does not say the organisation id is unset');
 });
 
-test('R9c. a whitespace-only BOOMFI_ORG_ID is reported as UNSET, the way /api/version and the match itself already treat it', { todo: 'the report says BOOMFI_ORG_ID=set for a value of spaces: the route tests the raw string, boomfiOrgMatches and configuredFlags trim it. Wrong only in the log line - nothing is granted either way. Reported to Dev on #861.' }, async (t) => {
+test('R9c. a whitespace-only BOOMFI_ORG_ID is reported as UNSET, the way /api/version and the match itself already treat it', async (t) => {
+  /* Was a todo: the report said "set" for a value of spaces, because the route
+     tested the raw string while the match and /api/version trim it. Fixed in
+     b52210c4; a real assertion since. */
   fresh();
   const logged = t.mock.method(console, 'error', () => {});
   const r = await loadRoute({ BOOMFI_ORG_ID: '  ' });
@@ -328,16 +331,21 @@ test('R11. a missing table (the migration is not applied yet) is also a 500, not
   assert.equal(res.status, 500, 'before the migration is applied every verified delivery must fail loudly, so none is lost believing it was stored');
 });
 
-test('R12. with the Supabase settings missing, a verified delivery is NOT acknowledged', async () => {
-  /* Today this throws out of the handler (getSupabaseAdmin throws and nothing
-     catches it), which Next turns into a 500. Either a throw or a 5xx is fine;
-     a 2xx is the failure. Pinned loosely on purpose. */
+test('R12. with the Supabase settings missing, a verified delivery is a 500 and is REPORTED - not acknowledged, and not an unreported throw', async (t) => {
+  /* Was pinned loosely ("throws or 5xx"): getSupabaseAdmin threw out of the
+     handler, which Next turned into a 500 that nothing reported. b52210c4
+     catches it and sends it through apiError, so this is now exact. */
   fresh();
-  const r = await loadRoute({ SUPABASE_SERVICE_ROLE_KEY: undefined });
-  let status: number | 'threw';
-  try { status = (await r.POST(request(event({ id: 'pay_no_admin' })))).status; } catch { status = 'threw'; }
-  assert.ok(status === 'threw' || status >= 500, `a delivery that could not be stored was answered ${status}`);
-  assert.equal(db.rows.size, 0);
+  const logged = t.mock.method(console, 'error', () => {});
+  for (const over of [{ SUPABASE_SERVICE_ROLE_KEY: undefined }, { NEXT_PUBLIC_SUPABASE_URL: undefined }]) {
+    const r = await loadRoute(over);
+    const res = await r.POST(request(event({ id: `pay_no_admin_${Object.keys(over)[0]}` })));
+    assert.equal(res.status, 500, `${Object.keys(over)[0]} missing`);
+    assert.equal(JSON.stringify(await res.json()).includes('received'), false, 'a delivery that could not be stored was acknowledged');
+  }
+  assert.equal(sentryCalls().length, 2, 'a missing database client was not reported');
+  assert.equal(logged.mock.callCount(), 2);
+  assert.equal(db.seen.length, 0);
 });
 
 /* ══ THE property: it changes nobody's plan ══ */
