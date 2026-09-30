@@ -810,7 +810,7 @@ function ArenaContent() {
   const enableNotifications = async () => {
     // #1042: an anti-fingerprinting extension's Notification stub passes
     // 'Notification' in window but has no requestPermission method - feature-
-    // detect the method too, not just the object, same as NewsProvider.tsx.
+    // detect the method too, not just the object, same as app/settings/page.tsx.
     if (!('Notification' in window) || typeof Notification.requestPermission !== 'function') {
       alert(t('ARENA_ALERT_NOTIFS_UNSUPPORTED')); return;
     }

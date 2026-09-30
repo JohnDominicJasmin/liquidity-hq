@@ -114,9 +114,6 @@ interface NewsCtx {
 const NewsContext = createContext<NewsCtx | null>(null);
 export function useNews() { return useContext(NewsContext)!; }
 
-// Module-level flag - survives React StrictMode double-mount so permission is only requested once
-let _notifRequested = false;
-
 // Upper bounds for the two structures that would otherwise grow for the whole
 // lifetime of a tab. Both sit comfortably above what anything renders: the
 // ticker caps at 12 and drops anything past its 2h red window, and hydration
@@ -293,18 +290,16 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   }, []);
 
   useEffect(() => {
-    /* #1042: an anti-fingerprinting extension replaces `Notification` with a
-       stub that has no `requestPermission` - `'Notification' in window` is
-       still true for that stub, so it passed the old guard and threw
-       (TypeError: Notification.requestPermission is not a function) on
-       every affected visitor's first navigation, prod only, silently
-       killing push permission with no fallback. Feature-detect the METHOD,
-       not just the object. */
-    if ('Notification' in window && typeof Notification.requestPermission === 'function'
-        && Notification.permission === 'default' && !_notifRequested) {
-      _notifRequested = true;
-      Notification.requestPermission();
-    }
+    /* No notification permission is requested here (#1410, PM/DevOps
+       2026-10-01). This effect used to call Notification.requestPermission()
+       on mount, so the first page anyone opened, signed out included, asked
+       for permission before the visitor had done anything. Firefox refuses a
+       request that does not come from a click, on every load; Chromium showed
+       the prompt to a first-time visitor. Permission is asked only from a
+       click now: the Arena's alert bell (app/arena/page.tsx) and Settings'
+       push toggle (app/settings/page.tsx). pushAlert above still shows a news
+       notification whenever permission is already 'granted', however it was
+       granted. */
 
     const sb = getSupabase();
     if (!sb) { setAlertsLoaded(true); setEventsLoaded(true); return; }
