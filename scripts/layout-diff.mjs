@@ -14,10 +14,11 @@
  *
  * `measure` loads each route signed out (analytics consent denied, first-run
  * tour marked seen), waits for the page to settle, and records per width:
- *   - boxes: every element up to 3 levels below the main content that is at
- *     least 100px wide, keyed by its class path (x, y, width, height);
- *   - overflow: every element whose text is cut off (scrollWidth > clientWidth
- *     with overflow hidden or clip), with the text it holds;
+ *   - boxes: every element up to 3 levels below the main content (and below
+ *     the top nav, header.tnav) that is at least 100px wide, keyed by its
+ *     class path (x, y, width, height);
+ *   - overflow: every element on the page whose text is cut off (scrollWidth >
+ *     clientWidth with overflow hidden or clip), with the text it holds;
  *   - pageScroll: whether the page scrolls sideways;
  *   - hint: where [data-page-hint] sits and what its parent does with it;
  *   - a screenshot of the first screen.
@@ -99,8 +100,12 @@ async function measure(args) {
             }
           };
           walk(root, cls(root), 1);
+          /* The top nav sits outside the main content, and a nav that does not
+             fit is exactly the kind of layout defect this tool exists for. */
+          const nav = document.querySelector('header.tnav');
+          if (nav) { boxes['header.tnav'] = r(nav); walk(nav, 'header.tnav', 1); }
           const overflow = [];
-          for (const el of root.querySelectorAll('*')) {
+          for (const el of document.body.querySelectorAll('*')) {
             if (!el.childElementCount && el.textContent && el.textContent.trim() && el.scrollWidth > el.clientWidth + 1) {
               const s = getComputedStyle(el);
               // clientWidth > 1: a visually hidden (.sr-only) element is 1px by design.
