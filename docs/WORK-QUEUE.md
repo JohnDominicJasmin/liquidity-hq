@@ -1,5 +1,11 @@
 # Work queue — pull from here, never idle
 
+**RESUMED 2026-09-30 ~15:16Z, after a same-day funding pause (~02:33Z).** The owner paused
+the team in the morning (*"No work for today we're running out of funds"*) and lifted it
+the same day, in the PM session: *"Full resume now"*, then *"FULL RESUME EVERYTHING"*.
+Recorded on #861. Read the Owner-only section's payments update before touching anything
+payments-related; it replaced the old Lemon Squeezy plan.
+
 **This file exists because the PM was the bottleneck.** On 2026-09-06 both the Dev
 and QA sessions finished their work and then *waited* for the next assignment.
 Twice. The owner's instruction, verbatim:
@@ -197,12 +203,22 @@ Visual sign-off stays with the owner (condition 5).
 
 ## Owner-only - do not queue these
 
-**Payments go-live (#861, #243):** test-mode plans exist and the test purchase has run end to
-end; what remains is the owner's. **Products created in test mode do not transfer to live
-mode** - copy them with "Copy to Live Mode" and set the *new* links on production. Activate
-the store (business details, identity), then production's own live-mode webhook and its own
-`LEMONSQUEEZY_WEBHOOK_SECRET`. **The API key is created only when #1396 is built.** A
-production secret is never copied to a non-prod service.
+**Payments go-live (#861) — REPLANNED 2026-09-30, the Lemon Squeezy paragraph that used to
+sit here is DEAD.** Lemon Squeezy rejected the store application outright (crypto
+trading-signals business, no specific fix offered, no reapply path) — the "Copy to Live
+Mode" / store-activation flow below never happens now. Full record and the current plan:
+**#861's 2026-09-30 comment.** Short version:
+- **BoomFi (crypto) is live** — 3 real payment links exist (Monthly $35, Yearly $350, Weekly
+  $10 as the BoomFi-only 2wk substitute). Settlement runs Base/Binance/Solana/TON; Polygon
+  and Arbitrum are off (they caused a real duplicate-account bug there, root-caused not
+  guessed).
+- **Polar (fiat/card) is spec'd, not started.** No entity needed (individual/sole-proprietor
+  onboarding), needs a landing-page copy reframe before applying (exact swaps + a footer
+  disclaimer are on #861), then the application itself (~14 day review).
+- **Dev's first pickup on resume: Phase 1 from #861** — wire "Pay with Crypto" into
+  `app/upgrade/page.tsx` using the 3 BoomFi links above (`lib/checkout.ts` needs a Crypto
+  variant per tier, same additive `'#'`-unset pattern as today's three functions). Don't wait
+  on Polar — ship the working rail first, add "Pay with Card" as Phase 3 once Polar's approved.
 
 **Also the owner's:** the recurring 5-minute `POST /api/market/ingest` entry with
 `x-cron-secret` (one entry per environment, each with its own secret - never a prod secret on
