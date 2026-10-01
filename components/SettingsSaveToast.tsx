@@ -32,20 +32,33 @@ type Shown = 'saving' | 'saved' | 'conflict' | 'error';
 export default function SettingsSaveToast() {
   const { saveStatus, retrySave } = useSettings();
   const { t } = useLabels();
-  const [shown, setShown] = useState<Shown | null>(null);
+  /* `seq` restarts the dismiss timer when the same state arrives twice in a
+     row (two saves 1s apart each get their full 2s). */
+  const [toast, setToast] = useState<{ shown: Shown; seq: number } | null>(null);
+  const shown = toast?.shown ?? null;
 
   useEffect(() => {
-    if (saveStatus === 'saving') { setShown('saving'); return; }
-    if (saveStatus === 'error') { setShown('error'); return; }
-    if (saveStatus === 'saved' || saveStatus === 'conflict') {
-      setShown(saveStatus);
-      const timer = setTimeout(() => setShown(s => (s === saveStatus ? null : s)), saveStatus === 'saved' ? 2000 : 4000);
-      return () => clearTimeout(timer);
+    if (saveStatus === 'saving' || saveStatus === 'error' || saveStatus === 'saved' || saveStatus === 'conflict') {
+      setToast(prev => ({ shown: saveStatus, seq: (prev?.seq ?? 0) + 1 }));
+      return;
     }
-    // 'idle': the provider resets after its own timers. An error stays on
-    // screen until acted on; a "Saving…" that ended without a result does not.
-    setShown(s => (s === 'saving' ? null : s));
+    // 'idle': the provider resets on its own timer. An error stays on screen
+    // until acted on, and Saved / Updated leave on THEIR timer below; only a
+    // "Saving…" that ended without a result is cleared here.
+    setToast(prev => (prev?.shown === 'saving' ? null : prev));
   }, [saveStatus]);
+
+  /* The dismiss timer keys on the toast itself, NOT on saveStatus (QA, #1498).
+     The provider resets saveStatus to 'idle' at 2s ('saved') or 3s, which is
+     at or before these timers fire. When the timer lived in the saveStatus
+     effect, that reset ran the effect's cleanup, cancelled the timer, and
+     "Saved" stayed on screen for good. */
+  useEffect(() => {
+    if (!toast || (toast.shown !== 'saved' && toast.shown !== 'conflict')) return;
+    const { seq } = toast;
+    const timer = setTimeout(() => setToast(cur => (cur?.seq === seq ? null : cur)), toast.shown === 'saved' ? 2000 : 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   if (!shown) return null;
 
@@ -56,10 +69,10 @@ export default function SettingsSaveToast() {
           <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
         <span className="st-save-toast-text">{t('SETTINGS_SAVE_FAILED_TITLE')}</span>
-        <button type="button" className="st-save-toast-retry" onClick={() => { setShown('saving'); retrySave(); }}>
+        <button type="button" className="st-save-toast-retry" onClick={() => { setToast(prev => ({ shown: 'saving', seq: (prev?.seq ?? 0) + 1 })); retrySave(); }}>
           {t('SETTINGS_SAVE_RETRY_BUTTON')}
         </button>
-        <button type="button" className="st-save-toast-close" onClick={() => setShown(null)} aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')} title={t('SETTINGS_SAVE_DISMISS_ARIA')}>
+        <button type="button" className="st-save-toast-close" onClick={() => setToast(null)} aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')} title={t('SETTINGS_SAVE_DISMISS_ARIA')}>
           ✕
         </button>
       </div>
