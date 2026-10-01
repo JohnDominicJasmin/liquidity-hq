@@ -120,7 +120,17 @@ async function measure(args) {
             const spans = /-1|span/.test(hs.gridColumn);
             hint = { key: h.dataset.pageHint, ...r(h), parent: cls(p), display: ps.display, tracks, spans, rowFlex: ps.display.includes('flex') && !ps.flexDirection.startsWith('column') };
           }
-          return { boxes, overflow, pageScroll: document.documentElement.scrollWidth > window.innerWidth + 1, hint };
+          /* The language the page actually rendered in, not the one asked for:
+             an unoffered --lang value renders English (QA, #1497). */
+          const htmlLang = document.documentElement.lang || null;
+          /* Nav items ending past the page edge. Recorded as a fact, so an
+             overflow that is the same on both builds still shows in the diff. */
+          let navPastViewport = null;
+          if (nav) {
+            const right = Math.max(...[...nav.querySelectorAll('*')].map((e) => e.getBoundingClientRect().right));
+            if (right > window.innerWidth + 1) navPastViewport = Math.round(right);
+          }
+          return { boxes, overflow, pageScroll: document.documentElement.scrollWidth > window.innerWidth + 1, hint, htmlLang, navPastViewport };
         });
         const shot = `${route.replace(/[^\w-]+/g, '_').replace(/^_|_$/g, '') || 'root'}-${width}.png`;
         await page.screenshot({ path: path.join(out, shot) });
@@ -140,8 +150,14 @@ function diff(args) {
   if (!baseDir || !headDir) throw new Error('diff needs <baseDir> <headDir>');
   const load = (d) => JSON.parse(fs.readFileSync(path.join(d, 'layout.json'), 'utf8'));
   const base = load(baseDir), head = load(headDir);
-  const lines = [`# Layout diff`, ``, `base: ${base.origin} (${base.measuredAt})`, `head: ${head.origin} (${head.measuredAt})`, ``];
+  const langOf = (m) => [...new Set(m.pages.map((p) => p.htmlLang ?? m.lang ?? '?'))].join(',');
+  const lines = [`# Layout diff`, ``, `base: ${base.origin} (${base.measuredAt}), rendered lang ${langOf(base)}`, `head: ${head.origin} (${head.measuredAt}), rendered lang ${langOf(head)}`, ``];
   let flagged = 0;
+  /* Two different languages make every translated box read as moved (QA, #1497). */
+  if (langOf(base) !== langOf(head)) {
+    flagged += 1;
+    lines.push(`## Language mismatch: base rendered ${langOf(base)}, head rendered ${langOf(head)} - compare like with like`, '');
+  }
   for (const hp of head.pages) {
     const bp = base.pages.find((p) => p.route === hp.route && p.width === hp.width);
     const issues = [];
@@ -156,7 +172,9 @@ function diff(args) {
       const baseCut = new Set(bp.overflow.map((o) => `${o.el}|${o.text}`));
       for (const o of hp.overflow) if (!baseCut.has(`${o.el}|${o.text}`)) issues.push(`cut off: ${o.el} "${o.text}" (${o.sw}px in ${o.cw}px)`);
       if (hp.pageScroll && !bp.pageScroll) issues.push('page now scrolls sideways');
+      if (bp.htmlLang && hp.htmlLang && bp.htmlLang !== hp.htmlLang) issues.push(`rendered in ${hp.htmlLang}, base in ${bp.htmlLang}`);
     }
+    if (hp.navPastViewport) issues.push(`top nav ends at ${hp.navPastViewport}px on a ${hp.width}px page${bp?.navPastViewport ? ' (base too)' : ''}`);
     if (hp.hint && ((hp.hint.tracks > 1 && !hp.hint.spans) || hp.hint.rowFlex)) issues.push(`hint "${hp.hint.key}" takes a slot in ${hp.hint.parent} (${hp.hint.display}, ${hp.hint.tracks} tracks)`);
     flagged += issues.length;
     lines.push(`## ${hp.route} @ ${hp.width}px: ${issues.length ? `${issues.length} flagged` : 'no change'}`);
