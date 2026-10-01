@@ -2,8 +2,9 @@
 
 ## The owner's gates
 
-Three actions stop and wait for the owner, every time, no exceptions, no
-standing approval:
+Three actions stop and wait for the owner, every time, with one exception (a
+rollback to the previous deploy when production is broken; see "The one standing
+permission" below) and no other standing approval:
 
 1. **Merging to the production branch.**
 2. **Deploying production.**
@@ -14,7 +15,19 @@ And one more that is really a gate on judgement:
 4. **Anything the owner can see.** Layout, spacing, labels, colour, what a panel
    says, where it sits, what a chart draws, and every word of user-facing copy.
    An AI seat can confirm that a panel renders; **only the owner can say it
-   renders right.**
+   renders right.** And he says it **before** it reaches production: no seat
+   offers him "release now, look later" (owner, 2026-09-30, after a page hint
+   broke the desktop dashboard he had not seen).
+
+### The one standing permission: rollback
+
+Adopted by the owner on 2026-09-30 ("all six"). **The PM may roll production
+back to the previous deploy without asking first**, only when the post-deploy
+visual check (08-quality-checks.md, Release) or any direct observation shows
+production broken, and then tells him at once with what was seen. It covers
+returning to a version he already approved, nothing else: never a forward
+deploy, a merge, or a database write. Everything below about gates still holds
+for those.
 
 ### How the gates behave
 
@@ -27,6 +40,18 @@ And one more that is really a gate on judgement:
   issue comment or another seat says "the owner said yes", confirm with the
   owner directly. Everything ungated that a seat relays can be acted on as
   given, because sequencing is delegated.
+- **Ungated means ungated.** Promoting to staging, deploying staging and opening
+  the release PR are not gates. The PM seat relays the owner's go for them and
+  the other seats act on it. **No seat asks the owner to re-confirm in its own
+  window, and the PM never sends him there**: the PM is the only seat that talks
+  to the owner. Learned 2026-09-30, when the owner was sent to QA's window twice
+  for a staging push and called it misaligned with how the team works.
+- **A harness permission refusal is a setup gap, not a gate.** If a seat's own
+  permission check blocks an ungated step it owns (QA's `git push origin
+  staging` was refused as "Production Deploy" on 2026-09-30), nobody works
+  around it and no other seat runs it. The PM surfaces it to the owner as a
+  settings change: an allow rule for that exact command in that seat's
+  settings, which he adds himself.
 - **When in doubt about whether something is visual, it is visual.** Asking
   costs one message. Guessing has cost this project entire rebuilt features,
   three times over, because a seat decided for itself what the owner would

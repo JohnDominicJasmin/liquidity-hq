@@ -79,13 +79,53 @@ export function _cacheSize(): number {
  */
 const inflight = new Map<string, Promise<unknown>>();
 
+/* FAILURE MEMORY, opt-in per call (#1473).
+ *
+ * Without it, a failure is never stored, so the bound a TTL gives only holds
+ * while the upstream answers. While it refuses, every caller retries: an
+ * upstream that blocks by IP is answered with one request per visitor, the
+ * traffic that got the IP blocked. `failTtlMs` holds the last failure for that
+ * long and rethrows it without calling the upstream, so a refusing upstream
+ * gets at most one request per key per `failTtlMs`.
+ *
+ * Opt-in because the right answer differs by route. Seconds, not the success
+ * TTL: a one-off failure is served for the whole hold, to every caller.
+ *
+ * A success clears the key's failure. Capped like `store`, for the same reason. */
+const failures = new Map<string, { ts: number; error: unknown }>();
+
+function rememberFailure(key: string, error: unknown): void {
+  failures.delete(key);
+  failures.set(key, { ts: Date.now(), error });
+  while (failures.size > MAX_ENTRIES) {
+    const oldest = failures.keys().next();
+    if (oldest.done) break;
+    failures.delete(oldest.value);
+  }
+}
+
+export interface CachedOptions {
+  /** Hold a failure this long and rethrow it without calling the fetcher.
+   *  Omitted or 0: a failure is not held, and the next caller retries. */
+  failTtlMs?: number;
+}
+
 // Returns the cached value for `key` if it's younger than `ttlMs`, otherwise
 // calls `fetcher()`, caches the result, and returns it. Only successful
 // results are cached - a throwing fetcher leaves the previous entry (or none)
-// in place so a single upstream failure can't poison the cache.
-export async function cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
+// in place so a single upstream failure can't poison the cache. With
+// `failTtlMs`, the failure itself is held that long (see above).
+export async function cached<T>(
+  key: string, ttlMs: number, fetcher: () => Promise<T>, opts: CachedOptions = {},
+): Promise<T> {
   const hit = store.get(key);
   if (hit && Date.now() - hit.ts < ttlMs) { touch(key, hit); return hit.data as T; }
+
+  const failTtlMs = opts.failTtlMs ?? 0;
+  if (failTtlMs > 0) {
+    const fail = failures.get(key);
+    if (fail && Date.now() - fail.ts < failTtlMs) throw fail.error;
+  }
 
   /* Note the key namespace: `cached` and `cachedStale` share `store`, so they
      share `inflight` too. That is correct - two callers asking for the same key
@@ -94,9 +134,15 @@ export async function cached<T>(key: string, ttlMs: number, fetcher: () => Promi
   if (existing) return existing;
 
   const p = (async () => {
-    const data = await fetcher();
-    remember(key, data);
-    return data;
+    try {
+      const data = await fetcher();
+      failures.delete(key);
+      remember(key, data);
+      return data;
+    } catch (e) {
+      if (failTtlMs > 0) rememberFailure(key, e);
+      throw e;
+    }
   })().finally(() => { inflight.delete(key); });
 
   inflight.set(key, p);

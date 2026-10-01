@@ -294,8 +294,51 @@ test('U5. the method panel: shows for the picked plan, offers crypto only when t
   const panel = UPGRADE.slice(at, UPGRADE.indexOf('\n  );', at));
   assert.match(panel, /data-testid="checkout-method-panel"\s+data-plan=\{selectedPlan\}/);
   assert.match(panel, /\{cryptoUrl && \(\s*<button\s+data-testid="checkout-method-crypto"\s+onClick=\{payWithCrypto\}/, 'the crypto button is not gated on the link, or no longer calls payWithCrypto');
-  assert.equal((panel.match(/<button/g) ?? []).length, 1, 'the panel has more than one button - a payment method was added; it needs its own link, its own gate and its own tests');
+  /* Two buttons since the close X (#861, owner 2026-09-30). The X is not a payment
+     method, so it is set aside by its test id and the PAYMENT buttons are counted. */
+  const buttons = [...panel.matchAll(/<button\b[\s\S]*?>/g)].map((m) => m[0]);
+  const close = buttons.filter((b) => /data-testid="checkout-method-close"/.test(b));
+  assert.equal(close.length, 1, 'the panel has no close button, or more than one');
+  const payment = buttons.filter((b) => !/data-testid="checkout-method-close"/.test(b));
+  assert.equal(payment.length, 1, `the panel has ${payment.length} payment buttons - a payment method was added; it needs its own link, its own gate and its own tests`);
   assert.equal(/checkout-method-card/.test(UPGRADE), false, 'a card option is on the page before Polar is live');
+});
+
+test('U5b. the close X: closes the panel, is disabled while redirecting, is labelled, and never pays', () => {
+  const at = UPGRADE.indexOf('data-testid="checkout-method-close"');
+  assert.ok(at >= 0, 'the close button is gone');
+  const tag = UPGRADE.slice(UPGRADE.lastIndexOf('<button', at), UPGRADE.indexOf('>', UPGRADE.indexOf('style=', at)) + 1);
+  assert.match(tag, /type="button"/, 'the X is not type="button"');
+  assert.match(tag, /onClick=\{closePanel\}/, 'the X does not call closePanel');
+  assert.match(tag, /disabled=\{isRedirecting\}/, 'the X stays clickable while the payment page is loading');
+  assert.match(tag, /aria-label=\{t\('UPGRADE_METHOD_PANEL_CLOSE_ARIA'\)\}/, 'the X has no accessible name from the label system');
+  assert.equal(/payWithCrypto|window\.location/.test(tag), false, 'the X can start a payment');
+  assert.match(tag, /width: 32, height: 32/, 'the X hit area shrank below 32x32 (SC 2.5.8 needs 24)');
+});
+
+test('U5c. closePanel clears the plan and returns focus to the button that opened it; the opener is recorded when a plan is chosen', () => {
+  const at = UPGRADE.indexOf('const closePanel = useCallback(() => {');
+  assert.ok(at >= 0, 'closePanel is no longer a useCallback - re-derive this test');
+  const body = UPGRADE.slice(at, UPGRADE.indexOf('}, []);', at));
+  assert.match(body, /setSelectedPlan\(null\);/, 'closing does not clear the chosen plan');
+  assert.match(body, /if \(opener\?\.isConnected\) opener\.focus\(\);/, 'closing does not return focus to the opener (or focuses a detached node)');
+  const choose = UPGRADE.slice(UPGRADE.indexOf('function choosePlan('), UPGRADE.indexOf('setSelectedPlan(plan);'));
+  assert.match(choose, /panelOpener\.current = document\.activeElement;/, 'choosing a plan no longer records which button opened the panel');
+  assert.ok(choose.indexOf("router.push('/login?signup=1&next=/upgrade'); return;") < choose.indexOf('panelOpener.current'), 'the opener is recorded before the signed-out return');
+});
+
+test('U5d. Escape closes the panel: the listener exists only while a plan is open and not redirecting, and is removed on cleanup', () => {
+  const m = UPGRADE.match(/useEffect\(\(\) => \{\s*if \(!selectedPlan \|\| isRedirecting\) return;\s*const onKey = \(e: KeyboardEvent\) => \{ if \(e\.key === 'Escape'\) closePanel\(\); \};\s*window\.addEventListener\('keydown', onKey\);\s*return \(\) => window\.removeEventListener\('keydown', onKey\);\s*\}, \[([^\]]*)\]\);/);
+  assert.ok(m, 'the Escape effect changed shape: it must return early with no plan or while redirecting, close on Escape only, and remove its listener');
+  assert.deepEqual(m[1].split(',').map((s) => s.trim()).sort(), ['closePanel', 'isRedirecting', 'selectedPlan']);
+  assert.equal((UPGRADE.match(/addEventListener\('keydown'/g) ?? []).length, 1, 'more than one keydown listener on /upgrade');
+});
+
+test('U5e. the price badge never breaks inside itself: both badges use PRICE_BADGE, which is nowrap', () => {
+  assert.match(UPGRADE, /const PRICE_BADGE: React\.CSSProperties = \{[^}]*whiteSpace: 'nowrap'[^}]*\};/, 'PRICE_BADGE is gone or no longer nowrap');
+  assert.equal((UPGRADE.match(/<span style=\{PRICE_BADGE\}>/g) ?? []).length, 2, 'the two-weekly and annual badges do not both use PRICE_BADGE');
+  assert.equal(/<span style=\{\{ marginLeft: 8, fontSize: 'var\(--fs-caption\)'/.test(UPGRADE), false, 'an inline badge style that can wrap is back');
+  assert.equal((UPGRADE.match(/\.\.\.PRICE_BUTTON_LAYOUT/g) ?? []).length, 2, 'the two price buttons no longer both use the wrapping row layout');
 });
 
 test('U6. the weekly-billing note is shown for the two-weekly plan only - it is the one plan whose crypto price differs from the button', () => {
@@ -326,20 +369,25 @@ test('U8. coming BACK from the payment page: a page restored from the back/forwa
   assert.match(UPGRADE, /return \(\) => window\.removeEventListener\('pageshow', onPageShow\);/, 'the listener is never removed');
 });
 
-test('U9. "Instant access" is not shown under the plan buttons - a crypto payment does not unlock the account by itself yet', () => {
-  /* Owner's decision 2026-09-30 (0abd586c): the line would be untrue for the
-     only way there is to pay. It comes back when a payment method that unlocks
-     automatically exists - and this test is changed on purpose that day. */
-  assert.match(UPGRADE, /const TRUST_LABELS = \['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_SECURE_CHECKOUT'\] as const;/, 'the trust row\'s label list changed');
-  assert.equal(/UPGRADE_TRUST_INSTANT_ACCESS/.test(UPGRADE), false, '"Instant access" is referenced in /upgrade\'s code again');
+test('U9. neither "Instant access" nor "Cancel anytime" is shown under the plan buttons - the only way to pay can do neither yet', () => {
+  /* Owner's decisions 2026-09-30 (#861), and his standing copy rule: copy says
+     only what the product does today. "Instant access" - a crypto payment does
+     not unlock the account by itself until the webhook does. "Cancel anytime" - a
+     BoomFi subscriber cannot cancel from here yet. Each comes back the day that is
+     true, and this test is changed on purpose that day. */
+  assert.match(UPGRADE, /const TRUST_LABELS = \['UPGRADE_TRUST_SECURE_CHECKOUT'\] as const;/, 'the trust row\'s label list changed');
+  for (const key of ['UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_CANCEL_ANYTIME']) {
+    assert.equal(new RegExp(key).test(UPGRADE), false, `${key} is referenced in /upgrade's code again`);
+    assert.ok((LABEL_KEYS as readonly string[]).includes(key), `${key} was deleted from LABEL_KEYS - production is additive-only; it should stay registered`);
+  }
   assert.equal((UPGRADE.match(/TRUST_LABELS\.map\(/g) ?? []).length, 2, 'the two buyable states no longer both render the shared trust row');
   assert.equal(/UPGRADE_TRUST_[A-Z_]+'\s*[,\]]/.test(UPGRADE.replace(/const TRUST_LABELS = [^;]+;/, '')), false, 'a trust label is rendered from somewhere other than TRUST_LABELS');
-  assert.ok((LABEL_KEYS as readonly string[]).includes('UPGRADE_TRUST_INSTANT_ACCESS'), 'the label key was deleted - production is additive-only; it should stay registered');
 });
 
-test('L1. the four new labels are registered, have English defaults, and are rendered through t()', () => {
-  /* Wording is NOT pinned: the two-weekly note's text is with the owner (#861). */
-  for (const key of ['UPGRADE_METHOD_PANEL_TITLE', 'UPGRADE_METHOD_CRYPTO_CTA', 'UPGRADE_METHOD_CRYPTO_NOTE', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE']) {
+test('L1. the five panel labels are registered, have English defaults, and are rendered through t()', () => {
+  /* Wording is NOT pinned: the two-weekly note's text is with the owner (#861).
+     UPGRADE_METHOD_PANEL_CLOSE_ARIA is the close X's accessible name (2026-09-30). */
+  for (const key of ['UPGRADE_METHOD_PANEL_TITLE', 'UPGRADE_METHOD_CRYPTO_CTA', 'UPGRADE_METHOD_CRYPTO_NOTE', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE', 'UPGRADE_METHOD_PANEL_CLOSE_ARIA']) {
     assert.ok((LABEL_KEYS as readonly string[]).includes(key), `${key} is not in LABEL_KEYS`);
     assert.ok(typeof labelDefaults[key] === 'string' && labelDefaults[key].trim().length > 0, `${key} has no English default`);
     assert.ok(UPGRADE.includes(`t('${key}')`), `${key} is not rendered on /upgrade`);

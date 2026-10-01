@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { reportHealth, healthError } from '@/lib/apiHealth';
+import { cached } from '@/lib/apiCache';
 import { fetchFredRows } from '@/lib/fred';
 import { computeRealYield, REAL_YIELD_SERIES } from '@/lib/realYield';
 
@@ -40,23 +41,51 @@ function extract(json: unknown): { price: number; chg: number } | null {
 // quiet market, and the card on the dashboard just renders a dash. Global
 // Macro Context has already failed persistently once and was only noticed
 // because a user said something.
-async function yf(sym: string, label: string) {
+/* ONE MINUTE PER SYMBOL, HELD IN THIS PROCESS (#1397, #1404).
+ *
+ * Each Yahoo fetch used to declare `next: { revalidate: 60 }` and nothing else.
+ * On /api/econ-calendar that same declaration was MEASURED doing nothing: 50
+ * page loads produced 50 upstream calls (see that route). Nobody has measured it
+ * here, so it is not claimed broken - but every visitor's page calls this route
+ * on load and again every ten minutes (MarketProvider), five Yahoo requests each
+ * time, from one IP, to an endpoint that blocks by IP. `cached()` bounds it:
+ * while Yahoo answers, at most one request per symbol per minute per instance,
+ * however many visitors there are, with concurrent callers sharing one request
+ * rather than each starting their own.
+ *
+ * The fetch itself is `no-store` so there is exactly one cache with one age,
+ * not this one stacked on Next's.
+ *
+ * A FAILURE IS HELD FOR 30 SECONDS, NOT A MINUTE (QA and PM/DevOps, #1473).
+ * Without a hold, the bound above is gone exactly when it matters: while Yahoo
+ * blocks this IP, every visitor load retries every failing series. With it, a
+ * refusing Yahoo gets at most one request per symbol per 30 seconds. Shorter
+ * than the success TTL because a one-off hiccup is served as a dash to everyone
+ * for the whole hold. The fetcher THROWS for every failure shape, `cached()`
+ * holds the throw, and `yf` turns it back into the `null` the response has
+ * always carried. */
+const YF_TTL_MS = 60_000;
+const YF_FAIL_TTL_MS = 30_000;
+
+/** Distinguishes "already reported to health" from an unexpected throw. */
+class YfUnavailable extends Error {}
+
+async function fetchYf(sym: string, label: string): Promise<{ price: number; chg: number }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   const source = `yahoo:${label}`;
   try {
     const res = await fetch(`${YF_BASE}/${sym}?interval=1d&range=2d`, {
-      next: { revalidate: 60 },
+      cache: 'no-store',
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json',
       },
     });
-    clearTimeout(timer);
     if (!res.ok) {
       reportHealth(source, 'macro', false, `HTTP ${res.status}`);
-      return null;
+      throw new YfUnavailable(`HTTP ${res.status}`);
     }
     const parsed = extract(await res.json());
     // A 200 whose payload has no usable price is a failure here: extract()
@@ -64,10 +93,22 @@ async function yf(sym: string, label: string) {
     // "responded fine, told us nothing" case.
     reportHealth(source, 'macro', parsed != null,
       parsed ? `${parsed.price}` : 'no price in payload');
+    if (!parsed) throw new YfUnavailable('no price in payload');
     return parsed;
   } catch (e) {
+    // Network error, timeout or a body that is not JSON: not yet reported.
+    if (!(e instanceof YfUnavailable)) reportHealth(source, 'macro', false, healthError(e));
+    throw e;
+  } finally {
     clearTimeout(timer);
-    reportHealth(source, 'macro', false, healthError(e));
+  }
+}
+
+async function yf(sym: string, label: string) {
+  try {
+    return await cached(`macro:yahoo:${label}`, YF_TTL_MS, () => fetchYf(sym, label),
+      { failTtlMs: YF_FAIL_TTL_MS });
+  } catch {
     return null;
   }
 }

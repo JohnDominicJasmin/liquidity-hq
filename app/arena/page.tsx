@@ -183,7 +183,7 @@ function ArenaContent() {
   const nowMs = useNow(30_000);
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
-  const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
+  const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements } = useAuth();
   const { settings, settingsLoadStatus, update, refresh: refreshSettings } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -687,11 +687,24 @@ function ArenaContent() {
      called out by name. A Pro user already looking at a fast timeframe must
      not be silently bumped off it because one retry cycle came back unknown;
      the entitlements effect keeps retrying on its own, and this clamp simply
-     waits for a real answer instead of acting on a guess. */
+     waits for a real answer instead of acting on a guess.
+
+     #1263: "CONFIRMED" was not what the guard checked. `entitlementStatus`
+     also reads 'not_entitled' for the whole time the plan is still being
+     LOADED (AuthProvider: role defaults to free until the read settles), and
+     this effect only waited for `authLoading`, which ends earlier. So a Pro or
+     trial account was clamped off a fast timeframe during that gap, and
+     nothing put it back once the plan arrived - the seed effect above runs
+     once. Which timeframe the page ended on depended on which of two reads
+     finished first, the settings read or the plan read: the same account, the
+     same saved default, different result from one load to the next. Waiting
+     for `entitlementsLoading` makes the clamp act on the answer, not on the
+     placeholder. A free account is still clamped, a moment later, when its
+     plan is known. components/GlobalMacroContext.tsx guards the same way. */
   useEffect(() => {
-    if (authLoading || entitlementStatus !== 'not_entitled') return;
+    if (authLoading || entitlementsLoading || entitlementStatus !== 'not_entitled') return;
     if (GATED_TFS.includes(readTf)) setReadTf(FREE_FALLBACK_TF);
-  }, [authLoading, entitlementStatus, readTf]);
+  }, [authLoading, entitlementsLoading, entitlementStatus, readTf]);
 
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -797,7 +810,7 @@ function ArenaContent() {
   const enableNotifications = async () => {
     // #1042: an anti-fingerprinting extension's Notification stub passes
     // 'Notification' in window but has no requestPermission method - feature-
-    // detect the method too, not just the object, same as NewsProvider.tsx.
+    // detect the method too, not just the object, same as app/settings/page.tsx.
     if (!('Notification' in window) || typeof Notification.requestPermission !== 'function') {
       alert(t('ARENA_ALERT_NOTIFS_UNSUPPORTED')); return;
     }

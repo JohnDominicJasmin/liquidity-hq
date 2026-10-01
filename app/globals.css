@@ -460,6 +460,15 @@ body::after {
      horizontal-scroll news banner) and overflows the viewport. */
   .dash-main  { min-width: 0; overflow-x: hidden; }
 
+  /* ONLY THE TWO COLUMNS TAKE A TRACK (#1487 rollback). The grid auto-places
+     every child, so anything else rendered inside it - the page hint (#1113),
+     the cascade alert banner - took the wide first track itself and pushed
+     .dash-main into the 360px rail track and the rail down below it. On
+     production that squeezed the whole dashboard into the narrow column and
+     truncated every Market Read cell. Anything that is not one of the two
+     columns spans the full width above them instead. */
+  .dashboard-grid > :not(.dash-main):not(.dash-right) { grid-column: 1 / -1; }
+
   /* Sticky right rail. Before the page scrolls enough to actually pin
      top:68, this box sits at its natural in-flow position - well below 68,
      since the trial/announcement banners push it down - and max-height
@@ -547,6 +556,8 @@ body::after {
   /* min-width:0 stops the 1fr track expanding to its widest child (news
      banner) and overflowing - same guard the >=1100 block uses. */
   .dash-main { min-width: 0; overflow-x: hidden; }
+  /* Same rule as the >=1100 block: only the two columns take a track. */
+  .dashboard-grid > :not(.dash-main):not(.dash-right) { grid-column: 1 / -1; }
   .dash-sidebar {
     display: flex;
     flex-direction: column;
@@ -2289,13 +2300,8 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 /* The FAB sits above the mobile nav drawer (z-index 9995 vs 999) and otherwise
    covers the bottom nav links, eating their taps - hide it while the drawer is open. */
 body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
-/* #1292 release screenshot: the settings save toast (bottom:24/right:24) and
-   this FAB (bottom:24/right:20) share the same corner, so the FAB (z-index
-   9995 vs the toast's 9999 - still visually on top since it isn't
-   transparent) covered the end of the toast's text. Same treatment as
-   body.pwa-prompt-open above - hide the FAB rather than compute an offset,
-   so mobile's safe-area math never has to know about the toast at all. */
-body.settings-toast-open .gchat-fab { opacity: 0; pointer-events: none; }
+/* body.settings-toast-open (hide the FAB while the save toast showed, #1292)
+   is gone: the toast moved to the top (#1498) and can no longer meet it. */
 
 
 /* ── backdrop (expanded mode) ── */
@@ -4169,33 +4175,55 @@ html[data-theme="light"] { background: var(--bg0); }
 .st-usage-fill  { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
 .st-usage-count { font-size: var(--fs-data); font-weight: 700; min-width: 38px; text-align: right; }
 
-/* Save toast */
+/* Save toast - TOP-CENTRE, UNDER THE TOP BAR (owner, 2026-10-01, #1498).
+   It sat in the bottom-right corner, the same corner as the Ask AI FAB and,
+   on phones, just over the tab bar; the owner rejected it. Status belongs
+   under the top bar, where the app already shows status, and there it cannot
+   meet the FAB or the tab bar at any width. Top = the bar's height (44px, or
+   38px for the phone header) + 8px, below any announcement banner
+   (--banner-h) and, on phones, the notch. Above page content (the bars are
+   z-index 1000), below the Ask AI panel (9994) and modals (10000). */
 .st-save-toast {
-  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-  padding: 10px 16px; border-radius: 10px;
-  font-size: var(--fs-label); font-weight: 600;
-  background: rgba(52,211,153,0.15); border: 0.5px solid rgba(52,211,153,0.4); color: var(--green-2);
-  animation: stToastIn 0.2s ease;
+  position: fixed; left: 50%; z-index: 1001;
+  top: calc(var(--banner-h, 0px) + 44px + 8px);
+  width: max-content; max-width: min(92vw, 420px);
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 10px;
+  font-size: var(--fs-label); font-weight: 600; line-height: 1.4;
+  background: var(--bg1); border: 0.5px solid var(--bdr2); color: var(--txt);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+  animation: stToastIn 0.18s ease-out;
   pointer-events: none;
 }
-.st-save-toast.saving   { background: rgba(255,255,255,0.06); border-color: var(--bdr); color: var(--txt3); }
-.st-save-toast.error    { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.4); color: var(--red); }
+.st-save-toast-text { min-width: 0; }
+.st-save-toast.saving   { color: var(--txt2); }
 /* #1285: amber, not red - the save succeeded, a field just adopted another
    device's newer value. Sharing --error's colour would read as a failure the
    user should retry, which is the exact wrong message for this case. */
 .st-save-toast.conflict { background: var(--amber-bg); border-color: var(--amber-bdr); color: var(--amber); }
-/* #1455: the live mobile bottom bar is the terminal nav, [data-design="terminal"]
-   .tnav-tabs - fixed at bottom:0, 60px tall, shown at <=767px (TerminalNav.tsx).
-   The toast's 24px offset put it over that bar and covered the SCAN label. Lift
-   it clear of the bar plus the iOS home-indicator safe area, mirroring the
-   terminal .app-content reservation (calc(60px + safe-area + 1rem)). Scoped to
-   terminal + <=767px because that is exactly where the bar renders; non-terminal
-   designs no longer render a bottom bar (the old .mobile-tab-bar block was
-   deleted). Same family as #1292's FAB-occlusion fix. */
-@media (max-width: 767px) {
-  [data-design="terminal"] .st-save-toast { bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 16px); }
+/* Error: red token, an icon as well as the colour, and real buttons - so it
+   takes pointer events, unlike the passive states. */
+.st-save-toast.error    { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); color: var(--red); pointer-events: auto; }
+.st-save-toast-icon { flex-shrink: 0; }
+.st-save-toast-retry {
+  flex-shrink: 0; min-height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
+  font: inherit; font-weight: 700; color: var(--txt); background: var(--bg2); border: 0.5px solid var(--bdr2);
 }
-@keyframes stToastIn  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.st-save-toast-close {
+  flex-shrink: 0; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; background: none; border: none; border-radius: 8px; color: var(--txt3); font-size: 0.875rem;
+}
+@media (max-width: 767px) {
+  /* The phone header is 38px; the notch is above it. Buttons reach 44px. */
+  .st-save-toast { top: calc(env(safe-area-inset-top, 0px) + var(--banner-h, 0px) + 38px + 8px); }
+  .st-save-toast-retry { min-height: 44px; }
+  .st-save-toast-close { width: 44px; height: 44px; }
+}
+/* translateX(-50%) is part of the centring, so the entrance keeps it: a short
+   slide down from under the bar. */
+@keyframes stToastIn  { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .st-save-toast { animation: none; } }
 
 [data-theme="light"] .st-section { background: #fff; }
 [data-theme="light"] .st-input   { background: #f8f8f8; color: #111; }

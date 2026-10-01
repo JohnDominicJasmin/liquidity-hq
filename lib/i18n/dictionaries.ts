@@ -65,8 +65,13 @@ export interface LandingDict {
   pricing: {
     label: string;
     h2: string;
-    free: { name: string; sub: string; features: Array<{ text: string; included: boolean }>; cta: string };
-    pro: { badge: string; name: string; sub: string; features: string[]; cta: string };
+    /* #1152: `features` is keyed by the shared FREE_PLAN_FEATURES row id (not an
+       array), and carries ONLY the localized text - the row set, order and
+       included/excluded flag now come from lib/planFeatures.ts so this surface
+       and /upgrade can't drift. Numeric rows are templates ({quick}/{deep}/
+       {chat}), interpolated at render with the real caps from lib/limits. */
+    free: { name: string; sub: string; features: Record<string, string>; cta: string };
+    pro: { badge: string; name: string; sub: string; features: Record<string, string>; cta: string };
   };
   finalCta: { h2: string; sub: string; cta: string };
   footer: {
@@ -88,7 +93,7 @@ export const en: LandingDict = {
   hero: {
     badge: '50 markets · Signals + alerts',
     h1Line1: 'Read the map.',
-    h1Line2: 'Hunt the stops.',
+    h1Line2: 'See where liquidity sits.',
     sub: 'Professional-grade crypto intelligence for retail traders. Squeeze scores, whale alerts, AI analysis, and macro events - all in one dashboard.',
     ctaPrimary: 'Start for free →',
     ctaGhost: 'See live briefing',
@@ -110,37 +115,54 @@ export const en: LandingDict = {
   },
   howItWorks: {
     label: 'How it works',
-    h2: 'From signal to trade',
+    h2: 'From raw data to a clear read',
     steps: [
       { title: 'Connect Telegram', desc: 'Link your Telegram in Settings. Alerts fire automatically - squeeze setups, whale trades, FR extremes, breaking news.' },
       { title: 'Pick your coins', desc: 'Choose from 50 markets across majors, alts, meme, gold, and the S&P 500. The Squeeze Scanner watches all of them live, 24/7.' },
-      { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Quick or Deep. Grok reads dozens of live signals and gives you a direct, actionable trade bias.' },
+      { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Quick or Deep. Grok reads dozens of live signals and gives you a plain-language read of where the market is leaning.' },
     ],
   },
-  // AI limit numbers below (5 Quick / 3 Deep / 5 chat, and 30/10/50/10 for Pro)
-  // must match lib/limits.ts, the enforced source of truth. These are embedded in
-  // localized prose across en/ko/zh/ar so they can't be templated - update by hand
-  // (all four locales) if a limit changes. The /upgrade page IS derived from limits.ts.
+  // #1152: the Free AND Pro feature rows now come from lib/planFeatures.ts, the
+  // same source /upgrade renders, and the AI-limit numbers are interpolated from
+  // lib/limits.ts at render ({quick}/{deep}/{chat}/{search}/{tools}) rather than
+  // hand-typed here - so they can no longer drift per-locale. `features` below is
+  // keyed by the shared row id and holds ONLY the localized text. `name`/`sub`/
+  // `cta` stay local (landing-specific copy, not entitlement facts).
   pricing: {
     label: 'Pricing',
     h2: 'Start free. Upgrade when ready.',
     free: {
       name: 'Free', sub: 'Always free, no card needed',
-      features: [
-        { text: 'Dashboard + market overview', included: true },
-        { text: 'Morning briefing', included: true },
-        { text: 'News feed', included: true },
-        { text: 'All 50 markets - squeeze scanner', included: true },
-        { text: '5 Quick + 3 Deep AI analyses / day', included: true },
-        { text: '5 AI chat messages / day', included: true },
-        { text: 'Telegram alerts', included: false },
-        { text: 'Price alerts', included: false },
-      ],
+      // Keyed by FREE_PLAN_FEATURES id. English text MUST match labelDefaults.en
+      // for the matching UPGRADE_FREE_* key (QA guard test pins this equal).
+      features: {
+        dashboard: 'Dashboard + market overview',
+        briefing: 'Morning briefing',
+        news: 'News feed',
+        scanner: 'Squeeze scanner on every tracked coin',
+        charts: 'Charts + signals on 30 minute and higher timeframes',
+        aiAnalyses: '{quick} Quick + {deep} Deep AI analyses / day',
+        aiChat: '{chat} AI chat messages / day',
+        telegram: 'Telegram alerts',
+        priceAlerts: 'Price alerts',
+      },
       cta: 'Get started free',
     },
     pro: {
       badge: 'Recommended', name: 'Pro', sub: 'Every feature unlocked, generous daily limits',
-      features: ['Everything in Free', 'Signals on 1m/5m/15m charts', 'Confluence Score, Order Flow, and Absorption Detector', 'On-chain and macro AI analysis', 'Telegram alerts - all signal types', 'Unlimited price alerts', '30 Quick + 10 Deep analyses / day', '50 AI chat messages / day', '10 live searches / day', '25 AI tool runs / day (shared)'],
+      // Keyed by PRO_PLAN_FEATURES id. English text MUST match labelDefaults.en
+      // for the matching UPGRADE_PRO_* key (QA guard test pins this equal).
+      features: {
+        everythingFree: 'Everything in Free',
+        fastTimeframes: 'Signals on the 1 minute, 5 minute, and 15 minute charts',
+        confluence: 'Confluence Score, Order Flow, and Absorption Detector',
+        onchainMacro: 'On-chain and global macro AI analysis',
+        telegram: 'Telegram alerts - all signal types',
+        unlimitedAlerts: 'Unlimited price alerts',
+        aiAnalyses: '{quick} Quick + {deep} Deep AI analyses / day',
+        aiChatSearch: '{chat} AI chat messages + {search} live searches / day',
+        toolPool: '{tools} AI tool runs / day, shared across every analysis tool',
+      },
       cta: 'Get Pro - $35/mo',
     },
   },
@@ -164,7 +186,7 @@ export const ko: LandingDict = {
   hero: {
     badge: '50개 마켓 · 신호 + 알림',
     h1Line1: '지도를 읽으세요.',
-    h1Line2: '손절을 사냥하세요.',
+    h1Line2: '유동성이 어디에 있는지 확인하세요.',
     sub: '리테일 트레이더를 위한 전문가급 암호화폐 인텔리전스. 스퀴즈 점수, 고래 알림, AI 분석, 매크로 이벤트까지 하나의 대시보드에서 확인하세요.',
     ctaPrimary: '무료로 시작하기 →',
     ctaGhost: '실시간 브리핑 보기',
@@ -186,11 +208,11 @@ export const ko: LandingDict = {
   },
   howItWorks: {
     label: '이용 방법',
-    h2: '신호에서 거래까지',
+    h2: '원시 데이터에서 명확한 해석까지',
     steps: [
       { title: '텔레그램 연결', desc: '설정에서 텔레그램을 연결하세요. 스퀴즈 셋업, 고래 거래, 펀딩비 극값, 속보까지 알림이 자동으로 발송됩니다.' },
       { title: '마켓 선택', desc: '메이저, 알트, 밈, 금, S&P 500까지 50개 마켓 중에서 선택하세요. 스퀴즈 스캐너가 24시간 실시간으로 모두 감시합니다.' },
-      { title: 'AI 분석 실행', desc: 'AI 아레나를 열고 마켓을 선택한 뒤 퀵 또는 딥을 누르세요. Grok이 수십 개의 신호를 읽고 명확하고 실행 가능한 트레이딩 방향을 제시합니다.' },
+      { title: 'AI 분석 실행', desc: 'AI 아레나를 열고 마켓을 선택한 뒤 퀵 또는 딥을 누르세요. Grok이 수십 개의 신호를 읽고 시장이 어느 쪽으로 기울어 있는지 쉬운 말로 설명합니다.' },
     ],
   },
   pricing: {
@@ -198,21 +220,32 @@ export const ko: LandingDict = {
     h2: '무료로 시작하고, 준비되면 업그레이드하세요.',
     free: {
       name: '무료', sub: '항상 무료, 카드 필요 없음',
-      features: [
-        { text: '대시보드 + 시장 개요', included: true },
-        { text: '모닝 브리핑', included: true },
-        { text: '뉴스 피드', included: true },
-        { text: '전체 50개 마켓 - 스퀴즈 스캐너', included: true },
-        { text: '일일 퀵 분석 5회 + 딥 분석 3회', included: true },
-        { text: '일일 AI 채팅 5회', included: true },
-        { text: '텔레그램 알림', included: false },
-        { text: '가격 알림', included: false },
-      ],
+      features: {
+        dashboard: '대시보드 + 시장 개요',
+        briefing: '모닝 브리핑',
+        news: '뉴스 피드',
+        scanner: '추적하는 모든 코인의 스퀴즈 스캐너',
+        charts: '30분 이상 시간대 차트 + 시그널',
+        aiAnalyses: '일일 퀵 분석 {quick}회 + 딥 분석 {deep}회',
+        aiChat: '일일 AI 채팅 {chat}회',
+        telegram: '텔레그램 알림',
+        priceAlerts: '가격 알림',
+      },
       cta: '무료로 시작하기',
     },
     pro: {
       badge: '추천', name: 'Pro', sub: '모든 기능 잠금 해제, 넉넉한 일일 한도',
-      features: ['무료 플랜의 모든 기능', '1분, 5분, 15분 차트 시그널', '컨플루언스 점수, 오더 플로우, 앱소프션 디텍터', '온체인 및 글로벌 매크로 AI 분석', '텔레그램 알림 - 전체 신호 유형', '무제한 가격 알림', '일일 퀵 분석 30회 + 딥 분석 10회', '일일 AI 채팅 50회', '일일 실시간 검색 10회', '일일 AI 도구 실행 25회 (공용)'],
+      features: {
+        everythingFree: '무료 플랜의 모든 기능',
+        fastTimeframes: '1분, 5분, 15분 차트 시그널',
+        confluence: '컨플루언스 점수, 오더 플로우, 앱소프션 디텍터',
+        onchainMacro: '온체인 및 글로벌 매크로 AI 분석',
+        telegram: '텔레그램 알림 - 전체 신호 유형',
+        unlimitedAlerts: '무제한 가격 알림',
+        aiAnalyses: '일일 퀵 분석 {quick}회 + 딥 분석 {deep}회',
+        aiChatSearch: '일일 AI 채팅 {chat}회 + 실시간 검색 {search}회',
+        toolPool: '일일 AI 도구 실행 {tools}회 (공용)',
+      },
       cta: 'Pro 시작하기 - $35/월',
     },
   },
@@ -236,7 +269,7 @@ export const zh: LandingDict = {
   hero: {
     badge: '50个市场 · 信号 + 提醒',
     h1Line1: '读懂地图。',
-    h1Line2: '猎取止损点。',
+    h1Line2: '看清流动性所在。',
     sub: '为散户交易者打造的专业级加密货币情报系统。挤压评分、巨鲸警报、AI分析和宏观事件--尽在一个仪表盘。',
     ctaPrimary: '免费开始 →',
     ctaGhost: '查看实时简报',
@@ -258,11 +291,11 @@ export const zh: LandingDict = {
   },
   howItWorks: {
     label: '使用方法',
-    h2: '从信号到交易',
+    h2: '从原始数据到清晰解读',
     steps: [
       { title: '连接Telegram', desc: '在设置中连接您的Telegram。警报将自动触发--挤压形态、巨鲸交易、资金费率极值、突发新闻。' },
       { title: '选择市场', desc: '从主流币、山寨币、meme币到黄金、标普500,共50个市场可供选择。挤压扫描器24/7实时监控全部市场。' },
-      { title: '运行AI分析', desc: '打开AI Arena,选择市场,点击快速或深度分析。Grok读取数十个信号,为您提供直接、可执行的交易倾向。' },
+      { title: '运行AI分析', desc: '打开AI Arena,选择市场,点击快速或深度分析。Grok读取数十个信号,用通俗的语言说明市场目前的倾向。' },
     ],
   },
   pricing: {
@@ -270,21 +303,32 @@ export const zh: LandingDict = {
     h2: '免费开始,准备好后再升级。',
     free: {
       name: '免费版', sub: '永久免费,无需信用卡',
-      features: [
-        { text: '仪表盘+市场概览', included: true },
-        { text: '晨间简报', included: true },
-        { text: '新闻资讯', included: true },
-        { text: '全部50个市场--挤压扫描器', included: true },
-        { text: '每日5次快速+3次深度AI分析', included: true },
-        { text: '每日5条AI聊天消息', included: true },
-        { text: 'Telegram提醒', included: false },
-        { text: '价格提醒', included: false },
-      ],
+      features: {
+        dashboard: '仪表盘+市场概览',
+        briefing: '晨间简报',
+        news: '新闻资讯',
+        scanner: '每个追踪币种的挤压扫描器',
+        charts: '30分钟及以上周期的图表+信号',
+        aiAnalyses: '每日{quick}次快速+{deep}次深度AI分析',
+        aiChat: '每日{chat}条AI聊天消息',
+        telegram: 'Telegram提醒',
+        priceAlerts: '价格提醒',
+      },
       cta: '免费开始使用',
     },
     pro: {
       badge: '推荐', name: 'Pro', sub: '解锁全部功能,每日额度充裕',
-      features: ['免费版全部功能', '1 分钟、5 分钟、15 分钟图表信号', '共振评分、订单流与吸筹探测器', '链上数据与全球宏观 AI 分析', 'Telegram提醒--全部信号类型', '无限价格提醒', '每日30次快速+10次深度分析', '每日50条AI聊天消息', '每日10次实时搜索', '每日25次AI工具调用(共享额度)'],
+      features: {
+        everythingFree: '免费版全部功能',
+        fastTimeframes: '1 分钟、5 分钟、15 分钟图表信号',
+        confluence: '共振评分、订单流与吸筹探测器',
+        onchainMacro: '链上数据与全球宏观 AI 分析',
+        telegram: 'Telegram提醒--全部信号类型',
+        unlimitedAlerts: '无限价格提醒',
+        aiAnalyses: '每日{quick}次快速+{deep}次深度分析',
+        aiChatSearch: '每日{chat}条AI聊天消息+{search}次实时搜索',
+        toolPool: '每日{tools}次AI工具调用(共享额度)',
+      },
       cta: '升级Pro--$35/月',
     },
   },
@@ -342,21 +386,32 @@ export const ar: LandingDict = {
     h2: 'ابدأ مجانًا. قم بالترقية عندما تكون جاهزًا.',
     free: {
       name: 'مجاني', sub: 'مجاني دائمًا، بدون الحاجة لبطاقة',
-      features: [
-        { text: 'لوحة التحكم + نظرة عامة على السوق', included: true },
-        { text: 'الموجز الصباحي', included: true },
-        { text: 'خلاصة الأخبار', included: true },
-        { text: 'جميع العملات الـ50 - ماسح الانضغاط', included: true },
-        { text: '5 تحليلات سريعة + 3 تحليلات معمّقة يوميًا', included: true },
-        { text: '5 رسائل دردشة ذكاء اصطناعي يوميًا', included: true },
-        { text: 'تنبيهات تيليجرام', included: false },
-        { text: 'تنبيهات الأسعار', included: false },
-      ],
+      features: {
+        dashboard: 'لوحة التحكم + نظرة عامة على السوق',
+        briefing: 'الموجز الصباحي',
+        news: 'خلاصة الأخبار',
+        scanner: 'ماسح الانضغاط لكل عملة متتبَّعة',
+        charts: 'الرسوم البيانية والإشارات على الأطر الزمنية 30 دقيقة فأعلى',
+        aiAnalyses: '{quick} تحليلات سريعة + {deep} تحليلات معمّقة يوميًا',
+        aiChat: '{chat} رسائل دردشة ذكاء اصطناعي يوميًا',
+        telegram: 'تنبيهات تيليجرام',
+        priceAlerts: 'تنبيهات الأسعار',
+      },
       cta: 'ابدأ مجانًا',
     },
     pro: {
       badge: 'الأكثر شيوعًا', name: 'Pro', sub: 'كل الميزات مفتوحة، بحدود يومية سخية',
-      features: ['كل ما في الخطة المجانية', 'إشارات على الرسوم البيانية لدقيقة و5 دقائق و15 دقيقة', 'درجة التقاطع، تدفق الأوامر، وكاشف الامتصاص', 'تحليل ذكاء اصطناعي للبيانات على السلسلة والاقتصاد الكلي العالمي', 'تنبيهات تيليجرام - جميع أنواع الإشارات', 'تنبيهات أسعار غير محدودة', '30 تحليلًا سريعًا + 10 تحليلات معمّقة يوميًا', '50 رسالة دردشة ذكاء اصطناعي يوميًا', '10 عمليات بحث مباشر يوميًا', '25 تشغيلًا لأدوات الذكاء الاصطناعي يوميًا (رصيد مشترك)'],
+      features: {
+        everythingFree: 'كل ما في الخطة المجانية',
+        fastTimeframes: 'إشارات على الرسوم البيانية لدقيقة و5 دقائق و15 دقيقة',
+        confluence: 'درجة التقاطع، تدفق الأوامر، وكاشف الامتصاص',
+        onchainMacro: 'تحليل ذكاء اصطناعي للبيانات على السلسلة والاقتصاد الكلي العالمي',
+        telegram: 'تنبيهات تيليجرام - جميع أنواع الإشارات',
+        unlimitedAlerts: 'تنبيهات أسعار غير محدودة',
+        aiAnalyses: '{quick} تحليلًا سريعًا + {deep} تحليلات معمّقة يوميًا',
+        aiChatSearch: '{chat} رسالة دردشة ذكاء اصطناعي + {search} عمليات بحث مباشر يوميًا',
+        toolPool: '{tools} تشغيلًا لأدوات الذكاء الاصطناعي يوميًا (رصيد مشترك)',
+      },
       cta: 'احصل على Pro - 35$/شهريًا',
     },
   },

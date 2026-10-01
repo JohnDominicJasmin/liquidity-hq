@@ -211,7 +211,7 @@ export default function SettingsPage() {
         // Subscribe
         // #1042: an anti-fingerprinting extension's Notification stub has no
         // requestPermission method - feature-detect it rather than assume,
-        // same as NewsProvider.tsx and app/arena/page.tsx.
+        // same as app/arena/page.tsx.
         if (!('Notification' in window) || typeof Notification.requestPermission !== 'function') {
           alert('Push notifications are not supported in this browser.');
           return;

@@ -1,13 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCryptoCheckoutUrl, isProBuyable, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
-import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
-import type { LabelKey } from '@/lib/labelKeys';
+import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
 
 /* #861 Phase 1: a plan is buyable when it has a payment link. Lemon Squeezy
    rejected the store, so these no longer read its links - today the only rail
@@ -26,69 +25,26 @@ const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly();
    is left out, owner's decision 2026-09-30 (#861): a crypto payment does not
    unlock the account by itself until the BoomFi webhook does it, so the line
    would be untrue for the only way there is to pay. It comes back when a payment
-   method that unlocks automatically exists. The label key stays. */
-const TRUST_LABELS = ['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
+   method that unlocks automatically exists. The label key stays.
+   "Cancel anytime" (UPGRADE_TRUST_CANCEL_ANYTIME) is left out for the same
+   reason, owner's decision 2026-09-30 (#861): a BoomFi subscriber cannot cancel
+   from here yet, and copy says only what the product does today. It comes back
+   when that cancel exists. The label key stays. */
+const TRUST_LABELS = ['UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
 
-const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
+// Both plan lists now live in lib/planFeatures.ts (FREE_PLAN_FEATURES /
+// PRO_PLAN_FEATURES), shared with the landing page so the two surfaces can't
+// drift again (#1152). The gate-sync notes and the reasons certain rows are
+// deliberately absent (backtest, priority support) moved there with the lists.
+// Numbers still come from lib/limits.ts.
 
-// Keep this list in sync with the actual gates: the timeframe clamp and
-// locked cards in app/arena/page.tsx, the /backtest paywall, and the
-// PRO_REQUIRED check in all 11 one-shot AI tool routes (thesis-check,
-// strategy-research, shadow-account, behavioral-bias, pine-script,
-// hypotheses/[id]/analyze, token-unlock, smc-snapshot, dry-powder,
-// macro-context, onchain).
-// This comment used to name only /api/onchain and /api/macro-context, and
-// that was the bug: the Pro column here has always sold the tool pool
-// (UPGRADE_PRO_FEATURE_TOOL_POOL) while 5 of the 11 routes never enforced it,
-// so a free account really could run them. All 11 now enforce it.
-// The free ExtraTool numbers in lib/limits.ts stay non-zero on purpose - they
-// are the TRIAL allowance, not a free-tier grant. See the long comment there.
-// (AI limit numbers come from lib/limits.ts - they can't drift from the API.)
-const FREE_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
-  ['UPGRADE_FREE_FEATURE_DASHBOARD'],
-  ['UPGRADE_FREE_FEATURE_BRIEFING'],
-  ['UPGRADE_FREE_FEATURE_NEWS'],
-  ['UPGRADE_FREE_FEATURE_SCANNER'],
-  ['UPGRADE_FREE_FEATURE_CHARTS'],
-  ['UPGRADE_FREE_FEATURE_AI_ANALYSES', { quick: F.quick, deep: F.deep }],
-  ['UPGRADE_FREE_FEATURE_AI_CHAT', { chat: F.chat }],
-];
-
-const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
-  ['UPGRADE_PRO_FEATURE_EVERYTHING_FREE'],
-  ['UPGRADE_PRO_FEATURE_FAST_TIMEFRAMES'],
-  ['UPGRADE_PRO_FEATURE_CONFLUENCE'],
-  /* There is no "Full strategy backtesting" entry, on purpose - not a
-   * commented-out placeholder for a feature waiting to ship.
-   *
-   * /backtest was hidden in #264/#273 on the assumption it was an unfinished
-   * Pro feature. The owner's actual ruling: it's an internal/testing tool
-   * that was never meant to be sold, and got advertised here by accident.
-   * This list was selling "Full strategy backtesting" at $25/mo for a route
-   * that redirects to /dashboard - someone paying partly for that line would
-   * have gotten nothing.
-   *
-   * If a real customer-facing backtest feature ever ships, that's a new
-   * decision and a new label key - not a restoration of this one, since this
-   * one was never describing something for sale in the first place.
-   *
-   * The redirect in proxy.ts stays regardless - that block is correct on its
-   * own terms (an internal tool should not be reachable by URL), independent
-   * of this list. */
-  ['UPGRADE_PRO_FEATURE_ONCHAIN_MACRO'],
-  ['UPGRADE_PRO_FEATURE_TELEGRAM'],
-  ['UPGRADE_PRO_FEATURE_UNLIMITED_ALERTS'],
-  ['UPGRADE_PRO_FEATURE_AI_ANALYSES', { quick: P.quick, deep: P.deep }],
-  ['UPGRADE_PRO_FEATURE_AI_CHAT_SEARCH', { chat: P.chat, search: P.search }],
-  ['UPGRADE_PRO_FEATURE_TOOL_POOL', { tools: P.toolPool ?? 0 }],
-  /* There is no "Priority support" entry, on purpose. Owner ruling (#1309 item 34):
-   * support is one shared mailbox for every plan, so there is no priority tier to
-   * sell, and this line promised one to Pro subscribers. Removed rather than
-   * reworded, along with the landing copy's matching line. The label key
-   * UPGRADE_PRO_FEATURE_PRIORITY_SUPPORT is RETIRED, not deleted (production is
-   * additive-only; see labelKeys.ts), so nothing renders it any more. If a real
-   * priority channel ever exists, that is a new decision and a new key. */
-];
+/* The price badge inside the two-weekly and annual buttons (#861, owner
+   2026-09-30: "fix it"). At 390 wide the badge used to break in the middle,
+   "$20" on one line and "/2 weeks" on the next. Now it never breaks: the button
+   lays out as a wrapping row, so on a narrow screen the badge drops whole onto
+   its own line, centred under the label, and on a wide one it sits beside it. */
+const PRICE_BADGE: React.CSSProperties = { fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' };
+const PRICE_BUTTON_LAYOUT: React.CSSProperties = { display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8, rowGap: 6 };
 
 export default function UpgradePage() {
   const { user, loading, isPro } = useAuth();
@@ -105,6 +61,8 @@ export default function UpgradePage() {
      the panel still shows, so the page does not change shape for the buyer on
      the day a second method is added. */
   const [selectedPlan, setSelectedPlan] = useState<null | CheckoutPlan>(null);
+  /** The plan button that opened the panel, so closing it can return focus there. */
+  const panelOpener = useRef<HTMLElement | null>(null);
   const { t } = useLabels();
 
   useEffect(() => {
@@ -139,8 +97,27 @@ export default function UpgradePage() {
      account has nothing to unlock. */
   function choosePlan(plan: CheckoutPlan) {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
+    if (document.activeElement instanceof HTMLElement) panelOpener.current = document.activeElement;
     setSelectedPlan(plan);
   }
+
+  /* Closing the panel (#861, owner 2026-09-30): an X, and Escape from anywhere
+     on the page. Focus goes back to the plan button that opened it, so a
+     keyboard user is not dropped at the top of the page. Not while redirecting:
+     the payment page is already loading. */
+  const closePanel = useCallback(() => {
+    setSelectedPlan(null);
+    const opener = panelOpener.current;
+    panelOpener.current = null;
+    if (opener?.isConnected) opener.focus();
+  }, []);
+  useEffect(() => {
+    if (!selectedPlan || isRedirecting) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePanel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedPlan, isRedirecting, closePanel]);
+
   const handleCheckout = () => choosePlan('monthly');
   const handleCheckoutAnnual = () => choosePlan('annual');
   const handleCheckoutFortnightly = () => choosePlan('fortnightly');
@@ -161,12 +138,12 @@ export default function UpgradePage() {
       data-testid="checkout-cta-fortnightly"
       onClick={handleCheckoutFortnightly}
       disabled={isRedirecting}
-      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s' }}
+      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s', ...PRICE_BUTTON_LAYOUT }}
       onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
     >
       {redirecting === 'fortnightly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
-        <>{t('UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_FORTNIGHTLY')}{t('UPGRADE_PRICE_SUFFIX_FORTNIGHTLY')}</span></>
+        <><span>{t('UPGRADE_FORTNIGHTLY_CHECKOUT_BUTTON_CTA')}</span><span style={PRICE_BADGE}>{t('UPGRADE_PRICE_FORTNIGHTLY')}{t('UPGRADE_PRICE_SUFFIX_FORTNIGHTLY')}</span></>
       )}
     </button>
   );
@@ -177,9 +154,22 @@ export default function UpgradePage() {
       data-plan={selectedPlan}
       role="group"
       aria-labelledby="checkout-method-title"
-      style={{ width: '100%', maxWidth: 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
+      style={{ position: 'relative', width: '100%', maxWidth: 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
     >
-      <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
+      {/* 32x32 hit area, above SC 2.5.8's 24px minimum; the glyph stays small. */}
+      <button
+        type="button"
+        data-testid="checkout-method-close"
+        onClick={closePanel}
+        disabled={isRedirecting}
+        aria-label={t('UPGRADE_METHOD_PANEL_CLOSE_ARIA')}
+        title={t('UPGRADE_METHOD_PANEL_CLOSE_ARIA')}
+        style={{ position: 'absolute', top: 8, right: 8, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--fs-body)', lineHeight: 1, color: 'var(--txt3)', background: 'transparent', border: 'none', borderRadius: 8, cursor: isRedirecting ? 'default' : 'pointer' }}
+      >
+        ✕
+      </button>
+      {/* Side padding keeps a long title clear of the X. */}
+      <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', padding: '0 28px', textAlign: 'center' }}>
         {t('UPGRADE_METHOD_PANEL_TITLE')}
       </div>
       {cryptoUrl && (
@@ -252,9 +242,13 @@ export default function UpgradePage() {
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_FREE_CARD_NAME')}</div>
             <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>$0<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {FREE_FEATURES.map(([k, vars]) => (
-                <li key={k} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  {/* #705: var(--green), not #22c55e. That literal is Tailwind's green-500 and
+              {FREE_PLAN_FEATURES.map(({ id, labelKey, vars, included }) => (
+                /* #1152: excluded rows (no Telegram/price alerts) now render here
+                   too, as the landing page already did - so an upgrade screen
+                   finally states what Free does NOT include, muted with a ✗. */
+                <li key={id} style={{ fontSize: 'var(--fs-label)', color: included ? 'var(--txt2)' : 'var(--txt3)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  {included ? (
+                    /* #705: var(--green), not #22c55e. That literal is Tailwind's green-500 and
     is in NEITHER palette - not the current design's --green (#4ade80 dark,
     #046B4E light) nor terminal's (#3fb950 / #14702c) - so it tracked no theme
     and measured 1.88:1 on terminal light's --bg1. Dark passed at 7.4, which is
@@ -271,8 +265,12 @@ export default function UpgradePage() {
     terminal only, so that half was never counted - the literal tracked no
     theme, and both light themes land it on a light ground. Dark passed in both
     designs, which is why seven checkmarks sat at under 2:1 without anyone
-    noticing. */}
-                  <span style={{ color: 'var(--green)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(k, vars)}
+    noticing. */
+                    <span style={{ color: 'var(--green)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>
+                  ) : (
+                    <span style={{ color: 'var(--txt4)', fontWeight: 700, flexShrink: 0, marginTop: 1 }} aria-hidden="true">✗</span>
+                  )}
+                  {t(labelKey, vars)}
                 </li>
               ))}
             </ul>
@@ -287,9 +285,9 @@ export default function UpgradePage() {
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_PRO_CARD_NAME')}</div>
             <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>{t('UPGRADE_PRICE_MONTHLY')}<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {PRO_FEATURES.map(([k, vars]) => (
-                <li key={k} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(k, vars)}
+              {PRO_PLAN_FEATURES.map(({ id, labelKey, vars }) => (
+                <li key={id} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(labelKey, vars)}
                 </li>
               ))}
             </ul>
@@ -317,12 +315,12 @@ export default function UpgradePage() {
                   data-testid="checkout-cta-annual"
                   onClick={handleCheckoutAnnual}
                   disabled={isRedirecting}
-                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative' }}
+                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative', ...PRICE_BUTTON_LAYOUT }}
                   onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
                   {redirecting === 'annual' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
-                    <>{t('UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA')}<span style={{ marginLeft: 8, fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px' }}>{t('UPGRADE_PRICE_ANNUAL')}{t('UPGRADE_PRICE_SUFFIX_ANNUAL')} · {t('UPGRADE_ANNUAL_SAVE_BADGE')}</span></>
+                    <><span>{t('UPGRADE_ANNUAL_CHECKOUT_BUTTON_CTA')}</span><span style={PRICE_BADGE}>{t('UPGRADE_PRICE_ANNUAL')}{t('UPGRADE_PRICE_SUFFIX_ANNUAL')} · {t('UPGRADE_ANNUAL_SAVE_BADGE')}</span></>
                   )}
                 </button>
               </div>
