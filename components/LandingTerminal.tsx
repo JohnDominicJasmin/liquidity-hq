@@ -256,7 +256,9 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
                 {dict.hero.badge}
               </span>
             </div>
-            <h1 style={{
+            {/* lp-hero-h1: balanced line breaks (globals.css). "See where liquidity
+                sits." left "sits." alone on a third line at 1280 and 390. */}
+            <h1 className="lp-hero-h1" style={{
               fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)',
               fontSize: isDesktop ? 54 : 32, lineHeight: isDesktop ? 1.06 : 1.1,
               letterSpacing: '-.015em', marginTop: isDesktop ? 26 : 18, margin: 0, marginBlockStart: isDesktop ? 26 : 18,
