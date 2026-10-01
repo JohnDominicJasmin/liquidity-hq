@@ -110,7 +110,9 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(o => !o)}
-        aria-haspopup="true"
+        /* No aria-haspopup (QA, #1499): "true" means a role=menu popup, and this one is a
+           search box and plain buttons - no menu, listbox or dialog role. aria-expanded
+           alone is the accurate claim: this button shows and hides the panel below. */
         aria-expanded={open}
         /* Label AND value (QA, #1499): naming the button by its label alone
            dropped the chosen country, so a screen reader heard only "Country". */
