@@ -9,7 +9,7 @@
  * asserted for real below, not a todo. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -153,23 +153,48 @@ test('L1. all 16 new hint keys are registered and have a non-empty English defau
   }
 });
 
-test('L2. the migration\'s live and commented-dev rows both equal the shipped default, for all 16 keys, exactly', () => {
-  const sql = read('supabase/migrations/20260928a_labels_page_hint_rollout.sql');
-  const rows = (commented: boolean) => {
-    const out: Record<string, string> = {};
-    for (const raw of sql.split('\n')) {
-      const line = raw.trim();
-      const isCommentRow = line.startsWith("-- ('");
-      const isLiveRow = line.startsWith("('");
-      if (commented ? !isCommentRow : !isLiveRow) continue;
-      const bare = commented ? line.slice(3) : line;
-      const parts = bare.replace(/^\('/, '').replace(/'\)[,;]?\s*$/, '').split("','");
-      if (parts.length === 3 && parts[1] === 'en') out[parts[0]] = parts[2].split("''").join("'");
-    }
-    return out;
-  };
-  const live = rows(false), dev = rows(true);
+/** The en rows a migration writes, from its live block or its commented dev block. */
+function migrationRows(file: string, commented: boolean): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const raw of read(`supabase/migrations/${file}`).split('\n')) {
+    const line = raw.trim();
+    const isCommentRow = line.startsWith("-- ('");
+    const isLiveRow = line.startsWith("('");
+    if (commented ? !isCommentRow : !isLiveRow) continue;
+    const bare = commented ? line.slice(3) : line;
+    const parts = bare.replace(/^\('/, '').replace(/'\)[,;]?\s*$/, '').split("','");
+    if (parts.length === 3 && parts[1] === 'en') out[parts[0]] = parts[2].split("''").join("'");
+  }
+  return out;
+}
+
+test('L2. 20260928a seeded exactly the 16 keys, and its live and commented-dev blocks agree', () => {
+  const live = migrationRows('20260928a_labels_page_hint_rollout.sql', false);
+  const dev = migrationRows('20260928a_labels_page_hint_rollout.sql', true);
   assert.deepEqual(Object.keys(live).sort(), [...ALL_KEYS].sort(), 'the live block seeds a different key set than expected');
   assert.deepEqual(live, dev, 'the commented dev block has drifted from the live block');
-  for (const k of ALL_KEYS) assert.equal(live[k], defaults[k], `${k}: migration and shipped default differ`);
+});
+
+/* L2 used to require 20260928a's rows to equal the shipped default for all 16 keys. That stopped being the
+   right question on 2026-09-30: two of those hints named things the pages do not have ("connected
+   accounts" on Settings, "funding" alerts on Alerts - QA on #1113, the owner's copy rule), and 20261001d
+   corrected them. 20260928a is history; what a visitor reads is the LATEST migration that writes each key. */
+test('L2b. for each of the 16 keys, the LATEST migration that writes its English row equals the shipped default - live and dev blocks both', () => {
+  const files = readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter((f) => f.endsWith('.sql')).sort();
+  assert.ok(files.includes('20260928a_labels_page_hint_rollout.sql'), 'CONTROL: the rollout migration is not in the listing');
+  for (const commented of [false, true]) {
+    const latest: Record<string, { file: string; value: string }> = {};
+    for (const f of files) for (const [k, v] of Object.entries(migrationRows(f, commented))) if (ALL_KEYS.includes(k)) latest[k] = { file: f, value: v };
+    for (const k of ALL_KEYS) {
+      assert.ok(latest[k], `${k}: no migration writes its English row (${commented ? 'dev' : 'live'} block)`);
+      assert.equal(latest[k].value, defaults[k], `${k}: the latest migration that writes it (${latest[k].file}, ${commented ? 'dev' : 'live'} block) differs from the shipped default - the database and first paint would say different things`);
+    }
+  }
+});
+
+test('L2c. the two corrected hints say only what their pages have (owner copy rule, 2026-09-30)', () => {
+  assert.doesNotMatch(defaults.SETTINGS_HINT_BODY, /connected accounts?/i, 'the Settings hint names connected accounts again - Settings has no such section');
+  assert.doesNotMatch(defaults.ALERTS_HINT_BODY, /funding/i, 'the Alerts hint names funding alerts again - /alerts has no funding toggle');
+  const fix = migrationRows('20261001d_labels_settings_alerts_hints_say_what_exists.sql', false);
+  assert.deepEqual(Object.keys(fix).sort(), ['ALERTS_HINT_BODY', 'SETTINGS_HINT_BODY'], '20261001d writes a different key set than the two corrected hints');
 });
