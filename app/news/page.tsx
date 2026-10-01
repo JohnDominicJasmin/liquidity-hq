@@ -87,12 +87,16 @@ const BEARISH_STEMS = startOfWord([
   'banned','restriction','crackdown','sanction',
   'hack','exploit','theft','stolen','robbery','kidnapping','arrested',
   'controversy','flaw','underperform','suspicious','warning','risk',
+  /* QA, #1501: "bankrupt"/"bankruptcy", "warns" and "bank run" read Bearish only by accident
+     while "ban" and "war" were substring matches; moving those to whole words lost them.
+     "warn" is a whole word below, not a stem, so "Warner" stays neutral. */
+  'bankrupt','bank run',
   'tightening','rate hike','hawkish','inflation rise','pressured',
   'attack','conflict','missile','invasion','airstrike',
   'lawsuit','charges','seized','fraud','scam',
   'bearish','bear market','sell-off','liquidation wave','weakening',
 ]);
-const BEARISH_WORDS = wholeWord(['ban','bans','banning','war','wars']);
+const BEARISH_WORDS = wholeWord(['ban','bans','banning','war','wars','warn','warns','warned']);
 const BULLISH_STEMS = startOfWord([
   'rally','surge','pump','breakout','record','all-time high',
   'buy','bought','purchase','accumulate','inflow','flows into','flowing into','returns to crypto',

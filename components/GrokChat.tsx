@@ -809,7 +809,7 @@ export default function GrokChat() {
         <div className="gchat-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {histView ? (
-              <button className="gchat-icon-btn" onClick={() => setHistView(false)} title="Back to chat" style={{ fontSize: '1rem', padding: '2px 4px' }}>←</button>
+              <button className="gchat-icon-btn" onClick={() => setHistView(false)} title="Back to chat" aria-label="Back to chat" style={{ fontSize: '1rem', padding: '2px 4px' }}>←</button>
             ) : null}
             <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)' }}>
               {histView ? 'Conversations' : 'LiquidityAI'}
