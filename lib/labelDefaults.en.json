@@ -146,7 +146,7 @@
   "USAGE_METER_RESETS_IN": "resets in {countdown}",
   "USAGE_METER_UPGRADE_LINK": "Upgrade →",
   "ABOUT_PAGE_TITLE": "About",
-  "ABOUT_PAGE_SUBTITLE": "Liquidity Hunter HQ - crypto trading intelligence",
+  "ABOUT_PAGE_SUBTITLE": "Liquidity Hunter HQ - crypto market analytics",
   "ABOUT_WHAT_THIS_IS_LABEL": "What this is",
   "ABOUT_WHAT_THIS_IS_BODY": "A crypto trading dashboard built around liquidity: where stops cluster, how crowded funding positioning is, and where the estimated liquidation zones sit. It brings the liquidation map, a squeeze scanner, AI analysis, alerts, and a journal into one place so you can read the market faster - the decisions are still yours.",
   "ABOUT_DATA_SOURCES_LABEL": "Data sources",
