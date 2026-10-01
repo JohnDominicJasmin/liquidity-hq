@@ -84,6 +84,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
   const [query, setQuery] = useState('');
   const containerRef      = useRef<HTMLDivElement>(null);
   const searchRef         = useRef<HTMLInputElement>(null);
+  const triggerRef        = useRef<HTMLButtonElement>(null);
 
   const selected = COUNTRIES.find(c => c.name === value);
   const filtered = query
@@ -106,6 +107,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-haspopup="true"
@@ -158,7 +160,9 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
                   type="button"
                   className={`obw-menu-opt ${isActive ? 'is-selected' : ''}`}
                   aria-pressed={isActive}
-                  onClick={() => { onChange(c.name); setOpen(false); }}
+                  /* Back to the picker button: closing the list removes the option that
+                     had focus, which otherwise dropped it to <body> (QA, #1499). */
+                  onClick={() => { onChange(c.name); setOpen(false); triggerRef.current?.focus(); }}
                 >
                   <span style={{ fontSize: '1.125rem', lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
                   <span style={{ flex: 1 }}>{c.name}</span>
@@ -259,6 +263,31 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   const dialogRef = useDialogFocusTrap<HTMLDivElement>(dialogOpen, () => {
     if (step === STEP_META.length - 1 && !saving) finish();
   });
+  const stepRef  = useRef<HTMLDivElement>(null);
+  const alertRef = useRef<HTMLDivElement>(null);
+
+  // QA, #1499 (WCAG 2.4.3 / 2.4.11): Back is not rendered on step 0, and while saving Back
+  // and Skip are removed and the main button is disabled. Whichever of those had focus
+  // took it with them, so it fell to <body> and the next Tab reached the page under the
+  // overlay. Put it back inside: on the dialog itself while saving (no control there can
+  // act yet), otherwise on the current step's first control.
+  useEffect(() => {
+    const root = dialogRef.current;
+    if (!dialogOpen || !root) return;
+    const active = document.activeElement as HTMLElement | null;
+    const lost = !active || active === document.body || (root.contains(active) && active.matches(':disabled'));
+    if (!lost) return;
+    if (saving) { root.focus(); return; }
+    const first = stepRef.current?.querySelector<HTMLElement>('input:not([disabled]), button:not([disabled])');
+    (first ?? root).focus();
+  }, [dialogRef, dialogOpen, step, saving]);
+
+  // A failed save says so where focus is, not only through the live region (QA, #1499).
+  // Keyed on the error alone, so it fires once per failure and never pulls focus back
+  // when the user later moves between steps with the message still showing.
+  useEffect(() => {
+    if (saveError) alertRef.current?.focus();
+  }, [saveError]);
 
   if (!user || state.profileComplete) return null;
 
@@ -367,7 +396,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
       {/* ── Centered content ── */}
       <div className="obw-main">
         <div className="obw-panel">
-          <div key={step} className="obw-step">
+          <div key={step} ref={stepRef} className="obw-step">
             {/* Step meta */}
             <div className="obw-eyebrow">
               <span className="k">{t('ONBOARDING_FLOW_STEP_PREFIX', { num: String(step + 1).padStart(2, '0') })}</span>
@@ -494,7 +523,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           </div>
 
           {saveError && (
-            <div role="alert" style={{ marginTop: 'var(--space-3)', fontSize: 'var(--fs-caption)', color: 'var(--red)', textAlign: 'center' }}>
+            <div ref={alertRef} tabIndex={-1} role="alert" style={{ marginTop: 'var(--space-3)', fontSize: 'var(--fs-caption)', color: 'var(--red)', textAlign: 'center' }}>
               {t('ONBOARDING_FLOW_SAVE_FAILED')}
             </div>
           )}
