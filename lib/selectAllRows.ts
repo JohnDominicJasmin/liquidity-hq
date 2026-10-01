@@ -15,8 +15,11 @@
  * and end the read after one.
  *
  * MAX_ROWS is a sanity bound on one read, not a product limit - the same
- * 10,000 app/api/price-alerts GET uses. Reaching it sets `truncated` and logs a
- * warning under `label`, instead of cutting silently.
+ * 10,000 app/api/price-alerts GET uses. The read asks for one row past it, the
+ * only way to tell "exactly MAX_ROWS" (every row read) from "more than
+ * MAX_ROWS": a table of exactly 10,000 ends on an empty page and is not
+ * truncated. Only more than MAX_ROWS sets `truncated` and logs a warning under
+ * `label`, instead of cutting silently. At most MAX_ROWS rows are returned.
  *
  * Errors follow supabase-js: if any page fails, the result is `data: null` and
  * that page's error, never a partial list. A caller written for one plain read
@@ -53,16 +56,18 @@ export async function selectAllRows<Row, Err>(
 ): Promise<AllRows<Row, Err>> {
   const columns = typeof orderBy === 'string' ? [orderBy] : orderBy;
   const rows: Row[] = [];
-  for (let from = 0; from < maxRows; from += pageSize) {
-    const to = Math.min(from + pageSize, maxRows) - 1;
+  const readTo = maxRows + 1;
+  for (let from = 0; from < readTo; from += pageSize) {
+    const to = Math.min(from + pageSize, readTo) - 1;
     let q = query();
     for (const column of columns) q = q.order(column, { ascending: true });
     const { data, error } = await q.range(from, to);
     if (error) return { data: null, error, truncated: false };
     const page = data ?? [];
     rows.push(...page);
-    if (page.length < to - from + 1) return { data: rows, error: null, truncated: false };
+    if (page.length < to - from + 1) break;
   }
+  if (rows.length <= maxRows) return { data: rows, error: null, truncated: false };
   console.warn(`[${label}] read stopped at the ${maxRows}-row bound; rows past it were not read`);
-  return { data: rows, error: null, truncated: true };
+  return { data: rows.slice(0, maxRows), error: null, truncated: true };
 }
