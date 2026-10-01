@@ -639,6 +639,7 @@
   "ARENA_NOTIF_SENTIMENT_BULL_BODY": "F&G {fng} (Extreme Fear) · FR {fr}% · {shortPct}% Short - all 3 at extremes. Potential reversal zone. Wait for confirmation.",
   "ARENA_ERROR_NO_DATA_SOURCE": "No market data source for {coin}",
   "ARENA_ERROR_UNKNOWN": "Unknown error",
+  "ARENA_READ_FAST_TF_PRO_REQUIRED": "Fast timeframes (1m, 5m, 15m) are part of Pro.",
   "ARENA_PAGE_TITLE": "LiquidityAI Arena",
   "ARENA_LIVE_BADGE": "LiquidityAI · LIVE X",
   "ARENA_PAGE_SUBTITLE": "Run the AI read on any coin - direction, confidence, and the signals behind it.",
