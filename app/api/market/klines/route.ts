@@ -26,6 +26,12 @@
  * collapses a burst at expiry into one rather than N. Without both, this would
  * make the problem worse rather than better. Do not remove either.
  *
+ * Both of those hold only while the upstream ANSWERS. A refusal used to be
+ * stored nowhere, so during a ban each visitor request (except ones that
+ * overlapped in time) asked Binance again. KLINES_FAIL_TTL_MS below is the third piece
+ * (#1404): a refusal is held per key, so the upstream sees at most one request
+ * per key per hold, however many visitors there are.
+ *
  * ── AND IT FAILS LOUDLY ─────────────────────────────────────────────────────
  *
  * #228 was an empty `{}` returned with HTTP 200 for hours while the health table
@@ -133,6 +139,31 @@ function ttlFor(interval: string): number {
   if (/^(60|120)$|^(1|2)h$/.test(interval))           return 300_000;
   return 900_000;                                      // 4h and longer
 }
+
+/* A REFUSAL IS HELD FOR 30 SECONDS, PER KEY (#1404, the pattern from #1473).
+ *
+ * `cached()` stores only successes. So while Binance refused this server, every
+ * request for a key that did not overlap another made a fresh call - more
+ * traffic at the host that is refusing, for as long as it refuses. With the
+ * hold, the refusal is rethrown to every caller inside it without a new call,
+ * and the first caller after it retries. While the upstream refuses: at most
+ * one request per key per 30 seconds. Per KEY, not per host - a ban covers the
+ * whole IP, so the upstream still sees one request per distinct (source,
+ * symbol, interval, bucket) that pages ask for in each hold. Bounded by the
+ * closed sets above, not zero.
+ *
+ * The primary call and the Bybit fallback both get it. A held primary error
+ * still carries its upstream status, so a held Binance key goes straight to
+ * the fallback where one exists, and that is served from its own cache entry
+ * while the entry is fresh. If Bybit is refusing too, its own hold stops each
+ * visitor asking it again.
+ *
+ * Seconds, not the success TTL, for the reason /api/macro gives: a one-off
+ * failure answers every caller for the whole hold - from the Bybit fallback
+ * where one exists, as a 502 where none does. 30 seconds is also the shortest
+ * TTL above, so no key holds a failure longer than it would hold a success.
+ * Range requests bypass the cache entirely and are not covered by this. */
+const KLINES_FAIL_TTL_MS = 30_000;
 
 /* Trim a bucketed response back to what the caller actually asked for.
  *
@@ -244,9 +275,10 @@ export async function GET(req: NextRequest) {
     const r = await fetch(url, { cache: 'no-store' });
     if (!r.ok) {
       /* Throwing rather than returning an empty body is the #228 lesson applied
-         at the point it was learned: `cached()` does not store a rejection, so a
-         ban is retried rather than pinned, and the caller gets a status instead
-         of a plausible-looking empty array. */
+         at the point it was learned: `cached()` never stores a rejection as an
+         answer, so a ban is held for KLINES_FAIL_TTL_MS and then retried rather
+         than pinned for the TTL, and the caller gets a status instead of a
+         plausible-looking empty array. */
       const err = new Error(`${source} klines ${r.status}`);
       (err as Error & { status?: number }).status = r.status;
       throw err;
@@ -284,7 +316,9 @@ export async function GET(req: NextRequest) {
       ? closedCandleTtl(ivMs, ttlFor(interval), Date.now())
       : ttlFor(interval);
     const key = `klines:${source}:${symbol}:${interval}:${limit}${ivMs != null ? ':closed' : ''}`;
-    const raw = isRange ? await fetchUpstream() : await cached(key, ttl, fetchUpstream);
+    const raw = isRange
+      ? await fetchUpstream()
+      : await cached(key, ttl, fetchUpstream, { failTtlMs: KLINES_FAIL_TTL_MS });
     /* Slice AFTER the cache read, using the caller's own limit. The cache holds
        one bucket-sized copy that every caller in that bucket shares; each gets
        back the length it asked for. Range requests are returned untouched -
@@ -361,7 +395,11 @@ export async function GET(req: NextRequest) {
           // every caller sharing this bucket during a sustained Binance
           // outage collapses onto one Bybit fetch rather than each one
           // hammering Bybit the same way the outage started with Binance.
-          const rawFallback = await cached(fallbackKey, ttlFor(interval), fallbackFetch);
+          // Same failure hold too (#1404): an empty list is a rejection
+          // (above), so it is held as a failure for KLINES_FAIL_TTL_MS and
+          // then retried - never stored as candles.
+          const rawFallback = await cached(fallbackKey, ttlFor(interval), fallbackFetch,
+            { failTtlMs: KLINES_FAIL_TTL_MS });
           const converted = bybitKlinesToBinanceShape(rawFallback, bybitPriceFactor(coin), limitRaw);
           if (converted) {
             reportHealth(`${source}:klines-proxy`, 'market', true, `bybit-fallback ${symbol} ${interval}`);
