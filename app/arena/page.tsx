@@ -339,6 +339,8 @@ function ArenaContent() {
   const readInFlightRef = useRef(false);
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
+  // The read was refused as Pro-only (#1263): the error banner adds an Upgrade link.
+  const [readProLocked, setReadProLocked] = useState(false);
   const [readMode,  setReadMode]      = useState<'quick' | 'deep'>('deep');
   const [resultsCache, setResultsCache] = useState<Partial<Record<CoinId, CacheEntry>>>({});
   // Per-coin "the AI Read card is hidden" - a UI-only hide, not a data delete.
@@ -1362,7 +1364,7 @@ function ArenaContent() {
     const binanceSym = BINANCE_SYMS[selectedCoin] as string | undefined;
     const bybitSym   = BYBIT_SYMS[selectedCoin]   as string | undefined;
     if (!binanceSym && !bybitSym) {
-      setReadError(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() }));
+      setReadError(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() })); setReadProLocked(false);
       readInFlightRef.current = false;
       return;
     }
@@ -1411,7 +1413,7 @@ function ArenaContent() {
     }
 
     setReadMode(mode);
-    setReadLoading(true); setReadError('');
+    setReadLoading(true); setReadError(''); setReadProLocked(false);
 
     try {
       // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
@@ -1576,11 +1578,12 @@ function ArenaContent() {
     } catch (e: unknown) {
       /* #1263: the server refuses a fast-timeframe read for a free account (403 PRO_REQUIRED) -
          reachable when the plan read here came back 'unknown' and the clamp above held the
-         timeframe. A locked feature, not a failure: labelled banner plus the same upgrade modal
-         a tap on a gated timeframe opens (handleTfChange), instead of the raw code. */
+         timeframe. A locked feature, not a failure: a labelled line plus an Upgrade link
+         (PM-approved copy), instead of the raw code. /api/grok sends PRO_REQUIRED for fast
+         timeframes only, which is why the line names them. */
       if ((e as { code?: string }).code === 'PRO_REQUIRED') {
-        setReadError(t('SETTINGS_TF_PRO_ONLY'));
-        setUpgradeGate(t(TF_FEATURE_LABEL_KEYS[readTf] ?? 'ARENA_TF_LABEL_FALLBACK'));
+        setReadError(t('ARENA_READ_FAST_TF_PRO_REQUIRED'));
+        setReadProLocked(true);
         return;
       }
       const msg = e instanceof Error ? e.message : t('ARENA_ERROR_UNKNOWN');
@@ -2240,7 +2243,14 @@ function ArenaContent() {
         </div>
       )}
 
-      {readError && <div className="arena-err">{readError}</div>}
+      {readError && (
+        <div className="arena-err">
+          {readError}
+          {readProLocked && (
+            <>{' '}<Link href="/upgrade" style={{ color: 'inherit', fontWeight: 600, textDecoration: 'underline' }}>{t('TNAV_UPGRADE_LABEL')}</Link></>
+          )}
+        </div>
+      )}
 
       {/* `!readLoading`: the card closes the moment Quick or Deep is clicked and
           the loading indicator above takes its place (#278). Leaving the old
