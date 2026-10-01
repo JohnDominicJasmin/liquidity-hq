@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { isGatedTf } from '@/lib/limits';
@@ -91,6 +91,11 @@ export default function SettingsPage() {
   const { user, loading: authLoading, signOut, entitlementStatus } = useAuth();
   const { settings, update } = useSettings();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured' | 'error'>('loading');
+  // Bumped by the "Couldn't check" retry, to re-run the status read below (QA, #1499).
+  const [tgAttempt, setTgAttempt] = useState(0);
+  const tgRetried  = useRef(false);
+  const tgRetryRef = useRef<HTMLButtonElement>(null);
+  const tgLinkRef  = useRef<HTMLAnchorElement>(null);
   // #1309 item 21: the push toggle used to flip to "on" whatever the server said.
   const [pushError,    setPushError]    = useState(false);
   // #1309 item 27: what the risk % field is showing while it is being edited, as TEXT.
@@ -186,7 +191,23 @@ export default function SettingsPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [authLoading, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id, tgAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Couldn't check" was a dead end short of reloading the page (QA, #1499).
+  function retryTgStatus() {
+    tgRetried.current = true;
+    setTgStatus('loading');
+    setTgAttempt(n => n + 1);
+  }
+
+  // Pressing retry swaps the button for the loading bar, which drops focus to <body>. If
+  // it is still there when the answer lands, put it on what took the button's place.
+  useEffect(() => {
+    if (!tgRetried.current || tgStatus === 'loading') return;
+    tgRetried.current = false;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    (tgStatus === 'error' ? tgRetryRef.current : tgLinkRef.current)?.focus();
+  }, [tgStatus]);
 
   // Detect current push subscription state
   useEffect(() => {
@@ -791,13 +812,27 @@ export default function SettingsPage() {
               : tgStatus === 'configured'
               ? t('SETTINGS_TG_CONFIGURED')
               : tgStatus === 'error'
-              ? t('SETTINGS_TG_STATUS_ERROR')
+              ? <>
+                  {t('SETTINGS_TG_STATUS_ERROR')}
+                  <button
+                    ref={tgRetryRef}
+                    type="button"
+                    onClick={retryTgStatus}
+                    style={{ color: 'inherit', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
+                  >
+                    {t('ALERTS_MUTE_LOAD_RETRY')}
+                  </button>
+                </>
               : t('SETTINGS_TG_NOT_CONFIGURED')}
           </div>
         </div>
-        <Link href="/alerts" className="st-link-btn">
-          {tgStatus === 'configured' ? t('SETTINGS_TG_MANAGE_LINK') : t('SETTINGS_TG_SETUP_LINK')}
-        </Link>
+        {/* Not while the status is unknown: "Set up Telegram" would tell a user whose
+            check failed that it needs setting up, which is the claim it couldn't make. */}
+        {tgStatus !== 'error' && (
+          <Link ref={tgLinkRef} href="/alerts" className="st-link-btn">
+            {tgStatus === 'configured' ? t('SETTINGS_TG_MANAGE_LINK') : t('SETTINGS_TG_SETUP_LINK')}
+          </Link>
+        )}
       </Section>
 
     </div>
