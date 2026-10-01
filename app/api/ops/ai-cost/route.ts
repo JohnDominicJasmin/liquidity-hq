@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
-import { estimateRowCostUsd, PRO_PRICE_USD_PER_MONTH, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
+import { estimateRowCostUsd, revenuePerMonthUsd, recordedPlan, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,12 +59,20 @@ export const GET = withAdmin(async () => {
   const since7Date = new Date(now - 7 * DAY).toISOString().slice(0, 10);
   const [{ data: usage, error: usageErr }, { data: subs }, { data: globalToday }] = await Promise.all([
     admin.from(T.grok_usage).select('*').gte('date', since30Date),
-    admin.from(T.user_subscriptions).select('user_id, role'),
+    // Whole rows, not 'user_id, role, plan': `plan` (#1403) comes with
+    // migration 20261001h, which is applied on its own schedule. Naming a
+    // column the database does not have fails the whole read, and every account
+    // would then show as Free. A whole row from a database without it simply
+    // has no `plan`, which reads as "not recorded" - the monthly price, as before.
+    admin.from(T.user_subscriptions).select('*'),
     admin.from(T.global_ai_usage).select('xai_call_count').eq('date', today).maybeSingle(),
   ]);
   if (usageErr) return NextResponse.json({ error: usageErr.message }, { status: 500 });
 
-  const roleByUser = new Map((subs ?? []).map(s => [s.user_id as string, s.role as string]));
+  const subByUser = new Map((subs ?? []).map(s => [
+    s.user_id as string,
+    { role: s.role as string, plan: recordedPlan(s.plan) },
+  ]));
 
   // $ cost buckets by recency, per user and app-wide. grok_usage only has a
   // `date` column (no timestamp), so "24h"/"7d" here means calendar-day
@@ -117,12 +125,15 @@ export const GET = withAdmin(async () => {
   }));
 
   const topSpenders = topSpenderIds.map(([userId, cost30d]) => {
-    const role = roleByUser.get(userId) ?? 'free';
-    const revenueMonthly = role === 'pro' ? PRO_PRICE_USD_PER_MONTH : 0;
+    const sub = subByUser.get(userId);
+    const role = sub?.role ?? 'free';
+    const plan = sub?.plan ?? null;
+    const revenueMonthly = revenuePerMonthUsd(role, plan);
     return {
       userId,
       email: emailById.get(userId) ?? null,
       role,
+      plan,
       cost24h: userCost24h.get(userId) ?? 0,
       cost7d: userCost7d.get(userId) ?? 0,
       cost30d,
