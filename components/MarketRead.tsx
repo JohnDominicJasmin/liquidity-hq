@@ -36,15 +36,17 @@ export default function MarketRead() {
 
   // Ambient urgency glow, preserved from RaidMeter (body[data-rpm-level] drives
   // a global CSS accent when conditions are strong).
+  // No score yet (#1494: an input is still loading) means no glow either.
   useEffect(() => {
-    document.body.dataset.rpmLevel = read.score >= 80 ? 'extreme' : read.score >= 65 ? 'high' : '';
+    const s = read.score;
+    document.body.dataset.rpmLevel = s == null ? '' : s >= 80 ? 'extreme' : s >= 65 ? 'high' : '';
     return () => { delete document.body.dataset.rpmLevel; };
   }, [read.score]);
 
   const c = read.contrarian;
 
   return (
-    <section className="mr" data-band={read.band}>
+    <section className="mr" data-band={read.band ?? 'pending'} aria-busy={read.pending || undefined}>
       <div className="mr-eyebrow">
         <Tip width={280} text={t('MARKET_READ_TIP')}>
           {t('MARKET_READ_TITLE')}
@@ -59,7 +61,8 @@ export default function MarketRead() {
         </div>
         <div className="mr-score-block">
           <div className="mr-score-label">{t('MARKET_READ_CONDITIONS_LABEL')}</div>
-          <div suppressHydrationWarning className="mr-score">{read.score}<small>/100</small></div>
+          {/* A dash, not a number, until the read has its inputs (#1494). */}
+          <div suppressHydrationWarning className="mr-score">{read.score ?? '-'}<small>/100</small></div>
         </div>
       </div>
 
@@ -77,7 +80,7 @@ export default function MarketRead() {
              and MultiTFAlignment; a hardcoded percentage on an axis mirrors
              exactly as wrongly as a calculated one. */}
         <div dir="ltr" className="mr-track">
-          <div suppressHydrationWarning className="mr-fill" style={{ width: read.score + '%' }} />
+          <div suppressHydrationWarning className="mr-fill" style={{ width: (read.score ?? 0) + '%' }} />
           <div className="mr-track-good-tick" style={{ left: '70%' }} title="Good ≥ 70" />
         </div>
         <div className="mr-scale">
