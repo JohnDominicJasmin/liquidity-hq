@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { isGatedTf } from '@/lib/limits';
@@ -91,7 +91,16 @@ export default function SettingsPage() {
   const { t } = useLabels();
   const { user, loading: authLoading, signOut, entitlementStatus } = useAuth();
   const { settings, update } = useSettings();
-  const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured' | 'error'>('loading');
+  // Held WITH the account it was read for (QA, #1499): when the signed-in user changes, the
+  // previous account's answer used to stay on screen until the new read landed. Anyone
+  // else's answer now reads as 'loading'.
+  const [tgRead, setTgRead] = useState<{ uid: string; status: 'configured' | 'not_configured' | 'error' } | null>(null);
+  const tgStatus = tgRead && tgRead.uid === user?.id ? tgRead.status : 'loading';
+  // Bumped by the "Couldn't check" retry, to re-run the status read below (QA, #1499).
+  const [tgAttempt, setTgAttempt] = useState(0);
+  const tgRetried  = useRef(false);
+  const tgRetryRef = useRef<HTMLButtonElement>(null);
+  const tgLinkRef  = useRef<HTMLAnchorElement>(null);
   // #1309 item 21: the push toggle used to flip to "on" whatever the server said.
   const [pushError,    setPushError]    = useState(false);
   // #1309 item 27: what the risk % field is showing while it is being edited, as TEXT.
@@ -171,6 +180,7 @@ export default function SettingsPage() {
   // set up that it wasn't, on a network blip.
   useEffect(() => {
     if (authLoading || !user) return;
+    const uid = user.id;
     let cancelled = false;
     (async () => {
       try {
@@ -180,14 +190,30 @@ export default function SettingsPage() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const d = await res.json() as { configured?: unknown };
         if (typeof d.configured !== 'boolean') throw new Error('malformed status response');
-        if (!cancelled) setTgStatus(d.configured ? 'configured' : 'not_configured');
+        if (!cancelled) setTgRead({ uid, status: d.configured ? 'configured' : 'not_configured' });
       } catch (e) {
         console.error('[settings] telegram status check failed:', e);
-        if (!cancelled) setTgStatus('error');
+        if (!cancelled) setTgRead({ uid, status: 'error' });
       }
     })();
     return () => { cancelled = true; };
-  }, [authLoading, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id, tgAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Couldn't check" was a dead end short of reloading the page (QA, #1499).
+  function retryTgStatus() {
+    tgRetried.current = true;
+    setTgRead(null);
+    setTgAttempt(n => n + 1);
+  }
+
+  // Pressing retry swaps the button for the loading bar, which drops focus to <body>. If
+  // it is still there when the answer lands, put it on what took the button's place.
+  useEffect(() => {
+    if (!tgRetried.current || tgStatus === 'loading') return;
+    tgRetried.current = false;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    (tgStatus === 'error' ? tgRetryRef.current : tgLinkRef.current)?.focus();
+  }, [tgStatus]);
 
   // Detect current push subscription state
   useEffect(() => {
@@ -794,13 +820,27 @@ export default function SettingsPage() {
               : tgStatus === 'configured'
               ? t('SETTINGS_TG_CONFIGURED')
               : tgStatus === 'error'
-              ? t('SETTINGS_TG_STATUS_ERROR')
+              ? <>
+                  {t('SETTINGS_TG_STATUS_ERROR')}
+                  <button
+                    ref={tgRetryRef}
+                    type="button"
+                    onClick={retryTgStatus}
+                    style={{ color: 'inherit', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
+                  >
+                    {t('ALERTS_MUTE_LOAD_RETRY')}
+                  </button>
+                </>
               : t('SETTINGS_TG_NOT_CONFIGURED')}
           </div>
         </div>
-        <Link href="/alerts" className="st-link-btn">
-          {tgStatus === 'configured' ? t('SETTINGS_TG_MANAGE_LINK') : t('SETTINGS_TG_SETUP_LINK')}
-        </Link>
+        {/* Not while the status is unknown: "Set up Telegram" would tell a user whose
+            check failed that it needs setting up, which is the claim it couldn't make. */}
+        {tgStatus !== 'error' && (
+          <Link ref={tgLinkRef} href="/alerts" className="st-link-btn">
+            {tgStatus === 'configured' ? t('SETTINGS_TG_MANAGE_LINK') : t('SETTINGS_TG_SETUP_LINK')}
+          </Link>
+        )}
       </Section>
 
     </div>
