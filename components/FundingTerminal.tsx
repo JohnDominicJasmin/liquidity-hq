@@ -609,7 +609,7 @@ export default function FundingTerminal() {
                               aria-pressed={selected === id}
                               disabled={noData}
                             >
-                              <CoinIcon coin={id} size={16} color={coinBadgeColor(id)} bg={withAlpha(coinBadgeColor(id), '24')} />
+                              <CoinIcon coin={id} size={16} color={coinBadgeColor(id)} bg={withAlpha(coinBadgeColor(id), '24')} decorative />
                               {COIN_LABELS[id]}
                             </button>
                           </td>
