@@ -69,7 +69,7 @@ async function apiFetch(path: string, opts?: RequestInit) {
 }
 
 export default function HypothesisTracker() {
-  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, entitlementsLoading, retryEntitlements, loading: authLoading } = useAuth();
   const { t } = useLabels();
   const router = useRouter();
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
@@ -82,6 +82,13 @@ export default function HypothesisTracker() {
   // lapsing mid-session (a trial ending while the page is open) swaps in the
   // same locked card instead of a button that quietly does nothing.
   const [proLocked, setProLocked] = useState(false);
+  // #1263: entitlementStatus also reads 'not_entitled' while the plan is still
+  // LOADING, and authLoading ends before that read does - waiting on
+  // authLoading alone showed a Pro or trial account the locked card for the
+  // plan-load window. Same guard as the Arena's timeframe clamp: lock on the
+  // answer, not the placeholder. Until then the button renders as it already
+  // did during authLoading, and runAnalysis leaves it to the server.
+  const confirmedNotEntitled = !entitlementsLoading && !authLoading && entitlementStatus === 'not_entitled';
 
   // Create form state
   const [cfTitle, setCfTitle] = useState('');
@@ -228,7 +235,9 @@ export default function HypothesisTracker() {
     // 'unknown' is NOT intercepted here (#1119): we can't confirm they are
     // locked out, so the honest thing is to let the real request answer -
     // the PRO_REQUIRED check two lines down is the safety net either way.
-    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
+    // Same for a plan still loading (#1263): 'not_entitled' is only its
+    // placeholder then.
+    if (confirmedNotEntitled) { setProLocked(true); return; }
     setAnalyzingId(id);
     try {
       const res = await apiFetch(`/api/hypotheses/${id}/analyze`, { method: 'POST' });
@@ -521,7 +530,7 @@ export default function HypothesisTracker() {
                   {/* Grok analysis button - the rest of the tracker (creating
                       hypotheses, logging evidence) stays free, only the AI
                       analysis is Pro, so just this control gets locked. */}
-                  {proLocked || (!authLoading && entitlementStatus === 'not_entitled') ? (
+                  {proLocked || confirmedNotEntitled ? (
                     <div style={{ marginBottom: 14 }}>
                       <LockedFeatureCard
                         title={t('HYPOTHESIS_TRACKER_ANALYSIS_LOCKED_TITLE')}

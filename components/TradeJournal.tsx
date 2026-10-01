@@ -288,7 +288,7 @@ function Inner() {
   const sp     = useSearchParams();
   const router = useRouter();
   const { t }  = useLabels();
-  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, entitlementsLoading, retryEntitlements, loading: authLoading } = useAuth();
 
   /* Shadow Account, Bias Diagnostics and Thesis Check all run on Pro-only
      endpoints (403 PRO_REQUIRED). Entitlement is one thing for all three, so
@@ -298,9 +298,19 @@ function Inner() {
      #1119: toolsLocked stays a CONFIRMED lock only (a real 403, or a
      confirmed not_entitled) - toolsUnknown is a separate, later-checked state
      so 'unknown' gets its own "couldn't verify" card instead of quietly
-     joining the locked branch. */
+     joining the locked branch.
+
+     #1263: entitlementStatus also reads 'not_entitled' while the plan is
+     still LOADING (AuthProvider: role defaults to free until the read
+     settles), and authLoading ends before that read does - so a Pro or trial
+     account saw these tabs locked for the plan-load window. Waiting for
+     entitlementsLoading too (the Arena's timeframe clamp guards the same way)
+     makes the lock act on the answer, not the placeholder. Until then the
+     tabs render as they already did during authLoading, and the run handlers
+     below leave it to the server's PRO_REQUIRED answer. */
   const [proLocked, setProLocked] = useState(false);
-  const toolsLocked  = proLocked || (!authLoading && entitlementStatus === 'not_entitled');
+  const confirmedNotEntitled = !entitlementsLoading && !authLoading && entitlementStatus === 'not_entitled';
+  const toolsLocked  = proLocked || confirmedNotEntitled;
   const toolsUnknown = !proLocked && !authLoading && entitlementStatus === 'unknown';
 
   const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'rules' | 'shadow' | 'bias' | 'thesis'>('log');
@@ -497,9 +507,10 @@ function Inner() {
   const runShadowAccount = async () => {
     // Pro-only server-side, so a free user's click never reaches it - show the
     // locked card instead of burning a round trip on a guaranteed 403.
-    // 'unknown' is not intercepted here (#1119) - let the real request answer
-    // via the PRO_REQUIRED check below rather than guessing locked.
-    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
+    // 'unknown' is not intercepted here (#1119), nor is a plan still loading
+    // (#1263) - let the real request answer via the PRO_REQUIRED check below
+    // rather than guessing locked.
+    if (confirmedNotEntitled) { setProLocked(true); return; }
     setShadowLoading(true);
     setShadowError(null);
     setShadowAnalysis(null);
@@ -535,9 +546,10 @@ function Inner() {
   /* Behavioral Bias runner */
   const runBiasAnalysis = async () => {
     // Pro-only server-side - same skip-the-round-trip reasoning as above.
-    // 'unknown' is not intercepted here (#1119) - let the real request answer
-    // via the PRO_REQUIRED check below rather than guessing locked.
-    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
+    // 'unknown' is not intercepted here (#1119), nor is a plan still loading
+    // (#1263) - let the real request answer via the PRO_REQUIRED check below
+    // rather than guessing locked.
+    if (confirmedNotEntitled) { setProLocked(true); return; }
     setBiasLoading(true);
     setBiasError(null);
     setBiasAnalysis(null);
@@ -602,9 +614,10 @@ function Inner() {
 
   const checkThesisHealth = async (thesis: TradeThesis) => {
     // Pro-only server-side - same skip-the-round-trip reasoning as above.
-    // 'unknown' is not intercepted here (#1119) - let the real request answer
-    // via the PRO_REQUIRED check below rather than guessing locked.
-    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
+    // 'unknown' is not intercepted here (#1119), nor is a plan still loading
+    // (#1263) - let the real request answer via the PRO_REQUIRED check below
+    // rather than guessing locked.
+    if (confirmedNotEntitled) { setProLocked(true); return; }
     setCheckingThesisId(thesis.id);
     setThesisError(null);
     try {
