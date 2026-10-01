@@ -1,18 +1,16 @@
-/* #1455: on mobile, the settings save/conflict toast (`.st-save-toast`, `bottom: 24px` in the base rule) sat
- * directly over the terminal design's bottom nav bar (`[data-design="terminal"] .tnav-tabs`, 60px,
- * `position: fixed; bottom: 0`, shown at <=767px) and covered the "SCAN" label - found while capturing
- * #1292's owner-look screenshots. Fix is CSS-only: a `max-width: 767px` media query, scoped to
- * `[data-design="terminal"]`, lifts the toast's `bottom` offset above the bar plus the iOS home-indicator
- * safe area - the same formula the terminal design's own `.app-content` padding-bottom already uses.
+/* The settings save message must never sit on the Ask AI button or the phone tab bar.
  *
- * 0cf51a8e, not 7ef1ff34 (amended). An earlier version of this fix keyed off `.mobile-tab-bar` (56px,
- * <=640px) - that class renders nowhere in the app any more (NavDrawer.tsx's own comment: the old
- * current-design nav block was deleted), so the fix missed the 641-767px band where the real bar renders.
- * Caught QA-side by measuring a live 36px overlap at 700px width, not by reading the CSS - S1/S7 below pin
- * the live selector down for exactly that reason, not just the desired one.
+ * HISTORY. #1455: the toast (`.st-save-toast`, bottom-right, `bottom: 24px`) covered the terminal tab bar's
+ * "SCAN" label on phones; 0cf51a8e lifted it above the bar with a `max-width: 767px` override (an earlier
+ * version keyed off the dead `.mobile-tab-bar` and missed 641-767px). #1292 hid the Ask AI button while the
+ * toast showed (`body.settings-toast-open`). On 2026-10-01 the OWNER rejected the release over exactly this
+ * corner: "Saved" still sat behind the Ask AI button and against the tab bar (#1498). The fix (c1f129b1) moves
+ * the toast TOP-CENTRE, 8px under the top bar, at every width - it cannot meet the FAB or the tab bar by
+ * construction - and removes both workarounds.
  *
- * CSS-only, so this is a structure + computed-value check, not a rendered assertion - no DOM test library in
- * this repo (same limit every component file tonight hit). */
+ * So this file now pins the NEW geometry against the bars it is built from, and that nothing anchors the
+ * toast to the bottom any more. CSS-only checks (no DOM test library here); the rendered proof is QA's
+ * overlap pairs on #1498 (0 px² against the FAB, the tab bar and the top bar). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -20,64 +18,75 @@ import { readFileSync } from 'node:fs';
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 const css = read('app/globals.css').replace(/\/\*[\s\S]*?\*\//g, '');
 
-test('S1. the LIVE mobile bottom bar is [data-design="terminal"] .tnav-tabs, really 60px and really fixed to the bottom - the premise the offset is built from', () => {
+/** Every rule block whose selector list mentions `.st-save-toast` exactly (not `.st-save-toast-retry` etc.). */
+function toastRules(): string[] {
+  return [...css.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+    .filter((m) => /\.st-save-toast(?![-\w])/.test(m[1]) && !/\.st-save-toast\.(saving|error|conflict)/.test(m[1]) && !/@keyframes/.test(m[1]))
+    .map((m) => m[2]);
+}
+
+test('S1. the LIVE mobile bottom bar is [data-design="terminal"] .tnav-tabs, really 60px and really fixed to the bottom - the bar the toast must stay clear of', () => {
   const rule = css.match(/\[data-design="terminal"\]\s*\.tnav-tabs\s*\{[^}]*height:\s*60px[^}]*\}/);
-  assert.ok(rule, '[data-design="terminal"] .tnav-tabs is not 60px tall in its mobile (flex) rule - the fix\'s 60px offset would no longer match the real bar height');
+  assert.ok(rule, '[data-design="terminal"] .tnav-tabs is not 60px tall in its mobile (flex) rule');
   assert.match(rule[0], /position:\s*fixed/);
   assert.match(rule[0], /bottom:\s*0\b/);
 });
 
-test('S1b. the dead .mobile-tab-bar class is not what the fix is keyed to any more - regression guard for the 7ef1ff34 mistake', () => {
-  assert.doesNotMatch(css, /\.st-save-toast\s*\{\s*bottom:\s*calc\([^)]*56px/, 'the toast\'s calc() still references the dead .mobile-tab-bar\'s 56px - the wrong-selector bug is back');
-  assert.doesNotMatch(css, /max-width:\s*640px\)\s*\{\s*\.st-save-toast/, 'a bare (non-terminal-scoped) 640px override on .st-save-toast still exists - the old, wrong rule was not removed');
+test('S1b. the dead .mobile-tab-bar offset and the old 640px override are gone - regression guard for the 7ef1ff34 mistake', () => {
+  assert.doesNotMatch(css, /\.st-save-toast\s*\{\s*bottom:\s*calc\([^)]*56px/);
+  assert.doesNotMatch(css, /max-width:\s*640px\)\s*\{\s*\.st-save-toast/);
 });
 
-test('S2. the toast\'s bottom offset is overridden inside a max-width:767px media query, scoped to [data-design="terminal"] - the base (desktop) rule and non-terminal designs are untouched', () => {
-  const media = css.match(/@media \(max-width:\s*767px\)\s*\{([^}]*\[data-design="terminal"\]\s*\.st-save-toast[^}]*\})[^}]*\}/);
-  assert.ok(media, 'no @media (max-width: 767px) block touching [data-design="terminal"] .st-save-toast was found');
+test('S2. the base rule puts the toast TOP-CENTRE: fixed, left 50% with translateX(-50%), top = banner + 44px bar + 8px', () => {
+  const base = toastRules().find((r) => /position:\s*fixed/.test(r));
+  assert.ok(base, 'no base `.st-save-toast { position: fixed ... }` rule found');
+  assert.match(base, /left:\s*50%/, 'the toast is not centred horizontally (left: 50%)');
+  assert.match(base, /transform:\s*translateX\(-50%\)/, 'the centring translate is missing');
+  assert.match(base, /top:\s*calc\(var\(--banner-h,\s*0px\)\s*\+\s*44px\s*\+\s*8px\)/, 'desktop top is no longer banner + 44px bar + 8px');
+  assert.match(base, /max-width:\s*min\(92vw,\s*420px\)/, 'the width cap that keeps it inside a phone screen changed');
 });
 
-test('S3. the mobile override matches the tab bar height plus the safe-area inset plus a real gap - not a guessed number', () => {
-  const media = css.match(/@media \(max-width:\s*767px\)\s*\{\s*\[data-design="terminal"\]\s*\.st-save-toast\s*\{\s*bottom:\s*calc\(([^;]*)\);/);
-  assert.ok(media, 'the override is not a calc() expression - re-check the rule\'s exact shape');
-  const expr = media[1].replace(/\)\s*$/, '').replace(/\s+/g, ' ').trim();
-  assert.match(expr, /60px/, 'the tab bar height (60px) is not part of the calc()');
-  assert.match(expr, /env\(safe-area-inset-bottom,\s*0px\)/, 'the iOS safe-area inset is not part of the calc()');
-  const gap = expr.match(/\+\s*(\d+)px\s*$/);
-  assert.ok(gap && Number(gap[1]) > 0, 'no positive gap above the bar+safe-area sum - the toast would sit flush against the bar');
+test('S3. PREMISE: the 44px and 38px in the toast\'s top are the real top bar heights (desktop .tnav, phone header), both fixed at the banner', () => {
+  const desk = css.match(/\[data-design="terminal"\]\s*\.tnav\s*\{([^}]*)\}/);
+  assert.ok(desk, 'CONTROL: the terminal top bar rule moved');
+  assert.match(desk[1], /position:\s*fixed;\s*top:\s*var\(--banner-h\)/);
+  assert.match(desk[1], /height:\s*44px/, 'the desktop top bar is no longer 44px - the toast would overlap it or float away from it');
+  const phoneHeader = [...css.matchAll(/\{([^{}]*position:\s*fixed;\s*top:\s*var\(--banner-h\)[^{}]*height:\s*38px[^{}]*)\}/g)];
+  assert.ok(phoneHeader.length >= 1, 'no fixed phone header 38px tall at top: var(--banner-h) found - the phone offset is built on it');
 });
 
-test('S4. the mobile formula is the SAME one the terminal design\'s own .app-content already uses to clear the tab bar - one number, not two independently-guessed ones that could drift', () => {
-  const appContentRule = css.match(/\[data-design="terminal"\]\s*\.app-content\s*\{\s*padding-bottom:\s*calc\(([^;]*)\);/);
-  const toastRule = css.match(/\[data-design="terminal"\]\s*\.st-save-toast\s*\{\s*bottom:\s*calc\(([^;]*)\);/);
-  assert.ok(appContentRule, 'the terminal design\'s own .app-content safe-area calc() was not found - re-derive the comparison');
-  assert.ok(toastRule, '[data-design="terminal"] .st-save-toast\'s mobile calc() was not found');
-  const norm = (s: string) => s.replace(/\)\s*$/, '').replace(/\s+/g, '').replace(/1rem/, '16px');
-  assert.equal(norm(appContentRule[1]).includes('60px+env(safe-area-inset-bottom,0px)'), true, 'the terminal .app-content rule no longer reserves 60px + the safe area - the comparison premise changed');
-  assert.equal(norm(toastRule[1]).includes('60px+env(safe-area-inset-bottom,0px)'), true, 'the toast\'s calc() no longer includes 60px + the safe area');
+test('S4. at <=767px the toast sits under the 38px phone header plus the notch, and its buttons reach 44px', () => {
+  const media = [...css.matchAll(/@media \(max-width:\s*767px\)\s*\{([\s\S]*?)\n\}/g)].map((m) => m[1]).find((b) => /\.st-save-toast\s*\{/.test(b));
+  assert.ok(media, 'no @media (max-width: 767px) block positions .st-save-toast');
+  assert.match(media, /\.st-save-toast\s*\{\s*top:\s*calc\(env\(safe-area-inset-top,\s*0px\)\s*\+\s*var\(--banner-h,\s*0px\)\s*\+\s*38px\s*\+\s*8px\);?\s*\}/, 'the phone top is no longer notch + banner + 38px header + 8px');
+  assert.match(media, /\.st-save-toast-retry\s*\{\s*min-height:\s*44px;?\s*\}/, '"Try again" is under 44px on phones');
+  assert.match(media, /\.st-save-toast-close\s*\{\s*width:\s*44px;\s*height:\s*44px;?\s*\}/, 'the dismiss X is under 44px on phones');
 });
 
-test('S5. the base (non-media, non-terminal) .st-save-toast rule keeps its original bottom:24px - the fix only adds a terminal-scoped mobile override, it does not touch desktop or other designs', () => {
-  const base = css.match(/(?<!\[data-design="terminal"\]\s*)\.st-save-toast\s*\{[^}]*\}/);
-  assert.ok(base, 'the base .st-save-toast rule was not found');
-  assert.match(base[0], /bottom:\s*24px/, 'the base rule\'s bottom offset changed - desktop/non-terminal should be untouched by this mobile-only fix');
+test('S5. NOTHING anchors the toast to the bottom or the right any more - the corner the owner rejected', () => {
+  const rules = toastRules();
+  assert.ok(rules.length >= 2, `CONTROL: expected the base rule and the phone rule, found ${rules.length}`);
+  for (const r of rules) {
+    assert.doesNotMatch(r, /(^|;|\s)bottom:/, `a .st-save-toast rule sets bottom again: ${r.trim().slice(0, 80)}`);
+    assert.doesNotMatch(r, /(^|;|\s)right:/, `a .st-save-toast rule sets right again: ${r.trim().slice(0, 80)}`);
+  }
 });
 
-test('S6. CONTROL: the computed mobile offset is strictly greater than the base 24px and than the bar height alone - proves the override actually lifts the toast, not just re-states 24px under a media query', () => {
-  const toastRule = css.match(/\[data-design="terminal"\]\s*\.st-save-toast\s*\{\s*bottom:\s*calc\(([^;]*)\);/);
-  assert.ok(toastRule);
-  // env(safe-area-inset-bottom, 0px) evaluates to its fallback (0) on a device with no inset - the worst case
-  // for "is this actually bigger", and still must clear the bar with room to spare.
-  const withoutSafeArea = toastRule[1].replace(/env\(safe-area-inset-bottom,\s*0px\)/, '0px');
-  const nums = [...withoutSafeArea.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-  const total = nums.reduce((a, b) => a + b, 0);
-  assert.ok(total > 24, `the mobile offset (${total}px, safe-area-free floor) is not bigger than the base 24px`);
-  assert.ok(total > 60, `the mobile offset (${total}px, safe-area-free floor) does not clear the 60px bar on its own`);
+test('S6. layering: above the bars (z-index 1000) so it is not hidden under them, below the Ask AI panel (9994) and modals', () => {
+  const base = toastRules().find((r) => /position:\s*fixed/.test(r));
+  assert.ok(base, 'no base `.st-save-toast { position: fixed ... }` rule found');
+  const z = Number((base.match(/z-index:\s*(\d+)/) || [])[1]);
+  assert.ok(z > 1000 && z < 9994, `toast z-index ${z} is not between the bars (1000) and the Ask AI panel (9994)`);
+  const panel = css.match(/\.gchat-panel\s*\{[^}]*z-index:\s*(\d+)/);
+  assert.ok(panel && Number(panel[1]) === 9994, 'CONTROL: the Ask AI panel z-index moved - re-derive');
 });
 
-test('S7. CONTROL: the 641-767px band the earlier (56px/640px) version of this fix missed is now covered - 767 is inside the override\'s breakpoint, 640 is not the boundary any more', () => {
-  const media = css.match(/@media \(max-width:\s*(\d+)px\)\s*\{\s*\[data-design="terminal"\]\s*\.st-save-toast/);
-  assert.ok(media, 're-derive: the terminal toast override\'s breakpoint was not found');
-  const breakpoint = Number(media[1]);
-  assert.equal(breakpoint, 767, `the override's breakpoint is ${breakpoint}px, not 767px - the 641-767px band this fix exists for would be uncovered again`);
+test('S7. the workarounds for the old corner are gone, and the entrance keeps the centring and respects reduced motion', () => {
+  assert.doesNotMatch(css, /settings-toast-open/, 'body.settings-toast-open (hide the FAB while the toast shows) is back in CSS');
+  const kf = css.match(/@keyframes stToastIn\s*\{\s*from\s*\{([^}]*)\}\s*to\s*\{([^}]*)\}\s*\}/);
+  assert.ok(kf, 'the toast entrance keyframes are gone or no longer a from/to pair');
+  for (const [i, step] of [[1, 'from'], [2, 'to']] as const) {
+    assert.match(kf[i], /transform:\s*translate\(-50%,/, `the entrance animation's ${step} step drops the -50% centring - the toast would jump sideways while it animates`);
+  }
+  assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.st-save-toast\s*\{\s*animation:\s*none;?\s*\}\s*\}/, 'no reduced-motion opt-out for the toast animation');
 });
