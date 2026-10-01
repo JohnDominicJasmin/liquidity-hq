@@ -10,6 +10,7 @@ import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } 
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { selectAllRows } from '@/lib/selectAllRows';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
 import {
@@ -199,7 +200,10 @@ async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds>> {
   const query = (async () => {
     try {
       const db = getSupabaseAdmin();
-      const { data, error } = await db.from(T.user_settings).select('user_id, rsi_ob, rsi_os, squeeze_threshold, anti_chop_enabled');
+      // Paged (#1397): one plain read stops at 1000 rows, and every user past
+      // that would silently get the defaults instead of their own thresholds.
+      const { data, error } = await selectAllRows('alert:thresholds', 'user_id', () =>
+        db.from(T.user_settings).select('user_id, rsi_ob, rsi_os, squeeze_threshold, anti_chop_enabled'));
       if (error || !data) return fallback;
       const map = new Map<string, UserThresholds>();
       for (const row of data) {
@@ -1078,10 +1082,14 @@ async function checkPriceAlerts(
   try {
     const admin = getSupabaseAdmin();
 
-    // Fetch alerts + per-user chat IDs in parallel
+    // Fetch alerts + per-user chat IDs in parallel. Both paged (#1397): a
+    // plain read stops at 1000 rows, so alerts past that never fired and
+    // owners past that had no chat ID to receive one.
     const [alertsRes, settingsRes] = await Promise.all([
-      admin.from(T.price_alerts).select('*').eq('active', true),
-      admin.from(T.user_settings).select('user_id, telegram_chat_id'),
+      selectAllRows('alert:price_alerts', 'id', () =>
+        admin.from(T.price_alerts).select('*').eq('active', true)),
+      selectAllRows('alert:price_alert_chat_ids', 'user_id', () =>
+        admin.from(T.user_settings).select('user_id, telegram_chat_id')),
     ]);
 
     if (!alertsRes.data?.length) return [];
@@ -1254,7 +1262,10 @@ async function checkDailySummary(
   // privacy leak, not just an injection risk.
   const alertsByUser = new Map<string, PriceAlert[]>();
   try {
-    const { data } = await getSupabaseAdmin().from(T.price_alerts).select('*').eq('active', true);
+    // Paged (#1397) - past 1000 rows, owners' alerts dropped out of their summary.
+    const admin = getSupabaseAdmin();
+    const { data } = await selectAllRows('alert:daily_summary_alerts', 'id', () =>
+      admin.from(T.price_alerts).select('*').eq('active', true));
     for (const a of (data ?? []) as PriceAlert[]) {
       if (!a.user_id) continue; // legacy ownerless rows - never shown in anyone's personalized summary
       const list = alertsByUser.get(a.user_id) ?? [];
@@ -1771,7 +1782,10 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
   if (!pubKey || !privKey || !email) return;
 
   const admin = getSupabaseAdmin();
-  const { data: allSubs } = await admin.from(T.push_subscriptions).select('*');
+  // Paged (#1397) - a plain read stops at 1000 subscriptions. Ordered by
+  // endpoint, the column push/subscribe upserts on, so it is unique.
+  const { data: allSubs } = await selectAllRows('alert:push_subscriptions', 'endpoint', () =>
+    admin.from(T.push_subscriptions).select('*'));
   if (!allSubs?.length) return;
 
   // Signal alerts are a Pro feature. Telegram delivery already filters on
@@ -1864,7 +1878,12 @@ async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
   const query = (async () => {
     try {
       const db = getSupabaseAdmin();
-      const { data, error } = await db.from(T.muted_alerts).select('user_id, key');
+      // Paged (#1397), ordered by the (user_id, key) primary key. A plain read
+      // stops at 1000 rows, and a mute past that point was ignored. One user
+      // can hold many rows here, so this table can reach 1000 well before the
+      // per-user tables do.
+      const { data, error } = await selectAllRows('alert:muted_alerts', ['user_id', 'key'], () =>
+        db.from(T.muted_alerts).select('user_id, key'));
       if (error || !data) return fallback;
       const map = new Map<string, Set<string>>();
       for (const row of data) {
@@ -2156,7 +2175,10 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const proUserIds = new Set<string>();
   try {
     const admin = getSupabaseAdmin();
-    const { data } = await admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at');
+    // Paged (#1397) - a plain read stops at 1000 rows, and a Pro user past
+    // that point was treated as free and dropped from every alert.
+    const { data } = await selectAllRows('alert:user_subscriptions', 'user_id', () =>
+      admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at'));
     const now = Date.now();
     for (const row of data ?? []) {
       const isPro   = row.role === 'pro';
@@ -2170,11 +2192,12 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const recipients: Recipient[] = [];
   try {
     const admin = getSupabaseAdmin();
-    const { data } = await admin
+    // Paged (#1397) - a plain read stops at 1000 connected chats.
+    const { data } = await selectAllRows('alert:recipients', 'user_id', () => admin
       .from(T.user_settings)
       .select('user_id, telegram_chat_id, timezone')
       .not('telegram_chat_id', 'is', null)
-      .neq('telegram_chat_id', '');
+      .neq('telegram_chat_id', ''));
     // Rebuilt every run - see the note on CHAT_TZ above.
     CHAT_TZ.clear();
     for (const row of data ?? []) {
