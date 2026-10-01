@@ -1214,8 +1214,9 @@ body[data-rpm-level="high"]::before {
    Confirmed inert rather than assumed: QA traced both components' render
    branches, and separately confirmed .tnav-dropdown has parity (both import
    the same route arrays from lib/navRoutes.ts, so this isn't a feature gap
-   hiding behind a dead rule). Left in place, not deleted - it is live for
-   the current design, reachable via ?design=current, and removing rules a
+   hiding behind a dead rule). Left in place, not deleted - it was live for
+   the current design, which was reachable via ?design=current until #1111
+   removed that switch, and removing rules a
    design audit could plausibly flag as "unstyled under terminal" is exactly
    the kind of correct-against-the-stylesheet, changes-nothing-on-screen fix
    this issue exists to head off before someone spends a measurement on it. */
@@ -2528,7 +2529,12 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-hist-title { font-size: var(--fs-card-title); font-weight: 500; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
 .gchat-hist-meta  { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; }
 .gchat-hist-del   { font-size: var(--fs-label); color: var(--txt3); cursor: pointer; background: none; border: none; padding: 3px 5px; border-radius: 6px; flex-shrink: 0; opacity: 0; transition: opacity 0.15s; }
-.gchat-hist-item:hover .gchat-hist-del { opacity: 1; }
+/* #1309 item 5: the delete button was opacity 0 until the row was HOVERED, so it could not be seen on touch
+   or when it had keyboard focus. Visible for focus, and always visible where there is no hover. */
+.gchat-hist-item:hover .gchat-hist-del,
+.gchat-hist-item:focus-within .gchat-hist-del,
+.gchat-hist-del:focus-visible { opacity: 1; }
+@media (hover: none) { .gchat-hist-del { opacity: 1; } }
 .gchat-hist-del:hover { color: var(--red); background: var(--red-bg); }
 
 /* ── Follow-up question chips (below each assistant response) ── */
@@ -3812,6 +3818,11 @@ html[data-theme="light"] { background: var(--bg0); }
 .frh-row:hover   { background: rgba(255,255,255,0.04); }
 .frh-row.on      { background: rgba(26,122,255,0.11) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
 .frh-row.on .frh-coin { color: var(--purple) !important; }
+/* #1309 item 6: the coin cell's real button. Looks exactly like the bare text it replaced;
+   the only visible difference is the focus ring, which is the point. */
+.frh-coin-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-align: left; }
+.frh-coin-btn:disabled { cursor: default; }
+.frh-coin-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .frh-spark-th    { min-width: 120px; }
 .frh-spark-cell  { min-width: 120px; width: 160px; padding: 3px 8px !important; }
 
@@ -5466,6 +5477,16 @@ body.landing {
 .lp-hero-inner  { position: relative; max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 20px; }
 .lp-hero-badge  { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.05); border: 1px solid var(--bdr); border-radius: var(--radius-chip); padding: 5px 14px; letter-spacing: .04em; }
 .lp-live-dot    { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+/* The landing hero headline (components/LandingTerminal.tsx). Balanced breaks,
+   so a short last word never sits alone on its own line: "See where liquidity
+   sits." left "sits." alone at 1280 and 390 (owner, 2026-10-01). Korean also
+   breaks only between words (keep-all), the way Korean is set; Chinese has no
+   spaces, so keep-all there would stop it wrapping at all, and it is left out. */
+/* The accent line is its own block: balance works per block, and across the
+   <br> the whole h1 balanced as one paragraph, which left "sits." alone. */
+.lp-hero-h1, .lp-hero-h1 > span { text-wrap: balance; }
+.lp-hero-h1 > span { display: block; }
+html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
 .lp-h1          { font-size: clamp(2.25rem, 6vw, 4rem); font-weight: 900; line-height: 1.08; letter-spacing: -.03em; margin: 0; }
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
