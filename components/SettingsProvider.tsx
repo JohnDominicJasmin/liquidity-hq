@@ -74,8 +74,10 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   const flushToDb = useCallback(async (partial: Partial<UserSettings>) => {
     /* Signed out (QA, #1503 follow-up): there is no account to save to. When
        this is a retry from the save toast, the toast already shows "Saving…",
-       so say it failed rather than return silently and leave it there. */
-    if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; setSaveStatus('error'); settleToIdle(3000); } return; }
+       so say it failed rather than return silently and leave it there. The
+       patch goes back into lastFailedRef: retrySave() emptied it, and without
+       it the next "Try again" would send nothing and the change is lost (QA). */
+    if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; lastFailedRef.current = partial; setSaveStatus('error'); settleToIdle(3000); } return; }
     retryingRef.current = false;
     lastFailedRef.current = null;
     if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
