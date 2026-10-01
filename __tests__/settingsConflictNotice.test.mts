@@ -43,30 +43,58 @@ test('S3. the provider clears the status after the SAME 3000/2000ms split the to
 
 /* ══ SettingsSaveToast.tsx: the render ═══════════════════════════════════════════════════════════════ */
 
-test('S4. the toast becomes visible for conflict, exactly alongside saved and error - not a fourth, separate condition that could drift from the other two', () => {
-  anchorOnce(toastSrc, "if (saveStatus === 'saved' || saveStatus === 'error' || saveStatus === 'conflict') {", 'the visibility condition');
+/* #1498 (owner, 2026-10-01) rebuilt the toast: top-centre, "Saved" 2s, "Updated from another device" 4s, and
+   "Couldn't save" an alert that stays until the visitor retries or dismisses it. S4-S8 pin that state machine;
+   the old S4-S8 pinned the bottom-right toast with one shared visibility timer and the FAB-hiding effect. */
+
+test('S4. saved and conflict share ONE timed branch - 2000ms for saved, 4000ms for conflict, so "Updated from another device" is on screen longer than "Saved"', () => {
+  anchorOnce(toastSrc, "if (saveStatus === 'saved' || saveStatus === 'conflict') {", 'the timed branch');
+  anchorOnce(toastSrc, "saveStatus === 'saved' ? 2000 : 4000);", 'the per-state duration');
 });
 
-test('S5. the toast\'s own hide-timer now matches the provider\'s clear-timer for error/conflict (3000ms), not the old flat 2000ms - fixes the second bug this commit names: the toast used to disappear before the provider even cleared the status', () => {
-  anchorOnce(toastSrc, "setTimeout(() => setVisible(false), saveStatus === 'saved' ? 2000 : 3000);", 'the visibility hide-timer');
+test('S5. an error is shown with NO timer - "Couldn\'t save" stays until the visitor acts, and the provider resetting to idle does not clear it', () => {
+  const errAt = anchorOnce(toastSrc, "if (saveStatus === 'error') { setShown('error'); return; }", 'the untimed error branch');
+  const idleAt = anchorOnce(toastSrc, "setShown(s => (s === 'saving' ? null : s));", 'the idle branch (clears only a dangling "Saving…")');
+  assert.ok(errAt < idleAt, 'the idle branch comes before the error branch - order changed');
 });
 
-test('S6. the FAB-hiding effect keys ONLY on `visible`, not on which saveStatus - saving/saved/error/conflict all hide it the same way', () => {
-  const at = anchorOnce(toastSrc,
-    "useEffect(() => {\n    document.body.classList.toggle('settings-toast-open', visible);\n    return () => { document.body.classList.remove('settings-toast-open'); };\n  }, [visible]);",
-    'the FAB-hiding effect');
-  assert.ok(at > 0);
+test('S6. the FAB-hiding workaround is gone from the toast - the toast no longer shares a corner with the Ask AI button', () => {
+  assert.doesNotMatch(toastSrc, /settings-toast-open/, 'SettingsSaveToast still toggles body.settings-toast-open');
 });
 
-test('S7. conflict gets its own CSS class, distinct from error - never shares the "error" class, which would paint it red', () => {
-  anchorOnce(toastSrc, "const cls = saveStatus === 'error' ? ' error' : saveStatus === 'conflict' ? ' conflict' : saveStatus === 'saving' ? ' saving' : '';", 'the class ternary');
+test('S7. conflict gets its own CSS class, never "error" - which would paint it red - and the error toast carries "error" on its own element', () => {
+  anchorOnce(toastSrc, "const cls = shown === 'conflict' ? ' conflict' : shown === 'saving' ? ' saving' : '';", 'the class ternary');
+  anchorOnce(toastSrc, '<div className="st-save-toast error" role="alert">', 'the error toast element');
 });
 
-test('S8. conflict renders its own label key, never the FAILED text - the whole point of the fix', () => {
-  const at = anchorOnce(toastSrc,
-    "const text = saveStatus === 'saving' ? t('SETTINGS_STATUS_SAVING')\n    : saveStatus === 'saved' ? t('SETTINGS_STATUS_SAVED')\n    : saveStatus === 'conflict' ? t('SETTINGS_STATUS_CONFLICT')\n    : t('SETTINGS_STATUS_FAILED');",
+test('S8. conflict renders its own label, the error toast renders SETTINGS_SAVE_FAILED_TITLE, and the retired one-line FAILED text renders nowhere', () => {
+  anchorOnce(toastSrc,
+    "const text = shown === 'saving' ? t('SETTINGS_STATUS_SAVING')\n    : shown === 'saved' ? t('SETTINGS_STATUS_SAVED')\n    : t('SETTINGS_STATUS_CONFLICT');",
     'the text ternary');
-  assert.ok(at > 0, 'conflict does not come before the final t(\'SETTINGS_STATUS_FAILED\') fallback - it would fall through to "Failed"');
+  anchorOnce(toastSrc, "{t('SETTINGS_SAVE_FAILED_TITLE')}", 'the error title');
+  assert.doesNotMatch(toastSrc, /SETTINGS_STATUS_FAILED/, 'the old "Couldn\'t save - try again" one-liner is rendered again');
+});
+
+test('S8b. roles: the error is role="alert" (announced at once), every other state is role="status" with aria-live="polite" - and none moves focus', () => {
+  assert.equal(toastSrc.split('role="alert"').length - 1, 1, 'expected exactly one role="alert" (the error toast)');
+  anchorOnce(toastSrc, '<div className={`st-save-toast${cls}`} role="status" aria-live="polite">', 'the status toast element');
+  assert.doesNotMatch(toastSrc, /\.focus\(|autoFocus/, 'the toast moves focus');
+});
+
+test('S8c. "Try again" re-sends through the provider\'s retrySave, and the X has its own accessible name', () => {
+  anchorOnce(toastSrc, "onClick={() => { setShown('saving'); retrySave(); }}", 'the retry handler');
+  anchorOnce(toastSrc, "{t('SETTINGS_SAVE_RETRY_BUTTON')}", 'the retry label');
+  anchorOnce(toastSrc, "aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')}", 'the dismiss X accessible name');
+  anchorOnce(toastSrc, 'onClick={() => setShown(null)}', 'the dismiss handler');
+});
+
+test('S8d. the provider keeps the failed patch and retrySave re-sends exactly that patch through flushToDb; the type is in lib/settings.ts', () => {
+  const failAt = anchorOnce(provider, 'lastFailedRef.current = partial;', 'the failed patch is kept');
+  const errAt = anchorOnce(provider, "setSaveStatus('error');", 'the failure status');
+  assert.ok(failAt < errAt, 'the failed patch is stored after the error status is set - a fast click could retry nothing');
+  anchorOnce(provider, 'void flushToDb(failed);', 'retrySave re-sends the failed patch');
+  anchorOnce(settingsLib, 'retrySave:  () => void;', 'the context type');
+  assert.match(provider, /\[settings, loading, settingsLoadStatus, saveStatus, update, refresh, retrySave\]/, 'retrySave is missing from the context value\'s deps');
 });
 
 /* ══ CSS: the amber class, and its contrast ══════════════════════════════════════════════════════════ */
@@ -80,11 +108,14 @@ test('S9. .st-save-toast.conflict uses the amber tokens, not the pre-existing re
   assert.doesNotMatch(rule[1], /--red|--green/, 'the conflict toast still references a red or green token');
 });
 
-test('S10. body.settings-toast-open hides the FAB the same way the existing nav-drawer/PWA-prompt rules do (opacity 0 + pointer-events none), not a new, different mechanism', () => {
-  const rule = css.match(/body\.settings-toast-open \.gchat-fab\s*\{([^}]*)\}/);
-  assert.ok(rule, 'the settings-toast-open FAB rule not found');
-  assert.match(rule[1], /opacity:\s*0/);
-  assert.match(rule[1], /pointer-events:\s*none/);
+test('S10. the error toast takes clicks (pointer-events: auto) and its two buttons are real targets - 32px on desktop', () => {
+  const err = css.match(/\.st-save-toast\.error\s*\{([^}]*)\}/);
+  assert.ok(err, '.st-save-toast.error rule not found');
+  assert.match(err[1], /pointer-events:\s*auto/, 'the error toast does not take clicks - "Try again" and the X would be dead');
+  const retry = css.match(/\.st-save-toast-retry\s*\{([^}]*)\}/);
+  assert.ok(retry && /min-height:\s*32px/.test(retry[1]), '"Try again" is under 32px on desktop');
+  const close = css.match(/\.st-save-toast-close\s*\{([^}]*)\}/);
+  assert.ok(close && /width:\s*32px/.test(close[1]) && /height:\s*32px/.test(close[1]), 'the X is under 32x32 on desktop');
 });
 
 /* Computed from the CSS tokens, not asserted as a hard pass/fail: the toast is `position: fixed` over
