@@ -4192,12 +4192,20 @@ html[data-theme="light"] { background: var(--bg0); }
   display: flex; align-items: center; gap: 10px;
   padding: 10px 14px; border-radius: 10px;
   font-size: var(--fs-label); font-weight: 600; line-height: 1.4;
-  /* --bg2, one step above the cards (--bg1): over a settings card the toast
-     was told apart only by its 0.5px border (PM/DevOps, 2026-10-01). */
+  /* --bg2: over a settings card the toast was told apart only by its 0.5px
+     border (PM/DevOps, 2026-10-01). That lifts it in terminal light only; in
+     terminal dark --bg2 is DARKER than the card, so that context is set below. */
   background: var(--bg2); border: 0.5px solid var(--bdr2); color: var(--txt);
   box-shadow: 0 6px 24px rgba(0,0,0,0.35);
   animation: stToastIn 0.18s ease-out;
   pointer-events: none;
+}
+/* Terminal dark has no token above the card (--bg1 #141517; --bg3/--bg4 alias
+   down), so the lift is a literal: #1b1d20 sits above the card and --bdr gives
+   the edge (PM visual call on #1507, 2026-10-01). Not .conflict/.error, which
+   keep their own surfaces. */
+[data-design="terminal"]:not([data-theme="light"]) .st-save-toast:not(.conflict):not(.error) {
+  background: #1b1d20; border-color: var(--bdr);
 }
 .st-save-toast-text { min-width: 0; }
 .st-save-toast.saving   { color: var(--txt2); }
