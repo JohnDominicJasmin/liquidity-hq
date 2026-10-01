@@ -15,6 +15,7 @@ import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
+import { updatePassword } from '@/lib/authSession';
 import { subscriptionPanelView, futureDateOrNull, type SubPanelView } from '@/lib/subscriptionPanel';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
@@ -205,7 +206,9 @@ export default function SettingsPage() {
     setPwLoading(true);
     setPwError('');
     setPwSaved(false);
-    const { error } = await sb.auth.updateUser({ password: pwNew });
+    // Bounded (#1173): a stale session whose refresh never answers left this
+    // button spinning forever.
+    const { error } = await updatePassword(sb, pwNew);
     setPwLoading(false);
     if (error) { setPwError(friendlyAuthError(error.message)); return; }
     setPwNew(''); setPwConfirm('');
