@@ -69,7 +69,10 @@ export default function AlertsPage() {
   /* #1309 item 12: `entitlementStatus` reads 'not_entitled' while a signed-in user's subscription is still
      being read, so a Pro/trial account was shown "Unlock Pro" until the read settled. Nothing is claimed
      about the plan until it has. */
-  const entitlementsResolving = !authLoading && !!user && entitlementsLoading;
+  /* Sign-in still loading counts as resolving too (QA, #1501): with only the plan
+     read in this, the cards fell through to the Pro "Connect Telegram" form
+     while auth loaded, and a Free visitor saw it switch to locked. */
+  const entitlementsResolving = authLoading || (!!user && entitlementsLoading);
   const { settings, loading: settingsLoading, refresh: refreshSettings } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
