@@ -52,11 +52,13 @@ export interface Entitlement {
   proFeatures: boolean;
 }
 
-// Single source of truth for "does this token get Pro features". Reads role,
-// trial_ends_at and current_period_end in one RLS-scoped query (a token can
-// only ever read its own row).
-export async function getEntitlement(token: string, userId: string): Promise<Entitlement> {
-  const { data } = await sb(token).from(T.user_subscriptions)
+// Reads role, trial_ends_at and current_period_end in one RLS-scoped query (a
+// token can only ever read its own row). `failed` is reported alongside rather
+// than folded in: getEntitlement() below has always resolved a failed read to
+// free, and every existing Pro gate relies on that to fail closed, so only
+// getEntitlementStatus() reads it.
+async function readEntitlement(token: string, userId: string): Promise<{ entitlement: Entitlement; failed: boolean }> {
+  const { data, error } = await sb(token).from(T.user_subscriptions)
     .select('role, trial_ends_at, current_period_end')
     .eq('user_id', userId)
     .maybeSingle();
@@ -67,7 +69,31 @@ export async function getEntitlement(token: string, userId: string): Promise<Ent
   const role: Role = lapsed ? 'free' : stored;
   const trialEnds = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : 0;
   const trialActive = role !== 'pro' && trialEnds > Date.now();
-  return { role, trialActive, proFeatures: role === 'pro' || trialActive };
+  return { entitlement: { role, trialActive, proFeatures: role === 'pro' || trialActive }, failed: !!error };
+}
+
+// Single source of truth for "does this token get Pro features". A failed read
+// comes back as free - see getEntitlementStatus() for a gate that must not
+// treat that as a confirmed answer.
+export async function getEntitlement(token: string, userId: string): Promise<Entitlement> {
+  return (await readEntitlement(token, userId)).entitlement;
+}
+
+// The server-side counterpart of AuthProvider's EntitlementStatus (#1119), same
+// three values. getEntitlement() cannot say 'unknown': an errored read and a
+// real free account both come back as proFeatures false. A missing
+// row is NOT a failure - maybeSingle() returns no error for it, and an account
+// with no subscription row really is free (lib/signupIntegrity.ts).
+export type EntitlementStatus = 'entitled' | 'not_entitled' | 'unknown';
+
+export async function getEntitlementStatus(token: string, userId: string): Promise<EntitlementStatus> {
+  try {
+    const { entitlement, failed } = await readEntitlement(token, userId);
+    if (failed) return 'unknown';
+    return entitlement.proFeatures ? 'entitled' : 'not_entitled';
+  } catch {
+    return 'unknown';
+  }
 }
 
 // Convenience for feature-gate routes: true if paid Pro or in an active trial.
@@ -102,4 +128,20 @@ export async function getRoleFromRequestToken(token: string | null): Promise<Rol
   const userId = userData.user?.id;
   if (!userId) return 'free';
   return getUserRole(token, userId);
+}
+
+// getEntitlementStatus() for a route that serves anyone but withholds the Pro
+// part (#1263, /api/market/rsi). No token, or a token that resolves to no
+// user, is 'not_entitled': there is no account to be Pro. Only a read that
+// throws is 'unknown', for the same #1119 reason getEntitlementStatus() gives.
+export async function getEntitlementStatusFromRequestToken(token: string | null | undefined): Promise<EntitlementStatus> {
+  if (!token) return 'not_entitled';
+  try {
+    const { data } = await sb(token).auth.getUser();
+    const userId = data.user?.id;
+    if (!userId) return 'not_entitled';
+    return await getEntitlementStatus(token, userId);
+  } catch {
+    return 'unknown';
+  }
 }

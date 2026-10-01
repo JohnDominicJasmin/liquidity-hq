@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { selectAllRows } from '@/lib/selectAllRows';
 import { sendTrialEndingEmail } from '@/lib/email';
 import { trialReminderCutoff } from '@/lib/trialReminder';
 import { T } from '@/lib/tables';
@@ -36,14 +37,19 @@ export async function GET(req: Request) {
     // role <> 'pro' so someone who already upgraded mid-trial is never nagged.
     // trial_reminder_sent_at null is only a pre-filter - the atomic claim below
     // is what actually guarantees one send.
-    const { data: due, error } = await admin
+    //
+    // Paged (#1397) - a plain read stops at 1000 rows. Every page is read
+    // before the first claim runs, which matters: the claim sets
+    // trial_reminder_sent_at, the column this filter excludes on, so paging
+    // between claims would shift the offsets and skip rows.
+    const { data: due, error } = await selectAllRows('trial-reminder', 'user_id', () => admin
       .from(T.user_subscriptions)
       .select('user_id, trial_ends_at')
       .neq('role', 'pro')
       .not('trial_ends_at', 'is', null)
       .is('trial_reminder_sent_at', null)
       .gt('trial_ends_at', new Date(now).toISOString())
-      .lte('trial_ends_at', cutoff);
+      .lte('trial_ends_at', cutoff));
 
     if (error) return apiError('trial-reminder', error);
     if (!due?.length) return NextResponse.json({ ok: true, sent: 0 });

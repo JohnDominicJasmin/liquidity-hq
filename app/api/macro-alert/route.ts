@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { isFeatureEnabled } from '@/lib/featureFlags';
+import { selectAllRows } from '@/lib/selectAllRows';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,7 +101,10 @@ export async function GET(req: Request) {
   const proUserIds = new Set<string>();
   try {
     const admin = getSupabaseAdmin();
-    const { data } = await admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at');
+    // Paged (#1397) - a plain read stops at 1000 rows, and a Pro user past
+    // that point was treated as free and never sent a macro alert.
+    const { data } = await selectAllRows('macro-alert:user_subscriptions', 'user_id', () =>
+      admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at'));
     const now = Date.now();
     for (const row of data ?? []) {
       const isPro   = row.role === 'pro';
@@ -113,11 +117,12 @@ export async function GET(req: Request) {
   const chatIds: string[] = [];
   try {
     const admin = getSupabaseAdmin();
-    const { data } = await admin
+    // Paged (#1397) - a plain read stops at 1000 connected chats.
+    const { data } = await selectAllRows('macro-alert:recipients', 'user_id', () => admin
       .from(T.user_settings)
       .select('user_id, telegram_chat_id')
       .not('telegram_chat_id', 'is', null)
-      .neq('telegram_chat_id', '');
+      .neq('telegram_chat_id', ''));
     for (const row of data ?? []) {
       if (!proUserIds.has(row.user_id as string)) continue;
       const id = (row.telegram_chat_id as string)?.trim();

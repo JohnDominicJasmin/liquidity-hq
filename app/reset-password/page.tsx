@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
+import { updatePassword } from '@/lib/authSession';
 import LoadingState from '@/components/LoadingState';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
@@ -70,7 +71,8 @@ export default function ResetPasswordPage() {
     if (!sb) { setError(t('LOGIN_ERROR_SUPABASE_NOT_CONFIGURED')); return; }
     setLoading(true);
     setError('');
-    const { error } = await sb.auth.updateUser({ password });
+    // Bounded (#1173) - same hang as Settings' password form.
+    const { error } = await updatePassword(sb, password);
     setLoading(false);
     if (error) { setError(friendlyAuthError(error.message)); return; }
     setDone(true);

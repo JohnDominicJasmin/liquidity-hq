@@ -576,7 +576,12 @@ export default function MarketProvider(
      limited. */
   const fetchRSI = useCallback(async () => {
     try {
-      const res = await fetch('/api/market/rsi');
+      /* #1263: the route sends 5m RSI only to a Pro caller, so it needs to
+         know who is asking. Signed out, it sends every timeframe except 5m. */
+      const token = await getAuthToken();
+      const res = await fetch('/api/market/rsi', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!res.ok) return;
       const body = await res.json() as {
         rsi?: Record<string, Partial<Record<

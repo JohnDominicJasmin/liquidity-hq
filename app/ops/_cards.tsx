@@ -149,6 +149,8 @@ interface AiCost {
   }[];
   cost: { global24h: number; global7d: number; global30d: number };
   globalBreaker: { todayCalls: number; capCalls: number | null; spikeAlert: boolean };
+  // A read hit the route's 10,000-row bound, so the counts and $ are a floor.
+  truncated?: boolean;
   generatedAt: string;
 }
 
@@ -193,6 +195,7 @@ export function AiCostCard() {
             />
           </div>
           {gb?.spikeAlert && <p className={styles.err} style={{ marginTop: 8 }}>{t('OPS_CARDS_SPIKE_ALERT')}</p>}
+          {data.truncated && <p className={styles.err} style={{ marginTop: 8 }}>{t('OPS_CARDS_AI_COST_TRUNCATED')}</p>}
           <div className={styles.miniBars} aria-hidden>
             {data.system.perDay.map(d => (
               <div key={d.day} className={styles.bar}
