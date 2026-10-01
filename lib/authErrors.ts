@@ -16,6 +16,14 @@ export function friendlyAuthError(message: string): string {
      backstop for the case that actually bites: someone changes the policy in
      the Supabase dashboard and not in the code, and this is the only thing
      standing between that and the user seeing the alphabet again. */
+  /* "New password should be different from the old password." also matches the
+     policy pattern below, and was rewritten into the rules message - false, and
+     it lands right after a password change that timed out (#1512), when a retry
+     with the same password is exactly how the user learns the change went
+     through. Checked first, so it gets its own message. */
+  if (/should be different from the old password/i.test(message)) {
+    return 'That is already your current password.';
+  }
   if (/password should (be|contain)/i.test(message)) {
     return 'That password does not meet the requirements. Use at least 12 characters with an uppercase letter, a lowercase letter and a number.';
   }
