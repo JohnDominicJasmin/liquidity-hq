@@ -8703,6 +8703,12 @@ main.app-content[data-chrome="none"] {
    sits between them, so the "dimmed" cue is now carried by the border (--bdr3, dashed on .notyet) and
    the default cursor, not by the text tone. */
 [data-design="terminal"] .strat-chip.blocked { color: var(--txt3); border-color: var(--bdr3); cursor: default; }
+/* PM/DevOps, #1495: --txt3 is also the enabled chips' colour, so the text tone
+   cannot mark a blocked chip without failing AA. The lock glyph after the label
+   carries it, as on Settings' locked timeframes, and the label is set lighter
+   (weight, not alpha, so contrast holds). */
+[data-design="terminal"] .strat-chip.blocked { font-weight: 400; font-style: italic; }
+[data-design="terminal"] .strat-chip-lock { font-size: 8px; line-height: 1; }
 [data-design="terminal"] .strat-n {
   background: var(--on-accent); color: var(--accent);
   width: 11px; height: 11px; display: inline-flex;
