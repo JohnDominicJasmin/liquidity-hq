@@ -5450,6 +5450,16 @@ body.landing {
 .lp-hero-inner  { position: relative; max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 20px; }
 .lp-hero-badge  { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.05); border: 1px solid var(--bdr); border-radius: var(--radius-chip); padding: 5px 14px; letter-spacing: .04em; }
 .lp-live-dot    { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+/* The landing hero headline (components/LandingTerminal.tsx). Balanced breaks,
+   so a short last word never sits alone on its own line: "See where liquidity
+   sits." left "sits." alone at 1280 and 390 (owner, 2026-10-01). Korean also
+   breaks only between words (keep-all), the way Korean is set; Chinese has no
+   spaces, so keep-all there would stop it wrapping at all, and it is left out. */
+/* The accent line is its own block: balance works per block, and across the
+   <br> the whole h1 balanced as one paragraph, which left "sits." alone. */
+.lp-hero-h1, .lp-hero-h1 > span { text-wrap: balance; }
+.lp-hero-h1 > span { display: block; }
+html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
 .lp-h1          { font-size: clamp(2.25rem, 6vw, 4rem); font-weight: 900; line-height: 1.08; letter-spacing: -.03em; margin: 0; }
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
