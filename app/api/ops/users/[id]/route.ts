@@ -3,7 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
-import { estimateRowCostUsd, PRO_PRICE_USD_PER_MONTH, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
+import { estimateRowCostUsd, revenuePerMonthUsd, recordedPlan, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
 import { sendBanEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +30,10 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
   const since14 = new Date(Date.now() - 14 * DAY).toISOString().slice(0, 10);
 
   const [sub, onboarding, pushCount, usageRows, tradesCount, hypothesesCount, priceAlertsCount] = await Promise.all([
-    admin.from(T.user_subscriptions).select('role, ls_status, current_period_end, ban_reason').eq('user_id', id).maybeSingle(),
+    // Whole row, for the same reason as /api/ops/ai-cost: `plan` (#1403,
+    // migration 20261001h) may not exist yet, and naming it would fail this
+    // read and show the account as Free with no ban reason.
+    admin.from(T.user_subscriptions).select('*').eq('user_id', id).maybeSingle(),
     admin.from(T.user_onboarding).select('tour_seen, checklist_telegram, checklist_price_alert, checklist_grok, checklist_coins').eq('user_id', id).maybeSingle(),
     admin.from(T.push_subscriptions).select('*', { count: 'exact', head: true }).eq('user_id', id),
     admin.from(T.grok_usage).select('*').eq('user_id', id).gte('date', since14),
@@ -69,7 +72,8 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
   }
   const cost14dTotal = aiCost14d.reduce((s, d) => s + d.cost, 0);
   const role = sub.data?.role === 'pro' ? 'pro' : 'free';
-  const revenueMonthly = role === 'pro' ? PRO_PRICE_USD_PER_MONTH : 0;
+  const plan = recordedPlan(sub.data?.plan);
+  const revenueMonthly = revenuePerMonthUsd(role, plan);
 
   return NextResponse.json({
     id: u.id,
@@ -83,6 +87,7 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
       role: sub.data?.role ?? 'free',
       lsStatus: sub.data?.ls_status ?? null,
       currentPeriodEnd: sub.data?.current_period_end ?? null,
+      plan,
     },
     onboarding: { tourSeen: !!checklist?.tour_seen, checklistDone, checklistTotal: 4 },
     pushSubscriptions: pushCount.count ?? 0,
