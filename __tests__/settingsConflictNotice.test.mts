@@ -47,15 +47,31 @@ test('S3. the provider clears the status after the SAME 3000/2000ms split the to
    "Couldn't save" an alert that stays until the visitor retries or dismisses it. S4-S8 pin that state machine;
    the old S4-S8 pinned the bottom-right toast with one shared visibility timer and the FAB-hiding effect. */
 
-test('S4. saved and conflict share ONE timed branch - 2000ms for saved, 4000ms for conflict, so "Updated from another device" is on screen longer than "Saved"', () => {
-  anchorOnce(toastSrc, "if (saveStatus === 'saved' || saveStatus === 'conflict') {", 'the timed branch');
-  anchorOnce(toastSrc, "saveStatus === 'saved' ? 2000 : 4000);", 'the per-state duration');
+test('S4. only saved and conflict are timed - 2000ms for saved, 4000ms for conflict - and a timer clears only the toast it was started for', () => {
+  anchorOnce(toastSrc, "if (!toast || (toast.shown !== 'saved' && toast.shown !== 'conflict')) return;", 'the timer guard (saving and error get no timer)');
+  anchorOnce(toastSrc, "toast.shown === 'saved' ? 2000 : 4000);", 'the per-state duration');
+  anchorOnce(toastSrc, 'setToast(cur => (cur?.seq === seq ? null : cur))', 'the timer clears only its own toast (seq match)');
 });
 
-test('S5. an error is shown with NO timer - "Couldn\'t save" stays until the visitor acts, and the provider resetting to idle does not clear it', () => {
-  const errAt = anchorOnce(toastSrc, "if (saveStatus === 'error') { setShown('error'); return; }", 'the untimed error branch');
-  const idleAt = anchorOnce(toastSrc, "setShown(s => (s === 'saving' ? null : s));", 'the idle branch (clears only a dangling "Saving…")');
-  assert.ok(errAt < idleAt, 'the idle branch comes before the error branch - order changed');
+test('S5. the provider\'s reset to idle clears only a dangling "Saving…" and hands back the SAME toast object otherwise - so it neither clears "Couldn\'t save" nor restarts or cancels a dismiss timer', () => {
+  anchorOnce(toastSrc, "setToast(prev => (prev?.shown === 'saving' ? null : prev));", 'the idle branch');
+});
+
+/* The race QA found on 2026-10-01 (#1498), on production 4936037, qa 136c4722 and c1f129b1: SettingsProvider resets
+   saveStatus to 'idle' at 2000ms ('saved') or 3000ms, at or before the toast's own dismiss timer. While that timer
+   lived in the effect keyed on [saveStatus], the reset ran the effect's cleanup and cancelled it, so "Saved" (and on
+   the old toast, a fall-through "Couldn't save - try again") stayed on screen for good - 4 of 4 runs on /dashboard
+   after the timezone PATCH. bddb5980 moved the timer into its own effect keyed on the toast. */
+test('S5b. RACE: no setTimeout lives in the effect keyed on saveStatus, and the dismiss-timer effect does not depend on saveStatus', () => {
+  const effects = [...toastSrc.matchAll(/useEffect\(\(\) => \{([\s\S]*?)\n  \}, \[([^\]]*)\]\);/g)].map((m) => ({ body: m[1], deps: m[2].split(',').map((d) => d.trim()) }));
+  assert.ok(effects.length >= 1, 'CONTROL: no useEffect parsed - the effect shape changed, re-read the component');
+  const onStatus = effects.filter((e) => e.deps.includes('saveStatus'));
+  assert.equal(onStatus.length, 1, 'expected exactly one effect keyed on saveStatus');
+  assert.doesNotMatch(onStatus[0].body, /setTimeout/, 'a timer is back inside the [saveStatus] effect - the provider\'s idle reset will cancel it');
+  const timed = effects.filter((e) => /setTimeout/.test(e.body));
+  assert.equal(timed.length, 1, 'expected exactly one effect that starts the dismiss timer');
+  assert.ok(!timed[0].deps.includes('saveStatus'), 'the dismiss-timer effect depends on saveStatus - the provider\'s idle reset will cancel it');
+  assert.deepEqual(timed[0].deps, ['toast'], 'the dismiss-timer effect is no longer keyed on the toast state alone');
 });
 
 test('S6. the FAB-hiding workaround is gone from the toast - the toast no longer shares a corner with the Ask AI button', () => {
@@ -82,10 +98,10 @@ test('S8b. roles: the error is role="alert" (announced at once), every other sta
 });
 
 test('S8c. "Try again" re-sends through the provider\'s retrySave, and the X has its own accessible name', () => {
-  anchorOnce(toastSrc, "onClick={() => { setShown('saving'); retrySave(); }}", 'the retry handler');
+  anchorOnce(toastSrc, "onClick={() => { setToast(prev => ({ shown: 'saving', seq: (prev?.seq ?? 0) + 1 })); retrySave(); }}", 'the retry handler');
   anchorOnce(toastSrc, "{t('SETTINGS_SAVE_RETRY_BUTTON')}", 'the retry label');
   anchorOnce(toastSrc, "aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')}", 'the dismiss X accessible name');
-  anchorOnce(toastSrc, 'onClick={() => setShown(null)}', 'the dismiss handler');
+  anchorOnce(toastSrc, 'onClick={() => setToast(null)}', 'the dismiss handler');
 });
 
 test('S8d. the provider keeps the failed patch and retrySave re-sends exactly that patch through flushToDb; the type is in lib/settings.ts', () => {
