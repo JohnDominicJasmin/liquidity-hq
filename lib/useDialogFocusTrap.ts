@@ -73,6 +73,18 @@ export function useDialogFocusTrap<T extends HTMLElement>(
       const els = focusables();
       if (!els.length) return;
       const first = els[0], last = els[els.length - 1];
+      // QA, #1499: focus is on no control at all - the one that had it was removed or
+      // disabled (focus falls back to <body>), or it is parked on the dialog root. From
+      // there the browser's own Tab can land on the page BEHIND the dialog: Shift+Tab from
+      // the root always does (measured in Chromium), and from <body> it depends on where
+      // the browser last left its starting point. So step in explicitly. Focus on some
+      // other real element outside this dialog is left alone - that is another dialog's.
+      const active = document.activeElement;
+      if (!active || active === document.body || active === container) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
       // Wrap rather than let Tab escape the dialog into the page behind it.
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();

@@ -344,7 +344,9 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
                     type="button"
                     className={`strat-chip${on ? ' on' : ''}${blocked ? ' blocked' : ''}${usable ? '' : ' notyet'}`}
                     aria-pressed={usable ? on : undefined}
-                    aria-disabled={usable ? undefined : true}
+                    /* Blocked (past the limit) is disabled to assistive tech too, while
+                       staying focusable (see onClick below) - PM/DevOps, #1495. */
+                    aria-disabled={usable && !blocked ? undefined : true}
                     /* The reason is in the NAME, not a title. A dimmed chip that
                        announces identically to a working one is the mouse-only
                        `title` problem again, one screen over - and `title` is
@@ -381,6 +383,10 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
                   >
                     {on && <span className="strat-n" aria-hidden="true">{pos + 1}</span>}
                     {entry.label}
+                    {/* The same lock Settings puts on a locked timeframe: text alone
+                        could not tell a blocked chip from an enabled one once both
+                        were raised to --txt3 for contrast (#1495). */}
+                    {blocked && <span className="strat-chip-lock" aria-hidden="true">🔒</span>}
                   </button>
                 );
               })}
