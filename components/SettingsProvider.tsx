@@ -39,6 +39,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // #1285: 'conflict' joins the set - a save the server accepted but that lost
   // one or more fields to a newer write from another device (see lib/settings.ts).
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>('idle');
+  /** The patch of the last save that failed every attempt, for retrySave(). */
+  const lastFailedRef = useRef<Partial<UserSettings> | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef  = useRef<Partial<UserSettings> | null>(null);
@@ -61,6 +63,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // costs nothing - it depends on `user`, which is already available here.
   const flushToDb = useCallback(async (partial: Partial<UserSettings>) => {
     if (!user) return;
+    lastFailedRef.current = null;
     setSaveStatus('saving');
 
     // getAuthToken(), not a raw getSession() - #1168. Every settings save in
@@ -162,9 +165,21 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
        before this ever ran) - #1188 part 3's applyDbSettings below is what
        stops the next sign-in's DB read from silently overwriting them with
        the stale value this save was trying to replace. */
+    lastFailedRef.current = partial;
     setSaveStatus('error');
     setTimeout(() => setSaveStatus('idle'), 3000);
   }, [user]);
+
+  /* The save toast's "Try again" (#1498): the toast keeps an error on screen
+     until the visitor acts, so this re-sends exactly the patch that failed.
+     Its keys are still in the unconfirmed set (update() put them there), so
+     a retry that fails again leaves them protected the same way. */
+  const retrySave = useCallback(() => {
+    const failed = lastFailedRef.current;
+    if (!failed) return;
+    lastFailedRef.current = null;
+    void flushToDb(failed);
+  }, [flushToDb]);
 
   // Applies a DB-confirmed row without letting it silently overwrite a field
   // this browser has an unconfirmed local write for - #1188 part 3. Shared by
@@ -413,8 +428,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // setting actually changed. update/refresh/flushToDb are already useCallback'd,
   // so the identity is stable until the values genuinely move.
   const value = useMemo(
-    () => ({ settings, loading, settingsLoadStatus, saveStatus, update, refresh }),
-    [settings, loading, settingsLoadStatus, saveStatus, update, refresh],
+    () => ({ settings, loading, settingsLoadStatus, saveStatus, update, refresh, retrySave }),
+    [settings, loading, settingsLoadStatus, saveStatus, update, refresh, retrySave],
   );
 
   return (
