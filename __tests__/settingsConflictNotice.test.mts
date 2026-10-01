@@ -33,12 +33,31 @@ test('S1. saveStatus\'s type includes conflict, distinct from error, in both the
 
 test('S2. a save with rejected fields sets conflict, not error - and that branch runs only inside the SUCCESS path (a real network/attempt failure below still uses \'error\', which is correct and untouched by this fix)', () => {
   const successAt = anchorOnce(provider, "setSaveStatus(result.rejected.length > 0 ? 'conflict' : 'saved');", 'the success-path status branch');
-  const failureAt = anchorOnce(provider, "setSaveStatus('error');", 'the genuine-failure status set');
+  /* Two 'error' sets since the #1503 follow-up: the signed-out retry (before the request) and the genuine failure
+     after every attempt. The genuine one is the one right after the failed patch is kept. */
+  const failureAt = anchorOnce(provider, "lastFailedRef.current = partial;\n    setSaveStatus('error');", 'the genuine-failure status set');
   assert.ok(successAt < failureAt, 'the real-failure setSaveStatus(\'error\') comes before the success-path branch - order changed');
 });
 
-test('S3. the provider clears the status after the SAME 3000/2000ms split the toast\'s own visibility timer uses - a conflict and an error get equal screen time', () => {
-  anchorOnce(provider, "setTimeout(() => setSaveStatus('idle'), result.rejected.length > 0 ? 3000 : 2000);", 'the status-clear timeout');
+test('S3. the provider returns to idle after 3000ms for conflict and error, 2000ms for saved, through ONE timer helper', () => {
+  anchorOnce(provider, "settleToIdle(result.rejected.length > 0 ? 3000 : 2000);", 'the success-path idle timer');
+  anchorOnce(provider, "    setSaveStatus('error');\n    settleToIdle(3000);", 'the failure-path idle timer');
+  assert.doesNotMatch(provider, /setTimeout\(\(\) => setSaveStatus\('idle'\)/, 'a bare idle timer is back - nothing can cancel it, and it resets a retry mid-flight');
+});
+
+/* #1503 follow-up (QA): the failure's own 3s idle timer used to fire during a retry started within 3s, clearing the
+   retry's "Saving…" mid-flight. The timer now lives in a ref; a newer result replaces it and a new save cancels it. */
+test('S3b. ONE pending idle timer: settleToIdle replaces the previous one, and a new save cancels it before "Saving…"', () => {
+  anchorOnce(provider, 'const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);', 'the idle-timer ref');
+  anchorOnce(provider, "if (idleTimerRef.current) clearTimeout(idleTimerRef.current);\n    idleTimerRef.current = setTimeout(() => { idleTimerRef.current = null; setSaveStatus('idle'); }, ms);", 'settleToIdle replaces the pending timer');
+  const cancelAt = anchorOnce(provider, "if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }", 'a new save cancels the pending timer');
+  const savingAt = provider.indexOf("setSaveStatus('saving');", cancelAt);
+  assert.ok(savingAt > cancelAt && savingAt - cancelAt < 120, 'the cancel no longer sits right before setSaveStatus(\'saving\') - a stale timer can reset the new save');
+});
+
+test('S3c. a toast retry while signed out ends in error, not a silent return that leaves "Saving…" on screen; an ordinary signed-out save still returns quietly', () => {
+  anchorOnce(provider, "if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; setSaveStatus('error'); settleToIdle(3000); } return; }", 'the signed-out branch');
+  anchorOnce(provider, 'retryingRef.current = true;\n    void flushToDb(failed);', 'retrySave marks the retry before flushing');
 });
 
 /* ══ SettingsSaveToast.tsx: the render ═══════════════════════════════════════════════════════════════ */
@@ -105,9 +124,9 @@ test('S8c. "Try again" re-sends through the provider\'s retrySave, and the X has
 });
 
 test('S8d. the provider keeps the failed patch and retrySave re-sends exactly that patch through flushToDb; the type is in lib/settings.ts', () => {
-  const failAt = anchorOnce(provider, 'lastFailedRef.current = partial;', 'the failed patch is kept');
-  const errAt = anchorOnce(provider, "setSaveStatus('error');", 'the failure status');
-  assert.ok(failAt < errAt, 'the failed patch is stored after the error status is set - a fast click could retry nothing');
+  /* One anchor for both lines: the patch is kept on the line BEFORE the error is shown, so a fast click on
+     "Try again" always has something to re-send. */
+  anchorOnce(provider, "lastFailedRef.current = partial;\n    setSaveStatus('error');", 'the failed patch is kept before the failure status');
   anchorOnce(provider, 'void flushToDb(failed);', 'retrySave re-sends the failed patch');
   anchorOnce(settingsLib, 'retrySave:  () => void;', 'the context type');
   assert.match(provider, /\[settings, loading, settingsLoadStatus, saveStatus, update, refresh, retrySave\]/, 'retrySave is missing from the context value\'s deps');
