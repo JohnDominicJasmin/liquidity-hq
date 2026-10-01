@@ -286,36 +286,42 @@ export async function GET(req: NextRequest) {
     return r.json();
   };
 
+  /* BOUNDARY-ALIGNED EXPIRY for closed-candle callers (#325), FLOORED.
+   *
+   * ttlFor is a stopwatch unrelated to the data: on a 4h chart it expires 16
+   * times per candle to observe one change, and since #316 the signal path
+   * recomputes ON the close and then gets a response up to 15 minutes old.
+   *
+   * A bypass is the wrong fix - candle close is a global event, so the moment
+   * you would bypass is the moment the cache matters most.
+   *
+   * THE FIRST ATTEMPT AT THIS GOT BOTH NON-PROD ENVIRONMENTS BANNED. Without
+   * a floor the TTL bottoms out at CLOSE_SKEW_MS just before any close - four
+   * seconds, on every interval, at exactly the instant #316 synchronises
+   * clients onto. Binance replied 418.
+   *
+   * closedCandleTtl takes the MAXIMUM of the boundary distance and the
+   * caller's existing TTL, so this can only ever lengthen the cache. More
+   * upstream traffic than the pre-#325 baseline is impossible by
+   * construction rather than by anyone remembering.
+   *
+   * OPT-IN: it cannot apply globally. Anything wanting the forming bar to
+   * keep moving must not be pinned to the last close. Distinct cache key so a
+   * boundary-aligned entry is never served to a default caller. Falls back
+   * entirely for intervals with no computable boundary (W, M).
+   *
+   * Declared outside the try so the Bybit stand-in in the catch keeps the
+   * same closed/live split (#1515 follow-up): before, its key had no closed
+   * tag, so a closed=1 request and a live one shared one stand-in entry. */
+  const closedOnly = q.get('closed') === '1';
+  const ivMs = closedOnly ? intervalToMs(interval) : null;
+  const ttl = ivMs != null
+    ? closedCandleTtl(ivMs, ttlFor(interval), Date.now())
+    : ttlFor(interval);
+  const closedTag = ivMs != null ? ':closed' : '';
+
   try {
-    /* BOUNDARY-ALIGNED EXPIRY for closed-candle callers (#325), FLOORED.
-     *
-     * ttlFor is a stopwatch unrelated to the data: on a 4h chart it expires 16
-     * times per candle to observe one change, and since #316 the signal path
-     * recomputes ON the close and then gets a response up to 15 minutes old.
-     *
-     * A bypass is the wrong fix - candle close is a global event, so the moment
-     * you would bypass is the moment the cache matters most.
-     *
-     * THE FIRST ATTEMPT AT THIS GOT BOTH NON-PROD ENVIRONMENTS BANNED. Without
-     * a floor the TTL bottoms out at CLOSE_SKEW_MS just before any close - four
-     * seconds, on every interval, at exactly the instant #316 synchronises
-     * clients onto. Binance replied 418.
-     *
-     * closedCandleTtl takes the MAXIMUM of the boundary distance and the
-     * caller's existing TTL, so this can only ever lengthen the cache. More
-     * upstream traffic than the pre-#325 baseline is impossible by
-     * construction rather than by anyone remembering.
-     *
-     * OPT-IN: it cannot apply globally. Anything wanting the forming bar to
-     * keep moving must not be pinned to the last close. Distinct cache key so a
-     * boundary-aligned entry is never served to a default caller. Falls back
-     * entirely for intervals with no computable boundary (W, M). */
-    const closedOnly = q.get('closed') === '1';
-    const ivMs = closedOnly ? intervalToMs(interval) : null;
-    const ttl = ivMs != null
-      ? closedCandleTtl(ivMs, ttlFor(interval), Date.now())
-      : ttlFor(interval);
-    const key = `klines:${source}:${symbol}:${interval}:${limit}${ivMs != null ? ':closed' : ''}`;
+    const key = `klines:${source}:${symbol}:${interval}:${limit}${closedTag}`;
     const raw = isRange
       ? await fetchUpstream()
       : await cached(key, ttl, fetchUpstream, { failTtlMs: KLINES_FAIL_TTL_MS });
@@ -356,7 +362,7 @@ export async function GET(req: NextRequest) {
       const bbSymbol = coin ? BYBIT_SYMS[coin] : undefined;
       if (coin && bbSymbol && bbInterval) {
         try {
-          const fallbackKey = `klines:${source}:bybit-fallback:${symbol}:${interval}:${limit}`;
+          const fallbackKey = `klines:${source}:bybit-fallback:${symbol}:${interval}:${limit}${closedTag}`;
           const fallbackFetch = async () => {
             const fbUrl = new URL(UPSTREAM.bybit);
             fbUrl.searchParams.set('category', 'linear');
@@ -395,6 +401,14 @@ export async function GET(req: NextRequest) {
           // every caller sharing this bucket during a sustained Binance
           // outage collapses onto one Bybit fetch rather than each one
           // hammering Bybit the same way the outage started with Binance.
+          // The key keeps closed and live apart, like the main key, but the
+          // TTL stays ttlFor and not the closed `ttl`. cached() checks an
+          // entry's age against the TTL of the request READING it, and the
+          // closed TTL is "time to the next close" from now - so just after
+          // a close it is ~one whole interval again and an entry written
+          // before the close is still served (measured on a 4h main closed
+          // entry: written 03:50, served at 04:00, 04:30 and 05:00, refetched
+          // at 05:56). ttlFor bounds a stand-in's age at 15 minutes.
           // Same failure hold too (#1404): an empty list is a rejection
           // (above), so it is held as a failure for KLINES_FAIL_TTL_MS and
           // then retried - never stored as candles.
