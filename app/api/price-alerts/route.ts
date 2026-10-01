@@ -33,16 +33,33 @@ export async function GET(req: NextRequest) {
   const user = await getUser(token);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data, error } = await sb(token)
-    .from(T.price_alerts)
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('active', true)
-    .order('created_at', { ascending: false })
-    .limit(100);
-
-  if (error) return apiError('price-alerts', error);
-  return NextResponse.json({ alerts: data ?? [] });
+  /* EVERY ACTIVE ALERT, NOT THE NEWEST 100 (#1152). This read used to stop at
+     `.limit(100)` while creating alerts has no cap ("Unlimited price alerts"),
+     so a Pro account with more than 100 could neither see nor delete the
+     older ones, which kept firing. It now pages through in PAGE-row ranges
+     (PostgREST answers at most 1000 rows per request, so one plain read cannot
+     return more than that either), ordered by created_at then id so a page
+     boundary never skips or repeats a row.
+     MAX_ALERTS is a sanity bound on one response, not a product limit:
+     10,000 is far past any real account (production has none today), and
+     `truncated` says so if it is ever reached instead of silently cutting. */
+  const PAGE = 1000;
+  const MAX_ALERTS = 10_000;
+  const alerts: unknown[] = [];
+  for (let from = 0; from < MAX_ALERTS; from += PAGE) {
+    const { data, error } = await sb(token)
+      .from(T.price_alerts)
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('active', true)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) return apiError('price-alerts', error);
+    alerts.push(...(data ?? []));
+    if ((data?.length ?? 0) < PAGE) return NextResponse.json({ alerts, truncated: false });
+  }
+  return NextResponse.json({ alerts, truncated: true });
 }
 
 export async function POST(req: NextRequest) {
