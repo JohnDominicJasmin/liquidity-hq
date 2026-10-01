@@ -217,6 +217,9 @@ export default function SettingsPage() {
     if (pushWorking) return;
     setPushWorking(true);
     setPushError(false);
+    // The caption says "Couldn't turn on", so only a failed turn-ON may show it
+    // (QA, #1499). A failed turn-off leaves the toggle on, which is the truth.
+    const turningOn = !pushEnabled;
     try {
       if (pushEnabled) {
         // Unsubscribe
@@ -268,7 +271,7 @@ export default function SettingsPage() {
       }
     } catch (e) {
       console.error('Push toggle error:', e);
-      setPushError(true);
+      if (turningOn) setPushError(true);
     } finally {
       setPushWorking(false);
     }

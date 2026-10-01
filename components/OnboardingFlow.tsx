@@ -110,17 +110,19 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
         onClick={() => setOpen(o => !o)}
         aria-haspopup="true"
         aria-expanded={open}
-        aria-labelledby="obw-country-label"
+        /* Label AND value (QA, #1499): naming the button by its label alone
+           dropped the chosen country, so a screen reader heard only "Country". */
+        aria-labelledby="obw-country-label obw-country-value"
         className={`obw-select ${value ? 'is-selected' : 'is-empty'}`}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           {selected ? (
             <>
               <span style={{ fontSize: '1.25rem', flexShrink: 0, lineHeight: 1 }}>{selected.flag}</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
+              <span id="obw-country-value" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
             </>
           ) : (
-            <span>{t('ONBOARDING_FLOW_SELECT_COUNTRY_PLACEHOLDER')}</span>
+            <span id="obw-country-value">{t('ONBOARDING_FLOW_SELECT_COUNTRY_PLACEHOLDER')}</span>
           )}
         </span>
         <svg
