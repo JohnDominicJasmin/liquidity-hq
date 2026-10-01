@@ -26,6 +26,10 @@ export function activatable(onActivate: () => void, expanded?: boolean) {
     ...(expanded === undefined ? {} : { 'aria-expanded': expanded }),
     onClick: onActivate,
     onKeyDown: (e: KeyboardEvent) => {
+      /* Only for a key pressed ON the row itself (#1309 item 5, R-26/R-32). keydown bubbles, so Enter on a
+         button INSIDE the row (Delete conversation, Dismiss setup checklist) used to reach this handler,
+         which preventDefault'd it - cancelling the button's own click - and activated the row instead. */
+      if (e.target !== e.currentTarget) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         onActivate();
