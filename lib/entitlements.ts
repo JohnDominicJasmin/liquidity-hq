@@ -129,3 +129,19 @@ export async function getRoleFromRequestToken(token: string | null): Promise<Rol
   if (!userId) return 'free';
   return getUserRole(token, userId);
 }
+
+// getEntitlementStatus() for a route that serves anyone but withholds the Pro
+// part (#1263, /api/market/rsi). No token, or a token that resolves to no
+// user, is 'not_entitled': there is no account to be Pro. Only a read that
+// throws is 'unknown', for the same #1119 reason getEntitlementStatus() gives.
+export async function getEntitlementStatusFromRequestToken(token: string | null | undefined): Promise<EntitlementStatus> {
+  if (!token) return 'not_entitled';
+  try {
+    const { data } = await sb(token).auth.getUser();
+    const userId = data.user?.id;
+    if (!userId) return 'not_entitled';
+    return await getEntitlementStatus(token, userId);
+  } catch {
+    return 'unknown';
+  }
+}
