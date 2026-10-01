@@ -90,7 +90,11 @@ export default function SettingsPage() {
   const { t } = useLabels();
   const { user, loading: authLoading, signOut, entitlementStatus } = useAuth();
   const { settings, update } = useSettings();
-  const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured' | 'error'>('loading');
+  // Held WITH the account it was read for (QA, #1499): when the signed-in user changes, the
+  // previous account's answer used to stay on screen until the new read landed. Anyone
+  // else's answer now reads as 'loading'.
+  const [tgRead, setTgRead] = useState<{ uid: string; status: 'configured' | 'not_configured' | 'error' } | null>(null);
+  const tgStatus = tgRead && tgRead.uid === user?.id ? tgRead.status : 'loading';
   // Bumped by the "Couldn't check" retry, to re-run the status read below (QA, #1499).
   const [tgAttempt, setTgAttempt] = useState(0);
   const tgRetried  = useRef(false);
@@ -175,6 +179,7 @@ export default function SettingsPage() {
   // set up that it wasn't, on a network blip.
   useEffect(() => {
     if (authLoading || !user) return;
+    const uid = user.id;
     let cancelled = false;
     (async () => {
       try {
@@ -184,10 +189,10 @@ export default function SettingsPage() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const d = await res.json() as { configured?: unknown };
         if (typeof d.configured !== 'boolean') throw new Error('malformed status response');
-        if (!cancelled) setTgStatus(d.configured ? 'configured' : 'not_configured');
+        if (!cancelled) setTgRead({ uid, status: d.configured ? 'configured' : 'not_configured' });
       } catch (e) {
         console.error('[settings] telegram status check failed:', e);
-        if (!cancelled) setTgStatus('error');
+        if (!cancelled) setTgRead({ uid, status: 'error' });
       }
     })();
     return () => { cancelled = true; };
@@ -196,7 +201,7 @@ export default function SettingsPage() {
   // "Couldn't check" was a dead end short of reloading the page (QA, #1499).
   function retryTgStatus() {
     tgRetried.current = true;
-    setTgStatus('loading');
+    setTgRead(null);
     setTgAttempt(n => n + 1);
   }
 
