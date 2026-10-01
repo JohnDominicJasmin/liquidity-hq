@@ -1574,6 +1574,15 @@ function ArenaContent() {
         }).then(() => {});
       }
     } catch (e: unknown) {
+      /* #1263: the server refuses a fast-timeframe read for a free account (403 PRO_REQUIRED) -
+         reachable when the plan read here came back 'unknown' and the clamp above held the
+         timeframe. A locked feature, not a failure: labelled banner plus the same upgrade modal
+         a tap on a gated timeframe opens (handleTfChange), instead of the raw code. */
+      if ((e as { code?: string }).code === 'PRO_REQUIRED') {
+        setReadError(t('SETTINGS_TF_PRO_ONLY'));
+        setUpgradeGate(t(TF_FEATURE_LABEL_KEYS[readTf] ?? 'ARENA_TF_LABEL_FALLBACK'));
+        return;
+      }
       const msg = e instanceof Error ? e.message : t('ARENA_ERROR_UNKNOWN');
       setReadError(msg);
       // If rate limit error, update usage display so the chip reflects the limit

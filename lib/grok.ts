@@ -40,6 +40,12 @@ export async function callGrokViaProxy(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: string; code?: string; usage?: GrokUsageInfo };
+    // The Pro gate (#1263) answers 403 { error: 'PRO_REQUIRED', message } with the code in
+    // `error`, not `code`. Passed on as a code so the caller can show its own labelled locked
+    // state - used as the message it reached Arena's banner as the raw text "PRO_REQUIRED".
+    if (res.status === 403 && err.error === 'PRO_REQUIRED') {
+      throw Object.assign(new Error('PRO_REQUIRED'), { code: 'PRO_REQUIRED', usage: err.usage });
+    }
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
       : err.error ?? 'Grok proxy error';
