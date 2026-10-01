@@ -13,46 +13,79 @@ import { useLabels } from '@/lib/labels';
  * nav - failed with zero visible signal: saveStatus flipped to 'error' in
  * context with nothing listening. This is the "8 of 9 call sites show nothing"
  * half of #1188, not the reconciliation half - that is still open, tracked on
- * #1188, and this does not close it. A save that still fails after the retry
- * in SettingsProvider.tsx now at least tells the user; it does not stop the
- * next sign-in from silently reverting the value if that retry also failed.
+ * #1188, and this does not close it.
  *
- * `position: fixed` in the shared `.st-save-toast` CSS class means moving the
- * mount point from inline on /settings to app-wide here is a no-op visually -
- * same corner, same look, just reachable from any route now. */
+ * TOP-CENTRE, UNDER THE TOP BAR (owner, 2026-10-01, #1498). It used to sit in
+ * the bottom-right corner, where the Ask AI button and, on phones, the tab bar
+ * already are; the owner rejected it overlapping both. A save message is
+ * passive status, so it now sits where the app already shows status, under the
+ * top bar, and cannot collide with the FAB or the tab bar by construction. The
+ * old answer - hiding the FAB while the toast showed (body.settings-toast-open)
+ * and lifting the toast over the tab bar - is removed with it.
+ *
+ * States: "Saving…", "Saved" (2s) and "Updated from another device" (4s) are
+ * polite status; "Couldn't save" is an alert that stays until the visitor
+ * retries or dismisses it, because a failed save is the one they need to act
+ * on. None of them moves focus. */
+type Shown = 'saving' | 'saved' | 'conflict' | 'error';
+
 export default function SettingsSaveToast() {
-  const { saveStatus } = useSettings();
+  const { saveStatus, retrySave } = useSettings();
   const { t } = useLabels();
-  const [visible, setVisible] = useState(false);
+  /* `seq` restarts the dismiss timer when the same state arrives twice in a
+     row (two saves 1s apart each get their full 2s). */
+  const [toast, setToast] = useState<{ shown: Shown; seq: number } | null>(null);
+  const shown = toast?.shown ?? null;
+
   useEffect(() => {
-    if (saveStatus === 'saved' || saveStatus === 'error' || saveStatus === 'conflict') {
-      setVisible(true);
-      // #1285: the provider already clears saveStatus back to 'idle' after
-      // 3000ms for 'conflict' (same window as 'error') - this timer only
-      // controls the toast's own visibility and must not outlive that, or a
-      // second conflict landing inside the gap would show nothing.
-      const timer = setTimeout(() => setVisible(false), saveStatus === 'saved' ? 2000 : 3000);
-      return () => clearTimeout(timer);
+    if (saveStatus === 'saving' || saveStatus === 'error' || saveStatus === 'saved' || saveStatus === 'conflict') {
+      setToast(prev => ({ shown: saveStatus, seq: (prev?.seq ?? 0) + 1 }));
+      return;
     }
-    if (saveStatus === 'saving') setVisible(true);
+    // 'idle': the provider resets on its own timer. An error stays on screen
+    // until acted on, and Saved / Updated leave on THEIR timer below; only a
+    // "Saving…" that ended without a result is cleared here.
+    setToast(prev => (prev?.shown === 'saving' ? null : prev));
   }, [saveStatus]);
-  // Found reviewing #1292's own release screenshot, not in the code: this
-  // toast and the Ask AI FAB share the same bottom-right corner, and the
-  // FAB (z-index 9995) sits on top of the toast's text - "Updated from
-  // another de[FAB]" - defeating the whole point of a toast the user is
-  // meant to read. Same pattern this file's header comment already links to
-  // for PWA-prompt-vs-FAB (body.pwa-prompt-open); reusing it here rather
-  // than computing an offset keeps the fix consistent with that precedent
-  // and needs no separate mobile safe-area math.
+
+  /* The dismiss timer keys on the toast itself, NOT on saveStatus (QA, #1498).
+     The provider resets saveStatus to 'idle' at 2s ('saved') or 3s, which is
+     at or before these timers fire. When the timer lived in the saveStatus
+     effect, that reset ran the effect's cleanup, cancelled the timer, and
+     "Saved" stayed on screen for good. */
   useEffect(() => {
-    document.body.classList.toggle('settings-toast-open', visible);
-    return () => { document.body.classList.remove('settings-toast-open'); };
-  }, [visible]);
-  if (!visible) return null;
-  const cls = saveStatus === 'error' ? ' error' : saveStatus === 'conflict' ? ' conflict' : saveStatus === 'saving' ? ' saving' : '';
-  const text = saveStatus === 'saving' ? t('SETTINGS_STATUS_SAVING')
-    : saveStatus === 'saved' ? t('SETTINGS_STATUS_SAVED')
-    : saveStatus === 'conflict' ? t('SETTINGS_STATUS_CONFLICT')
-    : t('SETTINGS_STATUS_FAILED');
-  return <div className={`st-save-toast${cls}`}>{text}</div>;
+    if (!toast || (toast.shown !== 'saved' && toast.shown !== 'conflict')) return;
+    const { seq } = toast;
+    const timer = setTimeout(() => setToast(cur => (cur?.seq === seq ? null : cur)), toast.shown === 'saved' ? 2000 : 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  if (!shown) return null;
+
+  if (shown === 'error') {
+    return (
+      <div className="st-save-toast error" role="alert">
+        <svg className="st-save-toast-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <span className="st-save-toast-text">{t('SETTINGS_SAVE_FAILED_TITLE')}</span>
+        <button type="button" className="st-save-toast-retry" onClick={() => { setToast(prev => ({ shown: 'saving', seq: (prev?.seq ?? 0) + 1 })); retrySave(); }}>
+          {t('SETTINGS_SAVE_RETRY_BUTTON')}
+        </button>
+        <button type="button" className="st-save-toast-close" onClick={() => setToast(null)} aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')} title={t('SETTINGS_SAVE_DISMISS_ARIA')}>
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  const cls = shown === 'conflict' ? ' conflict' : shown === 'saving' ? ' saving' : '';
+  const text = shown === 'saving' ? t('SETTINGS_STATUS_SAVING')
+    : shown === 'saved' ? t('SETTINGS_STATUS_SAVED')
+    : t('SETTINGS_STATUS_CONFLICT');
+  return (
+    <div className={`st-save-toast${cls}`} role="status" aria-live="polite">
+      <span className="st-save-toast-text">{text}</span>
+    </div>
+  );
 }
