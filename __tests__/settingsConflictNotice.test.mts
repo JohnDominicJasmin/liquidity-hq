@@ -55,8 +55,8 @@ test('S3b. ONE pending idle timer: settleToIdle replaces the previous one, and a
   assert.ok(savingAt > cancelAt && savingAt - cancelAt < 120, 'the cancel no longer sits right before setSaveStatus(\'saving\') - a stale timer can reset the new save');
 });
 
-test('S3c. a toast retry while signed out ends in error, not a silent return that leaves "Saving…" on screen; an ordinary signed-out save still returns quietly', () => {
-  anchorOnce(provider, "if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; setSaveStatus('error'); settleToIdle(3000); } return; }", 'the signed-out branch');
+test('S3c. a toast retry while signed out ends in error (not "Saving…" left on screen) and puts the failed change BACK, so a second "Try again" still has it to send; an ordinary signed-out save still returns quietly', () => {
+  anchorOnce(provider, "if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; lastFailedRef.current = partial; setSaveStatus('error'); settleToIdle(3000); } return; }", 'the signed-out branch');
   anchorOnce(provider, 'retryingRef.current = true;\n    void flushToDb(failed);', 'retrySave marks the retry before flushing');
 });
 
