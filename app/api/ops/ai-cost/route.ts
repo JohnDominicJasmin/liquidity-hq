@@ -3,6 +3,7 @@ import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { estimateRowCostUsd, revenuePerMonthUsd, recordedPlan, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
+import { selectAllRows } from '@/lib/selectAllRows';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,14 @@ export const GET = withAdmin(async () => {
   const now = Date.now();
   const since14 = new Date(now - 14 * DAY).toISOString();
 
-  // System calls, last 14 days.
-  const { data: logs, error: logsErr } = await admin.from(T.alert_grok_log)
-    .select('called_at, signal_type')
-    .gte('called_at', since14)
-    .order('called_at', { ascending: false })
-    .limit(5000);
+  // System calls, last 14 days. Paged (#1397): PostgREST answers at most 1000
+  // rows per request and clamps without an error - the old `.limit(5000)` was
+  // clamped to 1000 too - so the 7-day and 14-day call counts stopped at the
+  // newest 1000 calls. Ordered by id, the bigserial primary key.
+  const { data: logs, error: logsErr, truncated: logsTruncated } = await selectAllRows('ops:ai-cost:alert_grok_log', 'id', () =>
+    admin.from(T.alert_grok_log)
+      .select('called_at, signal_type')
+      .gte('called_at', since14));
   if (logsErr) return NextResponse.json({ error: logsErr.message }, { status: 500 });
 
   const perDayMap = new Map<string, number>();
@@ -57,14 +60,21 @@ export const GET = withAdmin(async () => {
   const today = new Date(now).toISOString().slice(0, 10);
   const since30Date = new Date(now - 30 * DAY).toISOString().slice(0, 10);
   const since7Date = new Date(now - 7 * DAY).toISOString().slice(0, 10);
-  const [{ data: usage, error: usageErr }, { data: subs }, { data: globalToday }] = await Promise.all([
-    admin.from(T.grok_usage).select('*').gte('date', since30Date),
+  const [{ data: usage, error: usageErr, truncated: usageTruncated }, { data: subs }, { data: globalToday }] = await Promise.all([
+    // Paged (#1397): one row per user per day, so a plain read stopped at 1000
+    // user-days and every $ total and call count below came out short.
+    // Ordered by (user_id, date), the primary key.
+    selectAllRows('ops:ai-cost:grok_usage', ['user_id', 'date'], () =>
+      admin.from(T.grok_usage).select('*').gte('date', since30Date)),
     // Whole rows, not 'user_id, role, plan': `plan` (#1403) comes with
     // migration 20261001h, which is applied on its own schedule. Naming a
     // column the database does not have fails the whole read, and every account
     // would then show as Free. A whole row from a database without it simply
     // has no `plan`, which reads as "not recorded" - the monthly price, as before.
-    admin.from(T.user_subscriptions).select('*'),
+    // Paged (#1397): past 1000 accounts, a Pro top spender could fall outside
+    // the read and show as Free with no revenue.
+    selectAllRows('ops:ai-cost:user_subscriptions', 'user_id', () =>
+      admin.from(T.user_subscriptions).select('*')),
     admin.from(T.global_ai_usage).select('xai_call_count').eq('date', today).maybeSingle(),
   ]);
   if (usageErr) return NextResponse.json({ error: usageErr.message }, { status: 500 });
@@ -153,6 +163,9 @@ export const GET = withAdmin(async () => {
     topSpenders,
     cost: { global24h: globalCost24h, global7d: globalCost7d, global30d: globalCost30d },
     globalBreaker: { todayCalls, capCalls: globalCapCalls, spikeAlert },
+    // true only if a read reached selectAllRows' 10,000-row bound - the
+    // counts and $ above are then a minimum, and the AI cost card says so.
+    truncated: logsTruncated || usageTruncated,
     generatedAt: new Date(now).toISOString(),
   });
 });
