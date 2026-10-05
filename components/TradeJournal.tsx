@@ -288,7 +288,7 @@ function Inner() {
   const sp     = useSearchParams();
   const router = useRouter();
   const { t }  = useLabels();
-  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, entitlementsLoading, retryEntitlements, loading: authLoading } = useAuth();
 
   /* Shadow Account, Bias Diagnostics and Thesis Check all run on Pro-only
      endpoints (403 PRO_REQUIRED). Entitlement is one thing for all three, so
@@ -298,9 +298,19 @@ function Inner() {
      #1119: toolsLocked stays a CONFIRMED lock only (a real 403, or a
      confirmed not_entitled) - toolsUnknown is a separate, later-checked state
      so 'unknown' gets its own "couldn't verify" card instead of quietly
-     joining the locked branch. */
+     joining the locked branch.
+
+     #1263: entitlementStatus also reads 'not_entitled' while the plan is
+     still LOADING (AuthProvider: role defaults to free until the read
+     settles), and authLoading ends before that read does - so a Pro or trial
+     account saw these tabs locked for the plan-load window. Waiting for
+     entitlementsLoading too (the Arena's timeframe clamp guards the same way)
+     makes the lock act on the answer, not the placeholder. Until then the
+     tabs render as they already did during authLoading, and the run handlers
+     below leave it to the server's PRO_REQUIRED answer. */
   const [proLocked, setProLocked] = useState(false);
-  const toolsLocked  = proLocked || (!authLoading && entitlementStatus === 'not_entitled');
+  const confirmedNotEntitled = !entitlementsLoading && !authLoading && entitlementStatus === 'not_entitled';
+  const toolsLocked  = proLocked || confirmedNotEntitled;
   const toolsUnknown = !proLocked && !authLoading && entitlementStatus === 'unknown';
 
   const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'rules' | 'shadow' | 'bias' | 'thesis'>('log');
@@ -497,9 +507,10 @@ function Inner() {
   const runShadowAccount = async () => {
     // Pro-only server-side, so a free user's click never reaches it - show the
     // locked card instead of burning a round trip on a guaranteed 403.
-    // 'unknown' is not intercepted here (#1119) - let the real request answer
-    // via the PRO_REQUIRED check below rather than guessing locked.
-    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
+    // 'unknown' is not intercepted here (#1119), nor is a plan still loading
+    // (#1263) - let the real request answer via the PRO_REQUIRED check below
+    // rather than guessing locked.
+    if (confirmedNotEntitled) { setProLocked(true); return; }
     setShadowLoading(true);
     setShadowError(null);
     setShadowAnalysis(null);
@@ -535,9 +546,10 @@ function Inner() {
   /* Behavioral Bias runner */
   const runBiasAnalysis = async () => {
     // Pro-only server-side - same skip-the-round-trip reasoning as above.
-    // 'unknown' is not intercepted here (#1119) - let the real request answer
-    // via the PRO_REQUIRED check below rather than guessing locked.
-    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
+    // 'unknown' is not intercepted here (#1119), nor is a plan still loading
+    // (#1263) - let the real request answer via the PRO_REQUIRED check below
+    // rather than guessing locked.
+    if (confirmedNotEntitled) { setProLocked(true); return; }
     setBiasLoading(true);
     setBiasError(null);
     setBiasAnalysis(null);
@@ -602,9 +614,10 @@ function Inner() {
 
   const checkThesisHealth = async (thesis: TradeThesis) => {
     // Pro-only server-side - same skip-the-round-trip reasoning as above.
-    // 'unknown' is not intercepted here (#1119) - let the real request answer
-    // via the PRO_REQUIRED check below rather than guessing locked.
-    if (entitlementStatus === 'not_entitled') { setProLocked(true); return; }
+    // 'unknown' is not intercepted here (#1119), nor is a plan still loading
+    // (#1263) - let the real request answer via the PRO_REQUIRED check below
+    // rather than guessing locked.
+    if (confirmedNotEntitled) { setProLocked(true); return; }
     setCheckingThesisId(thesis.id);
     setThesisError(null);
     try {
@@ -731,11 +744,17 @@ function Inner() {
     await loadTrades();
   };
 
+  /* #1309 item 21: the row was removed from the screen whether or not the delete happened, so a failed delete
+     looked like a success until the next reload brought the trade back. Only a delete the database confirmed
+     removes it, and a failure says so. */
+  const [deleteFailed, setDeleteFailed] = useState(false);
   const deleteTrade = async (id: string) => {
     const db = getSupabase();
     if (!db) return;
     if (!confirm(t('TRADE_JOURNAL_CONFIRM_DELETE_TRADE'))) return;
-    await db.from(T.trades).delete().eq('id', id);
+    setDeleteFailed(false);
+    const { error } = await db.from(T.trades).delete().eq('id', id);
+    if (error) { setDeleteFailed(true); return; }
     setTrades(prev => prev.filter(tr => tr.id !== id));
   };
 
@@ -1062,6 +1081,11 @@ function Inner() {
       {/* ──────── HISTORY TAB ──────── */}
       {tab === 'history' && (
         <div>
+          {deleteFailed && (
+            <div role="alert" style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>
+              {t('TRADE_JOURNAL_NETWORK_ERROR')}
+            </div>
+          )}
           {loading && <LoadingState message={t('TRADE_JOURNAL_HISTORY_LOADING_MESSAGE')} />}
           {/* #1342: a read error shows retry, NOT the "no trades yet" empty state. */}
           {!loading && tradesError && (
@@ -1144,8 +1168,8 @@ function Inner() {
                       borderRadius: 4, padding: '2px 5px',
                     }}>{t('TRADE_JOURNAL_HISTORY_RULE_BADGE')}</span>
                   )}
-                  <button className="tj-edit-btn" data-testid="journal-edit" title={t('TRADE_JOURNAL_HISTORY_EDIT_TITLE')} onClick={() => editingId === trade.id ? setEditingId(null) : startEdit(trade)}>✎</button>
-                  <button className="tj-del-btn" onClick={() => trade.id && deleteTrade(trade.id)}>✕</button>
+                  <button className="tj-edit-btn" data-testid="journal-edit" title={t('TRADE_JOURNAL_HISTORY_EDIT_TITLE')} aria-label={t('TRADE_JOURNAL_HISTORY_EDIT_TITLE')} onClick={() => editingId === trade.id ? setEditingId(null) : startEdit(trade)}>✎</button>
+                  <button className="tj-del-btn" aria-label="Delete trade" onClick={() => trade.id && deleteTrade(trade.id)}>✕</button>
                 </div>
               </div>
 
@@ -1436,6 +1460,7 @@ function Inner() {
                     </div>
                     <button
                       onClick={() => deleteRule(r.id)}
+                      aria-label="Delete rule"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: '0.875rem', padding: '2px 4px', lineHeight: 1 }}
                     >✕</button>
                   </div>

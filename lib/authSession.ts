@@ -110,3 +110,65 @@ export async function forceSignOut(sb: SignOutCapable | null | undefined): Promi
   if (error) clearStoredSession();
   return error;
 }
+
+/* How long a password change may take before the form stops waiting (#1173).
+ *
+ * updateUser() is not just one request. It waits for supabase-js's single auth
+ * lock, then reads the session under it, refreshing the token first if it has
+ * expired - the same lock #1173 traced a blocked /auth/v1/token refresh
+ * holding forever. A second caller in the same tab queues behind the holder
+ * with no timeout of its own (lockAcquireTimeout only bounds the cross-tab
+ * Navigator lock). So when the session goes stale and the refresh never
+ * answers, both password forms spun forever: Settings → Password and
+ * /reset-password, the only two updateUser() callers.
+ *
+ * NOT SIGN_OUT_TIMEOUT_MS's 8s. This is a write that can legitimately take two
+ * round trips (a refresh, then PUT /user), and qa/staging run on the shared dev
+ * Supabase, where #1173 recorded a 9.7s auth outlier. A false timeout here is
+ * worse than on a read: the change may have landed while the form says it
+ * could not confirm it. Same 15s as AuthProvider's ENTITLEMENTS_FETCH_MS, for
+ * the same measured reason. A ceiling on a failure, not a target. */
+const PASSWORD_UPDATE_TIMEOUT_MS = 15000;
+
+/* Shown when the call timed out or threw instead of answering. "Couldn't
+ * confirm", not "failed": a request that outlived the bound may still have
+ * changed the password on the server. If it did, trying again gets GoTrue's
+ * own "should be different from the old password" error, which says so. */
+const PASSWORD_UPDATE_UNCONFIRMED = "Couldn't confirm your password change. Check your connection and try again.";
+
+type PasswordUpdateCapable = {
+  auth: { updateUser: (attributes: { password: string }) => Promise<{ error: { message: string } | null }> };
+};
+
+/**
+ * Set or change the signed-in user's password, and always answer.
+ *
+ * Same contract as updateUser() itself - `{ error }`, with null meaning the
+ * change succeeded - so a caller's existing error handling covers the timeout
+ * and the rejection too. A rejection matters as much as the hang: a lock error
+ * is thrown, not returned, and an `await` that throws skips the caller's
+ * setLoading(false) the same way one that never settles does.
+ *
+ * Only this function stops waiting; the request itself is not cancelled.
+ */
+export async function updatePassword(
+  sb: PasswordUpdateCapable,
+  password: string,
+): Promise<{ error: { message: string } | null }> {
+  // Cleared for the same reason as forceSignOut's timer above.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const { error } = await Promise.race([
+      sb.auth.updateUser({ password }),
+      new Promise<{ error: { message: string } }>(resolve => {
+        timer = setTimeout(() => resolve({ error: new Error(PASSWORD_UPDATE_UNCONFIRMED) }), PASSWORD_UPDATE_TIMEOUT_MS);
+      }),
+    ]);
+    return { error };
+  } catch (e) {
+    console.error('[auth] updateUser rejected:', e);
+    return { error: new Error(PASSWORD_UPDATE_UNCONFIRMED) };
+  } finally {
+    clearTimeout(timer);
+  }
+}

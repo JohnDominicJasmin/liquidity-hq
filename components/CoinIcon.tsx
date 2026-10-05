@@ -15,7 +15,9 @@ import { withAlpha } from '@/lib/color';
  * circular glyphs, <=24px) is what makes the terminal's 26px one wrong, and
  * only that call site is being corrected here. The frames keep their 16px
  * rail marks round, so this is not "squares everywhere". */
-export default function CoinIcon({ coin, size = 22, color, bg, square = false }: { coin: CoinId; size?: number; color?: string; bg?: string; square?: boolean }) {
+/* decorative: the icon sits next to the coin's own name (e.g. inside a button
+   labelled "BTC"), so alt="" keeps the accessible name from reading "btc BTC". */
+export default function CoinIcon({ coin, size = 22, color, bg, square = false, decorative = false }: { coin: CoinId; size?: number; color?: string; bg?: string; square?: boolean; decorative?: boolean }) {
   /* #703: a CLASS, not just the inline radius. The inline value cannot win -
      terminal's shells carry blanket `.<page>-root * { border-radius: 0
      !important }` rules, and no inline declaration beats !important. Removing
@@ -59,7 +61,7 @@ export default function CoinIcon({ coin, size = 22, color, bg, square = false }:
     <img
       className={cls}
       src={src}
-      alt={coin}
+      alt={decorative ? '' : coin}
       width={size}
       height={size}
       style={{ borderRadius: radius, flexShrink: 0, display: 'block' }}

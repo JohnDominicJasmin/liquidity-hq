@@ -15,6 +15,7 @@ export default function ThemeChips() {
         <button
           key={mode}
           className={`st-chip${theme === mode ? ' on' : ''}`}
+          aria-pressed={theme === mode}
           onClick={() => setTheme(mode)}
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>

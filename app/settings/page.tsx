@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { isGatedTf } from '@/lib/limits';
@@ -15,6 +15,7 @@ import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
+import { updatePassword } from '@/lib/authSession';
 import { subscriptionPanelView, futureDateOrNull, type SubPanelView } from '@/lib/subscriptionPanel';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
@@ -90,7 +91,22 @@ export default function SettingsPage() {
   const { t } = useLabels();
   const { user, loading: authLoading, signOut, entitlementStatus } = useAuth();
   const { settings, update } = useSettings();
-  const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
+  // Held WITH the account it was read for (QA, #1499): when the signed-in user changes, the
+  // previous account's answer used to stay on screen until the new read landed. Anyone
+  // else's answer now reads as 'loading'.
+  const [tgRead, setTgRead] = useState<{ uid: string; status: 'configured' | 'not_configured' | 'error' } | null>(null);
+  const tgStatus = tgRead && tgRead.uid === user?.id ? tgRead.status : 'loading';
+  // Bumped by the "Couldn't check" retry, to re-run the status read below (QA, #1499).
+  const [tgAttempt, setTgAttempt] = useState(0);
+  const tgRetried  = useRef(false);
+  const tgRetryRef = useRef<HTMLButtonElement>(null);
+  const tgLinkRef  = useRef<HTMLAnchorElement>(null);
+  // #1309 item 21: the push toggle used to flip to "on" whatever the server said.
+  const [pushError,    setPushError]    = useState(false);
+  // #1309 item 27: what the risk % field is showing while it is being edited, as TEXT.
+  // null = follow the saved number. A number-only value can't hold "0" on the way to
+  // "0.5": `settings.risk_pct || ''` blanked the field the moment a 0 was typed.
+  const [riskDraft,    setRiskDraft]    = useState<string | null>(null);
   const [pushEnabled,  setPushEnabled]  = useState(false);
   const [pushWorking,  setPushWorking]  = useState(false);
   const [testResult,   setTestResult]   = useState<'idle' | 'sent' | 'error'>('idle');
@@ -157,12 +173,47 @@ export default function SettingsPage() {
   const [pwError, setPwError]       = useState('');
   const [pwSaved, setPwSaved]       = useState(false);
 
-  // Fetch Telegram status on mount
+  // Fetch THIS user's Telegram status once auth has resolved (#1309 item 16). The
+  // route answers per user only when it gets a bearer token; without one it returns
+  // the server's own env-var configuration, so every user saw the same answer. And a
+  // failed check is its own state, not "Not configured": that told a user with Telegram
+  // set up that it wasn't, on a network blip.
   useEffect(() => {
-    fetch('/api/telegram/status').then(r => r.json())
-      .then(d => setTgStatus(d.configured ? 'configured' : 'not_configured'))
-      .catch(() => setTgStatus('not_configured'));
-  }, []);
+    if (authLoading || !user) return;
+    const uid = user.id;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAuthToken();
+        if (!token) throw new Error('no session token');
+        const res = await fetch('/api/telegram/status', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json() as { configured?: unknown };
+        if (typeof d.configured !== 'boolean') throw new Error('malformed status response');
+        if (!cancelled) setTgRead({ uid, status: d.configured ? 'configured' : 'not_configured' });
+      } catch (e) {
+        console.error('[settings] telegram status check failed:', e);
+        if (!cancelled) setTgRead({ uid, status: 'error' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authLoading, user?.id, tgAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Couldn't check" was a dead end short of reloading the page (QA, #1499).
+  function retryTgStatus() {
+    tgRetried.current = true;
+    setTgRead(null);
+    setTgAttempt(n => n + 1);
+  }
+
+  // Pressing retry swaps the button for the loading bar, which drops focus to <body>. If
+  // it is still there when the answer lands, put it on what took the button's place.
+  useEffect(() => {
+    if (!tgRetried.current || tgStatus === 'loading') return;
+    tgRetried.current = false;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    (tgStatus === 'error' ? tgRetryRef.current : tgLinkRef.current)?.focus();
+  }, [tgStatus]);
 
   // Detect current push subscription state
   useEffect(() => {
@@ -181,7 +232,9 @@ export default function SettingsPage() {
     setPwLoading(true);
     setPwError('');
     setPwSaved(false);
-    const { error } = await sb.auth.updateUser({ password: pwNew });
+    // Bounded (#1173): a stale session whose refresh never answers left this
+    // button spinning forever.
+    const { error } = await updatePassword(sb, pwNew);
     setPwLoading(false);
     if (error) { setPwError(friendlyAuthError(error.message)); return; }
     setPwNew(''); setPwConfirm('');
@@ -192,6 +245,10 @@ export default function SettingsPage() {
   async function handlePushToggle() {
     if (pushWorking) return;
     setPushWorking(true);
+    setPushError(false);
+    // The caption says "Couldn't turn on", so only a failed turn-ON may show it
+    // (QA, #1499). A failed turn-off leaves the toggle on, which is the truth.
+    const turningOn = !pushEnabled;
     try {
       if (pushEnabled) {
         // Unsubscribe
@@ -226,15 +283,24 @@ export default function SettingsPage() {
           applicationServerKey: vapidKey,
         });
         const token = await getAuthToken();
-        await fetch('/api/push/subscribe', {
+        const res = await fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: JSON.stringify(sub.toJSON()),
         });
+        if (!res.ok) {
+          // The server refused the subscription (#1309 item 21). Turning the toggle on
+          // anyway promised notifications that would never arrive, so drop the
+          // browser-side subscription too - both sides then agree it is off - and say so.
+          await sub.unsubscribe().catch(() => {});
+          throw new Error(`push subscribe rejected: HTTP ${res.status}`);
+        }
+        setPushError(false);
         setPushEnabled(true);
       }
     } catch (e) {
       console.error('Push toggle error:', e);
+      if (turningOn) setPushError(true);
     } finally {
       setPushWorking(false);
     }
@@ -488,10 +554,11 @@ export default function SettingsPage() {
                 type="number"
                 min="0.1"
                 max="10"
-                step="0.1"
+                step="any"
                 placeholder="1.5"
-                value={settings.risk_pct || ''}
-                onChange={e => update({ risk_pct: num(e.target.value) })}
+                value={riskDraft ?? (settings.risk_pct || '')}
+                onChange={e => { setRiskDraft(e.target.value); update({ risk_pct: num(e.target.value) }); }}
+                onBlur={() => setRiskDraft(null)}
               />
               <span className="st-affix st-suffix">%</span>
             </div>
@@ -504,7 +571,8 @@ export default function SettingsPage() {
             <button
               key={p}
               className={`st-preset${String(settings.risk_pct) === p || settings.risk_pct === parseFloat(p) ? ' on' : ''}`}
-              onClick={() => update({ risk_pct: parseFloat(p) })}
+              aria-pressed={String(settings.risk_pct) === p || settings.risk_pct === parseFloat(p)}
+              onClick={() => { setRiskDraft(null); update({ risk_pct: parseFloat(p) }); }}
             >
               {p}%
             </button>
@@ -554,6 +622,7 @@ export default function SettingsPage() {
                 <button
                   key={tf}
                   className={`st-chip${settings.default_tf === tf ? ' on' : ''}`}
+                  aria-pressed={settings.default_tf === tf}
                   onClick={() => { if (!locked) update({ default_tf: tf }); }}
                   disabled={locked}
                   title={locked ? t('SETTINGS_TF_PRO_ONLY') : undefined}
@@ -577,7 +646,9 @@ export default function SettingsPage() {
             <div>
               <div className="st-field-label" style={{ marginBottom: 2 }}>{t('SETTINGS_FIELD_PUSH_NOTIFICATIONS')}</div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-                {pushEnabled ? t('SETTINGS_PUSH_ACTIVE') : t('SETTINGS_PUSH_INACTIVE')}
+                {pushError
+                  ? <span role="alert" style={{ color: 'var(--red)' }}>{t('SETTINGS_PUSH_ENABLE_FAILED')}</span>
+                  : pushEnabled ? t('SETTINGS_PUSH_ACTIVE') : t('SETTINGS_PUSH_INACTIVE')}
               </div>
             </div>
             {/* aria-label was missing here while the Analytics toggle directly
@@ -748,12 +819,28 @@ export default function SettingsPage() {
               ? <SkeletonBar width={70} height={12} />
               : tgStatus === 'configured'
               ? t('SETTINGS_TG_CONFIGURED')
+              : tgStatus === 'error'
+              ? <>
+                  {t('SETTINGS_TG_STATUS_ERROR')}
+                  <button
+                    ref={tgRetryRef}
+                    type="button"
+                    onClick={retryTgStatus}
+                    style={{ color: 'inherit', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
+                  >
+                    {t('ALERTS_MUTE_LOAD_RETRY')}
+                  </button>
+                </>
               : t('SETTINGS_TG_NOT_CONFIGURED')}
           </div>
         </div>
-        <Link href="/alerts" className="st-link-btn">
-          {tgStatus === 'configured' ? t('SETTINGS_TG_MANAGE_LINK') : t('SETTINGS_TG_SETUP_LINK')}
-        </Link>
+        {/* Not while the status is unknown: "Set up Telegram" would tell a user whose
+            check failed that it needs setting up, which is the claim it couldn't make. */}
+        {tgStatus !== 'error' && (
+          <Link ref={tgLinkRef} href="/alerts" className="st-link-btn">
+            {tgStatus === 'configured' ? t('SETTINGS_TG_MANAGE_LINK') : t('SETTINGS_TG_SETUP_LINK')}
+          </Link>
+        )}
       </Section>
 
     </div>

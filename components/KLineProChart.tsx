@@ -631,6 +631,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   };
   const [activeTool,   setActiveTool]  = useState<string | null>(null);
   const [drawMenuOpen, setDrawMenuOpen] = useState(false);
+  /* #1309 item 3 (R-32): the Draw menu ignored Escape and clicks outside it, so once open it stayed open over
+     the chart until a tool or the button itself was chosen. Escape returns focus to the button. */
+  const drawWrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!drawMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setDrawMenuOpen(false);
+      drawWrapRef.current?.querySelector<HTMLElement>('.klc-draw-btn')?.focus();
+    };
+    const onDown = (e: PointerEvent) => { if (!drawWrapRef.current?.contains(e.target as Node)) setDrawMenuOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onDown);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
+  }, [drawMenuOpen]);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   /* Set only when getBars EXHAUSTS its retries with nothing usable - not for
      an upstream that answered OK with a genuinely empty coin. #1073's real
@@ -2643,7 +2658,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         <div className="klc-sep" />
 
         {/* Drawing tools collapsed into a Draw menu so the toolbar stays clean */}
-        <div className="klc-draw-wrap">
+        <div className="klc-draw-wrap" ref={drawWrapRef}>
           <button
             className={`klc-tool-btn klc-draw-btn${activeTool ? ' on' : ''}`}
             onClick={() => setDrawMenuOpen(v => !v)}
@@ -2928,13 +2943,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             attempt also got refused by Binance and silently retried against
             Bybit) - honest label so Bybit-sourced candles are never shown
             under an implied Binance source. Same treatment
-            components/WhaleTradesFeed.tsx got in #1228. */}
+            components/WhaleTradesFeed.tsx got in #1228.
+
+            Contrast (#1185): this badge and the "Couldn't draw" one below were
+            .65 white on a .72 pill - 3.87:1 over a white chart ground, 4.16:1
+            over the light theme's --bg1, under the 4.5:1 floor. They now use
+            the .80-on-.88 pair the history-failed notice above already uses,
+            which is 8.06:1 on white (the worst case: the ground behind a
+            translucent pill is whatever the chart drew there, so the lightest
+            ground is the one that has to pass) and 8.34:1 on --bg1. */}
         {historyViaServerBybitFallback && (
           <div style={{ position: 'absolute', top: 8, left: 8, pointerEvents: 'none' }}>
             <div style={{
               fontSize: 'var(--fs-caption)',
-              color: 'rgba(255,255,255,0.65)',
-              background: 'rgba(30,30,30,0.72)',
+              color: 'rgba(255,255,255,0.80)',
+              background: 'rgba(30,30,30,0.88)',
               border: '1px solid rgba(255,255,255,0.10)',
               borderRadius: 4,
               padding: '3px 8px',
@@ -2954,8 +2977,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           <div style={{ position: 'absolute', top: 8, right: 8, pointerEvents: 'none' }}>
             <div style={{
               fontSize: 'var(--fs-caption)',
-              color: 'rgba(255,255,255,0.65)',
-              background: 'rgba(30,30,30,0.72)',
+              color: 'rgba(255,255,255,0.80)',
+              background: 'rgba(30,30,30,0.88)',
               border: '1px solid rgba(255,255,255,0.10)',
               borderRadius: 4,
               padding: '3px 8px',

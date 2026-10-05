@@ -4,9 +4,9 @@ import { recordAiCall } from '@/lib/aiCallLog';
 import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
-import { getUsageTier } from '@/lib/entitlements';
+import { getEntitlementStatus, getUsageTier } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
-import { AI_LIMITS, type UsageTier } from '@/lib/limits';
+import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 
@@ -109,6 +109,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'Sign in required to use AI Arena', code: 'AUTH_REQUIRED' },
       { status: 401 }
+    );
+  }
+
+  // ── Fast timeframes are Pro (#1263) ───────────────────────────────────────
+  // Arena only clamps 1m/5m/15m in the browser, so before this a free token
+  // could POST tf=5m directly and get a fast-timeframe read. Checked before the
+  // usage reservation below so a refused request costs no quota and no xAI.
+  //
+  // Only a CONFIRMED free account is refused. 'unknown' (the plan read failed)
+  // goes through - #1119: a failed read is not evidence the user is free, and
+  // refusing it would lock a paying Pro user out of the timeframe they pay for
+  // whenever that read errors. What this lets through is bounded: the daily
+  // quick/deep cap below still applies, and a plan read that fails there too
+  // bills the call against the free row.
+  //
+  // This gates the timeframe the request DECLARES. The prompt itself is built
+  // in the browser (lib/grok.ts), so a hand-made request can still describe
+  // fast candles under tf=1h; closing that means building the prompt here.
+  if (isGatedTf(tf) && (await getEntitlementStatus(token!, userId)) === 'not_entitled') {
+    return NextResponse.json(
+      { error: 'PRO_REQUIRED', message: `Fast timeframes (${GATED_TFS.join(', ')}) are a Pro feature.` },
+      { status: 403 }
     );
   }
 

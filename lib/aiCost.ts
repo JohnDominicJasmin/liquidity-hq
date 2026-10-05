@@ -1,3 +1,5 @@
+import type { CheckoutPlan } from './checkout.ts';
+
 // THE ONE RATE TABLE (#1399). Every $ figure the app puts on an xAI call comes
 // from here - the per-call record (lib/aiCallLog.ts, via parseAiUsage below)
 // and the older /ops estimate (estimateRowCostUsd) alike. Source:
@@ -135,13 +137,44 @@ function priceTokens(t: { input: number; cachedInput: number; output: number }):
 export const PLAIN_CALL_COST_USD  = priceTokens(PLAIN_CALL_TOKENS);
 export const SEARCH_CALL_COST_USD = priceTokens(SEARCH_CALL_TOKENS);
 
-// Current MONTHLY Pro price - used only for the /ops margin column (cost vs
-// revenue). #1400 added two more plans ($20 / 2 weeks, $350 / year); this
-// column still assumes monthly for every Pro account because the webhook does
-// not record which variant was bought, so a fortnightly account's margin reads
-// slightly low and an annual one's slightly high. Keep in sync with the
-// UPGRADE_PRICE_* label defaults; there's no single shared constant for it yet.
-export const PRO_PRICE_USD_PER_MONTH = 35;
+// What one Pro account brings in per month, by the plan it bought (#1403) -
+// used only for the /ops margin figures (cost vs revenue). The plan is
+// lhq_user_subscriptions.plan (migration 20261001h), under the names
+// lib/checkout.ts gives the payment links. Per month:
+//   monthly      $35 a month                                      $35.00
+//   annual       $350 a year / 12                                 $29.17
+//   fortnightly  $20 every two weeks (card, when it exists) and
+//                $10 a week (BoomFi has no two-week interval) are
+//                the same money: 20 x 26 / 12 = 10 x 52 / 12       $43.33
+// Before plans were recorded every Pro account was counted as monthly, which
+// read a fortnightly account ~19% low and an annual one ~20% high. Keep in
+// sync with the UPGRADE_PRICE_* label defaults; there's no single shared
+// constant for the prices yet.
+export const PRO_PRICE_USD_PER_MONTH_BY_PLAN: Record<CheckoutPlan, number> = {
+  monthly:     35,
+  annual:      350 / 12,
+  fortnightly: (20 * 26) / 12,
+};
+
+// A Pro row with no plan recorded - every row written before the column, an
+// admin grant, and every row until the BoomFi webhook writes it (#861 Phase
+// 1b) - is still counted at the monthly price, as before. So a figure only
+// moves for an account whose row says which plan it bought.
+export const PRO_PRICE_USD_PER_MONTH = PRO_PRICE_USD_PER_MONTH_BY_PLAN.monthly;
+
+/** The plan a subscription row records, or null when it records none. Anything
+ *  other than the three names - null, a database without the column yet, a
+ *  value nobody expected - is "not recorded", never a guess at one. */
+export function recordedPlan(v: unknown): CheckoutPlan | null {
+  return v === 'monthly' || v === 'annual' || v === 'fortnightly' ? v : null;
+}
+
+/** Monthly revenue from one account, for the /ops margin. Free is $0. */
+export function revenuePerMonthUsd(role: string | null | undefined, plan: unknown): number {
+  if (role !== 'pro') return 0;
+  const p = recordedPlan(plan);
+  return p ? PRO_PRICE_USD_PER_MONTH_BY_PLAN[p] : PRO_PRICE_USD_PER_MONTH;
+}
 
 // lhq_grok_usage columns that enable xAI's web/X search tools, billed at the
 // higher SEARCH_CALL_COST_USD rate. Every other count column is a "plain" call.

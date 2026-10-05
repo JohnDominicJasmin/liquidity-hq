@@ -84,6 +84,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
   const [query, setQuery] = useState('');
   const containerRef      = useRef<HTMLDivElement>(null);
   const searchRef         = useRef<HTMLInputElement>(null);
+  const triggerRef        = useRef<HTMLButtonElement>(null);
 
   const selected = COUNTRIES.find(c => c.name === value);
   const filtered = query
@@ -106,18 +107,26 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(o => !o)}
+        /* No aria-haspopup (QA, #1499): "true" means a role=menu popup, and this one is a
+           search box and plain buttons - no menu, listbox or dialog role. aria-expanded
+           alone is the accurate claim: this button shows and hides the panel below. */
+        aria-expanded={open}
+        /* Label AND value (QA, #1499): naming the button by its label alone
+           dropped the chosen country, so a screen reader heard only "Country". */
+        aria-labelledby="obw-country-label obw-country-value"
         className={`obw-select ${value ? 'is-selected' : 'is-empty'}`}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           {selected ? (
             <>
               <span style={{ fontSize: '1.25rem', flexShrink: 0, lineHeight: 1 }}>{selected.flag}</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
+              <span id="obw-country-value" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
             </>
           ) : (
-            <span>{t('ONBOARDING_FLOW_SELECT_COUNTRY_PLACEHOLDER')}</span>
+            <span id="obw-country-value">{t('ONBOARDING_FLOW_SELECT_COUNTRY_PLACEHOLDER')}</span>
           )}
         </span>
         <svg
@@ -134,6 +143,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
             <input
               ref={searchRef}
               type="text"
+              aria-label={t('ONBOARDING_FLOW_SEARCH_COUNTRY_PLACEHOLDER')}
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder={t('ONBOARDING_FLOW_SEARCH_COUNTRY_PLACEHOLDER')}
@@ -151,7 +161,10 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
                   key={c.name}
                   type="button"
                   className={`obw-menu-opt ${isActive ? 'is-selected' : ''}`}
-                  onClick={() => { onChange(c.name); setOpen(false); }}
+                  aria-pressed={isActive}
+                  /* Back to the picker button: closing the list removes the option that
+                     had focus, which otherwise dropped it to <body> (QA, #1499). */
+                  onClick={() => { onChange(c.name); setOpen(false); triggerRef.current?.focus(); }}
                 >
                   <span style={{ fontSize: '1.125rem', lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
                   <span style={{ flex: 1 }}>{c.name}</span>
@@ -176,7 +189,7 @@ function OptionRow<T extends string>({ value, selected, label, sub, onClick }: {
 }) {
   const active = selected === value;
   return (
-    <button type="button" className={`obw-row ${active ? 'is-selected' : ''}`} onClick={() => onClick(value)}>
+    <button type="button" className={`obw-row ${active ? 'is-selected' : ''}`} aria-pressed={active} onClick={() => onClick(value)}>
       <div className="obw-row-main">
         <div className="obw-row-label">{label}</div>
         {sub && <div className="obw-row-sub">{sub}</div>}
@@ -196,12 +209,13 @@ function AcctGrid({ acct, setAcct }: { acct: Acct | null; setAcct: (v: Acct) => 
     { value: '100kplus', labelKey: 'ONBOARDING_FLOW_ACCT_100K_PLUS' },
   ];
   return (
-    <div className="obw-grid">
+    <div className="obw-grid" role="group" aria-labelledby="obw-acct-label">
       {opts.map(o => (
         <button
           key={o.value}
           type="button"
           className={`obw-tile ${acct === o.value ? 'is-selected' : ''}`}
+          aria-pressed={acct === o.value}
           onClick={() => setAcct(o.value)}
         >
           {t(o.labelKey)}
@@ -220,6 +234,9 @@ export default function OnboardingFlow({ onStartTour }: Props) {
 
   const [step,        setStep]       = useState(0);
   const [saving,      setSaving]     = useState(false);
+  // #1309 item 21: the profile save's failure used to be ignored - the wizard closed as if
+  // done, then came back on the next load because nothing had been written.
+  const [saveError,   setSaveError]  = useState(false);
   const [displayName, setDisplayName]= useState('');
   const [country,     setCountry]    = useState('');
   const [acct,        setAcct]       = useState<Acct | null>(null);
@@ -238,9 +255,41 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   // reads `step` directly rather than the `isLast` const computed after
   // them - same value, `finish` is a hoisted function declaration so it is
   // safe to reference here despite being defined later in the file.
-  const dialogRef = useDialogFocusTrap<HTMLDivElement>(true, () => {
+  // #1309 item 4: `open` used to be a constant `true`, so the trap's setup ran once, at
+  // mount - while the "Setting up your account" loading screen was showing. That screen
+  // has no dialog ref, so the hook found no container, returned early, and (its effect
+  // being keyed on `open` alone) never ran again once the real dialog rendered: focus was
+  // never moved in, Tab could leave, Escape did nothing. Open it when the dialog itself
+  // is what is on screen.
+  const dialogOpen = !!user && !state.profileComplete && loaded;
+  const dialogRef = useDialogFocusTrap<HTMLDivElement>(dialogOpen, () => {
     if (step === STEP_META.length - 1 && !saving) finish();
   });
+  const stepRef  = useRef<HTMLDivElement>(null);
+  const alertRef = useRef<HTMLDivElement>(null);
+
+  // QA, #1499 (WCAG 2.4.3 / 2.4.11): Back is not rendered on step 0, and while saving Back
+  // and Skip are removed and the main button is disabled. Whichever of those had focus
+  // took it with them, so it fell to <body> and the next Tab reached the page under the
+  // overlay. Put it back inside: on the dialog itself while saving (no control there can
+  // act yet), otherwise on the current step's first control.
+  useEffect(() => {
+    const root = dialogRef.current;
+    if (!dialogOpen || !root) return;
+    const active = document.activeElement as HTMLElement | null;
+    const lost = !active || active === document.body || (root.contains(active) && active.matches(':disabled'));
+    if (!lost) return;
+    if (saving) { root.focus(); return; }
+    const first = stepRef.current?.querySelector<HTMLElement>('input:not([disabled]), button:not([disabled])');
+    (first ?? root).focus();
+  }, [dialogRef, dialogOpen, step, saving]);
+
+  // A failed save says so where focus is, not only through the live region (QA, #1499).
+  // Keyed on the error alone, so it fires once per failure and never pulls focus back
+  // when the user later moves between steps with the message still showing.
+  useEffect(() => {
+    if (saveError) alertRef.current?.focus();
+  }, [saveError]);
 
   if (!user || state.profileComplete) return null;
 
@@ -284,6 +333,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   async function finish() {
     if (saving) return;
     setSaving(true);
+    setSaveError(false);
     const beginner = exp === 'lt6m' || exp === '6to12m' || tradeStyle === 'learning';
     const tfMap: Record<TradeStyle, '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d'> = {
       scalp: '5m', swing: '4h', both: '15m', learning: '15m',
@@ -304,10 +354,20 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     });
     const sb = getSupabase();
     if (sb && user) {
-      await sb.from(T.user_onboarding).upsert(
-        { user_id: user.id, profile_complete: true, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' },
-      );
+      try {
+        const { error } = await sb.from(T.user_onboarding).upsert(
+          { user_id: user.id, profile_complete: true, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' },
+        );
+        if (error) throw error;
+      } catch (e) {
+        // Stay on the last step, say so, and let them try again. Marking it done anyway is
+        // what made the wizard reappear later with no explanation.
+        console.error('[onboarding] profile save failed:', e);
+        setSaveError(true);
+        setSaving(false);
+        return;
+      }
     }
     markDone('profileComplete');
     onStartTour();
@@ -338,7 +398,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
       {/* ── Centered content ── */}
       <div className="obw-main">
         <div className="obw-panel">
-          <div key={step} className="obw-step">
+          <div key={step} ref={stepRef} className="obw-step">
             {/* Step meta */}
             <div className="obw-eyebrow">
               <span className="k">{t('ONBOARDING_FLOW_STEP_PREFIX', { num: String(step + 1).padStart(2, '0') })}</span>
@@ -360,10 +420,11 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             {step === 0 && (
               <>
                 <div style={{ marginBottom: 'var(--space-4)' }}>
-                  <label className="obw-label">
+                  <label className="obw-label" htmlFor="obw-display-name">
                     {t('ONBOARDING_FLOW_DISPLAY_NAME_LABEL')} <span className="opt">{t('ONBOARDING_FLOW_OPTIONAL')}</span>
                   </label>
                   <input
+                    id="obw-display-name"
                     type="text"
                     value={displayName}
                     onChange={e => setDisplayName(e.target.value)}
@@ -380,12 +441,12 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                 </div>
 
                 <div style={{ marginBottom: 'var(--space-5)' }}>
-                  <label className="obw-label">{t('ONBOARDING_FLOW_COUNTRY_LABEL')}</label>
+                  <label className="obw-label" id="obw-country-label">{t('ONBOARDING_FLOW_COUNTRY_LABEL')}</label>
                   <CountrySelect value={country} onChange={setCountry} />
                 </div>
 
                 <div>
-                  <label className="obw-label">{t('ONBOARDING_FLOW_ACCOUNT_RANGE_LABEL')}</label>
+                  <label className="obw-label" id="obw-acct-label">{t('ONBOARDING_FLOW_ACCOUNT_RANGE_LABEL')}</label>
                   <AcctGrid acct={acct} setAcct={setAcct} />
                 </div>
               </>
@@ -436,6 +497,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                     key={val}
                     type="button"
                     className={`obw-chip ${heard === val ? 'is-selected' : ''}`}
+                    aria-pressed={heard === val}
                     onClick={() => setHeard(val)}
                   >
                     {t(labelKey)}
@@ -461,6 +523,12 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               {saving ? t('ONBOARDING_FLOW_SAVING') : isLast ? t('ONBOARDING_FLOW_LAUNCH_DASHBOARD') : t('ONBOARDING_FLOW_CONTINUE')}
             </button>
           </div>
+
+          {saveError && (
+            <div ref={alertRef} tabIndex={-1} role="alert" style={{ marginTop: 'var(--space-3)', fontSize: 'var(--fs-caption)', color: 'var(--red)', textAlign: 'center' }}>
+              {t('ONBOARDING_FLOW_SAVE_FAILED')}
+            </div>
+          )}
 
           {isLast && !saving && (
             <button type="button" className="obw-skip" onClick={finish}>

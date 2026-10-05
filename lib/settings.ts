@@ -132,6 +132,9 @@ export interface SettingsContextValue {
   // settingsLoadStatus is 'error', so its own failure path must manage that
   // status too - see the sticky-'ready' comment on its implementation.
   refresh:    () => Promise<void>;
+  // The save toast's "Try again" (owner, 2026-10-01, #1498): re-sends the
+  // last save that failed on every attempt. A no-op when nothing failed.
+  retrySave:  () => void;
 }
 
 export const SettingsContext = createContext<SettingsContextValue>({
@@ -141,6 +144,7 @@ export const SettingsContext = createContext<SettingsContextValue>({
   saveStatus: 'idle',
   update:     () => {},
   refresh:    async () => {},
+  retrySave:  () => {},
 });
 
 export function useSettings(): SettingsContextValue {

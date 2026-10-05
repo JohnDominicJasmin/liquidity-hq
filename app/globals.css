@@ -921,6 +921,15 @@ body::after {
 /* ── PRIMARY ACTION BUTTON - shared base for all confirm/submit actions ── */
 
 .lbl { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--txt3); margin-bottom: 10px; }
+/* #1272. A <Tip> title followed by a sub-label ("Session map" + "Your local time..."). Tip's
+   wrapper is inline-flex with a 24px-minimum icon, i.e. a 24px-tall box sharing an inline line
+   with ~12px text; QA's text-under-control probe found the sub-label's box overlapping it.
+   As flex items the two are separate boxes (measured: the sub-label's box no longer reaches the
+   Tip's). Baselines still line up on one line; where there is no room the sub-label drops to its
+   own line as one block instead of flowing on after the title and wrapping mid-phrase. The gap is
+   direction-independent (the old `margin-left` sat on the far side in Arabic). Used where a Tip
+   label is followed by a sub-label. */
+.tip-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; }
 /* ── Side-by-side tile pair (2 columns on desktop, stacks on mobile) ── */
 @media (max-width: 1099px) {
 }
@@ -2301,13 +2310,8 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 /* The FAB sits above the mobile nav drawer (z-index 9995 vs 999) and otherwise
    covers the bottom nav links, eating their taps - hide it while the drawer is open. */
 body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
-/* #1292 release screenshot: the settings save toast (bottom:24/right:24) and
-   this FAB (bottom:24/right:20) share the same corner, so the FAB (z-index
-   9995 vs the toast's 9999 - still visually on top since it isn't
-   transparent) covered the end of the toast's text. Same treatment as
-   body.pwa-prompt-open above - hide the FAB rather than compute an offset,
-   so mobile's safe-area math never has to know about the toast at all. */
-body.settings-toast-open .gchat-fab { opacity: 0; pointer-events: none; }
+/* body.settings-toast-open (hide the FAB while the save toast showed, #1292)
+   is gone: the toast moved to the top (#1498) and can no longer meet it. */
 
 
 /* ── backdrop (expanded mode) ── */
@@ -2534,7 +2538,12 @@ body.settings-toast-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-hist-title { font-size: var(--fs-card-title); font-weight: 500; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
 .gchat-hist-meta  { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; }
 .gchat-hist-del   { font-size: var(--fs-label); color: var(--txt3); cursor: pointer; background: none; border: none; padding: 3px 5px; border-radius: 6px; flex-shrink: 0; opacity: 0; transition: opacity 0.15s; }
-.gchat-hist-item:hover .gchat-hist-del { opacity: 1; }
+/* #1309 item 5: the delete button was opacity 0 until the row was HOVERED, so it could not be seen on touch
+   or when it had keyboard focus. Visible for focus, and always visible where there is no hover. */
+.gchat-hist-item:hover .gchat-hist-del,
+.gchat-hist-item:focus-within .gchat-hist-del,
+.gchat-hist-del:focus-visible { opacity: 1; }
+@media (hover: none) { .gchat-hist-del { opacity: 1; } }
 .gchat-hist-del:hover { color: var(--red); background: var(--red-bg); }
 
 /* ── Follow-up question chips (below each assistant response) ── */
@@ -3818,6 +3827,11 @@ html[data-theme="light"] { background: var(--bg0); }
 .frh-row:hover   { background: rgba(255,255,255,0.04); }
 .frh-row.on      { background: rgba(26,122,255,0.11) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
 .frh-row.on .frh-coin { color: var(--purple) !important; }
+/* #1309 item 6: the coin cell's real button. Looks exactly like the bare text it replaced;
+   the only visible difference is the focus ring, which is the point. */
+.frh-coin-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-align: left; }
+.frh-coin-btn:disabled { cursor: default; }
+.frh-coin-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .frh-spark-th    { min-width: 120px; }
 .frh-spark-cell  { min-width: 120px; width: 160px; padding: 3px 8px !important; }
 
@@ -4181,33 +4195,65 @@ html[data-theme="light"] { background: var(--bg0); }
 .st-usage-fill  { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
 .st-usage-count { font-size: var(--fs-data); font-weight: 700; min-width: 38px; text-align: right; }
 
-/* Save toast */
+/* Save toast - TOP-CENTRE, UNDER THE TOP BAR (owner, 2026-10-01, #1498).
+   It sat in the bottom-right corner, the same corner as the Ask AI FAB and,
+   on phones, just over the tab bar; the owner rejected it. Status belongs
+   under the top bar, where the app already shows status, and there it cannot
+   meet the FAB or the tab bar at any width. Top = the bar's height (44px, or
+   38px for the phone header) + 8px, below any announcement banner
+   (--banner-h) and, on phones, the notch. Above page content (the bars are
+   z-index 1000), below the Ask AI panel (9994) and modals (10000). */
 .st-save-toast {
-  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-  padding: 10px 16px; border-radius: 10px;
-  font-size: var(--fs-label); font-weight: 600;
-  background: rgba(52,211,153,0.15); border: 0.5px solid rgba(52,211,153,0.4); color: var(--green-2);
-  animation: stToastIn 0.2s ease;
+  position: fixed; left: 50%; z-index: 1001;
+  top: calc(var(--banner-h, 0px) + 44px + 8px);
+  width: max-content; max-width: min(92vw, 420px);
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 10px;
+  font-size: var(--fs-label); font-weight: 600; line-height: 1.4;
+  /* --bg2: over a settings card the toast was told apart only by its 0.5px
+     border (PM/DevOps, 2026-10-01). That lifts it in terminal light only; in
+     terminal dark --bg2 is DARKER than the card, so that context is set below. */
+  background: var(--bg2); border: 0.5px solid var(--bdr2); color: var(--txt);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+  animation: stToastIn 0.18s ease-out;
   pointer-events: none;
 }
-.st-save-toast.saving   { background: rgba(255,255,255,0.06); border-color: var(--bdr); color: var(--txt3); }
-.st-save-toast.error    { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.4); color: var(--red); }
+/* Terminal dark has no token above the card (--bg1 #141517; --bg3/--bg4 alias
+   down), so the lift is a literal: #1b1d20 sits above the card and --bdr gives
+   the edge (PM visual call on #1507, 2026-10-01). Not .conflict/.error, which
+   keep their own surfaces. */
+[data-design="terminal"]:not([data-theme="light"]) .st-save-toast:not(.conflict):not(.error) {
+  background: #1b1d20; border-color: var(--bdr);
+}
+.st-save-toast-text { min-width: 0; }
+.st-save-toast.saving   { color: var(--txt2); }
 /* #1285: amber, not red - the save succeeded, a field just adopted another
    device's newer value. Sharing --error's colour would read as a failure the
    user should retry, which is the exact wrong message for this case. */
 .st-save-toast.conflict { background: var(--amber-bg); border-color: var(--amber-bdr); color: var(--amber); }
-/* #1455: the live mobile bottom bar is the terminal nav, [data-design="terminal"]
-   .tnav-tabs - fixed at bottom:0, 60px tall, shown at <=767px (TerminalNav.tsx).
-   The toast's 24px offset put it over that bar and covered the SCAN label. Lift
-   it clear of the bar plus the iOS home-indicator safe area, mirroring the
-   terminal .app-content reservation (calc(60px + safe-area + 1rem)). Scoped to
-   terminal + <=767px because that is exactly where the bar renders; non-terminal
-   designs no longer render a bottom bar (the old .mobile-tab-bar block was
-   deleted). Same family as #1292's FAB-occlusion fix. */
-@media (max-width: 767px) {
-  [data-design="terminal"] .st-save-toast { bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 16px); }
+/* Error: red token, an icon as well as the colour, and real buttons - so it
+   takes pointer events, unlike the passive states. */
+.st-save-toast.error    { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); color: var(--red); pointer-events: auto; }
+.st-save-toast-icon { flex-shrink: 0; }
+.st-save-toast-retry {
+  flex-shrink: 0; min-height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
+  font: inherit; font-weight: 700; color: var(--txt); background: var(--bg2); border: 0.5px solid var(--bdr2);
 }
-@keyframes stToastIn  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.st-save-toast-close {
+  flex-shrink: 0; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; background: none; border: none; border-radius: 8px; color: var(--txt3); font-size: 0.875rem;
+}
+@media (max-width: 767px) {
+  /* The phone header is 38px; the notch is above it. Buttons reach 44px. */
+  .st-save-toast { top: calc(env(safe-area-inset-top, 0px) + var(--banner-h, 0px) + 38px + 8px); }
+  .st-save-toast-retry { min-height: 44px; }
+  .st-save-toast-close { width: 44px; height: 44px; }
+}
+/* translateX(-50%) is part of the centring, so the entrance keeps it: a short
+   slide down from under the bar. */
+@keyframes stToastIn  { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .st-save-toast { animation: none; } }
 
 [data-theme="light"] .st-section { background: #fff; }
 [data-theme="light"] .st-input   { background: #f8f8f8; color: #111; }
@@ -5450,6 +5496,16 @@ body.landing {
 .lp-hero-inner  { position: relative; max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 20px; }
 .lp-hero-badge  { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.05); border: 1px solid var(--bdr); border-radius: var(--radius-chip); padding: 5px 14px; letter-spacing: .04em; }
 .lp-live-dot    { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+/* The landing hero headline (components/LandingTerminal.tsx). Balanced breaks,
+   so a short last word never sits alone on its own line: "See where liquidity
+   sits." left "sits." alone at 1280 and 390 (owner, 2026-10-01). Korean also
+   breaks only between words (keep-all), the way Korean is set; Chinese has no
+   spaces, so keep-all there would stop it wrapping at all, and it is left out. */
+/* The accent line is its own block: balance works per block, and across the
+   <br> the whole h1 balanced as one paragraph, which left "sits." alone. */
+.lp-hero-h1, .lp-hero-h1 > span { text-wrap: balance; }
+.lp-hero-h1 > span { display: block; }
+html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
 .lp-h1          { font-size: clamp(2.25rem, 6vw, 4rem); font-weight: 900; line-height: 1.08; letter-spacing: -.03em; margin: 0; }
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
@@ -6871,6 +6927,26 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      alone still clips here (this band has no gap trim of its own, unlike
      768-917px, so the deficit is larger - measured at -19.84px before this). */
   [data-design="terminal"] .tnav-right .plan-badge { padding-left: 6px; padding-right: 6px; }
+}
+/* #1255 (tracked on #1114): in RUSSIAN the bar overflows from 768px up to about 1200px, not just at
+   768 - measured (Dev, 2026-09-19, signed in and out, PRO and TRIAL badges) at +235px at 768, +143 to
+   +209 at 1000, +9 (TRIAL) at 1200. The English bands above cannot help: they are sized for English
+   labels, and the widest Russian item alone ("Панель управления", 195px) is wider than four English
+   ones. `<html lang>` is set by LabelsProvider, so this is scoped with :lang(ru); only ru, en, ko and zh
+   are available locales and only ru was measured wide.
+   These trims (gap 28->12, item padding 12/8->5, letter-spacing .1->.03em, 10px type, tighter wordmark
+   tracking) are NOT enough on their own - prototyped in the browser: still +68 at 768, +36 at 800 and, with
+   a TRIAL badge, +49 at 945. They clear only together with the shorter Russian Dashboard label
+   (NAV_DASHBOARD ru, "Панель", migration 20260919e, owner-approved 2026-09-19), which brings the minimum
+   slack to 22-26px at 768. Above 1279px the shipped spacing already fits, so nothing changes there.
+   Specificity, not !important: html[data-design][lang] beats the shipped `[data-design] .tnav-*` rules
+   and the band rules above without shouting. */
+@media (min-width: 768px) and (max-width: 1279px) {
+  html[data-design="terminal"]:lang(ru) .tnav { gap: 12px; }
+  html[data-design="terminal"]:lang(ru) .tnav-item {
+    padding-left: 5px; padding-right: 5px; letter-spacing: .03em; font-size: 10px;
+  }
+  html[data-design="terminal"]:lang(ru) .tnav-wordmark { letter-spacing: .06em; }
 }
 [data-design="terminal"] .tnav-kbd {
   color: var(--txt3);
@@ -8622,7 +8698,13 @@ main.app-content[data-chrome="none"] {
   font-family: var(--font-mono), monospace; font-size: 10px;
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt);
 }
-[data-design="terminal"] .strat-aux { color: var(--txt4); font-size: 9px; letter-spacing: .1em; }
+/* #1271. The PRO / FREE tag was --txt4: 1.72:1 dark, 1.91:1 light on --bg1 (measured, not
+   estimated). --txt4 is the DISABLED tier (the token's own comment says so), and this is the one
+   line in the panel that names the plan - the reader has to be able to read it. --txt2 is
+   5.62:1 dark / 5.56:1 light on --bg1. The same fix, and the same reason, applies to the other
+   text in this block below, including the dimmed chip states (owner, 2026-09-19): nothing in the
+   Strategy panel is --txt4 any more. */
+[data-design="terminal"] .strat-aux { color: var(--txt2); font-size: 9px; letter-spacing: .1em; }
 
 [data-design="terminal"] .strat-sect { padding: 10px 9px; border-bottom: 1px solid var(--bdr3); }
 [data-design="terminal"] .strat-sect:last-child { border-bottom: 0; }
@@ -8632,7 +8714,7 @@ main.app-content[data-chrome="none"] {
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
   display: flex; justify-content: space-between; margin-bottom: 6px;
 }
-[data-design="terminal"] .strat-cap { color: var(--txt4); }
+[data-design="terminal"] .strat-cap { color: var(--txt3); } /* #1271: 4.71 dark / 5.07 light on --bg1 (was 1.72 / 1.91) */
 
 [data-design="terminal"] .strat-sel {
   width: 100%; height: 26px; background: var(--bg2);
@@ -8645,7 +8727,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-grp:last-of-type { margin-bottom: 0; }
 [data-design="terminal"] .strat-gname {
   font-family: var(--font-mono), monospace; font-size: 8.5px;
-  letter-spacing: .14em; text-transform: uppercase; color: var(--txt4);
+  letter-spacing: .14em; text-transform: uppercase; color: var(--txt3); /* #1271: 4.71 / 5.07 on --bg1 (was 1.72 / 1.91) */
   margin-bottom: 3px;
 }
 
@@ -8664,7 +8746,17 @@ main.app-content[data-chrome="none"] {
 /* Past the limit. Dimmed, still focusable, still says why on hover - a
    `disabled` chip would leave the tab order and a keyboard user would never
    find out what stopped them. */
-[data-design="terminal"] .strat-chip.blocked { color: var(--txt4); border-color: var(--bdr3); cursor: default; }
+/* Owner, 2026-09-19 (#1387): the dimmed chips must be readable (AA) and still look dimmed. --txt3 is
+   the darkest passing token: 4.71:1 dark / 5.07:1 light on --bg1 (was --txt4: 1.72 / 1.91). No token
+   sits between them, so the "dimmed" cue is now carried by the border (--bdr3, dashed on .notyet) and
+   the default cursor, not by the text tone. */
+[data-design="terminal"] .strat-chip.blocked { color: var(--txt3); border-color: var(--bdr3); cursor: default; }
+/* PM/DevOps, #1495: --txt3 is also the enabled chips' colour, so the text tone
+   cannot mark a blocked chip without failing AA. The lock glyph after the label
+   carries it, as on Settings' locked timeframes, and the label is set lighter
+   (weight, not alpha, so contrast holds). */
+[data-design="terminal"] .strat-chip.blocked { font-weight: 400; font-style: italic; }
+[data-design="terminal"] .strat-chip-lock { font-size: 8px; line-height: 1; }
 [data-design="terminal"] .strat-n {
   background: var(--on-accent); color: var(--accent);
   width: 11px; height: 11px; display: inline-flex;
@@ -8685,11 +8777,11 @@ main.app-content[data-chrome="none"] {
 }
 
 [data-design="terminal"] .strat-chip.notyet {
-  color: var(--txt4); border-color: var(--bdr3);
+  color: var(--txt3); border-color: var(--bdr3); /* 4.71 / 5.07 on --bg1, see .blocked above */
   border-style: dashed; cursor: default;
 }
 [data-design="terminal"] .strat-notyet-note {
-  margin-top: 7px; font-size: 10.5px; line-height: 1.4; color: var(--txt4);
+  margin-top: 7px; font-size: 10.5px; line-height: 1.4; color: var(--txt3); /* #1271: 4.71 / 5.07 on --bg1 (was 1.72 / 1.91) */
 }
 
 [data-design="terminal"] .strat-limit {
@@ -8722,7 +8814,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-pv:disabled { color: var(--txt3); }
 [data-design="terminal"] .strat-ro {
   margin-top: 5px; font-family: var(--font-mono), monospace; font-size: 8.5px;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--txt4);
+  letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); /* #1271: 4.77 dark / 4.70 light on --bg2 (was 1.74 / 1.77) */
 }
 
 [data-design="terminal"] .strat-actions { display: flex; gap: 3px; }

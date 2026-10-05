@@ -1,0 +1,51 @@
+-- #1403: which plan an account bought, recorded on its subscription row.
+--
+-- NOT APPLIED BY MERGING. Applying is a write to the shared database: the
+-- owner's word each time, and QA's ok on the timing, because any DDL fires a
+-- PostgREST schema reload (#1025) and must not land during a QA pass. It may
+-- ride with the next BoomFi migration instead of going on its own (#1403).
+--
+-- ADDITIVE ONLY. One new nullable column with no default. Nothing existing is
+-- altered, renamed or dropped, so the running app is unaffected before and
+-- after, and there is nothing to roll back. The code that reads it
+-- (app/api/ops/ai-cost, app/api/ops/users/[id]) selects whole rows rather than
+-- naming the column, so it works on a database that does not have it yet and
+-- the deploy does not have to wait for this file.
+--
+-- WHAT IT HOLDS: 'monthly', 'annual' or 'fortnightly' - the names lib/checkout.ts
+-- gives the three payment links (CheckoutPlan). Provider-neutral on purpose.
+-- This issue first asked for Lemon Squeezy's variant_id / variant_name; the
+-- store was rejected (#861), so no subscription will ever carry them. BoomFi
+-- and, later, Polar name their plans their own way, and the webhook maps each
+-- one to these three names. Which processor the row belongs to is
+-- billing_provider's job (20260930a). null = plan not recorded: every row
+-- written before this column, every admin grant, and every row until the
+-- webhook writes it.
+--
+-- NO CHECK CONSTRAINT, deliberately, the same as billing_provider. The webhook
+-- will write this in the same upsert that grants Pro, and a constraint that
+-- rejected an unexpected value would fail the grant with it - turning "plan not
+-- recorded" into "paid and not Pro", the exact failure this column exists to
+-- make visible. The reader (lib/aiCost.ts recordedPlan) treats any value
+-- outside the three as not recorded.
+--
+-- NO BACKFILL. No stored row says which plan was bought; that is the gap this
+-- column closes. The BoomFi webhook does not write it yet either: it is still
+-- the verify-and-record shell (#861 Phase 1b), and which field of a BoomFi
+-- event names the plan is unconfirmed until a real event is recorded, so the
+-- mapping lands with the change that grants Pro.
+--
+-- The existing "users can read their own row" policy covers the new column: an
+-- account can see its own plan, nobody else's.
+--
+-- Run against BOTH projects, ONE SECTION AT A TIME: the prod block below is
+-- live, the dev block is commented (20260912b's convention, so running this
+-- file against prod can never create a dev object there).
+
+alter table lhq_user_subscriptions
+  add column if not exists plan text;   -- 'monthly' | 'annual' | 'fortnightly' | null (not recorded)
+
+-- DEV: the same column under the lhq_dev_ prefix - apply separately.
+--
+-- alter table lhq_dev_user_subscriptions
+--   add column if not exists plan text;

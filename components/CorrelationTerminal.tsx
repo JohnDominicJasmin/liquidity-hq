@@ -256,9 +256,9 @@ export default function CorrelationTerminal() {
 
           {/* Heatmap grid */}
           <TPanel>
-            <div className="lbl" style={{ marginBottom: 10 }}>
+            <div className="lbl tip-row" style={{ marginBottom: 10, columnGap: 8 }}>
               <Tip width={260} text={t('CORRELATION_MATRIX_TIP')}>{t('CORRELATION_MATRIX_LABEL')}</Tip>
-              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 8 }}>
+              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)' }}>
                 {t('CORRELATION_MATRIX_SCALE_HINT')}
               </span>
             </div>

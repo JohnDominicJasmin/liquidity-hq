@@ -9,15 +9,16 @@
  *
  * TWO STEPS, so base and branch never need to be served at the same time:
  *
- *   node scripts/layout-diff.mjs measure --url <origin> --out <dir> [--routes /a,/b] [--widths 1280,1440,1920,390]
+ *   node scripts/layout-diff.mjs measure --url <origin> --out <dir> [--routes /a,/b] [--widths 1280,1440,1920,390] [--lang ru]
  *   node scripts/layout-diff.mjs diff <baseDir> <headDir> [--md <report.md>]
  *
  * `measure` loads each route signed out (analytics consent denied, first-run
  * tour marked seen), waits for the page to settle, and records per width:
- *   - boxes: every element up to 3 levels below the main content that is at
- *     least 100px wide, keyed by its class path (x, y, width, height);
- *   - overflow: every element whose text is cut off (scrollWidth > clientWidth
- *     with overflow hidden or clip), with the text it holds;
+ *   - boxes: every element up to 3 levels below the main content (and below
+ *     the top nav, header.tnav) that is at least 100px wide, keyed by its
+ *     class path (x, y, width, height);
+ *   - overflow: every element on the page whose text is cut off (scrollWidth >
+ *     clientWidth with overflow hidden or clip), with the text it holds;
  *   - pageScroll: whether the page scrolls sideways;
  *   - hint: where [data-page-hint] sits and what its parent does with it;
  *   - a screenshot of the first screen.
@@ -53,6 +54,9 @@ async function measure(args) {
   if (!origin || !out) throw new Error('measure needs --url <origin> and --out <dir>');
   const routes = arg(args, '--routes', DEFAULT_ROUTES.join(',')).split(',');
   const widths = arg(args, '--widths', DEFAULT_WIDTHS.join(',')).split(',').map(Number);
+  // --lang ko|zh|ru: the in-app language (the label locale), for checking a
+  // translation's fit. The landing page follows its URL (/ko, /zh) instead.
+  const lang = arg(args, '--lang', null);
   const require = createRequire(path.join(process.cwd(), 'package.json'));
   const { chromium } = require('playwright');
   fs.mkdirSync(out, { recursive: true });
@@ -62,12 +66,13 @@ async function measure(args) {
     for (const route of routes) {
       for (const width of widths) {
         const ctx = await browser.newContext({ viewport: { width, height: 1000 }, colorScheme: 'dark' });
-        await ctx.addInitScript(() => {
+        await ctx.addInitScript((l) => {
           try {
             localStorage.setItem('lhq_analytics_consent_v1', 'denied');
             localStorage.setItem('lhq_tour_seen', '1');
+            if (l) localStorage.setItem('lhq_lang_v1', l);
           } catch { /* storage unavailable */ }
-        });
+        }, lang);
         const page = await ctx.newPage();
         const res = await page.goto(origin + route, { waitUntil: 'domcontentloaded', timeout: 240_000 });
         await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
@@ -95,8 +100,12 @@ async function measure(args) {
             }
           };
           walk(root, cls(root), 1);
+          /* The top nav sits outside the main content, and a nav that does not
+             fit is exactly the kind of layout defect this tool exists for. */
+          const nav = document.querySelector('header.tnav');
+          if (nav) { boxes['header.tnav'] = r(nav); walk(nav, 'header.tnav', 1); }
           const overflow = [];
-          for (const el of root.querySelectorAll('*')) {
+          for (const el of document.body.querySelectorAll('*')) {
             if (!el.childElementCount && el.textContent && el.textContent.trim() && el.scrollWidth > el.clientWidth + 1) {
               const s = getComputedStyle(el);
               // clientWidth > 1: a visually hidden (.sr-only) element is 1px by design.
@@ -111,7 +120,17 @@ async function measure(args) {
             const spans = /-1|span/.test(hs.gridColumn);
             hint = { key: h.dataset.pageHint, ...r(h), parent: cls(p), display: ps.display, tracks, spans, rowFlex: ps.display.includes('flex') && !ps.flexDirection.startsWith('column') };
           }
-          return { boxes, overflow, pageScroll: document.documentElement.scrollWidth > window.innerWidth + 1, hint };
+          /* The language the page actually rendered in, not the one asked for:
+             an unoffered --lang value renders English (QA, #1497). */
+          const htmlLang = document.documentElement.lang || null;
+          /* Nav items ending past the page edge. Recorded as a fact, so an
+             overflow that is the same on both builds still shows in the diff. */
+          let navPastViewport = null;
+          if (nav) {
+            const right = Math.max(...[...nav.querySelectorAll('*')].map((e) => e.getBoundingClientRect().right));
+            if (right > window.innerWidth + 1) navPastViewport = Math.round(right);
+          }
+          return { boxes, overflow, pageScroll: document.documentElement.scrollWidth > window.innerWidth + 1, hint, htmlLang, navPastViewport };
         });
         const shot = `${route.replace(/[^\w-]+/g, '_').replace(/^_|_$/g, '') || 'root'}-${width}.png`;
         await page.screenshot({ path: path.join(out, shot) });
@@ -122,7 +141,7 @@ async function measure(args) {
     }
   } finally {
     await browser.close();
-    fs.writeFileSync(path.join(out, 'layout.json'), JSON.stringify({ origin, measuredAt: new Date().toISOString(), pages }, null, 2));
+    fs.writeFileSync(path.join(out, 'layout.json'), JSON.stringify({ origin, lang, measuredAt: new Date().toISOString(), pages }, null, 2));
   }
 }
 
@@ -131,8 +150,14 @@ function diff(args) {
   if (!baseDir || !headDir) throw new Error('diff needs <baseDir> <headDir>');
   const load = (d) => JSON.parse(fs.readFileSync(path.join(d, 'layout.json'), 'utf8'));
   const base = load(baseDir), head = load(headDir);
-  const lines = [`# Layout diff`, ``, `base: ${base.origin} (${base.measuredAt})`, `head: ${head.origin} (${head.measuredAt})`, ``];
+  const langOf = (m) => [...new Set(m.pages.map((p) => p.htmlLang ?? m.lang ?? '?'))].join(',');
+  const lines = [`# Layout diff`, ``, `base: ${base.origin} (${base.measuredAt}), rendered lang ${langOf(base)}`, `head: ${head.origin} (${head.measuredAt}), rendered lang ${langOf(head)}`, ``];
   let flagged = 0;
+  /* Two different languages make every translated box read as moved (QA, #1497). */
+  if (langOf(base) !== langOf(head)) {
+    flagged += 1;
+    lines.push(`## Language mismatch: base rendered ${langOf(base)}, head rendered ${langOf(head)} - compare like with like`, '');
+  }
   for (const hp of head.pages) {
     const bp = base.pages.find((p) => p.route === hp.route && p.width === hp.width);
     const issues = [];
@@ -147,7 +172,9 @@ function diff(args) {
       const baseCut = new Set(bp.overflow.map((o) => `${o.el}|${o.text}`));
       for (const o of hp.overflow) if (!baseCut.has(`${o.el}|${o.text}`)) issues.push(`cut off: ${o.el} "${o.text}" (${o.sw}px in ${o.cw}px)`);
       if (hp.pageScroll && !bp.pageScroll) issues.push('page now scrolls sideways');
+      if (bp.htmlLang && hp.htmlLang && bp.htmlLang !== hp.htmlLang) issues.push(`rendered in ${hp.htmlLang}, base in ${bp.htmlLang}`);
     }
+    if (hp.navPastViewport) issues.push(`top nav ends at ${hp.navPastViewport}px on a ${hp.width}px page${bp?.navPastViewport ? ' (base too)' : ''}`);
     if (hp.hint && ((hp.hint.tracks > 1 && !hp.hint.spans) || hp.hint.rowFlex)) issues.push(`hint "${hp.hint.key}" takes a slot in ${hp.hint.parent} (${hp.hint.display}, ${hp.hint.tracks} tracks)`);
     flagged += issues.length;
     lines.push(`## ${hp.route} @ ${hp.width}px: ${issues.length ? `${issues.length} flagged` : 'no change'}`);

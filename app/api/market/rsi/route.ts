@@ -3,6 +3,7 @@
  *
  * GET /api/market/rsi
  *   → { rsi: { btc: { rsi5m, rsi1h, rsi4h, rsiDaily, rsiWeekly, rsiMonthly }, ... }, ts }
+ *   rsi5m only for a Pro caller (Authorization: Bearer <token>) - see GET (#1263).
  *
  * WHY THIS EXISTS
  *
@@ -41,6 +42,7 @@ import { cached } from '@/lib/apiCache';
 import { runPool, HttpStatusError, isRateLimitStatus } from '@/lib/pool';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { computeRSI14 } from '@/lib/rsi';
+import { getEntitlementStatusFromRequestToken } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 
@@ -352,6 +354,20 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    /* #1263: 5m is a Pro timeframe (lib/limits.ts GATED_TFS), and the fast
+       group is 5m alone. MultiTFAlignment only blurs that row in the browser,
+       so before this every caller, signed out included, got rsi5m in the
+       response. A caller who is not confirmed Pro now gets the slow group
+       only. Same rule as /api/grok's fast-timeframe gate (#1511): 'unknown'
+       (the plan read failed) is served, because a failed read is not
+       evidence the user is free (#1119).
+     *
+       The fast group is still fetched and cached for every caller, so the
+       Binance cost and the binance:rsi-fast health record do not depend on
+       whether a Pro user happened to visit this TTL window. */
+    const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
+    const statusP = getEntitlementStatusFromRequestToken(token); // never rejects
+
     /* allSettled, not all: a failing slow group must still let the fast group
        through. The client merges whatever arrives and leaves the rest at its
        previous value, which is the same degradation the per-coin fetches had
@@ -360,6 +376,7 @@ export async function GET(req: NextRequest) {
       cached('market-rsi:fast', FAST_TTL, () => buildGroup(true)),
       cached('market-rsi:slow', SLOW_TTL, () => buildGroup(false)),
     ]);
+    const fastAllowed = (await statusP) !== 'not_entitled';
 
     if (fastRes.status === 'rejected' && slowRes.status === 'rejected') {
       reportHealth('binance:rsi', 'market', false, healthError(fastRes.reason));
@@ -368,7 +385,7 @@ export async function GET(req: NextRequest) {
 
     const rsi: RsiMap = {};
     const viaFallback = new Set<string>();
-    for (const res of [slowRes, fastRes]) {
+    for (const res of fastAllowed ? [slowRes, fastRes] : [slowRes]) {
       if (res.status !== 'fulfilled') continue;
       for (const [coin, fields] of Object.entries(res.value.out)) {
         Object.assign(rsi[coin] ??= {}, fields);
@@ -388,10 +405,14 @@ export async function GET(req: NextRequest) {
       ...(viaFallback.size ? { viaFallback: [...viaFallback] } : {}),
       ts: Date.now(),
     }, {
-      /* Public, visitor-independent, and already only as fresh as FAST_TTL.
-         Letting any shared cache in front of this serve it costs nothing and
-         removes the origin hit entirely for the common case. */
-      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600' },
+      /* Private since #1263: the body now depends on who is asking, so a
+         shared cache must not store one caller's response for another. This
+         was 'public, s-maxage=60', and s-maxage explicitly lets a shared
+         cache store a response to an Authorization request - a Pro body
+         could have been served to a free caller. The fan-out is still done
+         once per TTL for everyone by cached() above; only the merge is per
+         caller. */
+      headers: { 'Cache-Control': 'private, max-age=60', Vary: 'Authorization' },
     });
   } catch (err) {
     return apiError('market-rsi', err, 500, 'Request failed');

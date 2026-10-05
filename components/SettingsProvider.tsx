@@ -39,6 +39,18 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // #1285: 'conflict' joins the set - a save the server accepted but that lost
   // one or more fields to a newer write from another device (see lib/settings.ts).
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>('idle');
+  /** The patch of the last save that failed every attempt, for retrySave(). */
+  const lastFailedRef = useRef<Partial<UserSettings> | null>(null);
+  /* The pending "back to idle" timer of the last result. A new save clears it,
+     so a retry started within 3s of a failure is not reset to idle mid-flight
+     by the failure's own timer (QA, #1503 follow-up: it flickered). */
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** True while a retry from the toast is on its way into flushToDb. */
+  const retryingRef = useRef(false);
+  const settleToIdle = (ms: number) => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => { idleTimerRef.current = null; setSaveStatus('idle'); }, ms);
+  };
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef  = useRef<Partial<UserSettings> | null>(null);
@@ -60,7 +72,15 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // runs during render and it becomes a real TDZ crash. Ordering it properly
   // costs nothing - it depends on `user`, which is already available here.
   const flushToDb = useCallback(async (partial: Partial<UserSettings>) => {
-    if (!user) return;
+    /* Signed out (QA, #1503 follow-up): there is no account to save to. When
+       this is a retry from the save toast, the toast already shows "Saving…",
+       so say it failed rather than return silently and leave it there. The
+       patch goes back into lastFailedRef: retrySave() emptied it, and without
+       it the next "Try again" would send nothing and the change is lost (QA). */
+    if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; lastFailedRef.current = partial; setSaveStatus('error'); settleToIdle(3000); } return; }
+    retryingRef.current = false;
+    lastFailedRef.current = null;
+    if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
     setSaveStatus('saving');
 
     // getAuthToken(), not a raw getSession() - #1168. Every settings save in
@@ -153,7 +173,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       // immediately (above) and surfacing that a value changed, not
       // silently, but also not as a failure the user would think to retry.
       setSaveStatus(result.rejected.length > 0 ? 'conflict' : 'saved');
-      setTimeout(() => setSaveStatus('idle'), result.rejected.length > 0 ? 3000 : 2000);
+      settleToIdle(result.rejected.length > 0 ? 3000 : 2000);
       return;
     }
     /* Every attempt failed. `saveStatus: 'error'` is #1188 part 2's signal -
@@ -162,9 +182,24 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
        before this ever ran) - #1188 part 3's applyDbSettings below is what
        stops the next sign-in's DB read from silently overwriting them with
        the stale value this save was trying to replace. */
+    lastFailedRef.current = partial;
     setSaveStatus('error');
-    setTimeout(() => setSaveStatus('idle'), 3000);
+    settleToIdle(3000);
+  // settleToIdle only touches refs and a state setter, both stable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  /* The save toast's "Try again" (#1498): the toast keeps an error on screen
+     until the visitor acts, so this re-sends exactly the patch that failed.
+     Its keys are still in the unconfirmed set (update() put them there), so
+     a retry that fails again leaves them protected the same way. */
+  const retrySave = useCallback(() => {
+    const failed = lastFailedRef.current;
+    if (!failed) return;
+    lastFailedRef.current = null;
+    retryingRef.current = true;
+    void flushToDb(failed);
+  }, [flushToDb]);
 
   // Applies a DB-confirmed row without letting it silently overwrite a field
   // this browser has an unconfirmed local write for - #1188 part 3. Shared by
@@ -413,8 +448,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // setting actually changed. update/refresh/flushToDb are already useCallback'd,
   // so the identity is stable until the values genuinely move.
   const value = useMemo(
-    () => ({ settings, loading, settingsLoadStatus, saveStatus, update, refresh }),
-    [settings, loading, settingsLoadStatus, saveStatus, update, refresh],
+    () => ({ settings, loading, settingsLoadStatus, saveStatus, update, refresh, retrySave }),
+    [settings, loading, settingsLoadStatus, saveStatus, update, refresh, retrySave],
   );
 
   return (

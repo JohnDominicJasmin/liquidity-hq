@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCryptoCheckoutUrl, isProBuyable, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
+import { EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import { useLabels } from '@/lib/labels';
 import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
 
@@ -47,7 +48,7 @@ const PRICE_BADGE: React.CSSProperties = { fontSize: 'var(--fs-caption)', fontWe
 const PRICE_BUTTON_LAYOUT: React.CSSProperties = { display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8, rowGap: 6 };
 
 export default function UpgradePage() {
-  const { user, loading, isPro } = useAuth();
+  const { user, loading, isPro, entitlementsLoading, entitlementStatus, retryEntitlements } = useAuth();
   const router = useRouter();
   /* WHICH plan is redirecting, not just whether one is (#1423). A single boolean
      drove every button's label, so clicking one plan made all three read
@@ -195,8 +196,22 @@ export default function UpgradePage() {
     </div>
   );
 
-  if (loading || isPro) {
+  /* #1309 item 12: this used to wait only for sign-in. `isPro` is false until the subscription read settles,
+     so a Pro account saw the checkout buttons for as long as that took (payments are not live, so nobody
+     could be charged twice today - fix before they open). A signed-in visitor now waits for the plan; if it
+     could not be read at all, the page says so and offers a retry rather than selling Pro to someone who may
+     already have it. Signed-out visitors are unaffected: entitlementsLoading settles false for them. */
+  if (loading || (user && entitlementsLoading) || isPro) {
     return <LoadingState message={isPro ? t('UPGRADE_LOADING_REDIRECTING') : t('UPGRADE_LOADING')} fullPage />;
+  }
+  if (user && entitlementStatus === 'unknown') {
+    return (
+      <div className="upgrade-term-wrap" style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--txt)', padding: '56px 24px' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <EntitlementUnknownCard title={t('UPGRADE_HERO_TITLE')} onRetry={retryEntitlements} />
+        </div>
+      </div>
+    );
   }
 
   return (

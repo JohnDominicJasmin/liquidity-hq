@@ -402,7 +402,7 @@ export default function BriefingTerminal() {
             const tags     = c ? getSignalTags(c, sq.dir as 'LONG_LIQ' | 'SHORT_SQ', t) : [];
             const isLast   = i === top3Setups.length - 1;
             return (
-              <Link key={id} href="/arena" style={{ textDecoration: 'none', display: 'block' }}>
+              <Link key={id} href={`/arena?coin=${id}`} style={{ textDecoration: 'none', display: 'block' }}>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '11px 0',
@@ -676,7 +676,7 @@ export default function BriefingTerminal() {
             ) : (
               <>
                 {shown.map(({ id, label, chips }, i) => (
-                  <Link key={id} href="/arena" style={{ textDecoration: 'none', display: 'block', borderBottom: i < shown.length - 1 ? '0.5px solid var(--bdr)' : 'none' }}>
+                  <Link key={id} href={`/arena?coin=${id}`} style={{ textDecoration: 'none', display: 'block', borderBottom: i < shown.length - 1 ? '0.5px solid var(--bdr)' : 'none' }}>
                     <div className="nbs-row">
                       <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', minWidth: 48, letterSpacing: '-0.3px' }}>
                         {label}
