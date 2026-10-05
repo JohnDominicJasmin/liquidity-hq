@@ -4051,7 +4051,9 @@ html[data-theme="light"] { background: var(--bg0); }
 .st-affix:first-child { border-right: none; border-radius: 7px 0 0 7px; }
 .st-suffix { border-left: none; border-right: 0.5px solid var(--bdr); border-radius: 0 7px 7px 0; }
 .st-input {
-  flex: 1; height: 34px; padding: 0 10px;
+  /* min-width: 0: a number input's intrinsic width follows its step (`any` is 193px, `0.1` is 129px)
+     and a flex item will not shrink below it, so the Risk % suffix sat at 417px on a 390 phone. */
+  flex: 1; min-width: 0; height: 34px; padding: 0 10px;
   background: var(--bg2); border: 0.5px solid var(--bdr);
   /* #1309 item 1: no `outline: none` - see .login-email-input's comment. */
   color: var(--txt); font-size: var(--fs-label);
