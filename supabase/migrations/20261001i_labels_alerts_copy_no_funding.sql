@@ -21,8 +21,11 @@
 --              directly to Telegram."
 --      AFTER:  the same without "funding rate extremes, ".
 --    ko/zh/ar: the seed value (20260731a / 20260801a / 20260802a) with the
---    funding item and its list separator removed. No ru row exists in any
---    migration file for this key, so none is written here.
+--    funding item and its list separator removed. ru: no migration file
+--    ever wrote a ru row for this key, but the live tables held one that
+--    still said "фандинга". PM/DevOps found it on the read-before-apply and
+--    applied this ru row to prod and dev on 2026-10-01; it is added here so
+--    the file matches both databases.
 --
 -- Not changed: ALERTS_SENTIMENT_EXTREMES_DESC, ALERTS_DISTRIBUTION_DESC and
 -- ALERTS_EMA_SETUP_4H_DESC name funding as an input to those alerts, which
@@ -48,7 +51,8 @@ insert into lhq_labels (key, locale, value) values
 ('ALERTS_LOCKED_FEATURE_DESC','en','Push alerts for RSI signals, open interest spikes, whale moves, and price levels - sent directly to Telegram.'),
 ('ALERTS_LOCKED_FEATURE_DESC','ko','RSI 신호, 미결제약정 급등, 고래 움직임, 가격 레벨에 대한 푸시 알림을 텔레그램으로 직접 전송합니다.'),
 ('ALERTS_LOCKED_FEATURE_DESC','zh','RSI 信号、持仓量异动、巨鲸动向、价位提醒 - 直接推送到 Telegram。'),
-('ALERTS_LOCKED_FEATURE_DESC','ar','تنبيهات تُرسل مباشرة إلى تيليغرام عند إشارات RSI، قفزات الفائدة المفتوحة، تحركات الحيتان، ومستويات الأسعار.')
+('ALERTS_LOCKED_FEATURE_DESC','ar','تنبيهات تُرسل مباشرة إلى تيليغرام عند إشارات RSI، قفزات الفائدة المفتوحة، تحركات الحيتان، ومستويات الأسعار.'),
+('ALERTS_LOCKED_FEATURE_DESC','ru','Push-уведомления о сигналах RSI, скачках открытого интереса, движениях китов и ценовых уровнях - отправляются прямо в Telegram.')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- DEV: same rows against lhq_dev_labels - apply separately (shared-database
@@ -63,5 +67,6 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 -- ('ALERTS_LOCKED_FEATURE_DESC','en','Push alerts for RSI signals, open interest spikes, whale moves, and price levels - sent directly to Telegram.'),
 -- ('ALERTS_LOCKED_FEATURE_DESC','ko','RSI 신호, 미결제약정 급등, 고래 움직임, 가격 레벨에 대한 푸시 알림을 텔레그램으로 직접 전송합니다.'),
 -- ('ALERTS_LOCKED_FEATURE_DESC','zh','RSI 信号、持仓量异动、巨鲸动向、价位提醒 - 直接推送到 Telegram。'),
--- ('ALERTS_LOCKED_FEATURE_DESC','ar','تنبيهات تُرسل مباشرة إلى تيليغرام عند إشارات RSI، قفزات الفائدة المفتوحة، تحركات الحيتان، ومستويات الأسعار.')
+-- ('ALERTS_LOCKED_FEATURE_DESC','ar','تنبيهات تُرسل مباشرة إلى تيليغرام عند إشارات RSI، قفزات الفائدة المفتوحة، تحركات الحيتان، ومستويات الأسعار.'),
+-- ('ALERTS_LOCKED_FEATURE_DESC','ru','Push-уведомления о сигналах RSI, скачках открытого интереса, движениях китов и ценовых уровнях - отправляются прямо в Telegram.')
 -- on conflict (key, locale) do update set value = excluded.value, updated_at = now();
