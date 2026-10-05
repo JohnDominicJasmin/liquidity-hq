@@ -196,7 +196,10 @@ test('C4. the status follows the attempt: saved/conflict only on a non-failed re
   const retry = anchorOnce(src, 'const { result } = await retryWithBackoff(attemptSave, {', 'the retry call');
   const success = anchorOnce(src, 'if (!result.failed) {', 'the success branch');
   const saved = anchorOnce(src, "setSaveStatus(result.rejected.length > 0 ? 'conflict' : 'saved');", 'the saved/conflict status');
-  const error = anchorOnce(src, "setSaveStatus('error');", 'the error status');
+  /* Two `setSaveStatus('error')` exist since #1510 (the signed-out retry sets one before any request). The one
+     this test is about is the genuine failure after every attempt, and it is the one right after the failed
+     patch is kept, so anchor on that pair. */
+  const error = anchorOnce(src, "lastFailedRef.current = partial;\n    setSaveStatus('error');", 'the error status after the failed attempt');
   assert.ok(retry < success && success < saved && saved < error, 'the saved/conflict/error statuses are no longer chosen by result.failed in this order');
 });
 
