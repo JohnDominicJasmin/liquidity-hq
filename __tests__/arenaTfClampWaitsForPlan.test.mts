@@ -116,10 +116,10 @@ test('A6. the clamp moves a free account to a timeframe that is itself free, and
   assert.equal(isGatedTf(initial[1]), true, `the Arena now starts on ${initial[1]}, which is not gated - the clamp no longer touches a load with no ?tf=, and the comment on the clamp effect is out of date`);
 });
 
-test("A7. KNOWN GAP: the Journal and the Hypothesis tracker also wait for the plan before showing tools as locked", { todo: "components/TradeJournal.tsx and components/HypothesisTracker.tsx lock on `!authLoading && entitlementStatus === 'not_entitled'` - read from source, not reproduced in a browser; reported on #1263" }, () => {
+test("A7. the Journal and the Hypothesis tracker also wait for the plan before showing tools as locked (#1509)", () => {
   for (const f of ['components/TradeJournal.tsx', 'components/HypothesisTracker.tsx']) {
     const lines = code(f).split('\n').filter((l) => /!authLoading && entitlementStatus === 'not_entitled'/.test(l));
-    assert.ok(lines.length > 0, `CONTROL: ${f} no longer has the lock expression - delete this todo`);
+    assert.ok(lines.length > 0, `CONTROL: ${f} no longer has the lock expression - re-derive this test from the new shape`);
     for (const l of lines) assert.ok(/entitlementsLoading/.test(l), `${f}: ${l.trim()}`);
   }
 });
