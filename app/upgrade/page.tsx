@@ -47,6 +47,14 @@ const TRUST_LABELS = ['UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
 const PRICE_BADGE: React.CSSProperties = { fontSize: 'var(--fs-caption)', fontWeight: 600, background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' };
 const PRICE_BUTTON_LAYOUT: React.CSSProperties = { display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8, rowGap: 6 };
 
+/* The three billing buttons share one shape (Danivy's recommendation, #861): the same width, the same
+   height, the label on the left and the badge on the right, so the three prices can be compared at a
+   glance. Only the recommended one (monthly) is filled; the other two are outlined. */
+const PLAN_BUTTON_SHAPE: React.CSSProperties = { width: '100%', minHeight: 76, boxSizing: 'border-box', flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'flex-start', justifyContent: 'center', rowGap: 6, textAlign: 'left', position: 'relative' };
+const PLAN_BUTTON_OUTLINED: React.CSSProperties = { color: 'var(--txt)', background: 'transparent', border: '1px solid var(--bdr3)' };
+const PLAN_RECOMMENDED_TAG: React.CSSProperties = { position: 'absolute', top: -10, right: 14, fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent-solid)', color: 'var(--on-accent)', border: '1px solid var(--bg)', padding: '2px 10px', borderRadius: 20, whiteSpace: 'nowrap' };
+const BILLING_CHOICES_COLUMN: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 440 };
+
 export default function UpgradePage() {
   const { user, loading, isPro, entitlementsLoading, entitlementStatus, retryEntitlements } = useAuth();
   const router = useRouter();
@@ -64,7 +72,14 @@ export default function UpgradePage() {
   const [selectedPlan, setSelectedPlan] = useState<null | CheckoutPlan>(null);
   /** The plan button that opened the panel, so closing it can return focus there. */
   const panelOpener = useRef<HTMLElement | null>(null);
+  /* "Upgrade to Pro" on the Pro card reveals the billing choices (Danivy's flow, #861). It only shows
+     them: nothing is chosen, charged or navigated until a plan button is pressed. */
+  const [plansOpen, setPlansOpen] = useState(false);
+  const billingChoicesRef = useRef<HTMLDivElement | null>(null);
   const { t } = useLabels();
+  useEffect(() => {
+    if (plansOpen) billingChoicesRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+  }, [plansOpen]);
 
   useEffect(() => {
     if (loading) return;
@@ -139,7 +154,7 @@ export default function UpgradePage() {
       data-testid="checkout-cta-fortnightly"
       onClick={handleCheckoutFortnightly}
       disabled={isRedirecting}
-      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s', ...PRICE_BUTTON_LAYOUT }}
+      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, padding: '14px 20px', borderRadius: 12, cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s', ...PRICE_BUTTON_LAYOUT, ...PLAN_BUTTON_SHAPE, ...PLAN_BUTTON_OUTLINED }}
       onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
     >
@@ -306,6 +321,22 @@ export default function UpgradePage() {
                 </li>
               ))}
             </ul>
+            {/* Danivy's flow (#861): the cards first, the billing choices on request. Only where there is
+                something to buy: in the "launching soon" state this is not rendered, so that page keeps
+                zero buttons. It reveals, it does not navigate or charge. */}
+            {CHECKOUT_CONFIGURED && (
+              <button
+                type="button"
+                data-testid="upgrade-reveal-plans"
+                aria-expanded={plansOpen}
+                aria-controls="billing-choices"
+                onClick={() => setPlansOpen(true)}
+                disabled={plansOpen}
+                style={{ width: '100%', minHeight: 48, marginTop: 20, fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '12px 20px', borderRadius: 12, border: 'none', cursor: plansOpen ? 'default' : 'pointer', opacity: plansOpen ? 0.6 : 1 }}
+              >
+                {t('UPGRADE_GATE_CTA')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -313,24 +344,26 @@ export default function UpgradePage() {
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
           {CHECKOUT_CONFIGURED && CHECKOUT_ANNUAL_CONFIGURED ? (
             /* State 1: both plans available — show monthly + annual side by side */
-            <>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            plansOpen && <>
+              <div id="billing-choices" ref={billingChoicesRef} style={BILLING_CHOICES_COLUMN}>
                 {fortnightlyButton}
                 <button
                   data-testid="checkout-cta-monthly"
                   onClick={handleCheckout}
                   disabled={isRedirecting}
-                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
+                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 20px', borderRadius: 12, border: '1px solid transparent', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', ...PRICE_BUTTON_LAYOUT, ...PLAN_BUTTON_SHAPE }}
                   onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
-                  {redirecting === 'monthly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_MONTHLY_CHECKOUT_BUTTON_CTA')}
+                  {redirecting === 'monthly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : (
+                    <><span style={PLAN_RECOMMENDED_TAG}>{t('UPGRADE_PRO_CARD_BADGE')}</span><span>{t('UPGRADE_MONTHLY_CHECKOUT_BUTTON_CTA')}</span><span style={PRICE_BADGE}>{t('UPGRADE_PRICE_MONTHLY')}{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></>
+                  )}
                 </button>
                 <button
                   data-testid="checkout-cta-annual"
                   onClick={handleCheckoutAnnual}
                   disabled={isRedirecting}
-                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative', ...PRICE_BUTTON_LAYOUT }}
+                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, padding: '14px 20px', borderRadius: 12, cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative', ...PRICE_BUTTON_LAYOUT, ...PLAN_BUTTON_SHAPE, ...PLAN_BUTTON_OUTLINED }}
                   onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
@@ -355,18 +388,20 @@ export default function UpgradePage() {
             </>
           ) : CHECKOUT_CONFIGURED ? (
             /* State 2: monthly only — pixel-identical to today unless the two-weekly link is also set */
-            <>
+            plansOpen && <>
+              <div id="billing-choices" ref={billingChoicesRef} style={BILLING_CHOICES_COLUMN}>
               {fortnightlyButton}
               <button
                 data-testid="checkout-cta-monthly"
                 onClick={handleCheckout}
                 disabled={isRedirecting}
-                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
+                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 20px', borderRadius: 12, border: '1px solid transparent', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', display: 'inline-flex', ...PLAN_BUTTON_SHAPE, minHeight: 52, alignItems: 'center', justifyContent: 'center' }}
                 onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
               >
                 {redirecting === 'monthly' ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_CHECKOUT_BUTTON_CTA')}
               </button>
+              </div>
               {methodPanel}
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {TRUST_LABELS.map(label => (
