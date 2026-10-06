@@ -90,6 +90,12 @@ test.describe('#243 checkout config', () => {
     await page.locator('[data-testid^="checkout-cta"], h1').first().waitFor({ state: 'attached', timeout: 20_000 });
     await page.waitForTimeout(1_500);
 
+    /* Since the plan-choices layout (#861) the billing buttons appear only after "Upgrade to Pro" is pressed, and that
+       button is rendered only when checkout is configured. Press it when it is there; when it is not, the page is in
+       its coming-soon state and zero buttons is the correct reading. */
+    const reveal = page.getByTestId('upgrade-reveal-plans');
+    if (await reveal.count() > 0) { await reveal.click(); await page.waitForTimeout(600); }
+
     /* THE BUTTONS ARE <button>s with test ids, not links: the page navigates in an
        onClick, so there is no href to read. Matched on test ids, not text - the
        labels are DB-driven and differ by locale. */

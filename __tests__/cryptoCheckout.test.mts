@@ -334,11 +334,21 @@ test('U5d. Escape closes the panel: the listener exists only while a plan is ope
   assert.equal((UPGRADE.match(/addEventListener\('keydown'/g) ?? []).length, 1, 'more than one keydown listener on /upgrade');
 });
 
-test('U5e. the price badge never breaks inside itself: both badges use PRICE_BADGE, which is nowrap', () => {
+/* U5e was re-pinned for the plan-choices layout (#861, Danivy's recommendation; owner decision 2026-10-01 item 7).
+   The Monthly button now carries a price badge like the two-weekly and annual ones, so there are THREE badges, and the
+   three plan buttons share one shape (PLAN_BUTTON_SHAPE: equal width, equal minimum height). */
+test('U5e. the price badge never breaks inside itself: all three plan buttons use PRICE_BADGE (nowrap) and share PLAN_BUTTON_SHAPE', () => {
   assert.match(UPGRADE, /const PRICE_BADGE: React\.CSSProperties = \{[^}]*whiteSpace: 'nowrap'[^}]*\};/, 'PRICE_BADGE is gone or no longer nowrap');
-  assert.equal((UPGRADE.match(/<span style=\{PRICE_BADGE\}>/g) ?? []).length, 2, 'the two-weekly and annual badges do not both use PRICE_BADGE');
+  assert.equal((UPGRADE.match(/<span style=\{PRICE_BADGE\}>/g) ?? []).length, 3, 'the two-weekly, monthly and annual buttons do not all use PRICE_BADGE');
   assert.equal(/<span style=\{\{ marginLeft: 8, fontSize: 'var\(--fs-caption\)'/.test(UPGRADE), false, 'an inline badge style that can wrap is back');
-  assert.equal((UPGRADE.match(/\.\.\.PRICE_BUTTON_LAYOUT/g) ?? []).length, 2, 'the two price buttons no longer both use the wrapping row layout');
+  assert.equal((UPGRADE.match(/\.\.\.PRICE_BUTTON_LAYOUT/g) ?? []).length, 3, 'the three plan buttons no longer all use the shared row layout');
+  for (const plan of ['fortnightly', 'monthly', 'annual']) {
+    const at = UPGRADE.indexOf(`data-testid="checkout-cta-${plan}"`);
+    assert.ok(at >= 0, `CONTROL: the ${plan} plan button's test id is gone`);
+    const near = UPGRADE.slice(at, at + 900);
+    assert.match(near, /\.\.\.PLAN_BUTTON_SHAPE/, `the ${plan} plan button no longer uses PLAN_BUTTON_SHAPE (equal-width plan buttons)`);
+  }
+  assert.match(UPGRADE, /const PLAN_BUTTON_SHAPE: React\.CSSProperties = \{[^}]*width: '100%'[^}]*minHeight: 76[^}]*\};/, 'PLAN_BUTTON_SHAPE lost its equal width or minimum height');
 });
 
 test('U6. the weekly-billing note is shown for the two-weekly plan only - it is the one plan whose crypto price differs from the button', () => {
