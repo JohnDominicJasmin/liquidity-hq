@@ -175,6 +175,9 @@ test.describe('checkout hand-off, signed out', () => {
 
     try {
       await gotoGuarded(page, '/upgrade', { waitUntil: 'domcontentloaded' });
+      /* The billing buttons appear after "Upgrade to Pro" (#861); it exists only when checkout is configured. */
+      const reveal = page.getByTestId('upgrade-reveal-plans');
+      if (await reveal.waitFor({ state: 'visible', timeout: 20_000 }).then(() => true).catch(() => false)) await reveal.click();
       const cta = page.getByTestId('checkout-cta-monthly');
       const forSale = await cta.waitFor({ state: 'visible', timeout: 20_000 }).then(() => true).catch(() => false);
       test.skip(!forSale, 'this build offers no plan (no crypto link at build time), so there is no button to click - see checkout-config-agrees.spec.ts for whether that is intended');

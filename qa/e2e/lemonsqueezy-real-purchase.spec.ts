@@ -148,6 +148,9 @@ test.describe('#243 real LemonSqueezy purchase', () => {
 
     try {
       await gotoSignedIn(page, '/upgrade');
+      /* The billing buttons appear after "Upgrade to Pro" (#861). */
+      const reveal = page.getByTestId('upgrade-reveal-plans');
+      if (await reveal.waitFor({ state: 'visible', timeout: 20_000 }).then(() => true).catch(() => false)) await reveal.click();
       const cta = page.getByTestId('checkout-cta-monthly');
       await expect(cta, 'no checkout button rendered on /upgrade').toBeVisible({ timeout: 20_000 });
       await cta.click();
