@@ -207,14 +207,27 @@ export default function UpgradePage() {
       )}
       {/* BoomFi has no two-week interval: its version of that plan bills weekly,
           and the buyer is told before leaving the page, not on the checkout. */}
-      {selectedPlan === 'fortnightly' && (
-        <p data-testid="checkout-method-crypto-weekly-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
-          {t('UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE')}
-        </p>
-      )}
-      <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
-        {t('UPGRADE_METHOD_CRYPTO_NOTE')}
-      </p>
+      {/* A fixed height (owner, 2026-10-06: "having multiple lines of text moves the height"). The two-week plan
+          has an extra note, so its panel was taller and everything below jumped when the plan changed. Both
+          layouts share ONE grid cell: the ghost is the tallest version (both notes), invisible and hidden from
+          assistive tech, so the panel always takes that height at any width, theme or language, with no
+          hard-coded size. The visible notes sit on top of it. */}
+      <div style={{ display: 'grid', width: '100%' }}>
+        <div aria-hidden="true" style={{ gridArea: '1 / 1', visibility: 'hidden', display: 'flex', flexDirection: 'column', gap: 12, pointerEvents: 'none' }}>
+          <p style={{ fontSize: 'var(--fs-caption)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>{t('UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE')}</p>
+          <p style={{ fontSize: 'var(--fs-caption)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>{t('UPGRADE_METHOD_CRYPTO_NOTE')}</p>
+        </div>
+        <div style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {selectedPlan === 'fortnightly' && (
+            <p data-testid="checkout-method-crypto-weekly-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+              {t('UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE')}
+            </p>
+          )}
+          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+            {t('UPGRADE_METHOD_CRYPTO_NOTE')}
+          </p>
+        </div>
+      </div>
     </div>
   );
 
