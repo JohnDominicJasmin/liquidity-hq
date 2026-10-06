@@ -51,7 +51,12 @@ const PRICE_BUTTON_LAYOUT: React.CSSProperties = { display: 'inline-flex', flexW
    height, the label on the left and the badge on the right, so the three prices can be compared at a
    glance. Only the recommended one (monthly) is filled; the other two are outlined. */
 const PLAN_BUTTON_SHAPE: React.CSSProperties = { width: '100%', minHeight: 76, boxSizing: 'border-box', flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'flex-start', justifyContent: 'center', rowGap: 6, textAlign: 'left', position: 'relative' };
-const PLAN_BUTTON_OUTLINED: React.CSSProperties = { color: 'var(--txt)', background: 'transparent', border: '1px solid var(--bdr3)' };
+/* One look for all three, and a SELECTED state that is the same for each (owner, 2026-10-06: "selecting these 3
+   items must have border design like this"). Unselected: a plain 1px subtle border. Selected: the accent border at
+   2px (1px + an inset 1px, so nothing shifts) over a light accent fill. The Recommended tag marks monthly; it does
+   not fill it. outlineOffset keeps the keyboard focus ring clear of the border, so the ring never reads as "selected". */
+const PLAN_BUTTON_OUTLINED: React.CSSProperties = { color: 'var(--txt)', background: 'transparent', border: '1px solid var(--bdr3)', outlineOffset: 4 };
+const PLAN_BUTTON_SELECTED: React.CSSProperties = { color: 'var(--txt)', background: 'var(--accent-bg)', border: '1px solid var(--accent)', boxShadow: 'inset 0 0 0 1px var(--accent)', outlineOffset: 4 };
 const PLAN_RECOMMENDED_TAG: React.CSSProperties = { position: 'absolute', top: -10, right: 14, fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent-solid)', color: 'var(--on-accent)', border: '1px solid var(--bg)', padding: '2px 10px', borderRadius: 20, whiteSpace: 'nowrap' };
 const BILLING_CHOICES_COLUMN: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 440 };
 
@@ -70,6 +75,7 @@ export default function UpgradePage() {
      the panel still shows, so the page does not change shape for the buyer on
      the day a second method is added. */
   const [selectedPlan, setSelectedPlan] = useState<null | CheckoutPlan>(null);
+  const planChoiceStyle = (plan: CheckoutPlan): React.CSSProperties => (selectedPlan === plan ? PLAN_BUTTON_SELECTED : PLAN_BUTTON_OUTLINED);
   /** The plan button that opened the panel, so closing it can return focus there. */
   const panelOpener = useRef<HTMLElement | null>(null);
   /* "Upgrade to Pro" on the Pro card reveals the billing choices (Danivy's flow, #861). It only shows
@@ -154,7 +160,8 @@ export default function UpgradePage() {
       data-testid="checkout-cta-fortnightly"
       onClick={handleCheckoutFortnightly}
       disabled={isRedirecting}
-      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, padding: '14px 20px', borderRadius: 12, cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s', ...PRICE_BUTTON_LAYOUT, ...PLAN_BUTTON_SHAPE, ...PLAN_BUTTON_OUTLINED }}
+      aria-pressed={selectedPlan === 'fortnightly'}
+      style={{ fontSize: 'var(--fs-data)', fontWeight: 700, padding: '14px 20px', borderRadius: 12, cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'fortnightly' ? 0.7 : 1, transition: 'transform 0.15s', ...PRICE_BUTTON_LAYOUT, ...PLAN_BUTTON_SHAPE, ...planChoiceStyle('fortnightly') }}
       onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
     >
@@ -351,7 +358,8 @@ export default function UpgradePage() {
                   data-testid="checkout-cta-monthly"
                   onClick={handleCheckout}
                   disabled={isRedirecting}
-                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 20px', borderRadius: 12, border: '1px solid transparent', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', ...PRICE_BUTTON_LAYOUT, ...PLAN_BUTTON_SHAPE }}
+                  aria-pressed={selectedPlan === 'monthly'}
+                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, padding: '14px 20px', borderRadius: 12, cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', ...PRICE_BUTTON_LAYOUT, ...PLAN_BUTTON_SHAPE, ...planChoiceStyle('monthly') }}
                   onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
@@ -363,7 +371,8 @@ export default function UpgradePage() {
                   data-testid="checkout-cta-annual"
                   onClick={handleCheckoutAnnual}
                   disabled={isRedirecting}
-                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, padding: '14px 20px', borderRadius: 12, cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative', ...PRICE_BUTTON_LAYOUT, ...PLAN_BUTTON_SHAPE, ...PLAN_BUTTON_OUTLINED }}
+                  aria-pressed={selectedPlan === 'annual'}
+                  style={{ fontSize: 'var(--fs-data)', fontWeight: 700, padding: '14px 20px', borderRadius: 12, cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'annual' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', position: 'relative', ...PRICE_BUTTON_LAYOUT, ...PLAN_BUTTON_SHAPE, ...planChoiceStyle('annual') }}
                   onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
                 >
@@ -395,7 +404,8 @@ export default function UpgradePage() {
                 data-testid="checkout-cta-monthly"
                 onClick={handleCheckout}
                 disabled={isRedirecting}
-                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 20px', borderRadius: 12, border: '1px solid transparent', cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', display: 'inline-flex', ...PLAN_BUTTON_SHAPE, minHeight: 52, alignItems: 'center', justifyContent: 'center' }}
+                aria-pressed={selectedPlan === 'monthly'}
+                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, padding: '14px 20px', borderRadius: 12, cursor: isRedirecting ? 'default' : 'pointer', opacity: redirecting === 'monthly' ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)', display: 'inline-flex', ...PLAN_BUTTON_SHAPE, minHeight: 52, alignItems: 'center', justifyContent: 'center', ...planChoiceStyle('monthly') }}
                 onMouseEnter={e => { if (!isRedirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
               >
