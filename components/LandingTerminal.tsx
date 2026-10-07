@@ -33,6 +33,7 @@ import LandingTicker from '@/components/LandingTicker';
 import type { LandingDict, Locale } from '@/lib/i18n/dictionaries';
 import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
 import { interpolate } from '@/lib/labels';
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '@/lib/supportContact';
 
 interface Props {
   dict: LandingDict;
@@ -574,6 +575,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
                 ['/upgrade', dict.footer.links.pricing], ['/about', dict.footer.links.about],
                 ['/disclaimer', dict.footer.links.disclaimer], ['/terms', 'Terms of Use'],
                 ['/privacy', 'Privacy Policy'], ['/refund', 'Refund Policy'],
+                ['/contact', 'Contact'],
               ] },
             ].map(col => (
               <div key={col.title}>
@@ -630,6 +632,10 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>,{' '}
             <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>, and{' '}
             <Link href="/refund" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Refund Policy</Link>.
+          </p>
+          <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: '8px 0 0' }}>
+            <Link href="/contact" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Contact</Link>:{' '}
+            <a href={SUPPORT_MAILTO} data-testid="landing-support-email" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{SUPPORT_EMAIL}</a>
           </p>
         </div>
       </footer>

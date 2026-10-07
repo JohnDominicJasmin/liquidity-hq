@@ -29,6 +29,27 @@ export function Warn({ size = 13, style }: IconProps) {
   );
 }
 
+/** Closed padlock - the one lock used wherever something is locked by a plan or a sign-in (strategy chips, Settings and Arena
+    timeframe chips, Arena's Quick / Deep buttons). Replaces the lock emoji and the three hand-drawn copies: one drawing, a
+    square-ish body, a 1.5 stroke, no fill, `currentColor`. Decorative on purpose (aria-hidden): the state is carried by
+    aria-disabled / the button's own text, never by this icon alone. 12 to 14px next to a label; baseline-aligned like Warn. */
+export function Lock({ size = 12, style }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+      style={{ display: 'inline-block', verticalAlign: '-1px', flexShrink: 0, ...style }}
+    >
+      <rect x="3.75" y="8.75" width="12.5" height="8.5" rx="1" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M6.5 8.75V6.5a3.5 3.5 0 0 1 7 0v2.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** Download / install-to-device glyph - used for "Add to Home Screen" prompts. */
 export function Download({ size = 14, style }: IconProps) {
   return (

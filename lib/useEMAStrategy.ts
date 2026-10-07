@@ -6,7 +6,7 @@ import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
-  SPREAD_MIN_BY_TF,
+  SPREAD_MIN_BY_TF, pendingSetupOf, judgeRibbon,
 } from './strategyCore.ts';
 import { detectRSIDivergence, rsiArr } from './divergence.ts';
 import { describeSelection } from './strategyRegistry.ts';
@@ -31,6 +31,7 @@ export interface StrategyCondition {
   label: string;
   pass: boolean | null; // null = not yet relevant / n/a
   detail: string;
+  warn?: boolean;       // an amber caution row (e.g. counter-trend); never counted as passing or failing
 }
 
 export interface StrategySignal {
@@ -51,8 +52,16 @@ export interface StrategySignal {
   signalTimestamp:   number | null;
   signalAnchorPrice: number | null;
   signalDir:         'long' | 'short' | null;
+  /* Markers are on the ARM candle (the EMA9/20 cross) again, and a signal still holding its hold is drawn hollow with
+     `pending` set (owner, 2026-10-07, after trying fill-candle placement on qa: "massive delay, selling at the bottom").
+     `pendingSetup` is the same signal as text under the chart. */
   signalLongs:  Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
   signalShorts: Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
+  pendingSetup: { dir: 'long' | 'short'; held: number; need: number } | null;
+  /* The signal coin gate (lib/signalCoinGate.ts). Set by gateSignal() when this coin's signals are locked on the viewer's plan.
+     `lockedMarkers` are where signals WERE, with no direction: always the candle's high, so a marker's position says nothing. */
+  signalLock?: 'signed_out' | 'free' | null;
+  lockedMarkers: Array<{ timestamp: number; anchorPrice: number }>;
   atrLast:    number | null;  // last ATR(14) - for Grok context
   ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
   chopIndex:  number | null;  // Choppiness Index (0-100) - high = range-bound
@@ -150,7 +159,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
-  signalLongs: [], signalShorts: [],
+  signalLongs: [], signalShorts: [], pendingSetup: null, lockedMarkers: [], signalLock: null,
   atrLast: null, ema50Slope: null,
   chopIndex: null, chopRegime: null,
   reversalWarnings: [],
@@ -286,45 +295,11 @@ export function useEMAStrategy(
         // Volume on current 4H candle above MA
         const volAboveMA = volma20 > 0 && lastVol >= volma20 * 0.7;
 
-        // Verdict
-        let verdict: StrategyVerdict = 'FREEZE';
-        let phase = 'No clear setup';
-
-        if (above200D && ribbonBull) {
-          if (inVZoneLong) {
-            verdict = 'LONG_SETUP';
-            phase   = 'In Value Zone - price pulled back to 20 EMA, entry eligible';
-          } else if (price > ema9) {
-            verdict = 'TRENDING_LONG';
-            phase   = 'Trending long - above 9 EMA, wait for pullback into value zone';
-          } else if (price < ema50) {
-            verdict = 'FREEZE';
-            phase   = 'Price sliced below 50 EMA - ribbon may be breaking, wait';
-          } else {
-            verdict = 'TRENDING_LONG';
-            phase   = 'Between 20 and 50 EMA - ribbon aligned, not yet in entry zone';
-          }
-        } else if (!above200D && ribbonBear) {
-          if (inVZoneShort) {
-            verdict = 'SHORT_SETUP';
-            phase   = 'In Value Zone - dead-cat bounce to 20 EMA, entry eligible';
-          } else if (price < ema9) {
-            verdict = 'TRENDING_SHORT';
-            phase   = 'Trending short - below 9 EMA, wait for rally into value zone';
-          } else if (price > ema50) {
-            verdict = 'FREEZE';
-            phase   = 'Price above 50 EMA - bearish breakdown not confirmed yet';
-          } else {
-            verdict = 'TRENDING_SHORT';
-            phase   = 'Between 20 and 50 EMA - ribbon aligned bearish, not in entry zone';
-          }
-        } else {
-          verdict = 'FREEZE';
-          const tfLabel = tf.toUpperCase();
-          phase   = above200D
-            ? `Daily above 200 SMA but ${tfLabel} ribbon not bullish - wait for EMA alignment`
-            : `Daily below 200 SMA but ${tfLabel} ribbon not bearish - wait for EMA alignment`;
-        }
+        // Verdict - decided by the ribbon's own direction; the daily 200 SMA only flags it counter-trend (judgeRibbon, strategyCore).
+        const judged = judgeRibbon({ ribbonBull, ribbonBear, have200D, above200D, price, ema9, ema20, ema50, inVZoneLong, inVZoneShort, tfLabel: tf.toUpperCase() });
+        let verdict: StrategyVerdict = judged.verdict;
+        let phase = judged.phase;
+        const { counterTrend, judgeLong } = judged;
 
         /* #985 gap 1, second indicator (#997 was RSI, advisory-only). Owner
            ruled a selected indicator must be able to MOVE verdict, not just
@@ -520,13 +495,19 @@ export function useEMAStrategy(
         const conditions: StrategyCondition[] = [
           {
             label: '200 SMA Filter (Daily)',
-            pass:  !have200D ? null : (above200D ? true : (ribbonBear ? true : false)),
+            pass:  !have200D ? null : (judged.setupDir ? !counterTrend : above200D),
             detail: !have200D
               ? 'Insufficient daily history - ribbon used as trend proxy'
               : above200D
-                ? `Price $${fmt(priceD)} above Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '-'} - LONG only`
-                : `Price below Daily 200 SMA - SHORT only`,
+                ? `Price $${fmt(priceD)} above Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a short' : 'favours longs'}`
+                : `Price $${fmt(priceD)} below Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a long' : 'favours shorts'}`,
           },
+          ...(counterTrend ? [{
+            label: 'Counter-trend',
+            pass:  null,
+            warn:  true,
+            detail: `Counter-trend: price is ${above200D ? 'above' : 'below'} the daily 200 SMA, so this ${judged.setupDir === 'short' ? 'short' : 'long'} is against the daily trend.`,
+          } as StrategyCondition] : []),
           {
             label: 'Ribbon Aligned',
             pass:  ribbonBull || ribbonBear,
@@ -538,8 +519,8 @@ export function useEMAStrategy(
           },
           {
             label: 'Trend Signal (fast/slow cross)',
-            pass:  above200D ? ema9 > ema20 : ema9 < ema20,
-            detail: above200D
+            pass:  judgeLong ? ema9 > ema20 : ema9 < ema20,
+            detail: judgeLong
               ? (ema9 > ema20
                 ? `EMA9 ${fmt(ema9)} crossed above EMA20 ${fmt(ema20)} - bullish cross confirmed`
                 : `EMA9 ${fmt(ema9)} still below EMA20 ${fmt(ema20)} - waiting for bullish cross`)
@@ -549,8 +530,8 @@ export function useEMAStrategy(
           },
           {
             label: 'Close vs EMA 50',
-            pass:  above200D ? price > ema50 : price < ema50,
-            detail: above200D
+            pass:  judgeLong ? price > ema50 : price < ema50,
+            detail: judgeLong
               ? (price > ema50
                 ? `Close $${fmt(price)} above EMA50 $${fmt(ema50)} - long entry confirmed`
                 : `Close $${fmt(price)} below EMA50 $${fmt(ema50)} - wait for candle close above EMA 50`)
@@ -725,6 +706,8 @@ export function useEMAStrategy(
         const detected = detectEMASignals(cRibbon, tf, filterParams);
         const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
         const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
+        const pendingSetup  = pendingSetupOf([...detected.signalLongs, ...detected.signalShorts]);
+        const lockedMarkers = [...detected.signalLongs, ...detected.signalShorts].map(s => ({ timestamp: s.timestamp, anchorPrice: cRibbon[s.armIndex].high }));
 
         // Recent record - confirmed signals only (pending have unreliable fillPrice at live edge)
         const confirmedSignals = [...detected.signalLongs, ...detected.signalShorts].filter(s => !s.pending);
@@ -764,7 +747,7 @@ export function useEMAStrategy(
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir,
-          signalLongs, signalShorts,
+          signalLongs, signalShorts, pendingSetup, lockedMarkers,
           chopIndex, chopRegime,
           reversalWarnings,
           atrLast, ema50Slope,
@@ -896,6 +879,8 @@ export function useEMAStrategy(
 /* ── Grok context summary line ───────────────────────────────────────────── */
 export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
   if (sig.loading || sig.verdict === 'LOADING') return 'Loading…';
+  // A locked coin gives the AI no buy or sell read either: nothing here can leak what the page is not showing.
+  if (sig.signalLock) return `[${tf.toUpperCase()} ribbon] signals locked for this coin on the viewer's plan - no setup read`;
   if (sig.error) return `Error: ${sig.error}`;
   const passing = sig.conditions.filter(c => c.pass === true).length;
   const total   = sig.conditions.filter(c => c.pass !== null).length;

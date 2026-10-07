@@ -266,6 +266,44 @@ export function indicatorLimit(entitled: boolean): number {
   return entitled ? LIMITS.pro : LIMITS.free;
 }
 
+/* CHART OVERLAYS vs INDICATORS (owner, 2026-10-07: "the indicator is on the chart but it's not selected in the selectors").
+   Four entries are `source: 'overlay'`: the EMA ribbon, S/R, liquidation clusters and GEX. The chart draws them from its own
+   data, not from the saved selection, so they were always on and the chip could never say so. They are layers, not indicators:
+   they do not use one of the plan's indicator slots (Free 1, Pro 3), and the cap counts only the entries that do. */
+export function isOverlayId(id: string): boolean {
+  return findIndicator(id)?.source === 'overlay';
+}
+/** The ids in a selection that use an indicator slot (everything except the chart overlays). */
+export function slottedIds(ids: readonly string[]): readonly string[] {
+  return ids.filter(id => !isOverlayId(id));
+}
+
+/* What each overlay chip shows, derived from the SAME values the chart draws from, so the two cannot drift:
+     always - drawn whatever the user does (the EMA ribbon; GEX where its levels exist)
+     on/off - has a toggle (the chart toolbar's S/R and Liq buttons); the chip and the toolbar are one switch
+     none   - not drawn for this coin (GEX off BTC, Liq with no clusters), so the chip says so and does nothing */
+export type OverlayState = 'always' | 'on' | 'off' | 'none';
+export type OverlayId = 'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX';
+export function overlayStates(i: { showSR: boolean; showLiq: boolean; hasLiq: boolean; hasGex: boolean }): Record<OverlayId, OverlayState> {
+  return {
+    EMA_RIBBON: 'always',
+    SR: i.showSR ? 'on' : 'off',
+    LIQ_CLUSTERS: !i.hasLiq ? 'none' : i.showLiq ? 'on' : 'off',
+    GEX: i.hasGex ? 'always' : 'none',
+  };
+}
+
+/* WHAT THE STRATEGY PANEL CALLS THE VIEWER (owner, 2026-10-07: a visitor with no account was shown "FREE"). A signed-out visitor has
+   no plan, so the panel must not name one. They can still pick indicators up to the Free cap (1; the selection is not saved),
+   so the count stays and only the plan name goes. While auth or the subscription read is unsettled, nothing is claimed. */
+export function strategyPlanLabel(i: { signedIn: boolean; authLoading: boolean; entitlementStatus: 'entitled' | 'not_entitled' | 'unknown' }): { head: string; countPrefix: string; plan: 'pro' | 'free' | 'signed_out' | 'unknown' } {
+  if (i.authLoading) return { head: '···', countPrefix: '', plan: 'unknown' };
+  if (!i.signedIn) return { head: 'SIGNED OUT', countPrefix: '', plan: 'signed_out' };
+  if (i.entitlementStatus === 'entitled') return { head: 'PRO', countPrefix: 'PRO · ', plan: 'pro' };
+  if (i.entitlementStatus === 'unknown') return { head: '···', countPrefix: '', plan: 'unknown' };
+  return { head: 'FREE', countPrefix: 'FREE · ', plan: 'free' };
+}
+
 export function byGroup(group: Group): readonly IndicatorEntry[] {
   return INDICATORS.filter(i => i.group === group);
 }

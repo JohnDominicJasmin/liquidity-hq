@@ -17,6 +17,7 @@ import { rendersOwnNav } from '@/lib/navRoutes';
 import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 import type { LabelKey } from '@/lib/labelKeys';
 import type { ComponentType } from 'react';
+import { useShowFreeUpgrade } from '@/components/UpgradePill';
 
 /* ── Nav data ──────────────────────────────────────────────────────────────── */
 
@@ -91,6 +92,7 @@ export default function NavDrawer() {
   const isDesktop = useIsDesktop();
   const pathname = usePathname();
   const { user, loading: authLoading, signOut } = useAuth();
+  const showFreeUpgrade = useShowFreeUpgrade();
   /* #1309 item 3 (R-32): the drawer had no Escape, no dialog role and did not move focus. The shared hook
      (#1243) gives it the three behaviours a modal panel owes: focus moves in on open, Tab stays inside,
      Escape closes and focus returns to whatever opened it. */
@@ -277,6 +279,17 @@ export default function NavDrawer() {
           })()}
 
           <div className="nav-divider" />
+          {/* Free accounts only (owner, 2026-10-07): the phone drawer had no way to Upgrade. */}
+          {showFreeUpgrade && (
+            <Link
+              href="/upgrade"
+              className={`nav-item${pathname === '/upgrade' ? ' on' : ''}`}
+              data-testid="drawer-upgrade"
+              onClick={() => setDrawerOpen(false)}
+            >
+              {t('UPGRADE_GATE_CTA')}
+            </Link>
+          )}
           {!authLoading && (
             user ? (
               <button

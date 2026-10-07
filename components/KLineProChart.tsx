@@ -332,6 +332,12 @@ interface Props {
      nothing. The one caller (app/arena/page.tsx) always passes it; an empty array
      is the honest way to say "none". */
   indicators:    readonly string[];
+  /* S/R and liquidation-cluster visibility, OWNED BY THE PAGE (owner, 2026-10-07): the toolbar buttons below and the Strategy
+     panel's S/R and Liq chips are one switch, so neither can say something the chart is not doing. */
+  showSR:        boolean;
+  onShowSRChange:  (next: boolean) => void;
+  showLiq:       boolean;
+  onShowLiqChange: (next: boolean) => void;
   /* Per-indicator edited parameter values for `indicators` (#1008), keyed by
      indicator id then param key. An indicator with no entry here uses
      strategyRegistry's defaultParams - see the sync effect below and
@@ -588,7 +594,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -684,7 +690,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   /* Which feed produced the chart's history. The gap backfill reads it so a
      recovery never mixes feeds - see the note at the getBars fallback (#359). */
   const histSourceRef  = useRef<'binance' | 'binance-futures' | 'bybit'>('bybit');
-  const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
   // Market-structure breaks (lib/priceAction.ts) - a second, price-only read
@@ -698,7 +703,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      toggle exists because eight extra horizontal lines is real ink on a chart
      that had a deliberate signal-reduction pass - a user who wants the candles
      alone gets one click, not a setting. */
-  const [showLiq, setShowLiq]     = useState(true);
   const [paSignals, setPaSignals] = useState<PASignal[]>([]);
   const paSetRef                  = useRef(setPaSignals);
   const [sqHover, setSqHover]     = useState(false);
@@ -1074,12 +1078,22 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           },
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
             const { dir, pending, price, hovered } = overlay.extendData as {
-              dir: 'long' | 'short'; pending: boolean; price?: number; hovered?: boolean;
+              dir: 'long' | 'short' | 'locked'; pending: boolean; price?: number; hovered?: boolean;
             };
+            /* An unconfirmed marker is the same marker as a confirmed one but hollow and dashed, reading plain "Buy" / "Sell" at 9px
+               (owner, 2026-10-07: no "FORMING", no "?"). How far its hold has got is the line under the chart, not text here. */
             const coord = coordinates[0];
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.x < 0 || coord.y < 0) return [];
             const x = coord.x;
             const y = coord.y;
+            /* A locked signal: a padlock above the candle, neutral grey, no direction and no price tag. The shackle is an arc, the body
+               a rounded rect. It says a signal is here and that this plan does not see it. */
+            if (dir === 'locked') {
+              return [
+                { type: 'arc', attrs: { x, y: y - 26, r: 4.5, startAngle: Math.PI, endAngle: 2 * Math.PI }, styles: { style: 'stroke', borderColor: 'rgba(150,155,160,0.95)', borderSize: 1.5 } },
+                { type: 'rect', attrs: { x: x - 7, y: y - 26, width: 14, height: 11 }, styles: { style: 'stroke_fill', color: 'rgba(150,155,160,0.25)', borderColor: 'rgba(150,155,160,0.95)', borderSize: 1.5, borderRadius: 2 } },
+              ];
+            }
 
             // Sits on the far side of the marker from the candle - below a Buy,
             // above a Sell - so it never lands on top of the price action.
@@ -1117,8 +1131,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   },
                   {
                     type: 'text',
-                    attrs: { x, y: y + 20, text: 'FORMING', align: 'center', baseline: 'middle' },
-                    styles: { color: 'rgba(34,197,94,0.85)', size: 7, weight: 'bold', backgroundColor: 'transparent' },
+                    attrs: { x, y: y + 20, text: 'Buy', align: 'center', baseline: 'middle' },
+                    styles: { color: 'rgba(34,197,94,0.95)', size: 9, weight: 'bold', backgroundColor: 'transparent' },
                   },
                   ...priceTag(),
                 ];
@@ -1146,8 +1160,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 },
                 {
                   type: 'text',
-                  attrs: { x, y: y - 20, text: 'FORMING', align: 'center', baseline: 'middle' },
-                  styles: { color: 'rgba(239,68,68,0.85)', size: 7, weight: 'bold', backgroundColor: 'transparent' },
+                  attrs: { x, y: y - 20, text: 'Sell', align: 'center', baseline: 'middle' },
+                  styles: { color: 'rgba(239,68,68,0.95)', size: 9, weight: 'bold', backgroundColor: 'transparent' },
                 },
                 ...priceTag(),
               ];
@@ -2193,7 +2207,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     chart.removeOverlay({ name: 'emaSignal' });
     if (!emaSignal || emaSignal.loading) return;
 
-    const place = (dir: 'long' | 'short', ts: number, price: number, pending: boolean) => {
+    const place = (dir: 'long' | 'short' | 'locked', ts: number, price: number, pending: boolean) => {
       chart.createOverlay({
         // lock stays on. In klinecharts it only gates mouse-down and
         // pressed-move (index.esm.js: `if (overlay.lock) return false` in
@@ -2210,6 +2224,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       } as OverlayCreate);
     };
 
+    /* Locked coin (lib/signalCoinGate.ts): the buy/sell markers are replaced by a direction-less padlock where each signal was. */
+    for (const m of emaSignal.lockedMarkers ?? []) if (emaSignal.signalLock) place('locked', m.timestamp, m.anchorPrice, false);
     for (const sig of emaSignal.signalLongs)  place('long',  sig.timestamp, sig.anchorPrice, sig.pending ?? false);
     for (const sig of emaSignal.signalShorts) place('short', sig.timestamp, sig.anchorPrice, sig.pending ?? false);
   }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2685,7 +2701,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         <div className="klc-sep" />
         <button
           className={`klc-tool-btn${showSR ? ' on' : ''}`}
-          onClick={() => setShowSR(v => !v)}
+          onClick={() => onShowSRChange(!showSR)}
           title="Toggle auto support &amp; resistance levels"
         >
           S/R
@@ -2702,7 +2718,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         {liqClusters && liqClusters.length > 0 && (
           <button
             className={`klc-tool-btn${showLiq ? ' on' : ''}`}
-            onClick={() => setShowLiq(v => !v)}
+            onClick={() => onShowLiqChange(!showLiq)}
             title="Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels."
           >
             Liq

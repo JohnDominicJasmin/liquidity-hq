@@ -1,5 +1,7 @@
 'use client';
 import { useEffect } from 'react';
+import Link from 'next/link';
+import { useLabels } from '@/lib/labels';
 import { useAuth } from '@/components/AuthProvider';
 import { useNow } from '@/lib/useNow';
 import { readPlanBadgeCache, writePlanBadgeCache } from '@/lib/planBadgeCache';
@@ -67,6 +69,7 @@ export default function PlanBadge() {
      open, the same bug useNow's own doc comment exists to prevent. Same
      60s interval TrialBanner already uses for the identical number. */
   const now = useNow(60_000);
+  const { t } = useLabels();
 
   // Cache the LAST SUCCESSFUL resolution, per user, so a later failed read
   // has something honest to fall back to. Never caches a failure - writing
@@ -99,7 +102,9 @@ export default function PlanBadge() {
       ? Math.max(0, Math.ceil((displayTrialEndsAt - now) / 86_400_000))
       : null;
     return (
-      <span className="plan-badge plan-badge-trial" title="Trial">
+      /* A link to /upgrade (owner, 2026-10-07): the badge was a dead span, so a trial user's one visible plan marker did
+         nothing when pressed. */
+      <Link href="/upgrade" className="plan-badge plan-badge-trial plan-badge-link" title="Trial">
         TRIAL
         {/* #1222: the day count is its own span so the narrow nav bands
             (768-917px, 918-944px) can hide it without touching the badge
@@ -114,7 +119,7 @@ export default function PlanBadge() {
             it here removes only the second, redundant copy of that
             number. */}
         {daysLeft != null && <span className="plan-badge-trial-days">{` · ${daysLeft}D`}</span>}
-      </span>
+      </Link>
     );
   }
 
@@ -129,5 +134,13 @@ export default function PlanBadge() {
     );
   }
 
-  return <span className="plan-badge plan-badge-free" title="Free">FREE</span>;
+  /* Free: a link to /upgrade with the word on it (owner, 2026-10-07: Free users could not find Upgrade). The word is
+     always in the DOM so the link's name is "FREE Upgrade"; the narrow nav bands hide it visually (globals.css), as
+     they do the trial day count, so the bar does not overflow there. The touch target is widened by .plan-badge-link's
+     ::after, not by padding, so the badge keeps its size. */
+  return (
+    <Link href="/upgrade" className="plan-badge plan-badge-free plan-badge-link" title={t('TNAV_UPGRADE_LABEL')}>
+      FREE<span className="plan-badge-upgrade">{` · ${t('TNAV_UPGRADE_LABEL')}`}</span>
+    </Link>
+  );
 }

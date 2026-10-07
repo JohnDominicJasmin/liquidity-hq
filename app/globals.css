@@ -4409,6 +4409,18 @@ html[data-theme="light"] { background: var(--bg0); }
 .plan-badge-free {
   color: var(--txt); background: var(--bg4); border: 1px solid var(--bdr2);
 }
+/* Free and Trial badges are links to /upgrade (owner, 2026-10-07: Free users could not find Upgrade). The badge keeps
+   its size: the 44px touch target comes from this ::after, not from padding. Hover reaches the accent border; the
+   keyboard focus ring is the global *:focus-visible outline, which is distinct from this border. */
+.plan-badge-link { position: relative; text-decoration: none; cursor: pointer; }
+.plan-badge-link::after { content: ''; position: absolute; inset: -13px -6px; }
+.plan-badge-link:hover { border-color: var(--accent); }
+/* The "Upgrade" word on the Free badge shows from 1024px up (measured: "FREE · UPGRADE" is 133px against 55px for "FREE",
+   and it overflows the bar at 768, and in Russian at 390 too). Below that it stays in the DOM, clipped to nothing, so the
+   link is still named "FREE Upgrade"; the badge, the account menu, the drawer and the Arena pill carry the way in. */
+@media (max-width: 1023px) {
+  .plan-badge-upgrade { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+}
 .plan-badge-trial {
   color: var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--amber) 22%, transparent);
@@ -8716,7 +8728,14 @@ main.app-content[data-chrome="none"] {
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
   display: flex; justify-content: space-between; margin-bottom: 6px;
 }
-[data-design="terminal"] .strat-cap { color: var(--txt3); } /* #1271: 4.71 dark / 5.07 light on --bg1 (was 1.72 / 1.91) */
+[data-design="terminal"] .strat-cap { color: var(--txt3); }
+/* The plan + used/limit chip beside "Indicators" (owner, 2026-10-07: the 0 of 1 caption was easy to miss). --txt2 on --bg1
+   is 5.62 dark / 5.56 light. At the cap it takes the accent border so it reads as "full", with the words saying so as well. */
+[data-design="terminal"] .strat-count {
+  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--txt2); border: 1px solid var(--bdr3); padding: 2px 6px; white-space: nowrap;
+}
+[data-design="terminal"] .strat-count.full { color: var(--txt); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); } /* #1271: 4.71 dark / 5.07 light on --bg1 (was 1.72 / 1.91) */
 
 [data-design="terminal"] .strat-sel {
   width: 100%; height: 26px; background: var(--bg2);
@@ -8734,6 +8753,15 @@ main.app-content[data-chrome="none"] {
 }
 
 [data-design="terminal"] .strat-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+/* One height for every state, so a chip changing state never changes the rows. */
+[data-design="terminal"] .strat-chip { box-sizing: border-box; min-height: 24px; }
+[data-design="terminal"] .strat-limit-link { color: var(--accent); font-weight: 700; text-decoration: underline; display: inline-flex; align-items: center; min-height: 24px; }
+/* Phone: 44px touch targets (WCAG 2.5.5) and a size that can be read. */
+@media (max-width: 767px) {
+  [data-design="terminal"] .strat-chips { gap: 6px; }
+  [data-design="terminal"] .strat-chip { min-height: 44px; padding: 0 12px; font-size: 11.5px; }
+  [data-design="terminal"] .strat-limit-link { min-height: 44px; padding: 0 4px; }
+}
 [data-design="terminal"] .strat-chip {
   font-family: var(--font-mono), monospace; font-size: 9.5px;
   text-transform: uppercase; letter-spacing: .04em;
@@ -8741,10 +8769,19 @@ main.app-content[data-chrome="none"] {
   background: none; color: var(--txt3); cursor: pointer;
   display: inline-flex; gap: 3px; align-items: center;
 }
+/* SELECTED (owner, 2026-10-07: the four chip states looked the same): the accent border at 2px (1px + an inset 1px, no
+   layout shift) over a light accent fill, the same language as the plan choice on /upgrade. aria-pressed carries it for
+   assistive tech and the position badge for everyone. Keyboard focus is the global outline, drawn 3px outside the border. */
 [data-design="terminal"] .strat-chip.on {
-  background: var(--accent); border-color: var(--accent);
-  color: var(--on-accent); font-weight: 600;
+  background: var(--accent-bg); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--txt); font-weight: 600;
 }
+/* Keyboard focus is a plain text-colour ring, NOT the accent: the selected state is an accent border, and a gold focus box on a
+   chip that is not selected read as "selected" (owner, 2026-10-07, the GEX chip). */
+[data-design="terminal"] .strat-chip:focus-visible { outline: 2px solid var(--txt); outline-offset: 3px; }
+/* An overlay that is always on: selected-looking but not clickable, so no pointer cue. */
+[data-design="terminal"] .strat-chip.always { cursor: default; background: none; border-color: var(--bdr3); box-shadow: none; color: var(--txt); font-weight: 400; }
+[data-design="terminal"] .strat-chip-tag { font-size: 8.5px; letter-spacing: .08em; color: var(--txt3); border-left: 1px solid var(--bdr3); padding-left: 5px; }
 /* Past the limit. Dimmed, still focusable, still says why on hover - a
    `disabled` chip would leave the tab order and a keyboard user would never
    find out what stopped them. */
@@ -8757,10 +8794,11 @@ main.app-content[data-chrome="none"] {
    cannot mark a blocked chip without failing AA. The lock glyph after the label
    carries it, as on Settings' locked timeframes, and the label is set lighter
    (weight, not alpha, so contrast holds). */
-[data-design="terminal"] .strat-chip.blocked { font-weight: 400; font-style: italic; }
-[data-design="terminal"] .strat-chip-lock { font-size: 8px; line-height: 1; }
+/* Locked by the plan: the padlock carries it (no italic any more: it changed the glyph widths). The slot is always laid out,
+   so a chip becoming locked does not move any other chip. */
+[data-design="terminal"] .strat-chip.blocked { font-weight: 400; }
 [data-design="terminal"] .strat-n {
-  background: var(--on-accent); color: var(--accent);
+  background: var(--accent); color: var(--on-accent);
   width: 11px; height: 11px; display: inline-flex;
   align-items: center; justify-content: center;
   font-size: 7.5px; font-weight: 700;
