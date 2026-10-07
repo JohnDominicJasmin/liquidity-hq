@@ -297,6 +297,15 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
+      {/* A setup still holding its persistence check, as text and not as a marker (owner, 2026-10-07): nothing is drawn on the
+          chart until the signal is confirmed, and then it is drawn at the candle where it confirmed. Plain English like the rows
+          around it. */}
+      {!signal.loading && signal.pendingSetup && (
+        <div data-testid="pending-setup" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 8 }}>
+          {signal.pendingSetup.dir === 'long' ? 'Buy' : 'Sell'} setup pending: <b style={{ color: 'var(--txt2)' }}>{Math.min(signal.pendingSetup.held, signal.pendingSetup.need)} of {signal.pendingSetup.need}</b> candles held
+        </div>
+      )}
+
       {/* Recent record - every signal in the loaded history, backtest fill rules */}
       {!signal.loading && signal.recentStats && (
         <div

@@ -386,6 +386,33 @@ export interface SignalEvent {
   need?:       number;
 }
 
+/* WHERE A SIGNAL IS DRAWN (owner, 2026-10-07: "SELL? doesn't solve the problem"). A signal is only KNOWABLE once its
+   persistence hold completes, at `fillIndex`: the first EMA50 close after the arm (the cross at `armIndex`) is `index`, and
+   PERSIST more closes beyond it make `fillIndex`. Drawing the marker at the arm candle put it 5 to 32 candles in the past
+   (measured on BTC 1h), so a Buy/Sell appeared long after the move it named. The chart now draws a confirmed signal at
+   the candle where it became knowable, which is the latest candle for a fresh signal (PERSIST 0, the default mode, draws
+   at `index`, since fillIndex = index there). Nothing is drawn for a signal still holding. The backtest already fills at
+   `fillIndex`, so this changes no result. */
+export interface ChartMarker {
+  timestamp:   number;          // time of the fill candle
+  anchorPrice: number;          // that candle's low for a long, its high for a short
+  dir:         'long' | 'short';
+  index:       number;          // === the signal's fillIndex (pinned by QA's test)
+}
+export function chartMarkerFor(sig: SignalEvent, candles: OHLCV[]): ChartMarker {
+  const c = candles[sig.fillIndex];
+  return { timestamp: c.time, anchorPrice: sig.dir === 'long' ? c.low : c.high, dir: sig.dir, index: sig.fillIndex };
+}
+
+/* The one signal still holding its persistence check, if any (only the newest can be: a pending signal has no later
+   candles to be followed by). Shown as text under the chart, not as a marker. */
+export interface PendingSetup { dir: 'long' | 'short'; held: number; need: number }
+export function pendingSetupOf(signals: SignalEvent[]): PendingSetup | null {
+  const p = signals.filter(s => s.pending && typeof s.held === 'number' && typeof s.need === 'number')
+    .sort((a, b) => b.index - a.index)[0];
+  return p ? { dir: p.dir, held: p.held as number, need: p.need as number } : null;
+}
+
 export interface DetectedSignals {
   signalLongs:  SignalEvent[];
   signalShorts: SignalEvent[];
