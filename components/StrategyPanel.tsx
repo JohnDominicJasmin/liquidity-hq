@@ -406,7 +406,7 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
                     /* Not wired to the chart: a short mouse tooltip. The accessible name is the aria-label above, so this does not
                        touch it (the #959 clobbering was a title on a blocked chip with no aria-label). No lock: this is not a plan
                        limit and upgrading does not change it. */
-                    title={ovState === 'none' ? "Not drawn on this coin's chart" : fixedOn ? 'Always shown on the chart' : entry.id === 'RSI' ? 'The RSI-14 pane is always on the chart. Selecting RSI adds it to your read, with its own settings.' : usable ? undefined : 'Not on the chart yet'}
+                    title={ovState === 'none' ? "Not drawn on this coin's chart" : fixedOn ? 'Always shown on the chart' : entry.id === 'RSI' ? 'The RSI-14 pane is always on the chart. Selecting RSI adds it to your read; it draws nothing extra.' : usable ? undefined : 'Not on the chart yet'}
                     /* A chip past the limit stays focusable. Making it
                        `disabled` would drop it out of the tab order and leave a
                        keyboard user unable to find out what stopped them. */
@@ -416,8 +416,8 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
                     {entry.label}
                     {fixedOn && <span className="strat-chip-tag" aria-hidden="true">always on</span>}
                     {/* The chart always draws an RSI-14 pane and a volume pane, whatever is selected (they are the chart's default look).
-                        RSI stays a real, counted choice - selecting it puts RSI in your read, with its own settings - so the chip carries a
-                        visible tag saying the plain pane is there either way. Volume has no chip. */}
+                        RSI stays a real, counted choice - selecting it puts RSI in your read, and nothing more - so the chip carries a
+                        visible tag saying the plain pane is there either way (and it is the ONLY RSI pane: selecting the chip draws no second one). Volume has no chip. */}
                     {entry.id === 'RSI' && <span className="strat-chip-tag" aria-hidden="true">pane always on</span>}
                     {/* The same lock Settings puts on a locked timeframe: text alone
                         could not tell a blocked chip from an enabled one once both
