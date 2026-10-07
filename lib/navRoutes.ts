@@ -196,6 +196,7 @@ export const SCREEN_NAMES: Record<string, LabelKey> = {
   '/privacy':       'TNAV_PRIVACY_LABEL',
   '/refund':        'TNAV_REFUND_LABEL',
   '/disclaimer':    'TNAV_DISCLAIMER_LABEL',
+  '/contact':       'ABOUT_CONTACT_LABEL',
 };
 
 // Title-cases each word of a raw route segment - "econ calendar" becomes

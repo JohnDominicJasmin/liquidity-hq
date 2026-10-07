@@ -54,6 +54,7 @@ import type { LabelKey } from '@/lib/labelKeys';
    how that gap reappears a month from now. */
 import { SCANNERS, TOOLS, PRIMARY, TAIL, TERMINAL_TABS as ITEMS, screenNameFor, isActive } from '@/lib/navRoutes';
 import { getCurrentWindow, getLocalNow } from '@/lib/session';
+import { useShowFreeUpgrade } from '@/components/UpgradePill';
 
 /* Icon paths transcribed from the frames' own ICON map (Dashboard
    2a.dc.html:319-325), not redrawn. viewBox 0 0 20 20, stroked at 1.5 with
@@ -128,6 +129,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
   const pathname = usePathname();
   const { t } = useLabels();
   const { user, loading: authLoading, signOut } = useAuth();
+  const showFreeUpgrade = useShowFreeUpgrade();
   const { theme, toggleTheme } = useTheme();
   const [session, setSession] = useState<{ name: string; left: number | null } | null>(null);
 
@@ -433,6 +435,19 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                   >
                     {t('NAV_VIEW_USAGE')}
                   </button>
+                  {/* Free accounts only (owner, 2026-10-07: Free users could not find Upgrade). Hidden for Pro, for a
+                      trial, and while the plan is unknown. */}
+                  {showFreeUpgrade && (
+                    <Link
+                      href="/upgrade"
+                      role="menuitem"
+                      className="tnav-drop-item"
+                      data-testid="account-menu-upgrade"
+                      onClick={() => setOpenDrop(null)}
+                    >
+                      {t('UPGRADE_GATE_CTA')}
+                    </Link>
+                  )}
                   <Link
                     href="/settings"
                     role="menuitem"

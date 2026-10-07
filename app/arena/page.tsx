@@ -14,7 +14,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
-import { Warn } from '@/components/icons';
+import { Warn, Lock } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import ConfluenceScore from '@/components/ConfluenceScore';
@@ -28,13 +28,15 @@ import Tip from '@/components/Tip';
 import LiqFeed, { type Bucket } from '@/components/LiqFeed';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
+import { FreeUpgradePill } from '@/components/UpgradePill';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
-import { describeSelection } from '@/lib/strategyRegistry';
+import { describeSelection, overlayStates } from '@/lib/strategyRegistry';
+import { gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -270,6 +272,18 @@ function ArenaContent() {
      - useEMAStrategy just below. That last one is why this moved above the
      EMA signal block rather than staying with the other page state further
      down: a hook call reading it has to come after its declaration. */
+  /* The chart's S/R and Liq layers (owner, 2026-10-07). Owned HERE so the chart toolbar and the Strategy panel's chips are one
+     switch, and kept per browser so a reload keeps what was left on or off. Both default on, as the chart always did. */
+  const [showSR, setShowSRState]   = useState(true);
+  const [showLiq, setShowLiqState] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('lhq_arena_show_sr') === '0') setShowSRState(false);
+      if (localStorage.getItem('lhq_arena_show_liq') === '0') setShowLiqState(false);
+    } catch { /* storage blocked: the defaults stand */ }
+  }, []);
+  const setShowSR  = useCallback((v: boolean) => { setShowSRState(v);  try { localStorage.setItem('lhq_arena_show_sr',  v ? '1' : '0'); } catch { /* not persisted */ } }, []);
+  const setShowLiq = useCallback((v: boolean) => { setShowLiqState(v); try { localStorage.setItem('lhq_arena_show_liq', v ? '1' : '0'); } catch { /* not persisted */ } }, []);
   const [strategySelection, setStrategySelection] = useState<readonly string[]>([]);
   /* #1347 item 9: `strategySelection` is `[]` until the seed effect below has read the account's saved
      selection, so anything comparing it to a restored result's `selectionAtAnalysis` on a cold load
@@ -320,7 +334,10 @@ function ArenaContent() {
   // difference is surfaced rather than left implicit.
   const antiChopEnabled = settings.anti_chop_enabled;
   const filterParams = antiChopEnabled ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS;
-  const emaSignal     = useEMAStrategy(
+  /* The signal coin gate (lib/signalCoinGate.ts): applied ONCE here, so the chart markers, the strategy panel, the latest signal,
+     the Grok line, the confluence score and the higher-timeframe badge all read the same gated value. */
+  const signalPlan = signalPlanFor({ signedIn: !!user, entitlementStatus, authLoading });
+  const rawEmaSignal = useEMAStrategy(
     selectedCoin,
     readTf,
     store.coins[selectedCoin]?.fundingRate ?? null,
@@ -328,6 +345,7 @@ function ArenaContent() {
     filterParams,
     strategySelection,
   );
+  const emaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
   // landing within the same tick (measured live: ~200ms apart, well within
@@ -1718,6 +1736,9 @@ function ArenaContent() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>{t('ARENA_PAGE_TITLE')}</div>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
+          {/* Free accounts only (owner, 2026-10-07: they could not find Upgrade on this page). The same 44px pill TrialBanner
+              uses, at the right of the header; nothing for Pro, a trial, or an unknown plan. */}
+          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto' }} />
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
@@ -2066,10 +2087,7 @@ function ArenaContent() {
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {!user && !authLoading && (
-                <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-                  <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
+                <Lock size={12} />
               )}
               {t('ARENA_QUICK_RESEARCH_BUTTON')}
             </span>
@@ -2087,10 +2105,7 @@ function ArenaContent() {
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {!user && !authLoading && (
-                <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-                  <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
+                <Lock size={12} />
               )}
               {t('ARENA_DEEP_RESEARCH_BUTTON')}
             </span>
@@ -2451,7 +2466,7 @@ function ArenaContent() {
       <div className="arena-ws">
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} />
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -2623,7 +2638,7 @@ function ArenaContent() {
           before readLoading is ever set - so the button never visibly
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
-      <StrategyPanel status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
+      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>

@@ -57,7 +57,7 @@ const PLAN_BUTTON_SHAPE: React.CSSProperties = { width: '100%', minHeight: 76, b
    not fill it. outlineOffset keeps the keyboard focus ring clear of the border, so the ring never reads as "selected". */
 const PLAN_BUTTON_OUTLINED: React.CSSProperties = { color: 'var(--txt)', background: 'transparent', border: '1px solid var(--bdr3)', outlineOffset: 4 };
 const PLAN_BUTTON_SELECTED: React.CSSProperties = { color: 'var(--txt)', background: 'var(--accent-bg)', border: '1px solid var(--accent)', boxShadow: 'inset 0 0 0 1px var(--accent)', outlineOffset: 4 };
-const PLAN_RECOMMENDED_TAG: React.CSSProperties = { position: 'absolute', top: -10, right: 14, fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent-solid)', color: 'var(--on-accent)', border: '1px solid var(--bg)', padding: '2px 10px', borderRadius: 20, whiteSpace: 'nowrap' };
+const PLAN_RECOMMENDED_TAG: React.CSSProperties = { position: 'absolute', top: -10, right: 14, fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent-solid)', color: 'var(--on-accent)', border: '1px solid var(--bg)', padding: '2px 10px', borderRadius: 'var(--radius-data)', whiteSpace: 'nowrap' };
 const BILLING_CHOICES_COLUMN: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 440 };
 
 export default function UpgradePage() {

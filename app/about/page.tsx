@@ -1,5 +1,6 @@
 'use client';
 import { useLabels } from '@/lib/labels';
+import EmailLinked from '@/components/EmailLinked';
 
 export default function About() {
   const { t } = useLabels();
@@ -65,7 +66,7 @@ export default function About() {
       <div className="card">
         <div className="lbl">{t('ABOUT_CONTACT_LABEL')}</div>
         <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.7 }}>
-          {t('ABOUT_CONTACT_BODY')}
+          <EmailLinked text={t('ABOUT_CONTACT_BODY')} />
         </div>
       </div>
     </div>
