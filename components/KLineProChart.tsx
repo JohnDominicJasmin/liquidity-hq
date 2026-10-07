@@ -1078,7 +1078,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           },
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
             const { dir, pending, price, hovered } = overlay.extendData as {
-              dir: 'long' | 'short'; pending: boolean; price?: number; hovered?: boolean;
+              dir: 'long' | 'short' | 'locked'; pending: boolean; price?: number; hovered?: boolean;
             };
             /* An unconfirmed marker is the same marker as a confirmed one but hollow and dashed, reading plain "Buy" / "Sell" at 9px
                (owner, 2026-10-07: no "FORMING", no "?"). How far its hold has got is the line under the chart, not text here. */
@@ -1086,6 +1086,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.x < 0 || coord.y < 0) return [];
             const x = coord.x;
             const y = coord.y;
+            /* A locked signal: a padlock above the candle, neutral grey, no direction and no price tag. The shackle is an arc, the body
+               a rounded rect. It says a signal is here and that this plan does not see it. */
+            if (dir === 'locked') {
+              return [
+                { type: 'arc', attrs: { x, y: y - 26, r: 4.5, startAngle: Math.PI, endAngle: 2 * Math.PI }, styles: { style: 'stroke', borderColor: 'rgba(150,155,160,0.95)', borderSize: 1.5 } },
+                { type: 'rect', attrs: { x: x - 7, y: y - 26, width: 14, height: 11 }, styles: { style: 'stroke_fill', color: 'rgba(150,155,160,0.25)', borderColor: 'rgba(150,155,160,0.95)', borderSize: 1.5, borderRadius: 2 } },
+              ];
+            }
 
             // Sits on the far side of the marker from the candle - below a Buy,
             // above a Sell - so it never lands on top of the price action.
@@ -2199,7 +2207,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     chart.removeOverlay({ name: 'emaSignal' });
     if (!emaSignal || emaSignal.loading) return;
 
-    const place = (dir: 'long' | 'short', ts: number, price: number, pending: boolean) => {
+    const place = (dir: 'long' | 'short' | 'locked', ts: number, price: number, pending: boolean) => {
       chart.createOverlay({
         // lock stays on. In klinecharts it only gates mouse-down and
         // pressed-move (index.esm.js: `if (overlay.lock) return false` in
@@ -2216,6 +2224,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       } as OverlayCreate);
     };
 
+    /* Locked coin (lib/signalCoinGate.ts): the buy/sell markers are replaced by a direction-less padlock where each signal was. */
+    for (const m of emaSignal.lockedMarkers ?? []) if (emaSignal.signalLock) place('locked', m.timestamp, m.anchorPrice, false);
     for (const sig of emaSignal.signalLongs)  place('long',  sig.timestamp, sig.anchorPrice, sig.pending ?? false);
     for (const sig of emaSignal.signalShorts) place('short', sig.timestamp, sig.anchorPrice, sig.pending ?? false);
   }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps

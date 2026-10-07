@@ -36,6 +36,7 @@ import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
 import { describeSelection, overlayStates } from '@/lib/strategyRegistry';
+import { gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -333,7 +334,10 @@ function ArenaContent() {
   // difference is surfaced rather than left implicit.
   const antiChopEnabled = settings.anti_chop_enabled;
   const filterParams = antiChopEnabled ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS;
-  const emaSignal     = useEMAStrategy(
+  /* The signal coin gate (lib/signalCoinGate.ts): applied ONCE here, so the chart markers, the strategy panel, the latest signal,
+     the Grok line, the confluence score and the higher-timeframe badge all read the same gated value. */
+  const signalPlan = signalPlanFor({ signedIn: !!user, entitlementStatus, authLoading });
+  const rawEmaSignal = useEMAStrategy(
     selectedCoin,
     readTf,
     store.coins[selectedCoin]?.fundingRate ?? null,
@@ -341,6 +345,7 @@ function ArenaContent() {
     filterParams,
     strategySelection,
   );
+  const emaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
   // landing within the same tick (measured live: ~200ms apart, well within

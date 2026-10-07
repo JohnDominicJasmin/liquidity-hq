@@ -6,6 +6,9 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { activatable } from '@/lib/activatable';
 import { useLabels } from '@/lib/labels';
+import Link from 'next/link';
+import { Lock } from '@/components/icons';
+import { signalLockCopy } from '@/lib/signalCoinGate';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
@@ -78,6 +81,18 @@ function buildConditionPrompt(label: string, pass: boolean | null, detail: strin
 
 interface Props { signal: StrategySignal; tf?: string; coin?: CoinId }
 
+/* The signal coin gate's locked state (lib/signalCoinGate.ts): in place of the verdict, the checklist and the levels. */
+function LockedSignal({ lock }: { lock: 'signed_out' | 'free' }) {
+  const copy = signalLockCopy(lock);
+  return (
+    <div data-testid="signal-locked" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
+      <Lock size={14} style={{ color: 'var(--txt3)' }} />
+      <span style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)' }}>{copy.text}</span>
+      <Link href={copy.href} data-testid="signal-locked-link" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 14px', border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: 'var(--fs-label)', fontWeight: 700, textDecoration: 'none' }}>{copy.cta}</Link>
+    </div>
+  );
+}
+
 export default function EMASignal({ signal, tf = '4h', coin }: Props) {
   const { t } = useLabels();
   const v   = signal.verdict;
@@ -92,7 +107,22 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
   const cfg = weak
     ? { label: `${VERDICT_CONFIG[v].label} · WEAK EDGE`, color: 'var(--amber)', bg: 'rgba(251,191,36,0.08)', border: 'rgba(251,191,36,0.25)' }
     : VERDICT_CONFIG[v];
-  const canExplain = coin && !signal.loading && signal.verdict !== 'LOADING';
+  const canExplain = coin && !signal.loading && signal.verdict !== 'LOADING' && !signal.signalLock;
+
+  /* Locked coin: the verdict, checklist, levels, pending setup and record are replaced by the lock; the ribbon values stay. */
+  if (signal.signalLock) {
+    return (
+      <div style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
+        <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 8 }}>EMA Ribbon Strategy</div>
+        <LockedSignal lock={signal.signalLock} />
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>${fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
