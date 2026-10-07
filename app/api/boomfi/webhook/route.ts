@@ -185,16 +185,21 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   const periodEnd = extendedPeriodEnd(stored?.current_period_end as string | null | undefined, now, decision.add);
-  const { error: writeErr } = await sb.from(T.user_subscriptions).upsert({
+  const row = {
     user_id: accountId,
     role: 'pro',
-    plan: decision.plan,
     current_period_end: periodEnd.toISOString(),
     billing_provider: 'boomfi',
     ...(decision.customerId ? { boomfi_customer_id: decision.customerId } : {}),
     ...(decision.subscriptionId ? { boomfi_subscription_id: decision.subscriptionId } : {}),
     updated_at: now.toISOString(),
-  }, { onConflict: 'user_id' });
+  };
+  let { error: writeErr } = await sb.from(T.user_subscriptions).upsert({ ...row, plan: decision.plan }, { onConflict: 'user_id' });
+  // `plan` is the one OPTIONAL column (migration 20261001h). If the database does not have it yet, the grant must still succeed with the
+  // plan simply not recorded - "paid and not Pro" is the failure to avoid. Only a complaint about THAT column triggers the retry.
+  if (writeErr && /plan/.test(writeErr.message ?? '') && /column|PGRST204|schema cache/i.test(`${writeErr.code ?? ''} ${writeErr.message ?? ''}`)) {
+    ({ error: writeErr } = await sb.from(T.user_subscriptions).upsert(row, { onConflict: 'user_id' }));
+  }
   if (writeErr) return failAndForget(sb, payloadHash, 'subscription write', writeErr);
 
   return NextResponse.json({ received: true, recorded: true, granted: decision.plan, period_end: periodEnd.toISOString() });

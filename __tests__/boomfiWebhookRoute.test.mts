@@ -365,19 +365,19 @@ test('R14. source (Phase 1c): grants sit behind the payments switch, only ever w
   const at = (needle: string) => { const i = src.indexOf(needle); assert.ok(i >= 0, `the route no longer contains ${needle}`); return i; };
   assert.ok(at('isProBuyable(') < at('decideBoomfiEvent(') && at('decideBoomfiEvent(') < at('.upsert('), 'the order is no longer: payments switch, then the decision, then the write');
   assert.ok(at('boomfiOrgMatches(') < at('isProBuyable('), 'a grant path now runs before the organisation check');
-  assert.equal((src.match(/.upsert(/g) ?? []).length, 1, 'more than one write to the subscription row');
-  assert.equal(/role:s*'free'/.test(src), false, 'the route writes role free - cancel, expiry and a failed pull must revoke nothing');
+  assert.equal((src.match(/\.upsert\(/g) ?? []).length, 2, 'the subscription write is no longer exactly one call plus its plan-less retry');
+  assert.equal(/role:\s*'free'/.test(src), false, 'the route writes role free - cancel, expiry and a failed pull must revoke nothing');
   assert.equal(src.includes('.rpc('), false);
   // The only deletes are the compensating removal of THIS delivery's own record, so a Replay is not answered "replay".
-  assert.equal((src.match(/.delete()/g) ?? []).length, 1);
-  assert.match(src, /.from(T.boomfi_webhook_events).delete().eq('payload_hash', payloadHash)/);
-  assert.deepEqual(src.match(/S*.update(/g), ["crypto.createHash('sha256').update("], 'the route has an .update( that is not the payload hash');
-  assert.deepEqual([...src.matchAll(/from '@/lib/lemonsqueezy'/g)].length, 1);
-  assert.match(src, /import { payerOwnsAccount } from '@/lib/lemonsqueezy';/, 'the route takes more than the email comparison from the Lemon Squeezy module');
-  const tables = new Set([...src.matchAll(/.from((T.w+))/g)].map((m) => m[1]));
+  assert.equal((src.match(/\.delete\(\)/g) ?? []).length, 1);
+  assert.match(src, /\.from\(T\.boomfi_webhook_events\)\.delete\(\)\.eq\('payload_hash', payloadHash\)/);
+  assert.deepEqual(src.match(/\S*\.update\(/g), ["crypto.createHash('sha256').update("], 'the route has an .update( that is not the payload hash');
+  assert.equal([...src.matchAll(/from '@\/lib\/lemonsqueezy'/g)].length, 1);
+  assert.match(src, /import \{ payerOwnsAccount \} from '@\/lib\/lemonsqueezy';/, 'the route takes more than the email comparison from the Lemon Squeezy module');
+  const tables = new Set([...src.matchAll(/\.from\((T\.\w+)\)/g)].map((m) => m[1]));
   assert.deepEqual([...tables].sort(), ['T.boomfi_webhook_events', 'T.user_subscriptions']);
-  assert.match(src, /const rawBody = await req.text();/, 'the body is no longer read raw, once');
-  assert.equal((src.match(/req.(text|json|arrayBuffer|formData)(/g) ?? []).length, 1, 'the body is read more than once, or parsed by the framework before verification');
+  assert.match(src, /const rawBody = await req\.text\(\);/, 'the body is no longer read raw, once');
+  assert.equal((src.match(/req\.(text|json|arrayBuffer|formData)\(/g) ?? []).length, 1, 'the body is read more than once, or parsed by the framework before verification');
 });
 
 test('R15. only POST is exported - no GET that could be probed or cached', () => {
