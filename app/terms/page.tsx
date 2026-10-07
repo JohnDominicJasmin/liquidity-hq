@@ -1,5 +1,6 @@
 'use client';
 import { useLabels } from '@/lib/labels';
+import EmailLinked from '@/components/EmailLinked';
 
 const SECTIONS = [
   { titleKey: 'TERMS_SECTION_ACCEPTANCE_TITLE', bodyKey: 'TERMS_SECTION_ACCEPTANCE_BODY' },
@@ -63,7 +64,7 @@ export default function TermsOfUse() {
               {t(s.titleKey)}
             </div>
             <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.75 }}>
-              {t(s.bodyKey)}
+              {s.bodyKey === 'TERMS_SECTION_CONTACT_BODY' ? <EmailLinked text={t(s.bodyKey)} /> : t(s.bodyKey)}
             </div>
           </div>
         ))}

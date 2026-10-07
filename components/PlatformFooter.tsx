@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/components/AuthProvider';
 import BrandMark from '@/components/BrandMark';
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '@/lib/supportContact';
 
 const DISCLOSURES = [
   {
@@ -86,6 +87,9 @@ export default function PlatformFooter() {
           <Link href="/privacy" className="pf-footer-link">Privacy Policy</Link>
           <Link href="/refund" className="pf-footer-link">Refund Policy</Link>
           <Link href="/disclaimer" className="pf-footer-link">Full Disclaimer</Link>
+          <Link href="/contact" className="pf-footer-link">Contact</Link>
+          {/* The support address itself, as a working link, on every page (owner, 2026-10-07). */}
+          <a href={SUPPORT_MAILTO} className="pf-footer-link" data-testid="footer-support-email">{SUPPORT_EMAIL}</a>
         </nav>
       </div>
 

@@ -1,5 +1,6 @@
 'use client';
 import { useLabels } from '@/lib/labels';
+import EmailLinked from '@/components/EmailLinked';
 
 const SECTIONS = [
   { titleKey: 'PRIVACY_SECTION_INFO_COLLECTED_TITLE', bodyKey: 'PRIVACY_SECTION_INFO_COLLECTED_BODY' },
@@ -49,7 +50,7 @@ export default function PrivacyPolicy() {
               {t(s.titleKey)}
             </div>
             <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.75 }}>
-              {t(s.bodyKey)}
+              {s.bodyKey === 'PRIVACY_SECTION_CONTACT_BODY' ? <EmailLinked text={t(s.bodyKey)} /> : t(s.bodyKey)}
             </div>
           </div>
         ))}
