@@ -17,9 +17,9 @@ export function useShowFreeUpgrade(): boolean {
   return !loading && !!user && !entitlementsLoading && !isPro && !isTrial && entitlementStatus === 'not_entitled';
 }
 
-/* The TrialBanner pill, reused: a bordered pill with a 44px touch target, which is the one control shape in
-   this app that already reads as a button. */
-export function UpgradePillLink({ labelKey = 'USAGE_METER_UPGRADE_LINK', testId = 'upgrade-pill', style }: {
+/* A bordered button with a 44px touch target, in the app's own data radius (not a capsule), reading plain "Upgrade" with no
+   arrow: nothing here needs a direction cue. */
+export function UpgradePillLink({ labelKey = 'TNAV_UPGRADE_LABEL', testId = 'upgrade-pill', style }: {
   labelKey?: LabelKey; testId?: string; style?: React.CSSProperties;
 }) {
   const { t } = useLabels();
@@ -29,7 +29,7 @@ export function UpgradePillLink({ labelKey = 'USAGE_METER_UPGRADE_LINK', testId 
       data-testid={testId}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '0 15px', minHeight: 44, borderRadius: 999,
+        padding: '0 15px', minHeight: 44, borderRadius: 'var(--radius-data)',
         border: '1px solid var(--accent)', color: 'var(--accent)',
         fontSize: 'var(--fs-label)', fontWeight: 700, lineHeight: 1,
         textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,

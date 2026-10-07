@@ -25,6 +25,8 @@
  */
 
 import { useState, useMemo, useId } from 'react';
+import Link from 'next/link';
+import { Lock } from './icons';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
 import { EntitlementUnknownCard } from './UpgradeGateModal';
@@ -262,7 +264,7 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
             disabling something. Hardcoded English, same as the rest of this
             file's copy (see the file-header comment on why). */}
         <span className="strat-aux" title={entitlementStatus === 'unknown' ? "Couldn't verify your plan" : undefined}>
-          {entitled ? 'PRO' : entitlementStatus === 'unknown' ? '···' : `FREE · ${limit}`}
+          {entitled ? 'PRO' : entitlementStatus === 'unknown' ? '···' : 'FREE'}
         </span>
       </div>
 
@@ -292,7 +294,9 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
           {/* The ceiling is visible before it is reached rather than announced
               as a rejection afterwards. Withheld while unloaded too - "0 of 3"
               reads as a real count, and it isn't one yet. */}
-          {loaded && <span className="strat-cap">{selected.length} of {limit}</span>}
+          {/* A chip, not grey caption text (owner, 2026-10-07): the plan, how many are used and the real cap (LIMITS: Free 1,
+              Pro 3). It turns accent when the cap is reached. */}
+          {loaded && <span className={`strat-count${atLimit ? ' full' : ''}`}>{entitled ? 'PRO' : 'FREE'} · {selected.length} of {limit} used</span>}
         </div>
 
         {/* #1246: a neutral loading state, not an empty one. The pre-load
@@ -376,6 +380,10 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
                        A description does not participate in the name, so this
                        shape cannot repeat the trade. */
                     aria-describedby={blocked ? limitNoteId : undefined}
+                    /* Not wired to the chart: a short mouse tooltip. The accessible name is the aria-label above, so this does not
+                       touch it (the #959 clobbering was a title on a blocked chip with no aria-label). No lock: this is not a plan
+                       limit and upgrading does not change it. */
+                    title={usable ? undefined : 'Not on the chart yet'}
                     /* A chip past the limit stays focusable. Making it
                        `disabled` would drop it out of the tab order and leave a
                        keyboard user unable to find out what stopped them. */
@@ -386,7 +394,9 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
                     {/* The same lock Settings puts on a locked timeframe: text alone
                         could not tell a blocked chip from an enabled one once both
                         were raised to --txt3 for contrast (#1495). */}
-                    {blocked && <span className="strat-chip-lock" aria-hidden="true">🔒</span>}
+                    {/* The lock slot is always in a selectable chip's layout and only shown when it is blocked, so reaching the cap does
+                        not change any chip's width and re-wrap the list. The shared Lock icon (components/icons.tsx), not an emoji. */}
+                    {usable && <Lock size={12} style={{ visibility: blocked ? 'visible' : 'hidden' }} />}
                   </button>
                 );
               })}
@@ -425,7 +435,9 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
 
         {atLimit && (
           <div id={limitNoteId} className="strat-limit" role="status">
-            {`Deselect one first - ${limit} at a time`}
+            {entitled
+              ? `Deselect one first - ${limit} at a time`
+              : <>{`Limit reached on Free (${limit} indicator${limit === 1 ? '' : 's'}). `}<Link href="/upgrade" className="strat-limit-link" data-testid="strategy-limit-upgrade">Upgrade</Link>{' for more.'}</>}
           </div>
         )}
 
