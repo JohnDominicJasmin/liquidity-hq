@@ -332,6 +332,12 @@ interface Props {
      nothing. The one caller (app/arena/page.tsx) always passes it; an empty array
      is the honest way to say "none". */
   indicators:    readonly string[];
+  /* S/R and liquidation-cluster visibility, OWNED BY THE PAGE (owner, 2026-10-07): the toolbar buttons below and the Strategy
+     panel's S/R and Liq chips are one switch, so neither can say something the chart is not doing. */
+  showSR:        boolean;
+  onShowSRChange:  (next: boolean) => void;
+  showLiq:       boolean;
+  onShowLiqChange: (next: boolean) => void;
   /* Per-indicator edited parameter values for `indicators` (#1008), keyed by
      indicator id then param key. An indicator with no entry here uses
      strategyRegistry's defaultParams - see the sync effect below and
@@ -588,7 +594,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -684,7 +690,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   /* Which feed produced the chart's history. The gap backfill reads it so a
      recovery never mixes feeds - see the note at the getBars fallback (#359). */
   const histSourceRef  = useRef<'binance' | 'binance-futures' | 'bybit'>('bybit');
-  const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
   // Market-structure breaks (lib/priceAction.ts) - a second, price-only read
@@ -698,7 +703,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      toggle exists because eight extra horizontal lines is real ink on a chart
      that had a deliberate signal-reduction pass - a user who wants the candles
      alone gets one click, not a setting. */
-  const [showLiq, setShowLiq]     = useState(true);
   const [paSignals, setPaSignals] = useState<PASignal[]>([]);
   const paSetRef                  = useRef(setPaSignals);
   const [sqHover, setSqHover]     = useState(false);
@@ -2687,7 +2691,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         <div className="klc-sep" />
         <button
           className={`klc-tool-btn${showSR ? ' on' : ''}`}
-          onClick={() => setShowSR(v => !v)}
+          onClick={() => onShowSRChange(!showSR)}
           title="Toggle auto support &amp; resistance levels"
         >
           S/R
@@ -2704,7 +2708,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         {liqClusters && liqClusters.length > 0 && (
           <button
             className={`klc-tool-btn${showLiq ? ' on' : ''}`}
-            onClick={() => setShowLiq(v => !v)}
+            onClick={() => onShowLiqChange(!showLiq)}
             title="Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels."
           >
             Liq

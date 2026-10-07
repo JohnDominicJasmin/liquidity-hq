@@ -43,13 +43,18 @@ import { useLabels } from '@/lib/labels';
 import {
   GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS,
   AUTO_SET_ID, CUSTOM_SET_ID,
-  byGroup, findIndicator, indicatorLimit, defaultParams, canRender,
-  type IndicatorEntry, type ParamSpec,
+  byGroup, findIndicator, indicatorLimit, defaultParams, canRender, slottedIds,
+  type IndicatorEntry, type ParamSpec, type OverlayState,
 } from '@/lib/strategyRegistry';
 
 export type RunKind = 'quick' | 'deep' | 'ask';
 
 interface Props {
+  /** What each chart overlay is doing right now, from strategyRegistry's overlayStates() - the same values the chart draws from.
+   *  Absent = the old behaviour (every overlay chip reads as always on). */
+  overlays?: Record<'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX', OverlayState>;
+  /** Flip the chart's S/R or Liq layer: the same switch as the chart toolbar. */
+  onOverlayToggle?: (id: 'SR' | 'LIQ_CLUSTERS') => void;
   /** #1246/#1347: whether the caller's saved selection has actually been
    *  read from the server (or confirmed there is none - a signed-out
    *  visitor). Until 'ready', `selected` is NOT the user's real answer, just
@@ -152,7 +157,7 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   );
 }
 
-export default function StrategyPanel({ status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
+export default function StrategyPanel({ overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
   const loaded = status === 'ready';
   const { entitlementStatus, retryEntitlements } = useAuth();
   const entitled = entitlementStatus === 'entitled';
@@ -197,7 +202,10 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
 
   const paramsFor = (entry: IndicatorEntry) => params[entry.id] ?? defaultParams(entry);
   const focusedEntry = focused ? findIndicator(focused) : undefined;
-  const atLimit = selected.length >= limit;
+  /* The cap counts only entries that take an indicator slot. The chart overlays (EMA ribbon, S/R, Liq clusters, GEX) are
+     layers the chart draws on its own, so they never fill a slot and never read as "used". */
+  const used = slottedIds(selected).length;
+  const atLimit = used >= limit;
 
   const applySet = (id: string) => {
     // #1246: the pre-load blank state must be inert, not just look inert -
@@ -211,7 +219,9 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
        rather than refuse - a free user picking "Liquidity Sweep" made a
        reasonable choice, and erroring at them about a limit they did not set
        punishes them for the tier. But say so: see `dropped`. */
-    const next = preset.indicators.slice(0, limit);
+    /* Overlays are kept (they cost no slot); the rest are cut to what the plan may combine. */
+    let room = limit;
+    const next = preset.indicators.filter(i => { if (findIndicator(i)?.source === 'overlay') return true; if (room > 0) { room--; return true; } return false; });
     setDropped(preset.indicators.length - next.length);
     onSelectedChange(next);
     setFocused(next[0] ?? null);
@@ -226,6 +236,14 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
        doing nothing is the silent-failure shape this project has spent a day
        arguing against - it would look exactly like a working chip. */
     if (!canRender(entry)) return;
+    /* A chart overlay is not a selection: its chip is the chart's own switch. S/R and Liq flip the toolbar toggle; the ribbon and
+       GEX are always drawn, and a coin that has no such layer has nothing to flip. */
+    if (entry.source === 'overlay') {
+      if (entry.id === 'SR' || entry.id === 'LIQ_CLUSTERS') {
+        if ((overlays?.[entry.id] ?? 'on') !== 'none') onOverlayToggle?.(entry.id);
+      }
+      return;
+    }
     if (selected.includes(entry.id)) {
       /* #1027 - with 2+ selected, clicking an EARLIER chip meant "show its
          params again", not "remove it". The two gestures only look the same
@@ -234,14 +252,14 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
          behavior agree). Only deselect when re-clicking the chip that is
          ALREADY showing its params - the explicit "I'm done with this one"
          gesture - otherwise just bring its params back into view. */
-      if (focused !== entry.id) {
+      if (focused !== entry.id && selected.length > 1) {
         setFocused(entry.id);
       } else {
         const next = selected.filter(id => id !== entry.id);
         setFocused(next[next.length - 1] ?? null);
         onSelectedChange(next);
       }
-    } else if (selected.length < limit) {
+    } else if (used < limit) {
       setFocused(entry.id);
       onSelectedChange([...selected, entry.id]);
     }
@@ -296,7 +314,7 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
               reads as a real count, and it isn't one yet. */}
           {/* A chip, not grey caption text (owner, 2026-10-07): the plan, how many are used and the real cap (LIMITS: Free 1,
               Pro 3). It turns accent when the cap is reached. */}
-          {loaded && <span className={`strat-count${atLimit ? ' full' : ''}`}>{entitled ? 'PRO' : 'FREE'} · {selected.length} of {limit} used</span>}
+          {loaded && <span className={`strat-count${atLimit ? ' full' : ''}`}>{entitled ? 'PRO' : 'FREE'} · {used} of {limit} used</span>}
         </div>
 
         {/* #1246: a neutral loading state, not an empty one. The pre-load
@@ -338,19 +356,23 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
             <div className="strat-gname">{GROUP_LABEL[id]}</div>
             <div className="strat-chips">
               {entries.map(entry => {
-                const pos = selected.indexOf(entry.id);
-                const on = pos >= 0;
-                const usable = canRender(entry);
-                const blocked = usable && !on && atLimit;
+                const isOverlay = entry.source === 'overlay';
+                const ovState: OverlayState | null = isOverlay ? ((overlays as Record<string, OverlayState> | undefined)?.[entry.id] ?? 'always') : null;
+                const pos = isOverlay ? -1 : selected.indexOf(entry.id);
+                /* An overlay chip is on when the chart is drawing it (always, or its toggle is on); an indicator chip when it is selected. */
+                const on = isOverlay ? (ovState === 'always' || ovState === 'on') : pos >= 0;
+                const usable = canRender(entry) && ovState !== 'none';
+                const blocked = usable && !isOverlay && !on && atLimit;
+                const fixedOn = ovState === 'always';
                 return (
                   <button
                     key={entry.id}
                     type="button"
-                    className={`strat-chip${on ? ' on' : ''}${blocked ? ' blocked' : ''}${usable ? '' : ' notyet'}`}
+                    className={`strat-chip${on ? ' on' : ''}${fixedOn ? ' always' : ''}${blocked ? ' blocked' : ''}${usable ? '' : ' notyet'}`}
                     aria-pressed={usable ? on : undefined}
                     /* Blocked (past the limit) is disabled to assistive tech too, while
                        staying focusable (see onClick below) - PM/DevOps, #1495. */
-                    aria-disabled={usable && !blocked ? undefined : true}
+                    aria-disabled={usable && !blocked && !fixedOn ? undefined : true}
                     /* The reason is in the NAME, not a title. A dimmed chip that
                        announces identically to a working one is the mouse-only
                        `title` problem again, one screen over - and `title` is
@@ -361,7 +383,7 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
                        every plan. Naming that explicitly here too, not just
                        in the visible note, since a screen reader user only
                        ever gets this string. */
-                    aria-label={usable ? undefined : `${entry.label} - not wired up to the chart yet, same on every plan`}
+                    aria-label={ovState === 'none' ? `${entry.label} - not drawn on this coin's chart` : fixedOn ? `${entry.label} - always on the chart, does not use an indicator slot` : usable ? undefined : `${entry.label} - not wired up to the chart yet, same on every plan`}
                     /* The reason is a DESCRIPTION, and it points at the visible
                        line below rather than at hidden text or a `title`.
 
@@ -383,20 +405,25 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
                     /* Not wired to the chart: a short mouse tooltip. The accessible name is the aria-label above, so this does not
                        touch it (the #959 clobbering was a title on a blocked chip with no aria-label). No lock: this is not a plan
                        limit and upgrading does not change it. */
-                    title={usable ? undefined : 'Not on the chart yet'}
+                    title={ovState === 'none' ? "Not drawn on this coin's chart" : fixedOn ? 'Always shown on the chart' : entry.id === 'RSI' ? 'The RSI-14 pane is always on the chart. Selecting RSI adds it to your read, with its own settings.' : usable ? undefined : 'Not on the chart yet'}
                     /* A chip past the limit stays focusable. Making it
                        `disabled` would drop it out of the tab order and leave a
                        keyboard user unable to find out what stopped them. */
                     onClick={() => toggle(entry)}
                   >
-                    {on && <span className="strat-n" aria-hidden="true">{pos + 1}</span>}
+                    {on && !isOverlay && <span className="strat-n" aria-hidden="true">{pos + 1}</span>}
                     {entry.label}
+                    {fixedOn && <span className="strat-chip-tag" aria-hidden="true">always on</span>}
+                    {/* The chart always draws an RSI-14 pane and a volume pane, whatever is selected (they are the chart's default look).
+                        RSI stays a real, counted choice - selecting it puts RSI in your read, with its own settings - so the chip carries a
+                        visible tag saying the plain pane is there either way. Volume has no chip. */}
+                    {entry.id === 'RSI' && <span className="strat-chip-tag" aria-hidden="true">pane always on</span>}
                     {/* The same lock Settings puts on a locked timeframe: text alone
                         could not tell a blocked chip from an enabled one once both
                         were raised to --txt3 for contrast (#1495). */}
                     {/* The lock slot is always in a selectable chip's layout and only shown when it is blocked, so reaching the cap does
                         not change any chip's width and re-wrap the list. The shared Lock icon (components/icons.tsx), not an emoji. */}
-                    {usable && <Lock size={12} style={{ visibility: blocked ? 'visible' : 'hidden' }} />}
+                    {usable && !isOverlay && <Lock size={12} style={{ visibility: blocked ? 'visible' : 'hidden' }} />}
                   </button>
                 );
               })}
@@ -427,6 +454,11 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
             into the chart at all), not on entitlement, so it is identical
             for every plan. Saying so directly removes the misread instead
             of relying on the reader not to make it. */}
+        {loaded && (
+          <div className="strat-notyet-note" data-testid="overlay-note">
+            EMA ribbon, S/R, Liq clusters and GEX are chart layers, not indicators, so they don&apos;t use a slot: the ribbon and GEX are always on, and S/R and Liq follow the chart toolbar. The RSI and volume panes are always shown too.
+          </div>
+        )}
         {loaded && (
           <div className="strat-notyet-note">
             Dimmed indicators aren&apos;t wired up to the chart yet - same on every plan.
@@ -509,7 +541,8 @@ export default function StrategyPanel({ status, onRetry, selected, onSelectedCha
  *  tier may hold, and that rule should be checkable without rendering React. */
 export function nextSelection(prev: readonly string[], id: string, limit: number): readonly string[] {
   if (prev.includes(id)) return prev.filter(x => x !== id);
-  if (prev.length >= limit) return prev;
+  /* Only entries that take a slot count toward the cap; a chart overlay is never refused for it. */
+  if (slottedIds([id]).length > 0 && slottedIds(prev).length >= limit) return prev;
   return [...prev, id];
 }
 

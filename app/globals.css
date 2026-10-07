@@ -8776,7 +8776,12 @@ main.app-content[data-chrome="none"] {
   background: var(--accent-bg); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
   color: var(--txt); font-weight: 600;
 }
-[data-design="terminal"] .strat-chip:focus-visible { outline-offset: 3px; }
+/* Keyboard focus is a plain text-colour ring, NOT the accent: the selected state is an accent border, and a gold focus box on a
+   chip that is not selected read as "selected" (owner, 2026-10-07, the GEX chip). */
+[data-design="terminal"] .strat-chip:focus-visible { outline: 2px solid var(--txt); outline-offset: 3px; }
+/* An overlay that is always on: selected-looking but not clickable, so no pointer cue. */
+[data-design="terminal"] .strat-chip.always { cursor: default; background: none; border-color: var(--bdr3); box-shadow: none; color: var(--txt); font-weight: 400; }
+[data-design="terminal"] .strat-chip-tag { font-size: 8.5px; letter-spacing: .08em; color: var(--txt3); border-left: 1px solid var(--bdr3); padding-left: 5px; }
 /* Past the limit. Dimmed, still focusable, still says why on hover - a
    `disabled` chip would leave the tab order and a keyboard user would never
    find out what stopped them. */
