@@ -19,6 +19,7 @@ import { updatePassword } from '@/lib/authSession';
 import { subscriptionPanelView, futureDateOrNull, type SubPanelView } from '@/lib/subscriptionPanel';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
+import { Lock } from '@/components/icons';
 import { readConsent, writeConsent, onConsentChange, type ConsentState } from '@/lib/consent';
 
 
@@ -628,7 +629,7 @@ export default function SettingsPage() {
                   title={locked ? t('SETTINGS_TF_PRO_ONLY') : undefined}
                   style={locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                 >
-                  {tf}{locked ? ' 🔒' : ''}
+                  {tf}{locked && <Lock size={12} style={{ marginLeft: 5 }} />}
                 </button>
               );
             })}

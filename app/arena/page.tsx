@@ -14,7 +14,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
-import { Warn } from '@/components/icons';
+import { Warn, Lock } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import ConfluenceScore from '@/components/ConfluenceScore';
@@ -2070,10 +2070,7 @@ function ArenaContent() {
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {!user && !authLoading && (
-                <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-                  <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
+                <Lock size={12} />
               )}
               {t('ARENA_QUICK_RESEARCH_BUTTON')}
             </span>
@@ -2091,10 +2088,7 @@ function ArenaContent() {
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {!user && !authLoading && (
-                <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-                  <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
+                <Lock size={12} />
               )}
               {t('ARENA_DEEP_RESEARCH_BUTTON')}
             </span>
