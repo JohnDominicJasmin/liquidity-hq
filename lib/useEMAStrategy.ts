@@ -6,7 +6,7 @@ import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
-  SPREAD_MIN_BY_TF,
+  SPREAD_MIN_BY_TF, chartMarkerFor, pendingSetupOf, SignalEvent,
 } from './strategyCore.ts';
 import { detectRSIDivergence, rsiArr } from './divergence.ts';
 import { describeSelection } from './strategyRegistry.ts';
@@ -51,8 +51,11 @@ export interface StrategySignal {
   signalTimestamp:   number | null;
   signalAnchorPrice: number | null;
   signalDir:         'long' | 'short' | null;
-  signalLongs:  Array<{ timestamp: number; anchorPrice: number; pending: boolean; held?: number; need?: number }>;
-  signalShorts: Array<{ timestamp: number; anchorPrice: number; pending: boolean; held?: number; need?: number }>;
+  /* Confirmed signals only, each at the candle where it became knowable (chartMarkerFor in strategyCore), never at the
+     arm candle and never a hollow "pending" one. A signal still holding is `pendingSetup` instead. */
+  signalLongs:  Array<{ timestamp: number; anchorPrice: number }>;
+  signalShorts: Array<{ timestamp: number; anchorPrice: number }>;
+  pendingSetup: { dir: 'long' | 'short'; held: number; need: number } | null;
   atrLast:    number | null;  // last ATR(14) - for Grok context
   ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
   chopIndex:  number | null;  // Choppiness Index (0-100) - high = range-bound
@@ -150,7 +153,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
-  signalLongs: [], signalShorts: [],
+  signalLongs: [], signalShorts: [], pendingSetup: null,
   atrLast: null, ema50Slope: null,
   chopIndex: null, chopRegime: null,
   reversalWarnings: [],
@@ -723,8 +726,10 @@ export function useEMAStrategy(
         // 2-step arm/confirm, ATR buffer, EMA50 slope, ribbon spread, whipsaw persistence,
         // and strict buy/sell alternation.
         const detected = detectEMASignals(cRibbon, tf, filterParams);
-        const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending, held: s.held, need: s.need }));
-        const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending, held: s.held, need: s.need }));
+        const toMarker = (s: SignalEvent) => { const m = chartMarkerFor(s, cRibbon); return { timestamp: m.timestamp, anchorPrice: m.anchorPrice }; };
+        const signalLongs  = detected.signalLongs.filter(s => !s.pending).map(toMarker);
+        const signalShorts = detected.signalShorts.filter(s => !s.pending).map(toMarker);
+        const pendingSetup  = pendingSetupOf([...detected.signalLongs, ...detected.signalShorts]);
 
         // Recent record - confirmed signals only (pending have unreliable fillPrice at live edge)
         const confirmedSignals = [...detected.signalLongs, ...detected.signalShorts].filter(s => !s.pending);
@@ -764,7 +769,7 @@ export function useEMAStrategy(
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir,
-          signalLongs, signalShorts,
+          signalLongs, signalShorts, pendingSetup,
           chopIndex, chopRegime,
           reversalWarnings,
           atrLast, ema50Slope,
