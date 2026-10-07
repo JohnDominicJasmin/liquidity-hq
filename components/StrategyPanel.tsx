@@ -43,7 +43,7 @@ import { useLabels } from '@/lib/labels';
 import {
   GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS,
   AUTO_SET_ID, CUSTOM_SET_ID,
-  byGroup, findIndicator, indicatorLimit, defaultParams, canRender, slottedIds,
+  byGroup, findIndicator, indicatorLimit, defaultParams, canRender, slottedIds, strategyPlanLabel,
   type IndicatorEntry, type ParamSpec, type OverlayState,
 } from '@/lib/strategyRegistry';
 
@@ -159,7 +159,8 @@ function ParamRow({ spec, value, readOnly, onChange }: {
 
 export default function StrategyPanel({ overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
   const loaded = status === 'ready';
-  const { entitlementStatus, retryEntitlements } = useAuth();
+  const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
+  const planLabel = strategyPlanLabel({ signedIn: !!user, authLoading, entitlementStatus });
   const entitled = entitlementStatus === 'entitled';
   // #1347 item 6: `entitled` (used for `limit`/`atLimit`/`readOnly` below)
   // collapses 'not_entitled' and 'unknown' into the same false - so a Pro
@@ -282,7 +283,7 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
             disabling something. Hardcoded English, same as the rest of this
             file's copy (see the file-header comment on why). */}
         <span className="strat-aux" title={entitlementStatus === 'unknown' ? "Couldn't verify your plan" : undefined}>
-          {entitled ? 'PRO' : entitlementStatus === 'unknown' ? '···' : 'FREE'}
+          {planLabel.head}
         </span>
       </div>
 
@@ -314,7 +315,7 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
               reads as a real count, and it isn't one yet. */}
           {/* A chip, not grey caption text (owner, 2026-10-07): the plan, how many are used and the real cap (LIMITS: Free 1,
               Pro 3). It turns accent when the cap is reached. */}
-          {loaded && <span className={`strat-count${atLimit ? ' full' : ''}`}>{entitled ? 'PRO' : 'FREE'} · {used} of {limit} used</span>}
+          {loaded && <span className={`strat-count${atLimit ? ' full' : ''}`}>{planLabel.countPrefix}{used} of {limit} used</span>}
         </div>
 
         {/* #1246: a neutral loading state, not an empty one. The pre-load
@@ -469,7 +470,7 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
           <div id={limitNoteId} className="strat-limit" role="status">
             {entitled
               ? `Deselect one first - ${limit} at a time`
-              : <>{`Limit reached on Free (${limit} indicator${limit === 1 ? '' : 's'}). `}<Link href="/upgrade" className="strat-limit-link" data-testid="strategy-limit-upgrade">Upgrade</Link>{' for more.'}</>}
+              : <>{`Limit reached${planLabel.plan === 'free' ? ' on Free' : ''} (${limit} indicator${limit === 1 ? '' : 's'}). `}<Link href="/upgrade" className="strat-limit-link" data-testid="strategy-limit-upgrade">Upgrade</Link>{' for more.'}</>}
           </div>
         )}
 

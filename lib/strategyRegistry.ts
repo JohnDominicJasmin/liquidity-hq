@@ -293,6 +293,17 @@ export function overlayStates(i: { showSR: boolean; showLiq: boolean; hasLiq: bo
   };
 }
 
+/* WHAT THE STRATEGY PANEL CALLS THE VIEWER (owner, 2026-10-07: a visitor with no account was shown "FREE"). A signed-out visitor has
+   no plan, so the panel must not name one. They can still pick indicators up to the Free cap (1; the selection is not saved),
+   so the count stays and only the plan name goes. While auth or the subscription read is unsettled, nothing is claimed. */
+export function strategyPlanLabel(i: { signedIn: boolean; authLoading: boolean; entitlementStatus: 'entitled' | 'not_entitled' | 'unknown' }): { head: string; countPrefix: string; plan: 'pro' | 'free' | 'signed_out' | 'unknown' } {
+  if (i.authLoading) return { head: '···', countPrefix: '', plan: 'unknown' };
+  if (!i.signedIn) return { head: 'SIGNED OUT', countPrefix: '', plan: 'signed_out' };
+  if (i.entitlementStatus === 'entitled') return { head: 'PRO', countPrefix: 'PRO · ', plan: 'pro' };
+  if (i.entitlementStatus === 'unknown') return { head: '···', countPrefix: '', plan: 'unknown' };
+  return { head: 'FREE', countPrefix: 'FREE · ', plan: 'free' };
+}
+
 export function byGroup(group: Group): readonly IndicatorEntry[] {
   return INDICATORS.filter(i => i.group === group);
 }
