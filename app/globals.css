@@ -4409,6 +4409,18 @@ html[data-theme="light"] { background: var(--bg0); }
 .plan-badge-free {
   color: var(--txt); background: var(--bg4); border: 1px solid var(--bdr2);
 }
+/* Free and Trial badges are links to /upgrade (owner, 2026-10-07: Free users could not find Upgrade). The badge keeps
+   its size: the 44px touch target comes from this ::after, not from padding. Hover reaches the accent border; the
+   keyboard focus ring is the global *:focus-visible outline, which is distinct from this border. */
+.plan-badge-link { position: relative; text-decoration: none; cursor: pointer; }
+.plan-badge-link::after { content: ''; position: absolute; inset: -13px -6px; }
+.plan-badge-link:hover { border-color: var(--accent); }
+/* The "Upgrade" word on the Free badge shows from 1024px up (measured: "FREE · UPGRADE" is 133px against 55px for "FREE",
+   and it overflows the bar at 768, and in Russian at 390 too). Below that it stays in the DOM, clipped to nothing, so the
+   link is still named "FREE Upgrade"; the badge, the account menu, the drawer and the Arena pill carry the way in. */
+@media (max-width: 1023px) {
+  .plan-badge-upgrade { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+}
 .plan-badge-trial {
   color: var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--amber) 22%, transparent);
