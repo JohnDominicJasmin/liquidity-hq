@@ -2542,6 +2542,8 @@
   "UPGRADE_METHOD_CRYPTO_CTA": "Pay with Crypto",
   "UPGRADE_METHOD_CRYPTO_NOTE": "At checkout, use the same email as your LiquidityHQ account so we can match the payment to you.",
   "UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE": "Paid in crypto, this plan is billed $10 every week.",
+  "UPGRADE_CRYPTO_NETWORKS_NOTE": "Pay in USDT or USDC. Send it on the network you prefer: Solana, Base, Arbitrum, Polygon, Ethereum, Tron or BNB Chain.",
+  "UPGRADE_CRYPTO_CHECKOUT_NOTE": "You'll enter your name and email at checkout. We never see or store your card details, because you pay on-chain through BoomFi. Network fees are set by the network you choose.",
   "UPGRADE_METHOD_PANEL_CLOSE_ARIA": "Close payment options",
   "ARENA_ERROR_BYBIT_API": "Bybit data unavailable",
   "ARENA_AUTH_NOTICE": "Sign in to run Quick and Deep analysis.",

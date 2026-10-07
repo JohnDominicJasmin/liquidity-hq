@@ -246,6 +246,8 @@ export const LABEL_KEYS = [
   // #861 Phase 1: the payment-method step on /upgrade (crypto via BoomFi).
   'UPGRADE_METHOD_PANEL_TITLE', 'UPGRADE_METHOD_CRYPTO_CTA',
   'UPGRADE_METHOD_CRYPTO_NOTE', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE',
+  // Owner, 2026-10-08: honest crypto-payment copy - what to pay in (under the plan price), what happens at checkout (under the pay button).
+  'UPGRADE_CRYPTO_NETWORKS_NOTE', 'UPGRADE_CRYPTO_CHECKOUT_NOTE',
   // #861: the X that closes the payment-method panel.
   'UPGRADE_METHOD_PANEL_CLOSE_ARIA',
   'UPGRADE_COMING_SOON_TITLE', 'UPGRADE_COMING_SOON_SIGNED_IN_PRE', 'UPGRADE_COMING_SOON_SIGNED_IN_POST',
