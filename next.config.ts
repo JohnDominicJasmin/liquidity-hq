@@ -116,6 +116,11 @@ const nextConfig: NextConfig = {
       // same price + change columns plus grade/volume/signal, so it was cut
       // as a redundant duplicate page. Old links/bookmarks land on Markets.
       { source: "/prices", destination: "/markets", permanent: true },
+      // The Refund Policy is withdrawn until payments go live (owner, 2026-10-08): /refund sends to Terms with a TEMPORARY (307)
+      // redirect, so nothing is cached as permanent. The page, its REFUND_* labels and the footer/sitemap links were all taken out
+      // in the same change. TO BRING IT BACK: delete this entry and revert that change. A payment processor expects a refund
+      // policy BEFORE real charges, so this MUST be undone before payments go live.
+      { source: "/refund", destination: "/terms", permanent: false },
     ];
   },
 };

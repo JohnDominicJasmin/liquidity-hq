@@ -11,7 +11,7 @@ import Tip from '@/components/Tip';
 import { barsAfter } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
-import { findIndicator, toCalcParams, type IndicatorEntry } from '@/lib/strategyRegistry';
+import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -2453,7 +2453,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const wanted = new Map<string, IndicatorEntry>();
     for (const id of indicators) {
       const entry = findIndicator(id);
-      if (entry && entry.source === 'builtin') wanted.set(id, entry);
+      // A default pane (RSI) is already drawn: selecting its chip never adds a second one (owner, 2026-10-08).
+      if (entry && entry.source === 'builtin' && !DEFAULT_PANE_INDICATORS.has(id)) wanted.set(id, entry);
     }
 
     /* REMOVE BY THE INDICATOR'S OWN ID, not by pane.
