@@ -195,16 +195,6 @@ export default function UpgradePage() {
       <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', padding: '0 28px', textAlign: 'center' }}>
         {t('UPGRADE_METHOD_PANEL_TITLE')}
       </div>
-      {cryptoUrl && (
-        <button
-          data-testid="checkout-method-crypto"
-          onClick={payWithCrypto}
-          disabled={isRedirecting}
-          style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: isRedirecting ? 0.7 : 1 }}
-        >
-          {isRedirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_METHOD_CRYPTO_CTA')}
-        </button>
-      )}
       {/* BoomFi has no two-week interval: its version of that plan bills weekly,
           and the buyer is told before leaving the page, not on the checkout. */}
       {/* A fixed height (owner, 2026-10-06: "having multiple lines of text moves the height"). The two-week plan
@@ -228,6 +218,20 @@ export default function UpgradePage() {
           </p>
         </div>
       </div>
+      {cryptoUrl && (
+        <button
+          data-testid="checkout-method-crypto"
+          onClick={payWithCrypto}
+          disabled={isRedirecting}
+          style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: isRedirecting ? 0.7 : 1 }}
+        >
+          {isRedirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_METHOD_CRYPTO_CTA')}
+        </button>
+      )}
+      {/* Under the pay button (owner, 2026-10-08): what happens at checkout. Constant, so it does not change the panel height. */}
+      <p data-testid="checkout-method-crypto-checkout-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+        {t('UPGRADE_CRYPTO_CHECKOUT_NOTE')}
+      </p>
     </div>
   );
 
@@ -334,6 +338,10 @@ export default function UpgradePage() {
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>{t('UPGRADE_PRO_CARD_EYEBROW')}</div>
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_PRO_CARD_NAME')}</div>
             <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>{t('UPGRADE_PRICE_MONTHLY')}<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
+            {/* What the money is paid in, only where there is something to buy (owner, 2026-10-08). */}
+            {CHECKOUT_CONFIGURED && (
+              <p data-testid="upgrade-crypto-networks-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: '-8px 0 16px', lineHeight: 1.6 }}>{t('UPGRADE_CRYPTO_NETWORKS_NOTE')}</p>
+            )}
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
               {PRO_PLAN_FEATURES.map(({ id, labelKey, vars }) => (
                 <li key={id} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
