@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { useLabels } from '@/lib/labels';
+import { UpgradePillLink, useShowFreeUpgrade } from '@/components/UpgradePill';
 import { nextResetLocalTime } from '@/lib/resetTime';
 
 // Visible usage tracker under the Arena AI buttons: today's Quick/Deep tally
@@ -34,6 +35,7 @@ export default function UsageMeter() {
   const { user, isPro } = useAuth();
   const { usage } = useGrokUsage();
   const { t } = useLabels();
+  const showFreeUpgrade = useShowFreeUpgrade();
   const [resetTime, setResetTime] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,7 +47,16 @@ export default function UsageMeter() {
     return () => clearInterval(id);
   }, []);
 
-  if (!user || !usage) return null;
+  if (!user) return null;
+  /* The Upgrade button does not wait for usage to load (owner, 2026-10-07): a Free visitor sees it as soon as the plan is
+     known, even while the Quick/Deep tally is still on its way. */
+  if (!usage) {
+    return showFreeUpgrade ? (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '2px 0 10px' }}>
+        <UpgradePillLink testId="usage-meter-upgrade" />
+      </div>
+    ) : null;
+  }
 
   const quickPct = usage.quick_limit > 0 ? (usage.quick_used / usage.quick_limit) * 100 : 0;
   const deepPct  = usage.deep_limit  > 0 ? (usage.deep_used  / usage.deep_limit)  * 100 : 0;
@@ -66,7 +77,10 @@ export default function UsageMeter() {
           {t('USAGE_METER_RESET_FACT', { time: resetTime })}
         </span>
       )}
-      {!isPro && nearCap && (
+      {/* Free: a real button-style pill, always (was caption text, only near the cap). A trial keeps the old caption link
+          near the cap - TrialBanner already carries its pill. */}
+      {showFreeUpgrade && <UpgradePillLink testId="usage-meter-upgrade" style={{ marginLeft: 'auto' }} />}
+      {!isPro && !showFreeUpgrade && nearCap && (
         <Link href="/upgrade" style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-caption)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
           {t('USAGE_METER_UPGRADE_LINK')}
         </Link>
