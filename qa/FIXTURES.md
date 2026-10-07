@@ -365,6 +365,9 @@ not when it was last touched.
 | Key | Why | Changed in |
 |---|---|---|
 | `ALERTS_EMA_SIGNAL_DESC` (en) | new wording: the alert is the standard EMA ribbon call and does not follow the chart's indicator selection (row rewritten by `20260919b_labels_alerts_ema_signal_desc_selection.sql`) | #1385 |
+| `ALERTS_PAGE_SUBTITLE` (en) | the /alerts subtitle no longer names a funding alert (there is none); row rewritten by `20261001i_labels_alerts_copy_no_funding.sql` | #1519 |
+| `ALERTS_LOCKED_FEATURE_DESC` (en) | the locked Connect Telegram card no longer names funding rate extremes; same migration | #1519 |
+| `ABOUT_PAGE_SUBTITLE` (en) | the About subtitle says "crypto market analytics"; row rewritten by `20261001e_labels_about_market_analytics.sql` | #1493 |
 
 No spec asserts on this key today, so the edit changes no result; it keeps the fixture from
 serving wording the site no longer shows. Add a row here for any further hand edit.
