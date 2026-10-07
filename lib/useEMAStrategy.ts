@@ -58,6 +58,10 @@ export interface StrategySignal {
   signalLongs:  Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
   signalShorts: Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
   pendingSetup: { dir: 'long' | 'short'; held: number; need: number } | null;
+  /* The signal coin gate (lib/signalCoinGate.ts). Set by gateSignal() when this coin's signals are locked on the viewer's plan.
+     `lockedMarkers` are where signals WERE, with no direction: always the candle's high, so a marker's position says nothing. */
+  signalLock?: 'signed_out' | 'free' | null;
+  lockedMarkers: Array<{ timestamp: number; anchorPrice: number }>;
   atrLast:    number | null;  // last ATR(14) - for Grok context
   ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
   chopIndex:  number | null;  // Choppiness Index (0-100) - high = range-bound
@@ -155,7 +159,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
-  signalLongs: [], signalShorts: [], pendingSetup: null,
+  signalLongs: [], signalShorts: [], pendingSetup: null, lockedMarkers: [], signalLock: null,
   atrLast: null, ema50Slope: null,
   chopIndex: null, chopRegime: null,
   reversalWarnings: [],
@@ -703,6 +707,7 @@ export function useEMAStrategy(
         const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
         const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
         const pendingSetup  = pendingSetupOf([...detected.signalLongs, ...detected.signalShorts]);
+        const lockedMarkers = [...detected.signalLongs, ...detected.signalShorts].map(s => ({ timestamp: s.timestamp, anchorPrice: cRibbon[s.armIndex].high }));
 
         // Recent record - confirmed signals only (pending have unreliable fillPrice at live edge)
         const confirmedSignals = [...detected.signalLongs, ...detected.signalShorts].filter(s => !s.pending);
@@ -742,7 +747,7 @@ export function useEMAStrategy(
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir,
-          signalLongs, signalShorts, pendingSetup,
+          signalLongs, signalShorts, pendingSetup, lockedMarkers,
           chopIndex, chopRegime,
           reversalWarnings,
           atrLast, ema50Slope,
@@ -874,6 +879,8 @@ export function useEMAStrategy(
 /* ── Grok context summary line ───────────────────────────────────────────── */
 export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
   if (sig.loading || sig.verdict === 'LOADING') return 'Loading…';
+  // A locked coin gives the AI no buy or sell read either: nothing here can leak what the page is not showing.
+  if (sig.signalLock) return `[${tf.toUpperCase()} ribbon] signals locked for this coin on the viewer's plan - no setup read`;
   if (sig.error) return `Error: ${sig.error}`;
   const passing = sig.conditions.filter(c => c.pass === true).length;
   const total   = sig.conditions.filter(c => c.pass !== null).length;
