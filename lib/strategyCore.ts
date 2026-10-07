@@ -378,6 +378,12 @@ export interface SignalEvent {
   sl:          number;
   tp:          number;          // fixed 2:1 R:R target measured from the fill price
   pending:     boolean;         // true = PERSIST hold incomplete (live edge) - hollow marker, exclude from backtest
+  /* Progress of that hold, set only while `pending` (#861-adjacent owner report, 2026-10-07: "a 1h marker still FORMING after
+     ~10 candles"). `held` counts the closes beyond EMA50 AFTER the confirmation candle `index`; `need` is the PERSIST target. The
+     marker is drawn at `armIndex` (the EMA9/20 cross), which can be many candles before `index`, so "candles since the marker" is
+     NOT the hold count - this is. */
+  held?:       number;
+  need?:       number;
 }
 
 export interface DetectedSignals {
@@ -458,6 +464,7 @@ export function detectEMASignals(
       anchorPrice: dir === 'long' ? candles[armIndex].low : candles[armIndex].high,
       entryPrice, sl, tp,
       pending,
+      ...(pending ? { held: candles.length - 1 - k, need: PERSIST } : {}),
     };
   };
 
