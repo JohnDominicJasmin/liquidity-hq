@@ -386,23 +386,9 @@ export interface SignalEvent {
   need?:       number;
 }
 
-/* WHERE A SIGNAL IS DRAWN (owner, 2026-10-07: "SELL? doesn't solve the problem"). A signal is only KNOWABLE once its
-   persistence hold completes, at `fillIndex`: the first EMA50 close after the arm (the cross at `armIndex`) is `index`, and
-   PERSIST more closes beyond it make `fillIndex`. Drawing the marker at the arm candle put it 5 to 32 candles in the past
-   (measured on BTC 1h), so a Buy/Sell appeared long after the move it named. The chart now draws a confirmed signal at
-   the candle where it became knowable, which is the latest candle for a fresh signal (PERSIST 0, the default mode, draws
-   at `index`, since fillIndex = index there). Nothing is drawn for a signal still holding. The backtest already fills at
-   `fillIndex`, so this changes no result. */
-export interface ChartMarker {
-  timestamp:   number;          // time of the fill candle
-  anchorPrice: number;          // that candle's low for a long, its high for a short
-  dir:         'long' | 'short';
-  index:       number;          // === the signal's fillIndex (pinned by QA's test)
-}
-export function chartMarkerFor(sig: SignalEvent, candles: OHLCV[]): ChartMarker {
-  const c = candles[sig.fillIndex];
-  return { timestamp: c.time, anchorPrice: sig.dir === 'long' ? c.low : c.high, dir: sig.dir, index: sig.fillIndex };
-}
+/* Markers are drawn on the ARM candle (`armIndex`, the EMA9/20 cross) with `timestamp`, as they always were. Placing them on the
+   fill candle instead was tried on qa and reverted (owner, 2026-10-07: "massive delay, selling at the bottom and buying at
+   the top"). A signal is only KNOWABLE at `fillIndex`, which is why an arm-candle marker cannot be traded when it appears. */
 
 /* The one signal still holding its persistence check, if any (only the newest can be: a pending signal has no later
    candles to be followed by). Shown as text under the chart, not as a marker. */

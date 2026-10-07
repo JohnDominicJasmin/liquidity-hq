@@ -6,7 +6,7 @@ import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
-  SPREAD_MIN_BY_TF, chartMarkerFor, pendingSetupOf, SignalEvent, judgeRibbon,
+  SPREAD_MIN_BY_TF, pendingSetupOf, judgeRibbon,
 } from './strategyCore.ts';
 import { detectRSIDivergence, rsiArr } from './divergence.ts';
 import { describeSelection } from './strategyRegistry.ts';
@@ -52,10 +52,11 @@ export interface StrategySignal {
   signalTimestamp:   number | null;
   signalAnchorPrice: number | null;
   signalDir:         'long' | 'short' | null;
-  /* Confirmed signals only, each at the candle where it became knowable (chartMarkerFor in strategyCore), never at the
-     arm candle and never a hollow "pending" one. A signal still holding is `pendingSetup` instead. */
-  signalLongs:  Array<{ timestamp: number; anchorPrice: number }>;
-  signalShorts: Array<{ timestamp: number; anchorPrice: number }>;
+  /* Markers are on the ARM candle (the EMA9/20 cross) again, and a signal still holding its hold is drawn hollow with
+     `pending` set (owner, 2026-10-07, after trying fill-candle placement on qa: "massive delay, selling at the bottom").
+     `pendingSetup` is the same signal as text under the chart. */
+  signalLongs:  Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
+  signalShorts: Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
   pendingSetup: { dir: 'long' | 'short'; held: number; need: number } | null;
   atrLast:    number | null;  // last ATR(14) - for Grok context
   ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
@@ -699,9 +700,8 @@ export function useEMAStrategy(
         // 2-step arm/confirm, ATR buffer, EMA50 slope, ribbon spread, whipsaw persistence,
         // and strict buy/sell alternation.
         const detected = detectEMASignals(cRibbon, tf, filterParams);
-        const toMarker = (s: SignalEvent) => { const m = chartMarkerFor(s, cRibbon); return { timestamp: m.timestamp, anchorPrice: m.anchorPrice }; };
-        const signalLongs  = detected.signalLongs.filter(s => !s.pending).map(toMarker);
-        const signalShorts = detected.signalShorts.filter(s => !s.pending).map(toMarker);
+        const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
+        const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
         const pendingSetup  = pendingSetupOf([...detected.signalLongs, ...detected.signalShorts]);
 
         // Recent record - confirmed signals only (pending have unreliable fillPrice at live edge)

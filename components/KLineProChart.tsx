@@ -1073,9 +1073,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }
           },
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { dir, price, hovered } = overlay.extendData as {
-              dir: 'long' | 'short'; price?: number; hovered?: boolean;
+            const { dir, pending, price, hovered } = overlay.extendData as {
+              dir: 'long' | 'short'; pending: boolean; price?: number; hovered?: boolean;
             };
+            /* An unconfirmed marker is the same marker as a confirmed one but hollow and dashed, reading plain "Buy" / "Sell" at 9px
+               (owner, 2026-10-07: no "FORMING", no "?"). How far its hold has got is the line under the chart, not text here. */
             const coord = coordinates[0];
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.x < 0 || coord.y < 0) return [];
             const x = coord.x;
@@ -1087,7 +1089,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               if (!hovered || price == null || !isFinite(price)) return [];
               const isLong = dir === 'long';
               const tagY = isLong ? y + 40 : y - 40;
-              const col = isLong ? '#22c55e' : '#ef4444';
+              const col = pending
+                ? (isLong ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)')
+                : (isLong ? '#22c55e' : '#ef4444');
               return [{
                 type: 'text',
                 // Trailing zeros stripped: an alt priced at 0.00001234 and BTC
@@ -1106,6 +1110,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               }];
             };
             if (dir === 'long') {
+              if (pending) {
+                return [
+                  {
+                    type: 'polygon',
+                    attrs: { coordinates: [{ x, y: y + 4 }, { x: x - 14, y: y + 28 }, { x: x + 14, y: y + 28 }] },
+                    styles: { style: 'stroke', borderColor: 'rgba(34,197,94,0.6)', borderSize: 1.5, borderStyle: 'dashed', borderDashedValue: [3, 3] },
+                  },
+                  {
+                    type: 'text',
+                    attrs: { x, y: y + 20, text: 'Buy', align: 'center', baseline: 'middle' },
+                    styles: { color: 'rgba(34,197,94,0.95)', size: 9, weight: 'bold', backgroundColor: 'transparent' },
+                  },
+                  ...priceTag(),
+                ];
+              }
               return [
                 {
                   type: 'polygon',
@@ -1116,6 +1135,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   type: 'text',
                   attrs: { x, y: y + 20, text: 'Buy', align: 'center', baseline: 'middle' },
                   styles: { color: '#ffffff', size: 9, weight: 'bold', backgroundColor: 'transparent' },
+                },
+                ...priceTag(),
+              ];
+            }
+            if (pending) {
+              return [
+                {
+                  type: 'polygon',
+                  attrs: { coordinates: [{ x, y: y - 4 }, { x: x - 14, y: y - 28 }, { x: x + 14, y: y - 28 }] },
+                  styles: { style: 'stroke', borderColor: 'rgba(239,68,68,0.6)', borderSize: 1.5, borderStyle: 'dashed', borderDashedValue: [3, 3] },
+                },
+                {
+                  type: 'text',
+                  attrs: { x, y: y - 20, text: 'Sell', align: 'center', baseline: 'middle' },
+                  styles: { color: 'rgba(239,68,68,0.95)', size: 9, weight: 'bold', backgroundColor: 'transparent' },
                 },
                 ...priceTag(),
               ];
@@ -2161,7 +2195,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     chart.removeOverlay({ name: 'emaSignal' });
     if (!emaSignal || emaSignal.loading) return;
 
-    const place = (dir: 'long' | 'short', ts: number, price: number) => {
+    const place = (dir: 'long' | 'short', ts: number, price: number, pending: boolean) => {
       chart.createOverlay({
         // lock stays on. In klinecharts it only gates mouse-down and
         // pressed-move (index.esm.js: `if (overlay.lock) return false` in
@@ -2173,13 +2207,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         // price is carried in extendData as well as in the point, because
         // createPointFigures only receives screen coordinates - by the time it
         // runs, the price behind the y pixel is gone.
-        extendData: { dir, price, hovered: false },
+        extendData: { dir, pending, price, hovered: false },
         points: [{ timestamp: ts, value: price }],
       } as OverlayCreate);
     };
 
-    for (const sig of emaSignal.signalLongs)  place('long',  sig.timestamp, sig.anchorPrice);
-    for (const sig of emaSignal.signalShorts) place('short', sig.timestamp, sig.anchorPrice);
+    for (const sig of emaSignal.signalLongs)  place('long',  sig.timestamp, sig.anchorPrice, sig.pending ?? false);
+    for (const sig of emaSignal.signalShorts) place('short', sig.timestamp, sig.anchorPrice, sig.pending ?? false);
   }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reversal warnings - RSI divergence, a leading heads-up distinct from the
