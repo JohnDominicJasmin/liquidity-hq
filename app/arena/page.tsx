@@ -35,7 +35,7 @@ import { computeDistributionScore, distributionColor, DistributionInputs } from 
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
-import { describeSelection } from '@/lib/strategyRegistry';
+import { describeSelection, overlayStates } from '@/lib/strategyRegistry';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -271,6 +271,18 @@ function ArenaContent() {
      - useEMAStrategy just below. That last one is why this moved above the
      EMA signal block rather than staying with the other page state further
      down: a hook call reading it has to come after its declaration. */
+  /* The chart's S/R and Liq layers (owner, 2026-10-07). Owned HERE so the chart toolbar and the Strategy panel's chips are one
+     switch, and kept per browser so a reload keeps what was left on or off. Both default on, as the chart always did. */
+  const [showSR, setShowSRState]   = useState(true);
+  const [showLiq, setShowLiqState] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('lhq_arena_show_sr') === '0') setShowSRState(false);
+      if (localStorage.getItem('lhq_arena_show_liq') === '0') setShowLiqState(false);
+    } catch { /* storage blocked: the defaults stand */ }
+  }, []);
+  const setShowSR  = useCallback((v: boolean) => { setShowSRState(v);  try { localStorage.setItem('lhq_arena_show_sr',  v ? '1' : '0'); } catch { /* not persisted */ } }, []);
+  const setShowLiq = useCallback((v: boolean) => { setShowLiqState(v); try { localStorage.setItem('lhq_arena_show_liq', v ? '1' : '0'); } catch { /* not persisted */ } }, []);
   const [strategySelection, setStrategySelection] = useState<readonly string[]>([]);
   /* #1347 item 9: `strategySelection` is `[]` until the seed effect below has read the account's saved
      selection, so anything comparing it to a restored result's `selectionAtAnalysis` on a cold load
@@ -2449,7 +2461,7 @@ function ArenaContent() {
       <div className="arena-ws">
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} />
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -2621,7 +2633,7 @@ function ArenaContent() {
           before readLoading is ever set - so the button never visibly
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
-      <StrategyPanel status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
+      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
