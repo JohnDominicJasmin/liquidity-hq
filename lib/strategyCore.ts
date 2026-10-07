@@ -413,6 +413,51 @@ export function pendingSetupOf(signals: SignalEvent[]): PendingSetup | null {
   return p ? { dir: p.dir, held: p.held as number, need: p.need as number } : null;
 }
 
+/* THE EMA RIBBON PANEL'S VERDICT (owner, option 1, 2026-10-07). It used to be gated by the daily 200 SMA: above it, only a
+   bullish ribbon could be a setup, and a bearish one read FREEZE ("not bullish") while its checklist ticked "Ribbon Aligned"
+   and the chart (which has no daily filter) drew Sell markers. Now the ribbon decides the DIRECTION and the 200 SMA only
+   labels it: a short above the 200 SMA, or a long below it, is judged as a short or long and flagged counterTrend.
+   Without a 200 SMA (not enough daily history) the ribbon is its own trend proxy, so nothing is counter-trend. SL/TP are
+   still derived from the verdict by the caller, unchanged. */
+export type RibbonVerdict = 'LONG_SETUP' | 'SHORT_SETUP' | 'TRENDING_LONG' | 'TRENDING_SHORT' | 'FREEZE';
+export interface RibbonJudgement {
+  verdict:      RibbonVerdict;
+  phase:        string;
+  setupDir:     'long' | 'short' | null;   // the ribbon's own direction
+  counterTrend: boolean;                    // against the daily 200 SMA
+  /* The direction the checklist rows judge: the ribbon's, or - when the ribbon is tangled - what the 200 SMA allows. */
+  judgeLong:    boolean;
+}
+export function judgeRibbon(i: {
+  ribbonBull: boolean; ribbonBear: boolean; have200D: boolean; above200D: boolean;
+  price: number; ema9: number; ema20: number; ema50: number;
+  inVZoneLong: boolean; inVZoneShort: boolean; tfLabel: string;
+}): RibbonJudgement {
+  const { ribbonBull, ribbonBear, have200D, above200D, price, ema9, ema50, inVZoneLong, inVZoneShort, tfLabel } = i;
+  const setupDir: 'long' | 'short' | null = ribbonBull ? 'long' : ribbonBear ? 'short' : null;
+  const counterTrend = have200D && setupDir !== null && (setupDir === 'short' ? above200D : !above200D);
+  const judgeLong = setupDir ? setupDir === 'long' : above200D;
+  let verdict: RibbonVerdict = 'FREEZE';
+  let phase = 'No clear setup';
+  if (ribbonBull) {
+    if (inVZoneLong) { verdict = 'LONG_SETUP'; phase = 'In Value Zone - price pulled back to 20 EMA, entry eligible'; }
+    else if (price > ema9) { verdict = 'TRENDING_LONG'; phase = 'Trending long - above 9 EMA, wait for pullback into value zone'; }
+    else if (price < ema50) { verdict = 'FREEZE'; phase = 'Price sliced below 50 EMA - ribbon may be breaking, wait'; }
+    else { verdict = 'TRENDING_LONG'; phase = 'Between 20 and 50 EMA - ribbon aligned, not yet in entry zone'; }
+  } else if (ribbonBear) {
+    if (inVZoneShort) { verdict = 'SHORT_SETUP'; phase = 'In Value Zone - dead-cat bounce to 20 EMA, entry eligible'; }
+    else if (price < ema9) { verdict = 'TRENDING_SHORT'; phase = 'Trending short - below 9 EMA, wait for rally into value zone'; }
+    else if (price > ema50) { verdict = 'FREEZE'; phase = 'Price above 50 EMA - bearish breakdown not confirmed yet'; }
+    else { verdict = 'TRENDING_SHORT'; phase = 'Between 20 and 50 EMA - ribbon aligned bearish, not in entry zone'; }
+  } else {
+    phase = above200D
+      ? `Daily above 200 SMA but ${tfLabel} ribbon not bullish - wait for EMA alignment`
+      : `Daily below 200 SMA but ${tfLabel} ribbon not bearish - wait for EMA alignment`;
+  }
+  if (counterTrend && verdict !== 'FREEZE') phase += ' - counter-trend vs the daily 200 SMA';
+  return { verdict, phase, setupDir, counterTrend, judgeLong };
+}
+
 export interface DetectedSignals {
   signalLongs:  SignalEvent[];
   signalShorts: SignalEvent[];
