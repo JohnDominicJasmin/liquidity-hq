@@ -141,7 +141,7 @@ test('R1. a verified delivery for our organisation is written down whole - and t
   assert.notEqual(body, JSON.stringify(JSON.parse(body)));
   const res = await route.POST(request(body));
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { received: true, recorded: true, ignored: 'entitlement_not_implemented' });
+  assert.deepEqual(await res.json(), { received: true, recorded: true, ignored: 'payments_not_enabled' });
 
   assert.equal(db.seen.length, 1, `expected exactly one database request, saw ${db.seen.length}`);
   const [{ table, method, row }] = db.seen;
@@ -266,7 +266,7 @@ test('R8b. CONTROL: a matching organisation is not reported and does not answer 
   fresh();
   const logged = t.mock.method(console, 'error', () => {});
   for (const body of [event({ id: 'org_ok_1' }), JSON.stringify({ event: 'Payment.Updated', id: 'org_ok_2', org: { id: ORG } })]) {
-    assert.equal((await (await route.POST(request(body))).json()).ignored, 'entitlement_not_implemented');
+    assert.equal((await (await route.POST(request(body))).json()).ignored, 'payments_not_enabled');
   }
   assert.equal(sentryCalls().length, 0);
   assert.equal(logged.mock.callCount(), 0);
@@ -360,17 +360,24 @@ test('R13. across every delivery above - accepted, repeated, refused, failed - t
     'the webhook made a request other than recording the event - if it now grants or revokes, that decision needs its own tests against a REAL recorded payload');
 });
 
-test('R14. source: the route names no subscription table, no update/upsert/delete/rpc, and nothing from the Lemon Squeezy module', () => {
+test('R14. source (Phase 1c): grants sit behind the payments switch, only ever write role pro, never revoke, and read the body once', () => {
   const src = stripTsComments(read('app/api/boomfi/webhook/route.ts'));
-  assert.equal(/user_subscriptions/.test(src), false, 'the BoomFi webhook references the subscriptions table');
-  for (const call of ['.upsert(', '.delete(', '.rpc(']) assert.equal(src.includes(call), false, `the route calls ${call}`);
-  // '.update(' appears once, legitimately: feeding the raw body to the SHA-256 hash. Any other is a database update.
-  assert.deepEqual(src.match(/\S*\.update\(/g), ["crypto.createHash('sha256').update("], 'the route has an .update( that is not the payload hash');
-  assert.equal(/lemonsqueezy/i.test(src), false, 'the route imports or names Lemon Squeezy code - the two schemes share nothing');
-  assert.equal((src.match(/\.from\(/g) ?? []).length, 1, 'the route reads or writes more than one table');
-  assert.match(src, /\.from\(T\.boomfi_webhook_events\)/);
-  assert.match(src, /const rawBody = await req\.text\(\);/, 'the body is no longer read raw, once');
-  assert.equal((src.match(/req\.(text|json|arrayBuffer|formData)\(/g) ?? []).length, 1, 'the body is read more than once, or parsed by the framework before verification');
+  const at = (needle: string) => { const i = src.indexOf(needle); assert.ok(i >= 0, `the route no longer contains ${needle}`); return i; };
+  assert.ok(at('isProBuyable(') < at('decideBoomfiEvent(') && at('decideBoomfiEvent(') < at('.upsert('), 'the order is no longer: payments switch, then the decision, then the write');
+  assert.ok(at('boomfiOrgMatches(') < at('isProBuyable('), 'a grant path now runs before the organisation check');
+  assert.equal((src.match(/.upsert(/g) ?? []).length, 1, 'more than one write to the subscription row');
+  assert.equal(/role:s*'free'/.test(src), false, 'the route writes role free - cancel, expiry and a failed pull must revoke nothing');
+  assert.equal(src.includes('.rpc('), false);
+  // The only deletes are the compensating removal of THIS delivery's own record, so a Replay is not answered "replay".
+  assert.equal((src.match(/.delete()/g) ?? []).length, 1);
+  assert.match(src, /.from(T.boomfi_webhook_events).delete().eq('payload_hash', payloadHash)/);
+  assert.deepEqual(src.match(/S*.update(/g), ["crypto.createHash('sha256').update("], 'the route has an .update( that is not the payload hash');
+  assert.deepEqual([...src.matchAll(/from '@/lib/lemonsqueezy'/g)].length, 1);
+  assert.match(src, /import { payerOwnsAccount } from '@/lib/lemonsqueezy';/, 'the route takes more than the email comparison from the Lemon Squeezy module');
+  const tables = new Set([...src.matchAll(/.from((T.w+))/g)].map((m) => m[1]));
+  assert.deepEqual([...tables].sort(), ['T.boomfi_webhook_events', 'T.user_subscriptions']);
+  assert.match(src, /const rawBody = await req.text();/, 'the body is no longer read raw, once');
+  assert.equal((src.match(/req.(text|json|arrayBuffer|formData)(/g) ?? []).length, 1, 'the body is read more than once, or parsed by the framework before verification');
 });
 
 test('R15. only POST is exported - no GET that could be probed or cached', () => {
