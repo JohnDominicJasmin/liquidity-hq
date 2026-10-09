@@ -66,7 +66,7 @@ Candidates (none confirmed to approve us):
 
 ## Payment requirements (owner, 2026-10-10) - the only two ways
 1. **Fiat:** credit or debit card, or money from a bank. Provider: Whop (cards and bank methods).
-2. **Crypto:** the user pays from their own exchange balance (Bybit, Binance) by sending USDT/USDC to our payment address. Provider: BoomFi first, MoonPay Commerce as backup.
+2. **Crypto:** the user pays from their own exchange balance (Bybit, Binance) by sending USDT/USDC to our payment address. Provider: MoonPay Commerce first (card + exchange-balance crypto, about 150 countries), BoomFi second (blocks UK, Malaysia, Netherlands and about 30 more regions per its docs; unconfirmed whether that applies to us). Order changed by owner argument 2026-10-10.
 - Payments sent from an exchange balance cannot auto-renew; the buyer sends each period by hand, so the app sends a renewal reminder.
 - Not wanted: card-to-crypto conversion widgets as a separate path, anything country-specific.
 - Builds: Whop webhook/unlock = issue #1567; BoomFi unlock = #1555/#1565.
