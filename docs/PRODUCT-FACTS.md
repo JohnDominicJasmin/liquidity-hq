@@ -63,3 +63,10 @@ Candidates (none confirmed to approve us):
 - Buyers need an email account and MoonPay KYC on card orders (name, DOB, address, phone, government ID + selfie). Expect drop-off on small subscriptions.
 - About 150-160 card countries; 45+ blocked (China, Russia, Iran, Ukraine, ...). UK card checkout restricted. Fees: merchant 2% (trading analytics cannot get the 1% tier), card buyer up to 4.5% (min $3.99). Not a merchant of record: we handle VAT.
 - Google's own odds estimate for MoonPay Commerce approving us: 50-60%; BoomFi 85-90%; Whop normal payouts 30-40%. These are a chat model's guesses, not data.
+
+## Payment requirements (owner, 2026-10-10) - the only two ways
+1. **Fiat:** credit or debit card, or money from a bank. Provider: Whop (cards and bank methods).
+2. **Crypto:** the user pays from their own exchange balance (Bybit, Binance) by sending USDT/USDC to our payment address. Provider: BoomFi first, MoonPay Commerce as backup.
+- Payments sent from an exchange balance cannot auto-renew; the buyer sends each period by hand, so the app sends a renewal reminder.
+- Not wanted: card-to-crypto conversion widgets as a separate path, anything country-specific.
+- Builds: Whop webhook/unlock = issue #1567; BoomFi unlock = #1555/#1565.
