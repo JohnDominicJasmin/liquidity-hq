@@ -51,3 +51,8 @@ Candidates (none confirmed to approve us):
 - **Hard things: ask first.** Merging to main, production deploys, writes to a shared database, spending money, deleting or irreversible actions, anything the owner has not seen that he will see (visuals), account creation, ID/bank entry and accepting terms on third-party accounts.
 - **Add everything new to the docs in the same step.** Files in this repo are writable; use them. A fact that exists only in a chat is lost.
 - Replies: short, in English, like a message to a colleague. No essays, no re-explaining what was decided.
+
+## Cash-out plan (owner, 2026-10-10)
+- Crypto route (BoomFi / MoonPay Commerce): payouts arrive as USDC/USDT in the owner's own wallet. The owner has a personal contact who converts USDT to cash, so a Philippine bank is not on the critical path for crypto sales.
+- Whop pays out to a bank or other payout method, not USDT; the cash-out contact does not apply to Whop.
+- Keep a record of each conversion (date, amount, rate, counterparty) for BIR income reporting and any source-of-funds question. Income is taxable however it is cashed out; ask an accountant (not legal or tax advice).
