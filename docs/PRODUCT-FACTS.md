@@ -56,3 +56,10 @@ Candidates (none confirmed to approve us):
 - Crypto route (BoomFi / MoonPay Commerce): payouts arrive as USDC/USDT in the owner's own wallet. The owner has a personal contact who converts USDT to cash, so a Philippine bank is not on the critical path for crypto sales.
 - Whop pays out to a bank or other payout method, not USDT; the cash-out contact does not apply to Whop.
 - Keep a record of each conversion (date, amount, rate, counterparty) for BIR income reporting and any source-of-funds question. Income is taxable however it is cashed out; ask an accountant (not legal or tax advice).
+
+## MoonPay Commerce card checkout (Google AI Mode reading of MoonPay help pages, 2026-10-10, unverified by us)
+- Buyer pays by card; MoonPay converts to USDC and sends it to the merchant wallet. Merchant never receives fiat.
+- Cards: Visa, Mastercard, Maestro (global); Discover US only; Amex and prepaid not confirmed; Apple Pay, Google Pay; PayPal in US/UK/some EU; SEPA, UK Faster Payments, Pix, Interac by region.
+- Buyers need an email account and MoonPay KYC on card orders (name, DOB, address, phone, government ID + selfie). Expect drop-off on small subscriptions.
+- About 150-160 card countries; 45+ blocked (China, Russia, Iran, Ukraine, ...). UK card checkout restricted. Fees: merchant 2% (trading analytics cannot get the 1% tier), card buyer up to 4.5% (min $3.99). Not a merchant of record: we handle VAT.
+- Google's own odds estimate for MoonPay Commerce approving us: 50-60%; BoomFi 85-90%; Whop normal payouts 30-40%. These are a chat model's guesses, not data.
