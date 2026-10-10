@@ -86,3 +86,7 @@ Keep every page free of: guaranteed or promised returns, earnings claims, win-ra
 
 ## Working rule (owner, 2026-10-10): verify before presenting
 If a claim is unverified, verify it in the background (official page or screenshot; Google AI Mode in the SAME thread, never a new thread) BEFORE telling the owner. Do not present unchecked results. Do not ask the owner to do verification manually.
+
+## BoomFi card support, verified 2026-10-10 (quotes from BoomFi docs via Google AI Mode, same thread)
+- Verified: BoomFi docs say "Dual payment options: Accept both fiat and cryptocurrency payments"; feature list "Banking rails: SEPA, FPS, Swift, ACH, Wire"; merchant can settle in crypto or fiat.
+- NOT verified: the card form itself (never seen), card auto-renew (BoomFi recurring is wallet-based), and the card processor (Google says Stripe; docs only list "Stripe Billing" as an integration). If Stripe runs the card side, Stripe's rules (no Philippines sellers, signals wariness) may apply. Owner decision stands: only Whop and MoonPay Commerce.
