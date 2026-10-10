@@ -79,3 +79,6 @@ Candidates (none confirmed to approve us):
 
 ## Review-trigger wording (owner order 2026-10-10)
 Keep every page free of: guaranteed or promised returns, earnings claims, win-rate boasts, "risk-free", copy trading, auto-trading. Keep the disclaimers (footer risk disclosure, Disclaimer page "No Guarantees", Terms callout). Win Rate / Profit Factor / Signal Accuracy panels stay but are reworded and captioned as historical backtest, not a prediction (issue filed 2026-10-10).
+
+## Radom verified OUT (2026-10-10, Google AI Mode reading of Radom's official hosted-checkout guide)
+- Radom does NOT host a card form. Checkout is crypto only (QR code, wallet connect, manual transfer); fiat arrives only by bank transfer swapped to stablecoin. An earlier Google answer saying Radom takes cards was wrong. Do not list Radom.
