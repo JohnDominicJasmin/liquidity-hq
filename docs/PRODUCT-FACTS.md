@@ -70,3 +70,12 @@ Candidates (none confirmed to approve us):
 - Payments sent from an exchange balance cannot auto-renew; the buyer sends each period by hand, so the app sends a renewal reminder.
 - Not wanted: card-to-crypto conversion widgets as a separate path, anything country-specific.
 - Builds: Whop webhook/unlock = issue #1567; BoomFi unlock = #1555/#1565.
+
+## DECISION (owner, 2026-10-10): only TWO payment gateways
+- **Whop** (card, bank) and **MoonPay Commerce** (crypto, card). Nothing else is on the list.
+- Dropped and not to be shown again: BoomFi (its unlock code stays on qa unused unless the owner reverses this), Radom (unverified), CoinGate, NOWPayments, Cryptomus, Transak, Alchemy Pay, Ramp, Banxa and every other gateway discussed.
+- Priority: card payment first (standard form: card holder name, number, MM/YY, CVC). Crypto from Bybit/Binance balances is second.
+- Never present an unverified claim as an option. Verify first (official page or screenshot), then present.
+
+## Review-trigger wording (owner order 2026-10-10)
+Keep every page free of: guaranteed or promised returns, earnings claims, win-rate boasts, "risk-free", copy trading, auto-trading. Keep the disclaimers (footer risk disclosure, Disclaimer page "No Guarantees", Terms callout). Win Rate / Profit Factor / Signal Accuracy panels stay but are reworded and captioned as historical backtest, not a prediction (issue filed 2026-10-10).
