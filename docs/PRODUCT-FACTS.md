@@ -82,3 +82,7 @@ Keep every page free of: guaranteed or promised returns, earnings claims, win-ra
 
 ## Radom verified OUT (2026-10-10, Google AI Mode reading of Radom's official hosted-checkout guide)
 - Radom does NOT host a card form. Checkout is crypto only (QR code, wallet connect, manual transfer); fiat arrives only by bank transfer swapped to stablecoin. An earlier Google answer saying Radom takes cards was wrong. Do not list Radom.
+- Radom, further verified 2026-10-10 (quotes from Radom's own footer/docs via Google AI Mode): services "not directed at, offered to, or intended for persons located or established in the EU/EEA, the United Kingdom, or the United States" - buyers in US/UK/EU are excluded, so it cannot serve a worldwide audience. Recurring needs the buyer's wallet approval. No signals ban listed. Philippines individual onboarding unverified.
+
+## Working rule (owner, 2026-10-10): verify before presenting
+If a claim is unverified, verify it in the background (official page or screenshot; Google AI Mode in the SAME thread, never a new thread) BEFORE telling the owner. Do not present unchecked results. Do not ask the owner to do verification manually.
