@@ -38,6 +38,10 @@ export interface FetchBybitKlinesRetryOptions {
    *  rejects instantly anyway; the check just skips the backoff sleep ahead
    *  of an attempt that cannot succeed. */
   signal?: AbortSignal;
+  /** A budget for EACH attempt, in milliseconds. Without it a slow or hung request just stays pending: the attempt never fails, so the
+   *  retry and the caller's fallback never start (#1572: the chart showed the previous timeframe's candles for as long as the history
+   *  load took). Off by default, so every other caller behaves exactly as before. A timed-out attempt counts as a failed one. */
+  attemptTimeoutMs?: number;
 }
 
 /** Retries Bybit's klines endpoint up to 3 times (immediate, +500ms,
@@ -67,7 +71,7 @@ export async function fetchBybitKlinesRetry(
   limit: number,
   opts: FetchBybitKlinesRetryOptions = {},
 ): Promise<BybitKlinesResponse | null> {
-  const { extraParams, isStale, signal } = opts;
+  const { extraParams, isStale, signal, attemptTimeoutMs } = opts;
   const params = new URLSearchParams({
     source: 'bybit', symbol, interval, limit: String(limit), ...extraParams,
   });
@@ -80,7 +84,11 @@ export async function fetchBybitKlinesRetry(
     if (attempt > 0) await new Promise(res => setTimeout(res, attempt === 1 ? 500 : 1500));
     if (bailed()) break;
     try {
-      const r = await fetch(`/api/market/klines?${params.toString()}`, signal ? { signal } : undefined);
+      // The timeout covers reading the body too: the signal stays live until the JSON has been parsed.
+      const attemptSignal = attemptTimeoutMs
+        ? (signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, AbortSignal.timeout(attemptTimeoutMs)]) : AbortSignal.timeout(attemptTimeoutMs))
+        : signal;
+      const r = await fetch(`/api/market/klines?${params.toString()}`, attemptSignal ? { signal: attemptSignal } : undefined);
       if (r.ok) return await r.json() as BybitKlinesResponse;
     } catch { /* network error or abort - fall through to the next attempt */ }
   }
