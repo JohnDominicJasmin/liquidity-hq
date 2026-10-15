@@ -20,3 +20,7 @@ export function isStreamStalled(lastMessageAt: number, now: number, stallMs: num
   if (!Number.isFinite(lastMessageAt) || !Number.isFinite(now)) return false;
   return now - lastMessageAt > stallMs;
 }
+
+/** A socket quiet for this long is SUSPECT: the status dot stops saying "live" (it says connecting) while the watchdog waits for the
+ *  full STREAM_STALL_MS before replacing it. Longer than Bybit's 20 s ping so a healthy quiet coin never flickers. */
+export const STREAM_SUSPECT_MS = 25_000;
