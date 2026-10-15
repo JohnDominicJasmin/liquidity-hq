@@ -25,6 +25,7 @@ import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetec
 import EMASignal from '@/components/EMASignal';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import Tip from '@/components/Tip';
+import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 import LiqFeed, { type Bucket } from '@/components/LiqFeed';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
@@ -2590,10 +2591,13 @@ function ArenaContent() {
             So the fix is to delete the prop rather than replace the value.
             Dark keeps the muted appearance it already had, light gets a
             readable one, and there is no new number to govern. */}
-        <Tip
-          width={260}
-          text={t('ARENA_ANTICHOP_TIP')}
-        />
+        {/* The tooltip quotes a backtest profit factor, so it follows the performance-stats flag (owner, 2026-10-16, #1574). */}
+        {SHOW_PERFORMANCE_STATS && (
+          <Tip
+            width={260}
+            text={t('ARENA_ANTICHOP_TIP')}
+          />
+        )}
         {/* opacity 0.35 computed to #55565b = 2.75:1. This hint explains what
             the anti-chop toggle beside it actually does, so it has to be
             readable; --txt-dim carries the same de-emphasis at 5.80:1. */}
