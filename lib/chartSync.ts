@@ -31,9 +31,14 @@ export function medianBarStepMs(timestamps: number[], sample = 12): number | nul
   return gaps[Math.floor(gaps.length / 2)];
 }
 
-/** How long the load for the current timeframe may stay unanswered before it is treated as lost and started again. History fetches
- *  retry for roughly 15 s and fall back to a second exchange, so this is well past a slow answer. */
-export const STALE_LOAD_MS = 45_000;
+/** Budget for ONE history fetch attempt (#1572). Before this a slow or hung request never failed, so the retry and the second-exchange
+ *  fallback never started and the chart kept the previous timeframe's candles for as long as the request took. */
+export const HISTORY_ATTEMPT_TIMEOUT_MS = 12_000;
+
+/** How long the load for the current timeframe may stay unanswered before it is treated as lost and started again. The slowest honest
+ *  chain is 3 Bybit attempts of HISTORY_ATTEMPT_TIMEOUT_MS with their 2 s of waiting, then Binance spot and futures at the same budget:
+ *  about 62 s. This sits past that, so the check never restarts a load that is still legitimately working through its fallbacks. */
+export const STALE_LOAD_MS = 75_000;
 
 export type ChartCheck =
   | { ok: true }

@@ -13,7 +13,7 @@ import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { isStreamStalled, STREAM_WATCH_EVERY_MS, BYBIT_PING_EVERY_MS, STREAM_SUSPECT_MS } from '@/lib/streamWatch';
-import { checkChartSync, historyRetryDelayMs } from '@/lib/chartSync';
+import { checkChartSync, historyRetryDelayMs, HISTORY_ATTEMPT_TIMEOUT_MS } from '@/lib/chartSync';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -1581,7 +1581,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               // see that file's own comment for why (#1079's whole defect
               // was the old 5s poll's incidental retry-through-repetition
               // going away with nothing replacing it).
-              const json = await fetchBybitKlinesRetry(bybitSym, iv, 1000, { isStale: stale });
+              const json = await fetchBybitKlinesRetry(bybitSym, iv, 1000, { isStale: stale, attemptTimeoutMs: HISTORY_ATTEMPT_TIMEOUT_MS });
               if (stale()) return; // superseded by a newer switch - drop it
               const list = [...(json?.result?.list ?? [])].reverse();
               // Raw contract price, NOT converted to per-token. See
@@ -1646,7 +1646,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               // what this used to do.
               const tryFetch = async (url: string): Promise<{ data: (string | number)[][]; viaBybitFallback: boolean } | null> => {
                 try {
-                  const res = await fetch(url);
+                  const res = await fetch(url, { signal: AbortSignal.timeout(HISTORY_ATTEMPT_TIMEOUT_MS) }); // #1572: a hung request fails over to the next source
                   if (!res.ok) return null;
                   const j = await res.json();
                   if (!Array.isArray(j) || !j.length) return null;
