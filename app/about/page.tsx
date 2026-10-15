@@ -1,6 +1,7 @@
 'use client';
 import { useLabels } from '@/lib/labels';
 import EmailLinked from '@/components/EmailLinked';
+import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 
 export default function About() {
   const { t } = useLabels();
@@ -47,8 +48,9 @@ export default function About() {
           2. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP2_BOLD')}</strong> - {t('ABOUT_STEP2_TEXT')}<br />
           3. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP3_BOLD')}</strong> - {t('ABOUT_STEP3_TEXT')}<br />
           4. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP4_BOLD')}</strong> - {t('ABOUT_STEP4_TEXT')}<br />
-          5. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP5_BOLD')}</strong> - {t('ABOUT_STEP5_TEXT')}<br />
-          6. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP6_BOLD')}</strong> {t('ABOUT_STEP6_TEXT')}
+          5. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP5_BOLD')}</strong> - {t('ABOUT_STEP5_TEXT')}
+          {/* Step 6 points at Signal Accuracy, which is hidden while SHOW_PERFORMANCE_STATS is off (owner, 2026-10-16, #1574). */}
+          {SHOW_PERFORMANCE_STATS && <><br />6. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP6_BOLD')}</strong> {t('ABOUT_STEP6_TEXT')}</>}
         </div>
       </div>
 

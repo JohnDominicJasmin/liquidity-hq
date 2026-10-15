@@ -9,6 +9,7 @@ import { useLabels } from '@/lib/labels';
 import Link from 'next/link';
 import { Lock } from '@/components/icons';
 import { signalLockCopy } from '@/lib/signalCoinGate';
+import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
@@ -338,8 +339,8 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
-      {/* Recent record - every signal in the loaded history, backtest fill rules */}
-      {!signal.loading && signal.recentStats && (
+      {/* Recent record - every signal in the loaded history, backtest fill rules. Hidden while SHOW_PERFORMANCE_STATS is off (owner, 2026-10-16, #1574). */}
+      {SHOW_PERFORMANCE_STATS && !signal.loading && signal.recentStats && (
         <div
           title={`Outcome of every signal this strategy fired in the loaded candle history for this coin and timeframe, simulated with the backtest fill rules: entry once the whipsaw hold confirms, stop at the 50 EMA buffer, take profit at 2 to 1. Net of an estimated ${ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost (${TAKER_FEE_PCT}% taker fee + ${SLIPPAGE_PCT}% slippage, each side) - not gross.`}
           style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 8, cursor: 'default' }}
