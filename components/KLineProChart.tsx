@@ -12,7 +12,8 @@ import { barsAfter } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEntry } from '@/lib/strategyRegistry';
-import { isStreamStalled, STREAM_WATCH_EVERY_MS, BYBIT_PING_EVERY_MS } from '@/lib/streamWatch';
+import { isStreamStalled, STREAM_WATCH_EVERY_MS, BYBIT_PING_EVERY_MS, STREAM_SUSPECT_MS } from '@/lib/streamWatch';
+import { checkChartSync, historyRetryDelayMs } from '@/lib/chartSync';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -615,6 +616,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const alertOverlayMap  = useRef<Map<string, string>>(new Map()); // alert.id → overlay id
   const onAlertMoveRef = useRef(onAlertMove);
   const coinRef        = useRef<CoinId>(coin);
+  const tfRef          = useRef<ChartTf>(tf);
+  /* #1572: when the newest history load was started, and which load last called back. See lib/chartSync.ts. */
+  const loadBumpedAtRef  = useRef(Date.now());
+  const deliveredGenRef  = useRef(-1);
+  const historyRetryRef  = useRef(0);
 
   // Screenshot the live canvas → show it as a frozen image while new data loads → crossfade out
   const startFade = () => {
@@ -908,7 +914,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   }, [chartReady]);
 
   // Keep coinRef fresh for the DataLoader closure
-  useEffect(() => { coinRef.current = coin; }, [coin]);
+  useEffect(() => { coinRef.current = coin; tfRef.current = tf; }, [coin, tf]);
 
   // Recompute all 4 EMA lines from the full bar history and push them onto
   // the chart - create the overlay the first time, overrideOverlay (in
@@ -1553,6 +1559,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               emaBarsRef.current = bars;
               syncEmaRibbon();
             }
+            if (bars.length) historyRetryRef.current = 0;
+            deliveredGenRef.current = myGen;
             callback(bars, false);
           };
           setHistoryFailed(false); // clear any previous coin's failure banner immediately
@@ -1698,7 +1706,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               applyBars([]);
             }
             endFade();
-          } catch { if (!stale()) { setHistoryFailed(true); callback([], false); endFade(); } }
+          } catch { if (!stale()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); endFade(); } }
           void symbol; // suppress unused
         },
 
@@ -1741,6 +1749,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             /* #1572: the time of the last frame of ANY kind (candle or pong), the heartbeat, and the watchdog that replaces a socket
                that has gone quiet. See lib/streamWatch.ts for what was measured. */
             let lastMsgAt = Date.now();
+            let suspect = false; // quiet for STREAM_SUSPECT_MS: the dot says so before the watchdog replaces the socket
             let pingTimer: ReturnType<typeof setInterval> | null = null;
             const stopPing = () => { if (pingTimer) { clearInterval(pingTimer); pingTimer = null; } };
 
@@ -1830,6 +1839,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               };
               ws.onmessage = (e: MessageEvent) => {
                 lastMsgAt = Date.now();
+                if (suspect) { suspect = false; setWsStatus('live'); }
                 try {
                   const msg = JSON.parse(e.data as string) as { op?: string; topic?: string; data?: Array<Record<string, string | number>> };
                   if (msg.op === 'subscribe' || msg.op === 'ping') return; // subscription ack / pong, not a bar
@@ -1863,9 +1873,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             /* A socket that is "open" or stuck connecting but delivers nothing is dead: drop it and take the normal reconnect path. */
             const watchdog = setInterval(() => {
               if (cancelled || !live || live.readyState === WebSocket.CLOSED || live.readyState === WebSocket.CLOSING) return;
+              if (!suspect && live.readyState === WebSocket.OPEN && isStreamStalled(lastMsgAt, Date.now(), STREAM_SUSPECT_MS)) { suspect = true; setWsStatus('connecting'); }
               if (!isStreamStalled(lastMsgAt, Date.now())) return;
               const dead = live;
               live = null;
+              suspect = false;
               dead.onclose = null; dead.onmessage = null; dead.onerror = null;
               try { dead.close(); } catch { /* already gone */ }
               stopPing();
@@ -1918,6 +1930,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                not trigger a backfill that getBars has already done. */
             let reconnected = false;
             let lastMsgAt = Date.now(); // #1572: see the Bybit branch above and lib/streamWatch.ts
+            let suspect = false;
 
             /* Fetch what closed while we were away and push it through the same
                callback the stream uses.
@@ -2019,6 +2032,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               };
               ws.onmessage = (e: MessageEvent) => {
                 lastMsgAt = Date.now();
+                if (suspect) { suspect = false; setWsStatus('live'); }
                 const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
                 const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
                 lastCloseRef.current = bar.close;
@@ -2041,9 +2055,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
             const watchdog = setInterval(() => {
               if (cancelled || !live || live.readyState === WebSocket.CLOSED || live.readyState === WebSocket.CLOSING) return;
+              if (!suspect && live.readyState === WebSocket.OPEN && isStreamStalled(lastMsgAt, Date.now(), STREAM_SUSPECT_MS)) { suspect = true; setWsStatus('connecting'); }
               if (!isStreamStalled(lastMsgAt, Date.now())) return;
               const dead = live;
               live = null;
+              suspect = false;
               dead.onclose = null; dead.onmessage = null; dead.onerror = null;
               try { dead.close(); } catch { /* already gone */ }
               setWsStatus('connecting');
@@ -2074,7 +2090,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       };
 
       chart.setDataLoader(loader);
-      setChartSymbolPeriod(chart, coin, tf);
+      /* #1572: the chart is created after an async import, so `coin` and `tf` here are the values from MOUNT. If the timeframe was
+         seeded from saved settings or clicked in that gap, the [coin, tf] effect below returned early (no chart yet) and would never run
+         again for that value: the chart was left on the old timeframe while the page said the new one (reproduced: chart 1h, selected 4h).
+         Read the latest values and tell that effect they are already applied. */
+      setChartSymbolPeriod(chart, coinRef.current, tfRef.current);
+      prevCoinRef.current = coinRef.current;
+      prevTfRef.current   = tfRef.current;
 
       if (!disposed) {
         /* #712: settle-poll the container instead of a single fixed-delay
@@ -2185,15 +2207,16 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     // race - the slower (stale) one can win and paint the wrong timeframe/coin.
     // So only call the setter that actually changed, and bump loadGenRef before
     // each so any in-flight fetch from a previous switch is discarded on arrival.
+    historyRetryRef.current = 0;
     if (coinChanged) {
-      loadGenRef.current += 1;
+      loadGenRef.current += 1; loadBumpedAtRef.current = Date.now();
       const bnSym    = BINANCE_SYMS[coin] as string | undefined;
       const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
       const baseSym  = bnSym ?? bybitSym ?? 'BTCUSDT';
       chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });
     }
     if (tfChanged) {
-      loadGenRef.current += 1;
+      loadGenRef.current += 1; loadBumpedAtRef.current = Date.now();
       chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
     }
 
@@ -2205,6 +2228,52 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const fallback = setTimeout(endFade, 2000);
     return () => clearTimeout(fallback);
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Retry a history load that failed (#1572) ───────────────────────────
+     getBars gives up after its own retries and tells klinecharts "no candles", which leaves an empty chart and a banner that says to
+     switch timeframe or reload. QA measured it: switch timeframe while the connection is down, come back online, and the chart stayed
+     at 1 live bar for 5+ minutes. Retry on a backoff, and at once when the browser says it is online again. `resetData` reloads the
+     current period and re-opens the live subscription; bumping the generation first drops any older load still in flight. */
+  useEffect(() => {
+    if (!historyFailed) return;
+    const chart = chartRef.current;
+    if (!chart) return;
+    const retry = () => { loadGenRef.current += 1; loadBumpedAtRef.current = Date.now(); chart.resetData(); };
+    const timer = setTimeout(() => {
+      historyRetryRef.current += 1;
+      // Offline: do not burn an attempt, the `online` listener below is the trigger.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      retry();
+    }, historyRetryDelayMs(historyRetryRef.current));
+    const onOnline = () => { clearTimeout(timer); historyRetryRef.current = 0; retry(); };
+    window.addEventListener('online', onOnline);
+    return () => { clearTimeout(timer); window.removeEventListener('online', onOnline); };
+  }, [historyFailed]);
+
+  /* ── Self-heal: the chart must agree with the selected timeframe (#1572) ─
+     One check every 10 s (reads about a dozen timestamps): the period klinecharts holds must be the selected one, and once the load for
+     it has called back the candles must be that timeframe's. A mismatch is put right (set the period, or reload) instead of being left
+     on screen. A load that has not answered within STALE_LOAD_MS is started again. See lib/chartSync.ts for what each case is. */
+  useEffect(() => {
+    if (!chartReady) return;
+    const id = setInterval(() => {
+      const chart = chartRef.current;
+      if (!chart) return;
+      const wanted = TF_TO_PERIOD[tfRef.current] ?? TF_TO_PERIOD['15m'];
+      const verdict = checkChartSync({
+        wanted,
+        actual: chart.getPeriod() ?? null,
+        timestamps: chart.getDataList().map(d => d.timestamp),
+        loadDelivered: deliveredGenRef.current === loadGenRef.current,
+        loadAgeMs: Date.now() - loadBumpedAtRef.current,
+      });
+      if (verdict.ok) return;
+      console.warn('[chart] out of sync, healing:', verdict.reason);
+      loadGenRef.current += 1; loadBumpedAtRef.current = Date.now();
+      if (verdict.heal === 'set-period') chart.setPeriod(wanted); else chart.resetData();
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fullscreen API ───────────────────────────────────────────────────
   useEffect(() => {
