@@ -12,6 +12,7 @@ import { barsAfter } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEntry } from '@/lib/strategyRegistry';
+import { isStreamStalled, STREAM_WATCH_EVERY_MS, BYBIT_PING_EVERY_MS } from '@/lib/streamWatch';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -1706,6 +1707,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           const bnSym    = BINANCE_SYMS[c] as string | undefined;
           const bybitSym = BYBIT_SYMS[c]   as string | undefined;
           wsRef.current?.close();
+          /* #1572: lastBarTsRef is only ever written by live frames, so a new subscription (another timeframe or coin) inherited the
+             previous one's last-bar time, and a reconnect before the first frame would backfill from the WRONG point. 0 means "nothing
+             streamed yet - getBars owns it", which both backfills already honour. */
+          lastBarTsRef.current = 0;
 
           /* #1059: Bybit primary, Binance fallback - matching getBars above,
              per #359 (history and live ticks must come from the same
@@ -1733,6 +1738,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             let cancelled = false;
             let live: WebSocket | null = null;
             let reconnected = false;
+            /* #1572: the time of the last frame of ANY kind (candle or pong), the heartbeat, and the watchdog that replaces a socket
+               that has gone quiet. See lib/streamWatch.ts for what was measured. */
+            let lastMsgAt = Date.now();
+            let pingTimer: ReturnType<typeof setInterval> | null = null;
+            const stopPing = () => { if (pingTimer) { clearInterval(pingTimer); pingTimer = null; } };
 
             /* Same shape and purpose as the Binance branch's backfillGap
                below, but Bybit's REST kline response is `{result:{list}}`
@@ -1794,16 +1804,23 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 : 'wss://stream.bytick.com/v5/public/linear';
               const ws = new WebSocket(host);
               live = ws;
+              lastMsgAt = Date.now();
               ws.onopen = () => {
                 attempt = 0;
                 setWsStatus('live');
                 ws.send(JSON.stringify({ op: 'subscribe', args: [`kline.${iv}.${bybitSym}`] }));
+                stopPing();
+                pingTimer = setInterval(() => { if (ws.readyState === WebSocket.OPEN) ws.send('{"op":"ping"}'); }, BYBIT_PING_EVERY_MS);
                 if (reconnected) void backfillGapBybit(bybitSym, iv, callback);
                 reconnected = true;
               };
               ws.onerror = () => setWsStatus('error');
-              ws.onclose = (e) => {
-                if (cancelled || e.wasClean) return;
+              ws.onclose = () => {
+                stopPing();
+                /* Any close that is not OURS means the feed is gone: only `cancelled` says the close was ours. This used to also
+                   require `!e.wasClean`, so a clean close from the exchange (code 1000) was read as "us" and the chart stayed frozen
+                   forever (#1572, reproduced). A superseded socket (`ws !== live`) never schedules a second reconnect. */
+                if (cancelled || ws !== live) return;
                 setWsStatus('connecting');
                 attempt += 1;
                 hostTry += 1;
@@ -1812,9 +1829,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 timer = setTimeout(connect, delay);
               };
               ws.onmessage = (e: MessageEvent) => {
+                lastMsgAt = Date.now();
                 try {
                   const msg = JSON.parse(e.data as string) as { op?: string; topic?: string; data?: Array<Record<string, string | number>> };
-                  if (msg.op === 'subscribe') return; // subscription ack, not a bar
+                  if (msg.op === 'subscribe' || msg.op === 'ping') return; // subscription ack / pong, not a bar
                   if (!msg.topic?.startsWith('kline.') || !Array.isArray(msg.data)) return;
                   const k = msg.data[0];
                   if (!k) return;
@@ -1842,11 +1860,29 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             };
             window.addEventListener('online', onOnline);
 
+            /* A socket that is "open" or stuck connecting but delivers nothing is dead: drop it and take the normal reconnect path. */
+            const watchdog = setInterval(() => {
+              if (cancelled || !live || live.readyState === WebSocket.CLOSED || live.readyState === WebSocket.CLOSING) return;
+              if (!isStreamStalled(lastMsgAt, Date.now())) return;
+              const dead = live;
+              live = null;
+              dead.onclose = null; dead.onmessage = null; dead.onerror = null;
+              try { dead.close(); } catch { /* already gone */ }
+              stopPing();
+              setWsStatus('connecting');
+              attempt += 1;
+              hostTry += 1;
+              if (timer) clearTimeout(timer);
+              timer = setTimeout(connect, Math.min(1000 * 2 ** (attempt - 1), 30_000));
+            }, STREAM_WATCH_EVERY_MS);
+
             connect();
 
             wsRef.current = {
               close: () => {
                 cancelled = true;
+                clearInterval(watchdog);
+                stopPing();
                 window.removeEventListener('online', onOnline);
                 if (timer) clearTimeout(timer);
                 live?.close();
@@ -1881,6 +1917,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             /* False until the first connect completes, so the initial open does
                not trigger a backfill that getBars has already done. */
             let reconnected = false;
+            let lastMsgAt = Date.now(); // #1572: see the Bybit branch above and lib/streamWatch.ts
 
             /* Fetch what closed while we were away and push it through the same
                callback the stream uses.
@@ -1953,6 +1990,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               if (cancelled) return;
               const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${bnSym.toLowerCase()}@kline_${iv}`);
               live = ws;
+              lastMsgAt = Date.now();
               ws.onopen    = () => {
                 attempt = 0;
                 setWsStatus('live');
@@ -1970,8 +2008,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 reconnected = true;
               };
               ws.onerror   = () => setWsStatus('error');
-              ws.onclose   = (e) => {
-                if (cancelled || e.wasClean) return;   // a clean close is us, not the network
+              ws.onclose   = () => {
+                // Only `cancelled` is us. A clean close from the exchange is a dead feed too (#1572); a superseded socket stays quiet.
+                if (cancelled || ws !== live) return;
                 setWsStatus('connecting');
                 attempt += 1;
                 const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
@@ -1979,6 +2018,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 timer = setTimeout(connect, delay);
               };
               ws.onmessage = (e: MessageEvent) => {
+                lastMsgAt = Date.now();
                 const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
                 const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
                 lastCloseRef.current = bar.close;
@@ -1999,11 +2039,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             };
             window.addEventListener('online', onOnline);
 
+            const watchdog = setInterval(() => {
+              if (cancelled || !live || live.readyState === WebSocket.CLOSED || live.readyState === WebSocket.CLOSING) return;
+              if (!isStreamStalled(lastMsgAt, Date.now())) return;
+              const dead = live;
+              live = null;
+              dead.onclose = null; dead.onmessage = null; dead.onerror = null;
+              try { dead.close(); } catch { /* already gone */ }
+              setWsStatus('connecting');
+              attempt += 1;
+              if (timer) clearTimeout(timer);
+              timer = setTimeout(connect, Math.min(1000 * 2 ** (attempt - 1), 30_000));
+            }, STREAM_WATCH_EVERY_MS);
+
             connect();
 
             wsRef.current = {
               close: () => {
                 cancelled = true;
+                clearInterval(watchdog);
                 window.removeEventListener('online', onOnline);
                 if (timer) clearTimeout(timer);
                 live?.close();
