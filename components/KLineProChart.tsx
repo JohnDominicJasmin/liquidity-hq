@@ -671,6 +671,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      - no Binance fallback (lib/coins.ts), so a failed Bybit fetch has nowhere
      else to go. */
   const [historyFailed, setHistoryFailed] = useState(false);
+  /* The timeframe whose history is loading after a switch, or null (#1572). Drives the "Loading 5M..." label. Set by the [coin, tf] effect,
+     cleared by the load that answers for the CURRENT generation (landed or failed): a load superseded by a newer switch never clears it, so
+     it is tied to the same load token as the data and cannot outlive the load. A 90 s cap is the last resort. */
+  const [loadingTf, setLoadingTf] = useState<string | null>(null);
   /* #1077: true only in the rare double-fallback case - this chart already
      tries Bybit, then Binance spot, then Binance futures itself before ever
      reaching /api/market/klines?source=binance-futures, and that route now
@@ -1706,7 +1710,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               applyBars([]);
             }
             endFade();
-          } catch { if (!stale()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); endFade(); } }
+            setLoadingTf(null);
+          } catch { if (!stale()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); endFade(); setLoadingTf(null); } }
           void symbol; // suppress unused
         },
 
@@ -2226,7 +2231,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     // Safety: clear the freeze-frame overlay even if no getBars fires (e.g. an
     // unsupported symbol) so the chart can never stay stuck behind the screenshot.
     const fallback = setTimeout(endFade, 2000);
-    return () => clearTimeout(fallback);
+    setLoadingTf(tf);
+    const loadingCap = setTimeout(() => setLoadingTf(null), 90_000);
+    return () => { clearTimeout(fallback); clearTimeout(loadingCap); };
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Retry a history load that failed (#1572) ───────────────────────────
@@ -2974,6 +2981,23 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           opacity: 0,
           pointerEvents: 'none',
         }} />
+        {/* While a new timeframe loads the chart still holds the previous one's candles (klinecharts keeps the list until the load calls back),
+            so say which timeframe is loading. Text only, theme tokens, no layout change; gone the moment the load lands or fails (#1572). */}
+        {loadingTf && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="chart-loading-label"
+            style={{
+              position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
+              padding: '3px 10px', borderRadius: 4, pointerEvents: 'none', whiteSpace: 'nowrap',
+              fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.02em',
+              color: 'var(--txt2)', background: 'var(--bg1)', border: '1px solid var(--bdr3)',
+            }}
+          >
+            Loading {loadingTf.toUpperCase()}&hellip;
+          </div>
+        )}
         {/* Drag-to-resize handle - grab and drag to set chart height (Bybit-style),
             persisted. Hidden in fullscreen (height is fixed to the viewport there). */}
         {!fullscreen && (
