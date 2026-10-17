@@ -117,3 +117,10 @@ Owner decision: use ALL THREE: Whop, MoonPay Commerce, BoomFi.
 - **Whop Websites migration job** (builds a Whop-hosted copy of liquidity-hq.com): started on its own, owner stopped it. Not needed; the app stays on Render.
 - **Not done:** test purchase (the seller's "Get access" button is greyed out), test withdrawal, success redirect URL, statement descriptor, webhook/unlock (#1567). Settings tabs not read: Notifications, Analytics, Checkout branding, Open graph image, Home preferences, Partners, Authorized apps.
 - **Chart idea:** Vela (github.com/LuxAlgo/Vela) could draw our BUY/SELL markers via its renderer-layer plugin; backlog item 18 and issue #1570.
+
+## DECISION (owner, 2026-10-17, latest): WHOP FIRST AND ONLY WHOP for now
+- Supersedes the "use all three gateways" decision of 2026-10-10. The owner asked: "let's have whop first and only only whop right now."
+- **/upgrade shows one button only: "Pay with Whop".** No "Pay with MoonPay" and no "Pay with BoomFi" buttons for now. Both stay parked, not dropped: MoonPay Commerce (#1568: Pay Links exist, no code built) and BoomFi (the unlock code of #1555/#1565 is merged to qa behind the payments switch, never checked against a real BoomFi payload; do not ship a BoomFi button). Revisit after the first Whop customer.
+- **Whop build = #1567**, in the project's usual safe order: Phase 1 records verified webhooks only (nothing granted, nothing revoked); Pro is granted only after a real recorded payload (the #1422 revoke-bug lesson). Needs from the owner, never in chat: a Whop API key and webhook secret set on Render, and his word for the database table migration (prod `lhq_` and dev `lhq_dev_`, one section at a time).
+- **The owner cannot afford a real $20 test purchase right now.** A way to capture a real Whop payload without spending (for example a 100% promo code, UNVERIFIED whether it fires a payment webhook and whether it exercises the card form) is still to be checked with Google AI Mode in the existing thread; the owner must re-attach that tab. Until a real payload is recorded, no unlock.
+- Whop account state is in the 2026-10-15 section above.
