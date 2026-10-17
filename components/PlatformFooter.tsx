@@ -85,7 +85,6 @@ export default function PlatformFooter() {
           <Link href="/learn" className="pf-footer-link">Glossary</Link>
           <Link href="/terms" className="pf-footer-link">Terms of Use</Link>
           <Link href="/privacy" className="pf-footer-link">Privacy Policy</Link>
-          <Link href="/refund" className="pf-footer-link">Refund Policy</Link>
           <Link href="/disclaimer" className="pf-footer-link">Full Disclaimer</Link>
           <Link href="/contact" className="pf-footer-link">Contact</Link>
           {/* The support address itself, as a working link, on every page (owner, 2026-10-07). */}

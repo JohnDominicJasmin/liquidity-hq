@@ -32,7 +32,7 @@ const EC_PUBLIC_PEM = ec.publicKey.export({ type: 'spki', format: 'pem' }) as st
 
 const NOW_S = 1_790_000_000;
 const NOW_MS = NOW_S * 1000;
-const BODY = '{"event":"Invoice.Paid","org_id":"org_123","data":{"amount":"35.00"}}';
+const BODY = '{"event":"Invoice.Paid","org_id":"org_123","data":{"amount":"49.00"}}';
 
 /** Sign exactly the way the module says BoomFi does. */
 function sign(timestamp: string, body: string, key: crypto.KeyObject = rsa.privateKey): string {
@@ -91,7 +91,7 @@ test('B2c. the repair does not make a wrong key right: truncated, EC, another RS
 });
 
 test('B3. a changed body is rejected - one byte, and a re-serialised copy of the same JSON', () => {
-  assert.equal(reason({ rawBody: BODY.replace('35.00', '0.35') }), 'bad_signature');
+  assert.equal(reason({ rawBody: BODY.replace('49.00', '0.49') }), 'bad_signature');
   assert.equal(reason({ rawBody: BODY + ' ' }), 'bad_signature');
   const reserialised = JSON.stringify(JSON.parse(BODY), null, 1);
   assert.notEqual(reserialised, BODY);

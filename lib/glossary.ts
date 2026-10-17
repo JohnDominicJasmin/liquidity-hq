@@ -4,6 +4,8 @@
 // fragments outside it. Slugs exist now so a future per-term page
 // (/learn/[slug]) is a data change, not a rewrite.
 
+import { SHOW_PERFORMANCE_STATS } from './flags.ts';
+
 export interface GlossaryEntry {
   slug: string;
   term: string;
@@ -16,7 +18,7 @@ export interface GlossaryCategory {
   entries: GlossaryEntry[];
 }
 
-export const GLOSSARY: GlossaryCategory[] = [
+const ALL_GLOSSARY: GlossaryCategory[] = [
   {
     key: 'momentum',
     label: 'Momentum & Technicals',
@@ -205,5 +207,13 @@ export const GLOSSARY: GlossaryCategory[] = [
     ],
   },
 ];
+
+/** Entries that describe a win/loss track record are not shown while SHOW_PERFORMANCE_STATS is off (owner, 2026-10-16, #1574).
+ *  They stay in ALL_GLOSSARY, so turning the flag on brings them back with no other change. */
+const STATS_ENTRY_SLUGS = new Set(['alert-outcome-tracking']);
+
+export const GLOSSARY: GlossaryCategory[] = SHOW_PERFORMANCE_STATS
+  ? ALL_GLOSSARY
+  : ALL_GLOSSARY.map(c => ({ ...c, entries: c.entries.filter(e => !STATS_ENTRY_SLUGS.has(e.slug)) }));
 
 export const GLOSSARY_FLAT: GlossaryEntry[] = GLOSSARY.flatMap(c => c.entries);

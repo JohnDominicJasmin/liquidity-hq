@@ -8,6 +8,7 @@ import AccumulationTracker from '@/components/AccumulationTracker';
 import DistributionTracker from '@/components/DistributionTracker';
 import PageHint from '@/components/PageHint';
 import { useLabels } from '@/lib/labels';
+import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 
 export default function ScannerTerminal() {
   const { t } = useLabels();
@@ -23,7 +24,7 @@ export default function ScannerTerminal() {
       <CoinHeatmap />
       <DrawdownChart />
       <MultiTFSqueezeView />
-      <SignalAccuracy />
+      {SHOW_PERFORMANCE_STATS && <SignalAccuracy />}
       <SetupScanner />
     </div>
   );

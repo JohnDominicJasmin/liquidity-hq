@@ -141,18 +141,18 @@ export const SEARCH_CALL_COST_USD = priceTokens(SEARCH_CALL_TOKENS);
 // used only for the /ops margin figures (cost vs revenue). The plan is
 // lhq_user_subscriptions.plan (migration 20261001h), under the names
 // lib/checkout.ts gives the payment links. Per month:
-//   monthly      $35 a month                                      $35.00
-//   annual       $350 a year / 12                                 $29.17
+//   monthly      $49 a month                                      $49.00
+//   annual       $490 a year / 12                                 $40.83
 //   fortnightly  $20 every two weeks (card, when it exists) and
 //                $10 a week (BoomFi has no two-week interval) are
 //                the same money: 20 x 26 / 12 = 10 x 52 / 12       $43.33
 // Before plans were recorded every Pro account was counted as monthly, which
-// read a fortnightly account ~19% low and an annual one ~20% high. Keep in
+// read a fortnightly account ~13% low and an annual one ~20% high. Keep in
 // sync with the UPGRADE_PRICE_* label defaults; there's no single shared
 // constant for the prices yet.
 export const PRO_PRICE_USD_PER_MONTH_BY_PLAN: Record<CheckoutPlan, number> = {
-  monthly:     35,
-  annual:      350 / 12,
+  monthly:     49,
+  annual:      490 / 12,
   fortnightly: (20 * 26) / 12,
 };
 

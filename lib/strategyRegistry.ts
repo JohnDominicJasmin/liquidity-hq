@@ -148,9 +148,11 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   /* -- Momentum ---------------------------------------------------------- */
   {
     id: 'RSI', label: 'RSI', group: 'momentum', source: 'builtin', pane: 'own',
-    paramSchema: [period('length', 'Length', 14)],
-    note: 'calcParams [14], not the builtin 3-line [6,12,24] default - 14 is the '
-        + 'period marketStore uses everywhere else (rsi14/rsi1h/rsi4h/rsiDaily).',
+    // No settings: the chart's one RSI pane is always on at 14 (DEFAULT_PANE_INDICATORS below), and the verdict's RSI condition reads the same 14.
+    // A Length here used to configure a SECOND pane (owner, 2026-10-08: one RSI pane per user). Saved RSI params are simply never read.
+    paramSchema: [],
+    note: 'The chart always draws one RSI-14 pane (calcParams [14], not the builtin 3-line [6,12,24] default - 14 is the '
+        + 'period marketStore uses everywhere else: rsi14/rsi1h/rsi4h/rsiDaily). Selecting this chip draws nothing extra: it only adds RSI to the verdict.',
   },
   {
     id: 'MACD', label: 'MACD', group: 'momentum', source: 'builtin', pane: 'own',
@@ -311,6 +313,11 @@ export function byGroup(group: Group): readonly IndicatorEntry[] {
 export function findIndicator(id: string): IndicatorEntry | undefined {
   return INDICATORS.find(i => i.id === id);
 }
+
+/** Builtins whose pane the chart ALWAYS draws (KLineProChart creates the RSI-14 pane on init). Selecting their chip must not draw a
+ *  second pane: owner, 2026-10-08, "one RSI pane per user, always". The chip stays a real choice because it also puts RSI in the
+ *  verdict (lib/useEMAStrategy.ts), but the chart sync skips these ids. VOL is also a default pane but has no chip. */
+export const DEFAULT_PANE_INDICATORS: ReadonlySet<string> = new Set(['RSI']);
 
 /** Default parameter values for an entry, straight from its schema. */
 export function defaultParams(entry: IndicatorEntry): Record<string, string | number | boolean> {
