@@ -95,7 +95,7 @@ test('/upgrade: the two-weekly button is ADDITIVE - only inside a monthly-anchor
      reader on purpose: a revert to isCheckoutConfiguredFortnightly() would hide
      the two-weekly button on every host, because no host has that variable. The
      placement rules below are unchanged and are what this test is for. */
-  assert.match(UPGRADE, /const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly\(\);/);
+  assert.match(UPGRADE, /const CHECKOUT_FORTNIGHTLY_CONFIGURED = isWhopCheckoutConfiguredFortnightly\(\);/);
   assert.match(UPGRADE, /const fortnightlyButton = CHECKOUT_FORTNIGHTLY_CONFIGURED && \(/, 'the button must be gated on its own flag');
   assert.match(UPGRADE, /data-testid="checkout-cta-fortnightly"/);
 

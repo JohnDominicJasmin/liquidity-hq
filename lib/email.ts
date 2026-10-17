@@ -33,7 +33,7 @@ interface TrialEndingArgs {
 }
 
 import { reportHealth, healthError } from '@/lib/apiHealth';
-import { isProBuyable } from './checkout.ts';
+import { isCryptoCheckoutConfigured } from './checkout.ts';
 
 /* Every sender in this file ends in `return res.ok` inside a try/catch that
    returns false - so a bounced welcome email, an expired Brevo key or a
@@ -321,13 +321,15 @@ export async function sendTrialEndingEmail(args: TrialEndingArgs): Promise<boole
   /* Only promise a purchase path when one actually exists. Until Pro is on
      sale, /upgrade renders "Pro payments launching soon" - so a plain "Keep
      Pro" link would send the most interested user we have, on the day they are
-     most willing to pay, to a page that cannot take their money. isProBuyable is
+     most willing to pay, to a page that cannot take their money. isCryptoCheckoutConfigured (BoomFi's link, parked and unset on prod) is
      the same answer /upgrade renders from, so the email and the page agree by
      construction (#861: this read the Lemon Squeezy link after /upgrade had
      moved to BoomFi, and would have said "not on sale yet" while the page was
      selling). The rest of the email still sends either way: its real job is
      warning that features are about to lock, which is true regardless. */
-  const checkoutLive = isProBuyable();
+  /* #1567 Phase 2: NOT isProBuyable. That is now the Whop display switch, and setting the Whop links must not make this email say "Keep Pro" before the
+     Whop unlock exists (a buyer would pay and get nothing). It follows the Whop gate when the unlock ships. */
+  const checkoutLive = isCryptoCheckoutConfigured();
   const cta = checkoutLive
     ? `<p style="margin:0 0 12px">Keep Pro: <a href="${upgradeUrl}">${upgradeUrl}</a></p>`
     : `<p style="margin:0 0 12px">Pro is not on sale yet, so there is nothing to buy today - the features above still lock ${when}, and we will email you as soon as there is a way to keep them.</p>`;

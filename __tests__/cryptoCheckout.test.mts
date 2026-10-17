@@ -244,14 +244,14 @@ test('C11. /api/version reports the three crypto flags from the same read the pa
 
 /* ══ /upgrade: source-asserted ══ */
 
-test('U1. /upgrade gates every plan on its crypto link, and imports nothing that could send a buyer to the rejected store', () => {
+test('U1. /upgrade gates every plan on its Whop link (#1567 Phase 2), and imports nothing that could send a buyer to the rejected store', () => {
   /* The monthly gate goes through isProBuyable() since 58f64e3d - the one answer
      the trial-ending email and /api/version also give. Today it IS the BoomFi
      monthly link (proBuyable.test.mts pins that), so the page still shows plan
      buttons exactly when that link is set. */
   assert.match(UPGRADE, /const CHECKOUT_CONFIGURED = isProBuyable\(\);/);
-  assert.match(UPGRADE, /const CHECKOUT_ANNUAL_CONFIGURED = isCryptoCheckoutConfiguredAnnual\(\);/);
-  assert.match(UPGRADE, /const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly\(\);/);
+  assert.match(UPGRADE, /const CHECKOUT_ANNUAL_CONFIGURED = isWhopCheckoutConfiguredAnnual\(\);/);
+  assert.match(UPGRADE, /const CHECKOUT_FORTNIGHTLY_CONFIGURED = isWhopCheckoutConfiguredFortnightly\(\);/);
   assert.equal(/\bgetCheckoutUrl(Annual|Fortnightly)?\b|\bisCheckoutConfigured(Annual|Fortnightly)?\b/.test(UPGRADE), false, '/upgrade still references a Lemon Squeezy checkout function');
 });
 
@@ -261,7 +261,7 @@ test('U2. step 1 - a plan button only CHOOSES: signed out it goes to sign-up and
   const body = UPGRADE.slice(at, UPGRADE.indexOf('\n  }', at));
   assert.match(body, /if \(!user\) \{ router\.push\('\/login\?signup=1&next=\/upgrade'\); return; \}/, 'the signed-out guard changed or no longer returns before choosing');
   assert.ok(body.indexOf('return;') < body.indexOf('setSelectedPlan(plan)'), 'the plan is set before the signed-out return - a signed-out visitor would reach the payment step with no account to credit');
-  assert.equal(/window\.location|getCryptoCheckoutUrl/.test(body), false, 'choosePlan navigates or reads a link - step 1 must not leave the page');
+  assert.equal(/window\.location|getWhopCheckoutUrl/.test(body), false, 'choosePlan navigates or reads a link - step 1 must not leave the page');
 });
 
 test('U3. each plan button chooses ITS plan', () => {
@@ -278,22 +278,22 @@ test('U3. each plan button chooses ITS plan', () => {
   assert.deepEqual(handlerFor('checkout-cta-fortnightly'), ['handleCheckoutFortnightly']);
 });
 
-test('U4. step 2 - the only navigation to a payment page is payWithCrypto, to the picked plan\'s link, carrying the signed-in user', () => {
-  assert.match(UPGRADE, /const cryptoUrl = selectedPlan \? getCryptoCheckoutUrl\(selectedPlan, user\) : null;/, 'the link is no longer read for the selected plan with the signed-in user');
+test('U4. step 2 - the only navigation to a payment page is payWithWhop, to the picked plan\'s Whop link, with nothing appended (#1567 Phase 2)', () => {
+  assert.match(UPGRADE, /const whopUrl = selectedPlan \? getWhopCheckoutUrl\(selectedPlan\) : null;/, 'the link is no longer read for the selected plan');
   const navigations = [...UPGRADE.matchAll(/window\.location(?:\.href)?\s*=\s*([^;]+);/g)].map((m) => m[1].trim());
-  assert.deepEqual(navigations, ['cryptoUrl'], `expected exactly one navigation, to cryptoUrl; found: ${navigations.join(' | ') || '(none)'}`);
-  const at = UPGRADE.indexOf('function payWithCrypto(');
+  assert.deepEqual(navigations, ['whopUrl'], `expected exactly one navigation, to whopUrl; found: ${navigations.join(' | ') || '(none)'}`);
+  const at = UPGRADE.indexOf('function payWithWhop(');
   const body = UPGRADE.slice(at, UPGRADE.indexOf('\n  }', at));
-  assert.match(body, /if \(!selectedPlan \|\| !cryptoUrl\) return;/, 'payWithCrypto no longer refuses when there is no plan or no link');
-  assert.ok(body.indexOf('return;') < body.indexOf('window.location.href = cryptoUrl'), 'the guard comes after the navigation');
+  assert.match(body, /if \(!selectedPlan \|\| !whopUrl\) return;/, 'payWithWhop no longer refuses when there is no plan or no link');
+  assert.ok(body.indexOf('return;') < body.indexOf('window.location.href = whopUrl'), 'the guard comes after the navigation');
 });
 
-test('U5. the method panel: shows for the picked plan, offers crypto only when that plan has a link, and offers no card button (Polar is not live)', () => {
+test('U5. the method panel: shows for the picked plan, offers Whop only when that plan has a link, and offers no card button (Polar is not live)', () => {
   const at = UPGRADE.indexOf('const methodPanel = selectedPlan && (');
   assert.ok(at >= 0, 'the panel is no longer gated on a selected plan');
   const panel = UPGRADE.slice(at, UPGRADE.indexOf('\n  );', at));
   assert.match(panel, /data-testid="checkout-method-panel"\s+data-plan=\{selectedPlan\}/);
-  assert.match(panel, /\{cryptoUrl && \(\s*<button\s+data-testid="checkout-method-crypto"\s+onClick=\{payWithCrypto\}/, 'the crypto button is not gated on the link, or no longer calls payWithCrypto');
+  assert.match(panel, /\{whopUrl && \(\s*<button\s+data-testid="checkout-method-whop"\s+onClick=\{payWithWhop\}/, 'the Whop button is not gated on the link, or no longer calls payWithWhop');
   /* Two buttons since the close X (#861, owner 2026-09-30). The X is not a payment
      method, so it is set aside by its test id and the PAYMENT buttons are counted. */
   const buttons = [...panel.matchAll(/<button\b[\s\S]*?>/g)].map((m) => m[0]);
@@ -312,7 +312,7 @@ test('U5b. the close X: closes the panel, is disabled while redirecting, is labe
   assert.match(tag, /onClick=\{closePanel\}/, 'the X does not call closePanel');
   assert.match(tag, /disabled=\{isRedirecting\}/, 'the X stays clickable while the payment page is loading');
   assert.match(tag, /aria-label=\{t\('UPGRADE_METHOD_PANEL_CLOSE_ARIA'\)\}/, 'the X has no accessible name from the label system');
-  assert.equal(/payWithCrypto|window\.location/.test(tag), false, 'the X can start a payment');
+  assert.equal(/payWithWhop|window\.location/.test(tag), false, 'the X can start a payment');
   assert.match(tag, /width: 32, height: 32/, 'the X hit area shrank below 32x32 (SC 2.5.8 needs 24)');
 });
 
@@ -351,13 +351,11 @@ test('U5e. the price badge never breaks inside itself: all three plan buttons us
   assert.match(UPGRADE, /const PLAN_BUTTON_SHAPE: React\.CSSProperties = \{[^}]*width: '100%'[^}]*minHeight: 76[^}]*\};/, 'PLAN_BUTTON_SHAPE lost its equal width or minimum height');
 });
 
-test('U6. the weekly-billing note is shown for the two-weekly plan only - it is the one plan whose crypto price differs from the button', () => {
-  const at = UPGRADE.indexOf('data-testid="checkout-method-crypto-weekly-note"');
-  assert.ok(at >= 0, 'the weekly note is gone');
-  const before = UPGRADE.slice(Math.max(0, at - 120), at);
-  assert.match(before, /\{selectedPlan === 'fortnightly' && \(\s*<p\s*$/, 'the weekly note is no longer gated on the two-weekly plan');
-  assert.equal((UPGRADE.match(/checkout-method-crypto-weekly-note/g) ?? []).length, 1);
-  assert.match(UPGRADE, /t\('UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE'\)/);
+test('U6. no BoomFi-only copy is rendered: the weekly-billing note, the crypto networks line and the on-chain checkout note are gone (#1567 Phase 2)', () => {
+  for (const gone of ['checkout-method-crypto-weekly-note', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE', 'UPGRADE_CRYPTO_NETWORKS_NOTE', 'UPGRADE_CRYPTO_CHECKOUT_NOTE', 'UPGRADE_METHOD_CRYPTO_CTA', 'upgrade-crypto-networks-note']) {
+    assert.equal(UPGRADE.includes(gone), false, `/upgrade still renders ${gone} - it is untrue for a Whop payment`);
+  }
+  assert.equal(/moonpay/i.test(UPGRADE), false, 'a MoonPay option is on the page');
 });
 
 test('U7. the panel is placed in the two buyable states and not in the coming-soon state', () => {
@@ -394,10 +392,10 @@ test('U9. neither "Instant access" nor "Cancel anytime" is shown under the plan 
   assert.equal(/UPGRADE_TRUST_[A-Z_]+'\s*[,\]]/.test(UPGRADE.replace(/const TRUST_LABELS = [^;]+;/, '')), false, 'a trust label is rendered from somewhere other than TRUST_LABELS');
 });
 
-test('L1. the five panel labels are registered, have English defaults, and are rendered through t()', () => {
+test('L1. the panel labels are registered, have English defaults, and are rendered through t()', () => {
   /* Wording is NOT pinned: the two-weekly note's text is with the owner (#861).
      UPGRADE_METHOD_PANEL_CLOSE_ARIA is the close X's accessible name (2026-09-30). */
-  for (const key of ['UPGRADE_METHOD_PANEL_TITLE', 'UPGRADE_METHOD_CRYPTO_CTA', 'UPGRADE_METHOD_CRYPTO_NOTE', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE', 'UPGRADE_METHOD_PANEL_CLOSE_ARIA']) {
+  for (const key of ['UPGRADE_WHOP_PANEL_TITLE', 'UPGRADE_WHOP_CTA', 'UPGRADE_WHOP_EMAIL_NOTE', 'UPGRADE_WHOP_CHECKOUT_NOTE', 'UPGRADE_METHOD_PANEL_CLOSE_ARIA']) {
     assert.ok((LABEL_KEYS as readonly string[]).includes(key), `${key} is not in LABEL_KEYS`);
     assert.ok(typeof labelDefaults[key] === 'string' && labelDefaults[key].trim().length > 0, `${key} has no English default`);
     assert.ok(UPGRADE.includes(`t('${key}')`), `${key} is not rendered on /upgrade`);
