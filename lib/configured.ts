@@ -61,6 +61,8 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
     /* Both, because either one missing refuses every delivery: no key fails
        the signature check, no organisation id fails the check after it. */
     boomfiWebhook: set(env.BOOMFI_WEBHOOK_PUBLIC_KEY) && set(env.BOOMFI_ORG_ID),
+    /* The Whop webhook secret (#1567, Phase 1). A boolean only, never the value. Unset refuses every delivery. */
+    whopWebhook: set(env.WHOP_WEBHOOK_SECRET),
     /* The LS REST API key the cancel route needs (#1396). Same read the route
        and the settings panel gate on (isLsApiConfigured), so cancel-availability
        is observable per environment - set on qa (test), unset on staging/prod
