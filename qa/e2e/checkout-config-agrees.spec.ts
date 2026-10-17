@@ -16,6 +16,10 @@ import { test, expect } from '@playwright/test';
  * as the way checkout fails quietly. So this compares the two sources rather than
  * trusting either. It is a config-agreement check, not a UI test.
  *
+ * THE LIST BELOW IS THE #1259 GENERATION. For a build that reports `whopCheckout` the
+ * flags are whopCheckout / whopCheckoutAnnual / whopCheckoutFortnightly instead - see
+ * expectedButtons().
+ *
  * REWRITTEN 2026-09-30 (#1259). The first version compared `configured.checkout`
  * (the Lemon Squeezy monthly link) with the monthly button. Since #861/#1468 the
  * buttons are gated on the crypto links instead - Lemon Squeezy rejected the store
@@ -47,29 +51,42 @@ interface VersionPayload {
   commit?: string;
   configured?: {
     proBuyable?: boolean; cryptoCheckout?: boolean; cryptoCheckoutAnnual?: boolean; cryptoCheckoutFortnightly?: boolean;
+    whopCheckout?: boolean; whopCheckoutAnnual?: boolean; whopCheckoutFortnightly?: boolean;
     checkout?: boolean; checkoutAnnual?: boolean; checkoutFortnightly?: boolean;
   };
 }
 
-/* THREE GENERATIONS OF THE PAGE ARE DEPLOYED AT ONCE, and this spec runs against
+/* FOUR GENERATIONS OF THE PAGE ARE DEPLOYED AT ONCE, and this spec runs against
  * all of them (qa, staging, and production through qa/prod-readonly.ts). Each gates
  * its buttons on a different flag, so the flag compared is the one THAT build
  * reports and gates on - chosen by which flags its /api/version carries:
  *
- *   has proBuyable            (#1468 on)   buttons gate on proBuyable + crypto links
- *   has cryptoCheckout only   (#1466)      buttons gate on the crypto monthly link
- *   has neither               (before)     buttons gate on the Lemon Squeezy links
+ *   has whopCheckout          (#1567 Phase 2)  buttons gate on the Whop links; proBuyable = the Whop monthly link
+ *   has proBuyable            (#1468 on)       buttons gate on proBuyable + crypto links
+ *   has cryptoCheckout only   (#1466)          buttons gate on the crypto monthly link
+ *   has neither               (before)         buttons gate on the Lemon Squeezy links
  *
- * In all three, annual and two-weekly render only in the states where monthly does
- * (the CTA block in app/upgrade/page.tsx, the same in each generation). */
+ * In all four, annual and two-weekly render only in the states where monthly does
+ * (the CTA block in app/upgrade/page.tsx, the same in each generation).
+ *
+ * UPDATED 2026-10-17 for #1567 Phase 2. The Whop generation is checked FIRST: those builds
+ * still report the BoomFi flags (cryptoCheckout*), and the BoomFi webhook still reads them, but
+ * no button reads them any more. Keying on them would compare the page with a link nothing
+ * on /upgrade uses - the same mistake #1259 fixed for Lemon Squeezy. */
 function expectedButtons(c: NonNullable<VersionPayload['configured']>) {
+  if (typeof c.whopCheckout === 'boolean') {
+    /* proBuyable and whopCheckout are the same answer in this generation (isProBuyable = the Whop monthly link). Asserting they agree is
+       cheap and catches the day someone points one of them somewhere else. */
+    expect(c.proBuyable, '/api/version: proBuyable and whopCheckout disagree on a Whop build - proBuyable must be "the Whop monthly link is set"').toBe(c.whopCheckout);
+    return { era: 'whop links (#1567)', monthly: c.whopCheckout, annual: c.whopCheckout && c.whopCheckoutAnnual === true, fortnightly: c.whopCheckout && c.whopCheckoutFortnightly === true };
+  }
   if (typeof c.proBuyable === 'boolean') {
     return { era: 'proBuyable (#1468+)', monthly: c.proBuyable, annual: c.proBuyable && c.cryptoCheckoutAnnual === true, fortnightly: c.proBuyable && c.cryptoCheckoutFortnightly === true };
   }
   if (typeof c.cryptoCheckout === 'boolean') {
     return { era: 'crypto links (#1466)', monthly: c.cryptoCheckout, annual: c.cryptoCheckout && c.cryptoCheckoutAnnual === true, fortnightly: c.cryptoCheckout && c.cryptoCheckoutFortnightly === true };
   }
-  expect(typeof c.checkout, '/api/version reports none of proBuyable, cryptoCheckout or checkout - re-derive this spec from lib/configured.ts').toBe('boolean');
+  expect(typeof c.checkout, '/api/version reports none of whopCheckout, proBuyable, cryptoCheckout or checkout - re-derive this spec from lib/configured.ts').toBe('boolean');
   return { era: 'Lemon Squeezy links (pre-#1466)', monthly: c.checkout === true, annual: c.checkout === true && c.checkoutAnnual === true, fortnightly: c.checkout === true && c.checkoutFortnightly === true };
 }
 
