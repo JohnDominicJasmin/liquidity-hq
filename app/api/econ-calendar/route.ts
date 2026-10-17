@@ -65,6 +65,8 @@ async function tryFinnhub(from: string, to: string): Promise<CalEvent[]> {
     `https://finnhub.io/api/v1/calendar/economic?from=${from}&to=${to}&token=${FINNHUB_KEY}`,
     { next: { revalidate: 3600 } },
   );
+  // #1584: the status only, never the URL (it carries the key). A non-OK answer used to be indistinguishable from "no events".
+  console.log(`[econ-calendar] finnhub http=${r.status}`);
   if (!r.ok) return [];
   const data = await r.json();
   const raw: Record<string, string | number | null>[] =
@@ -393,7 +395,10 @@ async function buildCalendar(): Promise<{ events: CalEvent[]; source: string }> 
   try {
     const events = await tryFinnhub(from, to);
     if (events.length > 0) return { events, source: 'finnhub' };
-  } catch { /* fall through */ }
+  } catch (e) {
+    // Error name only: a network failure here used to vanish silently (#1584).
+    console.log(`[econ-calendar] finnhub failed ${e instanceof Error ? e.name : 'error'}`);
+  }
 
   // Source 2+3+4: ForexFactory (near-term) + Fed FOMC + computed macro schedule
   try {
