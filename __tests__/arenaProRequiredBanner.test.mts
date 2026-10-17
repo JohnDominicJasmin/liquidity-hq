@@ -59,10 +59,12 @@ async function proxyAnswers(status: number, body: unknown) {
 }
 
 test('CONTROL. a 200 from the proxy resolves with the body, so a throw below is the mapping and not the stub', async () => {
-  globalThis.fetch = (async () => Response.json({ result: { signal: 'WAIT' }, usage: null })) as typeof fetch;
+  // A complete, valid result: the proxy boundary now refuses an answer with no real signal (#1583), so the control must send a real one.
+  const result = { signal: 'FLAT', confidence: 40, levels: [], chartAnalysis: '', patterns: [], reasoning: '', catalysts: [], waitFor: null, bias: null, raidSetup: null, raidTarget: null, raidTrigger: null, analyzedAt: 1, tf: '1h', session: 'london' };
+  globalThis.fetch = (async () => Response.json({ result, usage: null })) as typeof fetch;
   try {
     const out = await callGrokViaProxy('prompt', '1h', 'london', 'quick');
-    assert.deepEqual(out, { result: { signal: 'WAIT' }, usage: null });
+    assert.deepEqual(out, { result, usage: null });
   } finally { globalThis.fetch = realFetch; }
 });
 
