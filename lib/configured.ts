@@ -7,6 +7,7 @@ import {
   isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly,
   isCryptoCheckoutConfigured, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly,
   isProBuyable,
+  isWhopCheckoutConfigured, isWhopCheckoutConfiguredAnnual, isWhopCheckoutConfiguredFortnightly,
 } from './checkout.ts';
 import { isLsApiConfigured } from './lemonsqueezyApi.ts';
 import { analyticsKey } from './analytics.ts';
@@ -51,12 +52,17 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
     /* The crypto links (#861). These three, not the three above, are what
        /upgrade gates on now - so these are the flags that say whether a plan
        button renders on this host. Same read the page uses. */
-    /* What /upgrade and the trial-ending email both go by: is Pro on sale here
-       at all. One flag to read instead of inferring it from the links. */
+    /* What /upgrade goes by: is the Whop monthly link set, so Pro can be bought here at all (#1567 Phase 2; it was BoomFi's link before). A display
+       switch only: the trial-ending email and the BoomFi grant do NOT follow it. */
     proBuyable:                isProBuyable(env),
     cryptoCheckout:            isCryptoCheckoutConfigured(env),
     cryptoCheckoutAnnual:      isCryptoCheckoutConfiguredAnnual(env),
     cryptoCheckoutFortnightly: isCryptoCheckoutConfiguredFortnightly(env),
+    /* The Whop links (#1567 Phase 2). These are what /upgrade gates its buttons on now, and `proBuyable` above is the monthly one. The BoomFi flags
+       above are kept because the BoomFi webhook grant and the trial-ending email still gate on them (parked, unset on prod). */
+    whopCheckout:              isWhopCheckoutConfigured(env),
+    whopCheckoutAnnual:        isWhopCheckoutConfiguredAnnual(env),
+    whopCheckoutFortnightly:   isWhopCheckoutConfiguredFortnightly(env),
     lemonsqueezyWebhook: set(env.LEMONSQUEEZY_WEBHOOK_SECRET),
     /* Both, because either one missing refuses every delivery: no key fails
        the signature check, no organisation id fails the check after it. */

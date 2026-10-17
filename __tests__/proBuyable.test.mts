@@ -37,11 +37,15 @@ const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8').split(/
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 const CRYPTO = 'https://pay.example.test/monthly-link';
+const WHOP = 'https://whop.example.test/checkout/plan_x';
 const LS = 'https://store.example.test/checkout/buy/ls-uuid';
 const K = {
   crypto: 'NEXT_PUBLIC_BOOMFI_CHECKOUT_URL',
   cryptoAnnual: 'NEXT_PUBLIC_BOOMFI_CHECKOUT_URL_ANNUAL',
   cryptoFortnightly: 'NEXT_PUBLIC_BOOMFI_CHECKOUT_URL_FORTNIGHTLY',
+  whop: 'NEXT_PUBLIC_WHOP_CHECKOUT_MONTHLY',
+  whopAnnual: 'NEXT_PUBLIC_WHOP_CHECKOUT_ANNUAL',
+  whopFortnightly: 'NEXT_PUBLIC_WHOP_CHECKOUT_FORTNIGHTLY',
   ls: 'NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL',
   lsAnnual: 'NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL_ANNUAL',
   lsFortnightly: 'NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL_FORTNIGHTLY',
@@ -49,22 +53,23 @@ const K = {
 
 /* ══ The predicate ══ */
 
-test('P1. Pro is buyable exactly when the MONTHLY plan has a BoomFi link - not from a Lemon Squeezy link, and not from another plan\'s link alone', () => {
-  assert.equal(isProBuyable({ [K.crypto]: CRYPTO }), true);
-  assert.equal(isProBuyable({ [K.crypto]: CRYPTO, [K.ls]: LS }), true);
-  assert.equal(isProBuyable({ [K.ls]: LS, [K.lsAnnual]: LS, [K.lsFortnightly]: LS }), false, 'a Lemon Squeezy link made Pro "on sale" - that store rejected us');
-  assert.equal(isProBuyable({ [K.cryptoAnnual]: CRYPTO, [K.cryptoFortnightly]: CRYPTO }), false, 'the other plans only render beside the monthly one; without it /upgrade shows no buttons');
+test('P1. Pro is buyable exactly when the MONTHLY plan has an https Whop link - not from BoomFi, not from Lemon Squeezy, not from another plan\'s link alone (#1567 Phase 2)', () => {
+  assert.equal(isProBuyable({ [K.whop]: WHOP }), true);
+  assert.equal(isProBuyable({ [K.crypto]: CRYPTO, [K.ls]: LS }), false, 'a BoomFi or Lemon Squeezy link made Pro "on sale" - /upgrade no longer sells through them');
+  assert.equal(isProBuyable({ [K.whopAnnual]: WHOP, [K.whopFortnightly]: WHOP }), false, 'the other plans only render beside the monthly one; without it /upgrade shows no buttons');
   assert.equal(isProBuyable({}), false);
-  for (const v of ['#', '', undefined]) assert.equal(isProBuyable({ [K.crypto]: v, [K.ls]: LS }), false, `monthly BoomFi link ${JSON.stringify(v)} must be unset`);
+  for (const v of ['#', '', undefined, 'http://whop.example.test/x', 'javascript:alert(1)', 'not a url']) assert.equal(isProBuyable({ [K.whop]: v }), false, `monthly Whop link ${JSON.stringify(v)} must be unset`);
 });
 
-test('P2. /api/version reports proBuyable from the same read, and it cannot disagree with cryptoCheckout today', () => {
-  for (const env of [{ [K.crypto]: CRYPTO }, { [K.ls]: LS }, { [K.crypto]: '#' }, { [K.cryptoAnnual]: CRYPTO }, {}, { [K.crypto]: CRYPTO, [K.ls]: LS }]) {
+test('P2. /api/version reports proBuyable from the same read; the Whop flags are booleans; the BoomFi flag does not follow Whop', () => {
+  for (const env of [{ [K.whop]: WHOP }, { [K.crypto]: CRYPTO }, { [K.ls]: LS }, { [K.whop]: '#' }, { [K.whopAnnual]: WHOP }, {}, { [K.whop]: WHOP, [K.crypto]: CRYPTO }]) {
     const flags = configuredFlags(env) as Record<string, unknown>;
-    assert.equal(typeof flags.proBuyable, 'boolean', 'configured.proBuyable is missing or not a boolean');
+    for (const k of ['proBuyable', 'whopCheckout', 'whopCheckoutAnnual', 'whopCheckoutFortnightly']) assert.equal(typeof flags[k], 'boolean', `configured.${k} is missing or not a boolean`);
     assert.equal(flags.proBuyable, isProBuyable(env), `flag and predicate disagree for ${JSON.stringify(env)}`);
-    assert.equal(flags.proBuyable, isCryptoCheckoutConfigured(env), 'proBuyable no longer equals the monthly BoomFi link being set - if card payments were added, update P1 and this line together');
+    assert.equal(flags.proBuyable, flags.whopCheckout, 'proBuyable is no longer the Whop monthly link being set');
+    assert.equal(flags.cryptoCheckout, isCryptoCheckoutConfigured(env), 'the BoomFi flag changed meaning');
   }
+  assert.equal((configuredFlags({ [K.whop]: WHOP }) as Record<string, unknown>).cryptoCheckout, false, 'setting the Whop link switched the BoomFi flag on');
   assert.equal((configuredFlags({ [K.ls]: LS }) as Record<string, unknown>).checkout, true, 'CONTROL: the Lemon Squeezy flag still reports its own link');
 });
 
@@ -146,11 +151,13 @@ test('S1. UpgradeGateModal and FullPageUpgradeGate read no payment setting and a
   assert.equal(/lemonsqueezy|boomfi|getCheckoutUrl|getCryptoCheckoutUrl|process\.env/i.test(src), false, 'the prompt names a payment provider, a checkout getter or an environment value');
 });
 
-test('S2. /upgrade and the email both ask isProBuyable()', () => {
+test('S2. /upgrade asks isProBuyable() (Whop); the email and the BoomFi grant ask BoomFi\'s own link, so setting Whop links opens neither', () => {
   assert.match(stripComments(read('app/upgrade/page.tsx')), /const CHECKOUT_CONFIGURED = isProBuyable\(\);/);
   const email = stripComments(read('lib/email.ts'));
-  assert.match(email, /const checkoutLive = isProBuyable\(\);/);
+  assert.match(email, /const checkoutLive = isCryptoCheckoutConfigured\(\);/);
+  assert.equal(/isProBuyable/.test(email), false, 'the email follows the Whop switch again - it would say "Keep Pro" before the Whop unlock exists');
   assert.equal(/isCheckoutConfigured|NEXT_PUBLIC_LEMONSQUEEZY/.test(email), false, 'the email reads the Lemon Squeezy link again');
+  assert.equal(/isProBuyable/.test(stripComments(read('app/api/boomfi/webhook/route.ts'))), false, 'the BoomFi grant gate follows the Whop switch again');
 });
 
 test('S3. SWEEP: no file under app/, components/ or lib/ reads a Lemon Squeezy checkout link, except lib/checkout.ts and lib/configured.ts', () => {

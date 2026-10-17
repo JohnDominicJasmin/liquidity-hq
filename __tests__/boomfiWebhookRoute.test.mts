@@ -363,8 +363,8 @@ test('R13. across every delivery above - accepted, repeated, refused, failed - t
 test('R14. source (Phase 1c): grants sit behind the payments switch, only ever write role pro, never revoke, and read the body once', () => {
   const src = stripTsComments(read('app/api/boomfi/webhook/route.ts'));
   const at = (needle: string) => { const i = src.indexOf(needle); assert.ok(i >= 0, `the route no longer contains ${needle}`); return i; };
-  assert.ok(at('isProBuyable(') < at('decideBoomfiEvent(') && at('decideBoomfiEvent(') < at('.upsert('), 'the order is no longer: payments switch, then the decision, then the write');
-  assert.ok(at('boomfiOrgMatches(') < at('isProBuyable('), 'a grant path now runs before the organisation check');
+  assert.ok(at('isCryptoCheckoutConfigured(') < at('decideBoomfiEvent(') && at('decideBoomfiEvent(') < at('.upsert('), 'the order is no longer: payments switch, then the decision, then the write');
+  assert.ok(at('boomfiOrgMatches(') < at('isCryptoCheckoutConfigured('), 'a grant path now runs before the organisation check');
   assert.equal((src.match(/\.upsert\(/g) ?? []).length, 2, 'the subscription write is no longer exactly one call plus its plan-less retry');
   assert.equal(/role:\s*'free'/.test(src), false, 'the route writes role free - cancel, expiry and a failed pull must revoke nothing');
   assert.equal(src.includes('.rpc('), false);

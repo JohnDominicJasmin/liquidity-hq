@@ -3,32 +3,30 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getCryptoCheckoutUrl, isProBuyable, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
+import { getWhopCheckoutUrl, isProBuyable, isWhopCheckoutConfiguredAnnual, isWhopCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
 import { EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import { useLabels } from '@/lib/labels';
 import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
 
-/* #861 Phase 1: a plan is buyable when it has a payment link. Lemon Squeezy
-   rejected the store, so these no longer read its links - today the only rail
-   is crypto (BoomFi). When card payments arrive (Polar, Phase 3) each flag
-   becomes "crypto OR card" and the method panel below gains a second button;
-   nothing else on the page changes shape. */
-// isProBuyable, not the crypto reader directly: it is the same answer the
-// trial-ending email and /api/version give, so the three cannot disagree.
+/* #1567 Phase 2: a plan is buyable when it has a Whop checkout URL (owner, 2026-10-17: Whop only, no MoonPay and no BoomFi button).
+   Lemon Squeezy rejected the store and the BoomFi buttons are gone from this page. With no URL set - prod today - the page shows
+   "Pro payments launching soon" and zero buttons. Setting the URLs does NOT unlock a paying account: that waits for a real recorded
+   Whop payload, so the URLs stay unset on prod until then. */
+// isProBuyable is "the Whop monthly URL is set", the same answer /api/version reports as proBuyable.
 const CHECKOUT_CONFIGURED = isProBuyable();
-const CHECKOUT_ANNUAL_CONFIGURED = isCryptoCheckoutConfiguredAnnual();
+const CHECKOUT_ANNUAL_CONFIGURED = isWhopCheckoutConfiguredAnnual();
 // #1400: the two-weekly plan is additive, like annual - it renders only where the
 // monthly link is set too, and never substitutes for it.
-const CHECKOUT_FORTNIGHTLY_CONFIGURED = isCryptoCheckoutConfiguredFortnightly();
+const CHECKOUT_FORTNIGHTLY_CONFIGURED = isWhopCheckoutConfiguredFortnightly();
 
 /* The row under the plan buttons. "Instant access" (UPGRADE_TRUST_INSTANT_ACCESS)
-   is left out, owner's decision 2026-09-30 (#861): a crypto payment does not
-   unlock the account by itself until the BoomFi webhook does it, so the line
+   is left out, owner's decision 2026-09-30 (#861): a Whop payment does not
+   unlock the account by itself (the unlock waits for a real recorded payload, #1567), so the line
    would be untrue for the only way there is to pay. It comes back when a payment
    method that unlocks automatically exists. The label key stays.
    "Cancel anytime" (UPGRADE_TRUST_CANCEL_ANYTIME) is left out for the same
-   reason, owner's decision 2026-09-30 (#861): a BoomFi subscriber cannot cancel
+   reason, owner's decision 2026-09-30 (#861): a Whop subscriber cannot cancel
    from here yet, and copy says only what the product does today. It comes back
    when that cancel exists. The label key stays. */
 const TRUST_LABELS = ['UPGRADE_TRUST_SECURE_CHECKOUT'] as const;
@@ -145,11 +143,11 @@ export default function UpgradePage() {
   const handleCheckoutFortnightly = () => choosePlan('fortnightly');
 
   /* Step 2. The link is read for the plan that was picked, never another one. */
-  const cryptoUrl = selectedPlan ? getCryptoCheckoutUrl(selectedPlan, user) : null;
-  function payWithCrypto() {
-    if (!selectedPlan || !cryptoUrl) return;
+  const whopUrl = selectedPlan ? getWhopCheckoutUrl(selectedPlan) : null;
+  function payWithWhop() {
+    if (!selectedPlan || !whopUrl) return;
     setRedirecting(selectedPlan);
-    window.location.href = cryptoUrl;
+    window.location.href = whopUrl;
   }
 
   /* One button per plan, styled like the monthly one. Shown wherever its link is
@@ -193,44 +191,26 @@ export default function UpgradePage() {
       </button>
       {/* Side padding keeps a long title clear of the X. */}
       <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', padding: '0 28px', textAlign: 'center' }}>
-        {t('UPGRADE_METHOD_PANEL_TITLE')}
+        {t('UPGRADE_WHOP_PANEL_TITLE')}
       </div>
-      {/* BoomFi has no two-week interval: its version of that plan bills weekly,
-          and the buyer is told before leaving the page, not on the checkout. */}
-      {/* A fixed height (owner, 2026-10-06: "having multiple lines of text moves the height"). The two-week plan
-          has an extra note, so its panel was taller and everything below jumped when the plan changed. Both
-          layouts share ONE grid cell: the ghost is the tallest version (both notes), invisible and hidden from
-          assistive tech, so the panel always takes that height at any width, theme or language, with no
-          hard-coded size. The visible notes sit on top of it. */}
-      <div style={{ display: 'grid', width: '100%' }}>
-        <div aria-hidden="true" style={{ gridArea: '1 / 1', visibility: 'hidden', display: 'flex', flexDirection: 'column', gap: 12, pointerEvents: 'none' }}>
-          <p style={{ fontSize: 'var(--fs-caption)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>{t('UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE')}</p>
-          <p style={{ fontSize: 'var(--fs-caption)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>{t('UPGRADE_METHOD_CRYPTO_NOTE')}</p>
-        </div>
-        <div style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {selectedPlan === 'fortnightly' && (
-            <p data-testid="checkout-method-crypto-weekly-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
-              {t('UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE')}
-            </p>
-          )}
-          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
-            {t('UPGRADE_METHOD_CRYPTO_NOTE')}
-          </p>
-        </div>
-      </div>
-      {cryptoUrl && (
+      {/* One method, so the panel is the same height for every plan: the notes below are constant (the BoomFi-only "billed weekly" note and
+          the ghost grid that held its height are gone, #1567). */}
+      <p data-testid="checkout-method-whop-email-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+        {t('UPGRADE_WHOP_EMAIL_NOTE')}
+      </p>
+      {whopUrl && (
         <button
-          data-testid="checkout-method-crypto"
-          onClick={payWithCrypto}
+          data-testid="checkout-method-whop"
+          onClick={payWithWhop}
           disabled={isRedirecting}
           style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '14px 32px', borderRadius: 12, border: 'none', cursor: isRedirecting ? 'default' : 'pointer', opacity: isRedirecting ? 0.7 : 1 }}
         >
-          {isRedirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_METHOD_CRYPTO_CTA')}
+          {isRedirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_WHOP_CTA')}
         </button>
       )}
-      {/* Under the pay button (owner, 2026-10-08): what happens at checkout. Constant, so it does not change the panel height. */}
-      <p data-testid="checkout-method-crypto-checkout-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
-        {t('UPGRADE_CRYPTO_CHECKOUT_NOTE')}
+      {/* Under the pay button: where payment happens and that sales are final. No cancel, refund, card or crypto claim: copy says only what the product does today. */}
+      <p data-testid="checkout-method-whop-checkout-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+        {t('UPGRADE_WHOP_CHECKOUT_NOTE')}
       </p>
     </div>
   );
@@ -338,10 +318,6 @@ export default function UpgradePage() {
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>{t('UPGRADE_PRO_CARD_EYEBROW')}</div>
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_PRO_CARD_NAME')}</div>
             <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>{t('UPGRADE_PRICE_MONTHLY')}<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
-            {/* What the money is paid in, only where there is something to buy (owner, 2026-10-08). */}
-            {CHECKOUT_CONFIGURED && (
-              <p data-testid="upgrade-crypto-networks-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: '-8px 0 16px', lineHeight: 1.6 }}>{t('UPGRADE_CRYPTO_NETWORKS_NOTE')}</p>
-            )}
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
               {PRO_PLAN_FEATURES.map(({ id, labelKey, vars }) => (
                 <li key={id} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>

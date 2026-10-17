@@ -248,6 +248,8 @@ export const LABEL_KEYS = [
   'UPGRADE_METHOD_CRYPTO_NOTE', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE',
   // Owner, 2026-10-08: honest crypto-payment copy - what to pay in (under the plan price), what happens at checkout (under the pay button).
   'UPGRADE_CRYPTO_NETWORKS_NOTE', 'UPGRADE_CRYPTO_CHECKOUT_NOTE',
+  // #1567 Phase 2: the Whop payment panel (replaces the crypto/BoomFi panel copy above, which stays defined but is no longer rendered).
+  'UPGRADE_WHOP_PANEL_TITLE', 'UPGRADE_WHOP_CTA', 'UPGRADE_WHOP_EMAIL_NOTE', 'UPGRADE_WHOP_CHECKOUT_NOTE',
   // #861: the X that closes the payment-method panel.
   'UPGRADE_METHOD_PANEL_CLOSE_ARIA',
   'UPGRADE_COMING_SOON_TITLE', 'UPGRADE_COMING_SOON_SIGNED_IN_PRE', 'UPGRADE_COMING_SOON_SIGNED_IN_POST',
