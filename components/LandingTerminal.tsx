@@ -493,7 +493,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             </div>
             <div style={{ fontSize: isDesktop ? 46 : 36, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)', lineHeight: 1, marginTop: 4 }}>
               {/* #1400: the monthly price is the headline; /upgrade shows all three plans. OWNER copy. */}
-              $35<span style={{ fontSize: 14, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>/mo</span>
+              $49<span style={{ fontSize: 14, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>/mo</span>
             </div>
             <div style={{ fontSize: 13.5, color: 'var(--txt2)', marginTop: 12 }}>{dict.pricing.pro.sub}</div>
             <ul style={{ listStyle: 'none', margin: '22px 0 0', padding: 0 }}>
@@ -574,7 +574,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
                 ['/login', dict.footer.links.signIn], ['/login?signup=1', dict.footer.links.createAccount],
                 ['/upgrade', dict.footer.links.pricing], ['/about', dict.footer.links.about],
                 ['/disclaimer', dict.footer.links.disclaimer], ['/terms', 'Terms of Use'],
-                ['/privacy', 'Privacy Policy'], ['/refund', 'Refund Policy'],
+                ['/privacy', 'Privacy Policy'],
                 ['/contact', 'Contact'],
               ] },
             ].map(col => (
@@ -629,9 +629,8 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: '8px 0 0' }}>
             By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
             <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Disclaimer</Link>,{' '}
-            <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>,{' '}
-            <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>, and{' '}
-            <Link href="/refund" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Refund Policy</Link>.
+            <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>, and{' '}
+            <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>.
           </p>
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: '8px 0 0' }}>
             <Link href="/contact" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Contact</Link>:{' '}

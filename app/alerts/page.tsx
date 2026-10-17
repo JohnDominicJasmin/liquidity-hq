@@ -15,6 +15,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { STRUCTURE_TFS, structureOnKey } from '@/lib/structurePrefs';
 import PageHint from '@/components/PageHint';
+import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -572,7 +573,7 @@ export default function AlertsPage() {
         <div className="mb-subtitle">{t('ALERTS_PAGE_SUBTITLE')}</div>
       </div>
 
-      <AlertOutcomes />
+      {SHOW_PERFORMANCE_STATS && <AlertOutcomes />}
 
       {/* ── Telegram: Pro gate ──
           AUTH-3 fix: this used to show the upsell banner ABOVE a fully-
