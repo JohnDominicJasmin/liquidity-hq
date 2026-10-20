@@ -278,8 +278,8 @@ test('U3. each plan button chooses ITS plan', () => {
   assert.deepEqual(handlerFor('checkout-cta-fortnightly'), ['handleCheckoutFortnightly']);
 });
 
-test('U4. step 2 - the only navigation to a payment page is payWithWhop, to the picked plan\'s Whop link, with nothing appended (#1567 Phase 2)', () => {
-  assert.match(UPGRADE, /const whopUrl = selectedPlan \? getWhopCheckoutUrl\(selectedPlan\) : null;/, 'the link is no longer read for the selected plan');
+test('U4. step 2 - the only navigation to a payment page is payWithWhop, to the picked plan\'s Whop link, with the account email filled and locked (#1606)', () => {
+  assert.match(UPGRADE, /const whopUrl = selectedPlan \? getWhopCheckoutUrl\(selectedPlan, accountEmail\) : null;/, 'the link is no longer read for the selected plan with the account email');
   const navigations = [...UPGRADE.matchAll(/window\.location(?:\.href)?\s*=\s*([^;]+);/g)].map((m) => m[1].trim());
   assert.deepEqual(navigations, ['whopUrl'], `expected exactly one navigation, to whopUrl; found: ${navigations.join(' | ') || '(none)'}`);
   const at = UPGRADE.indexOf('function payWithWhop(');

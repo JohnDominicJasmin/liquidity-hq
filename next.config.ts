@@ -14,6 +14,14 @@ const posthogHost = (process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posth
 // so connect-src doesn't need updating by hand when the DSN is set.
 const sentryHost = (process.env.NEXT_PUBLIC_SENTRY_DSN ?? '').match(/@([^/]+)/)?.[1] ?? '';
 
+// Whop Elements (the embedded checkout on /upgrade, #1606). These are the origins @whop/elements 1.9.0 reports for contentSecurityPolicy({ wallets: false,
+// bankConnections: false }): the hosted frame and SDK on cdn.whop.com and the API on api.whop.com (sandbox-api.whop.com for the Whop SANDBOX, which qa
+// uses, found from the configured checkout link's host). Wallet buttons (Apple Pay, Google Pay, PayPal) and bank linking are not used, so their many
+// provider origins are NOT allowed. Regenerate with the package's contentSecurityPolicy() when it is upgraded.
+const whopSandbox = [process.env.NEXT_PUBLIC_WHOP_CHECKOUT_MONTHLY, process.env.NEXT_PUBLIC_WHOP_CHECKOUT_ANNUAL, process.env.NEXT_PUBLIC_WHOP_CHECKOUT_FORTNIGHTLY]
+  .some((u) => /^https:\/\/sandbox\.whop\.com\//.test((u ?? '').trim()));
+const whopApi = whopSandbox ? 'https://sandbox-api.whop.com' : 'https://api.whop.com';
+
 // Content Security Policy
 // - script-src 'unsafe-inline': required for Next.js hydration inline scripts
 // - script-src 'unsafe-eval': required for GSAP and motion in dev + some Next.js internals
@@ -27,7 +35,7 @@ const csp = [
   // https://challenges.cloudflare.com: Cloudflare Turnstile (CAPTCHA on the
   // magic-link sign-in form, app/login/page.tsx) - loads its widget script
   // from here and renders inside an iframe from the same origin.
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://challenges.cloudflare.com`,
+  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://challenges.cloudflare.com https://cdn.whop.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
@@ -54,10 +62,13 @@ const csp = [
     sentryHost ? `https://${sentryHost}` : "",
     // Cloudflare Turnstile - widget verification calls
     "https://challenges.cloudflare.com",
+    // Whop Elements: the API the embedded checkout talks to
+    whopApi,
   ].filter(Boolean).join(" "),
   // Cloudflare Turnstile renders its challenge inside an iframe from this
   // origin - otherwise identical to 'none' (no other framing allowed).
-  "frame-src https://challenges.cloudflare.com",
+  // https://cdn.whop.com: the embedded Whop checkout renders in a frame from here
+  "frame-src https://challenges.cloudflare.com https://cdn.whop.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
