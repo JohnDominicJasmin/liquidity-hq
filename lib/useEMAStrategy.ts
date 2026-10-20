@@ -61,6 +61,9 @@ export interface StrategySignal {
   /* The signal coin gate (lib/signalCoinGate.ts). Set by gateSignal() when this coin's signals are locked on the viewer's plan.
      `lockedMarkers` are where signals WERE, with no direction: always the candle's high, so a marker's position says nothing. */
   signalLock?: 'signed_out' | 'free' | null;
+  /* True while the viewer's plan is still loading AND this coin is not on the Free list (gateSignal 'pending'): nothing is locked yet, but nothing
+     that implies a signal may show either (the chart's setup chip reads this, so it does not flash on a coin that then locks). */
+  planPending?: boolean;
   lockedMarkers: Array<{ timestamp: number; anchorPrice: number }>;
   counterTrend: boolean;   // the ribbon's setup is against the daily 200 SMA (judgeRibbon)
   atrLast:    number | null;  // last ATR(14) - for Grok context

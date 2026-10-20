@@ -2734,7 +2734,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   };
 
   /* ── Setup Quality: price near strong S/R + squeeze forming ── */
+  // #1609: no setup chip on a coin the viewer's plan locks (Free / trial off BTC/ETH/SOL), and none while the plan is still loading for such a coin.
+  // Its tooltip ("High-probability long zone") says a trade is there, which contradicts a chart that is clean on purpose. Signed-out visitors keep
+  // it (their ladder is unchanged); Pro and unlocked coins are unchanged. Both chips (Prime Setup and Setup Forming) share this slot.
+  const setupChipHidden = emaSignal?.signalLock === 'free' || emaSignal?.planPending === true;
   const setupQuality = (() => {
+    if (setupChipHidden) return null;
     const price = lastCloseRef.current;
     if (!price || !srLevels.length) return null;
     const sq = computeSqueezeScore(coinData);
