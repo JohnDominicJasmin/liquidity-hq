@@ -640,7 +640,7 @@
   "ARENA_ERROR_NO_DATA_SOURCE": "No market data source for {coin}",
   "ARENA_ERROR_UNKNOWN": "Unknown error",
   "ARENA_READ_FAST_TF_PRO_REQUIRED": "Fast timeframes (1m, 5m, 15m) are part of Pro.",
-  "ARENA_COIN_LOCK_LINE": "Buy/Sell signals, Quick Research and Deep Research for {coin} are Pro only. Free includes BTC, ETH and SOL.",
+  "ARENA_COIN_LOCK_LINE": "Buy/Sell signals, Quick Research and Deep Research for {coin} are available in Pro. Free includes BTC, ETH and SOL.",
   "ARENA_COIN_LOCK_PANEL": "Signals for this coin are Pro only.",
   "ARENA_PAGE_TITLE": "LiquidityAI Arena",
   "ARENA_LIVE_BADGE": "LiquidityAI · LIVE X",

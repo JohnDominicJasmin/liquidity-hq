@@ -12,11 +12,11 @@
 -- Run against BOTH lhq_labels (prod, qdpwhnvmhqgzijuwopso) and lhq_dev_labels (dev, wdtjhrilakoitfcezxpx).
 
 insert into lhq_labels (key, locale, value) values
-('ARENA_COIN_LOCK_LINE','en','Buy/Sell signals, Quick Research and Deep Research for {coin} are Pro only. Free includes BTC, ETH and SOL.'),
-('ARENA_COIN_LOCK_LINE','ar','إشارات الشراء/البيع والبحث السريع والبحث العميق لعملة {coin} متاحة لمشتركي Pro فقط. تتضمن الخطة المجانية BTC وETH وSOL.'),
-('ARENA_COIN_LOCK_LINE','ko','{coin}의 매수/매도 신호, 빠른 리서치, 심층 리서치는 Pro 전용입니다. 무료 플랜에는 BTC, ETH, SOL이 포함됩니다.'),
-('ARENA_COIN_LOCK_LINE','ru','Сигналы покупки/продажи, быстрое и глубокое исследование для {coin} доступны только в Pro. В бесплатный тариф входят BTC, ETH и SOL.'),
-('ARENA_COIN_LOCK_LINE','zh','{coin} 的买入/卖出信号、快速研究和深度研究仅限 Pro。免费版包含 BTC、ETH 和 SOL。'),
+('ARENA_COIN_LOCK_LINE','en','Buy/Sell signals, Quick Research and Deep Research for {coin} are available in Pro. Free includes BTC, ETH and SOL.'),
+('ARENA_COIN_LOCK_LINE','ar','إشارات الشراء/البيع والبحث السريع والبحث العميق لعملة {coin} متاحة في Pro. تتضمن الخطة المجانية BTC وETH وSOL.'),
+('ARENA_COIN_LOCK_LINE','ko','{coin}의 매수/매도 신호, 빠른 리서치, 심층 리서치는 Pro에서 이용할 수 있습니다. 무료 플랜에는 BTC, ETH, SOL이 포함됩니다.'),
+('ARENA_COIN_LOCK_LINE','ru','Сигналы покупки/продажи, быстрое и глубокое исследование для {coin} доступны в Pro. В бесплатный тариф входят BTC, ETH и SOL.'),
+('ARENA_COIN_LOCK_LINE','zh','{coin} 的买入/卖出信号、快速研究和深度研究在 Pro 中提供。免费版包含 BTC、ETH 和 SOL。'),
 ('ARENA_COIN_LOCK_PANEL','en','Signals for this coin are Pro only.'),
 ('ARENA_COIN_LOCK_PANEL','ar','إشارات هذه العملة متاحة لمشتركي Pro فقط.'),
 ('ARENA_COIN_LOCK_PANEL','ko','이 코인의 신호는 Pro 전용입니다.'),
@@ -27,11 +27,11 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 -- DEV: the same rows against lhq_dev_labels.
 --
 -- insert into lhq_dev_labels (key, locale, value) values
--- ('ARENA_COIN_LOCK_LINE','en','Buy/Sell signals, Quick Research and Deep Research for {coin} are Pro only. Free includes BTC, ETH and SOL.'),
--- ('ARENA_COIN_LOCK_LINE','ar','إشارات الشراء/البيع والبحث السريع والبحث العميق لعملة {coin} متاحة لمشتركي Pro فقط. تتضمن الخطة المجانية BTC وETH وSOL.'),
--- ('ARENA_COIN_LOCK_LINE','ko','{coin}의 매수/매도 신호, 빠른 리서치, 심층 리서치는 Pro 전용입니다. 무료 플랜에는 BTC, ETH, SOL이 포함됩니다.'),
--- ('ARENA_COIN_LOCK_LINE','ru','Сигналы покупки/продажи, быстрое и глубокое исследование для {coin} доступны только в Pro. В бесплатный тариф входят BTC, ETH и SOL.'),
--- ('ARENA_COIN_LOCK_LINE','zh','{coin} 的买入/卖出信号、快速研究和深度研究仅限 Pro。免费版包含 BTC、ETH 和 SOL。'),
+-- ('ARENA_COIN_LOCK_LINE','en','Buy/Sell signals, Quick Research and Deep Research for {coin} are available in Pro. Free includes BTC, ETH and SOL.'),
+-- ('ARENA_COIN_LOCK_LINE','ar','إشارات الشراء/البيع والبحث السريع والبحث العميق لعملة {coin} متاحة في Pro. تتضمن الخطة المجانية BTC وETH وSOL.'),
+-- ('ARENA_COIN_LOCK_LINE','ko','{coin}의 매수/매도 신호, 빠른 리서치, 심층 리서치는 Pro에서 이용할 수 있습니다. 무료 플랜에는 BTC, ETH, SOL이 포함됩니다.'),
+-- ('ARENA_COIN_LOCK_LINE','ru','Сигналы покупки/продажи, быстрое и глубокое исследование для {coin} доступны в Pro. В бесплатный тариф входят BTC, ETH и SOL.'),
+-- ('ARENA_COIN_LOCK_LINE','zh','{coin} 的买入/卖出信号、快速研究和深度研究在 Pro 中提供。免费版包含 BTC、ETH 和 SOL。'),
 -- ('ARENA_COIN_LOCK_PANEL','en','Signals for this coin are Pro only.'),
 -- ('ARENA_COIN_LOCK_PANEL','ar','إشارات هذه العملة متاحة لمشتركي Pro فقط.'),
 -- ('ARENA_COIN_LOCK_PANEL','ko','이 코인의 신호는 Pro 전용입니다.'),

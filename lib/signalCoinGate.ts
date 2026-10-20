@@ -112,6 +112,6 @@ export function gateSignal(sig: StrategySignal, plan: SignalPlan | null, coin: s
     lockedMarkers: plan === 'signed_out' ? sig.lockedMarkers : [],
     signalLock: plan === 'signed_out' ? 'signed_out' : 'free',
   };
-  if (plan === 'pending') return { ...cleared, loading: true, verdict: 'LOADING', phase: 'Loading…', lockedMarkers: [], signalLock: null };
+  if (plan === 'pending') return { ...cleared, loading: true, verdict: 'LOADING', phase: 'Loading…', lockedMarkers: [], signalLock: null, planPending: true };
   return cleared;
 }
