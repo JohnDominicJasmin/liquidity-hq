@@ -37,7 +37,7 @@ import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
 import { describeSelection, overlayStates } from '@/lib/strategyRegistry';
-import { gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
+import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -186,7 +186,7 @@ function ArenaContent() {
   const nowMs = useNow(30_000);
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
-  const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements } = useAuth();
+  const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements, isPro } = useAuth();
   const { settings, settingsLoadStatus, update, refresh: refreshSettings } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -337,7 +337,10 @@ function ArenaContent() {
   const filterParams = antiChopEnabled ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS;
   /* The signal coin gate (lib/signalCoinGate.ts): applied ONCE here, so the chart markers, the strategy panel, the latest signal,
      the Grok line, the confluence score and the higher-timeframe badge all read the same gated value. */
-  const signalPlan = signalPlanFor({ signedIn: !!user, entitlementStatus, authLoading });
+  const signalPlan = signalPlanFor({ signedIn: !!user, entitlementStatus, authLoading, isPro, entitlementsLoading });
+  /* #1596: a viewer who is KNOWN not to have paid (Free or free trial) on a coin outside BTC/ETH/SOL. Drives the one line above the chart and
+     locks Quick and Deep. False while the plan is loading or unknown: nothing is locked on a guess, and the server enforces the same rule. */
+  const coinLocked = coinLockedForUnpaid(signalPlan, selectedCoin);
   const rawEmaSignal = useEMAStrategy(
     selectedCoin,
     readTf,
@@ -1549,7 +1552,7 @@ function ArenaContent() {
             'with what the rest of the data shows.',
           ].join('\n')
         : base;
-      const { result: res, usage } = await callGrokViaProxy(prompt, readTf, ctx.session, mode);
+      const { result: res, usage } = await callGrokViaProxy(prompt, readTf, ctx.session, mode, selectedCoin);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
 
@@ -1606,6 +1609,13 @@ function ArenaContent() {
          timeframes only, which is why the line names them. */
       if ((e as { code?: string }).code === 'PRO_REQUIRED') {
         setReadError(t('ARENA_READ_FAST_TF_PRO_REQUIRED'));
+        setReadProLocked(true);
+        return;
+      }
+      /* #1596: the server refuses Quick/Deep on a coin outside BTC/ETH/SOL for an account that has not paid (403 COIN_LOCKED). Reachable
+         when the plan was unknown to the page at click time. Same labelled line and Upgrade link as the lock above the chart. */
+      if ((e as { code?: string }).code === 'COIN_LOCKED') {
+        setReadError(t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }));
         setReadProLocked(true);
         return;
       }
@@ -1693,6 +1703,7 @@ function ArenaContent() {
       return;
     }
     if (!user) { window.location.href = '/login'; return; }
+    if (coinLocked) return; // #1596: Quick and Deep do not run on a locked coin (the server refuses it too)
     const entry = resultsCache[selectedCoin];
     const force = !!(entry && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
     readMarket(selection, kind, force, emaSignal.loading);
@@ -2079,15 +2090,15 @@ function ArenaContent() {
             matching the same "don't claim a fact we haven't confirmed"
             pattern as this file's other #1347 fixes. */}
         <button
-          className={`arena-fire-btn arena-quick-btn${!user && !authLoading ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
+          className={`arena-fire-btn arena-quick-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
+          disabled={readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
+          title={coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {!user && !authLoading && (
+              {((!user && !authLoading) || coinLocked) && (
                 <Lock size={12} />
               )}
               {t('ARENA_QUICK_RESEARCH_BUTTON')}
@@ -2097,15 +2108,15 @@ function ArenaContent() {
 
         {/* Deep button - requires sign-in. Same fix as Quick above. */}
         <button
-          className={`arena-fire-btn${!user && !authLoading ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
+          className={`arena-fire-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
+          disabled={readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
+          title={coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {!user && !authLoading && (
+              {((!user && !authLoading) || coinLocked) && (
                 <Lock size={12} />
               )}
               {t('ARENA_DEEP_RESEARCH_BUTTON')}
@@ -2466,6 +2477,15 @@ function ArenaContent() {
       {/* ── Workspace: chart (left) + evidence rail (right) ── */}
       <div className="arena-ws">
         <div className="arena-ws-chart">
+      {/* #1596: a coin outside BTC/ETH/SOL for an account that has not paid (Free or free trial): a clean chart, and this one line. No
+          markers and no locked circles are drawn (lib/signalCoinGate.ts gateSignal). */}
+      {coinLocked && (
+        <div data-testid="arena-coin-lock-line" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', marginBottom: 8, border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
+          <Lock size={14} style={{ color: 'var(--txt3)', flexShrink: 0 }} />
+          <span style={{ flex: '1 1 220px', minWidth: 0, fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.4 }}>{t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() })}</span>
+          <Link href="/upgrade" data-testid="arena-coin-lock-upgrade" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 14px', border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: 'var(--fs-label)', fontWeight: 700, textDecoration: 'none' }}>{t('TNAV_UPGRADE_LABEL')}</Link>
+        </div>
+      )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} />
       {/* Directly under the chart, on the owner's request (#370). The read
