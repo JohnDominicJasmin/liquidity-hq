@@ -124,3 +124,14 @@ Owner decision: use ALL THREE: Whop, MoonPay Commerce, BoomFi.
 - **Whop build = #1567**, in the project's usual safe order: Phase 1 records verified webhooks only (nothing granted, nothing revoked); Pro is granted only after a real recorded payload (the #1422 revoke-bug lesson). Needs from the owner, never in chat: a Whop API key and webhook secret set on Render, and his word for the database table migration (prod `lhq_` and dev `lhq_dev_`, one section at a time).
 - **The owner cannot afford a real $20 test purchase right now.** A way to capture a real Whop payload without spending (for example a 100% promo code, UNVERIFIED whether it fires a payment webhook and whether it exercises the card form) is still to be checked with Google AI Mode in the existing thread; the owner must re-attach that tab. Until a real payload is recorded, no unlock.
 - Whop account state is in the 2026-10-15 section above.
+
+## Owner ruling, 2026-10-17: no refunds
+All sales final (Return policy PDF uploaded to Whop; the /upgrade Whop panel says "All sales are final"). Once paid, service continues to period end; refund and dispute events never revoke Pro: they are recorded and flagged only. $0 / promo / hand-added Whop members get no Pro by default: they go to review and the owner decides case by case.
+
+## Whop state, 2026-10-19/20 (verified by PM)
+- Plan checkout links (each opened signed out, price confirmed): $49/month `https://whop.com/checkout/plan_5dwC4qy2nSoS9`; $490/year `https://whop.com/checkout/plan_VahzsWgFwGgnP`; $20 every 2 weeks `https://whop.com/checkout/plan_irN54MDYn9Otb`. Set on `liquidity-hq-qa` only (`NEXT_PUBLIC_WHOP_CHECKOUT_*`), with `WHOP_WEBHOOK_SECRET`; production unchanged, payments still off.
+- Hidden TEST plan `plan_Lt14d8fRCCBIa` ($1/month, recurring, not on the store page) for one real payment to record the webhook body. Never a Pro plan; cancel the membership and archive the plan after the test.
+- Whop shows "~~$25~~ $20 / 2 weeks, Save 20%" by itself (no compare-at price is set); it reads as a comparison with the $49 monthly plan. Owner: keep.
+- Product cover: real Arena screenshot with a real Deep Research read. Business logo: the app icon (`public/icons/icon-512.png`).
+- Whop Discover: submitted 2026-10-19 23:02 UTC; status "Pending review for Discover".
+- The owner's own Whop account cannot buy its own product ("Get access" is disabled), so a test purchase needs another account.
