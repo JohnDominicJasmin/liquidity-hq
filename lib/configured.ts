@@ -11,6 +11,7 @@ import {
 } from './checkout.ts';
 import { isLsApiConfigured } from './lemonsqueezyApi.ts';
 import { analyticsKey } from './analytics.ts';
+import { whopPlanTable } from './whopEntitlement.ts';
 
 /* Which integrations does THIS host actually have? (#282)
  *
@@ -69,6 +70,11 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
     boomfiWebhook: set(env.BOOMFI_WEBHOOK_PUBLIC_KEY) && set(env.BOOMFI_ORG_ID),
     /* The Whop webhook secret (#1567, Phase 1). A boolean only, never the value. Unset refuses every delivery. */
     whopWebhook: set(env.WHOP_WEBHOOK_SECRET),
+    /* Which Whop plan ids the unlock will grant for on this environment (#1567 Phase 3): WHOP_PLAN_ID_MONTHLY / _ANNUAL / _FORTNIGHTLY. Booleans
+       only, never the ids. A plan that is unset, duplicated or equal to the record-only test plan reads false, and its payments go to review. */
+    whopPlanMonthly:     Object.values(whopPlanTable(env)).some((r) => r.plan === 'monthly'),
+    whopPlanAnnual:      Object.values(whopPlanTable(env)).some((r) => r.plan === 'annual'),
+    whopPlanFortnightly: Object.values(whopPlanTable(env)).some((r) => r.plan === 'fortnightly'),
     /* The LS REST API key the cancel route needs (#1396). Same read the route
        and the settings panel gate on (isLsApiConfigured), so cancel-availability
        is observable per environment - set on qa (test), unset on staging/prod
