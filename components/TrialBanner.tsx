@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useLabels } from '@/lib/labels';
@@ -32,13 +32,13 @@ export default function TrialBanner() {
   // enough to keep it honest; the point is that it advances at all, which a
   // Date.now() read during render did not.
   const now = useNow(60_000);
-  // undefined = not read yet (the first paint, and the server render): a dismissed banner must not flash on load, so nothing shows until it is read.
-  const [dismissedDay, setDismissedDay] = useState<string | null | undefined>(undefined);
-  useEffect(() => {
-    let v: string | null = null;
-    try { v = window.localStorage.getItem(DISMISS_KEY); } catch { /* storage blocked: treat as not dismissed */ }
-    setDismissedDay(v);
-  }, []);
+  // Read in the FIRST client render (a lazy initial state), not in an effect after it: an effect made every non-dismissed trial user see the banner mount a
+  // frame late and the page jump (QA, #1618). undefined only on the server, where the banner renders nothing anyway (isTrial needs the signed-in user, which
+  // only the client has), so there is no hydration mismatch. A dismissed banner does not flash: it is hidden from its first render.
+  const [dismissedDay, setDismissedDay] = useState<string | null | undefined>(() => {
+    if (typeof window === 'undefined') return undefined;
+    try { return window.localStorage.getItem(DISMISS_KEY); } catch { return null; /* storage blocked: treat as not dismissed */ }
+  });
   if (!isTrial || trialEndsAt == null) return null;
 
   const msLeft = trialEndsAt - now;
