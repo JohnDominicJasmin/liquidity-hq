@@ -17,6 +17,7 @@ import {
 } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
+import { oiTrend1h } from '@/lib/oiTrend1h';
 import { useSettings } from '@/lib/settings';
 import SOTD from '@/components/SOTD';
 import MarketRead from '@/components/MarketRead';
@@ -354,7 +355,8 @@ function TEdgeSignals() {
     : frPct <= -0.005 ? 'var(--green)'
     : 'var(--txt2)';
 
-  const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, d?.oiTrend);
+  /* #1613: the trend text must come from the SAME hour as the % beside it, so it is derived from the 1h samples, not from the store's oiTrend (another window). */
+  const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
   const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : '-';
 
   const sq    = computeSqueezeScore(d);

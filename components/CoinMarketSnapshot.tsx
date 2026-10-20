@@ -1,6 +1,7 @@
 'use client';
 import { useMarket, CoinId, fmtPrice, COIN_DEC, classifyFunding, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
+import { oiTrend1h } from '@/lib/oiTrend1h';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -40,7 +41,11 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
   const vwapPct   = vwap && price ? ((price - vwap) / vwap) * 100 : null;
   const vwapCol   = vwapAbove === null ? 'var(--txt3)' : vwapAbove ? 'var(--green)' : 'var(--red)';
 
-  const oiMeta = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
+  /* #1613: the label and the number beside it come from the SAME hour. `store.oiTrend` is a different window (~3h at first load, ~25 min once the
+     poll has filled its history) and made the label contradict the 1h figure and flip as its source changed, so this card no longer reads it.
+     No label until the hour has loaded (a skeleton), and none when the price change over the hour is unknown or both moves are small. */
+  const trend1h = !oi1h.loading ? oiTrend1h(oi1h.pct, oi1h.pricePct) : null;
+  const oiMeta = trend1h ? OI_TREND_META[trend1h] : null;
 
   const fr     = d?.fundingRate;
   const frPct  = fr != null ? fr * 100 : null;
@@ -57,7 +62,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
     : frPct <= -0.005? 'COIN_MARKET_SNAPSHOT_FR_MILD_SHORT_BIAS'
     : 'COIN_MARKET_SNAPSHOT_FR_NEUTRAL';
 
-  const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, d?.oiTrend);
+  const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, null);
   const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : '-';
 
   return (
@@ -88,10 +93,10 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         ) : (
           <>
             <div className="edge-card-value is-label" style={{ color: oi1hCol }}>
-              {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : (d?.oi != null ? t('COIN_MARKET_SNAPSHOT_OI_FLAT') : '-')}
+              {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : '-'}
             </div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
-              {!oi1h.loading && oi1h.pct != null ? t('COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX', { txt: oi1hTxt }) : (d?.oi != null ? t('COIN_MARKET_SNAPSHOT_OI_NO_SIGNAL') : <SkeletonBar width={90} height={11} radius={4} />)}
+              {oi1h.loading ? <SkeletonBar width={90} height={11} radius={4} /> : oi1h.pct != null ? t('COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX', { txt: oi1hTxt }) : t('GLOBAL_MACRO_CONTEXT_ROW_UNAVAILABLE')}
             </div>
           </>
         )}
