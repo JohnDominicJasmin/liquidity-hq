@@ -80,7 +80,11 @@ export default function UpgradePage() {
   const [embedFailed, setEmbedFailed] = useState(false);
   /* #1606: where Whop sent the buyer back from the embedded checkout. `status` is read BEFORE anything is said (a declined or abandoned off-site step
      lands here too). Pro is granted by the webhook only, so even 'succeeded' says only that the payment arrived. */
-  const [returnStatus, setReturnStatus] = useState<null | 'succeeded' | 'failed' | 'canceled'>(null);
+  const [returnStatusRaw, setReturnStatus] = useState<null | 'succeeded' | 'failed' | 'canceled'>(null);
+  /* #1614: "Payment received" is the one line that claims something good, so it also needs the payment id Whop adds to the return (pay_...). A bare
+     /upgrade?status=succeeded, typed or crafted by anyone, shows nothing. It is still only a line: Pro comes from the webhook, never from this. */
+  const [returnHasPaymentId, setReturnHasPaymentId] = useState(false);
+  const returnStatus = returnStatusRaw === 'succeeded' && !returnHasPaymentId ? null : returnStatusRaw;
   const planChoiceStyle = (plan: CheckoutPlan): React.CSSProperties => (selectedPlan === plan ? PLAN_BUTTON_SELECTED : PLAN_BUTTON_OUTLINED);
   /** The plan button that opened the panel, so closing it can return focus there. */
   const panelOpener = useRef<HTMLElement | null>(null);
@@ -158,6 +162,7 @@ export default function UpgradePage() {
   useEffect(() => {
     const s = new URLSearchParams(window.location.search).get('status');
     if (s === 'succeeded' || s === 'failed' || s === 'canceled') setReturnStatus(s);
+    setReturnHasPaymentId(/^pay_[A-Za-z0-9]+$/.test(new URLSearchParams(window.location.search).get('payment') ?? ''));
   }, []);
   /* After a payment that went through, the webhook unlocks Pro a moment later. Ask for the plan again every few seconds for about two minutes; the
      existing effect above sends the account to /arena the moment it reads Pro. Nothing is claimed in the meantime. */
