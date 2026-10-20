@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { CoinId } from './marketStore.ts';
+import { impliedPrice, pctChange } from './oiTrend1h.ts';
 
 /* ── Endpoints ── */
 const BINANCE_OI: Partial<Record<CoinId, string>> = {
@@ -14,18 +15,21 @@ const BYBIT_OI: Partial<Record<CoinId, string>> = {
 export interface OI1hData {
   oiUsd:   number | null;
   pct:     number | null;
+  /** The price change over the SAME hour as `pct`, implied by the samples (USD value / contracts). null where the source has no USD value (the Bybit
+   *  fallback, Bybit-only coins): unknown, never "flat". Lets the card's label and its number describe one window (#1613, lib/oiTrend1h.ts). */
+  pricePct: number | null;
   loading: boolean;
 }
 
 export function useOI1h(coin: CoinId): OI1hData {
-  const [data, setData]   = useState<OI1hData>({ oiUsd: null, pct: null, loading: true });
+  const [data, setData]   = useState<OI1hData>({ oiUsd: null, pct: null, pricePct: null, loading: true });
   const mountedRef        = useRef(true);
   const fetchingRef       = useRef(false);
 
   useEffect(() => {
     mountedRef.current  = true;
     fetchingRef.current = false;
-    setData({ oiUsd: null, pct: null, loading: true });
+    setData({ oiUsd: null, pct: null, pricePct: null, loading: true });
 
     const load = async () => {
       if (fetchingRef.current) return;
@@ -33,7 +37,7 @@ export function useOI1h(coin: CoinId): OI1hData {
       try {
         const binSym = BINANCE_OI[coin];
         const bbtSym = BYBIT_OI[coin];
-        let result: Omit<OI1hData, 'loading'> = { oiUsd: null, pct: null };
+        let result: Omit<OI1hData, 'loading'> = { oiUsd: null, pct: null, pricePct: null };
 
         if (binSym) {
           const r = await fetch(
@@ -58,6 +62,8 @@ export function useOI1h(coin: CoinId): OI1hData {
               result = {
                 oiUsd: Number.isFinite(rawUsd) ? rawUsd : null,
                 pct:   oldest > 0 ? (newest - oldest) / oldest * 100 : null,
+                // Same two samples, so the same hour: price = USD value / contracts at each end (#1613).
+                pricePct: pctChange(impliedPrice(d[0].sumOpenInterest, d[0].sumOpenInterestValue), impliedPrice(d[d.length - 1].sumOpenInterest, d[d.length - 1].sumOpenInterestValue)),
               };
             }
           }
@@ -72,7 +78,7 @@ export function useOI1h(coin: CoinId): OI1hData {
             if (list.length >= 2) {
               const newest = parseFloat(list[0].openInterest);
               const oldest = parseFloat(list[list.length - 1].openInterest);
-              result = { oiUsd: newest, pct: oldest > 0 ? (newest - oldest) / oldest * 100 : null };
+              result = { oiUsd: newest, pct: oldest > 0 ? (newest - oldest) / oldest * 100 : null, pricePct: null };
             }
           }
         }

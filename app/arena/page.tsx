@@ -20,6 +20,7 @@ import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/c
 import ConfluenceScore from '@/components/ConfluenceScore';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
+import { oiTrend1h } from '@/lib/oiTrend1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
@@ -350,6 +351,15 @@ function ArenaContent() {
     strategySelection,
   );
   const emaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
+  /* #1613: a value that has not arrived yet must read as LOADING, never as a final word. The AI-read card can render from a cached result before the
+     market feed has delivered this coin's funding rate; that used to read "n/a" and then "neutral" a moment later. Funding is `loading…` for a short
+     grace period after the page (or the coin) is opened, and `unavailable` after it if it still has not come. */
+  const [feedGraceOver, setFeedGraceOver] = useState(false);
+  useEffect(() => {
+    setFeedGraceOver(false);
+    const id = window.setTimeout(() => setFeedGraceOver(true), 15_000);
+    return () => window.clearTimeout(id);
+  }, [selectedCoin]);
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
   // landing within the same tick (measured live: ~200ms apart, well within
@@ -756,9 +766,10 @@ function ArenaContent() {
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
     if (oi1h.loading || oi1h.pct == null) return;
-    const { txt } = oi1hSignal(oi1h.pct, store.coins[selectedCoin]?.oiTrend);
+    // #1613: the AI read is told the 1h OI change with a trend text from the SAME hour (not the store's oiTrend, another window).
+    const { txt } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
     oi1hDataRef.current = { pct: oi1h.pct, signal: txt };
-  }, [oi1h.pct, oi1h.loading, selectedCoin, store.coins]);
+  }, [oi1h.pct, oi1h.pricePct, oi1h.loading, selectedCoin]);
 
   /* ── Sync EMA strategy → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -2317,7 +2328,7 @@ function ArenaContent() {
         const factors = [
           { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
           { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
-          { k: 'Funding',   v: frPct == null ? 'n/a' : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
+          { k: 'Funding',   v: frPct == null ? (feedGraceOver ? 'unavailable' : 'loading…') : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
           { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
           { k: 'Whale CVD', v: coinD?.cvdDivergence === 'bullish' ? 'bullish' : coinD?.cvdDivergence === 'bearish' ? 'bearish' : 'flat', c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
         ];

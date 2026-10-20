@@ -334,7 +334,9 @@ export default function MarketProvider(
         }
 
         const patch: Partial<MarketStore['coins'][CoinId]> = {
-          fundingRate: parseFloat(item.fundingRate || '0'),
+          // #1613: absent or unparseable is UNKNOWN: the key is left out, so a previous good value stays and a coin with none stays null.
+          // `|| '0'` turned a missing rate into "+0.0000% / Neutral" on every surface.
+          ...(Number.isFinite(parseFloat(item.fundingRate ?? '')) ? { fundingRate: parseFloat(item.fundingRate as string) } : {}),
           oi: curOI,
           perpPrice: curPrice,
           oiTrend,
