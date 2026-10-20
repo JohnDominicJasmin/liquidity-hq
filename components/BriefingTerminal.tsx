@@ -140,7 +140,7 @@ function buildBriefingContext(
     const rsi = c.rsi14 != null ? Math.round(c.rsi14) : '-';
     const cvd = c.cvdDivergence ?? 'none';
     const oi  = c.oiTrend ?? '-';
-    lines.push(`${id.toUpperCase()}: ${chg} | FR ${fr} | RSI ${rsi} | CVD ${cvd} | OI ${oi}`);
+    lines.push(`${id.toUpperCase()}: ${chg} | FR ${fr} | RSI ${rsi} | CVD ${cvd} | OI trend (60 min) ${oi}`);
   }
   if (urgentEcon.length) {
     lines.push('', 'MACRO EVENTS (recent + upcoming):');
