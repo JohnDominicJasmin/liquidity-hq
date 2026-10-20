@@ -221,8 +221,12 @@ export function isProBuyable(env?: Record<string, string | undefined>): boolean 
  * a literal `process.env.NEXT_PUBLIC_*` read at module scope (#243), '#' and empty mean unset, no plan ever falls back to another plan's
  * link, and the other two plans only render alongside the monthly one. One addition: only an https URL counts as set.
  *
- * NOTHING is appended to the URL. Which parameters Whop's checkout accepts for binding an account id has not been verified against a real
- * payload, and the last time this project guessed a payload's shape a successful payment revoked Pro (#1422). Binding comes with the unlock.
+ * THE ACCOUNT EMAIL IS APPENDED, and only that (#1606). Whop's checkout links accept `email` (fills the field) and `email.disabled=1` (locks it);
+ * source: https://docs.whop.com/manage-your-business/payment-processing/checkout-branding, and PM checked both on our real monthly link on
+ * 2026-10-20 (field showed the address, input was disabled, nothing was bought). The unlock matches the payment to an account BY that email
+ * (app/api/whop/webhook), so a typo or a second address at checkout used to mean a paid customer with no Pro. `email.hidden` is NOT used:
+ * the buyer should see which email is used. Signed out: nothing is appended. NOT VERIFIED: what Whop does when the buyer is already signed in
+ * to Whop under a different email, and the percent-encoded form (`%40`) that URLSearchParams produces (PM's check used a raw `@`).
  *
  * WHAT READS WHAT. `isProBuyable` (above) is "the Whop monthly URL is set": /upgrade and /api/version.proBuyable. It is a display switch
  * only and grants nothing. The BoomFi webhook's grant gate and the trial-ending email read `isCryptoCheckoutConfigured` (BoomFi's own
@@ -254,9 +258,30 @@ export function isWhopCheckoutConfiguredFortnightly(env?: Record<string, string 
   return whopCheckoutBase('fortnightly', env) !== null;
 }
 
-/** The Whop link for a plan exactly as configured, or null when that plan's link is not set. */
-export function getWhopCheckoutUrl(plan: CheckoutPlan): string | null {
-  return whopCheckoutBase(plan);
+/** The Whop link for a plan, or null when that plan's link is not set. Given the signed-in account's email, the link also carries `email` and
+ *  `email.disabled=1` so the checkout field is filled and locked (#1606); parameters already on the link are kept. No email (signed out, or
+ *  something that is not an address) = the link exactly as configured. */
+export function getWhopCheckoutUrl(plan: CheckoutPlan, email?: string | null): string | null {
+  const base = whopCheckoutBase(plan);
+  if (!base) return null;
+  const e = (email ?? '').trim();
+  if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return base;
+  const u = new URL(base);
+  u.searchParams.set('email', e);
+  u.searchParams.set('email.disabled', '1');
+  return u.toString();
+}
+
+/** What the embedded Whop checkout (Whop Elements, #1606) needs for a plan: its `plan_` id and whether it is the Whop SANDBOX. Both are read from the
+ *  Whop link already configured for that plan (https://whop.com/checkout/plan_XXX, or https://sandbox.whop.com/checkout/plan_XXX on qa), so there is no
+ *  second setting to keep in step with it. null when the plan has no link or the link carries no plan id: the page then shows the hosted link. */
+export function getWhopEmbed(plan: CheckoutPlan, env?: Record<string, string | undefined>): { planId: string; environment: 'production' | 'sandbox' } | null {
+  const base = whopCheckoutBase(plan, env);
+  if (!base) return null;
+  const u = new URL(base);
+  const planId = u.pathname.match(/\/(plan_[A-Za-z0-9]+)(?:\/|$)/)?.[1];
+  if (!planId) return null;
+  return { planId, environment: u.hostname === 'sandbox.whop.com' ? 'sandbox' : 'production' };
 }
 
 export type CheckoutPlan = 'monthly' | 'annual' | 'fortnightly';

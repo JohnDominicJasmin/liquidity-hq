@@ -1,13 +1,16 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getWhopCheckoutUrl, isProBuyable, isWhopCheckoutConfiguredAnnual, isWhopCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
+import { getWhopCheckoutUrl, getWhopEmbed, isProBuyable, isWhopCheckoutConfiguredAnnual, isWhopCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
 import { EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import { useLabels } from '@/lib/labels';
 import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
+
+/* #1606: the embedded Whop checkout. Loaded only when a plan is picked (client only), so the Whop SDK is not part of this page's first load. */
+const WhopCheckoutEmbed = lazy(() => import('@/components/WhopCheckoutEmbed'));
 
 /* #1567 Phase 2: a plan is buyable when it has a Whop checkout URL (owner, 2026-10-17: Whop only, no MoonPay and no BoomFi button).
    Lemon Squeezy rejected the store and the BoomFi buttons are gone from this page. With no URL set - prod today - the page shows
@@ -73,6 +76,11 @@ export default function UpgradePage() {
      the panel still shows, so the page does not change shape for the buyer on
      the day a second method is added. */
   const [selectedPlan, setSelectedPlan] = useState<null | CheckoutPlan>(null);
+  /* #1606: the embedded checkout could not load (Whop's script blocked, network down): the panel shows the hosted link instead. */
+  const [embedFailed, setEmbedFailed] = useState(false);
+  /* #1606: where Whop sent the buyer back from the embedded checkout. `status` is read BEFORE anything is said (a declined or abandoned off-site step
+     lands here too). Pro is granted by the webhook only, so even 'succeeded' says only that the payment arrived. */
+  const [returnStatus, setReturnStatus] = useState<null | 'succeeded' | 'failed' | 'canceled'>(null);
   const planChoiceStyle = (plan: CheckoutPlan): React.CSSProperties => (selectedPlan === plan ? PLAN_BUTTON_SELECTED : PLAN_BUTTON_OUTLINED);
   /** The plan button that opened the panel, so closing it can return focus there. */
   const panelOpener = useRef<HTMLElement | null>(null);
@@ -118,6 +126,8 @@ export default function UpgradePage() {
   function choosePlan(plan: CheckoutPlan) {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
     if (document.activeElement instanceof HTMLElement) panelOpener.current = document.activeElement;
+    setEmbedFailed(false);
+    setReturnStatus(null);
     setSelectedPlan(plan);
   }
 
@@ -142,8 +152,30 @@ export default function UpgradePage() {
   const handleCheckoutAnnual = () => choosePlan('annual');
   const handleCheckoutFortnightly = () => choosePlan('fortnightly');
 
+  /* Coming back from the embedded checkout (#1606): Whop adds `payment` and `status` to the return URL. Anything other than the three documented values is
+     ignored. The query is deliberately NOT stripped afterwards: history.replaceState here makes Next's router re-render the route and this state is lost
+     (measured: the banner vanished), so a reload shows the line again, which is harmless (a Pro account is sent on to /arena anyway). */
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get('status');
+    if (s === 'succeeded' || s === 'failed' || s === 'canceled') setReturnStatus(s);
+  }, []);
+  /* After a payment that went through, the webhook unlocks Pro a moment later. Ask for the plan again every few seconds for about two minutes; the
+     existing effect above sends the account to /arena the moment it reads Pro. Nothing is claimed in the meantime. */
+  useEffect(() => {
+    if (returnStatus !== 'succeeded' || !user) return;
+    let n = 0;
+    const id = window.setInterval(() => { if (++n > 20) { window.clearInterval(id); return; } retryEntitlements(); }, 6000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [returnStatus, user?.id]);
+
   /* Step 2. The link is read for the plan that was picked, never another one. */
-  const whopUrl = selectedPlan ? getWhopCheckoutUrl(selectedPlan) : null;
+  /* #1606: the signed-in account's email goes to Whop filled and locked, so the payment is matched to THIS account. Signed out: no email, the plain link. */
+  const accountEmail = user?.email ?? null;
+  const whopUrl = selectedPlan ? getWhopCheckoutUrl(selectedPlan, accountEmail) : null;
+  /* The embedded checkout needs the plan's `plan_` id and whether it is the Whop sandbox, both read from the configured link. null = show the link. */
+  const embed = selectedPlan ? getWhopEmbed(selectedPlan) : null;
+  const embedReturnUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/upgrade`;
   function payWithWhop() {
     if (!selectedPlan || !whopUrl) return;
     setRedirecting(selectedPlan);
@@ -175,7 +207,7 @@ export default function UpgradePage() {
       data-plan={selectedPlan}
       role="group"
       aria-labelledby="checkout-method-title"
-      style={{ position: 'relative', width: '100%', maxWidth: 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
+      style={{ position: 'relative', width: '100%', maxWidth: embed && accountEmail && !embedFailed ? 520 : 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
     >
       {/* 32x32 hit area, above SC 2.5.8's 24px minimum; the glyph stays small. */}
       <button
@@ -195,9 +227,35 @@ export default function UpgradePage() {
       </div>
       {/* One method, so the panel is the same height for every plan: the notes below are constant (the BoomFi-only "billed weekly" note and
           the ghost grid that held its height are gone, #1567). */}
-      <p data-testid="checkout-method-whop-email-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
-        {t('UPGRADE_WHOP_EMAIL_NOTE')}
-      </p>
+      {/* Signed in: which email checkout uses and what it is for (#1606; Whop's own page cannot show our text, so it is said here, above the button).
+          Signed out: the plain reminder, there is no address to show. */}
+      {accountEmail ? (
+        <div data-testid="checkout-method-whop-email-note" data-prefilled="1" style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center' }}>
+          <p data-testid="checkout-method-whop-email-line" style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', margin: 0, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{t('UPGRADE_WHOP_EMAIL_LINE', { email: accountEmail })}</p>
+          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6 }}>{t('UPGRADE_WHOP_UNLOCK_LINE')}</p>
+          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6 }}>{t('UPGRADE_WHOP_LOGIN_LINE')}</p>
+          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6 }}>{t('UPGRADE_WHOP_RECEIPT_LINE')}</p>
+        </div>
+      ) : (
+        <p data-testid="checkout-method-whop-email-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+          {t('UPGRADE_WHOP_EMAIL_NOTE')}
+        </p>
+      )}
+      {embed && accountEmail && !embedFailed ? (
+        <>
+          <Suspense fallback={<p style={{ margin: 0, padding: '24px 0', textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('UPGRADE_WHOP_EMBED_LOADING')}</p>}>
+            <WhopCheckoutEmbed planId={embed.planId} email={accountEmail} environment={embed.environment} returnUrl={embedReturnUrl} onFailed={() => setEmbedFailed(true)} />
+          </Suspense>
+          {/* Near the Join button (owner, #1606): the payment is made in the element above, so it is not "finish on Whop" here. */}
+          <p data-testid="checkout-method-whop-final-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+            {t('UPGRADE_WHOP_FINAL_NOTE')}
+          </p>
+        </>
+      ) : (
+        <>
+          {embedFailed && (
+            <p data-testid="checkout-method-whop-embed-fallback" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>{t('UPGRADE_WHOP_EMBED_FALLBACK')}</p>
+          )}
       {whopUrl && (
         <button
           data-testid="checkout-method-whop"
@@ -208,10 +266,12 @@ export default function UpgradePage() {
           {isRedirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_WHOP_CTA')}
         </button>
       )}
-      {/* Under the pay button: where payment happens and that sales are final. No cancel, refund, card or crypto claim: copy says only what the product does today. */}
+      {/* The hosted link (the embedded checkout could not load, or this plan's link has no plan id): where payment happens and that sales are final. No cancel, refund, card or crypto claim: copy says only what the product does today. */}
       <p data-testid="checkout-method-whop-checkout-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
         {t('UPGRADE_WHOP_CHECKOUT_NOTE')}
       </p>
+        </>
+      )}
     </div>
   );
 
@@ -251,6 +311,14 @@ export default function UpgradePage() {
 
       {/* Page body */}
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '56px 24px 80px' }}>
+
+        {/* #1606: where Whop sent the buyer back from the embedded checkout. Says only what is known: the payment arrived (Pro follows from the webhook),
+            or it did not go through. Never "you are Pro". */}
+        {returnStatus && (
+          <div role="status" data-testid="upgrade-return-banner" data-status={returnStatus} style={{ maxWidth: 520, margin: '0 auto 28px', padding: '14px 18px', borderRadius: 12, border: `1px solid ${returnStatus === 'succeeded' ? 'var(--accent)' : 'var(--bdr3)'}`, background: returnStatus === 'succeeded' ? 'var(--accent-bg)' : 'var(--bg1)', color: 'var(--txt)', fontSize: 'var(--fs-label)', lineHeight: 1.5, textAlign: 'center' }}>
+            {returnStatus === 'succeeded' ? t('UPGRADE_RETURN_PENDING') : returnStatus === 'failed' ? t('UPGRADE_RETURN_FAILED') : t('UPGRADE_RETURN_CANCELED')}
+          </div>
+        )}
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
