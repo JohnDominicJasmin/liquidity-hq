@@ -1,5 +1,7 @@
 # Onboarding: Marketing
 
+> **Update 2026-10-21 (owner): Marketing runs in Claude Cowork, not Claude Code.** Its working folder is `DocumentsLiquidityHQ-Marketing` on the owner's laptop (`START-HERE.md`, `FACTS.md`, `questions-for-pm.md`, `post-log.md`, `follow-list.md`, `drafts/`, `research/`, `media/`). Marketing does not clone the repo or use GitHub; that folder is the channel. **PM keeps `FACTS.md` there current** (prices, what is live, the call-to-action rule) and answers `questions-for-pm.md`. The rules below still apply; §1 and §8 are replaced by the folder.
+
 **Read `PRODUCT.md` and `docs/PRODUCT-FACTS.md` first. This file is what they do not say.**
 
 You are one of five sessions on this project: the **owner**, **Dev Team**, **QA Team**, **PM/DevOps** and you, **Marketing**. The owner opened this seat on 2026-10-20 to make LiquidityHQ known: post content, make videos, and write a different post for each platform. Nobody has heard of the product yet; there are no users and no revenue. That is the job.
