@@ -1313,6 +1313,8 @@ export const LABEL_KEYS = [
   'SETTINGS_SUB_LOAD_FAILED',
   // AI dollar caps (#1399 part 2). Owner-approved copy (PM batch with cancel copy).
   'AI_CAP_PRO_DAILY', 'AI_CAP_PRO_MONTHLY', 'AI_CAP_FREE_DAILY', 'AI_CAP_FUSE',
+  // Chart setup chip tooltips (#1569): moved out of KLineProChart.tsx so the wording is a label, in every language.
+  'CHART_SETUP_PRIME_LONG_TIP', 'CHART_SETUP_PRIME_SHORT_TIP',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];
