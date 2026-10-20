@@ -1,6 +1,6 @@
 -- #1606 (owner, 2026-10-21): the Whop checkout is embedded on /upgrade, with the account email filled and locked, and a four-line explanation of that email above it
--- (copy approved by the owner). TEN NEW keys, five locales: UPGRADE_WHOP_EMAIL_LINE ({email} = the account's address), UPGRADE_WHOP_UNLOCK_LINE,
--- UPGRADE_WHOP_LOGIN_LINE, UPGRADE_WHOP_RECEIPT_LINE, UPGRADE_WHOP_FINAL_NOTE, UPGRADE_WHOP_EMBED_LOADING, UPGRADE_WHOP_EMBED_FALLBACK, UPGRADE_RETURN_PENDING,
+-- (copy approved by the owner). SEVEN NEW keys, five locales: UPGRADE_WHOP_EMAIL_SENTENCE ({email} = the account's address; the owner's one-sentence wording, 2026-10-20, replaces the four
+-- separate lines of the first version), UPGRADE_WHOP_FINAL_NOTE, UPGRADE_WHOP_EMBED_LOADING, UPGRADE_WHOP_EMBED_FALLBACK, UPGRADE_RETURN_PENDING,
 -- UPGRADE_RETURN_FAILED, UPGRADE_RETURN_CANCELED. New keys, so no live label row is overwritten.
 --
 -- The English text is the default in lib/labelDefaults.en.json; ar/ko/ru/zh are machine-translated by Dev and NOT native-reviewed. "Whop" and "Pro" stay in Latin
@@ -12,26 +12,11 @@
 -- running). Run against BOTH lhq_labels (prod, qdpwhnvmhqgzijuwopso) and lhq_dev_labels (dev, wdtjhrilakoitfcezxpx).
 
 insert into lhq_labels (key, locale, value) values
-('UPGRADE_WHOP_EMAIL_LINE','en','Checkout uses your LiquidityHQ email: {email}'),
-('UPGRADE_WHOP_EMAIL_LINE','ar','سيتم الدفع باستخدام بريدك في LiquidityHQ: {email}'),
-('UPGRADE_WHOP_EMAIL_LINE','ko','결제에는 LiquidityHQ 이메일이 사용됩니다: {email}'),
-('UPGRADE_WHOP_EMAIL_LINE','ru','Для оплаты используется ваша почта LiquidityHQ: {email}'),
-('UPGRADE_WHOP_EMAIL_LINE','zh','结账将使用您的 LiquidityHQ 邮箱：{email}'),
-('UPGRADE_WHOP_UNLOCK_LINE','en','Pro unlocks on this account automatically once the payment goes through.'),
-('UPGRADE_WHOP_UNLOCK_LINE','ar','يتم تفعيل Pro على هذا الحساب تلقائيًا بعد إتمام الدفع.'),
-('UPGRADE_WHOP_UNLOCK_LINE','ko','결제가 완료되면 이 계정에서 Pro가 자동으로 활성화됩니다.'),
-('UPGRADE_WHOP_UNLOCK_LINE','ru','Pro включится на этом аккаунте автоматически после оплаты.'),
-('UPGRADE_WHOP_UNLOCK_LINE','zh','付款完成后，此账户将自动开通 Pro。'),
-('UPGRADE_WHOP_LOGIN_LINE','en','It is also your Whop login, where you manage or cancel your plan.'),
-('UPGRADE_WHOP_LOGIN_LINE','ar','وهو أيضًا بريد تسجيل الدخول إلى Whop، حيث يمكنك إدارة خطتك أو إلغاءها.'),
-('UPGRADE_WHOP_LOGIN_LINE','ko','이 이메일은 Whop 로그인에도 사용되며, 그곳에서 플랜을 관리하거나 취소할 수 있습니다.'),
-('UPGRADE_WHOP_LOGIN_LINE','ru','Эта же почта служит логином в Whop, где вы управляете тарифом или отменяете его.'),
-('UPGRADE_WHOP_LOGIN_LINE','zh','它同时是您的 Whop 登录邮箱，可在那里管理或取消您的方案。'),
-('UPGRADE_WHOP_RECEIPT_LINE','en','Your receipts are sent here.'),
-('UPGRADE_WHOP_RECEIPT_LINE','ar','يتم إرسال إيصالاتك إلى هذا البريد.'),
-('UPGRADE_WHOP_RECEIPT_LINE','ko','영수증은 이 이메일로 발송됩니다.'),
-('UPGRADE_WHOP_RECEIPT_LINE','ru','Квитанции отправляются на эту почту.'),
-('UPGRADE_WHOP_RECEIPT_LINE','zh','收据将发送至此邮箱。'),
+('UPGRADE_WHOP_EMAIL_SENTENCE','en','You''ll pay as {email}: Pro unlocks automatically, and Whop uses this email for receipts and to manage or cancel your plan.'),
+('UPGRADE_WHOP_EMAIL_SENTENCE','ar','ستدفع باسم {email}: يتم تفعيل Pro تلقائيًا، وتستخدم Whop هذا البريد للإيصالات ولإدارة خطتك أو إلغائها.'),
+('UPGRADE_WHOP_EMAIL_SENTENCE','ko','{email}(으)로 결제됩니다: Pro가 자동으로 활성화되며, Whop은 이 이메일로 영수증을 보내고 플랜을 관리하거나 취소할 때 사용합니다.'),
+('UPGRADE_WHOP_EMAIL_SENTENCE','ru','Вы оплачиваете как {email}: Pro включится автоматически, а Whop использует эту почту для квитанций и для управления тарифом или его отмены.'),
+('UPGRADE_WHOP_EMAIL_SENTENCE','zh','您将以 {email} 付款：Pro 会自动开通，Whop 使用此邮箱发送收据，并用于管理或取消您的方案。'),
 ('UPGRADE_WHOP_FINAL_NOTE','en','All sales are final.'),
 ('UPGRADE_WHOP_FINAL_NOTE','ar','جميع المبيعات نهائية.'),
 ('UPGRADE_WHOP_FINAL_NOTE','ko','모든 판매는 최종입니다.'),
@@ -67,26 +52,11 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 -- DEV: the same rows against lhq_dev_labels.
 --
 -- insert into lhq_dev_labels (key, locale, value) values
--- ('UPGRADE_WHOP_EMAIL_LINE','en','Checkout uses your LiquidityHQ email: {email}'),
--- ('UPGRADE_WHOP_EMAIL_LINE','ar','سيتم الدفع باستخدام بريدك في LiquidityHQ: {email}'),
--- ('UPGRADE_WHOP_EMAIL_LINE','ko','결제에는 LiquidityHQ 이메일이 사용됩니다: {email}'),
--- ('UPGRADE_WHOP_EMAIL_LINE','ru','Для оплаты используется ваша почта LiquidityHQ: {email}'),
--- ('UPGRADE_WHOP_EMAIL_LINE','zh','结账将使用您的 LiquidityHQ 邮箱：{email}'),
--- ('UPGRADE_WHOP_UNLOCK_LINE','en','Pro unlocks on this account automatically once the payment goes through.'),
--- ('UPGRADE_WHOP_UNLOCK_LINE','ar','يتم تفعيل Pro على هذا الحساب تلقائيًا بعد إتمام الدفع.'),
--- ('UPGRADE_WHOP_UNLOCK_LINE','ko','결제가 완료되면 이 계정에서 Pro가 자동으로 활성화됩니다.'),
--- ('UPGRADE_WHOP_UNLOCK_LINE','ru','Pro включится на этом аккаунте автоматически после оплаты.'),
--- ('UPGRADE_WHOP_UNLOCK_LINE','zh','付款完成后，此账户将自动开通 Pro。'),
--- ('UPGRADE_WHOP_LOGIN_LINE','en','It is also your Whop login, where you manage or cancel your plan.'),
--- ('UPGRADE_WHOP_LOGIN_LINE','ar','وهو أيضًا بريد تسجيل الدخول إلى Whop، حيث يمكنك إدارة خطتك أو إلغاءها.'),
--- ('UPGRADE_WHOP_LOGIN_LINE','ko','이 이메일은 Whop 로그인에도 사용되며, 그곳에서 플랜을 관리하거나 취소할 수 있습니다.'),
--- ('UPGRADE_WHOP_LOGIN_LINE','ru','Эта же почта служит логином в Whop, где вы управляете тарифом или отменяете его.'),
--- ('UPGRADE_WHOP_LOGIN_LINE','zh','它同时是您的 Whop 登录邮箱，可在那里管理或取消您的方案。'),
--- ('UPGRADE_WHOP_RECEIPT_LINE','en','Your receipts are sent here.'),
--- ('UPGRADE_WHOP_RECEIPT_LINE','ar','يتم إرسال إيصالاتك إلى هذا البريد.'),
--- ('UPGRADE_WHOP_RECEIPT_LINE','ko','영수증은 이 이메일로 발송됩니다.'),
--- ('UPGRADE_WHOP_RECEIPT_LINE','ru','Квитанции отправляются на эту почту.'),
--- ('UPGRADE_WHOP_RECEIPT_LINE','zh','收据将发送至此邮箱。'),
+-- ('UPGRADE_WHOP_EMAIL_SENTENCE','en','You''ll pay as {email}: Pro unlocks automatically, and Whop uses this email for receipts and to manage or cancel your plan.'),
+-- ('UPGRADE_WHOP_EMAIL_SENTENCE','ar','ستدفع باسم {email}: يتم تفعيل Pro تلقائيًا، وتستخدم Whop هذا البريد للإيصالات ولإدارة خطتك أو إلغائها.'),
+-- ('UPGRADE_WHOP_EMAIL_SENTENCE','ko','{email}(으)로 결제됩니다: Pro가 자동으로 활성화되며, Whop은 이 이메일로 영수증을 보내고 플랜을 관리하거나 취소할 때 사용합니다.'),
+-- ('UPGRADE_WHOP_EMAIL_SENTENCE','ru','Вы оплачиваете как {email}: Pro включится автоматически, а Whop использует эту почту для квитанций и для управления тарифом или его отмены.'),
+-- ('UPGRADE_WHOP_EMAIL_SENTENCE','zh','您将以 {email} 付款：Pro 会自动开通，Whop 使用此邮箱发送收据，并用于管理或取消您的方案。'),
 -- ('UPGRADE_WHOP_FINAL_NOTE','en','All sales are final.'),
 -- ('UPGRADE_WHOP_FINAL_NOTE','ar','جميع المبيعات نهائية.'),
 -- ('UPGRADE_WHOP_FINAL_NOTE','ko','모든 판매는 최종입니다.'),

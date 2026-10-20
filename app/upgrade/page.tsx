@@ -11,6 +11,8 @@ import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
 
 /* #1606: the embedded Whop checkout. Loaded only when a plan is picked (client only), so the Whop SDK is not part of this page's first load. */
 const WhopCheckoutEmbed = lazy(() => import('@/components/WhopCheckoutEmbed'));
+/** Stands in for the address while the sentence label is split around it, so the address can be rendered bold. */
+const EMAIL_TOKEN = '\u0000EMAIL\u0000';
 
 /* #1567 Phase 2: a plan is buyable when it has a Whop checkout URL (owner, 2026-10-17: Whop only, no MoonPay and no BoomFi button).
    Lemon Squeezy rejected the store and the BoomFi buttons are gone from this page. With no URL set - prod today - the page shows
@@ -78,6 +80,16 @@ export default function UpgradePage() {
   const [selectedPlan, setSelectedPlan] = useState<null | CheckoutPlan>(null);
   /* #1606: the embedded checkout could not load (Whop's script blocked, network down): the panel shows the hosted link instead. */
   const [embedFailed, setEmbedFailed] = useState(false);
+  /* #1606 follow-up: at phone width the embedded checkout gets the full width (owner, "this look squeezed"). Our page gutter, our box padding and Whop's own band and
+     card used to stack to a ~262 px form at 390 px; now only a 12 px gutter is left around it. Desktop is unchanged. */
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 480px)');
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
   /* #1606: where Whop sent the buyer back from the embedded checkout. `status` is read BEFORE anything is said (a declined or abandoned off-site step
      lands here too). Pro is granted by the webhook only, so even 'succeeded' says only that the payment arrived. */
   const [returnStatusRaw, setReturnStatus] = useState<null | 'succeeded' | 'failed' | 'canceled'>(null);
@@ -206,13 +218,18 @@ export default function UpgradePage() {
     </button>
   );
 
+  const embedded = !!(embed && accountEmail && !embedFailed);
+  const embedPhone = embedded && narrow;
   const methodPanel = selectedPlan && (
     <div
       data-testid="checkout-method-panel"
       data-plan={selectedPlan}
       role="group"
       aria-labelledby="checkout-method-title"
-      style={{ position: 'relative', width: '100%', maxWidth: embed && accountEmail && !embedFailed ? 520 : 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
+      style={embedPhone
+        // Phone, embedded: no side padding, no frame. The page's side space here is 16 px (main) + 24 px (page body) = 40 px; the negative margin takes it down to 12 px; the lines inside keep their own 12 px.
+        ? { position: 'relative', width: 'calc(100% + 56px)', marginInline: -28, borderRadius: 0, padding: '12px 0', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }
+        : { position: 'relative', width: '100%', maxWidth: embedded ? 520 : 440, borderRadius: 16, padding: '20px 24px', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
     >
       {/* 32x32 hit area, above SC 2.5.8's 24px minimum; the glyph stays small. */}
       <button
@@ -227,7 +244,7 @@ export default function UpgradePage() {
         ✕
       </button>
       {/* Side padding keeps a long title clear of the X. */}
-      <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', padding: '0 28px', textAlign: 'center' }}>
+      <div id="checkout-method-title" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', padding: '0 40px', textAlign: 'center' }}>
         {t('UPGRADE_WHOP_PANEL_TITLE')}
       </div>
       {/* One method, so the panel is the same height for every plan: the notes below are constant (the BoomFi-only "billed weekly" note and
@@ -235,12 +252,13 @@ export default function UpgradePage() {
       {/* Signed in: which email checkout uses and what it is for (#1606; Whop's own page cannot show our text, so it is said here, above the button).
           Signed out: the plain reminder, there is no address to show. */}
       {accountEmail ? (
-        <div data-testid="checkout-method-whop-email-note" data-prefilled="1" style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center' }}>
-          <p data-testid="checkout-method-whop-email-line" style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', margin: 0, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{t('UPGRADE_WHOP_EMAIL_LINE', { email: accountEmail })}</p>
-          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6 }}>{t('UPGRADE_WHOP_UNLOCK_LINE')}</p>
-          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6 }}>{t('UPGRADE_WHOP_LOGIN_LINE')}</p>
-          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6 }}>{t('UPGRADE_WHOP_RECEIPT_LINE')}</p>
-        </div>
+        // One sentence, the email bold (owner, #1606). The label carries {email}; it is split on a token so the address can be bold without HTML in a label.
+        <p data-testid="checkout-method-whop-email-note" data-prefilled="1" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center', overflowWrap: 'anywhere', padding: embedPhone ? '0 12px' : 0 }}>
+          {(() => {
+            const parts = t('UPGRADE_WHOP_EMAIL_SENTENCE', { email: EMAIL_TOKEN }).split(EMAIL_TOKEN);
+            return <>{parts[0]}<strong data-testid="checkout-method-whop-email-line" style={{ color: 'var(--txt)', fontWeight: 700 }}>{accountEmail}</strong>{parts.slice(1).join('')}</>;
+          })()}
+        </p>
       ) : (
         <p data-testid="checkout-method-whop-email-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
           {t('UPGRADE_WHOP_EMAIL_NOTE')}
@@ -249,10 +267,10 @@ export default function UpgradePage() {
       {embed && accountEmail && !embedFailed ? (
         <>
           <Suspense fallback={<p style={{ margin: 0, padding: '24px 0', textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('UPGRADE_WHOP_EMBED_LOADING')}</p>}>
-            <WhopCheckoutEmbed planId={embed.planId} email={accountEmail} environment={embed.environment} returnUrl={embedReturnUrl} onFailed={() => setEmbedFailed(true)} />
+            <WhopCheckoutEmbed planId={embed.planId} email={accountEmail} environment={embed.environment} returnUrl={embedReturnUrl} onFailed={() => setEmbedFailed(true)} compact={narrow} />
           </Suspense>
           {/* Near the Join button (owner, #1606): the payment is made in the element above, so it is not "finish on Whop" here. */}
-          <p data-testid="checkout-method-whop-final-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
+          <p data-testid="checkout-method-whop-final-note" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, textAlign: 'center', padding: embedPhone ? '0 12px' : 0 }}>
             {t('UPGRADE_WHOP_FINAL_NOTE')}
           </p>
         </>
