@@ -1290,7 +1290,7 @@ export const LABEL_KEYS = [
   // Trial countdown banner. Missed in the original i18n sweep - it shipped
   // with hardcoded English, so a Korean or Arabic user saw English on every
   // page for their whole 14-day trial.
-  'TRIAL_BANNER_LABEL', 'TRIAL_BANNER_FULL_ACCESS',
+  'TRIAL_BANNER_LABEL', 'TRIAL_BANNER_DISMISS',
   'TRIAL_BANNER_DAYS_LEFT', 'TRIAL_BANNER_LAST_DAY', 'TRIAL_BANNER_CTA',
 
   // Telegram connect flow (Alerts page). Replaces the old "paste your Chat ID"
