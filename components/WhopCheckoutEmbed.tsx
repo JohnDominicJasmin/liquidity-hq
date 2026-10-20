@@ -29,11 +29,23 @@ export interface WhopCheckoutEmbedProps {
   returnUrl: string;
   /** Called once if the SDK or the element fails to load, so the page can show the hosted link instead. */
   onFailed: () => void;
+  /** Phone width: take Whop's own inner padding off the element's layout parts so the form gets the room (owner, "this look squeezed"). Chosen at mount. */
+  compact?: boolean;
 }
+
+/* WHAT THE SDK ALLOWS (measured on the real element, @whop/elements 1.9.0). `appearance.classes` restyles the documented `whop-*` parts and ACCEPTS padding:
+ * with `padding: 0` on `whop-Checkout`, `whop-CheckoutLayout` and `whop-CheckoutCollection` the card-number field went from 258 px to 290 px wide in the same 366 px
+ * container (zeroing more parts, the borders and backgrounds, gained only 8 px more and changes Whop's look, so it is not done). `appearance.variables` is not documented for
+ * this element. Whop's own grey band and inset card are not a documented part, so they stay; what is removed here is OUR frame (see app/upgrade/page.tsx). */
+const COMPACT_CLASSES = {
+  'whop-Checkout': { padding: '0px' },
+  'whop-CheckoutLayout': { padding: '0px' },
+  'whop-CheckoutCollection': { padding: '0px' },
+};
 
 const LOAD_TIMEOUT_MS = 15_000;
 
-export default function WhopCheckoutEmbed({ planId, email, environment, returnUrl, onFailed }: WhopCheckoutEmbedProps) {
+export default function WhopCheckoutEmbed({ planId, email, environment, returnUrl, onFailed, compact = false }: WhopCheckoutEmbedProps) {
   const { t } = useLabels();
   // The SDK is loaded once per mount; a failed load is reported through onLoadError, never thrown into the page.
   const elements = useMemo(() => loadWhop(), []);
@@ -61,7 +73,7 @@ export default function WhopCheckoutEmbed({ planId, email, environment, returnUr
       <WhopElements
         elements={elements}
         environment={environment}
-        appearance={{ theme: { appearance: theme } }}
+        appearance={{ theme: { appearance: theme }, ...(compact ? { classes: COMPACT_CLASSES } : {}) }}
         onLoadError={() => fail()}
       >
         <Checkout
