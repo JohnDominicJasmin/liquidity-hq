@@ -103,10 +103,15 @@ export async function claimPendingForAccount(
   for (const p of pending ?? []) {
     const hash = String(p.payload_hash);
     const paymentId = typeof p.resource_id === 'string' ? p.resource_id : '';
-    const pb = (typeof p.body === 'object' && p.body !== null ? p.body : {}) as { delivery_hash?: unknown; reason?: unknown };
-    const put = async (reason: string) => { if (paymentId && typeof pb.delivery_hash === 'string') await recordPendingClaim(sb, { paymentId, deliveryHash: pb.delivery_hash, payerEmail: email, reason }); };
+    const pb = (typeof p.body === 'object' && p.body !== null ? p.body : {}) as { delivery_hash?: unknown; payer_email?: unknown; reason?: unknown };
+    // Put back EXACTLY as it was found: under the row's OWN payer email, never the caller's. If a claim is ever read for the wrong account
+    // (the email filter above is relaxed by mistake), restoring it under the caller's address would hand someone else's payment to them.
+    const ownEmail = typeof pb.payer_email === 'string' ? pb.payer_email : '';
+    const put = async (reason: string) => { if (paymentId && ownEmail && typeof pb.delivery_hash === 'string') await recordPendingClaim(sb, { paymentId, deliveryHash: pb.delivery_hash, payerEmail: ownEmail, reason }); };
 
-    // Take the claim. Only the caller whose delete removes the row goes on.
+    // Take the claim. Only the caller whose delete removes the row goes on. KNOWN LIMIT: the delete is the lock, so a crash between this delete
+    // and the grant below (the process dying, not an error, which puts the row back) loses the claim. Rare and bounded to one payment;
+    // the delivery itself stays stored, so it can be found by payment id.
     const { data: removed, error: delErr } = await sb.from(T.whop_webhook_events).delete().eq('payload_hash', hash).select('payload_hash');
     if (delErr) { out.error = delErr; continue; }
     if (!removed || removed.length === 0) continue;
