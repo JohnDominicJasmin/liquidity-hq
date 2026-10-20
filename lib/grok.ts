@@ -303,7 +303,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '(Divergence between exchanges = different trader bases are positioned differently = potential flow imbalance or arb. Extreme positive = longs overcrowded = flush risk. Extreme negative = shorts overcrowded = squeeze risk.)',
     `Open Interest: ${ctx.openInterest}`,
     `OI 1h Change: ${ctx.oi1hChange}`,
-    `OI Trend vs Price:  ${ctx.oiTrend}`,
+    `OI Trend vs Price (over the last 60 minutes, same window for OI and price):  ${ctx.oiTrend}`,
     '',
     '=== DERIVATIVES - EXTENDED ===',
     /* PRICE premium. Distinct from the ACTIVITY line in the MACRO block below,

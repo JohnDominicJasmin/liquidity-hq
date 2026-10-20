@@ -10,6 +10,7 @@ import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
+import { liveOiTrend, bootstrapReadings, trendBetween, type OiReading } from '@/lib/oiTrendWindow';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
 
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
@@ -142,7 +143,7 @@ export default function MarketProvider(
   /* Whale dedup: track last seen aggTrade id per symbol */
   const lastAggIdRef = useRef<Partial<Record<CoinId, number>>>({});
   /* OI Trend: sliding window of last 4 OI + price readings per coin */
-  const oiHistRef = useRef<Partial<Record<CoinId, Array<{ oi: number; price: number }>>>>({});
+  const oiHistRef = useRef<Partial<Record<CoinId, OiReading[]>>>({});
   // #1192: the 12s mount-time retries for CMC/macro below only make sense
   // when the first attempt actually missed (Render cold start) - these track
   // that so the retry can check instead of firing unconditionally.
@@ -301,26 +302,13 @@ export default function MarketProvider(
         const rawOIValue = parseFloat(item.openInterestValue || '0');
         const curOI = rawOIValue || (parseFloat(item.openInterest || '0') * curPrice);
 
-        /* ── OI Trend vs Price divergence ── */
-        const hist    = oiHistRef.current[coin as CoinId] ?? [];
-        const newHist = [...hist, { oi: curOI, price: curPrice }].slice(-4);
-        oiHistRef.current[coin as CoinId] = newHist;
-
-        let oiTrend: 'strong_up' | 'weak_up' | 'strong_down' | 'weak_down' | null = null;
-        if (newHist.length >= 2) {
-          const first = newHist[0], last = newHist[newHist.length - 1];
-          if (first.oi > 0 && first.price > 0) {
-            const oiChg    = (last.oi    - first.oi)    / first.oi;
-            const priceChg = (last.price - first.price) / first.price;
-            if (Math.abs(oiChg) > 0.003 || Math.abs(priceChg) > 0.002) {
-              const oiUp = oiChg > 0, priceUp = priceChg > 0;
-              if      (oiUp && priceUp)    oiTrend = 'strong_up';
-              else if (oiUp && !priceUp)   oiTrend = 'strong_down';
-              else if (!oiUp && priceUp)   oiTrend = 'weak_up';
-              else                         oiTrend = 'weak_down';
-            }
-          }
-        }
+        /* ── OI Trend vs Price: ONE fixed 60-minute window (#1617, lib/oiTrendWindow.ts) ──
+           The OI and the price are compared over the SAME two moments, an hour apart, with the same thresholds as the Arena's "OI % 1h" card. With no
+           reading about an hour old yet there is no new answer, and the store keeps what the bootstrap set (also a 60-minute window) instead of flipping to a
+           shorter one. */
+        const nowT = Date.now();
+        const oiRead = liveOiTrend(oiHistRef.current[coin as CoinId] ?? [], { t: nowT, oi: curOI, price: curPrice }, nowT);
+        oiHistRef.current[coin as CoinId] = oiRead.history;
 
         /* ── Next FR estimate from mark–index spread ── */
         const markBybit  = parseFloat(item.markPrice   || '0');
@@ -339,7 +327,7 @@ export default function MarketProvider(
           ...(Number.isFinite(parseFloat(item.fundingRate ?? '')) ? { fundingRate: parseFloat(item.fundingRate as string) } : {}),
           oi: curOI,
           perpPrice: curPrice,
-          oiTrend,
+          ...(oiRead.answered ? { oiTrend: oiRead.trend } : {}),
           ...(nextFrBybit !== null ? { nextFrEstimate: nextFrBybit } : {}),
           ...(nextFtMs > 0        ? { nextFundingTime: nextFtMs }    : {}),
         };
@@ -990,7 +978,8 @@ export default function MarketProvider(
        symbol, and they already go through the cached route from batch 1. */
     let oiAll: Record<string, Array<{ openInterest: string }>> = {};
     try {
-      const r = await fetch('/api/market/open-interest?intervalTime=1h&limit=3');
+      // #1617: five-minute points, 13 of them = the rolling last hour, the same 13 samples the Arena card's "OI % 1h" reads.
+      const r = await fetch('/api/market/open-interest?intervalTime=5min&limit=13');
       if (r.ok) oiAll = (await r.json()).data ?? {};
     } catch { /* leave empty; the length guard below already handles no data */ }
 
@@ -1003,38 +992,18 @@ export default function MarketProvider(
           // oiTrend staying null until the live 8-min poll eventually
           // builds its own two readings (the wait this bootstrap exists to
           // avoid in the first place).
-          const klData = await fetchBybitKlinesRetry(sym, '60', 4);
+          const klData = await fetchBybitKlinesRetry(sym, '5', 13);
           if (klData === null) return;
 
-          // Both are newest-first - reverse to oldest-first
-          const oiList: Array<{ openInterest: string }> = [...(oiAll[sym] ?? [])].reverse();
-          const klList: string[][] = [...(klData.result?.list ?? [])].reverse();
-
-          if (oiList.length < 2 || klList.length < 2) return;
-
-          const readings = [
-            { oi: parseFloat(oiList[0].openInterest), price: parseFloat(klList[0][4]) },
-            { oi: parseFloat(oiList[oiList.length - 1].openInterest), price: parseFloat(klList[klList.length - 1][4]) },
-          ].filter(r => r.oi > 0 && r.price > 0);
-
-          if (readings.length < 2) return;
+          // #1617: the rolling last hour, OI and price at the SAME two moments (the newest 5-minute OI point and the one 60 minutes before it, each with the
+          // open of the 5-minute candle that starts then). Anything that does not line up exactly is unknown: nothing is set.
+          const readings = bootstrapReadings(oiAll[sym] as Array<{ openInterest?: unknown; timestamp?: unknown }> | undefined, klData.result?.list);
+          if (!readings) return;
 
           // Pre-populate history so live polls have a baseline
-          oiHistRef.current[coin as CoinId] = readings;
+          oiHistRef.current[coin as CoinId] = [...readings];
 
-          const first = readings[0], last = readings[1];
-          const oiChg    = (last.oi    - first.oi)    / first.oi;
-          const priceChg = (last.price - first.price) / first.price;
-
-          if (Math.abs(oiChg) > 0.002 || Math.abs(priceChg) > 0.001) {
-            const oiUp = oiChg > 0, priceUp = priceChg > 0;
-            const oiTrend: 'strong_up' | 'weak_up' | 'strong_down' | 'weak_down' =
-                  oiUp && priceUp   ? 'strong_up'
-                : oiUp && !priceUp  ? 'strong_down'
-                : !oiUp && priceUp  ? 'weak_up'
-                :                     'weak_down';
-            updateCoin(coin as CoinId, { oiTrend });
-          }
+          updateCoin(coin as CoinId, { oiTrend: trendBetween(readings[0], readings[1]) });
         } catch { /* fail silently */ }
       })
     );
