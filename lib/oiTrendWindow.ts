@@ -10,8 +10,8 @@ import { oiTrend1h, pctChange, type OiTrend } from './oiTrend1h.ts';
  *
  * THE RULE NOW. The trend is over a SIXTY-MINUTE window, the same hour the Arena card's "OI % 1h" (lib/useOI1h.ts, lib/oiTrend1h.ts) uses, with the price
  * change over exactly the same two moments, and the same thresholds (OI >= 0.3% AND price >= 0.2%, both required). A baseline must be a reading whose age
- * is 60 minutes give or take WINDOW_TOLERANCE_MS; with none, there is NO new answer and the store keeps what it had (the bootstrap's hourly pair, which is
- * also 60 minutes). An answer that is "no strong signal" is null, never a stale label and never "flat". */
+ * is 60 minutes give or take WINDOW_TOLERANCE_MS; with none, there is NO new answer and the store keeps what it had (the bootstrap's rolling hour, which is
+ * also 60 minutes, and which is the same 13 five-minute samples the Arena card reads). An answer that is "no strong signal" is null, never a stale label and never "flat". */
 
 export const OI_TREND_WINDOW_MS = 60 * 60_000;
 /** A baseline reading may be this much older or younger than the window and still count as "an hour ago". Wider than one poll (8 minutes). */
@@ -54,20 +54,26 @@ export function liveOiTrend(hist: readonly OiReading[], last: OiReading, now: nu
   return { trend: trendBetween(base, last), history, answered: true };
 }
 
-/** The bootstrap: from Bybit's hourly open-interest points (newest first, each with the interval's start `timestamp`) and hourly klines
- *  ([startTime, open, high, low, close, ...], any order), build the two readings that bound the last completed hour: the newest OI point and the point
- *  one hour before it, each paired with the price at THAT moment (the open of the hourly candle that starts then). Anything that does not line up
- *  exactly, an hour apart, with a candle for both moments, gives null: unknown, not a guess. */
+/** The bootstrap: from Bybit's open-interest points (newest first, each with the interval's start `timestamp`) and klines ([startTime, open, high, low,
+ *  close, ...], any order), build the two readings that bound the ROLLING last 60 minutes: the newest OI point, and the point exactly one window before
+ *  it (with 5-minute points that is 12 steps back, the same 13 samples the Arena card's "OI % 1h" reads). Each is paired with the price at THAT moment: the
+ *  open of the candle that starts then. So the first load answers over the same rolling hour as the card and as every later poll (not "the last
+ *  completed clock hour", which ends up to an hour ago and disagreed with the card for the first ~50 minutes of a session).
+ *  Anything that does not line up (no point one window back, a missing candle, a bad number) gives null: unknown, not a guess. */
 export function bootstrapReadings(
   oiNewestFirst: ReadonlyArray<{ openInterest?: unknown; timestamp?: unknown }> | undefined,
   klines: ReadonlyArray<ReadonlyArray<unknown>> | undefined,
 ): [OiReading, OiReading] | null {
   if (!oiNewestFirst || oiNewestFirst.length < 2 || !klines) return null;
   const n = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? Number(v) : NaN);
-  const t1 = n(oiNewestFirst[0].timestamp), t0 = n(oiNewestFirst[1].timestamp);
-  const oi1 = n(oiNewestFirst[0].openInterest), oi0 = n(oiNewestFirst[1].openInterest);
-  if (![t1, t0, oi1, oi0].every(Number.isFinite) || oi1 <= 0 || oi0 <= 0) return null;
-  if (Math.abs(t1 - t0 - OI_TREND_WINDOW_MS) > 60_000) return null; // not exactly one hour apart
+  const t1 = n(oiNewestFirst[0].timestamp);
+  const oi1 = n(oiNewestFirst[0].openInterest);
+  if (!Number.isFinite(t1) || !Number.isFinite(oi1) || oi1 <= 0) return null;
+  // the point one window before the newest, to within a minute
+  const older = oiNewestFirst.slice(1).find((p) => Math.abs(t1 - n(p.timestamp) - OI_TREND_WINDOW_MS) <= 60_000);
+  if (!older) return null;
+  const t0 = n(older.timestamp), oi0 = n(older.openInterest);
+  if (!Number.isFinite(t0) || !Number.isFinite(oi0) || oi0 <= 0) return null;
   const openAt = (t: number): number | null => {
     const k = klines.find((c) => Math.abs(n(c[0]) - t) < 1000);
     const p = k ? n(k[1]) : NaN;

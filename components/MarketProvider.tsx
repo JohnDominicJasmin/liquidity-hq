@@ -978,7 +978,8 @@ export default function MarketProvider(
        symbol, and they already go through the cached route from batch 1. */
     let oiAll: Record<string, Array<{ openInterest: string }>> = {};
     try {
-      const r = await fetch('/api/market/open-interest?intervalTime=1h&limit=3');
+      // #1617: five-minute points, 13 of them = the rolling last hour, the same 13 samples the Arena card's "OI % 1h" reads.
+      const r = await fetch('/api/market/open-interest?intervalTime=5min&limit=13');
       if (r.ok) oiAll = (await r.json()).data ?? {};
     } catch { /* leave empty; the length guard below already handles no data */ }
 
@@ -991,11 +992,11 @@ export default function MarketProvider(
           // oiTrend staying null until the live 8-min poll eventually
           // builds its own two readings (the wait this bootstrap exists to
           // avoid in the first place).
-          const klData = await fetchBybitKlinesRetry(sym, '60', 4);
+          const klData = await fetchBybitKlinesRetry(sym, '5', 13);
           if (klData === null) return;
 
-          // #1617: the last completed hour, OI and price at the SAME two moments (the newest hourly OI point and the one before it, each with the open of the
-          // hourly candle that starts then). Anything that does not line up exactly is unknown: nothing is set.
+          // #1617: the rolling last hour, OI and price at the SAME two moments (the newest 5-minute OI point and the one 60 minutes before it, each with the
+          // open of the 5-minute candle that starts then). Anything that does not line up exactly is unknown: nothing is set.
           const readings = bootstrapReadings(oiAll[sym] as Array<{ openInterest?: unknown; timestamp?: unknown }> | undefined, klData.result?.list);
           if (!readings) return;
 
