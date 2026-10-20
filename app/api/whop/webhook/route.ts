@@ -4,7 +4,8 @@ import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { verifyWhopWebhook } from '@/lib/whop';
-import { decideWhopEvent, extendedPeriodEnd, readWhopPayment, whopCompanyMatches } from '@/lib/whopEntitlement';
+import { decideWhopEvent, readWhopPayment, whopCompanyMatches } from '@/lib/whopEntitlement';
+import { grantToAccount, recordPendingClaim } from '@/lib/whopGrant';
 import { payerOwnsAccount } from '@/lib/lemonsqueezy';
 
 /* Whop webhook (#1567). Phase 1 was a recording shell; Phase 3 (below the record) turns a verified, PAID payment for one of OUR plans
@@ -136,7 +137,12 @@ export async function POST(req: NextRequest) {
   // carries nothing else. No match is review. (Supabase auth emails are unique and stored lower-case, so "more than one" cannot occur.)
   const { data: accountId, error: idErr } = await sb.rpc(userIdByEmailFn, { p_email: decision.payerEmail });
   if (idErr) return failAndForget(sb, payloadHash, 'account lookup by email', idErr);
-  if (typeof accountId !== 'string' || !accountId) return reviewResponse(eventName, paymentId, 'no_account_for_payer_email');
+  if (typeof accountId !== 'string' || !accountId) {
+    // Paid, for one of our plans, and nobody to give it to YET. Leave a pending claim: when this email signs up or signs in,
+    // /api/whop/claim grants from the stored delivery with the same rules (lib/whopGrant.ts). Best effort; reported if it fails.
+    await leaveClaim(sb, paymentId, payloadHash, decision.payerEmail, 'no_account_for_payer_email');
+    return reviewResponse(eventName, paymentId, 'no_account_for_payer_email');
+  }
 
   const { data: acct, error: acctErr } = await sb.auth.admin.getUserById(accountId);
   if (acctErr && !/not found/i.test(acctErr.message ?? '')) return failAndForget(sb, payloadHash, 'account read', acctErr);
@@ -145,39 +151,23 @@ export async function POST(req: NextRequest) {
   if (!payerOwnsAccount(decision.payerEmail, acct.user.email)) return reviewResponse(eventName, paymentId, 'payer_email_does_not_match_account');
   // Someone can sign up with an address that is not theirs and never confirm it; the person who then PAYS with that address would be
   // buying Pro for the squatter. Only a confirmed address can receive a payment's Pro.
-  if (!acct.user.email_confirmed_at) return reviewResponse(eventName, paymentId, 'account_email_not_confirmed');
-
-  const { data: stored, error: storedErr } = await sb
-    .from(T.user_subscriptions)
-    .select('role, current_period_end, billing_provider')
-    .eq('user_id', accountId)
-    .maybeSingle();
-  if (storedErr) return failAndForget(sb, payloadHash, 'stored-subscription read', storedErr);
-  // An admin grant (Pro with no end date, no processor) is not time-limited. A payment must not turn it into one.
-  if (stored?.role === 'pro' && !stored.current_period_end && !stored.billing_provider) {
-    return reviewResponse(eventName, paymentId, 'account_has_admin_grant');
+  if (!acct.user.email_confirmed_at) {
+    await leaveClaim(sb, paymentId, payloadHash, decision.payerEmail, 'account_email_not_confirmed');
+    return reviewResponse(eventName, paymentId, 'account_email_not_confirmed');
   }
 
-  const now = new Date();
-  // Counted from the later of now and the stored end: a renewal never loses days already paid for, and a lapsed account counts from now.
-  // An end date that is already later than this one is therefore never shortened.
-  const periodEnd = extendedPeriodEnd(stored?.current_period_end as string | null | undefined, now, decision.add);
-  const row = {
-    user_id: accountId,
-    role: 'pro',
-    current_period_end: periodEnd.toISOString(),
-    billing_provider: 'whop',
-    updated_at: now.toISOString(),
-  };
-  let { error: writeErr } = await sb.from(T.user_subscriptions).upsert({ ...row, plan: decision.plan }, { onConflict: 'user_id' });
-  // `plan` is the one OPTIONAL column (migration 20261001h). If the database does not have it yet, the grant must still succeed with the
-  // plan simply not recorded - "paid and not Pro" is the failure to avoid. Only a complaint about THAT column triggers the retry.
-  if (writeErr && /plan/.test(writeErr.message ?? '') && /column|PGRST204|schema cache/i.test(`${writeErr.code ?? ''} ${writeErr.message ?? ''}`)) {
-    ({ error: writeErr } = await sb.from(T.user_subscriptions).upsert(row, { onConflict: 'user_id' }));
-  }
-  if (writeErr) return failAndForget(sb, payloadHash, 'subscription write', writeErr);
+  const res = await grantToAccount(sb, accountId, decision);
+  if (res.kind === 'error') return failAndForget(sb, payloadHash, res.what, res.err);
+  if (res.kind === 'review') return reviewResponse(eventName, paymentId, res.reason);
 
-  return NextResponse.json({ received: true, recorded: true, granted: decision.plan, period_end: periodEnd.toISOString() });
+  return NextResponse.json({ received: true, recorded: true, granted: res.plan, period_end: res.periodEnd.toISOString() });
+}
+
+/** The pending claim for a paid payment that could not be given to an account yet. A failure to write it is reported, never turned into a
+ *  failed delivery (the delivery itself is already recorded). */
+async function leaveClaim(sb: ReturnType<typeof getSupabaseAdmin>, paymentId: string, deliveryHash: string, payerEmail: string, reason: string) {
+  const r = await recordPendingClaim(sb, { paymentId, deliveryHash, payerEmail, reason });
+  if (!r.ok) apiError('whop/webhook', new Error(`could not leave a pending claim for payment ${paymentId}: ${(r.error as { message?: string })?.message ?? String(r.error)}`));
 }
 
 /** A payment or event that cannot be applied safely, and needs a person. Reported with the payment id so it can be found in the

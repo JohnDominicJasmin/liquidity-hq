@@ -429,6 +429,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           method: 'POST',
           headers: { Authorization: `Bearer ${session!.access_token}` },
         }).catch(() => {});
+        /* #1567: a buyer who paid on Whop before this account existed (or was confirmed) has a payment waiting for this email. This is the
+           other half of the Whop unlock: the route grants it, once, by the same rules as the webhook. Best effort, and silent: it tells the
+           page nothing except how many it applied, and a grant makes the subscription read run again so Pro shows without a reload. */
+        fetch('/api/whop/claim', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session!.access_token}` },
+        })
+          .then(r => (r.ok ? r.json() : null))
+          .then((b: { granted?: number } | null) => { if (b && typeof b.granted === 'number' && b.granted > 0) setEntitlementsRetryNonce(n => n + 1); })
+          .catch(() => {});
       }
     });
 
