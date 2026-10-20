@@ -111,6 +111,17 @@ export function usageTierOf(e: Entitlement): UsageTier {
   return e.role === 'pro' ? 'pro' : e.trialActive ? 'trial' : 'free';
 }
 
+// getUsageTier() plus whether the read FAILED, for a gate that must tell "this account is Free" from "I could not find out" (#1596, the coin
+// ladder on /api/grok). A failed read still resolves to 'free' here, as getEntitlement() always has, so the caller decides what a failure means.
+export async function getUsageTierStatus(token: string, userId: string): Promise<{ tier: UsageTier; failed: boolean }> {
+  try {
+    const { entitlement, failed } = await readEntitlement(token, userId);
+    return { tier: usageTierOf(entitlement), failed };
+  } catch {
+    return { tier: 'free', failed: true };
+  }
+}
+
 // Drop-in replacement for getUserRole() at any call site that is choosing a
 // USAGE LIMIT. Same signature, but returns 'trial' instead of collapsing a
 // trial user onto 'free'. Every AI route should use this; getUserRole stays

@@ -25,7 +25,10 @@ export async function callGrokViaProxy(
   prompt: string,
   tf: string,
   session: string,
-  type: 'quick' | 'deep'
+  type: 'quick' | 'deep',
+  /** The coin the read is about (a coin id, e.g. 'xrp'). The server refuses Quick and Deep on a coin outside BTC/ETH/SOL for an account that
+   *  has not paid (#1596); it cannot read the coin out of the prompt, so it is sent beside it. */
+  coin?: string
 ): Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }> {
   const token = await getAuthToken();
 
@@ -35,7 +38,7 @@ export async function callGrokViaProxy(
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ prompt, tf, session, type }),
+    body: JSON.stringify({ prompt, tf, session, type, coin }),
   });
 
   if (!res.ok) {
@@ -45,6 +48,10 @@ export async function callGrokViaProxy(
     // state - used as the message it reached Arena's banner as the raw text "PRO_REQUIRED".
     if (res.status === 403 && err.error === 'PRO_REQUIRED') {
       throw Object.assign(new Error('PRO_REQUIRED'), { code: 'PRO_REQUIRED', usage: err.usage });
+    }
+    // #1596: refused because the coin is Pro-only for this account. Passed on as a code so the page shows its labelled line, not raw text.
+    if (res.status === 403 && err.code === 'COIN_LOCKED') {
+      throw Object.assign(new Error('COIN_LOCKED'), { code: 'COIN_LOCKED', usage: err.usage });
     }
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`

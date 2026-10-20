@@ -4,7 +4,8 @@ import { recordAiCall } from '@/lib/aiCallLog';
 import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
-import { getEntitlementStatus, getUsageTier } from '@/lib/entitlements';
+import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
+import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
@@ -83,8 +84,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'AI Arena is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   }
 
-  const { prompt, tf, session, type } = await req.json() as {
-    prompt: string; tf: string; session: string; type: 'quick' | 'deep';
+  const { prompt, tf, session, type, coin } = await req.json() as {
+    prompt: string; tf: string; session: string; type: 'quick' | 'deep'; coin?: string;
   };
 
   // The prompt is assembled in the browser (lib/grok.ts) and sent whole, so its
@@ -132,6 +133,29 @@ export async function POST(req: NextRequest) {
       { error: 'PRO_REQUIRED', message: `Fast timeframes (${GATED_TFS.join(', ')}) are a Pro feature.` },
       { status: 403 }
     );
+  }
+
+  // ── Coin ladder (#1596) ───────────────────────────────────────────────────
+  // Free AND free trial (anyone who has not PAID) get Quick and Deep on BTC, ETH and SOL only; paid Pro gets every coin. This is enforced
+  // here and not only by a disabled button, because a page check can be bypassed and every call costs money at xAI. It runs BEFORE the usage
+  // reservation below, so a refused request counts against no quota and makes no xAI request.
+  //
+  // The coin is the one the request DECLARES. The prompt is built in the browser, so a hand-made request can still describe another coin under
+  // coin=btc; closing that means building the prompt on the server (the same limit the fast-timeframe gate above states). Names, spacing and
+  // case do not matter: ' XRP ' and 'Xrp' are the locked coin 'xrp'. A request that names no coin is refused for anyone who has not paid.
+  //
+  // A plan read that FAILED is neither Free nor Pro: for a coin on the Free list it goes through as it always did, and for any other coin it is
+  // answered 503 PLAN_UNKNOWN (retry), never PRO_REQUIRED-style "you are not Pro" and never an AI call - a paying user is not told they are
+  // Free, and a locked coin does not run on a guess.
+  const coinPlan = await getUsageTierStatus(token!, userId);
+  if (!aiCoinAllowed(coinPlan.tier, coin)) {
+    if (coinPlan.failed) {
+      return NextResponse.json({ error: 'Could not check your plan. Try again in a moment.', code: 'PLAN_UNKNOWN' }, { status: 503 });
+    }
+    if (normalizeCoinId(coin) === null) {
+      return NextResponse.json({ error: 'Reload the page and try again.', code: 'COIN_REQUIRED' }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'This coin is Pro only.', code: 'COIN_LOCKED' }, { status: 403 });
   }
 
   // ── Rate limit check ──────────────────────────────────────────────────────
