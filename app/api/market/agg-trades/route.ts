@@ -23,6 +23,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BINANCE_SYM_TO_COIN, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 /* hype is excluded to match the caller: it is not a Binance listing, so a
    request for it is a guaranteed 400 from upstream and one wasted call per
@@ -156,7 +157,7 @@ export async function GET(req: NextRequest) {
       ...(viaFallback?.length ? { viaFallback } : {}),
       ts: Date.now(),
     }, {
-      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
+      headers: { 'Cache-Control': polledCacheControl(60) },
     });
   } catch (e) {
     reportHealth('binance:agg-trades', 'market', false, String(e));

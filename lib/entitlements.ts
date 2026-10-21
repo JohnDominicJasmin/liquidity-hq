@@ -2,10 +2,11 @@
 // separate copy-pasted copies (grok, grok-chat, briefing routes). Reads through
 // a user-scoped Supabase client (RLS: "sub_select_own") so a token can only
 // ever read its own role, never someone else's.
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import type { UsageTier } from '@/lib/limits';
 import { paidPeriodLapsed } from '@/lib/paidPeriod';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 /* Re-exported so call sites keep one import. The logic lives in lib/paidPeriod
    because this file cannot be unit-tested - see the note at the top of it. */
@@ -14,19 +15,7 @@ export { paidPeriodLapsed, PAID_GRACE_MS } from '@/lib/paidPeriod';
 export type Role = 'free' | 'pro';
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
-}
-
-export async function getUserRole(token: string, userId: string): Promise<Role> {
-  const { data } = await sb(token).from(T.user_subscriptions)
-    .select('role')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return data?.role === 'pro' ? 'pro' : 'free';
+  return userClient(token);
 }
 
 export interface Entitlement {
@@ -111,23 +100,24 @@ export function usageTierOf(e: Entitlement): UsageTier {
   return e.role === 'pro' ? 'pro' : e.trialActive ? 'trial' : 'free';
 }
 
-// Drop-in replacement for getUserRole() at any call site that is choosing a
-// USAGE LIMIT. Same signature, but returns 'trial' instead of collapsing a
-// trial user onto 'free'. Every AI route should use this; getUserRole stays
-// for the places that genuinely mean "has this account paid".
-export async function getUsageTier(token: string, userId: string): Promise<UsageTier> {
-  return usageTierOf(await getEntitlement(token, userId));
+// getUsageTier() plus whether the read FAILED, for a gate that must tell "this account is Free" from "I could not find out" (#1596, the coin
+// ladder on /api/grok). A failed read still resolves to 'free' here, as getEntitlement() always has, so the caller decides what a failure means.
+export async function getUsageTierStatus(token: string, userId: string): Promise<{ tier: UsageTier; failed: boolean }> {
+  try {
+    const { entitlement, failed } = await readEntitlement(token, userId);
+    return { tier: usageTierOf(entitlement), failed };
+  } catch {
+    return { tier: 'free', failed: true };
+  }
 }
 
-// Resolves the bearer token straight to a role, returning 'free' for any
-// missing/invalid/anonymous token rather than throwing - callers gate on the
-// returned role, not on whether this function succeeded.
-export async function getRoleFromRequestToken(token: string | null): Promise<Role> {
-  if (!token) return 'free';
-  const { data: userData } = await sb(token).auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) return 'free';
-  return getUserRole(token, userId);
+// The usage tier for a call site that is choosing a USAGE LIMIT: 'trial' is its
+// own value, never collapsed onto 'free'. Every AI route should use this. (The
+// role-only getUserRole / getRoleFromRequestToken helpers are gone (#1630): they
+// had no callers and read the stored role without the paid-period rule, a trap
+// for the next route. "Has this account paid" is getEntitlement().role.)
+export async function getUsageTier(token: string, userId: string): Promise<UsageTier> {
+  return usageTierOf(await getEntitlement(token, userId));
 }
 
 // getEntitlementStatus() for a route that serves anyone but withholds the Pro
@@ -137,7 +127,7 @@ export async function getRoleFromRequestToken(token: string | null): Promise<Rol
 export async function getEntitlementStatusFromRequestToken(token: string | null | undefined): Promise<EntitlementStatus> {
   if (!token) return 'not_entitled';
   try {
-    const { data } = await sb(token).auth.getUser();
+    const { data } = await getUserCompat(token);
     const userId = data.user?.id;
     if (!userId) return 'not_entitled';
     return await getEntitlementStatus(token, userId);

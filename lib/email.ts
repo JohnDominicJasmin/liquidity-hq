@@ -321,12 +321,15 @@ export async function sendTrialEndingEmail(args: TrialEndingArgs): Promise<boole
   /* Only promise a purchase path when one actually exists. Until Pro is on
      sale, /upgrade renders "Pro payments launching soon" - so a plain "Keep
      Pro" link would send the most interested user we have, on the day they are
-     most willing to pay, to a page that cannot take their money. isProBuyable is
+     most willing to pay, to a page that cannot take their money. isCryptoCheckoutConfigured (BoomFi's link, parked and unset on prod) is
      the same answer /upgrade renders from, so the email and the page agree by
      construction (#861: this read the Lemon Squeezy link after /upgrade had
      moved to BoomFi, and would have said "not on sale yet" while the page was
      selling). The rest of the email still sends either way: its real job is
      warning that features are about to lock, which is true regardless. */
+  /* #1630 GO-LIVE 5: isProBuyable, the same switch /upgrade renders from (the Whop monthly link). Until #1599 the Whop unlock did not exist, so this
+     read BoomFi's (parked) link on purpose; with the unlock shipped, reading BoomFi made the email say "Pro is not on sale yet" on the day /upgrade
+     sells through Whop. The page and the email agree again by construction. */
   const checkoutLive = isProBuyable();
   const cta = checkoutLive
     ? `<p style="margin:0 0 12px">Keep Pro: <a href="${upgradeUrl}">${upgradeUrl}</a></p>`

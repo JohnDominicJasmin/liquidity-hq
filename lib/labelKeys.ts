@@ -248,6 +248,8 @@ export const LABEL_KEYS = [
   'UPGRADE_METHOD_CRYPTO_NOTE', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE',
   // Owner, 2026-10-08: honest crypto-payment copy - what to pay in (under the plan price), what happens at checkout (under the pay button).
   'UPGRADE_CRYPTO_NETWORKS_NOTE', 'UPGRADE_CRYPTO_CHECKOUT_NOTE',
+  // #1567 Phase 2: the Whop payment panel (replaces the crypto/BoomFi panel copy above, which stays defined but is no longer rendered).
+  'UPGRADE_WHOP_FINAL_NOTE', 'UPGRADE_WHOP_EMBED_LOADING', 'UPGRADE_WHOP_EMBED_FALLBACK', 'UPGRADE_RETURN_PENDING', 'UPGRADE_RETURN_FAILED', 'UPGRADE_RETURN_CANCELED', 'UPGRADE_WHOP_EMAIL_SENTENCE', 'UPGRADE_WHOP_PANEL_TITLE', 'UPGRADE_WHOP_CTA', 'UPGRADE_WHOP_EMAIL_NOTE', 'UPGRADE_WHOP_CHECKOUT_NOTE',
   // #861: the X that closes the payment-method panel.
   'UPGRADE_METHOD_PANEL_CLOSE_ARIA',
   'UPGRADE_COMING_SOON_TITLE', 'UPGRADE_COMING_SOON_SIGNED_IN_PRE', 'UPGRADE_COMING_SOON_SIGNED_IN_POST',
@@ -439,6 +441,8 @@ export const LABEL_KEYS = [
   'ARENA_NOTIF_SENTIMENT_BULL_TITLE', 'ARENA_NOTIF_SENTIMENT_BULL_BODY',
   // Arena - readMarket errors
   'ARENA_ERROR_NO_DATA_SOURCE', 'ARENA_ERROR_BINANCE_API', 'ARENA_ERROR_BYBIT_API', 'ARENA_ERROR_UNKNOWN', 'ARENA_READ_FAST_TF_PRO_REQUIRED',
+  // Arena - Free/trial coin lock (#1596)
+  'ARENA_COIN_LOCK_LINE', 'ARENA_COIN_LOCK_PANEL',
   // Arena - page header, category tabs, scanner bell
   'ARENA_PAGE_TITLE', 'ARENA_LIVE_BADGE', 'ARENA_PAGE_SUBTITLE', 'ARENA_HINT_TITLE', 'ARENA_HINT_BODY',
   'ARENA_CAT_ALL', 'ARENA_CAT_MAJORS', 'ARENA_CAT_ALTS', 'ARENA_CAT_DEFI', 'ARENA_CAT_MEME',
@@ -1286,7 +1290,7 @@ export const LABEL_KEYS = [
   // Trial countdown banner. Missed in the original i18n sweep - it shipped
   // with hardcoded English, so a Korean or Arabic user saw English on every
   // page for their whole 14-day trial.
-  'TRIAL_BANNER_LABEL', 'TRIAL_BANNER_FULL_ACCESS',
+  'TRIAL_BANNER_LABEL', 'TRIAL_BANNER_DISMISS',
   'TRIAL_BANNER_DAYS_LEFT', 'TRIAL_BANNER_LAST_DAY', 'TRIAL_BANNER_CTA',
 
   // Telegram connect flow (Alerts page). Replaces the old "paste your Chat ID"
@@ -1309,6 +1313,8 @@ export const LABEL_KEYS = [
   'SETTINGS_SUB_LOAD_FAILED',
   // AI dollar caps (#1399 part 2). Owner-approved copy (PM batch with cancel copy).
   'AI_CAP_PRO_DAILY', 'AI_CAP_PRO_MONTHLY', 'AI_CAP_FREE_DAILY', 'AI_CAP_FUSE',
+  // Chart setup chip tooltips (#1569): moved out of KLineProChart.tsx so the wording is a label, in every language.
+  'CHART_SETUP_PRIME_LONG_TIP', 'CHART_SETUP_PRIME_SHORT_TIP',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];

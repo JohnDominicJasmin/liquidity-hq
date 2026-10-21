@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, isAuthApiError, isAuthSessionMissingError } from '@supabase/supabase-js';
+import { isAuthApiError, isAuthSessionMissingError } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { apiError } from '@/lib/apiError';
+import { userClient } from '@/lib/supabase-user';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,11 +22,7 @@ export async function GET(req: NextRequest) {
   // /settings shows as "Couldn't check".
   try {
     const userToken = authHeader.replace('Bearer ', '');
-    const sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: `Bearer ${userToken}` } } }
-    );
+    const sb = userClient(userToken);
 
     const { data: { user }, error: authError } = await sb.auth.getUser();
     if (!user) {

@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { hasProFeatures } from '@/lib/entitlements';
+import { ACTIVE_ALERT_CAP, PRICE_ALERT_PRUNE_AT, PRICE_ALERT_PRUNE_TO, TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 export const dynamic = 'force-dynamic';
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  return userClient(token);
 }
 
 async function getUser(token: string) {
-  const { data } = await sb(token).auth.getUser();
+  const { data } = await getUserCompat(token);
   return data.user ?? null;
 }
 
@@ -81,6 +79,26 @@ export async function POST(req: NextRequest) {
   const { coin, target_price, direction, label } = body;
   if (!coin || !target_price || !direction)
     return NextResponse.json({ error: 'coin, target_price, direction required' }, { status: 400 });
+  // #1632 M9: the same limits the database enforces (migration 20261021e), said first so the user gets a clear message.
+  if (label != null && (typeof label !== 'string' || label.length > TEXT_LIMITS.alertLabel)) {
+    return NextResponse.json({ error: 'TOO_LONG', message: `The note can be at most ${TEXT_LIMITS.alertLabel} characters.` }, { status: 400 });
+  }
+  const { count: activeCount, error: countErr } = await sb(token).from(T.price_alerts)
+    .select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('active', true);
+  if (countErr) return apiError('price-alerts', countErr);
+  if ((activeCount ?? 0) >= ACTIVE_ALERT_CAP) {
+    return NextResponse.json({ error: 'ALERT_LIMIT', message: `You can have up to ${ACTIVE_ALERT_CAP} active price alerts. Delete one to add another.` }, { status: 400 });
+  }
+  // Old switched-off alerts are pruned before they can reach the database's total row cap (lib/ownRowLimits.ts). Best effort: a failure here
+  // only means the prune waits for the next new alert.
+  const { count: totalCount } = await sb(token).from(T.price_alerts)
+    .select('id', { count: 'exact', head: true }).eq('user_id', user.id);
+  if ((totalCount ?? 0) >= PRICE_ALERT_PRUNE_AT) {
+    const { data: oldest } = await sb(token).from(T.price_alerts)
+      .select('id').eq('user_id', user.id).eq('active', false)
+      .order('created_at', { ascending: true }).limit((totalCount ?? 0) - PRICE_ALERT_PRUNE_TO);
+    if (oldest?.length) await sb(token).from(T.price_alerts).delete().eq('user_id', user.id).in('id', oldest.map(r => r.id));
+  }
 
   const { data, error } = await sb(token)
     .from(T.price_alerts)
@@ -88,7 +106,11 @@ export async function POST(req: NextRequest) {
     .select()
     .single();
 
-  if (error) return apiError('price-alerts', error);
+  if (error) {
+    const refusal = limitRefusal(error);
+    if (refusal) return NextResponse.json({ error: refusal.error, message: refusal.message }, { status: refusal.status });
+    return apiError('price-alerts', error);
+  }
   return NextResponse.json({ alert: data });
 }
 

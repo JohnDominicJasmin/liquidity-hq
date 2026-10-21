@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
-import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { hasProFeatures, getUsageTier } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { pctChange, buildMacroPrompt } from '@/lib/macroContext';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // DXY/VIX/gold/oil/10Y don't meaningfully shift within a few minutes - cache
@@ -20,11 +21,7 @@ class RateLimitError extends Error {
 }
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
+  return userClient(token);
 }
 
 interface YFMeta { regularMarketPrice: number; previousClose: number; shortName?: string }
@@ -86,7 +83,7 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only feature - checked server-side so the paid Grok call can't be

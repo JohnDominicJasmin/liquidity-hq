@@ -426,12 +426,13 @@ async function processOrderFlowCoin(coin: CoinId, yearsBack: number): Promise<Si
     const t = candle.time;
     const price = candle.close;
 
-    const rsi15m = simpleRSI14(c15m.slice(Math.max(0, i - 14), i + 1).map(c => c.close));
+    // #1626 C: ~120 closed candles of history so Wilder's average has settled, like the live card.
+    const rsi15m = simpleRSI14(c15m.slice(Math.max(0, i - 120), i + 1).map(c => c.close));
 
     const idx1h = lastClosedIndexBefore(c1h, t, TF_MS['1h']);
     const idx4h = lastClosedIndexBefore(c4h, t, TF_MS['4h']);
-    const rsi1h = idx1h >= 14 ? simpleRSI14(c1h.slice(Math.max(0, idx1h - 14), idx1h + 1).map(c => c.close)) : null;
-    const rsi4h = idx4h >= 14 ? simpleRSI14(c4h.slice(Math.max(0, idx4h - 14), idx4h + 1).map(c => c.close)) : null;
+    const rsi1h = idx1h >= 14 ? simpleRSI14(c1h.slice(Math.max(0, idx1h - 120), idx1h + 1).map(c => c.close)) : null;
+    const rsi4h = idx4h >= 14 ? simpleRSI14(c4h.slice(Math.max(0, idx4h - 120), idx4h + 1).map(c => c.close)) : null;
 
     const vp = computeVolumeProfile(c15m.slice(Math.max(0, i - OF_VP_WINDOW + 1), i + 1));
     if (!vp) continue;

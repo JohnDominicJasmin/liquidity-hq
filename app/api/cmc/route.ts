@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { cached } from '@/lib/apiCache';
+import { polledCacheControl } from '@/lib/cacheHeaders';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 const CMC_KEY = process.env.CMC_API_KEY ?? '';
 const BASE    = 'https://pro-api.coinmarketcap.com';
@@ -35,11 +37,7 @@ function reportCmc(source: string, res: Response, body: unknown, items?: number)
 }
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  return userClient(token);
 }
 
 // Still intentionally unauthenticated (public market data, called for
@@ -50,7 +48,7 @@ async function attributedUser(req: NextRequest): Promise<string> {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return 'anon';
   try {
-    const { data } = await sb(token).auth.getUser();
+    const { data } = await getUserCompat(token);
     return data.user?.id ?? 'anon';
   } catch {
     return 'anon';
@@ -66,7 +64,7 @@ async function attributedUser(req: NextRequest): Promise<string> {
    "rate limit exceeded" payload at the edge for five minutes and take the
    feature down for everyone. Errors stay uncached and retry immediately. */
 const CMC_CACHE = (ok: boolean) =>
-  ok ? { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } : undefined;
+  ok ? { 'Cache-Control': polledCacheControl(300) } : undefined;
 
 /* SERVER-SIDE CACHE, because the header above never cached anything (#1397).
    `s-maxage` is a shared-cache hint: staging has nothing in front of Render, and

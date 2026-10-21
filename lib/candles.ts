@@ -136,6 +136,14 @@ export function closedCandleTtl(intervalMs: number, fallbackTtlMs: number, nowMs
   return Math.max(msUntilNextClose(intervalMs, nowMs) + CLOSE_SKEW_MS, fallbackTtlMs);
 }
 
+/** The open time of the CURRENT candle of this interval, as of CLOSE_SKEW_MS ago (#1626 A): what a closed-candle cache entry is keyed by, so a
+ *  close starts a new entry. The skew keeps the old key for the first few seconds after a close, so the exchange has the closed candle before
+ *  anyone fetches it and every caller does not switch at the same instant. UTC-aligned, like the exchanges' candles. */
+export function closedCandleKey(intervalMs: number, nowMs: number): number {
+  if (!(intervalMs > 0)) return 0;
+  return Math.floor((nowMs - CLOSE_SKEW_MS) / intervalMs) * intervalMs;
+}
+
 export interface Bar {
   timestamp: number; open: number; high: number; low: number; close: number; volume: number;
 }

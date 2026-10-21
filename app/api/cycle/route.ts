@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 export interface CyclePoint { day: number; ratio: number; }
 
@@ -112,7 +113,7 @@ export async function GET(req: NextRequest) {
       '2024': cycle2024,
       currentDay,
     } satisfies CycleData, {
-      headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' },
+      headers: { 'Cache-Control': polledCacheControl(300) },
     });
   } catch (e) {
     return apiError('cycle', e, 500, 'Request failed');

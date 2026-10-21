@@ -25,6 +25,9 @@ export async function register() {
   // client exists. See lib/envCheck.ts for why only one rule throws.
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     reportEnv(checkEnv());
+    // #1397: a memory line in the log every 10 minutes (lib/memWatch.ts), so a rise in the instance's memory names what grew.
+    const { startMemWatch } = await import('@/lib/memWatch');
+    startMemWatch();
   }
 }
 

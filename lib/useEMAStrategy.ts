@@ -61,7 +61,11 @@ export interface StrategySignal {
   /* The signal coin gate (lib/signalCoinGate.ts). Set by gateSignal() when this coin's signals are locked on the viewer's plan.
      `lockedMarkers` are where signals WERE, with no direction: always the candle's high, so a marker's position says nothing. */
   signalLock?: 'signed_out' | 'free' | null;
+  /* True while the viewer's plan is still loading AND this coin is not on the Free list (gateSignal 'pending'): nothing is locked yet, but nothing
+     that implies a signal may show either (the chart's setup chip reads this, so it does not flash on a coin that then locks). */
+  planPending?: boolean;
   lockedMarkers: Array<{ timestamp: number; anchorPrice: number }>;
+  counterTrend: boolean;   // the ribbon's setup is against the daily 200 SMA (judgeRibbon)
   atrLast:    number | null;  // last ATR(14) - for Grok context
   ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
   chopIndex:  number | null;  // Choppiness Index (0-100) - high = range-bound
@@ -159,7 +163,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
-  signalLongs: [], signalShorts: [], pendingSetup: null, lockedMarkers: [], signalLock: null,
+  signalLongs: [], signalShorts: [], pendingSetup: null, lockedMarkers: [], signalLock: null, counterTrend: false,
   atrLast: null, ema50Slope: null,
   chopIndex: null, chopRegime: null,
   reversalWarnings: [],
@@ -669,8 +673,11 @@ export function useEMAStrategy(
           return p > 0 && Math.abs(e9arr[k] - e20arr[k]) / p >= SPREAD_MIN_PCT;
         };
 
-        // Primary signal: gated by 200 SMA (used for EMA ribbon card + Grok context)
-        if (above200D) {
+        // Primary signal for the EMA ribbon card and the Grok context. It follows judgeRibbon's direction - the ribbon's own,
+        // not only the one the daily 200 SMA allows - so the AI context never names a long where the panel says short (owner,
+        // option 1). A tangled ribbon (no direction) falls back to the 200 SMA's side, as before.
+        const scanLong = judged.setupDir ? judged.setupDir === 'long' : above200D;
+        if (scanLong) {
           for (let i = cRibbon.length - 1; i >= 1; i--) {
             const e50i = e50arr[i] ?? 0;
             const atrBuf = (atr14[i] ?? 0) * ATR_MULT;
@@ -747,7 +754,7 @@ export function useEMAStrategy(
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir,
-          signalLongs, signalShorts, pendingSetup, lockedMarkers,
+          signalLongs, signalShorts, pendingSetup, lockedMarkers, counterTrend,
           chopIndex, chopRegime,
           reversalWarnings,
           atrLast, ema50Slope,
@@ -888,5 +895,7 @@ export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
   const sltp    = sig.sl && sig.tp
     ? ` · SL $${sig.sl.toFixed(4)} · TP $${sig.tp.toFixed(4)}`
     : '';
-  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase} · ${condStr}${sltp}`;
+  // judgeRibbon already ends the phase with the flag; this covers a phase that a selected indicator rewrote.
+  const counter = sig.counterTrend && !sig.phase.includes('counter-trend') ? ' · COUNTER-TREND vs the daily 200 SMA' : '';
+  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase}${counter} · ${condStr}${sltp}`;
 }

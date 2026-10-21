@@ -51,7 +51,9 @@ test('the marker is gated on the data, not re-derived in the view', () => {
      nowhere else, so the view must not invent its own rule - a second definition
      of "is this a guess" is a second thing to drift. */
   assert.match(API, /estimated\?: boolean/, 'the API no longer carries an estimated flag');
-  assert.match(API, /estimated: true/, 'computed entries are no longer flagged at the source');
+  /* #1625: no source in the route computes a date any more (lib/econSchedule.ts is the agencies' published schedule), so nothing sets the flag.
+     The field stays in the CalEvent type for the view's marker; this assertion used to require `estimated: true` from computeMacroSchedule. */
+  assert.equal(/estimated:s*true/.test(API), false, 'an entry is flagged estimated again - the route is supposed to carry only published dates (#1625)');
   assert.equal(/estimated:\s*false/.test(API), false,
     'a scheduled entry is now explicitly flagged rather than left absent - if that is ' +
     'deliberate, the view\'s truthiness check still works, but say so here');

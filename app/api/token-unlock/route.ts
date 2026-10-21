@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Vesting schedules don't change hour to hour, and every visitor checking the
@@ -19,11 +20,7 @@ class RateLimitError extends Error {
 }
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
+  return userClient(token);
 }
 
 function buildUnlockPrompt(symbol: string): string {
@@ -52,7 +49,7 @@ export async function POST(req: NextRequest) {
   const authToken = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!authToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await sb(authToken).auth.getUser();
+  const { data: authData } = await getUserCompat(authToken);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only. This tool is reachable in-product only from /backtest, which

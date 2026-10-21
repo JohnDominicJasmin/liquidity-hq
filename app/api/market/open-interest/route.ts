@@ -11,6 +11,7 @@ import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { feedFor } from '@/lib/marketFeeds';
 import { resolveFeedSnapshot } from '@/lib/marketSnapshot';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 const INTERVALS = new Set(['5min', '15min', '30min', '1h', '4h', '1d']);
 /* Capped, and small. Each distinct limit is another fan-out of 50 upstream
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
         droppedSymbols: snap.droppedSymbols,
         stale: snap.stale,
         from: 'snapshot',
-      }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } });
+      }, { headers: { 'Cache-Control': polledCacheControl(120) } });
     }
     /* Transition state, removed once the cron entry exists and the UI can say
        "not available yet" - identical reasoning and the same hard age limit as
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest) {
        /api/market/snapshot uses for `partial`. Reported unhealthy too: a run cut
        short by a ban is not a success with fewer rows. */
     return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: Date.now() }, {
-      headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' },
+      headers: { 'Cache-Control': polledCacheControl(120) },
     });
   } catch (e) {
     reportHealth('bybit:open-interest', 'market', false, String(e));

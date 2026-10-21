@@ -78,12 +78,15 @@ export const metadata: Metadata = {
     siteName: 'LiquidityHQ',
     title: 'LiquidityHQ - Crypto Market Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
-    images: [{ url: '/icons/icon-512.jpg', width: 512, height: 512, alt: 'LiquidityHQ' }],
+    // #1633: this pointed at /icons/icon-512.jpg, which does not exist (404), so every shared link showed no picture. The file is a .png.
+    // A real 1200x630 share image is a separate, owner-approved piece of work.
+    images: [{ url: '/icons/icon-512.png', width: 512, height: 512, alt: 'LiquidityHQ' }],
   },
   twitter: {
     card: 'summary',
     title: 'LiquidityHQ',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
+    images: ['/icons/icon-512.png'],
   },
   appleWebApp: {
     capable: true,

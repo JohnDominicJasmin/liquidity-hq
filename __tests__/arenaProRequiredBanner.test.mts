@@ -59,10 +59,12 @@ async function proxyAnswers(status: number, body: unknown) {
 }
 
 test('CONTROL. a 200 from the proxy resolves with the body, so a throw below is the mapping and not the stub', async () => {
-  globalThis.fetch = (async () => Response.json({ result: { signal: 'WAIT' }, usage: null })) as typeof fetch;
+  // A complete, valid result: the proxy boundary now refuses an answer with no real signal (#1583), so the control must send a real one.
+  const result = { signal: 'FLAT', confidence: 40, levels: [], chartAnalysis: '', patterns: [], reasoning: '', catalysts: [], waitFor: null, bias: null, raidSetup: null, raidTarget: null, raidTrigger: null, analyzedAt: 1, tf: '1h', session: 'london' };
+  globalThis.fetch = (async () => Response.json({ result, usage: null })) as typeof fetch;
   try {
     const out = await callGrokViaProxy('prompt', '1h', 'london', 'quick');
-    assert.deepEqual(out, { result: { signal: 'WAIT' }, usage: null });
+    assert.deepEqual(out, { result, usage: null });
   } finally { globalThis.fetch = realFetch; }
 });
 
@@ -127,7 +129,7 @@ test('P2. the banner shows an Upgrade link to /upgrade only while readProLocked,
 test('P3. every new read starts by clearing the error AND the locked flag together, and the locked flag has no other way to stay set', () => {
   anchorOnce(arena, 'setReadLoading(true); setReadError(\'\'); setReadProLocked(false);', 'the reset at the start of a read');
   const sets = [...arena.matchAll(/setReadProLocked\((true|false)\)/g)].map((m) => m[1]);
-  assert.equal(sets.filter((s) => s === 'true').length, 1, `readProLocked is set true in ${sets.filter((s) => s === 'true').length} places; only the PRO_REQUIRED branch should`);
+  assert.equal(sets.filter((s) => s === 'true').length, 2, `readProLocked is set true in ${sets.filter((s) => s === 'true').length} places; only the PRO_REQUIRED and COIN_LOCKED (#1596) branches should`);
   assert.ok(sets.filter((s) => s === 'false').length >= 2, 'the no-data-source path and the new-read path should both clear it');
 });
 

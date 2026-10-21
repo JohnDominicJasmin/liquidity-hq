@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import { TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
+  return userClient(token);
 }
 
 function auth(req: NextRequest) {
@@ -18,7 +16,7 @@ function auth(req: NextRequest) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const token = auth(req);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
@@ -36,7 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const token = auth(req);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   const userId = authData.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -68,6 +66,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!['supporting','against','neutral'].includes(body.type)) {
     return NextResponse.json({ error: 'type must be supporting, against, or neutral' }, { status: 400 });
   }
+  if (body.content.length > TEXT_LIMITS.evidenceContent || (body.source?.length ?? 0) > TEXT_LIMITS.evidenceSource) {
+    return NextResponse.json({ error: 'TOO_LONG', message: `Evidence up to ${TEXT_LIMITS.evidenceContent} characters, source up to ${TEXT_LIMITS.evidenceSource}.` }, { status: 400 });
+  }
 
   const { data, error } = await sb(token)
     .from(T.hypothesis_evidence)
@@ -81,14 +82,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select()
     .single();
 
-  if (error) return apiError('hypotheses/[id]/evidence', error);
+  if (error) {
+    const refusal = limitRefusal(error);
+    if (refusal) return NextResponse.json({ error: refusal.error, message: refusal.message }, { status: refusal.status });
+    return apiError('hypotheses/[id]/evidence', error);
+  }
   return NextResponse.json({ evidence: data }, { status: 201 });
 }
 
 export async function DELETE(req: NextRequest) {
   const token = auth(req);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const evidenceId = req.nextUrl.searchParams.get('evidenceId');

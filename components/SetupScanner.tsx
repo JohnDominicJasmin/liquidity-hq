@@ -4,6 +4,7 @@ import { useMarket, COINS, CoinId, CoinData, computeSqueezeScore, classifyFundin
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
+import { formatRsi } from '@/lib/rsi';
 
 type FilterDir = 'all' | 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
 
@@ -20,8 +21,7 @@ function fmtVR(r: number | null): string {
   return r.toFixed(2) + 'x';
 }
 function fmtRSI(r: number | null): string {
-  if (r == null) return '-';
-  return r.toFixed(0);
+  return formatRsi(r);
 }
 
 interface ScanRow {
@@ -65,9 +65,10 @@ function TakerBadge({ ratio }: { ratio: number | null }) {
 function RsiBadge({ rsi }: { rsi: number | null }) {
   const { t } = useLabels();
   if (rsi == null) return null;
-  const v = Math.round(rsi);
-  if (v >= 70) return <span className="scan-badge scan-badge-bear">{t('SETUP_SCANNER_RSI_VAL', { v })}</span>;
-  if (v <= 30) return <span className="scan-badge scan-badge-bull">{t('SETUP_SCANNER_RSI_VAL', { v })}</span>;
+  // #1626 C: compare the real value, show one decimal - rounding first made 29.6 read "30" and lose its oversold badge.
+  const v = formatRsi(rsi);
+  if (rsi >= 70) return <span className="scan-badge scan-badge-bear">{t('SETUP_SCANNER_RSI_VAL', { v })}</span>;
+  if (rsi <= 30) return <span className="scan-badge scan-badge-bull">{t('SETUP_SCANNER_RSI_VAL', { v })}</span>;
   return <span className="scan-badge scan-badge-neu">{t('SETUP_SCANNER_RSI_VAL', { v })}</span>;
 }
 

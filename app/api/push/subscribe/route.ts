@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { fetchAuthUser } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +14,9 @@ async function getUser(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
   if (!token) return null;
   try {
-    const { data: { user } } = await getSupabaseAdmin().auth.getUser(token);
-    return user ?? null;
+    // #1397 review: this route WRITES with the service role on the strength of the token alone, so it asks Auth (fetchAuthUser): a signed-out,
+    // banned or deleted account is refused at once, not when its token expires. A deliberate user action, so the round trip is cheap.
+    return await fetchAuthUser(token);
   } catch { return null; }
 }
 

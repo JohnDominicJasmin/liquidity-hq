@@ -12,7 +12,7 @@ import { useLabels } from '@/lib/labels';
 interface Detail {
   id: string; email: string | null; createdAt: string; lastSignInAt: string | null;
   banned: boolean; bannedUntil: string | null; banReason: string | null;
-  subscription: { role: 'free' | 'pro'; lsStatus: string | null; currentPeriodEnd: string | null };
+  subscription: { role: 'free' | 'pro'; lsStatus: string | null; currentPeriodEnd: string | null; billingProvider?: string | null; manualGrant?: boolean };
   onboarding: { tourSeen: boolean; checklistDone: number; checklistTotal: number };
   pushSubscriptions: number;
   counts: { trades: number; hypotheses: number; priceAlerts: number };
@@ -24,7 +24,7 @@ interface Detail {
   margin14d: number;
 }
 
-type UserAction = 'grant_pro' | 'revoke_pro' | 'ban' | 'unban' | 'reset_ai_limit';
+type UserAction = 'revoke_pro' | 'ban' | 'unban' | 'reset_ai_limit';
 
 export default function UserDetailPage() {
   const { t } = useLabels();
@@ -127,13 +127,11 @@ export default function UserDetailPage() {
 
             <CardShell title={t('OPS_USER_DETAIL_ACTIONS')} loading={false} error={null} hasData span2>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {data.subscription.role === 'pro' ? (
+                {/* #1630 GO-LIVE 4: no Grant Pro (Pro comes only from a payment). Revoke Pro only for a Pro with no payment behind it; the server
+                    refuses it on a paid account either way. */}
+                {data.subscription.role === 'pro' && data.subscription.manualGrant && (
                   <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('revoke_pro')}>
                     {busy === 'revoke_pro' ? t('OPS_USER_DETAIL_WORKING') : t('OPS_USER_DETAIL_REVOKE_PRO')}
-                  </button>
-                ) : (
-                  <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('grant_pro')}>
-                    {busy === 'grant_pro' ? t('OPS_USER_DETAIL_WORKING') : t('OPS_USER_DETAIL_GRANT_PRO')}
                   </button>
                 )}
                 {data.banned ? (

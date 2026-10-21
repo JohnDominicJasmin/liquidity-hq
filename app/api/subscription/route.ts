@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { isLsApiConfigured } from '@/lib/lemonsqueezyApi';
+import { planKindOfRow } from '@/lib/paidPeriod';
+import { getUserCompat } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,12 +20,8 @@ export const dynamic = 'force-dynamic';
 async function getAuthedUserId(req: NextRequest): Promise<string | null> {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return null;
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
-  const { data } = await sb.auth.getUser();
+  // #1397: verified locally (lib/authUser.ts), no Auth round trip per request.
+  const { data } = await getUserCompat(token);
   return data.user?.id ?? null;
 }
 
@@ -36,7 +33,7 @@ export async function GET(req: NextRequest) {
     const db = getSupabaseAdmin();
     const { data, error } = await db
       .from(T.user_subscriptions)
-      .select('role, ls_status, ls_subscription_id, current_period_end')
+      .select('role, trial_ends_at, ls_status, ls_subscription_id, current_period_end')
       .eq('user_id', userId)
       .maybeSingle();
     // Fail closed: an unknown state must not render a Cancel button that would
@@ -44,7 +41,8 @@ export async function GET(req: NextRequest) {
     // "couldn't load" rather than a wrong control.
     if (error) { console.error('[subscription] GET:', error.message); return NextResponse.json({ error: 'Failed to load' }, { status: 503 }); }
 
-    const role = (data?.role as string) ?? 'free';
+    /* #1630 GO-LIVE 1: the role the account is on NOW. A stored 'pro' whose paid period (+48 h) has lapsed is reported as free, like everywhere else. */
+    const role = planKindOfRow(data, Date.now()) === 'pro' ? 'pro' : 'free';
     const lsStatus = (data?.ls_status as string) ?? null;
     const currentPeriodEnd = (data?.current_period_end as string) ?? null;
     const hasSubscription = Boolean(data?.ls_subscription_id);

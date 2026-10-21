@@ -7,9 +7,12 @@ import {
   isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly,
   isCryptoCheckoutConfigured, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly,
   isProBuyable,
+  isWhopCheckoutConfigured, isWhopCheckoutConfiguredAnnual, isWhopCheckoutConfiguredFortnightly,
+  getWhopEmbed,
 } from './checkout.ts';
 import { isLsApiConfigured } from './lemonsqueezyApi.ts';
 import { analyticsKey } from './analytics.ts';
+import { whopPlanTable } from './whopEntitlement.ts';
 
 /* Which integrations does THIS host actually have? (#282)
  *
@@ -51,16 +54,34 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
     /* The crypto links (#861). These three, not the three above, are what
        /upgrade gates on now - so these are the flags that say whether a plan
        button renders on this host. Same read the page uses. */
-    /* What /upgrade and the trial-ending email both go by: is Pro on sale here
-       at all. One flag to read instead of inferring it from the links. */
+    /* What /upgrade goes by: is the Whop monthly link set, so Pro can be bought here at all (#1567 Phase 2; it was BoomFi's link before). A display
+       switch only: the trial-ending email and the BoomFi grant do NOT follow it. */
     proBuyable:                isProBuyable(env),
     cryptoCheckout:            isCryptoCheckoutConfigured(env),
     cryptoCheckoutAnnual:      isCryptoCheckoutConfiguredAnnual(env),
     cryptoCheckoutFortnightly: isCryptoCheckoutConfiguredFortnightly(env),
+    /* The Whop links (#1567 Phase 2). These are what /upgrade gates its buttons on now, and `proBuyable` above is the monthly one. The BoomFi flags
+       above are kept because the BoomFi webhook grant and the trial-ending email still gate on them (parked, unset on prod). */
+    whopCheckout:              isWhopCheckoutConfigured(env),
+    whopCheckoutAnnual:        isWhopCheckoutConfiguredAnnual(env),
+    whopCheckoutFortnightly:   isWhopCheckoutConfiguredFortnightly(env),
     lemonsqueezyWebhook: set(env.LEMONSQUEEZY_WEBHOOK_SECRET),
     /* Both, because either one missing refuses every delivery: no key fails
        the signature check, no organisation id fails the check after it. */
     boomfiWebhook: set(env.BOOMFI_WEBHOOK_PUBLIC_KEY) && set(env.BOOMFI_ORG_ID),
+    /* The Whop webhook secret (#1567, Phase 1). A boolean only, never the value. Unset refuses every delivery. */
+    whopWebhook: set(env.WHOP_WEBHOOK_SECRET),
+    /* Which Whop plan ids the unlock will grant for on this environment (#1567 Phase 3): WHOP_PLAN_ID_MONTHLY / _ANNUAL / _FORTNIGHTLY. Booleans
+       only, never the ids. A plan that is unset, duplicated or equal to the record-only test plan reads false, and its payments go to review. */
+    whopPlanMonthly:     Object.values(whopPlanTable(env)).some((r) => r.plan === 'monthly'),
+    whopPlanAnnual:      Object.values(whopPlanTable(env)).some((r) => r.plan === 'annual'),
+    whopPlanFortnightly: Object.values(whopPlanTable(env)).some((r) => r.plan === 'fortnightly'),
+    /* #1630 GO-LIVE 3: does the plan's CHECKOUT LINK (what a buyer pays on) carry the same plan id the unlock grants for (WHOP_PLAN_ID_*)? If not,
+       every buyer of that plan pays and is refused as unknown_plan. Booleans only. false = the link or the id is unset, or they differ; read it with
+       whopCheckout* and whopPlan* above to tell which. */
+    whopPlanMatchesLinkMonthly:     whopLinkMatchesPlan('monthly', env),
+    whopPlanMatchesLinkAnnual:      whopLinkMatchesPlan('annual', env),
+    whopPlanMatchesLinkFortnightly: whopLinkMatchesPlan('fortnightly', env),
     /* The LS REST API key the cancel route needs (#1396). Same read the route
        and the settings panel gate on (isLsApiConfigured), so cancel-availability
        is observable per environment - set on qa (test), unset on staging/prod
@@ -100,4 +121,13 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
        non-prod host false is the desired state, not a gap. */
     cronSecret: set(env.CRON_SECRET),
   };
+}
+
+/** True when the plan's Whop checkout link names a plan id that the unlock's table (WHOP_PLAN_ID_*) maps to that same plan. */
+function whopLinkMatchesPlan(plan: 'monthly' | 'annual' | 'fortnightly', env: Record<string, string | undefined>): boolean {
+  const linkPlanId = getWhopEmbed(plan, env)?.planId;
+  if (!linkPlanId) return false;
+  const table = whopPlanTable(env);
+  const row = Object.prototype.hasOwnProperty.call(table, linkPlanId) ? table[linkPlanId] : undefined;
+  return !!row && row.plan === plan;
 }

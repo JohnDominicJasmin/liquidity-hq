@@ -7,6 +7,7 @@ import posthog from 'posthog-js';
 import { T } from '@/lib/tables';
 import { clearPlanBadgeCache } from '@/lib/planBadgeCache';
 import { retryWithBackoff } from '@/lib/retryWithBackoff';
+import { planKindOfRow } from '@/lib/paidPeriod';
 
 // #1119, owner ruling 2026-09-11: a failed/timed-out subscription read is a
 // DIFFERENT fact than a confirmed free account, and the two must not collapse
@@ -429,6 +430,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           method: 'POST',
           headers: { Authorization: `Bearer ${session!.access_token}` },
         }).catch(() => {});
+        /* #1567: a buyer who paid on Whop before this account existed (or was confirmed) has a payment waiting for this email. This is the
+           other half of the Whop unlock: the route grants it, once, by the same rules as the webhook. Best effort, and silent: it tells the
+           page nothing except how many it applied, and a grant makes the subscription read run again so Pro shows without a reload. */
+        fetch('/api/whop/claim', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session!.access_token}` },
+        })
+          .then(r => (r.ok ? r.json() : null))
+          .then((b: { granted?: number } | null) => { if (b && typeof b.granted === 'number' && b.granted > 0) setEntitlementsRetryNonce(n => n + 1); })
+          .catch(() => {});
       }
     });
 
@@ -501,7 +512,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
        at the type level, even though it behaves like a real promise at
        runtime. try/catch (not just .catch() below) covers a genuine
        rejection from that same call, for the same reason. */
-    async function attempt(n: number, remainingBudgetMs: number): Promise<{ data: { role?: string; trial_ends_at?: string | null } | null; failed: boolean }> {
+    async function attempt(n: number, remainingBudgetMs: number): Promise<{ data: { role?: string; trial_ends_at?: string | null; current_period_end?: string | null } | null; failed: boolean }> {
       if (qaForcedEntitlementsFailure()) return { data: null, failed: true };
       try {
         // #1173: bound this attempt at whichever is shorter - the per-attempt
@@ -509,7 +520,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // late attempt can't run the full 15s past the budget.
         const { data, error } = await Promise.resolve(
           sb!.from(T.user_subscriptions)
-            .select('role, trial_ends_at')
+            .select('role, trial_ends_at, current_period_end')
             .eq('user_id', userId!)
             .abortSignal(AbortSignal.timeout(Math.min(ENTITLEMENTS_FETCH_MS, remainingBudgetMs)))
             .maybeSingle(),
@@ -540,7 +551,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
            longer resolves to this same free/null shape silently - see
            entitlementStatus's derivation for what a genuine failure now
            produces instead. */
-        setRole(data?.role === 'pro' ? 'pro' : 'free');
+        /* #1630 GO-LIVE 1: paid Pro ends when the paid time (plus the 48 h grace) ends, not only in the AI routes. A stored role of 'pro' with a
+           lapsed period end reads as free here, the same rule every server reader now uses (planKindOfRow). */
+        setRole(planKindOfRow(data, Date.now()) === 'pro' ? 'pro' : 'free');
         const t = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : null;
         setTrialEndsAt(t);
         setEntitlementsLoading(false);

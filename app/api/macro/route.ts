@@ -4,6 +4,7 @@ import { reportHealth, healthError } from '@/lib/apiHealth';
 import { cached } from '@/lib/apiCache';
 import { fetchFredRows } from '@/lib/fred';
 import { computeRealYield, REAL_YIELD_SERIES } from '@/lib/realYield';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 // Yahoo Finance v8 works fine server-to-server (no CORS restriction from a server).
 // It only blocks browser requests via proxies (proxy IPs get 401).
@@ -153,6 +154,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(
     { oil, dxy, spx, gold, jpy, real10y },
-    { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } },
+    { headers: { 'Cache-Control': polledCacheControl(300) } },
   );
 }

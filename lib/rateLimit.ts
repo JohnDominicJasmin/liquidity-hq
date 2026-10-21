@@ -3,7 +3,29 @@
 // in-memory Map is sufficient - same pattern as the cooldown Map already
 // used in app/api/telegram/alert/route.ts.
 
-const buckets = new Map<string, { count: number; resetAt: number }>();
+type Bucket = { count: number; resetAt: number; limit: number };
+/* globalThis-backed so every compiled copy of this module (routes, instrumentation) shares one table, see lib/apiCache.ts. */
+const rl = ((globalThis as { __lhqRateLimit?: { buckets: Map<string, Bucket>; overflow: Map<string, Bucket> } }).__lhqRateLimit ??= { buckets: new Map(), overflow: new Map() });
+const buckets = rl.buckets;
+
+/* Hard cap on live buckets (#1397). The sweep below only drops EXPIRED buckets, and a flood of distinct keys (one per IP per route) inside one
+   window is all live. 20,000 is far past any real concurrent-visitor count here.
+
+   WHICH bucket goes when the cap is hit matters (two rounds of security review on this change). Dropping the oldest regardless would let a flood of
+   throwaway keys flush the buckets that are BLOCKING someone. So eviction looks only at the oldest EVICT_SCAN buckets (O(1), never a full scan on the
+   request path) and takes the first that is expired or still under its limit; a bucket at its limit is never evicted. If those oldest few are all
+   live blockers, nothing is evicted and the NEW key goes into a small separate OVERFLOW table (OVERFLOW_MAX, oldest dropped) so it is still counted and
+   limited: refusing it would let an attacker who parks 20,000 blocked keys lock every new visitor out of every rate-limited route, and leaving it
+   untracked would hand that visitor an unlimited rate. A flood can only churn the overflow table, never the parked blockers. */
+const MAX_BUCKETS = 20_000;
+const EVICT_SCAN = 64;
+const OVERFLOW_MAX = 1_000;
+const overflow = rl.overflow;
+
+/** Live bucket count, for lib/memWatch.ts. */
+export function _bucketCount(): number {
+  return buckets.size + overflow.size;
+}
 
 // Periodic sweep so the Map doesn't grow unbounded across many distinct IPs.
 // unref'd so importing this module doesn't keep a plain `node --test` process
@@ -16,15 +38,39 @@ const sweep = setInterval(() => {
   for (const [key, b] of buckets) {
     if (now > b.resetAt) buckets.delete(key);
   }
+  for (const [key, b] of overflow) {
+    if (now > b.resetAt) overflow.delete(key);
+  }
 }, 5 * 60_000);
 (sweep as { unref?: () => void }).unref?.();
 
 /** Returns true if the request is allowed, false if the limit was exceeded. */
 export function rateLimit(key: string, limit: number, windowMs: number): boolean {
   const now = Date.now();
-  const b = buckets.get(key);
+  const b = buckets.get(key) ?? overflow.get(key);
   if (!b || now > b.resetAt) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
+    buckets.delete(key);
+    overflow.delete(key);
+    if (buckets.size >= MAX_BUCKETS) {
+      let victim: string | null = null;
+      let seen = 0;
+      for (const [k, v] of buckets) {
+        if (now > v.resetAt || v.count < v.limit) { victim = k; break; }
+        if (++seen >= EVICT_SCAN) break;
+      }
+      if (victim === null) {
+        // the oldest few are all live blockers: track the new key in the overflow table instead of evicting one of them
+        overflow.set(key, { count: 1, resetAt: now + windowMs, limit });
+        while (overflow.size > OVERFLOW_MAX) {
+          const oldest = overflow.keys().next();
+          if (oldest.done) break;
+          overflow.delete(oldest.value);
+        }
+        return true;
+      }
+      buckets.delete(victim);
+    }
+    buckets.set(key, { count: 1, resetAt: now + windowMs, limit });
     return true;
   }
   if (b.count >= limit) return false;

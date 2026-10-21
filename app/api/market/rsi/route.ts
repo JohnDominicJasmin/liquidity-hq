@@ -82,28 +82,29 @@ const BN_ENDPOINTS = [
 
 type Endpoint = (typeof BN_ENDPOINTS)[number];
 
-/* Binance interval string → the MarketStore field it populates. Limits are the
-   ones the client used. computeRSI14 only ever reads the last 14 changes, so
-   16 vs 20 candles produces the same number - they are kept as they were so
-   this route is a pure move, not a re-tune. */
+/* Binance interval string → the MarketStore field it populates. #1626 C (standard Wilder RSI): 120 candles, so the 119 CLOSED ones give the
+   Wilder average room to settle (it remembers its seed; 16-20 candles left it close to the old simple mean). Weight: Binance counts a
+   101-500 limit as 2 instead of 1, per request; the route's own 3/15-minute cache is unchanged. A coin listed for fewer than 120 months
+   simply returns what it has. */
+const RSI_HISTORY = 120;
 const BN_TIMEFRAMES = [
-  { interval: '5m', limit: 16, field: 'rsi5m'      },
-  { interval: '1h', limit: 16, field: 'rsi1h'      },
-  { interval: '4h', limit: 16, field: 'rsi4h'      },
-  { interval: '1d', limit: 20, field: 'rsiDaily'   },
-  { interval: '1w', limit: 20, field: 'rsiWeekly'  },
-  { interval: '1M', limit: 20, field: 'rsiMonthly' },
+  { interval: '5m', limit: RSI_HISTORY, field: 'rsi5m'      },
+  { interval: '1h', limit: RSI_HISTORY, field: 'rsi1h'      },
+  { interval: '4h', limit: RSI_HISTORY, field: 'rsi4h'      },
+  { interval: '1d', limit: RSI_HISTORY, field: 'rsiDaily'   },
+  { interval: '1w', limit: RSI_HISTORY, field: 'rsiWeekly'  },
+  { interval: '1M', limit: RSI_HISTORY, field: 'rsiMonthly' },
 ] as const;
 
 /* HYPE has no Binance perp, so its six values come from Bybit, whose interval
    codes are minutes-as-numbers plus D/W/M. Bybit returns newest-first. */
 const BB_TIMEFRAMES = [
-  { interval: '5',   limit: 16, field: 'rsi5m'      },
-  { interval: '60',  limit: 16, field: 'rsi1h'      },
-  { interval: '240', limit: 16, field: 'rsi4h'      },
-  { interval: 'D',   limit: 20, field: 'rsiDaily'   },
-  { interval: 'W',   limit: 20, field: 'rsiWeekly'  },
-  { interval: 'M',   limit: 20, field: 'rsiMonthly' },
+  { interval: '5',   limit: RSI_HISTORY, field: 'rsi5m'      },
+  { interval: '60',  limit: RSI_HISTORY, field: 'rsi1h'      },
+  { interval: '240', limit: RSI_HISTORY, field: 'rsi4h'      },
+  { interval: 'D',   limit: RSI_HISTORY, field: 'rsiDaily'   },
+  { interval: 'W',   limit: RSI_HISTORY, field: 'rsiWeekly'  },
+  { interval: 'M',   limit: RSI_HISTORY, field: 'rsiMonthly' },
 ] as const;
 
 type RsiField = (typeof BN_TIMEFRAMES)[number]['field'];
@@ -189,13 +190,16 @@ async function fetchCloses(job: Job, ep: Endpoint): Promise<number[] | null> {
     if (!res.ok) return null;
     const body = await res.json();
 
+    /* #1626 C: CLOSED candles only. Bybit lists newest-first and its first row is always the candle still forming (for every interval,
+       months and weeks included), so it is dropped. Binance rows carry their own close time (index 6): a row is closed once that has passed. */
     if (job.bybit) {
       const list = body?.result?.list;
       if (!Array.isArray(list)) return null;
-      return [...list].reverse().map((k: string[]) => parseFloat(k[4]));
+      return [...list].slice(1).reverse().map((k: string[]) => parseFloat(k[4]));
     }
     if (!Array.isArray(body)) return null;
-    return body.map((k: string[]) => parseFloat(k[4]));
+    const now = Date.now();
+    return body.filter((k: (string | number)[]) => Number(k[6]) < now).map((k: string[]) => parseFloat(k[4]));
   } catch (e) {
     if (e instanceof HttpStatusError) throw e;
     return null;

@@ -4,6 +4,7 @@ import { useMarket, COINS, CoinId, computeSqueezeScore } from '@/lib/marketStore
 import { withAlpha } from '@/lib/color';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
+import { formatRsi } from '@/lib/rsi';
 
 type TFDir = 'FLUSH' | 'SQUEEZE' | 'NEUTRAL';
 
@@ -268,7 +269,7 @@ export default function MultiTFSqueezeView() {
                       fontSize: 'var(--fs-caption)', fontWeight: 600, color: sig.rsi != null ? cols.text : 'var(--txt-dim)',
                       fontVariantNumeric: 'tabular-nums',
                     }}>
-                      {sig.rsi != null ? Math.round(sig.rsi) : '-'}
+                      {formatRsi(sig.rsi)}
                     </span>
                   </div>
                 </div>
