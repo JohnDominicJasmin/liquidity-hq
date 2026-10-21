@@ -111,8 +111,10 @@ function sendTrialEmail(links: Partial<Record<keyof typeof K, string>>): Sent {
 const keepPro = (html: string) => /Keep Pro: <a href="https:\/\/app\.example\.test\/upgrade">/.test(html);
 const notOnSale = (html: string) => html.includes('Pro is not on sale yet');
 
-test('E1. only the BoomFi monthly link set (production, the day crypto goes on sale): the email says "Keep Pro" and links /upgrade', { timeout: 90_000 }, () => {
-  const sent = sendTrialEmail({ crypto: CRYPTO });
+/* E1, E3 and S2 changed with #1630 GO-LIVE 5 (Dev, intentionally): the email now follows isProBuyable (the Whop monthly link), like /upgrade, because the
+   Whop unlock exists (#1599). Before, it read BoomFi's link on purpose. A BoomFi link alone now means "not on sale", the same as /upgrade. */
+test('E1. the Whop monthly link set (production, the day Whop goes on sale): the email says "Keep Pro" and links /upgrade', { timeout: 90_000 }, () => {
+  const sent = sendTrialEmail({ whop: WHOP });
   assert.equal(sent.ok, true);
   assert.equal(sent.to, 'trial@example.test');
   assert.equal(keepPro(sent.html), true, 'with Pro on sale the email offers no way to keep it');
@@ -125,10 +127,11 @@ test('E2. only a Lemon Squeezy link set (qa and staging today): the email says P
   assert.equal(keepPro(sent.html), false, 'the email promises a purchase path on a host where /upgrade shows "coming soon"');
 });
 
-test('E3. nothing set: not on sale. Both set: Keep Pro. Another plan\'s BoomFi link alone: not on sale, same as /upgrade', { timeout: 120_000 }, () => {
+test('E3. nothing set: not on sale. Whop plus others set: Keep Pro. BoomFi alone, or another plan\'s Whop link alone: not on sale, same as /upgrade', { timeout: 120_000 }, () => {
   assert.equal(notOnSale(sendTrialEmail({}).html), true);
-  assert.equal(keepPro(sendTrialEmail({ crypto: CRYPTO, ls: LS }).html), true);
-  const annualOnly = sendTrialEmail({ cryptoAnnual: CRYPTO });
+  assert.equal(keepPro(sendTrialEmail({ whop: WHOP, crypto: CRYPTO, ls: LS }).html), true);
+  assert.equal(notOnSale(sendTrialEmail({ crypto: CRYPTO }).html), true, 'a BoomFi link alone made the email promise a purchase /upgrade does not offer');
+  const annualOnly = sendTrialEmail({ whopAnnual: WHOP });
   assert.equal(notOnSale(annualOnly.html), true, 'an annual link with no monthly one renders no buttons on /upgrade, so the email must not promise a purchase');
 });
 
@@ -151,11 +154,11 @@ test('S1. UpgradeGateModal and FullPageUpgradeGate read no payment setting and a
   assert.equal(/lemonsqueezy|boomfi|getCheckoutUrl|getCryptoCheckoutUrl|process\.env/i.test(src), false, 'the prompt names a payment provider, a checkout getter or an environment value');
 });
 
-test('S2. /upgrade asks isProBuyable() (Whop); the email and the BoomFi grant ask BoomFi\'s own link, so setting Whop links opens neither', () => {
+test('S2. /upgrade and the trial-ending email both ask isProBuyable() (Whop); the BoomFi grant asks BoomFi\'s own link', () => {
   assert.match(stripComments(read('app/upgrade/page.tsx')), /const CHECKOUT_CONFIGURED = isProBuyable\(\);/);
   const email = stripComments(read('lib/email.ts'));
-  assert.match(email, /const checkoutLive = isCryptoCheckoutConfigured\(\);/);
-  assert.equal(/isProBuyable/.test(email), false, 'the email follows the Whop switch again - it would say "Keep Pro" before the Whop unlock exists');
+  assert.match(email, /const checkoutLive = isProBuyable\(\);/, 'the email no longer follows the same switch as /upgrade (#1630 GO-LIVE 5)');
+  assert.equal(/isCryptoCheckoutConfigured/.test(email), false, 'the email reads BoomFi\'s parked link again - it would say "not on sale" while /upgrade sells through Whop');
   assert.equal(/isCheckoutConfigured|NEXT_PUBLIC_LEMONSQUEEZY/.test(email), false, 'the email reads the Lemon Squeezy link again');
   assert.equal(/isProBuyable/.test(stripComments(read('app/api/boomfi/webhook/route.ts'))), false, 'the BoomFi grant gate follows the Whop switch again');
 });

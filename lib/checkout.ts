@@ -228,10 +228,10 @@ export function isProBuyable(env?: Record<string, string | undefined>): boolean 
  * the buyer should see which email is used. Signed out: nothing is appended. NOT VERIFIED: what Whop does when the buyer is already signed in
  * to Whop under a different email, and the percent-encoded form (`%40`) that URLSearchParams produces (PM's check used a raw `@`).
  *
- * WHAT READS WHAT. `isProBuyable` (above) is "the Whop monthly URL is set": /upgrade and /api/version.proBuyable. It is a display switch
- * only and grants nothing. The BoomFi webhook's grant gate and the trial-ending email read `isCryptoCheckoutConfigured` (BoomFi's own
- * link) instead: BoomFi was never checked against a real payload and the Whop unlock does not exist yet, so setting the Whop links must
- * not open either. They move to a Whop gate when the unlock ships. */
+ * WHAT READS WHAT. `isProBuyable` (above) is "the Whop monthly URL is set": /upgrade, /api/version.proBuyable and, since #1630 GO-LIVE 5,
+ * the trial-ending email (the Whop unlock shipped in #1599, so the email may say "Keep Pro" exactly when /upgrade sells). It is a display
+ * switch only and grants nothing. The BoomFi webhook's grant gate still reads `isCryptoCheckoutConfigured` (BoomFi's own link): BoomFi was
+ * never checked against a real payload, so setting the Whop links must not open it. */
 const INLINED_WHOP_MONTHLY = process.env.NEXT_PUBLIC_WHOP_CHECKOUT_MONTHLY;
 const INLINED_WHOP_ANNUAL = process.env.NEXT_PUBLIC_WHOP_CHECKOUT_ANNUAL;
 const INLINED_WHOP_FORTNIGHTLY = process.env.NEXT_PUBLIC_WHOP_CHECKOUT_FORTNIGHTLY;
