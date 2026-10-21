@@ -264,6 +264,7 @@ test('C5. more claims than one lookup returns (10): the first sign-in grants ten
 test('S1. source: the claim route takes the address from the verified token\'s user and never from the request body; only POST is exported', () => {
   const src = stripTsComments(read('app/api/whop/claim/route.ts'));
   assert.ok(!/req\.(json|formData|text)\(/.test(src), 'the claim route reads the request body');
-  assert.ok(/user\.email/.test(src) && /auth\.getUser\(/.test(src));
+  // #1397 follow-up: the route now asks Auth through fetchAuthUser (lib/authUser.ts), only when a claim is waiting for the token's address.
+  assert.ok(/user\.email/.test(src) && /fetchAuthUser\(token\)/.test(src));
   assert.deepEqual([...src.matchAll(/export\s+(?:async\s+)?(?:function|const)\s+(\w+)/g)].map((m) => m[1]).filter((x) => x !== 'dynamic'), ['POST']);
 });

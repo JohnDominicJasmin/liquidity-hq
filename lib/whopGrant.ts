@@ -274,6 +274,21 @@ export async function retryRefusedWhopDeliveries(sb: Admin, env: Record<string, 
 export interface ClaimResult { granted: number; refused: string[]; error?: unknown }
 
 /** Called for a signed-in account with a CONFIRMED email. Grants every pending paid Whop payment for that email, once each. */
+/** Whether any pending claim is waiting for this email: true / false, or null when the read failed (the caller then takes the full path).
+ *  Lets /api/whop/claim skip asking Auth on the page loads where there is nothing to claim, which is nearly all of them (#1397). */
+export async function hasPendingClaim(sb: Admin, email: string): Promise<boolean | null> {
+  const e = email.trim().toLowerCase();
+  if (!e) return false;
+  const { data, error } = await sb
+    .from(T.whop_webhook_events)
+    .select('payload_hash')
+    .eq('event', WHOP_PENDING_CLAIM_EVENT)
+    .eq('body->>payer_email', e)
+    .limit(1);
+  if (error) return null;
+  return (data ?? []).length > 0;
+}
+
 export async function claimPendingForAccount(
   sb: Admin,
   i: { userId: string; email: string },
