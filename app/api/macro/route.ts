@@ -11,6 +11,7 @@ import { polledCacheControl } from '@/lib/cacheHeaders';
 // Confirmed working symbols:
 //   DX-Y.NYB = DXY (99.24)   ^GSPC = SPX (7524)
 //   GC=F     = Gold (4487)   CL=F  = Oil (88.85)
+//   ^TNX     = US 10Y Treasury yield, nominal, in percent (4.12 = 4.12%)
 
 const YF_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
@@ -21,17 +22,31 @@ type YFMeta = {
   regularMarketChangePercent?: number;
 };
 
-function extract(json: unknown): { price: number; chg: number } | null {
+function extract(json: unknown): { price: number; chg: number | null } | null {
   try {
-    const result = (json as { chart?: { result?: Array<{ meta?: YFMeta }> } })
-      ?.chart?.result?.[0]?.meta;
+    const r0 = (json as { chart?: { result?: Array<{ meta?: YFMeta; indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> } })
+      ?.chart?.result?.[0];
+    const result = r0?.meta;
     if (!result) return null;
     const price = result.regularMarketPrice;
     if (!price || price <= 0) return null;
-    const prev = result.previousClose ?? result.chartPreviousClose ?? 0;
-    const chg  = prev > 0
-      ? ((price - prev) / prev) * 100
-      : (result.regularMarketChangePercent ?? 0);
+    /* #1631 C: the ONE-day change, from the last two daily closes. This used `previousClose ?? chartPreviousClose`, and on a range query
+       Yahoo leaves previousClose out, so chartPreviousClose - the close BEFORE the window - made "24h" a two-session change (S&P +0.69%
+       where the day was +0.28%). The last close is today's (live during the session), the one before it is yesterday's. */
+    // The newest bar is the latest session (its close can still be null mid-session): compare with the session STRICTLY before it.
+    /* PM audit of #1665: skipping a null previous close compared with the session before THAT - a two-day change again, and for gold a
+       flipped sign (GC=F closes [4181.1, 4160.1, null, 4148.4]: -0.28% where Yahoo's own change was +0.14%). A missing previous close falls
+       back to Yahoo's previousClose, then its regularMarketChangePercent (which matched the S&P and ^TNX exactly); with neither the change
+       is UNKNOWN (null). It used to be 0, which the prompt printed as "+0bp 1d". */
+    const bars = r0?.indicators?.quote?.[0]?.close ?? [];
+    const strict = bars.length >= 2 ? bars[bars.length - 2] : null;
+    const prev = typeof strict === 'number' && strict > 0 ? strict
+      : typeof result.previousClose === 'number' && result.previousClose > 0 ? result.previousClose
+      : null;
+    const ycp = result.regularMarketChangePercent;
+    const chg = prev != null ? ((price - prev) / prev) * 100
+      : typeof ycp === 'number' && Number.isFinite(ycp) ? ycp
+      : null;
     return { price, chg };
   } catch { return null; }
 }
@@ -71,12 +86,13 @@ const YF_FAIL_TTL_MS = 30_000;
 /** Distinguishes "already reported to health" from an unexpected throw. */
 class YfUnavailable extends Error {}
 
-async function fetchYf(sym: string, label: string): Promise<{ price: number; chg: number }> {
+async function fetchYf(sym: string, label: string): Promise<{ price: number; chg: number | null }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   const source = `yahoo:${label}`;
   try {
-    const res = await fetch(`${YF_BASE}/${sym}?interval=1d&range=2d`, {
+    // 5 days of daily bars so a weekend or holiday still leaves two closes to compare (#1631 C).
+    const res = await fetch(`${YF_BASE}/${sym}?interval=1d&range=5d`, {
       cache: 'no-store',
       signal: controller.signal,
       headers: {
@@ -143,17 +159,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
-  const [oil, dxy, spx, gold, jpy, real10y] = await Promise.all([
+  const [oil, dxy, spx, gold, jpy, tnx, real10y] = await Promise.all([
     yf('CL%3DF',   'oil'),   // WTI Crude Oil
     yf('DX-Y.NYB', 'dxy'),   // DXY (US Dollar Index)
     yf('%5EGSPC',  'spx'),   // S&P 500
     yf('GC%3DF',   'gold'),  // Gold futures
     yf('JPY%3DX',  'jpy'),   // USD/JPY - yen carry-trade direction (day change %)
+    // #1631 C: the NOMINAL 10Y, which is what a trader means by "the 10Y yield". The real yield below is a different number.
+    yf('%5ETNX',   'tnx'),
     realYield(),             // 10Y real yield - the rates backdrop for a zero-yield asset
   ]);
 
   return NextResponse.json(
-    { oil, dxy, spx, gold, jpy, real10y },
+    { oil, dxy, spx, gold, jpy, tnx, real10y },
     { headers: { 'Cache-Control': polledCacheControl(300) } },
   );
 }

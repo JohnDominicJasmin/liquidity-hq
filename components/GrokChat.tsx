@@ -20,6 +20,7 @@ import { describeSelection } from '@/lib/strategyRegistry';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
+import { PAGE_COIN_EVENT, currentPageCoin } from '@/lib/pageCoin';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -84,33 +85,8 @@ function relTime(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-/* ── Generate follow-up question chips via Grok (cheap - no search needed) ── */
-async function generateFollowUps(response: string, coin: string, token?: string): Promise<string[]> {
-  if (!response || !token) return [];
-  try {
-    const res = await fetch('/api/grok-chat', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        mode:       'chat',
-        model:      'grok-4.3',
-        max_tokens: 100,
-        messages: [{
-          role:    'user',
-          content: `Based on this ${coin.toUpperCase()} trading analysis, write exactly 3 short follow-up questions a trader would ask next. Each question must be 4–8 words. Output ONLY the 3 questions, one per line, no numbering, no bullets, no extra text.\n\n${response.slice(0, 600)}`,
-        }],
-      }),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const text: string = data.choices?.[0]?.message?.content ?? '';
-    return text
-      .split('\n')
-      .map((q: string) => q.trim().replace(/^\d+[\.\)]\s*/, '').replace(/^[-•]\s*/, ''))
-      .filter((q: string) => q.length > 5 && q.length < 100)
-      .slice(0, 3);
-  } catch { return []; }
-}
+/* Follow-up chips come from the SAME answer now (#1631 E): the server asks for a FOLLOW-UPS block and splits it off
+   (lib/chatPrompt.ts). This used to be a second /api/grok-chat call after every answer - a second chat credit and xAI charge. */
 
 /* ── Markdown renderer ─────────────────────────────────────────── */
 function renderMd(raw: string): string {
@@ -165,19 +141,6 @@ function isEducational(text: string): boolean {
   return EDUCATIONAL_TRIGGERS.some(k => t.includes(k));
 }
 
-/* ── Minimal context for educational questions (~20 tokens vs ~400) ── */
-function buildMinimalCtx(
-  store: ReturnType<typeof useMarket>['store'],
-  coin: CoinId,
-): string {
-  const c = store.coins[coin];
-  return [
-    'You are an elite crypto trading analyst assistant embedded in Liquidity Hunter HQ.',
-    'Answer concisely and directly. Flag uncertainty.',
-    `Coin: ${coin.toUpperCase()}/USDT` + (c?.price ? ` · Price: $${c.price.toLocaleString()}` : ''),
-  ].join('\n');
-}
-
 /* ── Quick prompts ─────────────────────────────────────────────── */
 const QUICK = [
   'Full analysis now',
@@ -190,87 +153,44 @@ const QUICK = [
   'Trend direction?',
 ];
 
-/* ── System context builder ────────────────────────────────────── */
-function buildSystemCtx(
+/* ── Chat context: DATA only (#1631 E) ─────────────────────────────
+   The system prompt is written on the server (lib/chatPrompt.ts) from these values; the browser no longer sends instructions. Labels that
+   our own code derives (squeeze, funding class, sector rotation, structure, session) travel as short strings; the server bounds every field. */
+function buildChatContext(
   store: ReturnType<typeof useMarket>['store'],
   coin: CoinId,
   latestHeadlines: string[],
   geoEvents: GeoEvent[],
   structureLine: string,
-): string {
-  const c   = store.coins[coin];
-  const sq  = computeSqueezeScore(c);
-  const fr  = c?.fundingRate != null ? classifyFunding(c.fundingRate) : null;
-  const session = getSessionName(new Date());
-  const ln  = (k: string, v: string) => `${k}: ${v}`;
-  return [
-    'You are an elite crypto derivatives trader and analyst assistant embedded in Liquidity Hunter HQ.',
-    'The trader asks short, direct questions. Give concise, bullet-pointed, actionable answers.',
-    'Flag when data is missing. Never invent numbers. Be honest about uncertainty.',
-    '',
-    `=== LIVE DATA - ${coin.toUpperCase()}/USDT ===`,
-    ln('Price',         c?.price ? '$' + c.price.toLocaleString() : '-'),
-    ln('24h Change',    c?.change != null ? (c.change >= 0 ? '+' : '') + c.change.toFixed(2) + '%' : '-'),
-    ln('High/Low',      c?.high && c?.low ? '$' + c.high.toLocaleString() + ' / $' + c.low.toLocaleString() : '-'),
-    ln('RSI 15m/1h/4h/1D', [c?.rsi14, c?.rsi1h, c?.rsi4h, c?.rsiDaily].map(r => r?.toFixed(0) ?? '-').join(' / ')),
-    ln('CVD Divergence',   c?.cvdDivergence
-      ? c.cvdDivergence === 'bullish'
-        ? 'BULLISH - price falling but net buying rising (smart money accumulating)'
-        : 'BEARISH - price rising but net selling rising (distribution)'
-      : 'None'),
-    ln('MA20 (15m)',    c?.ma20 ? '$' + c.ma20.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-'),
-    ln('Vol ratio',     c?.volRatio ? c.volRatio.toFixed(2) + 'x' : '-'),
-    ln('CVD (200)',     c?.cvd != null ? (c.cvd >= 0 ? '+' : '') + (c.cvd / 1000).toFixed(1) + 'K' : '-'),
-    ln('Funding',       fr?.label ?? '-'),
-    ln('Open Interest', c?.oi ? '$' + (c.oi / 1e9).toFixed(2) + 'B' : '-'),
-    ln('Long/Short %',  c?.longRatio != null ? (c.longRatio * 100).toFixed(1) + '% / ' + ((c.shortRatio ?? 0) * 100).toFixed(1) + '%' : '-'),
-    ln('Squeeze score', sq.score + '/100 - ' + sq.label),
-    ln('Basis',         c?.perpPrice && c.price ? ((c.perpPrice - c.price) / c.price * 100).toFixed(4) + '%' : '-'),
-    '',
-    '=== EMA SIGNAL QUALITY FILTERS (apply before accepting any EMA cross signal) ===',
-    'Before calling LONG or SHORT based on an EMA cross, ALL THREE of these filters must pass:',
-    '1. EMA50 Slope: EMA50 must be trending in the signal direction over the last 5 bars (≥ 0.1% slope). Flat EMA50 = price is ranging = EMA cross is noise. Call FREEZE/FLAT instead.',
-    '2. ATR Buffer: Price must close beyond EMA50 by at least 35% of ATR(14). A marginal 1-tick graze of EMA50 is not a confirmation - it will reverse. Only a meaningful body close clearing the buffer is valid.',
-    '3. Ribbon Spread: EMA9 and EMA20 must be at least 0.3% of price apart. If the two lines are visually overlapping (tight spread), the ribbon is tangled = chop zone = the cross is noise. Call FREEZE/FLAT instead.',
-    'If any filter fails → downgrade the signal: LONG → LEAN LONG, SHORT → LEAN SHORT, or FLAT if all fail.',
-    'WaveTrend Confirming (Cipher B momentum, separate confirming layer - NOT a 4th mandatory filter): checks for a bullish/bearish divergence between price and the WaveTrend oscillator, or a recent cross from oversold/overbought agreeing with the signal direction. If it confirms, mention it as added confidence. If it does not confirm, do not auto-downgrade the signal - just note the momentum oscillator has not caught up yet, since it lags slightly behind the EMA cross by design.',
-    ln('Order book',    c?.orderBidWalls ? 'Bids: ' + c.orderBidWalls.map(w => '$' + w.price.toLocaleString()).join(', ') : '-'),
-    '',
-    '=== MACRO ===',
-    ln('Fear & Greed',      store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '-'),
-    ln('BTC Dominance',     store.btcDom ? store.btcDom.toFixed(2) + '%' : '-'),
-    ln('P/C Ratio',         store.btcPcRatio ? store.btcPcRatio.toFixed(2) : '-'),
-    ln('Max Pain',          store.btcMaxPain ? '$' + store.btcMaxPain.toLocaleString() : '-'),
-    ln('Stablecoin supply', store.stablecoinSupply ? '$' + store.stablecoinSupply.toFixed(1) + 'B' : '-'),
-    ln('BTC ETF flow',      store.etfNetFlow != null ? (store.etfNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.etfNetFlow).toFixed(0) + 'M' : '-'),
-    ln('ETH ETF flow',      store.ethEtfNetFlow != null ? (store.ethEtfNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.ethEtfNetFlow).toFixed(0) + 'M' : '-'),
-    ln('Exchange net flow', store.btcExchangeNetFlow != null ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M' : '-'),
-    // Alts live or die on where capital sits relative to BTC, so this belongs
-    // in the chat context too - not just Quick/Deep. See lib/sectorRotation.ts.
-    ln('Sector rotation',   computeSectorRotation(store, coin).line),
-    // Independent of the EMA ribbon on purpose - see lib/priceAction.ts.
-    ln('Structure break (1h)', structureLine),
-    ln('Session',           session),
-    '',
-    '=== LIVE NEWS FEED ===',
-    latestHeadlines.length > 0
-      ? latestHeadlines.slice(0, 8).map((h, i) => `${i + 1}. ${h}`).join('\n')
-      : 'No alerts yet - use live search tools.',
-    '',
-    '=== GEOPOLITICAL EVENTS (last 12h) ===',
-    geoEvents.length > 0
-      ? geoEvents.slice(0, 5).map(g => `[${g.tag}] ${g.headline} (${g.timeStr})`).join('\n')
-      : 'None detected - search X and web.',
-    '',
-    '=== SEARCH INSTRUCTIONS ===',
-    'Use web_search and x_search proactively:',
-    '1. WHY is the market moving right now - search "bitcoin price today why"',
-    '2. Latest war/conflict/sanctions news affecting risk assets',
-    '3. Fed, CPI, FOMC, Treasury statements (last 48h)',
-    '4. Trump/White House crypto or tariff posts on X',
-    '5. Exchange hacks, large liquidations, whale moves on X',
-    'Always cite source and timestamp for significant findings.',
-  ].join('\n');
+  selection: string | null,
+) {
+  const c  = store.coins[coin];
+  const sq = computeSqueezeScore(c);
+  const fr = c?.fundingRate != null ? classifyFunding(c.fundingRate) : null;
+  return {
+    coin,
+    price: c?.price, change: c?.change, high: c?.high, low: c?.low,
+    rsi: [c?.rsi14, c?.rsi1h, c?.rsi4h, c?.rsiDaily].map(r => (typeof r === 'number' ? r : null)),
+    cvdDivergence: c?.cvdDivergence ?? undefined,
+    ma20: c?.ma20, volRatio: c?.volRatio, cvd: c?.cvd,
+    funding: fr?.label,
+    oi: c?.oi, longRatio: c?.longRatio, shortRatio: c?.shortRatio,
+    squeeze: sq.score + '/100 - ' + sq.label,
+    basisPct: c?.perpPrice && c.price ? (c.perpPrice - c.price) / c.price * 100 : undefined,
+    bidWalls: c?.orderBidWalls?.map(w => w.price),
+    fng: store.fng ?? undefined, fngLabel: store.fngLabel, btcDom: store.btcDom || undefined,
+    btcPcRatio: store.btcPcRatio || undefined, btcMaxPain: store.btcMaxPain || undefined,
+    stablecoinSupply: store.stablecoinSupply || undefined,
+    stablecoinChg30d: store.stablecoinChg30d ?? undefined,
+    etfNetFlow: store.etfNetFlow ?? undefined, ethEtfNetFlow: store.ethEtfNetFlow ?? undefined,
+    btcExchangeNetFlow: store.btcExchangeNetFlow ?? undefined,
+    sectorRotation: computeSectorRotation(store, coin).line,
+    structure: structureLine,
+    session: getSessionName(new Date()),
+    headlines: latestHeadlines.slice(0, 8),
+    geo: geoEvents.slice(0, 5).map(g => `[${g.tag}] ${g.headline} (${g.timeStr})`),
+    selection: selection || undefined,
+  };
 }
 
 /* ─────────────────────────────────────────────────────────────── */
@@ -285,6 +205,20 @@ export default function GrokChat() {
   const [liveSearch,     setLiveSearch]     = useState(false);
   const [histView,       setHistView]       = useState(false);
   const [coin,           setCoin]           = useState<CoinId>('btc');
+  /* #1631 E: the coin of the page the trader is on - Arena announces its own ('page-coin' event), elsewhere it is the shared store's
+     selected coin (Dashboard). A chat that opens with no conversation yet follows it, so a question asked on the XRP page is about XRP
+     (it used to start on BTC whatever the page showed, and a Pro user spent a credit on the wrong coin). A coin chosen explicitly - the
+     Ask AI event, a loaded conversation, the dropdown - is kept until the panel closes, and an ongoing conversation keeps its coin. */
+  const [pageCoin,       setPageCoin]       = useState<CoinId | null>(null);
+  const coinPinnedRef = useRef(false);
+  useEffect(() => {
+    const take = (c: string | null) => setPageCoin(c && (COINS as readonly string[]).includes(c) ? (c as CoinId) : null);
+    const onPageCoin = (e: Event) => take((e as CustomEvent<{ coin: string | null }>).detail?.coin ?? null);
+    window.addEventListener(PAGE_COIN_EVENT, onPageCoin);
+    // QA's review of #1665: on a hard load Arena can announce before this listener exists - read the last announcement too.
+    take(currentPageCoin());
+    return () => window.removeEventListener(PAGE_COIN_EVENT, onPageCoin);
+  }, []);
   /* #985 gap 2: seeded from the account's saved settings on mount (#1347
      item 18), then kept aligned by a live 'strategy-selection-changed' event
      Arena fires on every change, and by the 'grok-chat' open event when it
@@ -320,6 +254,15 @@ export default function GrokChat() {
   const [rateLimited,    setRateLimited]    = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const { usage, setUsage }                 = useGrokUsage();
+
+  const msgCountRef = useRef(0);
+  useEffect(() => { msgCountRef.current = msgs.length; }, [msgs]);
+  const effectivePageCoin = pageCoin ?? store.selectedCoin;
+  useEffect(() => {
+    if (!open) { coinPinnedRef.current = false; return; }
+    if (coinPinnedRef.current || msgCountRef.current > 0 || !effectivePageCoin) return;
+    setCoin(effectivePageCoin);
+  }, [open, effectivePageCoin]);
 
   /* ── Quotas ────────────────────────────────────────────────────────────
    * Derived, never stored. `liveActive` is the mode that will ACTUALLY be
@@ -358,7 +301,7 @@ export default function GrokChat() {
      Only runs while the panel is open: this is the one piece of chat context
      that costs a network request, and fetching it for a closed panel would be
      a request per coin switch that nobody ever reads. Fails silently to '-',
-     which buildSystemCtx renders as "no data" rather than inventing a read. */
+     which the server's prompt renders as "no data" rather than inventing a read. */
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -497,101 +440,46 @@ export default function GrokChat() {
       const autoSearch = !liveActive && needsLiveSearch(text);
       const useSearch  = liveActive || autoSearch;
 
-      // Smart context: educational + no search = minimal (~20 tokens)
-      // Anything with live search = full context so Grok can correlate web findings with live data
-      const baseCtx = (isEducational(text) && !useSearch)
-        ? buildMinimalCtx(store, activeCoin)
-        : buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents, structureLine);
-      /* #985 gap 2: read fresh from chatSelection (not baked into a stored
-         string) so every turn - not just the opening one - reasons from
-         whatever is selected right now. Same sentence and helper as the
-         QUICK/DEEP prompts and the opening message, so wording cannot drift
-         across the four surfaces. */
-      const watching = describeSelection(chatSelection);
-      const sysCtx = watching
-        ? baseCtx + '\n\nThe trader is currently weighing these indicators: ' + watching
-          + '. Give them more weight in your answer, and say plainly if they disagree with what the rest of the data shows.'
-        : baseCtx;
-
+      /* #1631 E: the browser sends DATA (the context below) and the conversation; /api/grok-chat writes the system prompt
+         (lib/chatPrompt.ts). An educational question with no search gets the short prompt (minimal), as before. #985 gap 2: the
+         selection is read fresh on every turn. */
+      const context = buildChatContext(store, activeCoin, latestHeadlines, geoEvents, structureLine, describeSelection(chatSelection));
       // Cap at last 8 messages (4 pairs) - prevents token cost growing unbounded
-      const apiMsgs  = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
-      const messages = [{ role: 'system', content: sysCtx }, ...apiMsgs];
+      const apiMsgs = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
 
-      let reply: string;
-
-      if (useSearch) {
-        // Live search ON → /api/grok-chat with mode:'search' (~$0.05–$0.15)
-        const res = await fetch('/api/grok-chat', {
-          method:  'POST',
-          headers: reqHeaders,
-          body:    JSON.stringify({
-            mode:  'search',
-            model: 'grok-4.3',
-            input: messages,
-            tools: [{ type: 'web_search' }, { type: 'x_search' }],
-          }),
-        });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
-          if (j?.code === 'RATE_LIMIT') {
-            const u = j.usage;
-            if (u && usage) setUsage({ ...usage, ...u });
-            setRateLimited(true);
-            setError(rateLimitText(j?.error, 'No live searches left today'));
-            setLoading(false);
-            return;
-          }
-          throw new Error(`${res.status} - ${j?.error ?? res.statusText}`);
-        }
-        if (j._usage && usage) setUsage({ ...usage, ...j._usage });
-        reply = j.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '(no response)';
-      } else {
-        // No search needed → /api/grok-chat with mode:'chat' (~$0.003)
-        const res = await fetch('/api/grok-chat', {
-          method:  'POST',
-          headers: reqHeaders,
-          body:    JSON.stringify({
-            mode:       'chat',
-            model:      'grok-4.3',
-            messages,
-            max_tokens: 600,
-          }),
-        });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
-          if (j?.code === 'RATE_LIMIT') {
-            const u = j.usage;
-            if (u && usage) setUsage({ ...usage, ...u });
-            setRateLimited(true);
-            setError(rateLimitText(j?.error, 'No chat messages left today'));
-            setLoading(false);
-            return;
-          }
-          throw new Error(`${res.status} - ${j?.error ?? res.statusText}`);
-        }
-        if (j._usage && usage) setUsage({ ...usage, ...j._usage });
-        reply = j.choices?.[0]?.message?.content ?? '(no response)';
-      }
-      const replyTs = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      // Show reply immediately
-      setMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs }]);
-
-      // Generate follow-up chips only for substantial responses (skip 1-liners)
-      generateFollowUps(reply.length > 150 ? reply : '', activeCoin, token).then(followUps => {
-        if (followUps.length > 0) {
-          setMsgs(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (updated[lastIdx]?.role === 'assistant') {
-              updated[lastIdx] = { ...updated[lastIdx], followUps };
-            }
-            return updated;
-          });
-        }
+      // Live search → mode:'search' (web + X, the search pool); otherwise mode:'chat' (no tools, the chat pool). Same answer shape.
+      const res = await fetch('/api/grok-chat', {
+        method:  'POST',
+        headers: reqHeaders,
+        body:    JSON.stringify({
+          mode:       useSearch ? 'search' : 'chat',
+          context,
+          minimal:    isEducational(text) && !useSearch,
+          messages:   apiMsgs,
+          max_tokens: 600,
+        }),
       });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
+        if (j?.code === 'RATE_LIMIT') {
+          const u = j.usage;
+          if (u && usage) setUsage({ ...usage, ...u });
+          setRateLimited(true);
+          setError(rateLimitText(j?.error, useSearch ? 'No live searches left today' : 'No chat messages left today'));
+          setLoading(false);
+          return;
+        }
+        throw new Error(`${res.status} - ${j?.error ?? res.statusText}`);
+      }
+      if (j._usage && usage) setUsage({ ...usage, ...j._usage });
+      const reply: string = typeof j.text === 'string' && j.text ? j.text : '(no response)';
+      const replyTs = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      /* Follow-up chips come with the answer (no second call, #1631 E), and as before only on a substantial answer, not a one-liner. */
+      const followUps: string[] = reply.length > 150 && Array.isArray(j.followUps)
+        ? j.followUps.filter((q: unknown): q is string => typeof q === 'string').slice(0, 3)
+        : [];
+      setMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs, ...(followUps.length ? { followUps } : {}) }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
@@ -603,8 +491,12 @@ export default function GrokChat() {
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
     const handler = (e: Event) => {
-      const ev = e as CustomEvent<{ coin: CoinId; prompt?: string; selection?: readonly string[] }>;
-      setCoin(ev.detail.coin);
+      const ev = e as CustomEvent<{ coin?: string; prompt?: string; selection?: readonly string[] }>;
+      /* QA's review of #1665: the opener's coin is checked like the page coin. The server now refuses a coin it does not track (400), so a
+         future opener sending 'bitcoin' or 'BTCUSDT' would have shown that error in the chat; such a coin is ignored and the chat keeps its
+         own (the page's, or the one already open). */
+      const evCoin = typeof ev.detail.coin === 'string' && (COINS as readonly string[]).includes(ev.detail.coin) ? (ev.detail.coin as CoinId) : undefined;
+      if (evCoin) { coinPinnedRef.current = true; setCoin(evCoin); }
       // #1347 item 3: `?? []` used to run unconditionally, so an opener that
       // never carries a selection (EMASignal.tsx, app/news/page.tsx - both
       // dispatch with no `selection` field at all) wiped out whatever
@@ -620,7 +512,7 @@ export default function GrokChat() {
       }
       setOpen(true);
       setHistView(false);
-      if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, ev.detail.coin), 200);
+      if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, evCoin), 200);
     };
     window.addEventListener('grok-chat', handler);
     return () => window.removeEventListener('grok-chat', handler);
@@ -656,6 +548,7 @@ export default function GrokChat() {
 
   function loadConvo(c: SavedConvo) {
     currentIdRef.current = c.id;
+    coinPinnedRef.current = true;
     setCoin(c.coin);
     setMsgs(c.messages);
     setError('');
@@ -1002,7 +895,7 @@ export default function GrokChat() {
                 value={[coin]}
                 onChange={next => {
                   const c = next[0] as CoinId | undefined;
-                  if (c && c !== coin) { newChat(); setCoin(c); }
+                  if (c && c !== coin) { newChat(); coinPinnedRef.current = true; setCoin(c); }
                 }}
               />
             </div>

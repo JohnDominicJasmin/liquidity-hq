@@ -1,6 +1,7 @@
 import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 import { wilderRsiSeries } from './rsi.ts';
+import { priceText } from './numberFormat.ts';
 
 export interface GrokUsageInfo {
   deep_used:     number; deep_limit:     number;
@@ -169,7 +170,8 @@ export interface GrokContext {
   longShortRatio: string;
   /* macro */
   oilPrice: string;
-  bonds10y: string;
+  bonds10y: string;   // US 10Y Treasury yield, nominal (#1631 C)
+  real10y: string;    // US 10Y TIPS real yield, FRED DFII10 (#311)
   /* upcoming events */
   upcomingEvents: string;
   /* multi-timeframe RSI */
@@ -253,6 +255,10 @@ export interface GrokResult {
 }
 
 export function buildPrompt(ctx: GrokContext): string {
+  /* #1631 B: BTC's option market (Deribit P/C, max pain, GEX) and the Coinbase BTC premium are BTC's own data. They were handed to every
+     coin - with "WEIGHT GEX HEAVILY" - and a Pro XRP Deep read rested its "bearish regime" on BTC's premium. Only a BTC read gets them now. */
+  const isBtc = /^BTC\b/i.test(ctx.coin);
+  const btcOnly = (lines: string[]): string[] => (isBtc ? lines : []);
   return [
     `You are LiquidityAI - an elite crypto derivatives trader and macro analyst. Your job is to synthesize ALL available data and output a high-conviction directional call for ${ctx.coin}.`,
     '',
@@ -317,24 +323,28 @@ export function buildPrompt(ctx: GrokContext): string {
     `Distribution score: ${ctx.distribution}`,
     '(Distribution score 0-100: how strongly flow says big players are taking profit INTO strength - CVD sellers into strength, open interest unwinding out of a rally, top traders leaning out of longs, retail still paying positive funding. Only computed after a 24h run-up. ≥70 = active distribution: strong caution on new longs, favour trailing stops / partial exits. 45-69 = early signs.)',
     '',
-    '=== OPTIONS MARKET (DERIBIT) ===',
-    `BTC Put/Call Ratio:  ${ctx.pcRatio}`,
-    `BTC Max Pain Strike:  ${ctx.maxPain}`,
-    '(Max pain = price where max option value is destroyed at expiry - acts as magnet)',
-    `BTC Gamma Exposure (GEX):  ${ctx.btcGex}`,
-    '(Positive GEX = dealers LONG gamma = buy dips/sell rips = price pins near large strikes. Negative GEX = dealers SHORT gamma = moves amplified = trending conditions. Zero-gamma flip level is key - crossing it changes dealer hedging direction.)',
-    'WEIGHT GEX HEAVILY for BTC - it sets the REGIME the rest of the signals live in, which matters more than any direction it implies: in LONG gamma, dealers suppress volatility so the market ranges/mean-reverts - FADE breakouts and distrust momentum signals (the max-pain magnet adds a mild pull toward that strike, but only bites as expiry approaches, so treat it as a tiebreaker, not a primary bias); in SHORT gamma, dealers amplify moves = trending, so treat breakouts as real and let trend + order-flow signals run with size. When the GEX regime conflicts with an oscillator, the regime wins on conviction.',
-    '',
-    '=== COINBASE PREMIUM INDEX ===',
-    `CB Premium (Coinbase BTC − Binance BTC):  ${ctx.cbPremium}`,
-    '(Positive premium = US buyers paying above Binance = institutional demand = bullish. Negative = US selling = bearish.)',
-    '',
+    ...btcOnly([
+      '=== OPTIONS MARKET (DERIBIT) ===',
+      `BTC Put/Call Ratio:  ${ctx.pcRatio}`,
+      `BTC Max Pain Strike:  ${ctx.maxPain}`,
+      '(Max pain = price where max option value is destroyed at expiry - acts as magnet)',
+      `BTC Gamma Exposure (GEX):  ${ctx.btcGex}`,
+      '(Positive GEX = dealers LONG gamma = buy dips/sell rips = price pins near large strikes. Negative GEX = dealers SHORT gamma = moves amplified = trending conditions. Zero-gamma flip level is key - crossing it changes dealer hedging direction.)',
+      'WEIGHT GEX HEAVILY for BTC - it sets the REGIME the rest of the signals live in, which matters more than any direction it implies: in LONG gamma, dealers suppress volatility so the market ranges/mean-reverts - FADE breakouts and distrust momentum signals (the max-pain magnet adds a mild pull toward that strike, but only bites as expiry approaches, so treat it as a tiebreaker, not a primary bias); in SHORT gamma, dealers amplify moves = trending, so treat breakouts as real and let trend + order-flow signals run with size. When the GEX regime conflicts with an oscillator, the regime wins on conviction.',
+      '',
+      '=== COINBASE PREMIUM INDEX ===',
+      `CB Premium (Coinbase BTC/USD − exchange BTC/USDT converted to USD):  ${ctx.cbPremium}`,
+      '(Positive premium = US buyers paying above Binance = institutional demand = bullish. Negative = US selling = bearish.)',
+      '',
+    ]),
+    ...(isBtc ? [] : [`(BTC's options data, GEX and the Coinbase BTC premium are BTC's own market and are not given for ${ctx.coin}. Do not judge ${ctx.coin} by them.)`, '']),
     '=== ORDER BOOK LIQUIDITY ===',
     ctx.orderWalls,
     '',
     '=== MACRO ===',
     `US Oil (CL=F): ${ctx.oilPrice}`,
-    `US 10Y Bond Yield: ${ctx.bonds10y}`,
+    `US 10Y Treasury yield (nominal): ${ctx.bonds10y}`,
+    `US 10Y TIPS (real) yield (FRED DFII10): ${ctx.real10y}`,
     `DXY (US Dollar Index): ${ctx.dxyLine}`,
     `USD/JPY (Yen Carry Trade): ${ctx.yenWatch}`,
     /* Deliberately the SAME sentence the dashboard card shows. One vocabulary
@@ -418,7 +428,9 @@ export function buildPrompt(ctx: GrokContext): string {
     `  • OI Trend is strong_down or weak_down → ${ctx.oiTrend}`,
     `  • Long/Short ratio > 1.8:1 → ${ctx.longShortRatio}`,
     `  • Taker sell > 55% → ${ctx.takerRatio}`,
-    `  • Negative CB premium → ${ctx.cbPremium}`,
+    // #1631 B (PM audit): BTC's Coinbase premium is BTC's own market - fenced here too, or an XRP prompt says "not given for XRP" and then
+    // counts it toward a bearish regime twenty lines later.
+    ...btcOnly([`  • Negative CB premium → ${ctx.cbPremium}`]),
     `  • Price below VWAP → ${ctx.vwap}`,
     '',
     'IF IN BEARISH MOMENTUM REGIME:',
@@ -504,17 +516,17 @@ export function buildPrompt(ctx: GrokContext): string {
     '8. SESSION: NY session (high liquidity) vs Asia/London.',
     '9. FIBONACCI: In NEUTRAL regime, fib levels (61.8%, 38.2%) are high-probability reversal zones. In BEARISH REGIME, fib supports are likely to fail - treat them as pause zones only.',
     '10. ORDER FLOW (CVD): Positive CVD = net buying. Negative = selling pressure. In BEARISH REGIME, CVD bullish divergence is often a temporary absorption trap - require price confirmation before treating as reversal.',
-    '11. OPTIONS (DERIBIT): P/C ratio > 1.2 = bearish positioning. Max pain acts as price magnet near expiry. Positive basis = healthy bull market.',
+    ...btcOnly(['11. OPTIONS (DERIBIT): P/C ratio > 1.2 = bearish positioning. Max pain acts as price magnet near expiry. Positive basis = healthy bull market.']),
     /* Added with #340. Rule 11 gives a bullish reading for positive basis, and
        the activity line can say "leverage-led" at the same instant - both true,
        measuring different things. Without this the model can assert both in one
        answer and the user cannot tell which the app believes. */
     '11b. PERP BASIS vs PERP ACTIVITY are DIFFERENT and may disagree. Basis is the PRICE premium of perps over spot. Activity is how much perp trading VOLUME there is against spot, measured against its own normal for that coin. Positive basis with normal activity = healthy demand for leverage. Positive basis with elevated activity = the move is leverage-led and unwinds faster. If they conflict, say so explicitly rather than choosing one silently.',
-    '12. GEX (GAMMA EXPOSURE) - PRIMARY REGIME FILTER for BTC, weight it above the oscillators: Positive net GEX = dealers LONG gamma = range-bound/mean-reverting → fade extremes toward max pain, size down on breakout calls. Negative net GEX = moves amplified = trending/explosive volatility → trust breakouts, size up on momentum. Zero-gamma flip level crossing = regime shift; a call that ignores the GEX regime is low-conviction.',
+    ...btcOnly(['12. GEX (GAMMA EXPOSURE) - PRIMARY REGIME FILTER for BTC, weight it above the oscillators: Positive net GEX = dealers LONG gamma = range-bound/mean-reverting → fade extremes toward max pain, size down on breakout calls. Negative net GEX = moves amplified = trending/explosive volatility → trust breakouts, size up on momentum. Zero-gamma flip level crossing = regime shift; a call that ignores the GEX regime is low-conviction.']),
     '13. ORDER BOOK: Large bid walls = support. Large ask walls = resistance. Price often hunts walls before reversing.',
-    '14. STABLECOIN FLOWS: Growing USDT+USDC supply = dry powder entering = bullish medium-term. Shrinking = cashing out.',
+    '14. STABLECOIN FLOWS: judge by the 7d/30d change given, never by the level. Growing USDT+USDC supply = dry powder entering = bullish medium-term. Shrinking = capital leaving - never call a shrinking or unknown supply dry powder.',
     '15. EXCHANGE FLOWS: BTC flowing INTO exchanges = sell pressure. Flowing OUT = accumulation.',
-    '16. COINBASE PREMIUM: CB premium > +$30 = US institutions buying aggressively (strong bullish). Negative = US selling/risk-off.',
+    ...btcOnly(['16. COINBASE PREMIUM: CB premium > +$30 = US institutions buying aggressively (strong bullish). Negative = US selling/risk-off.']),
     '17. VWAP: Price above VWAP = institutions paying up (bullish). Price below VWAP = distributing (bearish).',
     '18. OI TREND: OI↑+Price↑ = real trend with conviction. OI↑+Price↓ = new short conviction. OI↓+Price↑ = short covering only (weak). OI↓+Price↓ = long exits (panic).',
     '19. TAKER RATIO: Taker buy >65% = aggressive buyers = real demand (bullish). Taker sell >65% = sellers dumping into bids = distribution/panic (bearish).',
@@ -625,14 +637,16 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
 
   const chartSection = [
     '=== CHART DATA (CANDLES + INDICATORS) ===',
-    `Timeframe: ${chart.tf}  |  Last Close: $${chart.lastClose.toFixed(0)}`,
-    `Range (visible 80 candles): High $${chart.hi.toFixed(0)} / Low $${chart.lo.toFixed(0)}`,
-    `EMA 9:   ${chart.ema9   != null ? '$' + chart.ema9.toFixed(0)   : '-'}`,
-    `SMA 200: ${chart.sma200 != null ? '$' + chart.sma200.toFixed(0) : '-'}`,
+    // #1631 B: prices with the decimals their size needs. toFixed(0) printed XRP's $2.31 as "$1" on every line here.
+    `Timeframe: ${chart.tf}  |  Last Close: ${priceText(chart.lastClose)}`,
+    `Range (visible 80 candles): High ${priceText(chart.hi)} / Low ${priceText(chart.lo)}`,
+    `EMA 9:   ${chart.ema9   != null ? priceText(chart.ema9)   : '-'}`,
+    `SMA 200: ${chart.sma200 != null ? priceText(chart.sma200) : '-'}`,
     `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '-'}`,
     `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure, prefer BULLISH setups' : 'EMA 9 BELOW SMA 200 - bearish structure, prefer BEARISH setups but BULLISH still valid on 3+ exhaustion signals') : '-'}`,
-    `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 ($${chart.sma200.toFixed(2)}) - bullish` : `BELOW SMA200 ($${chart.sma200.toFixed(2)}) - bearish, do not call BULLISH without reversal catalyst`) : '-'}`,
-    `Last 20 candles (OHLC): ${chart.recent20}`,
+    `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 (${priceText(chart.sma200)}) - bullish` : `BELOW SMA200 (${priceText(chart.sma200)}) - bearish, do not call BULLISH without reversal catalyst`) : '-'}`,
+    // #1631 C: says what is sent. Arena slices the last 15 (the field is still called recent20); the label claimed 20.
+    `Last 15 candles (OHLC): ${chart.recent20}`,
     chart.detectedPatterns ? `Pre-detected basic patterns: ${chart.detectedPatterns}` : '',
     '',
     'Cross-reference the candle key levels with order book walls, liquidation clusters, and derivatives data above.',
@@ -663,6 +677,8 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'SIGNAL: [BEARISH or LEAN BEARISH or FLAT or LEAN BULLISH or BULLISH]',
     'BIAS_LEAN: [Required ONLY when SIGNAL is FLAT - write BULLISH, BEARISH, or NEUTRAL to show your lean. Write N/A for all other signals.]',
     'CONFIDENCE: [0-100]',
+    // #1631 B: with no cluster data both XRP runs still invented a "long flush" target. No data, no raid.
+    ...(/^\s*Not available/i.test(ctx.liqLevels ?? '') ? ['(No liquidation cluster data is available for this coin, so a raid cannot be judged: write RAID_SETUP: NONE, RAID_TARGET: N/A, RAID_TRIGGER: N/A.)'] : []),
     'RAID_SETUP: [Analyze the liquidation clusters, long/short crowding, funding rate, and order walls to determine IF a liquidity raid is likely. Output one of: SHORT SQUEEZE (shorts overcrowded + upside liquidation cluster reachable) | LONG FLUSH (longs overcrowded + downside liquidation cluster reachable) | NONE. A raid is likely when: one side is heavily crowded AND there is a visible liquidation cluster within 2-5% of current price AND funding confirms the crowding direction.]',
     'RAID_TARGET: [The specific price level or range where the liquidation cluster sits - this is where price would hunt before reversing. Format: "$X.XX" or "$X.XX – $X.XX". Write N/A if RAID_SETUP is NONE.]',
     'RAID_TRIGGER: [One sentence: the specific price action, volume, or candle pattern that would CONFIRM the raid is starting. E.g. "Break and hold above $2.05 on the 15m with volume spike triggers short liquidation cascade." Write N/A if RAID_SETUP is NONE.]',

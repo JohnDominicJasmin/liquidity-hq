@@ -238,6 +238,11 @@ export async function POST(req: NextRequest) {
   }
 
   const result = parseCombinedResponse(text, tf, session);
+  /* #1631 B: a raid needs a liquidation cluster to aim at. When the prompt carried none ("Not available" under the clusters header), any
+     raid the model wrote anyway is dropped - both XRP runs invented a "long flush" target without cluster data. */
+  if (/=== REALIZED LIQUIDATION CLUSTERS[^\n]*===\s*\n\s*Not available/.test(prompt)) {
+    result.raidSetup = null; result.raidTarget = null; result.raidTrigger = null;
+  }
 
   const newDeep  = type === 'deep'  ? usageResult.count : deepUsed;
   const newQuick = type === 'quick' ? usageResult.count : quickUsed;
