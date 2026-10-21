@@ -9,7 +9,7 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
-import { getUserCompat } from '@/lib/authUser';
+import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { anonServerClient, userClient } from '@/lib/supabase-user';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
   // Auth required for both Quick and Deep - prevents unauthenticated API burn
   let userId: string | null = null;
   if (token) {
-    const { data } = await getUserCompat(token);
+    const { data } = await getUserCompatForBilledCall(token);
     userId = data.user?.id ?? null;
   }
 

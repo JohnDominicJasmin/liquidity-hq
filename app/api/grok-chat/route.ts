@@ -22,7 +22,7 @@ import { AI_LIMITS } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { clampMaxTokens } from '@/lib/grokTokenClamp';
-import { getUserCompat } from '@/lib/authUser';
+import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   if (!token) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
-  const { data: userData } = await getUserCompat(token);
+  const { data: userData } = await getUserCompatForBilledCall(token);
   if (!userData.user) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }

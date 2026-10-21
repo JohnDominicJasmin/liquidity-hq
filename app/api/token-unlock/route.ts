@@ -5,7 +5,7 @@ import { cached } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
-import { getUserCompat } from '@/lib/authUser';
+import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   const authToken = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!authToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await getUserCompat(authToken);
+  const { data: authData } = await getUserCompatForBilledCall(authToken);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only. This tool is reachable in-product only from /backtest, which

@@ -19,6 +19,8 @@
  * of the token alone (push subscribe/test, Telegram link code, the alert-prefs save, Lemon Squeezy cancel). Routes whose reads and writes go
  * through the user's own token are no weaker: PostgREST accepts that same token until it expires. */
 import { userClient } from '@/lib/supabase-user';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { T } from '@/lib/tables';
 
 export interface TokenUser {
   id: string;
@@ -168,4 +170,27 @@ export type CompatUserResult =
 export async function getUserCompat(token: string | null | undefined): Promise<CompatUserResult> {
   const u = await userFromToken(token);
   return u ? { data: { user: { id: u.id, email: u.email } }, error: null } : { data: { user: null }, error: null };
+}
+
+/** Whether the account is banned NOW, from the app's own ban flag: lhq_user_status.banned, which the database trigger lhq_user_status_sync
+ *  sets whenever auth.users.banned_until changes (supabase/migrations/20260916_capture_user_status_ban_sync.sql; the same row AuthProvider
+ *  listens to for its push sign-out). One indexed read, no Auth call. A failed read answers false: a database hiccup must not switch off
+ *  every paid feature, and a banned account is still stopped at its token's expiry and by AuthProvider's sign-out. */
+export async function isAccountBanned(userId: string): Promise<boolean> {
+  try {
+    const { data, error } = await getSupabaseAdmin().from(T.user_status).select('banned').eq('user_id', userId).maybeSingle();
+    if (error) return false;
+    return (data as { banned?: boolean } | null)?.banned === true;
+  } catch {
+    return false;
+  }
+}
+
+/** getUserCompat for the routes that SPEND money on the caller (every xAI call, #1397 review F2, PM's decision): a locally verified token
+ *  stays valid until it expires even after a ban, so these also check the ban flag and answer "no user" for a banned account, which each
+ *  route already turns into its 401. */
+export async function getUserCompatForBilledCall(token: string | null | undefined): Promise<CompatUserResult> {
+  const r = await getUserCompat(token);
+  if (r.data.user && (await isAccountBanned(r.data.user.id))) return { data: { user: null }, error: null };
+  return r;
 }
