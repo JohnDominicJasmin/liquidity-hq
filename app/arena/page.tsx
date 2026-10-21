@@ -417,6 +417,12 @@ function ArenaContent() {
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('strategy-selection-changed', { detail: { selection: strategySelection } }));
   }, [strategySelection]);
+  /* #1631 E: tells the chat which coin this page shows; GrokChat follows it when it opens with no conversation (it used to start on BTC
+     on the XRP page). Cleared on leaving Arena, so other pages fall back to the shared selected coin. */
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('page-coin', { detail: { coin: selectedCoin } }));
+  }, [selectedCoin]);
+  useEffect(() => () => { window.dispatchEvent(new CustomEvent('page-coin', { detail: { coin: null } })); }, []);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* Whether the scanner was opened by hover rather than by a click. Only a
