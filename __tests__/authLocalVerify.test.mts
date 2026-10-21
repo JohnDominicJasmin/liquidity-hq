@@ -166,10 +166,14 @@ test('V15. the cache holds at most 5,000 tokens', async () => {
 });
 
 test('F1. a key-set refetch that FAILS while a new kid appears sends the token to Auth instead of rejecting it (fixed in #1656)', async () => {
+  const t0 = realNow(); Date.now = () => t0;
   assert.ok(await userFromToken(await sign(claims())));
-  state().lastFetch -= 61_000; jwksDown = true;
+  // move the clock, not lastFetch: rewinding lastFetch alone let a refetch in the same millisecond as the first fetch read as a success
+  Date.now = () => t0 + 61_000; jwksDown = true;
   const rotated = await sign(claims(), K2, 'kid-2'); AUTH_KNOWS.set(rotated, { id: UID, email: EMAIL });
   assert.equal((await userFromToken(rotated))?.id, UID, 'a valid token with a newly rotated kid was rejected because the key set could not be fetched');
+  assert.equal(calls.jwks, 2, 'the key set was not re-fetched, so the failed-refetch path was never taken');
+  assert.equal(calls.user, 1);
 });
 
 test('B1. the ban flag (#1656): flagged reads banned, unflagged and no row read not banned, and a FAILED read lets the call through', async () => {
