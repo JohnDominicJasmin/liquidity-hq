@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
+import { wilderRsiSeries } from '@/lib/rsi';
 
 function emaArr(closes: number[], period: number): number[] {
   const result = new Array<number>(closes.length).fill(NaN);
@@ -15,26 +16,8 @@ function emaArr(closes: number[], period: number): number[] {
   return result;
 }
 
-function rsiArr(closes: number[], period = 14): number[] {
-  const result = new Array<number>(closes.length).fill(NaN);
-  if (closes.length < period + 1) return result;
-  let avgGain = 0, avgLoss = 0;
-  for (let i = 1; i <= period; i++) {
-    const d = closes[i] - closes[i - 1];
-    if (d > 0) avgGain += d; else avgLoss -= d;
-  }
-  avgGain /= period; avgLoss /= period;
-  result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-  for (let i = period + 1; i < closes.length; i++) {
-    const d = closes[i] - closes[i - 1];
-    const gain = d > 0 ? d : 0;
-    const loss = d < 0 ? -d : 0;
-    avgGain = (avgGain * (period - 1) + gain) / period;
-    avgLoss = (avgLoss * (period - 1) + loss) / period;
-    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-  }
-  return result;
-}
+// The app's one RSI (lib/rsi.ts, #1626 C).
+const rsiArr = (closes: number[], period = 14): number[] => wilderRsiSeries(closes, period);
 
 export interface SignalStat {
   name:       string;

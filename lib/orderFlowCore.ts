@@ -6,18 +6,13 @@
 
 import { OHLCV } from './strategyCore.ts';
 import { computeFibLevels } from './marketStore.ts';
+import { wilderRsi } from './rsi.ts';
 
-/* ── Windowed RSI(14) - matches MarketProvider.tsx's computeRSI14 exactly:
-   a fresh average over the last 14 changes each time, not Wilder's continuous
-   smoothing. This is deliberate - it's what the live Order Flow card actually uses. */
+/* ── RSI(14) for the Order Flow backtest - the SAME RSI the live card now uses (lib/rsi.ts: standard Wilder, #1626 C). It was the old
+   simple windowed mean, to match the live card at the time; the live card changed, so this changes with it. Pass the CLOSED candles up to
+   the bar being tested, with history (the engine passes ~120). The name is kept for its caller. */
 export function simpleRSI14(closes: number[]): number | null {
-  if (closes.length < 15) return null;
-  const changes = closes.slice(1).map((c, i) => c - closes[i]);
-  const gains  = changes.slice(-14).map(c => Math.max(c, 0));
-  const losses = changes.slice(-14).map(c => Math.max(-c, 0));
-  const avgGain = gains.reduce((a, b) => a + b, 0) / 14;
-  const avgLoss = losses.reduce((a, b) => a + b, 0) / 14;
-  return avgLoss === 0 ? 100 : Math.round(100 - (100 / (1 + avgGain / avgLoss)));
+  return wilderRsi(closes, 14);
 }
 
 /* Finds the index of the most recent item that has fully CLOSED by timeMs -

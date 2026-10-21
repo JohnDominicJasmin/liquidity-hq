@@ -18,6 +18,7 @@ import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { formatRsi } from '@/lib/rsi';
 
 /* ── helpers (identical to briefing/page.tsx) ── */
 
@@ -98,8 +99,8 @@ function getSignalTags(
   if (coin.volRatio != null && coin.volRatio >= 1.5)
     tags.push(t('BRIEFING_TAG_VOL', { x: coin.volRatio.toFixed(1) }));
   if (coin.rsi14 != null) {
-    if (dir === 'LONG_LIQ' && coin.rsi14 >= 65) tags.push(t('BRIEFING_TAG_RSI', { value: Math.round(coin.rsi14) }));
-    if (dir === 'SHORT_SQ' && coin.rsi14 <= 35)  tags.push(t('BRIEFING_TAG_RSI', { value: Math.round(coin.rsi14) }));
+    if (dir === 'LONG_LIQ' && coin.rsi14 >= 65) tags.push(t('BRIEFING_TAG_RSI', { value: formatRsi(coin.rsi14) }));
+    if (dir === 'SHORT_SQ' && coin.rsi14 <= 35)  tags.push(t('BRIEFING_TAG_RSI', { value: formatRsi(coin.rsi14) }));
   }
   if (coin.oiTrend) {
     if (dir === 'LONG_LIQ' && coin.oiTrend.includes('down')) tags.push(t('BRIEFING_TAG_OI_DOWN'));
@@ -634,8 +635,8 @@ export default function BriefingTerminal() {
           if (!c?.price) continue;
           const chips: Chip[] = [];
           if (c.rsi14 != null) {
-            if (c.rsi14 >= 70)      chips.push({ text: t('BRIEFING_TAG_RSI', { value: Math.round(c.rsi14) }), color: 'var(--red)' });
-            else if (c.rsi14 <= 30) chips.push({ text: t('BRIEFING_TAG_RSI', { value: Math.round(c.rsi14) }), color: 'var(--green-2)' });
+            if (c.rsi14 >= 70)      chips.push({ text: t('BRIEFING_TAG_RSI', { value: formatRsi(c.rsi14) }), color: 'var(--red)' });
+            else if (c.rsi14 <= 30) chips.push({ text: t('BRIEFING_TAG_RSI', { value: formatRsi(c.rsi14) }), color: 'var(--green-2)' });
           }
           if (c.fundingRate != null) {
             const fr = c.fundingRate * 100;

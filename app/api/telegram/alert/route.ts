@@ -25,6 +25,7 @@ import {
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
 import { planKindOfRow } from '@/lib/paidPeriod';
 import { FREE_SIGNAL_COINS } from '@/lib/signalCoinGate';
+import { wilderRsi } from '@/lib/rsi';
 
 export const dynamic = 'force-dynamic';
 
@@ -647,18 +648,9 @@ async function fetchBybitKlines(
 /* ════════════════════════════════════════
    3. RSI (extremes)
    ════════════════════════════════════════ */
+/* The app's one RSI (lib/rsi.ts, #1626 C): standard Wilder RSI(14). 50 (neutral, fires nothing) when there is not enough history. */
 function computeRSI(closes: number[], period = 14): number {
-  if (closes.length < period + 2) return 50;
-  const ch = closes.slice(1).map((c, i) => c - closes[i]);
-  let ag = 0, al = 0;
-  for (let i = 0; i < period; i++) { ag += Math.max(ch[i], 0); al += Math.max(-ch[i], 0); }
-  ag /= period; al /= period;
-  for (let i = period; i < ch.length; i++) {
-    ag = (ag * (period - 1) + Math.max(ch[i], 0)) / period;
-    al = (al * (period - 1) + Math.max(-ch[i], 0)) / period;
-  }
-  if (al === 0) return 100;
-  return 100 - 100 / (1 + ag / al);
+  return wilderRsi(closes, period) ?? 50;
 }
 
 async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipient[], thresholdsByUser: Map<string, UserThresholds>, skipCounts: SkipCounts): Promise<string[]> {
@@ -691,7 +683,8 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
       } else {
         return;
       }
-      const rsi    = computeRSI(closes);
+      // #1626 C: CLOSED candles only - the last one Bybit returns is still forming.
+      const rsi    = computeRSI(closes.slice(0, -1));
       const r      = rsi.toFixed(1);
       const label  = LABELS[coin];
       const price  = closes[closes.length - 1];

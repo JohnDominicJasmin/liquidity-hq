@@ -450,10 +450,13 @@ export default function MarketProvider(
         // from "not enough candles yet", the #1079 shape. Bounded by the 3min
         // poll below either way (a missed cycle just waits for the next one),
         // but the fix makes that recovery reliable rather than lucky.
-        const d = await fetchBybitKlinesRetry(sym, '15', 100);
+        // #1626 C: 121 candles - the RSI reads the 120 CLOSED ones (Wilder needs the history to settle); everything else keeps reading the
+        // newest 100 exactly as before (VWAP, volume profile, MA20, volume ratio).
+        const d = await fetchBybitKlinesRetry(sym, '15', 121);
         if (d === null) return;
         // Bybit returns newest-first - reverse to oldest-first
-        const klines: string[][] = [...(d.result?.list ?? [])].reverse();
+        const allKlines: string[][] = [...(d.result?.list ?? [])].reverse();
+        const klines: string[][] = allKlines.slice(-100);
         if (klines.length < 15) return;
 
         // 1000x denomination coins need price scaling to match coin.price set by fetchBybit
@@ -464,7 +467,8 @@ export default function MarketProvider(
         const lows   = klines.map(k => parseFloat(k[3]) * pf);
         const vols   = klines.map(k => parseFloat(k[6])); // turnover = quote vol (USD)
 
-        const rsi14     = computeRSI14(closes);
+        // CLOSED candles only: the newest row is still forming.
+        const rsi14     = computeRSI14(allKlines.slice(0, -1).map(k => parseFloat(k[4]) * pf));
         const ma20Slice = closes.slice(-20);
         const ma20      = ma20Slice.reduce((a, b) => a + b, 0) / ma20Slice.length;
 
