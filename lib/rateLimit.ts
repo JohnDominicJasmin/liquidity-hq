@@ -5,6 +5,16 @@
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
+/* Hard cap on live buckets (#1397). The sweep below only drops EXPIRED buckets, and a flood of distinct keys (one per IP per route) inside one
+   window is all live. 20,000 is far past any real concurrent-visitor count here; over it the oldest are dropped (a dropped bucket only resets one
+   visitor's counter - it errs toward allowing, never toward blocking a real user). */
+const MAX_BUCKETS = 20_000;
+
+/** Live bucket count, for lib/memWatch.ts. */
+export function _bucketCount(): number {
+  return buckets.size;
+}
+
 // Periodic sweep so the Map doesn't grow unbounded across many distinct IPs.
 // unref'd so importing this module doesn't keep a plain `node --test` process
 // alive forever - the Next server process stays alive regardless, since it
@@ -24,7 +34,13 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
   const now = Date.now();
   const b = buckets.get(key);
   if (!b || now > b.resetAt) {
+    buckets.delete(key);
     buckets.set(key, { count: 1, resetAt: now + windowMs });
+    while (buckets.size > MAX_BUCKETS) {
+      const oldest = buckets.keys().next();
+      if (oldest.done) break;
+      buckets.delete(oldest.value);
+    }
     return true;
   }
   if (b.count >= limit) return false;
