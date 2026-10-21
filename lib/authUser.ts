@@ -89,7 +89,9 @@ export async function verifyAccessToken(token: string, nowMs: number = Date.now(
   let keys = await loadKeys(false);
   let key = keys?.keys.get(header.kid);
   let fresh = false;
-  if (!key) { const before = state.lastFetch; keys = await loadKeys(true); fresh = state.lastFetch !== before; key = keys?.keys.get(header.kid); }
+  // `fresh` only when the re-fetch actually SUCCEEDED (it stamps jwks.fetchedAt with the same time as lastFetch). A failed re-fetch (timeout,
+  // non-200) must not turn a just-rotated key into "invalid": the token goes to Auth instead (QA's F1 on #1653).
+  if (!key) { const before = state.lastFetch; keys = await loadKeys(true); fresh = state.lastFetch !== before && state.jwks?.fetchedAt === state.lastFetch; key = keys?.keys.get(header.kid); }
   if (!keys) return { kind: 'unsupported' };          // the key set could not be fetched at all: let Auth decide
   // A key id we do not have: if the set was just re-fetched it is not ours (invalid); if the re-fetch was skipped (at most once a minute),
   // the key may be newly rotated, so let Auth decide rather than reject a possibly valid token.
