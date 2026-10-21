@@ -48,6 +48,7 @@ import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
 import { formatRsi } from '@/lib/rsi';
+import { priceText } from '@/lib/numberFormat';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -1004,7 +1005,7 @@ function ArenaContent() {
     const rsi14 = coin?.rsi14 != null
       ? coin.rsi14.toFixed(1) + (coin.rsi14 >= 70 ? ' (Overbought)' : coin.rsi14 <= 30 ? ' (Oversold)' : ' (Neutral)')
       : '-';
-    const ma20 = coin?.ma20 != null ? '$' + coin.ma20.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
+    const ma20 = coin?.ma20 != null ? priceText(coin.ma20) : '-';
     const priceVsMA = coin?.price && coin?.ma20
       ? coin.price > coin.ma20
         ? 'ABOVE MA20 (+' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% - bullish)'
@@ -1050,14 +1051,15 @@ function ArenaContent() {
           const fibs = computeFibLevels(coin.high, coin.low, coin.price);
           if (!fibs.length) return '-';
           const nearest = fibs.reduce((acc, f) => Math.abs(coin.price - f.price) < Math.abs(coin.price - acc.price) ? f : acc);
-          return nearest.label + ' @ $' + nearest.price.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' (' + nearest.dist + ')';
+          return nearest.label + ' @ ' + priceText(nearest.price) + ' (' + nearest.dist + ')';
         })()
       : '-';
 
     /* Order book walls */
     const orderWalls = coin?.orderBidWalls && coin?.orderAskWalls
-      ? 'Bid walls: ' + coin.orderBidWalls.map(w => '$' + w.price.toLocaleString(undefined, { maximumFractionDigits: 0 })).join(', ')
-        + ' | Ask walls: ' + coin.orderAskWalls.map(w => '$' + w.price.toLocaleString(undefined, { maximumFractionDigits: 0 })).join(', ')
+      /* #1631 B: decimals by size - maximumFractionDigits 0 printed every XRP wall as "$2". */
+      ? 'Bid walls: ' + coin.orderBidWalls.map(w => priceText(w.price)).join(', ')
+        + ' | Ask walls: ' + coin.orderAskWalls.map(w => priceText(w.price)).join(', ')
       : '-';
 
     /* Squeeze score */
@@ -1129,9 +1131,9 @@ function ArenaContent() {
 
     /* Volume Profile POC */
     const pocLine = coin?.poc != null
-      ? '$' + coin.poc.toLocaleString(undefined, { maximumFractionDigits: 2 })
-        + (coin.vah != null ? ' | VAH $' + coin.vah.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '')
-        + (coin.val != null ? ' | VAL $' + coin.val.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '')
+      ? priceText(coin.poc)
+        + (coin.vah != null ? ' | VAH ' + priceText(coin.vah) : '')
+        + (coin.val != null ? ' | VAL ' + priceText(coin.val) : '')
         + (coin.price && coin.poc ? (coin.price > coin.poc ? ' - price ABOVE POC (bullish)' : ' - price BELOW POC (bearish)') : '')
       : '-';
 
@@ -1157,7 +1159,7 @@ function ArenaContent() {
 
     /* VWAP */
     const vwap = coin?.vwap != null
-      ? '$' + coin.vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })
+      ? priceText(coin.vwap)
         + (coin.price
           ? (coin.price > coin.vwap
               ? ' - price ABOVE VWAP (bullish, paying up)'
@@ -1263,7 +1265,8 @@ function ArenaContent() {
 
     return {
       coin: selectedCoin.toUpperCase() + '/USDT',
-      price: coin?.price ? '$' + coin.price.toLocaleString() : '-',
+      // #1631 B: toLocaleString() keeps at most 3 decimals, so a PEPE-sized price read "$0".
+      price: coin?.price ? priceText(coin.price) : '-',
       change24h: coin?.change != null ? (coin.change >= 0 ? '+' : '') + coin.change.toFixed(2) + '%' : '-',
       fundingRate: coin?.fundingRate != null ? classifyFunding(coin.fundingRate).label : '-',
       openInterest: coin?.oi != null ? '$' + (coin.oi / 1e9).toFixed(2) + 'B' : '-',
@@ -1372,8 +1375,9 @@ function ArenaContent() {
       emaStrategy: (emaLoading
         ? '[Still loading EMA technicals for the current coin/timeframe - the line below is the PREVIOUS selection\'s, not this one\'s] '
         : '') + strategyToGrokLine(emaSignalRef.current, readTf),
+      // #1631 B: decimals by size - toFixed(2) printed a small coin's 35% buffer as "$0.00".
       emaATR: emaSignalRef.current.atrLast != null
-        ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 35% buf = $${(emaSignalRef.current.atrLast * 0.35).toFixed(2)} min clearance above/below EMA50`
+        ? `ATR(14) = ${priceText(emaSignalRef.current.atrLast)} · 35% buf = ${priceText(emaSignalRef.current.atrLast * 0.35)} min clearance above/below EMA50`
         : '-',
       ema50Slope: (() => {
         const s = emaSignalRef.current.ema50Slope;

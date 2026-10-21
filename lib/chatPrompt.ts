@@ -14,6 +14,7 @@
  *   - the follow-up questions come from the SAME answer (a FOLLOW-UPS: block the server splits off), replacing the hidden second call
  *     per message that spent a second chat credit and a second xAI charge. */
 import { COINS, type CoinId } from './coins.ts';
+import { priceText as fmtPrice, signedUsd } from './numberFormat.ts';
 
 export interface ChatContext {
   coin: CoinId;
@@ -66,20 +67,6 @@ export function parseChatContext(raw: unknown): ChatContext | null {
     headlines: strs(r.headlines, 8, 240), geo: strs(r.geo, 5, 240),
     selection: str(r.selection, 400),
   };
-}
-
-/** A price with as many decimals as its size needs: 107,250 / 2,345.67 / 2.3456 / 0.5123 / 0.00001234. */
-export function fmtPrice(v: number): string {
-  const a = Math.abs(v);
-  const body = a >= 1000 ? v.toLocaleString('en-US', { maximumFractionDigits: 2 })
-    : a >= 1 ? v.toLocaleString('en-US', { maximumFractionDigits: 4 })
-    : a === 0 ? '0' : Number(v.toPrecision(4)).toString();
-  return '$' + body;
-}
-
-/** A signed dollar amount in a unit: +$527M, -$26.1M. The sign is never dropped. */
-export function signedUsd(v: number, unit: 'M' | 'B', digits: number): string {
-  return (v >= 0 ? '+' : '-') + '$' + Math.abs(v).toFixed(digits) + unit;
 }
 
 const pct = (v: number, digits: number) => (v >= 0 ? '+' : '') + v.toFixed(digits) + '%';
