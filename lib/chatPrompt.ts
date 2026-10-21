@@ -183,13 +183,16 @@ export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean;
 
 /** Splits the FOLLOW-UPS block off the model's answer. A model that does not write one simply gets no chips. */
 export function splitFollowUps(raw: string): { text: string; followUps: string[] } {
-  const i = raw.lastIndexOf(FOLLOW_UPS_MARKER);
-  if (i < 0) return { text: raw.trim(), followUps: [] };
-  const followUps = raw.slice(i + FOLLOW_UPS_MARKER.length).split('\n')
-    .map((q) => q.trim().replace(/^\d+[.)]\s*/, '').replace(/^[-•*]\s*/, ''))
+  /* PM audit of #1665: the model sometimes bolds the marker (**FOLLOW-UPS:**) or writes it in another case. Matched loosely, the last one
+     wins, and the bold markers go with it - they used to stay behind as a stray "**" at the end of the answer. */
+  let last: RegExpExecArray | null = null;
+  for (const m of raw.matchAll(/\*{0,2}[ \t]*follow-ups[ \t]*:[ \t]*\*{0,2}/gi)) last = m as RegExpExecArray;
+  if (!last) return { text: raw.trim(), followUps: [] };
+  const followUps = raw.slice(last.index + last[0].length).split('\n')
+    .map((q) => q.trim().replace(/^\d+[.)]\s*/, '').replace(/^[-•*]\s*/, '').replace(/^\*\*|\*\*$/g, '').trim())
     .filter((q) => q.length > 5 && q.length < 100)
     .slice(0, 3);
-  return { text: raw.slice(0, i).trim(), followUps };
+  return { text: raw.slice(0, last.index).trim(), followUps };
 }
 
 /** The conversation as the browser sent it, reduced to user/assistant turns of bounded size (the last 8). A `system` turn is never taken. */
