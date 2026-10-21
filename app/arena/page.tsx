@@ -48,7 +48,7 @@ import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
 import { formatRsi } from '@/lib/rsi';
-import { priceText, signedUsd } from '@/lib/numberFormat';
+import { priceDigits, priceText, signedUsd } from '@/lib/numberFormat';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -1505,10 +1505,9 @@ function ArenaContent() {
       const sma200  = calcSMA(closes, 200).at(-1) ?? null;
       // #1626 C: CLOSED candles only (the newest chart candle is still forming).
       const rsi     = calcRSI(closes.slice(0, -1), 14).at(-1) ?? null;
-      const lastC    = vis[vis.length - 1].c;
-      const pDec     = lastC >= 10000 ? 0 : lastC >= 100 ? 2 : lastC >= 1 ? 3 : 4;
       // Include volume so AI can detect drying-up volume (exhaustion signal)
-      const recent20 = vis.slice(-15).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)} V:${c.v >= 1e6 ? (c.v/1e6).toFixed(2)+'M' : c.v >= 1e3 ? (c.v/1e3).toFixed(1)+'K' : c.v.toFixed(0)}`).join(' | ');
+      // #1631 B (PM audit): decimals by size - a fixed 4 printed every PEPE candle as O:0.0000 H:0.0000 L:0.0000 C:0.0000.
+      const recent20 = vis.slice(-15).map(c => `O:${priceDigits(c.o)} H:${priceDigits(c.h)} L:${priceDigits(c.l)} C:${priceDigits(c.c)} V:${c.v >= 1e6 ? (c.v/1e6).toFixed(2)+'M' : c.v >= 1e3 ? (c.v/1e3).toFixed(1)+'K' : c.v.toFixed(0)}`).join(' | ');
       const detectedPatterns = detectPatterns(vis);
       // Structure read from the same candles already in hand - no extra fetch.
       // Deliberately independent of the EMA ribbon: the prompt is told to
