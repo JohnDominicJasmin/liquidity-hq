@@ -854,13 +854,24 @@ const CATALYST_WHEN = /\b(20\d\d-\d\d-\d\d(?!\d)|(jan|feb|mar|apr|may|jun|jul|au
 const NOT_A_SOURCE = /^(memory|from memory|model|the model|ai|grok|training( data)?|none|unknown|n\/?a|-)$/i;
 
 /** #1631 D: the COUNTED line in any order or separator, bold or not ("bullish 3 (...) | bearish 1", "Bearish: 1, Bullish: 3").
- *  null when there is no COUNTED line or it does not give both numbers. */
+ *  null when there is no COUNTED line, it does not give both numbers, or it gives one side two different numbers.
+ *
+ *  Each count is read only where its side STARTS a segment, with the parenthesised signal lists removed first. PM's re-audit of #1668:
+ *  reading the first "bearish N" anywhere took "bullish 3 (reclaimed bearish 4h breaker) | bearish 1" as 3 v 4, and the tier check then
+ *  turned a correct BULLISH into LEAN BEARISH. A signal's own name ("bearish 4h breaker", "bullish 1h FVG") is not a count. */
 export function parseCounted(text: string): { bullish: number; bearish: number } | null {
   const line = text.split('\n').map((l) => l.replace(/\*+/g, '').trim()).find((l) => /^COUNTED\s*:/i.test(l));
   if (!line) return null;
+  let body = line.replace(/^COUNTED\s*:/i, '');
+  for (let prev = ''; prev !== body;) { prev = body; body = body.replace(/\([^()]*\)/g, ' '); }
+  const segments = body.split(/[|,;]/).map((s) => s.trim());
   const n = (side: 'bullish' | 'bearish') => {
-    const m = line.match(new RegExp(`\\b${side}\\b\\s*[:=]?\\s*(\\d+)`, 'i'));
-    return m ? parseInt(m[1], 10) : null;
+    const found = new Set<number>();
+    for (const s of segments) {
+      const m = s.match(new RegExp(`^${side}\\b\\s*[:=]?\\s*(\\d+)`, 'i'));
+      if (m) found.add(parseInt(m[1], 10));
+    }
+    return found.size === 1 ? [...found][0] : null;
   };
   const bullish = n('bullish'), bearish = n('bearish');
   return bullish == null || bearish == null ? null : { bullish, bearish };
