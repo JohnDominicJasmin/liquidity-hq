@@ -3,11 +3,15 @@
 // in-memory Map is sufficient - same pattern as the cooldown Map already
 // used in app/api/telegram/alert/route.ts.
 
-const buckets = new Map<string, { count: number; resetAt: number }>();
+const buckets = new Map<string, { count: number; resetAt: number; limit: number }>();
 
 /* Hard cap on live buckets (#1397). The sweep below only drops EXPIRED buckets, and a flood of distinct keys (one per IP per route) inside one
-   window is all live. 20,000 is far past any real concurrent-visitor count here; over it the oldest are dropped (a dropped bucket only resets one
-   visitor's counter - it errs toward allowing, never toward blocking a real user). */
+   window is all live. 20,000 is far past any real concurrent-visitor count here.
+
+   WHICH bucket goes when the cap is hit matters (security review of this change): dropping the oldest regardless would let a flood of throwaway keys
+   flush the buckets that are BLOCKING someone, a rate-limit bypass an attacker could trigger. So a bucket that has reached its limit is never evicted;
+   the oldest bucket still under its limit goes instead. If every bucket is at its limit (20,000 blockers) a NEW key is refused (fail closed) rather
+   than flushing any of them. */
 const MAX_BUCKETS = 20_000;
 
 /** Live bucket count, for lib/memWatch.ts. */
@@ -35,12 +39,13 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
   const b = buckets.get(key);
   if (!b || now > b.resetAt) {
     buckets.delete(key);
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
-    while (buckets.size > MAX_BUCKETS) {
-      const oldest = buckets.keys().next();
-      if (oldest.done) break;
-      buckets.delete(oldest.value);
+    if (buckets.size >= MAX_BUCKETS) {
+      let victim: string | null = null;
+      for (const [k, v] of buckets) { if (v.count < v.limit) { victim = k; break; } }
+      if (victim === null) return false; // every live bucket is a blocker: refuse the new key, evict none
+      buckets.delete(victim);
     }
+    buckets.set(key, { count: 1, resetAt: now + windowMs, limit });
     return true;
   }
   if (b.count >= limit) return false;
