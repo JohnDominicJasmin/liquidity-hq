@@ -104,6 +104,11 @@ const nextConfig: NextConfig = {
   // Remove X-Powered-By: Next.js header (don't leak stack info)
   poweredByHeader: false,
 
+  // Image Optimization OFF: /_next/image answers 404 before it reads a parameter (next-server.js checks `unoptimized` first). The critical and
+  // high advisories against this Next version live in that endpoint (Image Optimization RCE, image-optimizer SSRF; Dependabot, #1632), and
+  // the app does not use it: no next/image, no next/og, plain <img> only. Revisit together with the Next upgrade (16.4.2 batch).
+  images: { unoptimized: true },
+
   // Values here are ALWAYS inlined into the bundle regardless of prefix - that is
   // the documented behaviour of this key, and the reason it works for a variable
   // Render does not prefix for us.
