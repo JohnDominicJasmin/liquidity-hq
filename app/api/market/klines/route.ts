@@ -47,6 +47,7 @@ import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { shouldFailToBybit, canFailoverForRequest, bybitIntervalFor } from '@/lib/klinesFailover';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 type Source = 'bybit' | 'binance' | 'binance-futures';
 
@@ -336,7 +337,7 @@ export async function GET(req: NextRequest) {
       headers: {
         /* Shared edge cache too, for the day one exists in front of this. It is
            inert on Render today (#198) and correct the moment it is not. */
-        ...(isRange ? {} : { 'Cache-Control': `public, s-maxage=${Math.floor(ttlFor(interval) / 1000)}, stale-while-revalidate=600` }),
+        ...(isRange ? {} : { 'Cache-Control': polledCacheControl(ttlFor(interval) / 1000) }),
       },
     });
   } catch (e) {

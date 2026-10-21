@@ -49,6 +49,7 @@ import { cached } from '@/lib/apiCache';
 import { runPool, HttpStatusError, isRateLimitStatus } from '@/lib/pool';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { computeKlineMetrics, type KlineMetrics } from '@/lib/klineMetrics';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 export const dynamic = 'force-dynamic';
 
@@ -418,7 +419,7 @@ export async function GET(req: NextRequest) {
       /* Public and visitor-independent, and already only as fresh as the
          shortest TTL. Letting any shared cache in front of this serve it
          removes the origin hit for the common case. */
-      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600' },
+      headers: { 'Cache-Control': polledCacheControl(60) },
     });
   } catch (e) {
     return apiError('market-snapshot', e, 500, 'Request failed');

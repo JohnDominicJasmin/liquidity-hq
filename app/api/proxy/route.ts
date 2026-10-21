@@ -15,6 +15,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 import { etfFlowMillions } from '@/lib/etfFlows';
 import { trackHealth, reportHealth } from '@/lib/apiHealth';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
@@ -52,7 +53,7 @@ async function attributedUser(req: NextRequest): Promise<string> {
    verbatim, and the trends path deliberately converts an upstream block into an
    empty 200 so the page degrades quietly. Caching either would hold a dead
    response at the edge for five minutes. Only genuine payloads get the header. */
-const PROXY_CACHE = { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' };
+const PROXY_CACHE = { 'Cache-Control': polledCacheControl(300) };
 const proxyCache = (ok: boolean) => (ok ? PROXY_CACHE : undefined);
 
 /* PASSTHROUGH TYPES (#238).

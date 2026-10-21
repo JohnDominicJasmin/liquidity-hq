@@ -4,6 +4,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { cached } from '@/lib/apiCache';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 const CMC_KEY = process.env.CMC_API_KEY ?? '';
 const BASE    = 'https://pro-api.coinmarketcap.com';
@@ -66,7 +67,7 @@ async function attributedUser(req: NextRequest): Promise<string> {
    "rate limit exceeded" payload at the edge for five minutes and take the
    feature down for everyone. Errors stay uncached and retry immediately. */
 const CMC_CACHE = (ok: boolean) =>
-  ok ? { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } : undefined;
+  ok ? { 'Cache-Control': polledCacheControl(300) } : undefined;
 
 /* SERVER-SIDE CACHE, because the header above never cached anything (#1397).
    `s-maxage` is a shared-cache hint: staging has nothing in front of Render, and
