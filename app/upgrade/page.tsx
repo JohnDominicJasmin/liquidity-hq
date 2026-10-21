@@ -266,6 +266,9 @@ export default function UpgradePage() {
       )}
       {embed && accountEmail && !embedFailed ? (
         <>
+          {/* While the checkout is open the floating Ask AI button is hidden: on a phone it sat over the right end of Whop's Address field (owner,
+              #1606 review). Scoped to this page and this state with an inline rule, so nothing global changes. */}
+          <style>{'.gchat-fab{display:none !important}'}</style>
           <Suspense fallback={<p style={{ margin: 0, padding: '24px 0', textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('UPGRADE_WHOP_EMBED_LOADING')}</p>}>
             <WhopCheckoutEmbed planId={embed.planId} email={accountEmail} environment={embed.environment} returnUrl={embedReturnUrl} onFailed={() => setEmbedFailed(true)} compact={narrow} />
           </Suspense>

@@ -12,9 +12,10 @@ import type { CalEvent } from '../route';
 // Scheduled hourly from cron-job.org - see docs/INFRASTRUCTURE.md §2.
 //
 // Calls this app's own /api/econ-calendar rather than importing its internals:
-// that route merges four fallback sources (Finnhub, ForexFactory, the Fed's
-// FOMC page, a computed schedule) and enriches past events from FRED, and it
-// stays in place for the pages that read it directly. app/api/macro-alert
+// that route builds the calendar from the agencies' published schedules
+// (lib/econSchedule.ts, plus a live read of the Fed's FOMC page) and enriches
+// past events from FRED (#1625), and it stays in place for the pages that read
+// it directly. app/api/macro-alert
 // already reaches it the same way.
 const SNAPSHOT_KEY = 'us_high_impact';
 
@@ -54,17 +55,18 @@ export async function POST(req: Request) {
     const { events, source } = await res.json() as { events?: CalEvent[]; source?: string };
 
     // Health is the count of events, not the HTTP status: /api/econ-calendar
-    // answers 200 with `{events: [], source: 'none'}` when all four upstream
-    // sources fail, so status alone would report a total outage as healthy.
+    // answers 200 with `{events: [], source: 'none'}` when it cannot produce a
+    // calendar (the schedule table has expired), so status alone would report
+    // that as healthy.
     await recordApiHealth([{
       source: 'econ-calendar',
       category: 'macro',
       ok: (events?.length ?? 0) > 0,
-      detail: events?.length ? `${events.length} events via ${source ?? 'unknown'}` : 'no events - all upstream sources failed',
+      detail: events?.length ? `${events.length} events via ${source ?? 'unknown'}` : 'no events - the release schedule table has expired or could not be read',
       items: events?.length ?? 0,
     }]);
 
-    // An empty result means every upstream source failed at once. Overwriting a
+    // An empty result means no calendar could be produced. Overwriting a
     // good snapshot with [] would blank the calendar for every client, so keep
     // the last known-good one instead. The health sweep still runs - a failing
     // calendar is exactly when you want to hear about the other sources too.
