@@ -30,26 +30,6 @@ and only run in a window the owner grants.
 | 15 | **Cross-browser testing** — everything runs on Chromium only | **medium** | not filed | The owner's own Brave bug was found by hand, not by tests |
 | 16 | **Testimonial section** | **medium** | not filed | Blocked: no users yet, and nothing here is ever faked |
 | 17 | **Visual regression (screenshot comparison)** | **low** | not filed | Parked. Layout tests catch overlaps, not ugliness |
-| 18 | **Vela chart prototype with our BUY/SELL markers** (owner liked its smoothness, 2026-10-13) | **low** | not filed | Backlog only. See note below |
-
-**Item 18 note.** Vela = github.com/LuxAlgo/Vela, open-source charting library (TypeScript, own WebGL renderer, Apache 2.0 with a required visible "Vela" attribution/watermark; checked from the repo page 2026-10-13). It ships 70+ indicators but **no buy/sell signals**; our EMA9/20 + EMA50 markers would have to be drawn by us. Whether Vela's plugin SDK can draw custom markers is **unverified**. We use `klinecharts` today, so a swap touches every chart page. Plan: prototype on a separate branch, one page only, no replacement. The owner approves screenshots before anything merges (Arena redesign was rejected 3 times). Licence and watermark need a check before use in a paid product.
-
-## Whop go-live concerns (added 2026-10-11, owner: backlog, not today)
-
-| # | Item | Status |
-|---|---|---|
-| W1 | No test payment yet; "Get access" greyed out for the seller account. Owner buys in a private window | open |
-| W2 | App unlock (webhook, grant Pro, "Pay with Whop" button) not built; Pro is manual until then | open |
-| W3 | Refund Policy page must return before real charges | open |
-| W4 | Whop may ask for business documents; threshold unknown. See Settings > Verifications (below) | open |
-| W5 | Chargebacks fall on the seller | known |
-| W6 | Whop Websites migration job: owner says stopped | closed |
-| W7 | Product description lists features taken from page names; owner to confirm they are Pro-only | open |
-| W8 | Crypto at Whop checkout not seen in a real checkout | unverified |
-| W9 | "$25" strikethrough and "Save 20%" on the $20 plan: no setting found, likely auto-computed from other plans | owner's call |
-| W10 | Philippine tax / BIR registration: ask an accountant | not started |
-
-Whop Settings sweep, 2026-10-11 (screenshots, not Google): Verifications shows an action required, "Provide source of wealth, proposed use of cards" (red, "Affects withdrawals"); Individual verification done; Business verification "Get verified" (optional, not forced); Payouts Active, Whop Card / Bank deposits inactive. Legal: no ToS / Privacy / Return policy / EULA uploaded. Tax: Whop collects and remits; no business address or tax ID. Payments: max price $2,500 per checkout. Checkout: payment orchestration ON (0.8% fee per Whop's own text).
 
 ## What I'd do first, if the owner wants a recommendation
 

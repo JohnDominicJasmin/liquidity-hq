@@ -2,7 +2,7 @@
 
 Owner rule, 2026-10-10: **when new information lands, it goes into the docs, not only into a chat or an agent's memory.** Any agent (Claude, Codex, a new session) must be able to start from this file. Update it in the same PR as the change.
 
-Last verified: 2026-10-10. Items marked **(unverified)** came from a chat model or a summary, not from a primary source.
+Last verified: 2026-10-10; prices, payments state, environments and permissions re-checked 2026-10-21. Items marked **(unverified)** came from a chat model or a summary, not from a primary source. **Sections are dated, and when two disagree the later decision wins.** Payments: **Whop only since 2026-10-17**; the 2026-10-10 sections on MoonPay, BoomFi and "all three gateways" are history.
 
 ## What the product is
 - liquidity-hq.com: a subscription web app for crypto traders. Charts, EMA-based BUY/SELL signal markers (EMA9/20 cross confirmed by EMA50), confluence score, market data (open interest, funding, order flow), AI-written analysis, Telegram and price alerts for Pro.
@@ -16,32 +16,32 @@ Last verified: 2026-10-10. Items marked **(unverified)** came from a chat model 
 ## Plans and prices (owner final, 2026-10-08)
 - $49 monthly, $490 annual ("2 months free"), $20 every 2 weeks. Free tier.
 - Signal gate (`lib/signalCoinGate.ts`): signed-out BTC only; Free BTC/ETH/SOL (and signals only on 30m+); Pro and Trial all coins.
-- `docs/PRICING_AND_LIMITS.md` may still show the old $35/$350; the code and prod labels are $49/$490/$20.
+- Checked 2026-10-21: the English defaults on `dev` (`lib/labelDefaults.en.json`: `UPGRADE_PRICE_*`, `UPGRADE_CHECKOUT_BUTTON_CTA`, `FAQ_Q_PRO_PRICE_A`) and production's `lhq_labels` (en) both say $49/$490/$20; no $35/$350 is left in either. `docs/PRICING_AND_LIMITS.md` carries no dollar prices.
 
 ## Contact
 - support@liquidity-hq.com (mailbox active). Shown in the footer, /contact, /terms, /privacy, /about. Label text lives in `lib/labelDefaults.en.json` and the prod table `lhq_labels` (dev: `lhq_dev_labels`).
-- The Refund Policy link and page were removed 2026-10-08 (`/refund` redirects to `/terms`). **It must return before real charges**; processors expect it.
+- The Refund Policy link and page were removed 2026-10-08 (`/refund` redirects to `/terms`). **It must return before real charges**; processors expect it. Since the owner's 2026-10-17 ruling (all sales final, below), the refund rules go in the Terms billing section, whose wording the owner approved on 2026-10-21 (#1633).
 
 ## Payments: where we are
-Payments are OFF on prod (`isProBuyable` false; /upgrade says "launching soon").
+Payments are OFF on prod (`isProBuyable` false; /upgrade says "launching soon"). **2026-10-21:** production has no Whop variables at all (names read on Render ~14:17 UTC), so nothing can be bought or granted there; release v2026.10.21 ships the Whop code switched off. Go-live sets the three checkout links, `WHOP_WEBHOOK_SECRET`, `WHOP_COMPANY_ID` and the plan ids together, never the links alone (#1567), and Supabase Pro is bought the same day (owner, 2026-10-21).
 
 Rejected or banned for our category (primary sources):
 - Lemon Squeezy (store application rejected). Polar.sh (form said crypto trading signals tools not allowed, 2026-10-07). Paddle (its list names "trading signals and strategies").
 - Stripe does not support Philippines sellers (stripe.com/global country list). A company in a supported country would be needed.
 - Do not reword the product to dodge a review. Describe it exactly.
 
-Candidates (none confirmed to approve us):
+Candidates as of 2026-10-10 (none confirmed to approve us). **Superseded by the 2026-10-17 decision, Whop only (below); kept as history.** The Whop details here are the 2026-10-10 state: the webhook route has since been built (#1567) and its secret set on qa (2026-10-19/20 section).
 - **Crypto:** BoomFi (webhook is a recording shell; the unlock is on qa behind `isProBuyable`, verified only on a stand-in DB; BoomFi publishes no sample payloads; its "regulated services unavailable" list includes UK, Malaysia, Netherlands, Quebec, NY/AK/LA, China, Russia and about 30 others, unconfirmed whether it applies to us). MoonPay Commerce (ex-Helio): low complaint volume per Google AI Mode (unverified); not a merchant of record.
 - **Fiat (cards, bank):** Whop is the only workable one found. Business "Liquidity-hq" created 2026-10-10; product "LiquidityHQ Pro" CREATED 2026-10-10 with three plans: $49 monthly, $490 yearly, $20 every 14 days (page https://whop.com/liquidity-hq/liquidityhq-pro; payouts active; product review and reserves unknown until first sales). Webhook and API key not yet created (owner creates them after Dev builds the route, issue 1567). Whop is limited merchant of record; reserves up to 100% for up to 180 days; dispute rate under 1 to 2%; payout identity verification COMPLETE 2026-10-10 (Whop email: payout account active). This is NOT a product approval; Whop can still hold funds or set reserves on first sales.
 - Avoid, per community reports (unverified): Dodo Payments, PayPro Global, FastSpring, Cryptomus, Sellix card rails, CoinGate (mixed).
 
 ## Environments
-- Flow: dev -> qa -> staging -> main. Render autoDeploy is off. Prod live: main d3659f1 (tag v2026.10.08).
+- Flow: dev -> qa -> staging -> main. Render autoDeploy is off. Prod live: read `https://liquidity-hq.com/api/version`, never this line. On 2026-10-21 it served `b999f8c` (tag `v2026.10.17`); release v2026.10.21 was waiting for the owner's approval (#1654).
 - Render workspace tea-d6e4ecv5r7bs73be1t10: prod srv-d8aluf6l51nc73e1ijp0, qa srv-d9p42ke1egvs73f8car0, staging srv-d9qskniju40c73brtqgg.
 - Supabase: prod qdpwhnvmhqgzijuwopso, dev wdtjhrilakoitfcezxpx. Staging uses the dev database.
 
 ## Permission blocks agents hit
-- The harness blocks merges to staging/main and Render prod deploys, even with chat approval. The owner runs `! gh pr merge <n> --merge` or adds allow rules. Account creation, ID/bank entry, accepting terms and setting prices on third-party merchant accounts are owner clicks.
+- Allow rules for `gh pr merge`, the GitHub merges API, Render `trigger_deploy` and Supabase `execute_sql` are saved in the owner's `~/.claude/settings.json` (since 2026-10-17; re-read 2026-10-21). They stop the tool prompt only: **the owner's approval is still required for every production release and every shared-database write.** Never ask the owner to type a merge command. Account creation, ID/bank entry, accepting terms and setting prices on third-party merchant accounts are owner clicks.
 
 ## Before answering a question
 1. Grep the whole repo, not one folder. 2. Read this file, `docs/HANDOVER.md`, `docs/INFRASTRUCTURE.md`, `docs/OWNER-BACKLOG.md`. 3. Say which source answered. 4. Label any outside claim unverified.
@@ -66,12 +66,12 @@ Candidates (none confirmed to approve us):
 
 ## Payment requirements (owner, 2026-10-10) - the only two ways
 1. **Fiat:** credit or debit card, or money from a bank. Provider: Whop (cards and bank methods).
-2. **Crypto:** the user pays from their own exchange balance (Bybit, Binance) by sending USDT/USDC to our payment address. Provider: MoonPay Commerce first (card + exchange-balance crypto, about 150 countries), BoomFi second (blocks UK, Malaysia, Netherlands and about 30 more regions per its docs; unconfirmed whether that applies to us). Order changed by owner argument 2026-10-10.
+2. **Crypto:** the user pays from their own exchange balance (Bybit, Binance) by sending USDT/USDC to our payment address. (Providers below superseded 2026-10-17: Whop only; Whop's checkout lists crypto, not yet seen in a real checkout.) Provider: MoonPay Commerce first (card + exchange-balance crypto, about 150 countries), BoomFi second (blocks UK, Malaysia, Netherlands and about 30 more regions per its docs; unconfirmed whether that applies to us). Order changed by owner argument 2026-10-10.
 - Payments sent from an exchange balance cannot auto-renew; the buyer sends each period by hand, so the app sends a renewal reminder.
 - Not wanted: card-to-crypto conversion widgets as a separate path, anything country-specific.
 - Builds: Whop webhook/unlock = issue #1567; BoomFi unlock = #1555/#1565.
 
-## DECISION (owner, 2026-10-10, latest): use ALL THREE gateways: Whop, MoonPay Commerce, BoomFi
+## SUPERSEDED 2026-10-17 by "Whop only" (below). Was: DECISION (owner, 2026-10-10): use ALL THREE gateways: Whop, MoonPay Commerce, BoomFi
 - Supersedes the earlier "only two" decision below. BoomFi: NO more verification, go straight to testing (owner, 2026-10-10). Test = owner makes a BoomFi test checkout link, pays it, the webhook payload is captured, then the qa unlock (#1555/#1565) is checked against that real payload.
 - **/upgrade UI (owner, 2026-10-10): three separate buttons: "Pay with Whop", "Pay with MoonPay", "Pay with BoomFi".** Each links to that gateway's checkout per plan; all gated by `isProBuyable`.
 - **MoonPay Commerce set up 2026-10-10:** profile + Sumsub business questions done (owner did the ID steps). THREE Pay Links created and priced in USDT (owner choice 2026-10-10; payout still USDC on Solana whatever the price currency): $49 "LiquidityHQ Pro - 1 month" https://moonpay.hel.io/pay/6ac9ee570cbeb77c21017692 ; $490 "LiquidityHQ Pro - 1 year" https://moonpay.hel.io/pay/6ac9eec20554bcf324b322ba ; $20 "LiquidityHQ Pro - 2 weeks" https://moonpay.hel.io/pay/6ac9efb0bce217626d54d694 (IDs taken from the dashboard edit URLs; open each once to confirm the public page loads before putting them in code). Not yet tested with a real payment. Payout wallet = the account's own MoonPay "Main Wallet" (Solana 4mjq2W..MaMRt, Settings > Wallets, has Send/Receive; owner confirmed 2026-10-10 it is MoonPay's wallet, not an external one). Whether MoonPay or the owner holds the keys is UNVERIFIED. Before real sales: use "Add Payout Wallet" to point payouts at a wallet or exchange deposit address the owner controls; test Send out of Main Wallet with the first test payment. "Pay with Card" is greyed out until MoonPay is connected (owner step). CARD: "Pay with Card" on a Pay Link is greyed out until MoonPay is connected. Verified on screen: Settings > Integrations > MoonPay ("Accept deposits via more payment methods", link https://dashboard.moonpay.com/signup) needs an Enable toggle plus MoonPay API Key, Secret Key and Webhook Secret from a SEPARATE MoonPay (moonpay.com) business account. Owner creates that account and sets keys himself (never in chat); Onramper is the other listed option (subscription fee). CARD VIA MOONPAY IS BLOCKED FOR AN INDIVIDUAL (verified 2026-10-10 on screen): dashboard.moonpay.com "Start review" questionnaire step 1 (/get-started/questionnaire/legal-name) says "Only registered companies can apply. Not registered yet? Save and exit, and come back once it is." (tickbox "My company is a registered legal entity"). Do not tick it or invent a company name. Card stays on Whop; MoonPay is crypto-only unless the owner registers a business. No auto-renew: Pay Links are one-off, buyer re-pays each period.
@@ -92,10 +92,10 @@ If a claim is unverified, verify it in the background (official page or screensh
 
 ## BoomFi card support, verified 2026-10-10 (quotes from BoomFi docs via Google AI Mode, same thread)
 - Verified: BoomFi docs say "Dual payment options: Accept both fiat and cryptocurrency payments"; feature list "Banking rails: SEPA, FPS, Swift, ACH, Wire"; merchant can settle in crypto or fiat.
-- NOT verified: the card form itself (never seen), card auto-renew (BoomFi recurring is wallet-based), and the card processor (Google says Stripe; docs only list "Stripe Billing" as an integration). If Stripe runs the card side, Stripe's rules (no Philippines sellers, signals wariness) may apply. Owner decision stands: only Whop and MoonPay Commerce.
+- NOT verified: the card form itself (never seen), card auto-renew (BoomFi recurring is wallet-based), and the card processor (Google says Stripe; docs only list "Stripe Billing" as an integration). If Stripe runs the card side, Stripe's rules (no Philippines sellers, signals wariness) may apply. (2026-10-10 wording, superseded twice: "all three gateways" the same day, then Whop only on 2026-10-17.)
 
 ## Three-gateway verification, 2026-10-10 (Google AI Mode in one thread; quotes from official pages where marked)
-Owner decision: use ALL THREE: Whop, MoonPay Commerce, BoomFi.
+Owner decision at the time: use ALL THREE (superseded 2026-10-17: Whop only).
 - **Whop:** card form stated in Whop docs (not seen on our own page; the owner's "Get access" is greyed because he owns the product, to be confirmed in a private window). Buyers blocked: sanctioned countries only. Philippines individual accepted; signals/analytics allowed under conditions; review triggers: first sale/withdrawal, $1k/$5k milestones, fraud scores, earnings-claim wording.
 - **Whop card form SEEN 2026-10-10** (Whop dashboard checkout-link preview of the $20 plan): Card information (number, MM/YY, CVC) + billing details; also Google Pay, Apple Pay, DuitNow QR, iDEAL, Kakao Pay, MB WAY, Multibanco, Satispay, ACH. It is Whop's preview, not a live payment. Account side has no blocker; individual accepted (payout identity verified). Pending: webhook/API key/secret after the #1567 code, and public product page description + disclaimer (state unchecked).
 - **Whop payment methods, Google AI Mode in the existing thread 2026-10-10 (quotes attributed to Whop docs, NOT opened by us; screen-verified: a "Crypto" payment method exists and is ticked in the Whop account's Checkout > Payment methods):** cards Visa/Mastercard/Discover/Amex/Maestro; Apple Pay, Google Pay, Cash App; PayPal (merchant setup); ACH, SEPA; iDEAL, Bancontact, Swish, MobilePay, Vipps. Crypto: BTC, ETH, SOL, USDC, USDT on Ethereum, Bitcoin, Solana, Base, Polygon, Arbitrum, Optimism (via Coinbase Commerce per Google, unverified); buyer can pay from a Binance/Bybit withdrawal (buyer must cover the withdrawal fee); crypto is ONE-TIME ONLY, no auto-renew, buyer re-pays each period; Whop converts crypto to USD at checkout. Only real test purchase settles it.
