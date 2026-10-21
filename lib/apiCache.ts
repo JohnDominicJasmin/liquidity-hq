@@ -5,7 +5,11 @@
 // Not a distributed cache: fine for a small number of long-lived instances,
 // not meant for edge/multi-region deployments.
 
-const store = new Map<string, { ts: number; data: unknown; bytes: number }>();
+/* On globalThis, not module scope (QA, #1634): Next may compile instrumentation.ts (which starts lib/memWatch.ts) as a separate module graph from the
+   routes, and each graph would get its OWN copy of a module-level Map - the [mem] line would then read an empty cache for ever while the routes filled
+   another. One shared state object means every copy of this module sees the same store. */
+const shared = ((globalThis as { __lhqApiCache?: { store: Map<string, { ts: number; data: unknown; bytes: number }>; bytes: number } }).__lhqApiCache ??= { store: new Map(), bytes: 0 });
+const store = shared.store;
 
 /* SIZE CAP, because a Map that only ever grows is a leak with a slow fuse (#253).
  *
@@ -36,7 +40,6 @@ const MAX_ENTRIES = 500;
  * until the total is back under it. 48 MB leaves the rest of a 512 MB instance to Next itself. One entry larger than the whole budget is kept
  * alone (never refuse to cache the thing just fetched) and goes at the next insert. */
 const MAX_BYTES = 48 * 1024 * 1024;
-let totalBytes = 0;
 
 function approxBytes(data: unknown): number {
   try { return JSON.stringify(data)?.length ?? 0; } catch { return 0; }
@@ -57,16 +60,16 @@ function touch(key: string, hit: { ts: number; data: unknown; bytes: number }): 
 
 function remember(key: string, data: unknown): void {
   const prior = store.get(key);
-  if (prior) totalBytes -= prior.bytes;
+  if (prior) shared.bytes -= prior.bytes;
   store.delete(key);                 // so a re-write moves to the end too
   const bytes = approxBytes(data);
   store.set(key, { ts: Date.now(), data, bytes });
-  totalBytes += bytes;
+  shared.bytes += bytes;
   /* while, not if: a cap lowered at runtime should still converge. Stops at one entry so the value just stored is never the one evicted. */
-  while (store.size > 1 && (store.size > MAX_ENTRIES || totalBytes > MAX_BYTES)) {
+  while (store.size > 1 && (store.size > MAX_ENTRIES || shared.bytes > MAX_BYTES)) {
     const oldest = store.entries().next();
     if (oldest.done) break;          // cannot happen while size > 0, but a
-    totalBytes -= oldest.value[1].bytes;
+    shared.bytes -= oldest.value[1].bytes;
     store.delete(oldest.value[0]);   // guard is cheaper than an infinite loop
   }
 }
@@ -80,7 +83,7 @@ export function _cacheSize(): number {
 /** Entry count, total approximate bytes and the largest entries - what lib/memWatch.ts logs so a growing instance names what grew. */
 export function _cacheStats(top = 5): { entries: number; bytes: number; biggest: Array<{ key: string; bytes: number }> } {
   const biggest = [...store.entries()].map(([key, v]) => ({ key: key.slice(0, 80), bytes: v.bytes })).sort((a, b) => b.bytes - a.bytes).slice(0, top);
-  return { entries: store.size, bytes: totalBytes, biggest };
+  return { entries: store.size, bytes: shared.bytes, biggest };
 }
 
 /* IN-FLIGHT REQUESTS, so N concurrent callers produce ONE upstream call (#199).

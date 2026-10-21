@@ -3,7 +3,10 @@
 // in-memory Map is sufficient - same pattern as the cooldown Map already
 // used in app/api/telegram/alert/route.ts.
 
-const buckets = new Map<string, { count: number; resetAt: number; limit: number }>();
+type Bucket = { count: number; resetAt: number; limit: number };
+/* globalThis-backed so every compiled copy of this module (routes, instrumentation) shares one table, see lib/apiCache.ts. */
+const rl = ((globalThis as { __lhqRateLimit?: { buckets: Map<string, Bucket>; overflow: Map<string, Bucket> } }).__lhqRateLimit ??= { buckets: new Map(), overflow: new Map() });
+const buckets = rl.buckets;
 
 /* Hard cap on live buckets (#1397). The sweep below only drops EXPIRED buckets, and a flood of distinct keys (one per IP per route) inside one
    window is all live. 20,000 is far past any real concurrent-visitor count here.
@@ -17,7 +20,7 @@ const buckets = new Map<string, { count: number; resetAt: number; limit: number 
 const MAX_BUCKETS = 20_000;
 const EVICT_SCAN = 64;
 const OVERFLOW_MAX = 1_000;
-const overflow = new Map<string, { count: number; resetAt: number; limit: number }>();
+const overflow = rl.overflow;
 
 /** Live bucket count, for lib/memWatch.ts. */
 export function _bucketCount(): number {
