@@ -43,7 +43,7 @@ and only run in a window the owner grants.
 |---|---|---|
 | W1 | No real payment yet | open: the $1 test plan exists; nothing recorded on qa yet |
 | W2 | App unlock (webhook, grant Pro, checkout) | built (#1599, #1607, #1610, #1643); in release v2026.10.21, which QA passed on 2026-10-21, but **switched off on production**: production has no Whop variables, so /upgrade shows the coming-soon block and the webhook refuses everything (PM read production's Render environment, names only, 2026-10-21 ~14:17 UTC; #1654). Go-live sets the three checkout links, the webhook secret, the company id and the plan ids **together** (#1567), never the links alone |
-| W3 | Refund / return policy page before real charges | #1571: code merged to `dev`; its label migration `20261017b` was applied on the dev database on 2026-10-21 (owner's "Yes, same window", #1644) and goes to production with release v2026.10.21, owner-approved |
+| W3 | Refund / return policy page before real charges | `/refund` was withdrawn on 2026-10-17 and redirects to `/terms`. The refund rules belong in the Terms billing section, whose wording the owner approved on 2026-10-21 (~04:10 UTC, #1633). Separately, #1571's Privacy wording that names Whop (migration `20261017b`) ships with release v2026.10.21 |
 | W4 | Whop may ask for business documents; threshold unknown | open, unchanged |
 | W5 | Chargebacks fall on the seller | known |
 | W6 | Whop Websites migration job | closed |
@@ -77,7 +77,7 @@ Each one is recorded in full on the issue named; this table is the index. Times 
 
 ## Order of work (PM, updated 2026-10-21 afternoon UTC)
 
-1. **Release v2026.10.21** (#1654): the out-of-memory crash fix and lighter sign-in checks, the candle-cache and RSI fixes, the security limits, the image-optimizer advisory closed. QA passed it on 2026-10-21; it goes to production with the owner's approval (two database migrations and the label rows; no env change; payments stay off).
+1. **Release v2026.10.21** (#1654): the out-of-memory crash fix (sign-in tokens checked locally; #1657's lighter checks follow in the next release), the candle-cache and RSI fixes, the security limits, the image-optimizer advisory closed. QA passed it on 2026-10-21; it goes to production with the owner's approval (two database migrations and the label rows; no env change; payments stay off).
 2. **AI correctness** (#1631): E+B+C with the nominal 10-year yield, then A+D (Deep citations, our own dated data).
 3. **Exchange data never blocked** (#1649): phase 2 (Bybit stream), phase 3 (OKX + our own snapshots), phase 4 (Hyperliquid as third source); Dev's estimate for #1662 at a natural break.
 4. **Core data** (owner rule), alongside: the guardrails (#1651; the PR template's data checklist is already in force, #1652), #1617 (one OI window), #1594 (daily health check), #1593 (alert quality).

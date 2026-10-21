@@ -157,7 +157,7 @@ controls** - to anything you touch.
 
 | # | Item | Notes |
 |---|---|---|
-| P1 | **Release v2026.10.21** (#1654) | After QA's sign-off: one owner approval (production migrations `20261017a` and `20261021e` plus the label files; no env change; payments stay off), then apply, merge, deploy, check `/api/version`, one real AI read, a 5-minute watch, tag, closing sweep. |
+| P1 | **Release v2026.10.21** (#1654) | After QA's sign-off: one owner approval (production migrations `20261017a` and `20261021e` plus the label files; no env change; payments stay off), then apply (`20261017a` before the deploy: this release's claim route reads its table on every signed-in page load), merge, deploy, check `/api/version`, one real AI read, a 5-minute watch, tag, closing sweep. |
 | P2 | **The closing sweep, after every production deploy** | Five conditions per issue; a tracker ticks only when verified on production (`git merge-base --is-ancestor <merge> <prod sha>`). |
 | P3 | **Drift check by hand while Actions cannot run** | Production served commit vs `main`, plus tags, recorded on #1413 every run. **A gap in that record is an unmeasured window, not a clean one.** |
 | P4 | **Owner's batch** | One list, recommendation first. Open on 2026-10-21: the X account and a yes/no on the reply plan; the $1 Whop test; 2FA on every account; pinning `NODE_VERSION`; the three visual fails R6-R8. Drop what the owner has acknowledged and cannot act on. |

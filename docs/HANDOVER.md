@@ -15,8 +15,8 @@ file.**
 >
 > The only dated status in this file. Check it against the live sources in the table further down.
 >
-> - **Production:** `b999f8c`, tag `v2026.10.17`. **Release v2026.10.21** (the out-of-memory crash fix and lighter
->   sign-in checks, data fixes, security limits) passed QA's full regression on 2026-10-21 and is on `staging`,
+> - **Production:** `b999f8c`, tag `v2026.10.17`. **Release v2026.10.21** (the out-of-memory crash fix, with sign-in
+>   tokens now checked locally, data fixes, security limits) passed QA's full regression on 2026-10-21 and is on `staging`,
 >   waiting for the owner's approval (#1654).
 > - **Four seats:** PM/DevOps (sequencing; `main` and production with the owner's approval each release), Dev
 >   (application code), QA (every test, the `qa` and `staging` deploys, sign-off), Marketing (Claude Cowork, folder
