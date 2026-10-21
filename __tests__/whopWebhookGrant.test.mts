@@ -157,6 +157,10 @@ const pay = (over: Record<string, unknown> = {}, dataOver: Record<string, unknow
   ...over,
 });
 const reviews = () => sentry().filter((a) => /NEEDS MANUAL REVIEW/.test(String((a[0] as Error)?.message)));
+/* Changed with #1630 GO-LIVE 3 (Dev, intentionally): the events table now also holds two kinds of small bookkeeping rows, 'lhq.applied' (written
+   before every grant) and 'lhq.retry' (left for a settings refusal), next to the existing 'lhq.pending_claim'. "One record" in N2b and N6 means
+   one DELIVERY record, so they count deliveries only. */
+const deliveries = () => [...db.events.values()].filter((r) => !String(r.event ?? '').startsWith('lhq.')).length;
 const fresh = () => { db.reset(); sentry().length = 0; };
 const body = async (r: Response) => r.json();
 const addDays = (d: number) => Date.now() + d * 86400_000;
@@ -270,7 +274,7 @@ test('N2b. a plan id given to two plans, set as the test plan, or not set at all
   // production today: the plan ids are not set there, so a valid, paid, correctly signed payment grants nothing
   fresh(); POST = await load({ WHOP_PLAN_ID_MONTHLY: undefined, WHOP_PLAN_ID_ANNUAL: undefined, WHOP_PLAN_ID_FORTNIGHTLY: undefined });
   r = await POST(req(pay())); assert.match(String((await body(r)).review), /^unknown_plan/); assert.equal(db.subs.size, 0);
-  assert.equal(db.events.size, 1, 'it must still be recorded');
+  assert.equal(deliveries(), 1, 'it must still be recorded');
 });
 
 test('N2c. the plan table itself never holds the hidden test plan, the sandbox test plan, a duplicated id or a blank (a second line of defence behind the rule in N2)', () => {
@@ -313,7 +317,7 @@ test('N6. the exact same delivery again, re-signed with a new timestamp: answere
   await POST(req(b, { id: 'msg_same', ts: Math.floor(Date.now() / 1000) - 5 }));
   const end = db.subs.get(USER_ID)!.current_period_end;
   const r = await POST(req(b, { id: 'msg_same', ts: Math.floor(Date.now() / 1000) }));
-  assert.equal((await body(r)).ignored, 'replay'); assert.equal(db.events.size, 1); assert.equal(db.subs.get(USER_ID)!.current_period_end, end);
+  assert.equal((await body(r)).ignored, 'replay'); assert.equal(deliveries(), 1); assert.equal(db.subs.get(USER_ID)!.current_period_end, end);
 });
 
 test('N7. the grant write fails: the answer is 500, the record is removed, and the RETRY grants (a stranded paying customer is the failure this guards)', async () => {
