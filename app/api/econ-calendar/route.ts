@@ -3,6 +3,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { fetchFredRows, FRED_TTL_DEFAULT } from '@/lib/fred';
 import { cached } from '@/lib/apiCache';
 import { etToUtcMs, scheduledInstants, SCHEDULE_READ_ON, SCHEDULE_COVERS_THROUGH } from '@/lib/econSchedule';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 const DISPLAY_NAMES: Record<string, string> = {
   FOMC:   'FOMC Rate Decision',
@@ -155,7 +156,7 @@ export async function GET(req: NextRequest) {
   try {
     const body = await cached('econ-calendar', CALENDAR_TTL_MS, buildCalendar);
     return NextResponse.json(body,
-      { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200' } });
+      { headers: { 'Cache-Control': polledCacheControl(3600) } });
   } catch {
     /* Uncached, and deliberately without the Cache-Control header the good path
        carries: the next request should try the upstreams again immediately.

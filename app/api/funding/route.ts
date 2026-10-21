@@ -4,6 +4,7 @@ import { COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 import { reportHealth, healthError } from '@/lib/apiHealth';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 export const dynamic = 'force-dynamic';
 // Funding rates settle every 8h - a 20s cache collapses concurrent visitor
@@ -112,7 +113,7 @@ export async function GET(req: NextRequest) {
        Success only - the 429 and the 500 above must never be cached, or one
        rate-limited request serves an error to everyone for a minute. */
     return NextResponse.json(result, {
-      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600' },
+      headers: { 'Cache-Control': polledCacheControl(60) },
     });
   } catch (err) {
     return apiError('funding', err, 500, 'Request failed');

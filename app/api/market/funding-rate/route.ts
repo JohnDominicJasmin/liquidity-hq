@@ -15,6 +15,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BINANCE_SYM_TO_COIN, BYBIT_SYMS } from '@/lib/coins';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 const SYMBOLS = Object.entries(BINANCE_SYMS)
   .filter(([coin]) => coin !== 'hype')
@@ -128,7 +129,7 @@ export async function GET(req: NextRequest) {
       ...(viaFallback?.length ? { viaFallback } : {}),
       ts: Date.now(),
     }, {
-      headers: { 'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800' },
+      headers: { 'Cache-Control': polledCacheControl(900) },
     });
   } catch (e) {
     reportHealth('binance:funding-rate', 'market', false, String(e));
