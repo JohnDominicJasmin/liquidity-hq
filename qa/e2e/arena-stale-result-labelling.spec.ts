@@ -75,7 +75,7 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   const ctx = await signedInContext(browser, 'a');
   const page = await ctx.newPage();
   const grokPosts: string[] = [];
-  const chatBodies: Array<{ turns: ChatTurn[] }> = [];
+  const chatBodies: Array<{ turns: ChatTurn[]; selection: string }> = [];
 
   await page.route('**/api/grok', async route => {
     if (route.request().method() !== 'POST') {
@@ -96,12 +96,14 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
       }),
     });
   });
+  // #1665 (#1631 E): the browser sends the conversation as `messages` and the selection as DATA (`context.selection`); the server writes
+  // the system prompt from it. The answer is { text, followUps, citations, _usage }.
   await page.route('**/api/grok-chat', route => {
-    const body = route.request().postDataJSON() as { messages?: ChatTurn[]; input?: ChatTurn[] };
-    chatBodies.push({ turns: body?.messages ?? body?.input ?? [] });
+    const body = route.request().postDataJSON() as { messages?: ChatTurn[]; context?: { selection?: string } };
+    chatBodies.push({ turns: body?.messages ?? [], selection: body?.context?.selection ?? '' });
     return route.fulfill({
       status: 200, contentType: 'application/json',
-      body: JSON.stringify({ choices: [{ message: { content: 'stubbed reply' } }] }),
+      body: JSON.stringify({ text: 'stubbed reply', followUps: [], citations: [], _usage: null }),
     });
   });
   const fakeCandle = (i: number) => [Date.now() - (300 - i) * 60_000, 100, 101, 99, 100.5, 10];
@@ -137,16 +139,16 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   const staleNotices = page.locator('.arena-override-notice').filter({ hasText: stalePre });
   const staleInCard = page.locator('.arena-signal-card .arena-override-notice').filter({ hasText: stalePre });
 
-  const askAi = async (): Promise<{ userPrompt: string; systemMsg: string }> => {
+  const askAi = async (): Promise<{ userPrompt: string; selection: string }> => {
     const before = chatBodies.length;
     await page.getByRole('button', { name: 'ASK AI', exact: true }).click();
     await expect.poll(() => chatBodies.length, {
       message: 'ASK AI never produced a /api/grok-chat request', timeout: 10_000,
     }).toBeGreaterThan(before);
-    const turns = chatBodies[chatBodies.length - 1].turns;
+    const { turns, selection } = chatBodies[chatBodies.length - 1];
     return {
       userPrompt: [...turns].reverse().find(t => t.role === 'user')?.content ?? '',
-      systemMsg: turns.find(t => t.role === 'system')?.content ?? '',
+      selection,
     };
   };
 
@@ -194,14 +196,14 @@ test.describe('A read computed for a different selection is marked wherever it i
       await smaChip.click();
       await expect(smaChip).toHaveAttribute('aria-pressed', 'true');
 
-      const { userPrompt, systemMsg } = await askAi();
+      const { userPrompt, selection } = await askAi();
 
       expect(userPrompt, 'place 3: the ASK AI prompt cited the stale read as fact (its reasoning marker is present) - ' +
         'one message asserting the old selection\'s conclusion beside the current selection, the audit\'s worst case').not.toContain(MARKER);
       expect(userPrompt, 'the stale read\'s signal must not be cited either').not.toContain('LEAN BEARISH');
       expect(userPrompt, 'a stale read must be treated exactly like no read at all: expected the ARENA_CHAT_PROMPT_NO_RESULT wording ' +
         `(starts "${noResultPrefix.trim()}...") - Quick/Deep are one click away for a fresh read`).toContain(noResultPrefix);
-      expect(systemMsg, 'the CURRENT selection (SMA) must still reach the chat - not citing the stale read must not drop the live selection').toContain('SMA');
+      expect(selection, 'the CURRENT selection (SMA) must still reach the chat - not citing the stale read must not drop the live selection').toContain('SMA');
     } finally {
       await ctx.close();
     }
