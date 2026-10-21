@@ -5,6 +5,7 @@ import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { cached } from '@/lib/apiCache';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { getUserCompat } from '@/lib/authUser';
 
 const CMC_KEY = process.env.CMC_API_KEY ?? '';
 const BASE    = 'https://pro-api.coinmarketcap.com';
@@ -51,7 +52,7 @@ async function attributedUser(req: NextRequest): Promise<string> {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return 'anon';
   try {
-    const { data } = await sb(token).auth.getUser();
+    const { data } = await getUserCompat(token);
     return data.user?.id ?? 'anon';
   } catch {
     return 'anon';

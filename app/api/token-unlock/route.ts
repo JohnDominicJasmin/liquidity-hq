@@ -6,6 +6,7 @@ import { cached } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
+import { getUserCompat } from '@/lib/authUser';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Vesting schedules don't change hour to hour, and every visitor checking the
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
   const authToken = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!authToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await sb(authToken).auth.getUser();
+  const { data: authData } = await getUserCompat(authToken);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only. This tool is reachable in-product only from /backtest, which

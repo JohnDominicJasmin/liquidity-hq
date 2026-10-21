@@ -16,6 +16,7 @@ import { cached } from '@/lib/apiCache';
 import { etfFlowMillions } from '@/lib/etfFlows';
 import { trackHealth, reportHealth } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { getUserCompat } from '@/lib/authUser';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
@@ -38,7 +39,7 @@ async function attributedUser(req: NextRequest): Promise<string> {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return 'anon';
   try {
-    const { data } = await sb(token).auth.getUser();
+    const { data } = await getUserCompat(token);
     return data.user?.id ?? 'anon';
   } catch {
     return 'anon';

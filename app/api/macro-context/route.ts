@@ -7,6 +7,7 @@ import { cached } from '@/lib/apiCache';
 import { hasProFeatures, getUsageTier } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { pctChange, buildMacroPrompt } from '@/lib/macroContext';
+import { getUserCompat } from '@/lib/authUser';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // DXY/VIX/gold/oil/10Y don't meaningfully shift within a few minutes - cache
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only feature - checked server-side so the paid Grok call can't be

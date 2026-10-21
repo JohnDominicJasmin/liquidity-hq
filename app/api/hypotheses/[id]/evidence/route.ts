@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
+import { getUserCompat } from '@/lib/authUser';
 
 function sb(token: string) {
   return createClient(
@@ -19,7 +20,7 @@ function auth(req: NextRequest) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const token = auth(req);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const token = auth(req);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   const userId = authData.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 export async function DELETE(req: NextRequest) {
   const token = auth(req);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const evidenceId = req.nextUrl.searchParams.get('evidenceId');

@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import type { UsageTier } from '@/lib/limits';
 import { paidPeriodLapsed } from '@/lib/paidPeriod';
+import { getUserCompat } from '@/lib/authUser';
 
 /* Re-exported so call sites keep one import. The logic lives in lib/paidPeriod
    because this file cannot be unit-tested - see the note at the top of it. */
@@ -130,7 +131,7 @@ export async function getUsageTier(token: string, userId: string): Promise<Usage
 export async function getEntitlementStatusFromRequestToken(token: string | null | undefined): Promise<EntitlementStatus> {
   if (!token) return 'not_entitled';
   try {
-    const { data } = await sb(token).auth.getUser();
+    const { data } = await getUserCompat(token);
     const userId = data.user?.id;
     if (!userId) return 'not_entitled';
     return await getEntitlementStatus(token, userId);

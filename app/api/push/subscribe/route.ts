@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { getUserCompat } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ async function getUser(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
   if (!token) return null;
   try {
-    const { data: { user } } = await getSupabaseAdmin().auth.getUser(token);
+    const { data: { user } } = await getUserCompat(token);
     return user ?? null;
   } catch { return null; }
 }

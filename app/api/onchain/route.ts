@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { hasProFeatures, getUsageTier } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { getUserCompat } from '@/lib/authUser';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // On-chain metrics (MVRV/SOPR/NVT/exchange flow) don't move within minutes, and
@@ -120,7 +121,7 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only feature - checked server-side so the paid Grok call can't be

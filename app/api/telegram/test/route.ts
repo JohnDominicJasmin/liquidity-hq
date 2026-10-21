@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { hasProFeatures } from '@/lib/entitlements';
 import { rateLimit } from '@/lib/rateLimit';
+import { getUserCompat } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
   if (!userToken) return NextResponse.json({ ok: false, error: 'Sign in required' }, { status: 401 });
 
   const sb = makeSb(userToken);
-  const { data: { user } } = await sb.auth.getUser();
+  const { data: { user } } = await getUserCompat(userToken); // #1397: verified locally
   if (!user) return NextResponse.json({ ok: false, error: 'Sign in required' }, { status: 401 });
 
   if (!rateLimit(`telegram-test:${user.id}`, 5, 60_000)) {

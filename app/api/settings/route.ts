@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
+import { getUserCompat } from '@/lib/authUser';
 
 function sb(token: string) {
   return createClient(
@@ -13,7 +14,7 @@ function sb(token: string) {
 }
 
 async function getUser(token: string) {
-  const { data } = await sb(token).auth.getUser();
+  const { data } = await getUserCompat(token);
   return data.user ?? null;
 }
 

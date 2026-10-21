@@ -10,6 +10,7 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
+import { getUserCompat } from '@/lib/authUser';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
   if (!token) return NextResponse.json({ usage: null });
 
-  const { data } = await sb(token).auth.getUser();
+  const { data } = await getUserCompat(token);
   const userId = data.user?.id ?? null;
   if (!userId) return NextResponse.json({ usage: null });
 
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
   // Auth required for both Quick and Deep - prevents unauthenticated API burn
   let userId: string | null = null;
   if (token) {
-    const { data } = await sb(token).auth.getUser();
+    const { data } = await getUserCompat(token);
     userId = data.user?.id ?? null;
   }
 

@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { hasProFeatures } from '@/lib/entitlements';
 import { ACTIVE_ALERT_CAP, PRICE_ALERT_PRUNE_AT, PRICE_ALERT_PRUNE_TO, TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
+import { getUserCompat } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ function sb(token: string) {
 }
 
 async function getUser(token: string) {
-  const { data } = await sb(token).auth.getUser();
+  const { data } = await getUserCompat(token);
   return data.user ?? null;
 }
 

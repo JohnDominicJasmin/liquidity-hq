@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { rateLimit } from '@/lib/rateLimit';
 import { T } from '@/lib/tables';
 import { makeLinkCode } from '@/lib/telegramLinkCode';
+import { getUserCompat } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,11 +43,7 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: auth } = await createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  ).auth.getUser();
+  const { data: auth } = await getUserCompat(token); // #1397: verified locally (lib/authUser.ts)
   if (!auth.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Per-user, not per-IP: the expensive thing to protect is the codes table,
@@ -101,11 +97,7 @@ export async function DELETE(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: auth } = await createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  ).auth.getUser();
+  const { data: auth } = await getUserCompat(token); // #1397: verified locally (lib/authUser.ts)
   if (!auth.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {

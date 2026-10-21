@@ -4,6 +4,7 @@ import { recordAiCall } from '@/lib/aiCallLog';
 import { createClient } from '@supabase/supabase-js';
 import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { getUserCompat } from '@/lib/authUser';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only. This tool is reachable in-product only from /backtest, which
