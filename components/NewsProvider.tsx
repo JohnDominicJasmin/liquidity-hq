@@ -105,7 +105,7 @@ interface NewsCtx {
   econAgeMs: number | null;
   geoEvents: GeoEvent[];
   eventsLoaded: boolean;
-  alertsLoaded: boolean;  // true once the initial news read has been applied
+  alertsLoaded: boolean;  // true once a news read has SUCCEEDED and been applied - a failed one leaves it false
   newsActive: boolean;
   latestHeadlines: string[];
   /** #1631 A: the same headlines with their source and time (ts in SECONDS), for prompts that must date what they cite. */
@@ -306,8 +306,10 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
        notification whenever permission is already 'granted', however it was
        granted. */
 
+    /* No client means no news was read, so alertsLoaded stays false (PM's re-audit of #1668): the Arena prompt then says the feed is
+       unavailable instead of "No recent alerts", which the model reads as a quiet tape. */
     const sb = getSupabase();
-    if (!sb) { setAlertsLoaded(true); setEventsLoaded(true); return; }
+    if (!sb) { setEventsLoaded(true); return; }
 
     let live = true;
 
@@ -328,13 +330,16 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     // whatever it missed while the socket was down.
     const hydrateNews = async () => {
       const cutoff = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
-      const { data } = await sb
+      const { data, error } = await sb
         .from(T.news)
         .select('dedup_key, headline, source, published_at, severity, cat, link, image')
         .gte('published_at', cutoff)
         .order('published_at', { ascending: false })
         .limit(150);
       if (!live) return;
+      // A failed read is not an empty feed: leave alertsLoaded false so nothing reports "no news" from it. The fallback timer
+      // below and the next SUBSCRIBED both read again while it is false.
+      if (error) return;
       // Oldest first so pushAlert's arrival order matches chronological order.
       // Explicit arrow rather than passing ingestRow straight to forEach -
       // forEach hands the index in as the second argument, which would land on
