@@ -142,8 +142,7 @@ test('C4. the follow-up block is split off the answer: the text keeps none of it
   assert.deepEqual(splitFollowUps('A short answer.'), { text: 'A short answer.', followUps: [] });
 });
 
-// todo until the follow-up on #1631 lands: a bold chip keeps one "*" (the bullet strip eats a star before the bold strip runs). Still runs.
-test('C5. the follow-up block is found when the model bolds the marker or writes it in another case, the last one wins, and no "**" is left', { todo: 'bold chip keeps a stray "*" - follow-up on #1631' }, () => {
+test('C5. the follow-up block is found when the model bolds the marker or writes it in another case, the last one wins, and no "**" is left', () => {
   assert.deepEqual(splitFollowUps('Answer text.\n**FOLLOW-UPS:**\n- What about funding now?\n- Where is the next support?'),
     { text: 'Answer text.', followUps: ['What about funding now?', 'Where is the next support?'] });
   assert.deepEqual(splitFollowUps('Answer.\nFollow-ups:\n1. **Is volume rising here?**'), { text: 'Answer.', followUps: ['Is volume rising here?'] });
