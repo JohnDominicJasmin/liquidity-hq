@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import { TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
 
 function sb(token: string) {
   return createClient(
@@ -48,6 +49,12 @@ export async function POST(req: NextRequest) {
   if (!body.title?.trim() || !body.hypothesis?.trim()) {
     return NextResponse.json({ error: 'title and hypothesis are required' }, { status: 400 });
   }
+  // #1632 H1: the limits the database enforces (migration 20261021e), said first.
+  const criteria = Array.isArray(body.acceptance_criteria) ? body.acceptance_criteria.filter((c): c is string => typeof c === 'string' && c.length > 0) : [];
+  if (body.title.length > TEXT_LIMITS.hypothesisTitle || body.hypothesis.length > TEXT_LIMITS.hypothesis
+      || criteria.length > TEXT_LIMITS.criteriaCount || criteria.some(c => c.length > TEXT_LIMITS.criterion)) {
+    return NextResponse.json({ error: 'TOO_LONG', message: `Title up to ${TEXT_LIMITS.hypothesisTitle} characters, hypothesis up to ${TEXT_LIMITS.hypothesis}, and up to ${TEXT_LIMITS.criteriaCount} criteria of ${TEXT_LIMITS.criterion} each.` }, { status: 400 });
+  }
 
   const { data, error } = await sb(token)
     .from(T.hypotheses)
@@ -55,12 +62,16 @@ export async function POST(req: NextRequest) {
       user_id: userId,
       title: body.title.trim(),
       hypothesis: body.hypothesis.trim(),
-      acceptance_criteria: body.acceptance_criteria?.filter(Boolean) ?? [],
+      acceptance_criteria: criteria,
       target_date: body.target_date ?? null,
     })
     .select()
     .single();
 
-  if (error) return apiError('hypotheses', error);
+  if (error) {
+    const refusal = limitRefusal(error);
+    if (refusal) return NextResponse.json({ error: refusal.error, message: refusal.message }, { status: refusal.status });
+    return apiError('hypotheses', error);
+  }
   return NextResponse.json({ hypothesis: data }, { status: 201 });
 }

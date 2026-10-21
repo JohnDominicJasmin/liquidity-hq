@@ -16,6 +16,7 @@ import { coinBadgeColor } from '@/lib/coinBadge';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { TEXT_LIMITS } from '@/lib/ownRowLimits';
 
 type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
@@ -1030,6 +1031,7 @@ function Inner() {
               className="tj-notes"
               aria-label={t('TRADE_JOURNAL_LOG_NOTES_ARIA')}
               rows={3}
+              maxLength={TEXT_LIMITS.tradeNotes}
               placeholder={t('TRADE_JOURNAL_LOG_NOTES_PLACEHOLDER')}
               value={notes}
               onChange={e => setNotes(e.target.value)}
@@ -1300,7 +1302,7 @@ function Inner() {
                         the content back - and the fixture trade has notes in it.
                         Worth knowing if anyone checks this by eye. */}
                     <label className="tj-lbl" htmlFor={`tj-edit-notes-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_NOTES_LABEL')}</label>
-                    <textarea id={`tj-edit-notes-${trade.id}`} className="tj-notes" rows={2}
+                    <textarea id={`tj-edit-notes-${trade.id}`} className="tj-notes" rows={2} maxLength={TEXT_LIMITS.tradeNotes}
                       value={editDraft.notes}
                       onChange={e => setEditDraft(p => ({ ...p, notes: e.target.value }))} />
                   </div>
