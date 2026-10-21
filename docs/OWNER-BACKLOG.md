@@ -57,7 +57,7 @@ and only run in a window the owner grants.
 Each one is recorded in full on the issue named; this table is the index. Times are UTC. Corrected and completed
 the same day after PM's audit of every owner message in the compacted PM chat: four items had existed only in the
 chat (the soft launch, the tools answer, "render service paid", the Korea concern), and four times had been stamped
-3-6 minutes late. Also found: the owner's 2026-10-20 15:12 UTC "turn on waitlist" (Whop) was not carried out and
+1-6 minutes late. Also found: the owner's 2026-10-20 15:12 UTC "turn on waitlist" (Whop) was not carried out and
 was put back to him on 2026-10-21 (#1567).
 
 | Time | Decision | Recorded |
@@ -84,7 +84,7 @@ was put back to him on 2026-10-21 (#1567).
 | 11:16-11:19 | Concern: Korea's block of 27 unregistered exchanges may shrink futures trading; PM's assessment, two marketing cautions and a "Korea premium" panel idea | #1592 |
 | ~14:00 | Hyperliquid, option A: third backup source and funding comparison (#1649 phase 4); real liquidation levels filed as a proposal for Dev's estimate (Dev: about 5-6 days, no database in a first version) | #1649, #1662 |
 
-## Waiting on the owner (PM, 2026-10-21 ~15:00 UTC)
+## Waiting on the owner (PM, 2026-10-21 ~14:45 UTC)
 
 One list, so nothing waits in a chat. Recommendation first in each.
 
@@ -93,12 +93,12 @@ One list, so nothing waits in a chat. Recommendation first in each.
 | 1 | Release v2026.10.21 to production (QA signed off; two database changes that touch no existing data, label rows, no env change, payments stay off) | Approve now | #1654, #1663 |
 | 2 | Whop: anyone can buy on the public page today, but production cannot unlock Pro until go-live | Waitlist on the three Pro plans until go-live (his own 2026-10-20 call); the hidden $1 test plan stays | #1567 |
 | 3 | The official X account, and a yes/no on the reply plan | Create the brand account; approve the plan | #1591 |
-| 4 | The $1 Whop test payment (hidden test plan) | Do it when convenient; it confirms the automatic unlock | #1567 |
+| 4 | The $1 Whop test payment (hidden test plan) | Do it when convenient. It can confirm the automatic unlock only **on the qa test site**, which holds the Whop webhook secret today, for an account with the same email (where the webhook points is set in his Whop dashboard). Production cannot unlock until go-live (row 2; "webhook pointed at the production URL" is still unchecked on #1567), so liquidity-hq.com would show no Pro | #1567 |
 | 5 | Two-step login (authenticator app, not SMS) on GitHub, Render, Supabase, Whop, Hostinger, Google, Brevo, xAI, Telegram | Turn it on; account takeover is the biggest real risk | #1632 |
 | 6 | Email domain: Brevo is not verified on liquidity-hq.com and anti-spoofing is off | Sign in to Brevo and Hostinger in Chrome; PM does the records with him | #1632 |
 | 7 | Pin the Node version on Render (`NODE_VERSION`, an env-var change on each service) | Pin to the version Render uses today (24.14.1) | #1649 |
 | 8 | Marketing wording: he asked Marketing to "scrape" which accounts to follow; PM wrote "research by hand, not bulk scraping" (automated scraping breaks X/Facebook rules) | Confirm the hand-research wording | Marketing `START-HERE.md` |
-| 9 | The Impeccable design-tool hooks run at the start and end of every session for all three seats | His call: keep or remove | owner's Claude settings |
+| 9 | The Impeccable design-tool hooks run in all three seats: at the start of every session, after every file edit, and at the end of every reply | His call: keep or remove | owner's Claude settings |
 | 10 | Three visual fails from QA's regression (R6 `/learn` light theme, R7 `/hours` labels, R8 `/liq` stats grid) | A look when convenient; low priority | #1640 |
 | 11 | Optional: Supabase dashboard checks (usage; Auth rate limits) | When convenient | #1567 |
 

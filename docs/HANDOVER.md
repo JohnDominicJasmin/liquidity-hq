@@ -22,8 +22,9 @@ file.**
 >   (application code), QA (every test, the `qa` and `staging` deploys, sign-off), Marketing (Claude Cowork, folder
 >   `Documents\LiquidityHQ-Marketing`; PM keeps its `FACTS.md`). Who merges and deploys: `CLAUDE.md`.
 > - **Payments:** Whop only since 2026-10-17; built, switched off on production until go-live (#1567).
-> - **Read next:** `docs/OWNER-BACKLOG.md` (the owner's list, the 2026-10-21 decisions, the order of work) and
->   `docs/WORK-QUEUE.md` (the lanes).
+> - **Read next:** `docs/PRODUCT-FACTS.md` (audience, prices, payments state, support email),
+>   `docs/OWNER-BACKLOG.md` (the owner's list, the 2026-10-21 decisions, what waits on the owner, the order of work)
+>   and `docs/WORK-QUEUE.md` (the lanes).
 
 > ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-27.
 >
