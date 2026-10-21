@@ -22,7 +22,7 @@ type YFMeta = {
   regularMarketChangePercent?: number;
 };
 
-function extract(json: unknown): { price: number; chg: number } | null {
+function extract(json: unknown): { price: number; chg: number | null } | null {
   try {
     const r0 = (json as { chart?: { result?: Array<{ meta?: YFMeta; indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> } })
       ?.chart?.result?.[0];
@@ -33,13 +33,20 @@ function extract(json: unknown): { price: number; chg: number } | null {
     /* #1631 C: the ONE-day change, from the last two daily closes. This used `previousClose ?? chartPreviousClose`, and on a range query
        Yahoo leaves previousClose out, so chartPreviousClose - the close BEFORE the window - made "24h" a two-session change (S&P +0.69%
        where the day was +0.28%). The last close is today's (live during the session), the one before it is yesterday's. */
-    // The newest bar is the latest session (its close can still be null mid-session): compare with the last close BEFORE it.
+    // The newest bar is the latest session (its close can still be null mid-session): compare with the session STRICTLY before it.
+    /* PM audit of #1665: skipping a null previous close compared with the session before THAT - a two-day change again, and for gold a
+       flipped sign (GC=F closes [4181.1, 4160.1, null, 4148.4]: -0.28% where Yahoo's own change was +0.14%). A missing previous close falls
+       back to Yahoo's previousClose, then its regularMarketChangePercent (which matched the S&P and ^TNX exactly); with neither the change
+       is UNKNOWN (null). It used to be 0, which the prompt printed as "+0bp 1d". */
     const bars = r0?.indicators?.quote?.[0]?.close ?? [];
-    const before = bars.slice(0, -1).filter((c): c is number => typeof c === 'number' && c > 0);
-    const prev = before.length > 0 ? before[before.length - 1] : (result.previousClose ?? 0);
-    const chg  = prev > 0
-      ? ((price - prev) / prev) * 100
-      : (result.regularMarketChangePercent ?? 0);
+    const strict = bars.length >= 2 ? bars[bars.length - 2] : null;
+    const prev = typeof strict === 'number' && strict > 0 ? strict
+      : typeof result.previousClose === 'number' && result.previousClose > 0 ? result.previousClose
+      : null;
+    const ycp = result.regularMarketChangePercent;
+    const chg = prev != null ? ((price - prev) / prev) * 100
+      : typeof ycp === 'number' && Number.isFinite(ycp) ? ycp
+      : null;
     return { price, chg };
   } catch { return null; }
 }
@@ -79,7 +86,7 @@ const YF_FAIL_TTL_MS = 30_000;
 /** Distinguishes "already reported to health" from an unexpected throw. */
 class YfUnavailable extends Error {}
 
-async function fetchYf(sym: string, label: string): Promise<{ price: number; chg: number }> {
+async function fetchYf(sym: string, label: string): Promise<{ price: number; chg: number | null }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   const source = `yahoo:${label}`;

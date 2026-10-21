@@ -1086,17 +1086,18 @@ export default function MarketProvider(
       const res = await fetch('/api/macro', { cache: 'no-store' });
       if (!res.ok) return;
       const d: {
-        oil:  { price: number; chg: number } | null;
-        dxy:  { price: number; chg: number } | null;
-        spx:  { price: number; chg: number } | null;
-        gold: { price: number; chg: number } | null;
-        jpy:  { price: number; chg: number } | null;
-        tnx:  { price: number; chg: number } | null;
+        // chg is null when the one-day change is unknown (#1631 C, PM audit) - never a 0 standing in for it.
+        oil:  { price: number; chg: number | null } | null;
+        dxy:  { price: number; chg: number | null } | null;
+        spx:  { price: number; chg: number | null } | null;
+        gold: { price: number; chg: number | null } | null;
+        jpy:  { price: number; chg: number | null } | null;
+        tnx:  { price: number; chg: number | null } | null;
         real10y: RealYield | null;
       } = await res.json();
       /* #1631 C: a yield moves in basis points, not percent of itself (4.10% -> 4.13% is +3bp, which is also +0.7%). The route gives
          the percent change; the previous close it came from is price / (1 + chg/100). */
-      const tnxBp = d.tnx ? Math.round((d.tnx.price - d.tnx.price / (1 + d.tnx.chg / 100)) * 100) : null;
+      const tnxBp = d.tnx && d.tnx.chg != null ? Math.round((d.tnx.price - d.tnx.price / (1 + d.tnx.chg / 100)) * 100) : null;
 
       setStore(s => ({
         ...s,
@@ -1105,7 +1106,8 @@ export default function MarketProvider(
         ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : {}),
         ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : {}),
         ...(d.jpy  ? { jpy:  d.jpy.price,  jpyChg:  d.jpy.chg  }       : {}),
-        ...(d.tnx  ? { bonds10y: d.tnx.price, bonds10yChgBp: tnxBp }   : {}),
+        // PM audit of #1665: a failed ^TNX read is "unavailable", not the last yield shown as current with no age.
+        ...(d.tnx  ? { bonds10y: d.tnx.price, bonds10yChgBp: tnxBp }   : { bonds10y: null, bonds10yChgBp: null }),
         // No truthiness guard: the route always returns an object, and its
         // `unknown` state is information we want to keep rather than skip.
         ...(d.real10y ? { real10y: d.real10y } : {}),
