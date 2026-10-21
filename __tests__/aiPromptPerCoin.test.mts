@@ -40,6 +40,9 @@ const BTC_ONLY_MARKERS = ['<cbPremium>', '<pcRatio>', '<maxPain>', '<btcGex>'];
 /* The premium, not the exchange: the search task names Coinbase among exchanges whose hacks to look for, which is not BTC's data. */
 const NAMES_BTC_ONLY = /\bCB premium\b|coinbase (BTC )?premium|\bGEX\b|gamma|put\/call|max pain|deribit/i;
 const NOT_GIVEN_LINE = "(BTC's options data, GEX and the Coinbase BTC premium are BTC's own market and are not given for";
+/* #1668's precedence list names GEX for BTC by name; it carries no BTC data, so it is the one other line allowed to mention it. */
+const SCOPED_TO_BTC = 'for BTC, the GEX regime decides whether a breakout counts.';
+const BTC_ONLY_RULES = /WEIGHT GEX HEAVILY|GEX SETS THE REGIME FOR BTC|^11\. OPTIONS|^12\. GEX|^16\. COINBASE PREMIUM/m;
 
 /* ── the formatter ────────────────────────────────────────────────────────── */
 
@@ -72,9 +75,9 @@ test('P1. an XRP or PEPE read carries none of BTC\'s own data in any builder, an
   for (const [coin, ch] of [['XRP/USDT', XRP_CHART], ['PEPE/USDT', PEPE_CHART]] as const) {
     for (const [name, p] of builders(ctx({ coin }), ch)) {
       for (const m of BTC_ONLY_MARKERS) assert.ok(!p.includes(m), `${name}, ${coin}: BTC's ${m} reached a ${coin} prompt`);
-      assert.doesNotMatch(p, /WEIGHT GEX HEAVILY|^11\. OPTIONS|^12\. GEX|^16\. COINBASE PREMIUM/m, `${name}, ${coin}: a BTC-only rule reached the prompt`);
+      assert.doesNotMatch(p, BTC_ONLY_RULES, `${name}, ${coin}: a BTC-only rule reached the prompt`);
       const naming = p.split('\n').filter((l) => NAMES_BTC_ONLY.test(l));
-      assert.deepEqual(naming.filter((l) => !l.startsWith(NOT_GIVEN_LINE)), [], `${name}, ${coin}: a line names BTC's premium, options or GEX`);
+      assert.deepEqual(naming.filter((l) => !l.startsWith(NOT_GIVEN_LINE) && !l.trim().endsWith(SCOPED_TO_BTC)), [], `${name}, ${coin}: a line names BTC's premium, options or GEX`);
     }
   }
 });
@@ -82,7 +85,7 @@ test('P1. an XRP or PEPE read carries none of BTC\'s own data in any builder, an
 test('P2. CONTROL: a BTC read keeps all of it, so P1 is not passing on a prompt that never had it', () => {
   for (const [name, p] of builders(ctx({ coin: 'BTC/USDT' }), BTC_CHART)) {
     for (const m of BTC_ONLY_MARKERS) assert.ok(p.includes(m), `${name}: BTC's ${m} is missing from a BTC read`);
-    assert.match(p, /WEIGHT GEX HEAVILY/); assert.match(p, /^11\. OPTIONS/m); assert.match(p, /^12\. GEX/m); assert.match(p, /^16\. COINBASE PREMIUM/m);
+    assert.match(p, /GEX SETS THE REGIME FOR BTC, NEVER THE DIRECTION/); assert.match(p, /^11\. OPTIONS/m); assert.match(p, /^12\. GEX/m); assert.match(p, /^16\. COINBASE PREMIUM/m);
     assert.ok(!p.includes(NOT_GIVEN_LINE), `${name}: a BTC read says BTC's own data is not given`);
   }
 });
