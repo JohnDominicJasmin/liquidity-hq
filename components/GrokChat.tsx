@@ -491,9 +491,12 @@ export default function GrokChat() {
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
     const handler = (e: Event) => {
-      const ev = e as CustomEvent<{ coin: CoinId; prompt?: string; selection?: readonly string[] }>;
-      coinPinnedRef.current = true;
-      setCoin(ev.detail.coin);
+      const ev = e as CustomEvent<{ coin?: string; prompt?: string; selection?: readonly string[] }>;
+      /* QA's review of #1665: the opener's coin is checked like the page coin. The server now refuses a coin it does not track (400), so a
+         future opener sending 'bitcoin' or 'BTCUSDT' would have shown that error in the chat; such a coin is ignored and the chat keeps its
+         own (the page's, or the one already open). */
+      const evCoin = typeof ev.detail.coin === 'string' && (COINS as readonly string[]).includes(ev.detail.coin) ? (ev.detail.coin as CoinId) : undefined;
+      if (evCoin) { coinPinnedRef.current = true; setCoin(evCoin); }
       // #1347 item 3: `?? []` used to run unconditionally, so an opener that
       // never carries a selection (EMASignal.tsx, app/news/page.tsx - both
       // dispatch with no `selection` field at all) wiped out whatever
@@ -509,7 +512,7 @@ export default function GrokChat() {
       }
       setOpen(true);
       setHistView(false);
-      if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, ev.detail.coin), 200);
+      if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, evCoin), 200);
     };
     window.addEventListener('grok-chat', handler);
     return () => window.removeEventListener('grok-chat', handler);
