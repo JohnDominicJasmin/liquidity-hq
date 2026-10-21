@@ -8,6 +8,7 @@ import {
   isCryptoCheckoutConfigured, isCryptoCheckoutConfiguredAnnual, isCryptoCheckoutConfiguredFortnightly,
   isProBuyable,
   isWhopCheckoutConfigured, isWhopCheckoutConfiguredAnnual, isWhopCheckoutConfiguredFortnightly,
+  getWhopEmbed,
 } from './checkout.ts';
 import { isLsApiConfigured } from './lemonsqueezyApi.ts';
 import { analyticsKey } from './analytics.ts';
@@ -75,6 +76,12 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
     whopPlanMonthly:     Object.values(whopPlanTable(env)).some((r) => r.plan === 'monthly'),
     whopPlanAnnual:      Object.values(whopPlanTable(env)).some((r) => r.plan === 'annual'),
     whopPlanFortnightly: Object.values(whopPlanTable(env)).some((r) => r.plan === 'fortnightly'),
+    /* #1630 GO-LIVE 3: does the plan's CHECKOUT LINK (what a buyer pays on) carry the same plan id the unlock grants for (WHOP_PLAN_ID_*)? If not,
+       every buyer of that plan pays and is refused as unknown_plan. Booleans only. false = the link or the id is unset, or they differ; read it with
+       whopCheckout* and whopPlan* above to tell which. */
+    whopPlanMatchesLinkMonthly:     whopLinkMatchesPlan('monthly', env),
+    whopPlanMatchesLinkAnnual:      whopLinkMatchesPlan('annual', env),
+    whopPlanMatchesLinkFortnightly: whopLinkMatchesPlan('fortnightly', env),
     /* The LS REST API key the cancel route needs (#1396). Same read the route
        and the settings panel gate on (isLsApiConfigured), so cancel-availability
        is observable per environment - set on qa (test), unset on staging/prod
@@ -114,4 +121,13 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
        non-prod host false is the desired state, not a gap. */
     cronSecret: set(env.CRON_SECRET),
   };
+}
+
+/** True when the plan's Whop checkout link names a plan id that the unlock's table (WHOP_PLAN_ID_*) maps to that same plan. */
+function whopLinkMatchesPlan(plan: 'monthly' | 'annual' | 'fortnightly', env: Record<string, string | undefined>): boolean {
+  const linkPlanId = getWhopEmbed(plan, env)?.planId;
+  if (!linkPlanId) return false;
+  const table = whopPlanTable(env);
+  const row = Object.prototype.hasOwnProperty.call(table, linkPlanId) ? table[linkPlanId] : undefined;
+  return !!row && row.plan === plan;
 }

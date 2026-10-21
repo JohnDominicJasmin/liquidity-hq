@@ -6,6 +6,7 @@ import { recordApiHealth } from '@/lib/apiHealth';
 import { runHealthAlert } from '@/lib/healthAlert';
 import { T } from '@/lib/tables';
 import type { CalEvent } from '../route';
+import { retryRefusedWhopDeliveries, type RetrySummary } from '@/lib/whopGrant';
 
 // Writes the economic calendar into a snapshot row so clients can subscribe to
 // it instead of each polling /api/econ-calendar on their own hour timer.
@@ -38,10 +39,25 @@ async function healthAlertTick(): Promise<unknown> {
   }
 }
 
+/* A second passenger (#1630 GO-LIVE 3): the Whop deliveries that were refused for a SETTINGS reason (unknown plan id, no payer email, company
+ * mismatch) are re-run through the webhook's own pipeline, hourly, for 7 days (lib/whopGrant.ts retryRefusedWhopDeliveries). Same reason this job
+ * carries the health sweep: it is the hourly cron that exists, and a retry that depends on someone scheduling a new job is one that never runs.
+ * Like the sweep, it must never fail the ingest. Payment ids and reasons only are reported, never an email. */
+async function whopRetryTick(): Promise<RetrySummary | { error: string }> {
+  try {
+    const r = await retryRefusedWhopDeliveries(getSupabaseAdmin(), process.env);
+    if (r.notes.length) apiError('whop/retry', new Error(`Whop retry: granted ${r.granted}, still refused ${r.stillRefused}, gave up ${r.gaveUp}, handed off ${r.handedOff}, errors ${r.errors} - ${r.notes.join('; ')}`));
+    return r;
+  } catch (e) {
+    return { error: e instanceof Error ? e.name : 'error' };
+  }
+}
+
 export async function POST(req: Request) {
   if (!checkCronAuth(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const whopRetry = await whopRetryTick();
 
   try {
     const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
@@ -72,7 +88,7 @@ export async function POST(req: Request) {
     // calendar is exactly when you want to hear about the other sources too.
     if (!events?.length) {
       const health = await healthAlertTick();
-      return NextResponse.json({ ok: true, skipped: 'empty result, kept previous snapshot', health });
+      return NextResponse.json({ ok: true, skipped: 'empty result, kept previous snapshot', health, whopRetry: retryCounts(whopRetry) });
     }
 
     const sb = getSupabaseAdmin();
@@ -85,8 +101,16 @@ export async function POST(req: Request) {
     if (error) return apiError('econ-calendar/ingest', error, 500, 'Snapshot write failed');
 
     const health = await healthAlertTick();
-    return NextResponse.json({ ok: true, events: events.length, source, health });
+    return NextResponse.json({ ok: true, events: events.length, source, health, whopRetry: retryCounts(whopRetry) });
   } catch (e) {
     return apiError('econ-calendar/ingest', e, 500, 'Calendar ingest failed');
   }
+}
+
+/** Counts only in the cron's response (the notes go to the error report, not to the caller). */
+function retryCounts(r: RetrySummary | { error: string }) {
+  if ('error' in r) return r;
+  const { notes: _notes, ...counts } = r;
+  void _notes;
+  return counts;
 }

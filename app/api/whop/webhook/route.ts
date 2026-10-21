@@ -4,9 +4,8 @@ import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { verifyWhopWebhook } from '@/lib/whop';
-import { decideWhopEvent, readWhopPayment, whopCompanyMatches } from '@/lib/whopEntitlement';
-import { grantToAccount, recordPendingClaim } from '@/lib/whopGrant';
-import { payerOwnsAccount } from '@/lib/lemonsqueezy';
+import { readWhopPayment } from '@/lib/whopEntitlement';
+import { applyWhopDelivery, isSettingsRefusal, recordRetry } from '@/lib/whopGrant';
 
 /* Whop webhook (#1567). Phase 1 was a recording shell; Phase 3 (below the record) turns a verified, PAID payment for one of OUR plans
  * into Pro for the account whose email paid. The rules live in lib/whopEntitlement.ts (pure, tested there); this file is the wiring.
@@ -34,13 +33,14 @@ import { payerOwnsAccount } from '@/lib/lemonsqueezy';
  *   - 200  written down (and acted on, or deliberately not - the body says which), or already written down on an earlier delivery.
  *
  * ONE PAYMENT IS COUNTED ONCE, however many deliveries and bodies it arrives in: the replay guard below is keyed on the bytes, which a
- * re-sent or re-signed event changes, so the grant has its own guard keyed on the PAYMENT ID (earliest recorded row wins).
+ * re-sent or re-signed event changes, so the grant has its own guard keyed on the PAYMENT ID (earliest recorded row wins), and since #1630 an
+ * APPLIED MARKER per payment id that every path (this webhook, the sign-up claim, the hourly retry) must create before it grants.
+ *
+ * EVERYTHING AFTER THE RECORD lives in lib/whopGrant.ts (applyWhopDelivery) since #1630 GO-LIVE 3, so the hourly retry of a delivery refused for
+ * a settings reason (unknown plan id, no payer email, company mismatch) runs exactly these rules again. This file records, answers and reports.
  */
 
 const SECRET = process.env.WHOP_WEBHOOK_SECRET ?? '';
-
-// Same prefix switch as lib/tables.ts: the function that exists on prod is not the one that exists on dev (qa uses the dev database).
-const userIdByEmailFn = process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_user_id_by_email' : 'lhq_user_id_by_email';
 
 /** A text column's worth of a field that is a string. Anything else is left null rather than coerced: the whole body is stored beside
  *  it, so a surprise in the shape is visible instead of papered over. */
@@ -106,68 +106,23 @@ export async function POST(req: NextRequest) {
   if (recordErr && recordErr.code !== '23505') return apiError('whop/webhook', recordErr);
   if (!firstSeen) return NextResponse.json({ received: true, ignored: 'replay' });
 
-  // ── The decision (rules in lib/whopEntitlement.ts) ───────────────────────
-  const decision = decideWhopEvent(event, process.env, () => payment);
-  if (decision.kind === 'ignore') return NextResponse.json({ received: true, recorded: true, ignored: decision.reason });
-  if (decision.kind === 'review') return reviewResponse(eventName, payment?.paymentId ?? null, decision.reason);
-
-  // ── A paid payment for one of our plans ──────────────────────────────────
-  // Every refusal below is REPORTED (GlitchTip) and answered 200 with the reason, never dropped and never guessed at: a payment that
-  // will never match is not helped by a retry. Only a failed READ or WRITE answers 500, because that one a retry can fix.
-  const paymentId = decision.paymentId;
-  if (payment && !whopCompanyMatches(payment, process.env.WHOP_COMPANY_ID)) {
-    return reviewResponse(eventName, paymentId, 'company_does_not_match');
+  // ── The decision and the grant (lib/whopGrant.ts applyWhopDelivery; rules in lib/whopEntitlement.ts) ──
+  // Every refusal is REPORTED (GlitchTip) and answered 200 with the reason, never dropped and never guessed at: a payment that will never
+  // match is not helped by a Whop retry. Only a failed READ or WRITE answers 500, because that one a retry can fix.
+  const outcome = await applyWhopDelivery(sb, { event, payloadHash, eventName }, process.env);
+  if (outcome.kind === 'ignored') return NextResponse.json({ received: true, recorded: true, ignored: outcome.reason });
+  if (outcome.kind === 'error') return failAndForget(sb, payloadHash, outcome.what, outcome.err);
+  if (outcome.kind === 'review') {
+    if (outcome.claimError) apiError('whop/webhook', new Error(`could not leave a pending claim for payment ${outcome.paymentId}: ${(outcome.claimError as { message?: string })?.message ?? String(outcome.claimError)}`));
+    // A SETTINGS refusal (the plan id table, the company id, the payer email) can turn into a grant once the setting is fixed, but Whop will not
+    // send this delivery again (it got a 200). Leave a retry row: the hourly job re-runs it through the same pipeline for 7 days (#1630 GO-LIVE 3).
+    if (outcome.paymentId && isSettingsRefusal(outcome.reason)) {
+      const r = await recordRetry(sb, { paymentId: outcome.paymentId, deliveryHash: payloadHash, reason: outcome.reason });
+      if (!r.ok) apiError('whop/webhook', new Error(`could not leave a retry row for payment ${outcome.paymentId}: ${(r.error as { message?: string })?.message ?? String(r.error)}`));
+    }
+    return reviewResponse(eventName, outcome.paymentId, outcome.reason);
   }
-
-  // One payment is counted once, even if Whop sends it again with a different body (a different hash: a re-signed retry, or the same
-  // payment in a second event). The EARLIEST recorded row for this payment id and event is the one that may grant; every other is a
-  // repeat. Two deliveries racing agree on which is earliest, so exactly one of them grants.
-  const { data: earliest, error: earliestErr } = await sb
-    .from(T.whop_webhook_events)
-    .select('payload_hash')
-    .eq('event', eventName ?? '').eq('resource_id', paymentId)
-    .order('received_at', { ascending: true }).order('payload_hash', { ascending: true })
-    .limit(1).maybeSingle();
-  if (earliestErr) return failAndForget(sb, payloadHash, 'earliest-payment read', earliestErr);
-  if (earliest && earliest.payload_hash !== payloadHash) {
-    return NextResponse.json({ received: true, recorded: true, ignored: 'payment_already_counted' });
-  }
-
-  // The account is found by the payer's email: /upgrade tells the buyer to use the same email as their account, and the checkout link
-  // carries nothing else. No match is review. (Supabase auth emails are unique and stored lower-case, so "more than one" cannot occur.)
-  const { data: accountId, error: idErr } = await sb.rpc(userIdByEmailFn, { p_email: decision.payerEmail });
-  if (idErr) return failAndForget(sb, payloadHash, 'account lookup by email', idErr);
-  if (typeof accountId !== 'string' || !accountId) {
-    // Paid, for one of our plans, and nobody to give it to YET. Leave a pending claim: when this email signs up or signs in,
-    // /api/whop/claim grants from the stored delivery with the same rules (lib/whopGrant.ts). Best effort; reported if it fails.
-    await leaveClaim(sb, paymentId, payloadHash, decision.payerEmail, 'no_account_for_payer_email');
-    return reviewResponse(eventName, paymentId, 'no_account_for_payer_email');
-  }
-
-  const { data: acct, error: acctErr } = await sb.auth.admin.getUserById(accountId);
-  if (acctErr && !/not found/i.test(acctErr.message ?? '')) return failAndForget(sb, payloadHash, 'account read', acctErr);
-  if (!acct?.user) return reviewResponse(eventName, paymentId, 'account_not_found');
-  // Belt and braces: the lookup is by email, so this should always hold; it also keeps the comparison identical to the other processors.
-  if (!payerOwnsAccount(decision.payerEmail, acct.user.email)) return reviewResponse(eventName, paymentId, 'payer_email_does_not_match_account');
-  // Someone can sign up with an address that is not theirs and never confirm it; the person who then PAYS with that address would be
-  // buying Pro for the squatter. Only a confirmed address can receive a payment's Pro.
-  if (!acct.user.email_confirmed_at) {
-    await leaveClaim(sb, paymentId, payloadHash, decision.payerEmail, 'account_email_not_confirmed');
-    return reviewResponse(eventName, paymentId, 'account_email_not_confirmed');
-  }
-
-  const res = await grantToAccount(sb, accountId, decision);
-  if (res.kind === 'error') return failAndForget(sb, payloadHash, res.what, res.err);
-  if (res.kind === 'review') return reviewResponse(eventName, paymentId, res.reason);
-
-  return NextResponse.json({ received: true, recorded: true, granted: res.plan, period_end: res.periodEnd.toISOString() });
-}
-
-/** The pending claim for a paid payment that could not be given to an account yet. A failure to write it is reported, never turned into a
- *  failed delivery (the delivery itself is already recorded). */
-async function leaveClaim(sb: ReturnType<typeof getSupabaseAdmin>, paymentId: string, deliveryHash: string, payerEmail: string, reason: string) {
-  const r = await recordPendingClaim(sb, { paymentId, deliveryHash, payerEmail, reason });
-  if (!r.ok) apiError('whop/webhook', new Error(`could not leave a pending claim for payment ${paymentId}: ${(r.error as { message?: string })?.message ?? String(r.error)}`));
+  return NextResponse.json({ received: true, recorded: true, granted: outcome.plan, period_end: outcome.periodEnd.toISOString() });
 }
 
 /** A payment or event that cannot be applied safely, and needs a person. Reported with the payment id so it can be found in the
