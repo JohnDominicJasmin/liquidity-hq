@@ -16,7 +16,7 @@
  * WHAT A LOCAL CHECK CANNOT KNOW: a token stays valid until it expires (at most an hour) even if the account was banned or deleted after it
  * was issued, and the token carries no "email confirmed" flag. Routes that need either (payments claim, admin, welcome email) keep calling
  * Auth directly - see `fetchAuthUser`. */
-import { createClient } from '@supabase/supabase-js';
+import { userClient } from '@/lib/supabase-user';
 
 export interface TokenUser {
   id: string;
@@ -115,7 +115,7 @@ function remember(token: string, user: TokenUser): void {
 
 /** Auth's own answer for a token (one network call). Use it where the token alone is not enough (see the header). */
 export async function fetchAuthUser(token: string) {
-  const sb = createClient(supabaseUrl(), process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } });
+  const sb = userClient(token);
   const { data } = await sb.auth.getUser();
   return data.user ?? null;
 }

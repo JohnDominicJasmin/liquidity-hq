@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendWelcomeEmail } from '@/lib/email';
 import { T } from '@/lib/tables';
 import { classifyWelcomeClaim, missingRowReport } from '@/lib/signupIntegrity';
+import { userClient } from '@/lib/supabase-user';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,11 +19,7 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  const sb = userClient(token);
   const { data: { user } } = await sb.auth.getUser();
   if (!user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

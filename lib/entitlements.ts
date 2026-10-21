@@ -2,11 +2,11 @@
 // separate copy-pasted copies (grok, grok-chat, briefing routes). Reads through
 // a user-scoped Supabase client (RLS: "sub_select_own") so a token can only
 // ever read its own role, never someone else's.
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import type { UsageTier } from '@/lib/limits';
 import { paidPeriodLapsed } from '@/lib/paidPeriod';
 import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 /* Re-exported so call sites keep one import. The logic lives in lib/paidPeriod
    because this file cannot be unit-tested - see the note at the top of it. */
@@ -15,11 +15,7 @@ export { paidPeriodLapsed, PAID_GRACE_MS } from '@/lib/paidPeriod';
 export type Role = 'free' | 'pro';
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  return userClient(token);
 }
 
 export interface Entitlement {

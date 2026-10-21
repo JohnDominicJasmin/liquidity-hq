@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
@@ -11,16 +10,13 @@ import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { getUserCompat } from '@/lib/authUser';
+import { anonServerClient, userClient } from '@/lib/supabase-user';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
 function sb(token?: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : undefined
-  );
+  return token ? userClient(token) : anonServerClient();
 }
 
 async function getUsageRow(token: string, userId: string, today: string) {

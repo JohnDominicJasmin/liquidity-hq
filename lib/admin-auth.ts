@@ -9,19 +9,16 @@
 // route validates the bearer token via Supabase Auth, then resolves the user's
 // role BEFORE any privileged work. Passwords live in Supabase Auth, never here.
 import { NextResponse } from 'next/server';
-import { createClient, type User } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { userClient } from '@/lib/supabase-user';
 
 export type AdminRole = 'owner' | 'staff';
 
 // A user-scoped anon client, used only to resolve the bearer token to a user.
 function anon(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } },
-  );
+  return userClient(token);
 }
 
 // Emergency-bootstrap owners: server-only, comma-separated (NOT NEXT_PUBLIC_).
