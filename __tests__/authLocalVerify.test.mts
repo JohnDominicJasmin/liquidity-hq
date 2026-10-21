@@ -8,12 +8,14 @@
  * audience other than "authenticated", role anon or service_role, and a missing sub are each REJECTED with no call to Auth; an unknown kid inside the
  * one-minute refetch floor goes to Auth, after the floor a key set that still lacks it rejects it, and a rotated key that is now published verifies;
  * a non-JWT and an HS256 token go to Auth, and an HS256 answer is cached for at most 60 s; a cached token is dropped at its exp; the cache holds at most
- * 5,000 tokens; settings GET asks Auth nothing, push subscribe asks it exactly once and refuses a banned account at once, and both answer 401 with no
- * token; the four routes kept on Auth and the six write handlers are exactly the ones that call it.
+ * 5,000 tokens; a key-set refetch that FAILS sends a new kid to Auth instead of rejecting it (F1, fixed in #1656); settings GET asks Auth nothing,
+ * push subscribe asks it exactly once and refuses a banned account at once, and both answer 401 with no token; exactly the expected routes call Auth
+ * (after #1657 welcome-email and the Whop claim ask through fetchAuthUser, only when they have work); every route that spends on xAI checks the ban
+ * flag (#1656, F2), the paid chat refuses a banned account with a still-valid token before any xAI call, and a failed flag read lets the call through.
  *
  * WHAT IT CANNOT PROVE: Supabase's real key set and token shape (checked live on #1653: one ES256 P-256 key per project; a real dev token is ES256 with
- * that kid, aud and role "authenticated"), or Auth's real answer for a banned account (the stand-in answers 403 as Auth documents it). F1 (a FAILED key
- * refetch counted as fresh) is a todo case until it is fixed. No real credentials: the Supabase URL is a `.invalid` host. */
+ * that kid, aud and role "authenticated"), Auth's real answer for a banned account (the stand-in answers 403 as Auth documents it), or that the database
+ * trigger keeps the ban flag in step with Auth (checked by read-only SQL on #1656). No real credentials: the Supabase URL is a `.invalid` host. */
 import test, { after, beforeEach } from 'node:test';
 import { register } from 'node:module';
 import assert from 'node:assert/strict';
@@ -48,14 +50,22 @@ async function sign(payload: Record<string, unknown>, key: CryptoKeyPair = K1, k
 const hs256 = (payload: Record<string, unknown>) => `${b64u(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))}.${b64u(JSON.stringify(payload))}.${b64u('not-checked-here')}`;
 
 /* ---- the stand-in Supabase: key set, Auth /user (counted), PostgREST ---- */
-const calls = { jwks: 0, user: 0, rest: [] as { m: string; p: string; body?: unknown }[] };
+const calls = { jwks: 0, user: 0, rest: [] as { m: string; p: string; body?: unknown }[], stray: [] as string[] };
 let JWKS: { keys: unknown[] } = { keys: [await publicJwk(K1, 'kid-1')] };
 let jwksDown = false;
 const AUTH_KNOWS = new Map<string, { id: string; email: string }>(); const BANNED = new Set<string>();
+/* the app's own ban flag (lhq_user_status.banned, #1656): user ids flagged banned, and whether that read fails */
+const FLAGGED = new Set<string>(); let statusReadFails = false;
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const req = input instanceof Request ? input : new Request(String(input), init);
-  const url = new URL(req.url); if (url.origin !== SUPABASE) throw new Error(`stray request ${req.method} ${req.url}`);
+  const url = new URL(req.url); if (url.origin !== SUPABASE) { calls.stray.push(url.host); throw new Error(`stray request ${req.method} ${req.url}`); }
+  if (url.pathname.endsWith('user_status')) {
+    calls.rest.push({ m: req.method, p: url.pathname });
+    if (statusReadFails) return json(500, { code: 'XX000', message: 'status read failed (stand-in)' });
+    const id = (url.searchParams.get('user_id') ?? '').replace(/^eq\./, ''); const row = { banned: FLAGGED.has(id) };
+    return (req.headers.get('accept') ?? '').includes('vnd.pgrst.object') ? json(200, row) : json(200, [row]);
+  }
   if (url.pathname === '/auth/v1/.well-known/jwks.json') { calls.jwks++; return jwksDown ? new Response('down', { status: 503 }) : json(200, JWKS); }
   if (url.pathname === '/auth/v1/user') {
     calls.user++; const tok = (req.headers.get('authorization') ?? '').replace(/^Bearer /, '');
@@ -76,7 +86,7 @@ type AuthState = { jwks: unknown; lastFetch: number; verified: Map<string, unkno
 const state = () => (globalThis as unknown as { __lhqAuthUser: AuthState }).__lhqAuthUser;
 const realNow = Date.now;
 beforeEach(async () => {
-  Date.now = realNow; jwksDown = false; JWKS = { keys: [await publicJwk(K1, 'kid-1')] }; AUTH_KNOWS.clear(); BANNED.clear();
+  Date.now = realNow; jwksDown = false; JWKS = { keys: [await publicJwk(K1, 'kid-1')] }; AUTH_KNOWS.clear(); BANNED.clear(); FLAGGED.clear(); statusReadFails = false; calls.stray = [];
   const s = state(); if (s) { s.jwks = null; s.lastFetch = 0; s.verified.clear(); }
   calls.jwks = 0; calls.user = 0; calls.rest = [];
 });
@@ -155,16 +165,30 @@ test('V15. the cache holds at most 5,000 tokens', async () => {
   assert.equal(calls.user, 0);
 });
 
-test('F1. a key-set refetch that FAILS while a new kid appears sends the token to Auth instead of rejecting it', { todo: 'F1 on #1653: open until the refetch counts as fresh only when it succeeded' }, async () => {
+test('F1. a key-set refetch that FAILS while a new kid appears sends the token to Auth instead of rejecting it (fixed in #1656)', async () => {
   assert.ok(await userFromToken(await sign(claims())));
   state().lastFetch -= 61_000; jwksDown = true;
   const rotated = await sign(claims(), K2, 'kid-2'); AUTH_KNOWS.set(rotated, { id: UID, email: EMAIL });
   assert.equal((await userFromToken(rotated))?.id, UID, 'a valid token with a newly rotated kid was rejected because the key set could not be fetched');
 });
 
+test('B1. the ban flag (#1656): flagged reads banned, unflagged and no row read not banned, and a FAILED read lets the call through', async () => {
+  const { isAccountBanned, getUserCompatForBilledCall } = await import('../lib/authUser.ts');
+  assert.equal(await isAccountBanned(UID), false);
+  FLAGGED.add(UID); assert.equal(await isAccountBanned(UID), true);
+  const tok = await sign(claims());
+  assert.deepEqual(await getUserCompatForBilledCall(tok), { data: { user: null }, error: null }, 'a flagged account was answered as a user for a billed call');
+  assert.equal((await getUserCompat(tok)).data.user?.id, UID, 'the plain check must not read the flag (free reads stay one-step)');
+  statusReadFails = true;
+  assert.equal(await isAccountBanned(UID), false, 'a failed read must not switch off paid features');
+  assert.equal(calls.user, 0, 'the ban check asked Auth');
+});
+
 /* ---- the real routes ---- */
+process.env.GROK_API_KEY = 'placeholder-xai';
 const settingsRoute = await import('../app/api/settings/route.ts');
 const pushRoute = await import('../app/api/push/subscribe/route.ts');
+const chatRoute = await import('../app/api/grok-chat/route.ts');
 const get = (path: string, token?: string) => new NextRequest(`http://localhost${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
 const post = (path: string, body: unknown, token?: string) => new NextRequest(`http://localhost${path}`, { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
 
@@ -191,15 +215,38 @@ test('R2. push subscribe (a service-role write) asks Auth exactly once and write
   assert.equal((await pushRoute.POST(post('/api/push/subscribe', sub))).status, 401); assert.equal(calls.user, 0);
 });
 
-test('P1. who asks Auth: the four routes kept on it, the six write handlers (five files), and no other route under app/api', () => {
+test('R3. the paid chat (#1656, F2) refuses a banned account with a still-valid token, with no xAI call; with no token it is 401 as well', async () => {
+  const tok = await sign(claims()); FLAGGED.add(UID);
+  const r = await chatRoute.POST(post('/api/grok-chat', { messages: [{ role: 'user', content: 'qa' }] }, tok));
+  assert.equal(r.status, 401, 'a banned account reached the paid chat');
+  assert.deepEqual(calls.stray, [], `the chat called out (${calls.stray.join(', ')}) for a banned account`);
+  assert.ok(calls.rest.some((c) => c.p.endsWith('user_status')), 'the ban flag was not read');
+  assert.equal((await chatRoute.POST(post('/api/grok-chat', { messages: [] }))).status, 401);
+  assert.equal(calls.user, 0);
+});
+
+const routeFiles = () => {
   const files: string[] = [];
   const walk = (dir: string) => { for (const e of readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true })) { const p = `${dir}/${e.name}`; if (e.isDirectory()) walk(p); else if (/\.(ts|tsx)$/.test(e.name)) files.push(p); } };
-  walk('app/api');
-  const count = (f: string, re: RegExp) => (stripTsComments(read(f)).match(re) ?? []).length;
+  walk('app/api'); return files;
+};
+const count = (f: string, re: RegExp) => (stripTsComments(read(f)).match(re) ?? []).length;
+
+test('P1. who asks Auth: telegram/status and admin-auth on auth.getUser(); the write handlers, welcome-email and the Whop claim through fetchAuthUser(); nothing else under app/api', () => {
+  const files = routeFiles();
   const getUserCallers = files.filter((f) => count(f, /\.auth\.getUser\(/g) > 0).sort();
   const fetchAuthCallers = files.filter((f) => count(f, /\bfetchAuthUser\(/g) > 0).sort();
-  assert.deepEqual(getUserCallers, ['app/api/auth/welcome-email/route.ts', 'app/api/telegram/status/route.ts', 'app/api/whop/claim/route.ts']);
+  assert.deepEqual(getUserCallers, ['app/api/telegram/status/route.ts']);
   assert.ok(count('lib/admin-auth.ts', /\.auth\.getUser\(/g) > 0, 'lib/admin-auth.ts no longer asks Auth');
-  assert.deepEqual(fetchAuthCallers, ['app/api/alert-prefs/route.ts', 'app/api/lemonsqueezy/cancel/route.ts', 'app/api/push/subscribe/route.ts', 'app/api/push/test/route.ts', 'app/api/telegram/link-code/route.ts']);
+  // #1657: welcome-email and the claim check the token locally and ask Auth only when they have work (an unsent email, a waiting claim)
+  assert.deepEqual(fetchAuthCallers, ['app/api/alert-prefs/route.ts', 'app/api/auth/welcome-email/route.ts', 'app/api/lemonsqueezy/cancel/route.ts', 'app/api/push/subscribe/route.ts',
+    'app/api/push/test/route.ts', 'app/api/telegram/link-code/route.ts', 'app/api/whop/claim/route.ts']);
   assert.equal(count('app/api/telegram/link-code/route.ts', /\bfetchAuthUser\(/g), 2, 'link-code create and unlink should both ask Auth');
+});
+
+test('P2. every route that spends on xAI checks the ban flag (getUserCompatForBilledCall), ops routes aside', () => {
+  const xai = routeFiles().filter((f) => !f.startsWith('app/api/ops/') && /GROK_API_KEY|api\.x\.ai/.test(read(f)));
+  assert.ok(xai.length >= 10, `precondition: only ${xai.length} xAI routes found`);
+  const unchecked = xai.filter((f) => count(f, /\bgetUserCompatForBilledCall\(/g) === 0);
+  assert.deepEqual(unchecked, [], 'a route that spends on xAI does not check the ban flag');
 });
