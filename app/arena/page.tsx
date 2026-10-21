@@ -49,6 +49,7 @@ import { latestStructureSignal, describeStructureSignal, type PASignal } from '@
 import { usePerpSpot } from '@/lib/usePerpSpot';
 import { formatRsi } from '@/lib/rsi';
 import { priceDigits, priceText, signedUsd } from '@/lib/numberFormat';
+import { announcePageCoin } from '@/lib/pageCoin';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -420,10 +421,8 @@ function ArenaContent() {
   }, [strategySelection]);
   /* #1631 E: tells the chat which coin this page shows; GrokChat follows it when it opens with no conversation (it used to start on BTC
      on the XRP page). Cleared on leaving Arena, so other pages fall back to the shared selected coin. */
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent('page-coin', { detail: { coin: selectedCoin } }));
-  }, [selectedCoin]);
-  useEffect(() => () => { window.dispatchEvent(new CustomEvent('page-coin', { detail: { coin: null } })); }, []);
+  useEffect(() => { announcePageCoin(selectedCoin); }, [selectedCoin]);
+  useEffect(() => () => { announcePageCoin(null); }, []);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* Whether the scanner was opened by hover rather than by a click. Only a

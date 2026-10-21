@@ -20,6 +20,7 @@ import { describeSelection } from '@/lib/strategyRegistry';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
+import { PAGE_COIN_EVENT, currentPageCoin } from '@/lib/pageCoin';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -211,12 +212,12 @@ export default function GrokChat() {
   const [pageCoin,       setPageCoin]       = useState<CoinId | null>(null);
   const coinPinnedRef = useRef(false);
   useEffect(() => {
-    const onPageCoin = (e: Event) => {
-      const c = (e as CustomEvent<{ coin: CoinId | null }>).detail?.coin ?? null;
-      setPageCoin(c && (COINS as readonly string[]).includes(c) ? c : null);
-    };
-    window.addEventListener('page-coin', onPageCoin);
-    return () => window.removeEventListener('page-coin', onPageCoin);
+    const take = (c: string | null) => setPageCoin(c && (COINS as readonly string[]).includes(c) ? (c as CoinId) : null);
+    const onPageCoin = (e: Event) => take((e as CustomEvent<{ coin: string | null }>).detail?.coin ?? null);
+    window.addEventListener(PAGE_COIN_EVENT, onPageCoin);
+    // QA's review of #1665: on a hard load Arena can announce before this listener exists - read the last announcement too.
+    take(currentPageCoin());
+    return () => window.removeEventListener(PAGE_COIN_EVENT, onPageCoin);
   }, []);
   /* #985 gap 2: seeded from the account's saved settings on mount (#1347
      item 18), then kept aligned by a live 'strategy-selection-changed' event
