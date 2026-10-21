@@ -50,6 +50,7 @@ import { runPool, HttpStatusError, isRateLimitStatus } from '@/lib/pool';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { computeKlineMetrics, type KlineMetrics } from '@/lib/klineMetrics';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,7 +98,7 @@ async function get(url: string, timeoutMs = 8000): Promise<unknown | null> {
   const ac = new AbortController();
   const tid = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await exchangeFetch(url, {
       cache: 'no-store', signal: ac.signal, headers: { 'User-Agent': 'Mozilla/5.0' },
     });
     if (res.status === 418 || res.status === 429) throw new HttpStatusError(res.status, `Binance ${res.status}`);

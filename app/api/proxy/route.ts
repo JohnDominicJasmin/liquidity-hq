@@ -17,6 +17,7 @@ import { trackHealth, reportHealth } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
@@ -358,7 +359,7 @@ export async function GET(req: NextRequest) {
      */
     if (type === 'coinglass-flow') {
       const cgKey = process.env.COINGLASS_API_KEY;
-      const r = await fetch(
+      const r = await exchangeFetch(
         'https://open-api.coinglass.com/public/v2/exchange_amount_chart?symbol=BTC&time_type=h24',
         { next: { revalidate: 300 }, headers: cgKey ? { 'coinglassSecret': cgKey } : {} }
       );
@@ -368,7 +369,7 @@ export async function GET(req: NextRequest) {
     /* ── Coinglass: BTC liquidation levels ── */
     if (type === 'coinglass-liq') {
       const cgKey = process.env.COINGLASS_API_KEY;
-      const r = await fetch(
+      const r = await exchangeFetch(
         'https://open-api.coinglass.com/public/v2/liquidation_chart?symbol=BTC&time_type=h4',
         { next: { revalidate: 300 }, headers: cgKey ? { 'coinglassSecret': cgKey } : {} }
       );
@@ -395,7 +396,7 @@ export async function GET(req: NextRequest) {
             'https://trends.google.com/trends/api/explore?hl=en-US&tz=480&req=' +
             encodeURIComponent(exploreReq);
 
-          const exploreRes = await fetch(exploreUrl, {
+          const exploreRes = await exchangeFetch(exploreUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
               'Accept-Language': 'en-US,en;q=0.9',
@@ -420,7 +421,7 @@ export async function GET(req: NextRequest) {
             encodeURIComponent(JSON.stringify(ts.request)) +
             '&token=' + encodeURIComponent(ts.token);
 
-          const dataRes = await fetch(dataUrl, {
+          const dataRes = await exchangeFetch(dataUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             },
@@ -485,7 +486,7 @@ export async function GET(req: NextRequest) {
         return cached(`sosovalue:etf:${symbol}`, ETF_TTL_MS, async () => {
           const url = 'https://openapi.sosovalue.com/openapi/v1/etfs/summary-history'
             + `?symbol=${symbol}&country_code=US&limit=1`;
-          const r = await fetch(url, {
+          const r = await exchangeFetch(url, {
             headers: { 'x-soso-api-key': apiKey, Accept: 'application/json' },
             signal: AbortSignal.timeout(8000),
           });
@@ -547,7 +548,7 @@ export async function GET(req: NextRequest) {
        * origin - the flag travels with whatever `cached()` stored, not just
        * with the call that produced it (#1237). */
       const go = async (): Promise<{ body: unknown; viaFallback: boolean }> => {
-        const r = await fetch(u, { cache: 'no-store' });
+        const r = await exchangeFetch(u, { cache: 'no-store' });
         if (r.ok) return { body: await r.json(), viaFallback: false };
 
         /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
@@ -562,7 +563,7 @@ export async function GET(req: NextRequest) {
         const fbUrl = entry.bybitFallback?.buildUrl(req);
         if (fbUrl) {
           try {
-            const fr = await fetch(fbUrl, { cache: 'no-store' });
+            const fr = await exchangeFetch(fbUrl, { cache: 'no-store' });
             if (fr.ok) {
               const converted = entry.bybitFallback!.convert(await fr.json());
               // #1249's rule: an empty/malformed fallback body is a failure,

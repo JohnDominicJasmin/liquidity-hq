@@ -22,6 +22,7 @@
 import { cached } from './apiCache.ts';
 import { BYBIT_SYMS } from './coins.ts';
 import { runPool, DEFAULT_CONCURRENCY, HttpStatusError, isRateLimitStatus } from './pool.ts';
+import { exchangeFetch } from './exchangeGuard.ts';
 
 /** Every symbol this app tracks on Bybit. A closed set, which is what keeps the
  *  cache key space finite - see the note in app/api/market/klines/route.ts. */
@@ -143,7 +144,7 @@ export async function symbolFanout(
     const data: Record<string, unknown> = {};
 
     const stopped = await runPool(symbols, DEFAULT_CONCURRENCY, async (sym) => {
-      const r = await fetch(buildUrl(sym), { cache: 'no-store' });
+      const r = await exchangeFetch(buildUrl(sym), { cache: 'no-store' });
       if (!r.ok) throw new HttpStatusError(r.status, `${sym} ${r.status}`);
       const v = pick(await r.json());
       if (v != null) data[sym] = v;
@@ -154,7 +155,7 @@ export async function symbolFanout(
       const missing = symbols.filter(s => !(s in data));
       if (missing.length > 0) {
         await runPool(missing, DEFAULT_CONCURRENCY, async (sym) => {
-          const r = await fetch(fallback.buildUrl(sym), { cache: 'no-store' });
+          const r = await exchangeFetch(fallback.buildUrl(sym), { cache: 'no-store' });
           if (!r.ok) throw new HttpStatusError(r.status, `${sym} fallback ${r.status}`);
           const v = fallback.pick(await r.json(), sym);
           if (v != null) { data[sym] = v; viaFallback.push(sym); }
