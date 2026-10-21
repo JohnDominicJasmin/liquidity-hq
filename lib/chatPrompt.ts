@@ -189,7 +189,7 @@ export function splitFollowUps(raw: string): { text: string; followUps: string[]
   for (const m of raw.matchAll(/\*{0,2}[ \t]*follow-ups[ \t]*:[ \t]*\*{0,2}/gi)) last = m as RegExpExecArray;
   if (!last) return { text: raw.trim(), followUps: [] };
   const followUps = raw.slice(last.index + last[0].length).split('\n')
-    .map((q) => q.trim().replace(/^\d+[.)]\s*/, '').replace(/^[-•*]\s*/, '').replace(/^\*\*|\*\*$/g, '').trim())
+    .map((q) => q.trim().replace(/^\d+[.)]\s*/, '').replace(/^\*\*|\*\*$/g, '').replace(/^[-•*]\s*/, '').replace(/^\*\*|\*\*$/g, '').trim())
     .filter((q) => q.length > 5 && q.length < 100)
     .slice(0, 3);
   return { text: raw.slice(0, last.index).trim(), followUps };
