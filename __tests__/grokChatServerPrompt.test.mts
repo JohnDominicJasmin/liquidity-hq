@@ -142,6 +142,15 @@ test('C4. the follow-up block is split off the answer: the text keeps none of it
   assert.deepEqual(splitFollowUps('A short answer.'), { text: 'A short answer.', followUps: [] });
 });
 
+test('C5. the follow-up block is found when the model bolds the marker or writes it in another case, the last one wins, and no "**" is left', () => {
+  assert.deepEqual(splitFollowUps('Answer text.\n**FOLLOW-UPS:**\n- What about funding now?\n- Where is the next support?'),
+    { text: 'Answer text.', followUps: ['What about funding now?', 'Where is the next support?'] });
+  assert.deepEqual(splitFollowUps('Answer.\nFollow-ups:\n1. **Is volume rising here?**'), { text: 'Answer.', followUps: ['Is volume rising here?'] });
+  const twice = splitFollowUps('Early mention of follow-ups: none.\nMore text.\nFOLLOW-UPS:\nWhat is next for XRP?');
+  assert.equal(twice.text, 'Early mention of follow-ups: none.\nMore text.');
+  assert.deepEqual(twice.followUps, ['What is next for XRP?']);
+});
+
 /* ── the route ─────────────────────────────────────────────────────────── */
 
 test('R1. a bad body is refused with 400 before a credit is reserved and before xAI is called', async () => {
