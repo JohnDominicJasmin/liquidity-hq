@@ -21,7 +21,7 @@ This file is the index. Every finding lives on a GitHub tracker with its evidenc
 | Supabase advisors (dev) | Security advisor | No ERROR; leaked-password protection off (needs Pro plan, owner: later) | #1632 |
 
 ## Owner decisions taken during the audit (first-hand to PM)
-- Supabase Pro + custom sign-in domain: later. Render health check: set (by the owner). Render tier: later.
+- Supabase Pro + custom sign-in domain: later (refined 2026-10-21 08:53 UTC: Pro on the day payments go live, #1567). Render health check: set (by the owner). Render tier: later.
 - Trial gets every server-sent alert, BTC/ETH/SOL only.
 - Expired-Pro test: QA changes one row on a spare test account (no new logins).
 - Standard Wilder RSI on closed candles everywhere.

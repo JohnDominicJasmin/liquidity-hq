@@ -2,7 +2,7 @@
 
 **Given by the owner on 2026-09-20, verbatim items below; state refreshed by PM/DevOps on 2026-10-21, and again that
 afternoon (UTC) with the day's owner decisions (table below).** This is the list the
-team works from. It outranks anything PM/DevOps has queued. On 2026-10-21 the owner said "work also on the backlogs":
+team works from. It outranks anything PM/DevOps has queued. On 2026-10-20 (17:07 UTC) the owner said "work also on the backlogs":
 the team works it alongside the open issues, in the order under "Order of work" below.
 
 **The owner's standing rule:** what makes users pay comes first — reliable data,
@@ -54,26 +54,53 @@ and only run in a window the owner grants.
 
 ## Owner decisions, 2026-10-21 (first-hand to PM)
 
-Each one is recorded in full on the issue named; this table is the index. Times are UTC.
+Each one is recorded in full on the issue named; this table is the index. Times are UTC. Corrected and completed
+the same day after PM's audit of every owner message in the compacted PM chat: four items had existed only in the
+chat (the soft launch, the tools answer, "render service paid", the Korea concern), and four times had been stamped
+1-6 minutes late. Also found: the owner's 2026-10-20 15:12 UTC "turn on waitlist" (Whop) was not carried out and
+was put back to him on 2026-10-21 (#1567).
 
 | Time | Decision | Recorded |
 |---|---|---|
-| ~04:10 | Approved the #1606 checkout look (phone-width embed + one-sentence copy) and the Terms billing wording | #1606, #1633 |
+| 04:05 | Approved the #1606 checkout look (phone-width embed + one-sentence copy) and the Terms billing wording | #1606, #1633 |
 | 04:43 | Trial users get every server-sent alert type, on BTC/ETH/SOL only | #1630 |
 | 04:50 | The expired-Pro test uses the spare test account; no new logins | #1630 |
 | 05:11 | Standard Wilder RSI(14) on closed candles, everywhere | #1626 |
-| 05:24 | Security migration `20261021e` on the dev database after QA's run; Ask LiquidityAI opens the chat and never sends on click | #1644, #1631 |
+| 05:18 | Ask LiquidityAI opens the chat and never sends on click | #1631 |
+| ~05:23 | Security migration `20261021e` on the dev database after QA's run | #1644 |
 | 08:53 | No Supabase upgrade now; Pro on the day payments go live; organic marketing now, no big push until three server fixes | #1567, #1411 |
+| 08:53 | Soft launch: organic replies in discussions under high-follower crypto accounts, pointing people to the site (PM's reply plan waits for his yes) | #1591 |
 | 08:54 | The label migrations' dev sections applied in the same database window | #1644 |
 | 08:58 | All coins: no fixed number, every coin on the market | #1600 |
 | ~09:05 | Exchange data must never be blocked by Binance: Bybit first, one shared breaker, request budgets | #1649 |
 | 09:10 | The AI correctness fixes (E, B, C, A+D) approved as planned | #1631 |
-| ~09:15 | Data integrity guardrails: "We cannot fuck those up. Add a guardrail" | #1651 |
+| 09:10 | Data integrity guardrails: "We cannot fuck those up. Add a guardrail" | #1651 |
+| 09:16 | Question: which tools or architecture layer (n8n?) protect the data. Answer: none new; add Zod, an outside uptime alert, Dependabot | #1651 |
 | 09:26 | Dependabot alerts switched on ("do it for me") | #1632 |
 | 09:36 | Exchange permission requests wait until after launch; no paid licensed source now (option B) | #1649 |
 | 09:43 | Uptime alerts on cron-job.org ("cron-job.org go there") | #1594 |
 | 09:47 | The Whop panel's translated labels (R12) on the dev database | #1640 |
-| ~14:00 | Hyperliquid, option A: third backup source and funding comparison (#1649 phase 4); real liquidation levels filed as a proposal for Dev's estimate | #1649, #1662 |
+| 09:50 | "render service paid": the Render payment-failed banner is gone (PM checked) | #1397 |
+| 11:16-11:19 | Concern: Korea's block of 27 unregistered exchanges may shrink futures trading; PM's assessment, two marketing cautions and a "Korea premium" panel idea | #1592 |
+| ~14:00 | Hyperliquid, option A: third backup source and funding comparison (#1649 phase 4); real liquidation levels filed as a proposal for Dev's estimate (Dev: about 5-6 days, no database in a first version) | #1649, #1662 |
+
+## Waiting on the owner (PM, 2026-10-21 ~14:45 UTC)
+
+One list, so nothing waits in a chat. Recommendation first in each.
+
+| # | What | PM recommends | Where |
+|---|---|---|---|
+| 1 | Release v2026.10.21 to production (QA signed off; two database changes that touch no existing data, label rows, no env change, payments stay off) | Approve now | #1654, #1663 |
+| 2 | Whop: anyone can buy on the public page today, but production cannot unlock Pro until go-live | Waitlist on the three Pro plans until go-live (his own 2026-10-20 call); the hidden $1 test plan stays | #1567 |
+| 3 | The official X account, and a yes/no on the reply plan | Create the brand account; approve the plan | #1591 |
+| 4 | The $1 Whop test payment (hidden test plan) | Do it when convenient. It can confirm the automatic unlock only **on the qa test site**, which holds the Whop webhook secret today, for an account with the same email (where the webhook points is set in his Whop dashboard). Production cannot unlock until go-live (row 2; "webhook pointed at the production URL" is still unchecked on #1567), so liquidity-hq.com would show no Pro | #1567 |
+| 5 | Two-step login (authenticator app, not SMS) on GitHub, Render, Supabase, Whop, Hostinger, Google, Brevo, xAI, Telegram | Turn it on; account takeover is the biggest real risk | #1632 |
+| 6 | Email domain: Brevo is not verified on liquidity-hq.com and anti-spoofing is off | Sign in to Brevo and Hostinger in Chrome; PM does the records with him | #1632 |
+| 7 | Pin the Node version on Render (`NODE_VERSION`, an env-var change on each service) | Pin to the version Render uses today (24.14.1) | #1649 |
+| 8 | Marketing wording: he asked Marketing to "scrape" which accounts to follow; PM wrote "research by hand, not bulk scraping" (automated scraping breaks X/Facebook rules) | Confirm the hand-research wording | Marketing `START-HERE.md` |
+| 9 | The Impeccable design-tool hooks run in all three seats: at the start of every session, after every file edit, and at the end of every reply | His call: keep or remove | owner's Claude settings |
+| 10 | Three visual fails from QA's regression (R6 `/learn` light theme, R7 `/hours` labels, R8 `/liq` stats grid) | A look when convenient; low priority | #1640 |
+| 11 | Optional: Supabase dashboard checks (usage; Auth rate limits) | When convenient | #1567 |
 
 ## Order of work (PM, updated 2026-10-21 afternoon UTC)
 
