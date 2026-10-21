@@ -1310,9 +1310,14 @@ async function checkDailySummary(
     // "Today" in the header means the recipient's own calendar date at their
     // 7am, not UTC's - someone far enough east or west of UTC can be on a
     // different UTC calendar day than their own local morning.
-    const dateStr = d.toLocaleString('en-GB', {
-      timeZone: zone, weekday: 'short', month: 'short', day: 'numeric',
-    });
+    // #1632 item 1: a stored zone that Intl rejects (written directly to the table before the column grants) used to throw here and reject the
+    // whole Promise.all - nobody got the Morning Briefing. Fall back to the historical anchor for that one recipient.
+    let dateStr: string;
+    try {
+      dateStr = d.toLocaleString('en-GB', { timeZone: zone, weekday: 'short', month: 'short', day: 'numeric' });
+    } catch {
+      dateStr = d.toLocaleString('en-GB', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric' });
+    }
     const bodyBase =
       `☀️ <b>Morning Briefing - ${dateStr}</b>` +
       `${fngLine}\n\n` +

@@ -9,11 +9,10 @@ import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
-import { getSupabase, getAuthToken } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
-import { T } from '@/lib/tables';
 import { Warn, Lock } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/components/UpgradeGateModal';
@@ -1606,12 +1605,6 @@ function ArenaContent() {
         coin: ctx.coin, time: new Date().toLocaleTimeString(),
         reasoning: res.reasoning, session: ctx.session,
       }, ...h].slice(0, 10));
-      if (user && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-        getSupabase()!.from(T.signals).insert({
-          coin: ctx.coin, signal: res.signal, confidence: res.confidence,
-          reasoning: res.reasoning, session: ctx.session,
-        }).then(() => {});
-      }
     } catch (e: unknown) {
       /* #1263: the server refuses a fast-timeframe read for a free account (403 PRO_REQUIRED) -
          reachable when the plan read here came back 'unknown' and the clamp above held the
