@@ -3,6 +3,8 @@ import { apiError } from '@/lib/apiError';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { selectAllRows } from '@/lib/selectAllRows';
+import { planKindOfRow, paidByProvider } from '@/lib/paidPeriod';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,17 +32,16 @@ export const GET = withAdmin(async () => {
 
   const totalUsers = users.length;
 
-  // Pro / paying counts straight from subscriptions (head-only, no rows pulled).
-  const proQ = await admin.from(T.user_subscriptions)
-    .select('*', { count: 'exact', head: true })
-    .eq('role', 'pro');
-  const proUsers = proQ.count ?? 0;
-
-  const payingQ = await admin.from(T.user_subscriptions)
-    .select('*', { count: 'exact', head: true })
-    .eq('role', 'pro')
-    .eq('ls_status', 'active');
-  const activePaying = payingQ.count ?? 0;
+  /* Pro / paying counts (#1630). These were head-only counts of the STORED role ('pro') and of Lemon Squeezy's ls_status 'active', so a lapsed Whop
+     buyer still counted as Pro and no Whop buyer ever counted as paying. Now the stored-'pro' rows are read (paged, they are a small set) and counted
+     by the rule every other reader uses: Pro = planKindOfRow says pro (paid time + 48 h, or a hand-set Pro); paying = that AND a payment provider
+     behind it (paidByProvider). */
+  const { data: proRows, error: proErr } = await selectAllRows('ops:overview:pro_rows', 'user_id', () =>
+    admin.from(T.user_subscriptions).select('*').eq('role', 'pro'));
+  if (proErr) return apiError('ops/overview', proErr);
+  const proNow = (proRows ?? []).filter(r => planKindOfRow(r, now) === 'pro');
+  const proUsers = proNow.length;
+  const activePaying = proNow.filter(r => paidByProvider(r).paid).length;
 
   return NextResponse.json({
     totalUsers,

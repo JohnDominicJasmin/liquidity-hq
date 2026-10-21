@@ -21,14 +21,6 @@ function sb(token: string) {
   );
 }
 
-export async function getUserRole(token: string, userId: string): Promise<Role> {
-  const { data } = await sb(token).from(T.user_subscriptions)
-    .select('role')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return data?.role === 'pro' ? 'pro' : 'free';
-}
-
 export interface Entitlement {
   role:        Role;    // the PAID role ('pro' only after a real subscription)
   trialActive: boolean; // inside the 14-day signup trial window
@@ -122,23 +114,13 @@ export async function getUsageTierStatus(token: string, userId: string): Promise
   }
 }
 
-// Drop-in replacement for getUserRole() at any call site that is choosing a
-// USAGE LIMIT. Same signature, but returns 'trial' instead of collapsing a
-// trial user onto 'free'. Every AI route should use this; getUserRole stays
-// for the places that genuinely mean "has this account paid".
+// The usage tier for a call site that is choosing a USAGE LIMIT: 'trial' is its
+// own value, never collapsed onto 'free'. Every AI route should use this. (The
+// role-only getUserRole / getRoleFromRequestToken helpers are gone (#1630): they
+// had no callers and read the stored role without the paid-period rule, a trap
+// for the next route. "Has this account paid" is getEntitlement().role.)
 export async function getUsageTier(token: string, userId: string): Promise<UsageTier> {
   return usageTierOf(await getEntitlement(token, userId));
-}
-
-// Resolves the bearer token straight to a role, returning 'free' for any
-// missing/invalid/anonymous token rather than throwing - callers gate on the
-// returned role, not on whether this function succeeded.
-export async function getRoleFromRequestToken(token: string | null): Promise<Role> {
-  if (!token) return 'free';
-  const { data: userData } = await sb(token).auth.getUser();
-  const userId = userData.user?.id;
-  if (!userId) return 'free';
-  return getUserRole(token, userId);
 }
 
 // getEntitlementStatus() for a route that serves anyone but withholds the Pro

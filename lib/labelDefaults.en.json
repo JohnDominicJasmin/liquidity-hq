@@ -2404,7 +2404,7 @@
   "OPS_USER_DETAIL_BAN_SELF_LABEL": "Ban account (not your own)",
   "OPS_USER_DETAIL_BAN_ACCOUNT": "Ban account",
   "OPS_USER_DETAIL_RESET_AI_LIMIT": "Reset today's AI limit",
-  "OPS_USER_DETAIL_ACTIONS_NOTE": "Grant/Revoke Pro only touches the role - an existing paid subscription's billing fields are untouched. Ban blocks sign-in via Supabase Auth; you cannot ban yourself. Every action is written to the audit log.",
+  "OPS_USER_DETAIL_ACTIONS_NOTE": "Pro is never granted by hand: it comes only from a payment. Revoke Pro appears only for a Pro with no payment behind it; a paid account keeps Pro until its paid time ends. Ban blocks sign-in via Supabase Auth; you cannot ban yourself. Every action is written to the audit log.",
   "OPS_CONFIG_FEATURE_GROK": "Grok / LiquidityAI",
   "OPS_CONFIG_FEATURE_TELEGRAM": "Telegram alerts",
   "OPS_CONFIG_DURATION_NO_EXPIRY": "No expiry",

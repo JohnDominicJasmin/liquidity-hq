@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { estimateRowCostUsd, revenuePerMonthUsd, recordedPlan, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
 import { sendBanEmail } from '@/lib/email';
+import { planKindOfRow, paidByProvider } from '@/lib/paidPeriod';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,8 +72,10 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
     aiCost14d.push({ day, cost: costByDay.get(day) ?? 0 });
   }
   const cost14dTotal = aiCost14d.reduce((s, d) => s + d.cost, 0);
-  const role = sub.data?.role === 'pro' ? 'pro' : 'free';
+  // #1630: the role the account is on NOW (lib/paidPeriod.ts planKindOfRow): a stored 'pro' whose paid time has lapsed shows as Free here too.
+  const role = planKindOfRow(sub.data, Date.now()) === 'pro' ? 'pro' : 'free';
   const plan = recordedPlan(sub.data?.plan);
+  const paid = paidByProvider(sub.data);
   const revenueMonthly = revenuePerMonthUsd(role, plan);
 
   return NextResponse.json({
@@ -84,10 +87,14 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
     bannedUntil: u.banned_until ?? null,
     banReason: sub.data?.ban_reason ?? null,
     subscription: {
-      role: sub.data?.role ?? 'free',
+      role,
+      storedRole: sub.data?.role ?? 'free',
       lsStatus: sub.data?.ls_status ?? null,
       currentPeriodEnd: sub.data?.current_period_end ?? null,
       plan,
+      billingProvider: paid.provider,
+      // #1630 GO-LIVE 4: true only for a Pro with no payment behind it (an admin-set or legacy comp) - the one kind Revoke Pro may end.
+      manualGrant: role === 'pro' && !paid.paid,
     },
     onboarding: { tourSeen: !!checklist?.tour_seen, checklistDone, checklistTotal: 4 },
     pushSubscriptions: pushCount.count ?? 0,
@@ -105,8 +112,12 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
   });
 });
 
-type UserAction = 'grant_pro' | 'revoke_pro' | 'ban' | 'unban' | 'reset_ai_limit';
-const VALID_ACTIONS: UserAction[] = ['grant_pro', 'revoke_pro', 'ban', 'unban', 'reset_ai_limit'];
+/* #1630 GO-LIVE 4: NO 'grant_pro'. It wrote role 'pro' with no period end, which is lifetime Pro (lib/paidPeriod.ts never lapses a null end) - a manual
+   grant, which the owner's rule forbids: Pro comes only from a payment, through the provider's webhook. A request for it now answers "Unknown action".
+   'revoke_pro' stays, for a Pro with no payment behind it only: on a paid account it would strip time the buyer has paid for (cancel keeps paid time,
+   owner rule), so it is refused there. */
+type UserAction = 'revoke_pro' | 'ban' | 'unban' | 'reset_ai_limit';
+const VALID_ACTIONS: UserAction[] = ['revoke_pro', 'ban', 'unban', 'reset_ai_limit'];
 
 // A near-permanent ban (Supabase requires a finite duration string, not "forever").
 const BAN_DURATION = '876000h'; // 100 years
@@ -130,17 +141,20 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
   let emailSent = false;
 
   switch (action) {
-    case 'grant_pro':
     case 'revoke_pro': {
-      // Only the role column is written - upsert with a partial payload leaves
-      // any existing Lemon Squeezy fields (ls_status, ls_subscription_id, etc.)
-      // untouched, so comping a free user never clobbers a real subscription's
-      // billing state, and revoking a comp doesn't touch billing either.
-      const role = action === 'grant_pro' ? 'pro' : 'free';
-      const { error } = await admin.from(T.user_subscriptions).upsert(
-        { user_id: id, role, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' },
-      );
+      const { data: row, error: readErr } = await admin.from(T.user_subscriptions).select('*').eq('user_id', id).maybeSingle();
+      if (readErr) return apiError('ops/users/[id]', readErr);
+      if (row?.role !== 'pro') return NextResponse.json({ error: 'This account is not on Pro.' }, { status: 400 });
+      const paid = paidByProvider(row);
+      if (paid.paid) {
+        return NextResponse.json({
+          error: `This account pays for Pro${paid.provider ? ` through ${paid.provider}` : ''}. Its Pro ends when its paid time ends; it cannot be revoked here.`,
+        }, { status: 409 });
+      }
+      // Only the role column is written, on the existing row.
+      const { error } = await admin.from(T.user_subscriptions)
+        .update({ role: 'free', updated_at: new Date().toISOString() })
+        .eq('user_id', id);
       if (error) return apiError('ops/users/[id]', error);
       break;
     }

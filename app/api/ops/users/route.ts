@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { planKindOfRow } from '@/lib/paidPeriod';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,13 +53,15 @@ export const GET = withAdmin(async (req) => {
   const subsById = new Map<string, { role: string; ls_status: string | null }>();
   if (ids.length) {
     const { data: subs, error: subsErr } = await admin.from(T.user_subscriptions)
-      .select('user_id, role, ls_status')
+      .select('user_id, role, ls_status, trial_ends_at, current_period_end')
       .in('user_id', ids);
     // A failed lookup here must never silently read as "role: free" for every
     // user on the page - that's a real subscription value, not a safe default
     // to fall back to on error.
     if (subsErr) return NextResponse.json({ error: subsErr.message }, { status: 500 });
-    for (const s of subs ?? []) subsById.set(s.user_id, { role: s.role, ls_status: s.ls_status });
+    // #1630: the role the account is on NOW, so a lapsed paid account is not badged Pro.
+    const now = Date.now();
+    for (const s of subs ?? []) subsById.set(s.user_id, { role: planKindOfRow(s, now) === 'pro' ? 'pro' : 'free', ls_status: s.ls_status });
   }
 
   const users = pageUsers.map(u => ({

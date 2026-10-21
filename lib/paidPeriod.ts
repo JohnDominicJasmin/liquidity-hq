@@ -90,3 +90,12 @@ export function planKindOfRow(row: PlanRow | null | undefined, nowMs: number = D
   const trialEnd = row.trial_ends_at ? new Date(row.trial_ends_at).getTime() : 0;
   return trialEnd > nowMs ? 'trial' : 'free';
 }
+
+/** Whether a subscription row is backed by a payment provider (#1630 GO-LIVE 4): a recorded `billing_provider`, a Lemon Squeezy subscription id, or
+ *  a paid period end. A Pro row with none of these is a hand-set (comp) Pro, the only kind ops may revoke. `provider` names the processor when known. */
+export function paidByProvider(row: Record<string, unknown> | null | undefined): { paid: boolean; provider: string | null } {
+  const provider = typeof row?.billing_provider === 'string' && row.billing_provider ? row.billing_provider : null;
+  const lsId = typeof row?.ls_subscription_id === 'string' && row.ls_subscription_id ? row.ls_subscription_id : null;
+  const periodEnd = row?.current_period_end ? String(row.current_period_end) : null;
+  return { paid: Boolean(provider || lsId || periodEnd), provider: provider ?? (lsId ? 'lemonsqueezy' : null) };
+}
