@@ -7,9 +7,13 @@
 /** The digits of a price with as many decimals as its size needs: 107,250 / 2,345.67 / 2.3456 / 0.5123 / 0.00001234 (no "$"). */
 export function priceDigits(v: number): string {
   const a = Math.abs(v);
-  return a >= 1000 ? v.toLocaleString('en-US', { maximumFractionDigits: 2 })
-    : a >= 1 ? v.toLocaleString('en-US', { maximumFractionDigits: 4 })
-    : a === 0 ? '0' : Number(v.toPrecision(4)).toString();
+  if (a >= 1000) return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (a >= 1) return v.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  if (a === 0 || !Number.isFinite(a)) return a === 0 ? '0' : String(v);
+  /* Below 1: four significant digits written out in full. Number(v.toPrecision(4)).toString() switched to an exponent below 0.000001
+     ("1.234e-7", QA's review of #1665); toFixed with enough places never does. Trailing zeros are dropped (0.5000 -> 0.5). */
+  const places = Math.min(20, Math.max(4, 3 - Math.floor(Math.log10(a))));
+  return v.toFixed(places).replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
 }
 
 /** A price with as many decimals as its size needs: $107,250 / $2,345.67 / $2.3456 / $0.5123 / $0.00001234. */
