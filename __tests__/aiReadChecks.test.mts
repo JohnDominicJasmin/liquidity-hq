@@ -98,9 +98,23 @@ test('P1. a catalyst is kept only with a source and a date or age, shown as "cla
   assert.deepEqual(r.catalysts, ['ETF inflow of +$526.7M - SoSoValue, 2026-10-20 00:00 UTC (40h ago)', 'Fed speaker hawkish - Reuters, 3h ago']);
 });
 
+const catalystsOf = (...lines: string[]) => parseCombinedResponse(['SIGNAL: FLAT', 'CONFIDENCE: 70', 'CATALYSTS:', ...lines, 'REASONING: r.'].join('\n'), '1h', 'NY').catalysts;
+
+test('P1b. an ISO time is a date; a date in the SOURCE slot is not a source, and neither is "memory" (PM audit of #1668, item 7)', () => {
+  assert.deepEqual(catalystsOf('- Fed hold | Reuters | 2026-10-19T14:00Z'), ['Fed hold - Reuters, 2026-10-19T14:00Z'], 'an ISO-time catalyst was dropped');
+  assert.deepEqual(catalystsOf('- Fed hold | 2026-10-19 | 3h ago'), [], 'a date in the source slot was accepted as a source');
+  assert.deepEqual(catalystsOf('- BTC halving cycle | memory | 2d ago'), [], '"memory" was accepted as a source - the prompt forbids it');
+});
+
 test('P2. COUNTED is read, also as "bullish: 2"; with no COUNTED line it is null', () => {
   assert.deepEqual(parseCombinedResponse(ANSWER, '1h', 'NY').counted, { bullish: 2, bearish: 1 });
   assert.equal(parseCombinedResponse('SIGNAL: FLAT\nCONFIDENCE: 70', '1h', 'NY').counted, null);
+});
+
+test('P2b. a bold, reversed or comma-separated COUNTED line is still read (PM audit of #1668, item 2: an unread one let a full tier through)', () => {
+  for (const line of ['**COUNTED:** bullish 3 (a, b, c) | bearish 1 (d)', 'COUNTED: bearish 1 (d) | bullish 3 (a, b, c)', 'COUNTED: bullish 3, bearish 1']) {
+    assert.deepEqual(parseCombinedResponse(`SIGNAL: BULLISH\nCONFIDENCE: 80\n${line}`, '1h', 'NY').counted, { bullish: 3, bearish: 1 }, `not read: ${line}`);
+  }
 });
 
 /* ── the server's checks ───────────────────────────────────────────────── */
@@ -108,24 +122,35 @@ test('P2. COUNTED is read, also as "bullish: 2"; with no COUNTED line it is null
 const base = (over: Partial<CombinedResult>): CombinedResult => ({ ...parseCombinedResponse('SIGNAL: FLAT\nCONFIDENCE: 70\nREASONING: r.', '1h', 'NY'), ...over });
 const NO_CLUSTERS = '=== REALIZED LIQUIDATION CLUSTERS (XRP/USDT, last 24h) ===\nNot available\n';
 
-test('C1. a full tier its own count does not support is shown as the LEAN tier, capped at 75, with the reason; a supported one is untouched', () => {
+/* The tier the SIGNAL DECISION GUIDE gives a count, read from the prompt's table, not from applyResultChecks: a full tier needs 3+ and more
+   than the other side (and a trigger the server cannot see, so the server can grant at most LEAN on its own), LEAN needs 2+ and more,
+   and a tie or fewer than 2 on the leading side is FLAT. PM's audit of #1668 item 1: the first version always fell back to the SAME side's
+   LEAN, so BULLISH on 0 vs 5 came out LEAN BULLISH, and 3 vs 3 LEAN BEARISH. */
+const BULLISH_SIDE = ['BULLISH', 'LEAN BULLISH'];
+
+test('C1. a full tier its own count does not support is moved to the tier the count gives, never against the count; a supported one is untouched', () => {
   const two = applyResultChecks(base({ signal: 'BULLISH', confidence: 82, counted: { bullish: 2, bearish: 1 } }), '');
-  assert.equal(two.signal, 'LEAN BULLISH'); assert.equal(two.confidence, 75);
-  assert.match(two.reasoning, /\(Shown as LEAN BULLISH: 2 bullish against 1 bearish/);
-  assert.equal(two.checks!.length, 1);
+  assert.equal(two.signal, 'LEAN BULLISH'); assert.ok(two.confidence <= 75, 'a LEAN tier kept a confidence above its band');
+  assert.ok(two.checks!.length >= 1, 'the change is not listed in checks');
+  const against = applyResultChecks(base({ signal: 'BULLISH', confidence: 82, counted: { bullish: 0, bearish: 5 } }), '');
+  assert.ok(!BULLISH_SIDE.includes(against.signal), `BULLISH on a count of 0 vs 5 came out ${against.signal}: the server leaned against the model's own count`);
   const tied = applyResultChecks(base({ signal: 'BEARISH', confidence: 70, counted: { bullish: 3, bearish: 3 } }), '');
-  assert.equal(tied.signal, 'LEAN BEARISH', 'a tie must not be a full tier'); assert.equal(tied.confidence, 70, 'a confidence under the cap is kept');
+  assert.equal(tied.signal, 'FLAT', 'a tie is FLAT in the tier table, not a LEAN');
   const three = applyResultChecks(base({ signal: 'BULLISH', confidence: 82, counted: { bullish: 3, bearish: 1 } }), '');
   assert.equal(three.signal, 'BULLISH'); assert.equal(three.confidence, 82); assert.deepEqual(three.checks, []);
 });
 
-test('C2. with no COUNTED line the tier is unchanged and the miss is logged; a LEAN or FLAT tier is never touched', () => {
-  const none = applyResultChecks(base({ signal: 'BEARISH', confidence: 80, counted: null }), '');
-  assert.equal(none.signal, 'BEARISH'); assert.match(none.checks![0], /no COUNTED line/);
-  for (const signal of ['LEAN BULLISH', 'LEAN BEARISH', 'FLAT'] as const) {
-    const r = applyResultChecks(base({ signal, confidence: 70, counted: { bullish: 0, bearish: 0 } }), '');
-    assert.equal(r.signal, signal); assert.deepEqual(r.checks, []);
-  }
+test('C2. a LEAN tier is held to the count too, a full tier with no readable COUNTED is not shown as checked, and FLAT is never touched', () => {
+  const leanAgainst = applyResultChecks(base({ signal: 'LEAN BULLISH', confidence: 65, counted: { bullish: 0, bearish: 4 } }), '');
+  assert.ok(!BULLISH_SIDE.includes(leanAgainst.signal), `LEAN BULLISH on 0 vs 4 was left as ${leanAgainst.signal}`);
+  const leanOk = applyResultChecks(base({ signal: 'LEAN BEARISH', confidence: 65, counted: { bullish: 1, bearish: 2 } }), '');
+  assert.equal(leanOk.signal, 'LEAN BEARISH'); assert.deepEqual(leanOk.checks, []);
+  const none = applyResultChecks(base({ signal: 'BEARISH', confidence: 80, reasoning: 'r.', counted: null }), '');
+  assert.ok(none.checks!.some((c) => /COUNTED/.test(c)), 'the missing count is not logged');
+  assert.ok(none.signal !== 'BEARISH' || none.confidence <= 75 || /unverified|not checked/i.test(none.reasoning),
+    'a full tier with no count was shown at full confidence and unmarked, as if it had been checked');
+  const flat = applyResultChecks(base({ signal: 'FLAT', confidence: 70, counted: { bullish: 0, bearish: 0 } }), '');
+  assert.equal(flat.signal, 'FLAT'); assert.deepEqual(flat.checks, []);
 });
 
 test('C3. a raid is dropped only when the clusters section says "Not available"; the spot disclosure is added only when it is missing', () => {
