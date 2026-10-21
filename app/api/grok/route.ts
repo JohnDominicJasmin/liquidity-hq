@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, parseCombinedResponse } from '@/lib/grok';
+import { applyResultChecks, buildVerdictRepairPrompt, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedResponse, parseVerdict } from '@/lib/grok';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
-
-/** #1651 item 1: the days of X posts a Deep read may draw on, today included. */
-const DEEP_X_DAYS = 2;
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
@@ -18,6 +15,27 @@ import { anonServerClient, userClient } from '@/lib/supabase-user';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
+
+/** #1651 item 1: the days of X posts a Deep read may draw on, today included. */
+const DEEP_X_DAYS = 2;
+
+/** #1651 item 3: ask once more for a verdict the answer did not state readably. A plain chat call - no search, no market data, the
+ *  answer itself is the input - logged as its own call type so its cost is counted. null on any failure: the caller then refuses. */
+async function restateVerdict(answer: string, userId: string) {
+  try {
+    const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+      body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'user', content: buildVerdictRepairPrompt(answer) }], max_tokens: 200 }),
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    await recordAiCall({ userId, callType: 'verdict_repair', model: d.model ?? 'grok-4.3', usage: d.usage });
+    return parseVerdict(answerText(d, false));
+  } catch {
+    return null;
+  }
+}
 
 function sb(token?: string) {
   return token ? userClient(token) : anonServerClient();
@@ -246,22 +264,33 @@ export async function POST(req: NextRequest) {
     return apiError('grok', e, 500, 'AI service error');
   }
 
+  const newDeep  = type === 'deep'  ? usageResult.count : deepUsed;
+  const newQuick = type === 'quick' ? usageResult.count : quickUsed;
+  const usage = {
+    deep_used:     newDeep,      deep_limit:     deepLimit,
+    quick_used:    newQuick,     quick_limit:    quickLimit,
+    chat_used:     chatUsed,     chat_limit:     chatLimit,
+    search_used:   searchUsed,   search_limit:   searchLimit,
+    briefing_used: briefingUsed, briefing_limit: briefingLimit,
+  };
+
+  /* #1651 item 3: the verdict must be one of the five signals with a 0-100 confidence. An answer without them used to be parsed as FLAT
+     at 0% and shown as a "Wait" the model never said. One retry asks for the verdict again; if that is unreadable too, the read is
+     refused with a plain message (the client's existing BAD_ANSWER path). The use is already counted - no refund, as for any failed xAI
+     call (lib/aiUsage.ts). */
+  let restated = false;
+  if (!parseVerdict(text)) {
+    const v = await restateVerdict(text, userId);
+    if (!v) return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage }, { status: 502 });
+    text = `SIGNAL: ${v.signal}\nCONFIDENCE: ${v.confidence}\n${text}`;
+    restated = true;
+  }
+
   /* #1631 B and D: the rules the answer can be checked against are applied here, where the prompt is known - a full tier the model's own
      count does not support, a raid with no cluster data to aim at (both XRP runs invented a "long flush" target), and a missing
      "perps-vs-spot unavailable" disclosure. See applyResultChecks in lib/grok.ts. */
   const result = applyResultChecks({ ...parseCombinedResponse(text, tf, session), citations }, prompt);
+  if (restated) (result.checks ??= []).push('verdict restated by a second pass: the answer did not state SIGNAL and CONFIDENCE in the required form');
 
-  const newDeep  = type === 'deep'  ? usageResult.count : deepUsed;
-  const newQuick = type === 'quick' ? usageResult.count : quickUsed;
-
-  return NextResponse.json({
-    result,
-    usage: {
-      deep_used:     newDeep,      deep_limit:     deepLimit,
-      quick_used:    newQuick,     quick_limit:    quickLimit,
-      chat_used:     chatUsed,     chat_limit:     chatLimit,
-      search_used:   searchUsed,   search_limit:   searchLimit,
-      briefing_used: briefingUsed, briefing_limit: briefingLimit,
-    },
-  });
+  return NextResponse.json({ result, usage });
 }
