@@ -1109,7 +1109,7 @@ export default function MarketProvider(
 
       setStore(s => ({
         ...s,
-        ...(d.oil  ? { oilPrice: d.oil.price }                           : {}),
+        ...(d.oil  ? { oilPrice: d.oil.price, oilChg: d.oil.chg }        : {}),
         ...(d.dxy  ? { dxy:  d.dxy.price,  dxyChg:  d.dxy.chg  }       : {}),
         ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : {}),
         ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : {}),
@@ -1167,7 +1167,7 @@ export default function MarketProvider(
         cache: 'no-cache',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
-      const { btc, eth } = await res.json();
+      const { btc, eth, btcDays, ethDays } = await res.json();
       /* Plain numbers in MILLIONS since #175. The route used to hand back
          SoSoValue's raw payload and this read four possible nesting shapes out
          of it; the authenticated API returns one documented field, so the route
@@ -1177,6 +1177,12 @@ export default function MarketProvider(
          real data and `if (btc)` would discard it. */
       if (btc != null && Number.isFinite(btc)) setStore(s => ({ ...s, etfNetFlow: btc as number }));
       if (eth != null && Number.isFinite(eth)) setStore(s => ({ ...s, ethEtfNetFlow: eth as number }));
+      // #1631 A: the dated days behind those numbers, for the AI read. Kept only when every day is well-formed.
+      const days = (v: unknown) => Array.isArray(v) && v.length > 0 && v.every((d) => typeof d?.date === 'string' && Number.isFinite(d?.flowM))
+        ? (v as Array<{ date: string; flowM: number }>) : null;
+      const bd = days(btcDays), ed = days(ethDays);
+      if (bd) setStore(s => ({ ...s, etfFlowDays: bd }));
+      if (ed) setStore(s => ({ ...s, ethEtfFlowDays: ed }));
     } catch { /* fail silently */ }
   }, []);
 

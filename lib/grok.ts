@@ -109,6 +109,15 @@ export function normalizeCombinedResult(raw: unknown, tf: string, session: strin
   const strings = (v: unknown): string[] => (Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : []);
   const bias = r.bias === 'BULLISH' || r.bias === 'BEARISH' || r.bias === 'NEUTRAL' ? r.bias : null;
   const raidSetup = r.raidSetup === 'SHORT SQUEEZE' || r.raidSetup === 'LONG FLUSH' ? r.raidSetup : null;
+  const c = r.counted as Record<string, unknown> | null | undefined;
+  const counted = c && typeof c === 'object' && Number.isInteger(c.bullish) && Number.isInteger(c.bearish)
+    ? { bullish: c.bullish as number, bearish: c.bearish as number } : null;
+  /* #1631 A+D: carried only when the answer has them. A result from before them (a cache, a stub) has none, and "absent" is the true
+     reading - an invented empty list would claim the server checked something it never saw. */
+  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks'> = {};
+  if ('citations' in r) extra.citations = strings(r.citations).filter((u) => /^https?:\/\//.test(u)).slice(0, 10);
+  if ('counted' in r) extra.counted = counted;
+  if ('checks' in r) extra.checks = strings(r.checks);
   return {
     signal: r.signal as CombinedResult['signal'],
     confidence: Math.max(0, Math.min(100, r.confidence)),
@@ -122,6 +131,7 @@ export function normalizeCombinedResult(raw: unknown, tf: string, session: strin
     raidSetup,
     raidTarget: strOrNull(r.raidTarget),
     raidTrigger: strOrNull(r.raidTrigger),
+    ...extra,
     analyzedAt: typeof r.analyzedAt === 'number' && Number.isFinite(r.analyzedAt) ? r.analyzedAt : Date.now(),
     tf: typeof r.tf === 'string' && r.tf ? r.tf : tf,
     session: typeof r.session === 'string' && r.session ? r.session : session,
@@ -172,6 +182,9 @@ export interface GrokContext {
   oilPrice: string;
   bonds10y: string;   // US 10Y Treasury yield, nominal (#1631 C)
   real10y: string;    // US 10Y TIPS real yield, FRED DFII10 (#311)
+  /* spot ETF net flows by US trading day, newest first, e.g. "2026-10-20 +$23.2M | 2026-10-19 +$526.7M" or "unavailable" (#1631 A) */
+  etfFlows: string;
+  ethEtfFlows: string;
   /* upcoming events */
   upcomingEvents: string;
   /* multi-timeframe RSI */
@@ -274,12 +287,15 @@ export function buildPrompt(ctx: GrokContext): string {
     '=== TECHNICALS (MULTI-TIMEFRAME) ===',
     `EMA Ribbon Strategy: ${ctx.emaStrategy}`,
     '(VERDICT KEY - LONG_SETUP: bullish ribbon 9>20>50 + daily above 200 SMA + price pulled back to 20 EMA value zone = high-probability long entry. SHORT_SETUP: reverse = high-probability short entry. TRENDING_LONG/BEARISH: ribbon aligned but price not yet in entry zone - directional bias, wait for pullback to value zone. FREEZE: ribbon is tangled (EMAs not stacked) or price broke through 50 EMA against trend = no clear bias, avoid new positions.)',
-    'EMA RIBBON DECISION WEIGHT - apply this BEFORE forming your final signal:',
-    '  • LONG_SETUP → strong bullish structural signal. Add +20 to bullish case. If 2+ other bullish signals confirm, upgrade LEAN BULLISH → BULLISH.',
-    '  • SHORT_SETUP → strong bearish structural signal. Add +20 to bearish case. If 2+ other bearish signals confirm, upgrade LEAN BEARISH → BEARISH.',
-    '  • TRENDING_LONG → mild bullish bias (+10). Do NOT call BULLISH - price not at entry zone. Confirms bullish regime only.',
-    '  • TRENDING_SHORT → mild bearish bias (+10). Do NOT call BEARISH - not in entry zone. Confirms bearish regime only.',
-    '  • FREEZE → subtract 15 from confidence. Ribbon is in consolidation. Prefer FLAT unless 4+ other signals strongly align in one direction.',
+    /* #1631 D: the ribbon rules feed the ONE tier table (SIGNAL DECISION GUIDE) instead of defining tiers of their own. "Upgrade to
+       BULLISH with 2 more signals" here, "3+ exhaustion signals + reversal candle" there, and GEX's "fade breakouts" were three
+       definitions, and runs resolved them differently. */
+    'EMA RIBBON - how it feeds the SIGNAL DECISION GUIDE below (the guide is the only place tiers are defined):',
+    '  • LONG_SETUP → one bullish signal (+20 to the bullish case) AND a BULLISH trigger: price pulled back into the value zone. With 2+ other bullish signals the count reaches 3 → BULLISH.',
+    '  • SHORT_SETUP → one bearish signal (+20 to the bearish case) AND a BEARISH trigger. With 2+ other bearish signals → BEARISH.',
+    '  • TRENDING_LONG → one bullish signal (+10), NOT a trigger - price is not at the entry zone, so on its own it cannot make BULLISH.',
+    '  • TRENDING_SHORT → one bearish signal (+10), NOT a trigger - on its own it cannot make BEARISH.',
+    '  • FREEZE → subtract 15 from confidence. Ribbon is in consolidation. Prefer FLAT unless one side counts 4+ signals.',
     `EMA50 Slope (last 5 bars): ${ctx.ema50Slope}`,
     `ATR(14) buffer: ${ctx.emaATR}`,
     '(Anti-chop filters - ALL THREE must pass before treating any EMA signal as valid:',
@@ -330,7 +346,9 @@ export function buildPrompt(ctx: GrokContext): string {
       '(Max pain = price where max option value is destroyed at expiry - acts as magnet)',
       `BTC Gamma Exposure (GEX):  ${ctx.btcGex}`,
       '(Positive GEX = dealers LONG gamma = buy dips/sell rips = price pins near large strikes. Negative GEX = dealers SHORT gamma = moves amplified = trending conditions. Zero-gamma flip level is key - crossing it changes dealer hedging direction.)',
-      'WEIGHT GEX HEAVILY for BTC - it sets the REGIME the rest of the signals live in, which matters more than any direction it implies: in LONG gamma, dealers suppress volatility so the market ranges/mean-reverts - FADE breakouts and distrust momentum signals (the max-pain magnet adds a mild pull toward that strike, but only bites as expiry approaches, so treat it as a tiebreaker, not a primary bias); in SHORT gamma, dealers amplify moves = trending, so treat breakouts as real and let trend + order-flow signals run with size. When the GEX regime conflicts with an oscillator, the regime wins on conviction.',
+      /* #1631 D: GEX says HOW price moves, not WHERE. Check 2 had a run read long gamma as "mean-reversion higher". It now decides one
+         thing the tier table can use - whether a breakout counts - and never a direction. */
+      'GEX SETS THE REGIME FOR BTC, NEVER THE DIRECTION: in LONG gamma, dealers suppress volatility so the market ranges - a breakout or BOS is expected to fade and counts as 0 signals, while the pullback triggers (LONG_SETUP / SHORT_SETUP) and fades at range extremes count normally (the max-pain pull is a tiebreaker near expiry only). In SHORT gamma, dealers amplify moves - breakouts are real and count as 1 signal each. Never write "mean-reversion higher" or "mean-reversion lower": GEX alone gives no direction. A conflict between GEX and another rule is settled by the PRECEDENCE list in the SIGNAL DECISION GUIDE.',
       '',
       '=== COINBASE PREMIUM INDEX ===',
       `CB Premium (Coinbase BTC/USD − exchange BTC/USDT converted to USD):  ${ctx.cbPremium}`,
@@ -403,19 +421,21 @@ export function buildPrompt(ctx: GrokContext): string {
     `=== REALIZED LIQUIDATION CLUSTERS (${ctx.coin}, last 24h - where liquidations ALREADY happened, not predicted levels) ===`,
     ctx.liqLevels,
     '',
-    '=== MACRO EVENTS - RELEASED (LAST 72H) + UPCOMING (48H) ===',
-    '(CRITICAL: Any central bank decision - FOMC, BOJ, ECB, BOE - or tier-1 data released in the last 72h MUST anchor your macro bias. Do not let 1–2 weak technical signals override a confirmed Fed hold/hike or BOJ policy shift. For BOJ specifically: a rate hike = JPY strengthens = global carry trade unwind = risk-off across all assets including crypto. Use the Deep Research mode or the news feed to confirm current BOJ stance if not shown here.)',
+    '=== MACRO EVENTS - RELEASED (LAST 24H) + UPCOMING (48H) ===',
+    '(CRITICAL: Any central bank decision - FOMC, BOJ, ECB, BOE - or tier-1 data released in the last 24h MUST anchor your macro bias. Do not let 1–2 weak technical signals override a confirmed Fed hold/hike or BOJ policy shift. For BOJ specifically: a rate hike = JPY strengthens = global carry trade unwind = risk-off across all assets including crypto. Use the Deep Research mode or the news feed to confirm current BOJ stance if not shown here.)',
     ctx.upcomingEvents || 'No events in window',
     '',
-    '=== LIVE NEWS FEED (last 6 alerts - Finnhub + RSS) ===',
+    '=== LIVE NEWS FEED (up to 15 alerts, newest first: UTC time, age and source on each line) ===',
     ctx.news,
     '',
-    // BTC + ETH SPOT ETF FLOWS removed 2026-07-31, same reason as retail
-    // sentiment above: SoSoValue answers from neither host, so the value was
-    // permanently 'AI will search live' sitting under a heading that told the
-    // model to read it as institutional demand. The store still carries
-    // etfNetFlow for /briefing, which renders an honest "N/A" - a prompt has
-    // no equivalent, which is why this comes out rather than degrading.
+    /* BACK SINCE #1631 A, with dates. Removed 2026-07-31 because SoSoValue answered from neither host and the line was permanently
+       'AI will search live'. The authenticated API has answered since #175, and check 2 found Deep missing a +$526.7M day because the
+       prompt carried no flows at all. A missing reading says "unavailable" - never a search instruction. */
+    '=== SPOT ETF NET FLOWS (SoSoValue, by US trading day, newest first) ===',
+    `BTC spot ETFs: ${ctx.etfFlows}`,
+    `ETH spot ETFs: ${ctx.ethEtfFlows}`,
+    '(A flow is a catalyst for the day it is dated, not for today unless today is that day - always say its date.)',
+    '',
     '=== SESSION ===',
     `Current session: ${ctx.session}`,
     '',
@@ -436,10 +456,9 @@ export function buildPrompt(ctx: GrokContext): string {
     'IF IN BEARISH MOMENTUM REGIME:',
     '  • RSI oversold (< 30) = STRONG DOWNSIDE MOMENTUM - NOT a buy signal alone. Combine with exhaustion checklist.',
     '  • CVD bullish divergence during selloff = absorption signal. Still require reversal candle confirmation before calling BULLISH.',
-    '  • Fibonacci support + 3+ exhaustion signals = valid BULLISH setup even in bearish regime.',
-    '  • Long/Short ratio > 1.8:1 during selloff = overleveraged longs at FLUSH RISK = lean BEARISH not BULLISH.',
-    '  • Call BEARISH when: 3+ continuation signals confirmed. Call BULLISH when: 3+ exhaustion signals + reversal candle visible.',
-    '  • Call FLAT when: signals conflict OR exhaustion/continuation count is below 3.',
+    '  • Fibonacci support + 3+ exhaustion signals = a BULLISH case even in a bearish regime, once the reversal-candle trigger prints (SIGNAL DECISION GUIDE).',
+    '  • Long/Short ratio > 1.8:1 during selloff = overleveraged longs at FLUSH RISK = one bearish signal, not a bullish one.',
+    '  • The tier comes from the SIGNAL DECISION GUIDE below; this regime decides which checklist feeds the count. A bullish tier here needs the reversal-candle trigger.',
     '  • "Falling knife" rule: Never buy an asset down >8% in 24h and still accelerating lower - but 3+ exhaustion signals at key support overrides this.',
     '',
     'BULLISH MOMENTUM REGIME - present if 3 or more of these are true:',
@@ -451,7 +470,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     'IF IN BULLISH MOMENTUM REGIME:',
     '  • RSI overbought (> 70) = STRONG UPSIDE MOMENTUM - not automatically a sell signal in a trending move.',
-    '  • Short/Long ratio < 0.5:1 = overleveraged shorts at SQUEEZE RISK = BULLISH.',
+    '  • Short/Long ratio < 0.5:1 = overleveraged shorts at SQUEEZE RISK = one bullish signal.',
     '',
     'NEUTRAL REGIME: No clear momentum. Apply all signals equally.',
     '',
@@ -469,9 +488,8 @@ export function buildPrompt(ctx: GrokContext): string {
     '  ✓ CVD bullish divergence + volume declining together (absorption AND fewer sellers)',
     '  ✓ Price held at a MAJOR FIB level (61.8%, 78.6%) for 2+ candles without breaking',
     '',
-    '  1–2 EXHAUSTION signals → FLAT - wait for more confirmation.',
-    '  3+ EXHAUSTION signals → BULLISH is valid.',
-    '  5+ EXHAUSTION signals → HIGH CONVICTION BULLISH. Strong reversal case, high confidence.',
+    '  Each EXHAUSTION signal counts as one bullish signal in the SIGNAL DECISION GUIDE: 2 → LEAN BULLISH at most, 3+ with a reversal candle at support → BULLISH.',
+    '  5+ EXHAUSTION signals → strong reversal case: higher confidence, same tier rules.',
     '',
     'CONTINUATION SIGNALS - selling is still in progress:',
     '  ✗ Volume INCREASING on down candles (new sellers entering, not exhaustion)',
@@ -482,9 +500,8 @@ export function buildPrompt(ctx: GrokContext): string {
     '  ✗ Clean lower lows with NO wicks - no absorption at support, just selling',
     '  ✗ Price accelerating below key EMAs or supports without any pause candle',
     '',
-    '  1–2 CONTINUATION signals → FLAT - unclear, wait.',
-    '  3+ CONTINUATION signals → BEARISH is valid.',
-    '  5+ CONTINUATION signals → HIGH CONVICTION BEARISH. Strong continuation case.',
+    '  Each CONTINUATION signal counts as one bearish signal in the SIGNAL DECISION GUIDE: 2 → LEAN BEARISH at most, 3+ with a breakdown candle through support → BEARISH.',
+    '  5+ CONTINUATION signals → strong continuation case: higher confidence, same tier rules.',
     '',
     '=== LIVE SEARCH TASK ===',
     `Search RIGHT NOW for WHY ${ctx.coin} and crypto markets are moving today. Use web_search and x_search for:`,
@@ -492,10 +509,13 @@ export function buildPrompt(ctx: GrokContext): string {
     '2. War, conflict, sanctions, or geopolitical events in last 24h - search "war news crypto", "US strikes", "Russia Ukraine", "Middle East" on X and web.',
     '3. Any posts from @realDonaldTrump or @WhiteHouse on Bitcoin, crypto, tariffs, Fed, or interest rates.',
     '4. Fed, FOMC, CPI, PPI, Treasury statements from last 48h. Search "Fed crypto" and "interest rates".',
-    '5. Latest BTC and ETH spot ETF flow updates (IBIT, FBTC, ARKB, BITB, ETHA, FETH, EZET).',
+    '5. BTC and ETH spot ETF flows NEWER than the dated SPOT ETF section above (IBIT, FBTC, ARKB, BITB, ETHA, FETH, EZET).',
     '6. Any SEC, CFTC, or Congressional crypto bills or rulings.',
     '7. Any major exchange news (Binance, Coinbase, Bybit hacks, large liquidations, whale moves).',
     '8. Search X for "BTC" and "crypto" right now - what are traders saying is driving the move?',
+    /* #1631 A: check 2's Deep runs named catalysts with no source and presented 16 h and 52 h old events as live, and one said "no
+       catalysts" without evidence of having looked. Every catalyst now carries where and when it came from. */
+    'Every catalyst you take from these searches needs its source and its UTC publication time from the search result itself - never from memory. Do not write that there are no catalysts unless you ran these searches and found none; then write "- None found (searched: <what you searched>)".',
     '',
     '=== YOUR ANALYSIS TASK ===',
     'STEP 1: Apply the MOMENTUM REGIME FILTER above to classify the regime (Bearish / Bullish / Neutral).',
@@ -509,7 +529,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '   • Long/Short ratio > 1.8:1 during a DECLINE = crowded longs at flush risk = BEARISH signal, not bullish.',
     '   • Long/Short ratio < 0.6:1 during a RALLY = crowded shorts at squeeze risk = BULLISH signal.',
     '3. MACRO: Oil price direction (risk-on/off signal), bond yields (rising = risk-off), BTC dominance.',
-    '4. ETF FLOWS: Net inflows = institutional accumulation (bullish). Net outflows = distribution (bearish). Large flows can drive 3–8% moves.',
+    '4. ETF FLOWS: use the dated SPOT ETF section - net inflows = institutional accumulation (bullish), net outflows = distribution (bearish); large flows can drive 3–8% moves. Say the date of any flow you cite.',
     '5. NEWS & SOCIAL: Fed/FOMC statements, SEC rulings, inflation prints (CPI/PPI), geopolitical risk.',
     '6. TRUMP/WHITE HOUSE: Presidential posts or executive orders about crypto cause immediate 5–15% swings. Rate policy signals affect risk appetite.',
     '7. SENTIMENT: Fear & Greed extreme readings as contrarian signals - BUT only in NEUTRAL regime. In Bearish regime, extreme fear can persist.',
@@ -522,7 +542,7 @@ export function buildPrompt(ctx: GrokContext): string {
        measuring different things. Without this the model can assert both in one
        answer and the user cannot tell which the app believes. */
     '11b. PERP BASIS vs PERP ACTIVITY are DIFFERENT and may disagree. Basis is the PRICE premium of perps over spot. Activity is how much perp trading VOLUME there is against spot, measured against its own normal for that coin. Positive basis with normal activity = healthy demand for leverage. Positive basis with elevated activity = the move is leverage-led and unwinds faster. If they conflict, say so explicitly rather than choosing one silently.',
-    ...btcOnly(['12. GEX (GAMMA EXPOSURE) - PRIMARY REGIME FILTER for BTC, weight it above the oscillators: Positive net GEX = dealers LONG gamma = range-bound/mean-reverting → fade extremes toward max pain, size down on breakout calls. Negative net GEX = moves amplified = trending/explosive volatility → trust breakouts, size up on momentum. Zero-gamma flip level crossing = regime shift; a call that ignores the GEX regime is low-conviction.']),
+    ...btcOnly(['12. GEX (GAMMA EXPOSURE, BTC): the volatility regime, never a direction - apply it as the GEX block above says (a breakout counts 0 in long gamma, 1 in short gamma). A zero-gamma flip crossing is a regime shift: say so.']),
     '13. ORDER BOOK: Large bid walls = support. Large ask walls = resistance. Price often hunts walls before reversing.',
     '14. STABLECOIN FLOWS: judge by the 7d/30d change given, never by the level. Growing USDT+USDC supply = dry powder entering = bullish medium-term. Shrinking = capital leaving - never call a shrinking or unknown supply dry powder.',
     '15. EXCHANGE FLOWS: BTC flowing INTO exchanges = sell pressure. Flowing OUT = accumulation.',
@@ -531,14 +551,24 @@ export function buildPrompt(ctx: GrokContext): string {
     '18. OI TREND: OI↑+Price↑ = real trend with conviction. OI↑+Price↓ = new short conviction. OI↓+Price↑ = short covering only (weak). OI↓+Price↓ = long exits (panic).',
     '19. TAKER RATIO: Taker buy >65% = aggressive buyers = real demand (bullish). Taker sell >65% = sellers dumping into bids = distribution/panic (bearish).',
     '',
-    '=== SIGNAL DECISION GUIDE ===',
-    'Five tiers from bearish to bullish - pick the tier that matches your signal count and regime:',
+    /* #1631 D: the ONE place tiers are defined. The ribbon, the regime checklists, GEX and the chart section used to define tiers of their
+       own (and the chart section a second table), so the same data produced LEAN in one run and BULLISH in the next. The COUNTED line in
+       the output lets applyResultChecks hold the answer to this table. */
+    '=== SIGNAL DECISION GUIDE - the ONLY tier definitions; every other rule feeds it ===',
+    'Count signals FIRST, each one once, from the data above (the exhaustion / continuation checklists, the EMA ribbon, structure breaks, order flow, derivatives, macro). Then pick the tier:',
     '',
-    'BEARISH:      3+ continuation signals + bearish regime confirmed.',
-    'LEAN BEARISH: 2+ continuation signals OR bearish regime + at least 1 continuation signal. Direction clear but not yet confirmed. State what would confirm BEARISH.',
-    'FLAT:       Signals genuinely conflict OR count below 2 in both directions with no clear regime. No directional edge.',
-    'LEAN BULLISH:  2+ exhaustion signals OR bullish regime + at least 1 exhaustion signal. Direction clear but not yet confirmed. State what would confirm BULLISH.',
-    'BULLISH:       3+ exhaustion signals + reversal candle at support.',
+    'BEARISH:      3+ bearish signals, more than the bullish count, AND a trigger - SHORT_SETUP (pullback into the value zone) or a breakdown candle through support after 3+ continuation signals.',
+    'LEAN BEARISH: 2+ bearish signals and more than the bullish count (or a bearish regime with 1+), but no trigger yet. State what would trigger BEARISH.',
+    'FLAT:         neither side qualifies for a LEAN - the counts are tied, or the leading side has fewer than 2 and there is no regime. No directional edge.',
+    'LEAN BULLISH: 2+ bullish signals and more than the bearish count (or a bullish regime with 1+), but no trigger yet. State what would trigger BULLISH.',
+    'BULLISH:      3+ bullish signals, more than the bearish count, AND a trigger - LONG_SETUP (pullback into the value zone) or a reversal candle at support after 3+ exhaustion signals.',
+    '',
+    'PRECEDENCE when rules point different ways - apply them in this order and name the one that decided:',
+    '  1. The momentum regime (the filter above).',
+    '  2. The signal count and the tier table above.',
+    '  3. Caps: TRENDING_LONG / TRENDING_SHORT are not triggers; FREEZE prefers FLAT unless one side has 4+; for BTC, the GEX regime decides whether a breakout counts.',
+    '  4. Confidence only, never the tier or the direction: perps vs spot, session, WaveTrend, FREEZE -15.',
+    'If your count meets a tier and you output a lower one, say which rule above held it back.',
     '',
     /* #340, Option B, chosen by the owner from worked examples: a signal at
        8/10 confidence that is futures-led becomes 6/10. On this 0-100 scale
@@ -556,7 +586,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '  • Pre-NY / Asia: subtract 10 from confidence. LEAN BEARISH and LEAN BULLISH are fully valid.',
     '  "Pre-NY session" is NEVER a standalone reason for FLAT - reduce confidence, not tier.',
     '',
-    'FLAT is NOT the safe default - if 2+ signals align, call LEAN BEARISH or LEAN BULLISH.',
+    'FLAT is NOT the safe default - when one side leads with 2+ signals, the SIGNAL DECISION GUIDE gives a LEAN.',
     'FLAT means: no directional edge at all. Not "risky session" or "cautious".',
     'NEVER output FLAT just because you are uncertain - own the direction when signals support it.',
     '',
@@ -624,6 +654,13 @@ export interface CombinedResult {
   raidSetup: 'SHORT SQUEEZE' | 'LONG FLUSH' | null;  // liquidity raid potential
   raidTarget: string | null;   // price level / range where liquidations cluster
   raidTrigger: string | null;  // one-line confirmation signal
+  /* The three below are always set by the server since #1631 A+D, and absent on a result from before them. */
+  /** #1631 A: the web/X sources Deep's search returned (url_citation annotations + the citations list). Empty for Quick. */
+  citations?: string[];
+  /** #1631 D: the signals the model says it counted per side (its COUNTED line), or null when it gave none. */
+  counted?: { bullish: number; bearish: number } | null;
+  /** #1631 D: what applyResultChecks changed or could not check, in plain words. Not shown in the UI. */
+  checks?: string[];
   analyzedAt: number;
   tf: string;
   session: string;
@@ -643,8 +680,8 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     `EMA 9:   ${chart.ema9   != null ? priceText(chart.ema9)   : '-'}`,
     `SMA 200: ${chart.sma200 != null ? priceText(chart.sma200) : '-'}`,
     `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '-'}`,
-    `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure, prefer BULLISH setups' : 'EMA 9 BELOW SMA 200 - bearish structure, prefer BEARISH setups but BULLISH still valid on 3+ exhaustion signals') : '-'}`,
-    `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 (${priceText(chart.sma200)}) - bullish` : `BELOW SMA200 (${priceText(chart.sma200)}) - bearish, do not call BULLISH without reversal catalyst`) : '-'}`,
+    `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure (one bullish signal)' : 'EMA 9 BELOW SMA 200 - bearish structure (one bearish signal); a bullish tier still needs the reversal-candle trigger') : '-'}`,
+    `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 (${priceText(chart.sma200)}) - bullish` : `BELOW SMA200 (${priceText(chart.sma200)}) - bearish, do not call BULLISH without the reversal-candle trigger (SIGNAL DECISION GUIDE)`) : '-'}`,
     // #1631 C: says what is sent. Arena slices the last 15 (the field is still called recent20); the label claimed 20.
     `Last 15 candles (OHLC): ${chart.recent20}`,
     chart.detectedPatterns ? `Pre-detected basic patterns: ${chart.detectedPatterns}` : '',
@@ -665,18 +702,19 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
               : chart.tf === '4h'
                 ? 'WEIGHTING: Technicals 55% | Macro 45% - 4-hour swing. Macro is a near-equal co-driver. Fed stance, DXY direction, BOJ carry risk, and geopolitical regime each carry real weight at this timeframe. Do not call a 4h BULLISH against a hawkish macro backdrop without 3+ strong technical confirmations.'
                 : 'WEIGHTING: Technicals 50% | Macro 50% - daily timeframe. Equal weight. Central bank stance, DXY trend, BOJ policy, geopolitical risk, and ETF flows are as important as chart structure. A daily technical setup that contradicts the macro regime requires exceptional confirmation to act on.',
-    'REMINDER: Apply the MOMENTUM REGIME FILTER above before deciding direction. If bearish regime is confirmed, BEARISH or FLAT is the default - do not override with oscillators alone.',
+    'REMINDER: Apply the MOMENTUM REGIME FILTER above before deciding direction. In a confirmed bearish regime a bullish tier needs the reversal-candle trigger - oscillators alone never override the regime.',
     '',
-    '=== SIGNAL TIERS: WHEN TO USE LEAN vs FLAT ===',
-    'LEAN BEARISH (55–75% confidence): bearish regime confirmed but < 3 continuation signals. Direction is clear - one confirmation away from BEARISH.',
-    'LEAN BULLISH  (55–75% confidence): exhaustion signals visible but < 3 confirmed. Direction leaning long - one reversal candle away from BULLISH.',
-    'FLAT       (65–85% confidence): signals directly conflict, count < 2 in either direction, no identifiable regime.',
+    // #1631 D: confidence bands only. This used to be a second tier table that disagreed with the SIGNAL DECISION GUIDE.
+    '=== CONFIDENCE BANDS (the tiers are defined only in the SIGNAL DECISION GUIDE above) ===',
+    'LEAN BEARISH / LEAN BULLISH: 55–75% confidence. FLAT: 65–85% confidence.',
     'LEAN / FLAT REASONING must say: exactly which signals were counted, what price level triggers the upgrade to BEARISH or BULLISH.',
     '',
     'CRITICAL: Output ONLY these exact lines, no markdown, no bold (**), no extra text:',
     'SIGNAL: [BEARISH or LEAN BEARISH or FLAT or LEAN BULLISH or BULLISH]',
     'BIAS_LEAN: [Required ONLY when SIGNAL is FLAT - write BULLISH, BEARISH, or NEUTRAL to show your lean. Write N/A for all other signals.]',
     'CONFIDENCE: [0-100]',
+    // #1631 D: the count the tier rests on, in a fixed shape so the server can check the tier against it.
+    'COUNTED: bullish [n] ([the bullish signals you counted, comma separated]) | bearish [n] ([the bearish signals you counted])',
     // #1631 B: with no cluster data both XRP runs still invented a "long flush" target. No data, no raid.
     ...(/^\s*Not available/i.test(ctx.liqLevels ?? '') ? ['(No liquidation cluster data is available for this coin, so a raid cannot be judged: write RAID_SETUP: NONE, RAID_TARGET: N/A, RAID_TRIGGER: N/A.)'] : []),
     'RAID_SETUP: [Analyze the liquidation clusters, long/short crowding, funding rate, and order walls to determine IF a liquidity raid is likely. Output one of: SHORT SQUEEZE (shorts overcrowded + upside liquidation cluster reachable) | LONG FLUSH (longs overcrowded + downside liquidation cluster reachable) | NONE. A raid is likely when: one side is heavily crowded AND there is a visible liquidation cluster within 2-5% of current price AND funding confirms the crowding direction.]',
@@ -686,10 +724,14 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     '- [price]: [label] | [support or resistance]',
     '- [price]: [label] | [support or resistance]',
     '- [price]: [label] | [support or resistance]',
+    /* #1631 A (and audit item 6): one line per catalyst, "claim | source | UTC time (age)". Quick has no search, and its old template
+       demanded catalysts "RIGHT NOW" with an empty news feed - an invitation to invent one. Lines without a source and a date are dropped
+       by the parser; "None ..." means none. */
+    '(CATALYSTS: only from the dated data in this prompt - news feed, released events, ETF flows - or a search result returned in THIS answer, never from memory. Older than 6h: say its age and whether price has since reversed (compare the candles). If there is none, write exactly "- None in input".)',
     'CATALYSTS:',
-    '- [war/geopolitical event, Trump announcement, Fed action, ETF flow, or major news driving price RIGHT NOW]',
-    '- [second catalyst - must be specific, not generic]',
-    '- [third catalyst if relevant]',
+    '- [claim] | [source] | [YYYY-MM-DD HH:MM UTC (age)]',
+    '- [second catalyst, same format, if any]',
+    '- [third catalyst, same format, if any]',
     'CHART_ANALYSIS: [1-2 sentences on candles and indicators only - no mention of macro here]',
     'PATTERNS:',
     '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" - be specific with price context. Write "None detected" if no clear pattern]',
@@ -742,12 +784,20 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     if (m) { const p = pn(m[1]); if (p) levels.push({ price: p, label: m[2].trim(), type: m[3].toLowerCase() as 'support'|'resistance' }); }
   }
 
+  /* #1631 A: a catalyst is "claim | source | UTC date (age)". A line without a source and a date is dropped rather than shown: both
+     Deep runs in check 2 presented 16 h and 52 h old events as live, uncited, and nothing on screen could tell them apart from a real
+     one. "None in input" / "None found" is the model saying so, and like "None detected" in PATTERNS it is not listed as a catalyst. */
   const catalysts: string[] = [];
   const catSect = clean.match(/CATALYSTS:\s*\n([\s\S]*?)(?=CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
   for (const line of catSect.split('\n')) {
     const m = line.match(/^-\s*(.+)/);
-    if (m) { const c = stripMd(m[1]); if (c) catalysts.push(c); }
+    if (!m) continue;
+    const c = formatCatalyst(stripMd(m[1]));
+    if (c) catalysts.push(c);
   }
+
+  // #1631 D: the counts the tier check in applyResultChecks needs.
+  const counted = parseCounted(clean);
 
   // CHART_ANALYSIS - stop at PATTERNS or WAIT_FOR or REASONING
   const chartAnalysis = stripMd(
@@ -793,7 +843,122 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
 
-  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
+}
+
+/** A date or an age somewhere in the last part of a catalyst: 2026-10-20, 2026-10-19T14:00Z, Oct 20, 16h ago, 3 days ago. The date is not
+ *  required to end on a word boundary, so an ISO time straight after it ("T14:00Z", PM's audit of #1668) still counts. */
+const CATALYST_WHEN = /\b(20\d\d-\d\d-\d\d(?!\d)|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\d+\s*(m|min|mins|minutes?|h|hrs?|hours?|d|days?)\s+ago\b)/i;
+
+/** A "source" that names no source: the model's own memory, or nothing. */
+const NOT_A_SOURCE = /^(memory|from memory|model|the model|ai|grok|training( data)?|none|unknown|n\/?a|-)$/i;
+
+/** #1631 D: the COUNTED line in any order or separator, bold or not ("bullish 3 (...) | bearish 1", "Bearish: 1, Bullish: 3").
+ *  null when there is no COUNTED line, it does not give both numbers, or it gives one side two different numbers.
+ *
+ *  Each count is read only where its side STARTS a segment, with the parenthesised signal lists removed first. PM's re-audit of #1668:
+ *  reading the first "bearish N" anywhere took "bullish 3 (reclaimed bearish 4h breaker) | bearish 1" as 3 v 4, and the tier check then
+ *  turned a correct BULLISH into LEAN BEARISH. A signal's own name ("bearish 4h breaker", "bullish 1h FVG") is not a count. */
+export function parseCounted(text: string): { bullish: number; bearish: number } | null {
+  const line = text.split('\n').map((l) => l.replace(/\*+/g, '').trim()).find((l) => /^COUNTED\s*:/i.test(l));
+  if (!line) return null;
+  let body = line.replace(/^COUNTED\s*:/i, '');
+  for (let prev = ''; prev !== body;) { prev = body; body = body.replace(/\([^()]*\)/g, ' '); }
+  const segments = body.split(/[|,;]/).map((s) => s.trim());
+  const n = (side: 'bullish' | 'bearish') => {
+    const found = new Set<number>();
+    for (const s of segments) {
+      const m = s.match(new RegExp(`^${side}\\b\\s*[:=]?\\s*(\\d+)`, 'i'));
+      if (m) found.add(parseInt(m[1], 10));
+    }
+    return found.size === 1 ? [...found][0] : null;
+  };
+  const bullish = n('bullish'), bearish = n('bearish');
+  return bullish == null || bearish == null ? null : { bullish, bearish };
+}
+
+/** "claim | source | when" -> "claim - source, when"; null for a "None ..." line or one without a source and a date. */
+function formatCatalyst(raw: string): string | null {
+  if (!raw || /^none\b/i.test(raw)) return null;
+  const parts = raw.split('|').map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 3) return null;
+  const when = parts[parts.length - 1];
+  if (!CATALYST_WHEN.test(when)) return null;
+  const source = parts[parts.length - 2];
+  // PM's audit of #1668: a date in the source slot, or "memory" as the source, is not a source.
+  if (CATALYST_WHEN.test(source) || NOT_A_SOURCE.test(source)) return null;
+  const claim = parts.slice(0, -2).join(' | ');
+  return `${claim} - ${source}, ${when}`;
+}
+
+/** The perps-vs-spot reading's "could not be measured" sentence (lib/perpSpot.ts), as it reaches the prompt. */
+const SPOT_UNAVAILABLE = 'Spot data unavailable for this coin';
+
+type Tier = CombinedResult['signal'];
+
+/** Whether the SIGNAL DECISION GUIDE allows `tier` for these counts. The parser cannot see a trigger or the regime, so a full tier needs only
+ *  its count (3+ and more than the other side) and a LEAN needs 1+ and more than the other side (the guide's "or a regime with 1+"). */
+function tierAllowed(tier: Tier, c: { bullish: number; bearish: number }): boolean {
+  if (tier === 'BULLISH') return c.bullish >= 3 && c.bullish > c.bearish;
+  if (tier === 'BEARISH') return c.bearish >= 3 && c.bearish > c.bullish;
+  if (tier === 'LEAN BULLISH') return c.bullish >= 1 && c.bullish > c.bearish;
+  if (tier === 'LEAN BEARISH') return c.bearish >= 1 && c.bearish > c.bullish;
+  return true; // FLAT is never "more" than the count says
+}
+
+/** The tier the count itself gives, short of a full tier (no trigger is visible to the parser): a tie is FLAT, else LEAN of the side ahead. */
+function tierFromCounts(c: { bullish: number; bearish: number }): Tier {
+  if (c.bullish === c.bearish) return 'FLAT';
+  return c.bullish > c.bearish ? 'LEAN BULLISH' : 'LEAN BEARISH';
+}
+
+/** #1631 D: the rules the prompt states that the answer can be checked against, applied after parsing, on the server (it has the prompt).
+ *  - The tier must be one the SIGNAL DECISION GUIDE allows for the model's own COUNTED line. One it does not allow is replaced by the tier
+ *    the count gives (PM's audit of #1668: it used to fall back to the same side's LEAN, so BULLISH on 0 vs 5 became LEAN BULLISH 75),
+ *    confidence capped at 75, with one sentence saying why. A full tier with no readable COUNTED line cannot be checked, so it is shown
+ *    as its LEAN, never presented as checked.
+ *  - With no liquidation cluster data a raid cannot be judged (#1631 B): any raid the model wrote anyway is dropped.
+ *  - A perps-vs-spot check that could not be measured must be SAID (the prompt requires it); when the reasoning does not, it is added.
+ *  Everything changed is listed in `checks`. */
+export function applyResultChecks(result: CombinedResult, prompt: string): CombinedResult {
+  const r: CombinedResult & { checks: string[] } = { ...result, checks: [...(result.checks ?? [])] };
+
+  const said = r.signal;
+  const note = (s: string) => { r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}${s}`; };
+  const show = (tier: Tier) => {
+    r.signal = tier;
+    r.bias = tier === 'LEAN BULLISH' ? 'BULLISH' : tier === 'LEAN BEARISH' ? 'BEARISH'
+      : r.counted && r.counted.bullish !== r.counted.bearish ? (r.counted.bullish > r.counted.bearish ? 'BULLISH' : 'BEARISH') : 'NEUTRAL';
+    r.confidence = Math.min(r.confidence, 75);
+  };
+  if (!r.counted) {
+    if (said === 'BULLISH' || said === 'BEARISH') {
+      const lean: Tier = said === 'BULLISH' ? 'LEAN BULLISH' : 'LEAN BEARISH';
+      r.checks.push(`${said} shown as ${lean}: no readable COUNTED line, so the tier could not be checked`);
+      note(`(Shown as ${lean}: the answer did not state its signal count, so ${said} could not be checked.)`);
+      show(lean);
+    } else if (said !== 'FLAT') {
+      r.checks.push(`${said} not checked: no readable COUNTED line`);
+    }
+  } else if (!tierAllowed(said, r.counted)) {
+    const tier = tierFromCounts(r.counted);
+    r.checks.push(`${said} shown as ${tier}: ${r.counted.bullish} bullish vs ${r.counted.bearish} bearish counted`);
+    note(`(Shown as ${tier}: ${r.counted.bullish} bullish against ${r.counted.bearish} bearish signals were counted, which does not support ${said}.)`);
+    show(tier);
+  }
+
+  if (/=== REALIZED LIQUIDATION CLUSTERS[^\n]*===\s*\n\s*Not available/.test(prompt) && (r.raidSetup || r.raidTarget || r.raidTrigger)) {
+    r.checks.push('raid dropped: no liquidation cluster data');
+    r.raidSetup = null; r.raidTarget = null; r.raidTrigger = null;
+  }
+
+  // PM's audit of #1668: any "spot" ("BTC spot ETF inflows") used to count as the disclosure. It must name the perps-vs-spot check.
+  if (prompt.includes(SPOT_UNAVAILABLE) && !/perps?[\s-]*(vs\.?|versus|against)[\s-]*spot|spot[\s-]*(data|volume|activity|led|reading)|futures[\s-]*led/i.test(r.reasoning)) {
+    r.checks.push('perps-vs-spot disclosure added');
+    r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it.`;
+  }
+
+  return r;
 }
 
 /* ── Quick prompt - strips the LIVE SEARCH TASK block (no web search needed) ── */

@@ -29,6 +29,7 @@ import { clampMaxTokens } from '@/lib/grokTokenClamp';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { buildChatSystemPrompt, parseChatContext, parseChatHistory, splitFollowUps } from '@/lib/chatPrompt';
+import { answerText, searchCitations } from '@/lib/xaiAnswer';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -46,23 +47,6 @@ const ALLOWED_SEARCH_TOOLS = [{ type: 'web_search' }, { type: 'x_search' }];
 
 function sb(token: string) {
   return userClient(token);
-}
-
-/** The answer text out of either xAI shape: chat completions (choices[0].message.content) or the Responses API (the message output's text). */
-function answerText(data: unknown, isSearch: boolean): string {
-  const d = data as { choices?: Array<{ message?: { content?: unknown } }>; output?: Array<{ type?: string; content?: Array<{ text?: unknown }> }> } | null;
-  const t = isSearch
-    ? d?.output?.find((o) => o?.type === 'message')?.content?.[0]?.text
-    : d?.choices?.[0]?.message?.content;
-  return typeof t === 'string' ? t : '';
-}
-
-/** The web/X sources a Live answer cited (Responses API url_citation annotations), deduplicated, at most 10. */
-function searchCitations(data: unknown): string[] {
-  const d = data as { output?: Array<{ type?: string; content?: Array<{ annotations?: Array<{ url?: unknown }> }> }> } | null;
-  const urls = (d?.output ?? []).flatMap((o) => (o?.content ?? []).flatMap((c) => (c?.annotations ?? []).map((a) => a?.url)))
-    .filter((u): u is string => typeof u === 'string' && /^https?:\/\//.test(u));
-  return [...new Set(urls)].slice(0, 10);
 }
 
 async function getUsageRow(token: string, userId: string, today: string) {
