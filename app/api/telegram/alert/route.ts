@@ -13,6 +13,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { selectAllRows } from '@/lib/selectAllRows';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
+import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
   EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, BYBIT_KLINE_SYMS,
 } from '@/lib/ribbonCandles';
@@ -558,6 +559,12 @@ async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, n
     if (!target) continue;
     (target.category === 'spot' ? bySpotSym : byLinSym).set(target.symbol, coin);
   }
+  /* #1626: the loop above only visits Binance-listed coins, so the coins that exist ONLY on Bybit (hype, pepe, bonk, xau, spx) never got a price here
+     and a price alert on them could never fire. They are read from Bybit's linear (perp) ticker, the market the app itself shows for them. */
+  for (const coin of Object.keys(BYBIT_SYMS)) {
+    if (bybitSpotOrLinear(coin)) continue;
+    byLinSym.set(BYBIT_SYMS[coin], coin);
+  }
 
   const [spotRes, linRes] = await Promise.all([
     fetchOrSkip('https://api.bybit.com/v5/market/tickers?category=spot', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit'),
@@ -578,7 +585,8 @@ async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, n
       const d = await linRes.json() as { result?: { list?: Array<{ symbol: string; lastPrice: string }> } };
       for (const item of d.result?.list ?? []) {
         const coin = byLinSym.get(item.symbol);
-        if (coin && item.lastPrice) out[coin] = parseFloat(item.lastPrice);
+        // 1000PEPE / 1000BONK quote per 1000 tokens: bring them to a per-token price like every other surface (lib/coins.ts bybitSymbolPriceFactor).
+        if (coin && item.lastPrice) out[coin] = parseFloat(item.lastPrice) * bybitSymbolPriceFactor(item.symbol);
       }
     }
   } catch { /* whatever parsed before the throw is still returned below */ }
@@ -592,7 +600,7 @@ async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, n
  * via bybitSpotOrLinear) explicitly. `skipCounts` is optional so a caller
  * that doesn't have one in scope (none do today, kept for symmetry with
  * fetchOrSkip) isn't forced to thread one through for no reason. */
-interface BybitCandle { o: number; h: number; l: number; c: number }
+interface BybitCandle { t: number; o: number; h: number; l: number; c: number }
 
 /* Raw OHLC, oldest-first, priceFactor applied - the shape checkRapidMove
  * needs for pattern detection (detectPatterns reads o/h/l/c, not just
@@ -613,7 +621,7 @@ async function fetchBybitCandles(
     const pf = bybitSymbolPriceFactor(symbol);
     // Bybit returns newest-first - reverse so index 0 = oldest
     return list.map(row => ({
-      o: parseFloat(row[1]) * pf, h: parseFloat(row[2]) * pf,
+      t: Number(row[0]), o: parseFloat(row[1]) * pf, h: parseFloat(row[2]) * pf,
       l: parseFloat(row[3]) * pf, c: parseFloat(row[4]) * pf,
     })).reverse();
   } catch { return []; }
@@ -1072,7 +1080,16 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
    Per-user: each alert fires only to its owner's Telegram.
    Falls back to allChatIds for legacy rows with no user_id.
    ════════════════════════════════════════ */
-interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; user_id?: string | null }
+interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; user_id?: string | null; created_at?: string | null }
+
+/* The Bybit market a coin's price is read from: the same choice fetchSpotPrices makes (spot for Binance-listed coins, linear for TAO and for the
+   coins that only exist on Bybit). */
+function bybitMarketForCoin(coin: string): { category: 'spot' | 'linear'; symbol: string } | null {
+  return bybitSpotOrLinear(coin) ?? (BYBIT_SYMS[coin] ? { category: 'linear', symbol: BYBIT_SYMS[coin] } : null);
+}
+
+/* How many 1-minute candles to look back for a wick: 15 = three cron periods, so one or two missed runs do not lose a touch. */
+const WICK_LOOKBACK_MIN = 15;
 
 async function checkPriceAlerts(
   token: string, stamp: string, prices: Record<string, number>,
@@ -1108,13 +1125,24 @@ async function checkPriceAlerts(
     // instead of a separate round-trip per triggered alert (N+1).
     const triggeredIds: number[] = [];
 
-    for (const alert of alertsRes.data as PriceAlert[]) {
+    /* #1626: a wick between two 5-minute checks. Only coins that still have an armed alert the live price did not already hit are read, one
+       1-minute kline request per coin. A failed read leaves that coin on the live-price rule, exactly as before. */
+    const rows = alertsRes.data as PriceAlert[];
+    const wickCoins = [...new Set(rows
+      .filter(a => evaluatePriceAlert(a, prices[a.coin] ?? null, []) == null)
+      .map(a => a.coin))];
+    const candlesByCoin = new Map<string, Candle1m[]>();
+    await runBatched(wickCoins.map(coin => async () => {
+      const m = bybitMarketForCoin(coin);
+      if (!m) return;
+      const cs = await fetchBybitCandles(m.symbol, '1', WICK_LOOKBACK_MIN, undefined, m.category);
+      candlesByCoin.set(coin, cs.filter(c => Number.isFinite(c.t) && Number.isFinite(c.h) && Number.isFinite(c.l)).map(c => ({ startMs: c.t, high: c.h, low: c.l })));
+    }), 5);
+
+    for (const alert of rows) {
       const price = prices[alert.coin];
-      if (price == null) continue;
-      const triggered =
-        (alert.direction === 'above' && price >= alert.target_price) ||
-        (alert.direction === 'below' && price <= alert.target_price);
-      if (!triggered) continue;
+      const touch = evaluatePriceAlert(alert, price ?? null, candlesByCoin.get(alert.coin) ?? []);
+      if (!touch) continue;
 
       // Route to owner if known; only a row with NO user_id at all (true
       // legacy, pre-dates per-user ownership) falls back to broadcasting to
@@ -1135,7 +1163,9 @@ async function checkPriceAlerts(
 
       const body = `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
         `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
-        `Current: $${price.toLocaleString()}` +
+        (touch.via === 'wick'
+          ? `Reached: $${touch.level.toLocaleString()} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${new Date(touch.atMs).toISOString().slice(11, 16)} UTC)` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
+          : `Current: $${touch.price.toLocaleString()}`) +
         (alert.label ? `\nNote: ${escapeHtml(alert.label)}` : '') +
         `\n\n<i>${stamp}</i>`;
 
