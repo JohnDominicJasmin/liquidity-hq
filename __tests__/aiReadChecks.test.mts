@@ -124,6 +124,18 @@ test('P2c. a side named INSIDE the other side\'s list is not read as its count (
   assert.deepEqual(parseCombinedResponse(`SIGNAL: BEARISH\nCONFIDENCE: 80\n${mirrored}`, '1h', 'NY').counted, { bullish: 1, bearish: 3 });
 });
 
+/* P2c's line is read right by either half of #1668's fix alone (dropping the parenthesised lists, or reading a side only where it starts a
+   segment), so a regression in one half stays green there. Each line here needs its own half: a signal list written without brackets, and
+   a bracketed list whose comma split leaves a signal named "bearish ..." at the start of a piece. */
+test('P2d. a side named in a list without brackets, or after a comma inside brackets, is not read as its count either', () => {
+  for (const line of [
+    'COUNTED: bullish 3: reclaimed bearish 4h breaker | bearish 1',
+    'COUNTED: bullish 3 (CVD divergence, bearish 4h breaker reclaimed, RSI 28) | bearish 1 (OI rising)',
+  ]) {
+    assert.deepEqual(parseCombinedResponse(`SIGNAL: BULLISH\nCONFIDENCE: 80\n${line}`, '1h', 'NY').counted, { bullish: 3, bearish: 1 }, `misread: ${line}`);
+  }
+});
+
 /* ── the server's checks ───────────────────────────────────────────────── */
 
 const base = (over: Partial<CombinedResult>): CombinedResult => ({ ...parseCombinedResponse('SIGNAL: FLAT\nCONFIDENCE: 70\nREASONING: r.', '1h', 'NY'), ...over });
@@ -143,6 +155,8 @@ test('C1. a full tier its own count does not support is moved to the tier the co
   assert.ok(!BULLISH_SIDE.includes(against.signal), `BULLISH on a count of 0 vs 5 came out ${against.signal}: the server leaned against the model's own count`);
   const tied = applyResultChecks(base({ signal: 'BEARISH', confidence: 70, counted: { bullish: 3, bearish: 3 } }), '');
   assert.equal(tied.signal, 'FLAT', 'a tie is FLAT in the tier table, not a LEAN');
+  const tiedUp = applyResultChecks(base({ signal: 'BULLISH', confidence: 70, counted: { bullish: 3, bearish: 3 } }), '');
+  assert.equal(tiedUp.signal, 'FLAT', 'a 3 vs 3 tie let BULLISH through: a full tier needs more than the other side');
   const three = applyResultChecks(base({ signal: 'BULLISH', confidence: 82, counted: { bullish: 3, bearish: 1 } }), '');
   assert.equal(three.signal, 'BULLISH'); assert.equal(three.confidence, 82); assert.deepEqual(three.checks, []);
 });

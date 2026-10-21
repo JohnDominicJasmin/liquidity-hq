@@ -131,3 +131,50 @@ test('E3. nothing usable from SoSoValue: every field is null, never a zero or an
   const b = await etf(rows(['2026-10-21', null]), { code: 0, data: [] });
   assert.deepEqual(b, { btc: null, eth: null, btcDays: null, ethDays: null });
 });
+
+/* ── 3. NewsProvider: a failed news read leaves alertsLoaded false (#1668 item B) ── */
+
+/* `hydrateNews` lives inside NewsProvider's effect, so it is cut out of the current source (its one TypeScript cast removed) and run with a
+ * stand-in Supabase query and spies for ingestRow / setAlertsLoaded. Before the fix it called setAlertsLoaded(true) whatever the read
+ * returned, so a timed-out query (data null) reached the Arena prompt as "No recent alerts". */
+const PROVIDER = stripTsComments(read('components/NewsProvider.tsx'));
+const providerOnce = (re: RegExp, label: string) => {
+  const all = [...PROVIDER.matchAll(new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g'))];
+  assert.equal(all.length, 1, `${label}: found ${all.length} times, not once - re-read the current components/NewsProvider.tsx`);
+  return all[0];
+};
+const HYDRATE_SRC = providerOnce(/const hydrateNews = (async \(\) => \{[\s\S]*?\n {4}\});\n/, 'hydrateNews')[1].replace(/ as NewsRow\[\] \| null/, '');
+
+async function hydrate(answer: { data: unknown; error: unknown }) {
+  const ingested: unknown[] = [], loaded: unknown[] = [];
+  const q = { from: () => q, select: () => q, gte: () => q, order: () => q, limit: () => Promise.resolve(answer) };
+  const fn = new Function('sb', 'T', 'live', 'ingestRow', 'setAlertsLoaded', `return (${HYDRATE_SRC});`)(
+    q, { news: 'lhq_news' }, true, (row: unknown) => ingested.push(row), (v: unknown) => loaded.push(v)) as () => Promise<void>;
+  await fn();
+  return { ingested, loaded };
+}
+
+test('N1. a news read that errors (timeout, PGRST002, refused) leaves alertsLoaded unset and ingests nothing', async () => {
+  for (const data of [null, []]) {
+    const r = await hydrate({ data, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+    assert.deepEqual(r.loaded, [], `data=${JSON.stringify(data)}: a failed read marked the feed loaded, so the prompt says "No recent alerts"`);
+    assert.deepEqual(r.ingested, []);
+  }
+});
+
+test('N2. a read that succeeds marks the feed loaded, empty or not, with rows ingested oldest first', async () => {
+  assert.deepEqual((await hydrate({ data: [], error: null })).loaded, [true], 'an empty feed that really loaded is a real "no news"');
+  const r = await hydrate({ data: [{ dedup_key: 'new' }, { dedup_key: 'old' }], error: null });
+  assert.deepEqual(r.loaded, [true]);
+  assert.deepEqual(r.ingested, [{ dedup_key: 'old' }, { dedup_key: 'new' }]);
+});
+
+test('N3. no Supabase client means no news was read: that early return does not mark the feed loaded', () => {
+  const noClient = providerOnce(/if \(!sb\) \{([^}]*)\}/, 'the no-client early return')[1];
+  assert.doesNotMatch(noClient, /setAlertsLoaded\(\s*true\s*\)/, 'a host with no client tells the AI the news feed is quiet');
+});
+
+test('N4. a feed left unloaded is read again: the 5 s fallback re-runs hydrateNews while alertsLoaded is false', () => {
+  const fallback = providerOnce(/const hydrateFallback = setTimeout\(\(\) => \{([\s\S]*?)\}, (\d+)\);/, 'the hydrate fallback timer');
+  assert.match(fallback[1], /if \(!alertsLoadedRef\.current\) hydrateNews\(\);/, 'a failed first read is never retried');
+});
