@@ -153,3 +153,27 @@ test('A5. sending resumes: the same alert is delivered once and consumed once', 
   assert.equal(sentSince(n).length, 1);
   assert.deepEqual(world.switchedOff.slice(off), [[8]]);
 });
+
+test('A6. an alert edited while its message is held is judged afresh: the old target is never resent', async () => {
+  world.alerts.push(alert(9)); world.btc = 101_000; world.telegram = 'blocked';
+  tick(MIN); await run();                                         // fails: held for its 100,000 target
+  const a9 = world.alerts.find((a) => a.id === 9)!; a9.target_price = 105_000; world.telegram = 'ok';
+  tick(6 * MIN);
+  const n = world.priceAlertMessages.length;
+  const r = await run();
+  assert.deepEqual(sentSince(n), [], 'the held message for the OLD target went out after the alert was edited (price 101,000 is below the new 105,000)');
+  assert.ok(!world.switchedOff.some((ids) => ids.includes(9)), 'the edited alert was consumed');
+  assert.equal(r.body.delivery?.priceAlertsHeld, 0, 'the stale hold was not dropped');
+  a9.active = false;
+});
+
+test('A7. a hold older than a day is dropped and the alert judged afresh: below target now, nothing is sent', async () => {
+  world.alerts.push(alert(10)); world.btc = 101_000; world.telegram = 'blocked';
+  tick(MIN); await run();                                         // first failed attempt: the day starts here
+  world.btc = 99_000; world.telegram = 'ok';
+  tick(24 * 3_600_000 + MIN);
+  const n = world.priceAlertMessages.length;
+  const r = await run();
+  assert.deepEqual(sentSince(n), [], 'a day-old hold was still resent although price is back below target');
+  assert.equal(r.body.delivery?.priceAlertsHeld, 0);
+});
