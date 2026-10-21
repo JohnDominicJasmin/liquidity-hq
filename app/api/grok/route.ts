@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { applyResultChecks, parseCombinedResponse } from '@/lib/grok';
-import { answerText, searchCitations } from '@/lib/xaiAnswer';
+import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
+
+/** #1651 item 1: the days of X posts a Deep read may draw on, today included. */
+const DEEP_X_DAYS = 2;
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
@@ -195,14 +198,16 @@ export async function POST(req: NextRequest) {
   let citations: string[] = [];
   try {
     if (type === 'deep') {
-      // Responses API with live web + X search
+      // Responses API with live web + X search. #1651 item 1: X is searched over yesterday and today only - Deep asks why the coin is
+      // moving TODAY, and an older post is not today's catalyst.
+      const xWindow = searchWindow(DEEP_X_DAYS);
       const r = await xaiFetch('https://api.x.ai/v1/responses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body: JSON.stringify({
           model: 'grok-4.3',
           input: [{ role: 'user', content: prompt }],
-          tools: [{ type: 'web_search' }, { type: 'x_search' }],
+          tools: searchTools(xWindow),
           // Deep is the expensive path (frontier model + web and X search) and
           // was the only xAI call in the app with no output bound at all.
           max_output_tokens: 2000,
@@ -216,7 +221,8 @@ export async function POST(req: NextRequest) {
       await recordAiCall({ userId, callType: 'deep', model: d.model ?? 'grok-4.3', usage: d.usage });
       text = answerText(d, true);
       // #1631 A: the sources the search returned are kept - they used to be dropped here with everything but the text.
-      citations = searchCitations(d);
+      // #1651 item 2: an X post dated outside the window by its own ID is dropped.
+      citations = searchCitations(d, xWindow);
     } else {
       // chat/completions - no search tools, cheaper
       const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
