@@ -3,6 +3,7 @@ import type { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { decideWhopEvent, extendedPeriodEnd, readWhopPayment, whopCompanyMatches } from '@/lib/whopEntitlement';
 import { payerOwnsAccount } from '@/lib/lemonsqueezy';
+import { apiError } from '@/lib/apiError';
 
 /* The two things the Whop webhook and the sign-up claim both do, in one place so they cannot drift (#1567, recovery for a payer with no
  * account yet).
@@ -125,7 +126,12 @@ export async function grantOnce(sb: Admin, paymentId: string, accountId: string,
     return { kind: 'error', what: 'applied-marker write', err: lockErr };
   }
   const res = await grantToAccount(sb, accountId, d, now);
-  if (res.kind !== 'granted') await sb.from(T.whop_webhook_events).delete().eq('payload_hash', marker);
+  if (res.kind !== 'granted') {
+    const { error: unlockErr } = await sb.from(T.whop_webhook_events).delete().eq('payload_hash', marker);
+    /* QA on #1643: if this delete fails too, the marker stays and every later attempt (a Whop retry, the hourly retry, the sign-up claim) is
+       answered "already applied" while the buyer has no Pro. That cannot fix itself, so it is reported for a person with the payment id. */
+    if (unlockErr) apiError('whop/grant', new Error(`NEEDS MANUAL REVIEW: payment ${paymentId} was NOT granted (${res.kind}) and its applied marker could not be removed - every retry will now say "already applied". Delete the lhq.applied row for this payment after checking: ${unlockErr.message}`));
+  }
   return res;
 }
 
