@@ -189,7 +189,7 @@ function ArenaContent() {
   // the smallest bucket the freshness text distinguishes.
   const nowMs = useNow(30_000);
   const { store } = useMarket();
-  const { latestNews, econEvents, whaleAlerts } = useNews();
+  const { latestNews, econEvents, whaleAlerts, eventsLoaded, alertsLoaded, econStale } = useNews();
   const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements, isPro } = useAuth();
   const { settings, settingsLoadStatus, update, refresh: refreshSettings } = useSettings();
   const searchParams = useSearchParams();
@@ -1217,7 +1217,8 @@ function ArenaContent() {
     /* Upcoming events + recently released */
     const now = Date.now();
     const recentlyReleased = econEvents
-      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh >= -72 && lh < 0; })
+      // PM's audit of #1668: NewsProvider keeps released events for 24 h, so the window says 24 h (it claimed 72 h it never had).
+      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh >= -24 && lh < 0; })
       .sort((a, b) => b.dt.getTime() - a.dt.getTime())
       .slice(0, 6)
       .map(e => {
@@ -1233,7 +1234,11 @@ function ArenaContent() {
     const upcomingList = econEvents
       .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh > 0 && lh < 48; }).slice(0, 6)
       .map(e => `UPCOMING: ${e.name} (${utcStamp(e.dt.getTime())}, impact: ${e.impact})${e.estimate ? ' | Est: ' + e.estimate : ''}`)
-      .join('\n') || 'None in next 48h';
+      .join('\n')
+      /* PM's audit of #1668: "none" only from a calendar that loaded and is fresh. Unloaded or stale is unavailable - never an empty week. */
+      || (!eventsLoaded ? 'Calendar unavailable (not loaded) - do not assume there are no events'
+        : econStale ? 'Calendar unavailable (stale) - do not assume there are no events'
+        : 'None in next 48h');
     const upcoming = [recentlyReleased, upcomingList].filter(Boolean).join('\n');
 
     /* Liquidation cascade size (#30) */
@@ -1291,7 +1296,7 @@ function ArenaContent() {
       news: latestNews.length > 0
         ? [...latestNews].sort((a, b) => b.ts - a.ts).slice(0, 15)
             .map(n => `- [${utcStamp(n.ts * 1000)}, ${ageText(now - n.ts * 1000)} | ${n.source || 'news feed'}] ${n.headline}`).join('\n')
-        : 'No recent alerts',
+        : alertsLoaded ? 'No recent alerts' : 'News feed unavailable (not loaded) - do not assume there is no news',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, real10y, upcomingEvents: upcoming,
       etfFlows: etfDaysText(store.etfFlowDays), ethEtfFlows: etfDaysText(store.ethEtfFlowDays),
@@ -1690,7 +1695,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestNews, econEvents, fundingData, resultsCache, liqClusters]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, liqClusters]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot

@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
-import { etfFlowDays, type EtfFlowDay } from '@/lib/etfFlows';
+import { etfFlowDays, etfFlowMillions, type EtfFlowDay } from '@/lib/etfFlows';
 import { trackHealth, reportHealth } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { getUserCompat } from '@/lib/authUser';
@@ -481,7 +481,9 @@ export async function GET(req: NextRequest) {
 
       /* #1631 A: the last three trading days WITH their dates (limit=3), not one undated number - the AI reads them as dated catalysts.
          `btc` / `eth` stay the latest day's flow for /briefing and the chat. */
-      async function fetchSoSoFlow(symbol: 'BTC' | 'ETH'): Promise<EtfFlowDay[] | null> {
+      /* PM's audit of #1668: `btc` / `eth` (Briefing, the chat) stay what they always were - the NEWEST row's flow, null while that row is
+         unsettled - so yesterday's number is never shown, undated, as today's. The dated days for the AI read come from the same answer. */
+      async function fetchSoSoFlow(symbol: 'BTC' | 'ETH'): Promise<{ latest: number | null; days: EtfFlowDay[] | null } | null> {
         const apiKey = process.env.SOSOVALUE_API_KEY;
         /* No key: make no call and report nothing. Reporting a failure here
            would fill the health table on every environment that deliberately
@@ -504,7 +506,12 @@ export async function GET(req: NextRequest) {
              for why the unit is the dangerous half. Throws on an unusable
              payload, which the caller turns into a health failure rather than
              a silent zero. */
-          return etfFlowDays(body, 3);
+          let latest: number | null = null, days: EtfFlowDay[] | null = null;
+          try { latest = etfFlowMillions(body); } catch { /* the newest row is unsettled or unusable: unknown */ }
+          try { days = etfFlowDays(body, 3); } catch { /* no dated row */ }
+          // Neither usable is a failed read, reported to health like before.
+          if (latest === null && days === null) throw new Error('no usable total_net_inflow in response');
+          return { latest, days };
         });
       }
 
@@ -512,15 +519,16 @@ export async function GET(req: NextRequest) {
         fetchSoSoFlow('BTC'),
         fetchSoSoFlow('ETH'),
       ]);
-      const btcDays = btcRes.status === 'fulfilled' ? btcRes.value : null;
-      const ethDays = ethRes.status === 'fulfilled' ? ethRes.value : null;
-      const btc = btcDays?.[0]?.flowM ?? null;
-      const eth = ethDays?.[0]?.flowM ?? null;
+      const btcRead = btcRes.status === 'fulfilled' ? btcRes.value : null;
+      const ethRead = ethRes.status === 'fulfilled' ? ethRes.value : null;
+      const btc = btcRead?.latest ?? null, eth = ethRead?.latest ?? null;
+      const btcDays = btcRead?.days ?? null, ethDays = ethRead?.days ?? null;
 
       /* Only report health when a key exists. Otherwise every keyless
          environment reports a failure for a call it never made. */
       if (process.env.SOSOVALUE_API_KEY) {
-        const got = [btc, eth].filter(v => v != null).length;
+        // A read that answered counts, even when its newest row is not settled yet (btc/eth null, the dated days present).
+        const got = [btcRead, ethRead].filter(v => v != null).length;
         const why = [btcRes, ethRes]
           .filter((x): x is PromiseRejectedResult => x.status === 'rejected')
           .map(x => String(x.reason?.message ?? x.reason)).join('; ');

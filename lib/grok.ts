@@ -421,8 +421,8 @@ export function buildPrompt(ctx: GrokContext): string {
     `=== REALIZED LIQUIDATION CLUSTERS (${ctx.coin}, last 24h - where liquidations ALREADY happened, not predicted levels) ===`,
     ctx.liqLevels,
     '',
-    '=== MACRO EVENTS - RELEASED (LAST 72H) + UPCOMING (48H) ===',
-    '(CRITICAL: Any central bank decision - FOMC, BOJ, ECB, BOE - or tier-1 data released in the last 72h MUST anchor your macro bias. Do not let 1–2 weak technical signals override a confirmed Fed hold/hike or BOJ policy shift. For BOJ specifically: a rate hike = JPY strengthens = global carry trade unwind = risk-off across all assets including crypto. Use the Deep Research mode or the news feed to confirm current BOJ stance if not shown here.)',
+    '=== MACRO EVENTS - RELEASED (LAST 24H) + UPCOMING (48H) ===',
+    '(CRITICAL: Any central bank decision - FOMC, BOJ, ECB, BOE - or tier-1 data released in the last 24h MUST anchor your macro bias. Do not let 1–2 weak technical signals override a confirmed Fed hold/hike or BOJ policy shift. For BOJ specifically: a rate hike = JPY strengthens = global carry trade unwind = risk-off across all assets including crypto. Use the Deep Research mode or the news feed to confirm current BOJ stance if not shown here.)',
     ctx.upcomingEvents || 'No events in window',
     '',
     '=== LIVE NEWS FEED (up to 15 alerts, newest first: UTC time, age and source on each line) ===',
@@ -456,8 +456,8 @@ export function buildPrompt(ctx: GrokContext): string {
     'IF IN BEARISH MOMENTUM REGIME:',
     '  • RSI oversold (< 30) = STRONG DOWNSIDE MOMENTUM - NOT a buy signal alone. Combine with exhaustion checklist.',
     '  • CVD bullish divergence during selloff = absorption signal. Still require reversal candle confirmation before calling BULLISH.',
-    '  • Fibonacci support + 3+ exhaustion signals = valid BULLISH setup even in bearish regime.',
-    '  • Long/Short ratio > 1.8:1 during selloff = overleveraged longs at FLUSH RISK = lean BEARISH not BULLISH.',
+    '  • Fibonacci support + 3+ exhaustion signals = a BULLISH case even in a bearish regime, once the reversal-candle trigger prints (SIGNAL DECISION GUIDE).',
+    '  • Long/Short ratio > 1.8:1 during selloff = overleveraged longs at FLUSH RISK = one bearish signal, not a bullish one.',
     '  • The tier comes from the SIGNAL DECISION GUIDE below; this regime decides which checklist feeds the count. A bullish tier here needs the reversal-candle trigger.',
     '  • "Falling knife" rule: Never buy an asset down >8% in 24h and still accelerating lower - but 3+ exhaustion signals at key support overrides this.',
     '',
@@ -470,7 +470,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     'IF IN BULLISH MOMENTUM REGIME:',
     '  • RSI overbought (> 70) = STRONG UPSIDE MOMENTUM - not automatically a sell signal in a trending move.',
-    '  • Short/Long ratio < 0.5:1 = overleveraged shorts at SQUEEZE RISK = BULLISH.',
+    '  • Short/Long ratio < 0.5:1 = overleveraged shorts at SQUEEZE RISK = one bullish signal.',
     '',
     'NEUTRAL REGIME: No clear momentum. Apply all signals equally.',
     '',
@@ -586,7 +586,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '  • Pre-NY / Asia: subtract 10 from confidence. LEAN BEARISH and LEAN BULLISH are fully valid.',
     '  "Pre-NY session" is NEVER a standalone reason for FLAT - reduce confidence, not tier.',
     '',
-    'FLAT is NOT the safe default - if 2+ signals align, call LEAN BEARISH or LEAN BULLISH.',
+    'FLAT is NOT the safe default - when one side leads with 2+ signals, the SIGNAL DECISION GUIDE gives a LEAN.',
     'FLAT means: no directional edge at all. Not "risky session" or "cautious".',
     'NEVER output FLAT just because you are uncertain - own the direction when signals support it.',
     '',
@@ -680,7 +680,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     `EMA 9:   ${chart.ema9   != null ? priceText(chart.ema9)   : '-'}`,
     `SMA 200: ${chart.sma200 != null ? priceText(chart.sma200) : '-'}`,
     `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '-'}`,
-    `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure, prefer BULLISH setups' : 'EMA 9 BELOW SMA 200 - bearish structure, prefer BEARISH setups but BULLISH still valid on 3+ exhaustion signals') : '-'}`,
+    `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure (one bullish signal)' : 'EMA 9 BELOW SMA 200 - bearish structure (one bearish signal); a bullish tier still needs the reversal-candle trigger') : '-'}`,
     `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 (${priceText(chart.sma200)}) - bullish` : `BELOW SMA200 (${priceText(chart.sma200)}) - bearish, do not call BULLISH without the reversal-candle trigger (SIGNAL DECISION GUIDE)`) : '-'}`,
     // #1631 C: says what is sent. Arena slices the last 15 (the field is still called recent20); the label claimed 20.
     `Last 15 candles (OHLC): ${chart.recent20}`,
@@ -796,9 +796,8 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     if (c) catalysts.push(c);
   }
 
-  // #1631 D: "COUNTED: bullish 3 (...) | bearish 1 (...)" - the counts the tier check in applyResultChecks needs.
-  const cm = clean.match(/COUNTED:\s*bullish\s*[:=]?\s*(\d+)[^|\n]*\|\s*bearish\s*[:=]?\s*(\d+)/i);
-  const counted = cm ? { bullish: parseInt(cm[1], 10), bearish: parseInt(cm[2], 10) } : null;
+  // #1631 D: the counts the tier check in applyResultChecks needs.
+  const counted = parseCounted(clean);
 
   // CHART_ANALYSIS - stop at PATTERNS or WAIT_FOR or REASONING
   const chartAnalysis = stripMd(
@@ -847,8 +846,25 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
   return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
 }
 
-/** A date or an age somewhere in the last part of a catalyst: 2026-10-20, Oct 20, 16h ago, 3 days ago. */
-const CATALYST_WHEN = /\b(20\d\d-\d\d-\d\d|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}|\d+\s*(m|min|mins|minutes?|h|hrs?|hours?|d|days?)\s+ago)\b/i;
+/** A date or an age somewhere in the last part of a catalyst: 2026-10-20, 2026-10-19T14:00Z, Oct 20, 16h ago, 3 days ago. The date is not
+ *  required to end on a word boundary, so an ISO time straight after it ("T14:00Z", PM's audit of #1668) still counts. */
+const CATALYST_WHEN = /\b(20\d\d-\d\d-\d\d(?!\d)|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\d+\s*(m|min|mins|minutes?|h|hrs?|hours?|d|days?)\s+ago\b)/i;
+
+/** A "source" that names no source: the model's own memory, or nothing. */
+const NOT_A_SOURCE = /^(memory|from memory|model|the model|ai|grok|training( data)?|none|unknown|n\/?a|-)$/i;
+
+/** #1631 D: the COUNTED line in any order or separator, bold or not ("bullish 3 (...) | bearish 1", "Bearish: 1, Bullish: 3").
+ *  null when there is no COUNTED line or it does not give both numbers. */
+export function parseCounted(text: string): { bullish: number; bearish: number } | null {
+  const line = text.split('\n').map((l) => l.replace(/\*+/g, '').trim()).find((l) => /^COUNTED\s*:/i.test(l));
+  if (!line) return null;
+  const n = (side: 'bullish' | 'bearish') => {
+    const m = line.match(new RegExp(`\\b${side}\\b\\s*[:=]?\\s*(\\d+)`, 'i'));
+    return m ? parseInt(m[1], 10) : null;
+  };
+  const bullish = n('bullish'), bearish = n('bearish');
+  return bullish == null || bearish == null ? null : { bullish, bearish };
+}
 
 /** "claim | source | when" -> "claim - source, when"; null for a "None ..." line or one without a source and a date. */
 function formatCatalyst(raw: string): string | null {
@@ -858,6 +874,8 @@ function formatCatalyst(raw: string): string | null {
   const when = parts[parts.length - 1];
   if (!CATALYST_WHEN.test(when)) return null;
   const source = parts[parts.length - 2];
+  // PM's audit of #1668: a date in the source slot, or "memory" as the source, is not a source.
+  if (CATALYST_WHEN.test(source) || NOT_A_SOURCE.test(source)) return null;
   const claim = parts.slice(0, -2).join(' | ');
   return `${claim} - ${source}, ${when}`;
 }
@@ -865,28 +883,57 @@ function formatCatalyst(raw: string): string | null {
 /** The perps-vs-spot reading's "could not be measured" sentence (lib/perpSpot.ts), as it reaches the prompt. */
 const SPOT_UNAVAILABLE = 'Spot data unavailable for this coin';
 
+type Tier = CombinedResult['signal'];
+
+/** Whether the SIGNAL DECISION GUIDE allows `tier` for these counts. The parser cannot see a trigger or the regime, so a full tier needs only
+ *  its count (3+ and more than the other side) and a LEAN needs 1+ and more than the other side (the guide's "or a regime with 1+"). */
+function tierAllowed(tier: Tier, c: { bullish: number; bearish: number }): boolean {
+  if (tier === 'BULLISH') return c.bullish >= 3 && c.bullish > c.bearish;
+  if (tier === 'BEARISH') return c.bearish >= 3 && c.bearish > c.bullish;
+  if (tier === 'LEAN BULLISH') return c.bullish >= 1 && c.bullish > c.bearish;
+  if (tier === 'LEAN BEARISH') return c.bearish >= 1 && c.bearish > c.bullish;
+  return true; // FLAT is never "more" than the count says
+}
+
+/** The tier the count itself gives, short of a full tier (no trigger is visible to the parser): a tie is FLAT, else LEAN of the side ahead. */
+function tierFromCounts(c: { bullish: number; bearish: number }): Tier {
+  if (c.bullish === c.bearish) return 'FLAT';
+  return c.bullish > c.bearish ? 'LEAN BULLISH' : 'LEAN BEARISH';
+}
+
 /** #1631 D: the rules the prompt states that the answer can be checked against, applied after parsing, on the server (it has the prompt).
- *  - BULLISH / BEARISH need 3+ counted signals on that side and more than the other side (the SIGNAL DECISION GUIDE). A full tier the
- *    count does not support is shown as the LEAN tier, confidence capped at the LEAN band's 75, with one sentence saying why.
+ *  - The tier must be one the SIGNAL DECISION GUIDE allows for the model's own COUNTED line. One it does not allow is replaced by the tier
+ *    the count gives (PM's audit of #1668: it used to fall back to the same side's LEAN, so BULLISH on 0 vs 5 became LEAN BULLISH 75),
+ *    confidence capped at 75, with one sentence saying why. A full tier with no readable COUNTED line cannot be checked, so it is shown
+ *    as its LEAN, never presented as checked.
  *  - With no liquidation cluster data a raid cannot be judged (#1631 B): any raid the model wrote anyway is dropped.
  *  - A perps-vs-spot check that could not be measured must be SAID (the prompt requires it); when the reasoning does not, it is added.
  *  Everything changed is listed in `checks`. */
 export function applyResultChecks(result: CombinedResult, prompt: string): CombinedResult {
   const r: CombinedResult & { checks: string[] } = { ...result, checks: [...(result.checks ?? [])] };
 
-  if (r.signal === 'BULLISH' || r.signal === 'BEARISH') {
-    const side = r.signal === 'BULLISH' ? 'bullish' : 'bearish';
-    const other = side === 'bullish' ? 'bearish' : 'bullish';
-    if (!r.counted) {
-      r.checks.push(`${r.signal} not checked: the answer gave no COUNTED line`);
-    } else if (r.counted[side] < 3 || r.counted[side] <= r.counted[other]) {
-      const lean = r.signal === 'BULLISH' ? 'LEAN BULLISH' : 'LEAN BEARISH';
-      r.checks.push(`${r.signal} shown as ${lean}: ${r.counted[side]} ${side} vs ${r.counted[other]} ${other} counted`);
-      r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}(Shown as ${lean}: ${r.counted[side]} ${side} against ${r.counted[other]} ${other} signals were counted, and ${r.signal} needs at least 3 and more than the other side.)`;
-      r.signal = lean;
-      r.bias = side === 'bullish' ? 'BULLISH' : 'BEARISH';
-      r.confidence = Math.min(r.confidence, 75);
+  const said = r.signal;
+  const note = (s: string) => { r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}${s}`; };
+  const show = (tier: Tier) => {
+    r.signal = tier;
+    r.bias = tier === 'LEAN BULLISH' ? 'BULLISH' : tier === 'LEAN BEARISH' ? 'BEARISH'
+      : r.counted && r.counted.bullish !== r.counted.bearish ? (r.counted.bullish > r.counted.bearish ? 'BULLISH' : 'BEARISH') : 'NEUTRAL';
+    r.confidence = Math.min(r.confidence, 75);
+  };
+  if (!r.counted) {
+    if (said === 'BULLISH' || said === 'BEARISH') {
+      const lean: Tier = said === 'BULLISH' ? 'LEAN BULLISH' : 'LEAN BEARISH';
+      r.checks.push(`${said} shown as ${lean}: no readable COUNTED line, so the tier could not be checked`);
+      note(`(Shown as ${lean}: the answer did not state its signal count, so ${said} could not be checked.)`);
+      show(lean);
+    } else if (said !== 'FLAT') {
+      r.checks.push(`${said} not checked: no readable COUNTED line`);
     }
+  } else if (!tierAllowed(said, r.counted)) {
+    const tier = tierFromCounts(r.counted);
+    r.checks.push(`${said} shown as ${tier}: ${r.counted.bullish} bullish vs ${r.counted.bearish} bearish counted`);
+    note(`(Shown as ${tier}: ${r.counted.bullish} bullish against ${r.counted.bearish} bearish signals were counted, which does not support ${said}.)`);
+    show(tier);
   }
 
   if (/=== REALIZED LIQUIDATION CLUSTERS[^\n]*===\s*\n\s*Not available/.test(prompt) && (r.raidSetup || r.raidTarget || r.raidTrigger)) {
@@ -894,7 +941,8 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
     r.raidSetup = null; r.raidTarget = null; r.raidTrigger = null;
   }
 
-  if (prompt.includes(SPOT_UNAVAILABLE) && !/\bspot\b/i.test(r.reasoning)) {
+  // PM's audit of #1668: any "spot" ("BTC spot ETF inflows") used to count as the disclosure. It must name the perps-vs-spot check.
+  if (prompt.includes(SPOT_UNAVAILABLE) && !/perps?[\s-]*(vs\.?|versus|against)[\s-]*spot|spot[\s-]*(data|volume|activity|led|reading)|futures[\s-]*led/i.test(r.reasoning)) {
     r.checks.push('perps-vs-spot disclosure added');
     r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it.`;
   }

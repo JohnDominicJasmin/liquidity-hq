@@ -6,6 +6,8 @@
 
 /** "2026-10-21 05:12 UTC" */
 export function utcStamp(ms: number): string {
+  // #1668 review: toISOString throws on an invalid date; a time we do not have is said, not thrown.
+  if (!Number.isFinite(ms)) return 'time unknown';
   return new Date(ms).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 }
 

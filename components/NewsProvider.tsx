@@ -212,7 +212,8 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     }
 
     setLatestHeadlines(prev => [headline, ...prev].slice(0, 25));
-    setLatestNews(prev => [{ headline, source, ts }, ...prev].slice(0, 25));
+    // #1668 review: a calendar countdown ("Upcoming: CPI - 2h") is not news, and its time is when it fired - kept out of the dated feed.
+    if (source !== 'Calendar') setLatestNews(prev => [{ headline, source, ts }, ...prev].slice(0, 25));
 
     const id = alertIdRef.current++;
     // Cap the alert list. It used to grow for the lifetime of the tab, bounded
