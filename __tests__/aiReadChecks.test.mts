@@ -117,6 +117,13 @@ test('P2b. a bold, reversed or comma-separated COUNTED line is still read (PM au
   }
 });
 
+test('P2c. a side named INSIDE the other side\'s list is not read as its count (PM re-audit of #1668, item A: it flipped the tier)', () => {
+  const line = 'COUNTED: bullish 3 (reclaimed bearish 4h breaker, CVD divergence, RSI 28) | bearish 1 (OI rising)';
+  assert.deepEqual(parseCombinedResponse(`SIGNAL: BULLISH\nCONFIDENCE: 80\n${line}`, '1h', 'NY').counted, { bullish: 3, bearish: 1 });
+  const mirrored = 'COUNTED: bullish 1 (bullish 4h engulfing) | bearish 3 (lower high, CVD down, OI rising)';
+  assert.deepEqual(parseCombinedResponse(`SIGNAL: BEARISH\nCONFIDENCE: 80\n${mirrored}`, '1h', 'NY').counted, { bullish: 1, bearish: 3 });
+});
+
 /* ── the server's checks ───────────────────────────────────────────────── */
 
 const base = (over: Partial<CombinedResult>): CombinedResult => ({ ...parseCombinedResponse('SIGNAL: FLAT\nCONFIDENCE: 70\nREASONING: r.', '1h', 'NY'), ...over });
