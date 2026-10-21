@@ -3,7 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { hasProFeatures } from '@/lib/entitlements';
-import { ACTIVE_ALERT_CAP, TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
+import { ACTIVE_ALERT_CAP, PRICE_ALERT_PRUNE_AT, PRICE_ALERT_PRUNE_TO, TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,6 +91,16 @@ export async function POST(req: NextRequest) {
   if (countErr) return apiError('price-alerts', countErr);
   if ((activeCount ?? 0) >= ACTIVE_ALERT_CAP) {
     return NextResponse.json({ error: 'ALERT_LIMIT', message: `You can have up to ${ACTIVE_ALERT_CAP} active price alerts. Delete one to add another.` }, { status: 400 });
+  }
+  // Old switched-off alerts are pruned before they can reach the database's total row cap (lib/ownRowLimits.ts). Best effort: a failure here
+  // only means the prune waits for the next new alert.
+  const { count: totalCount } = await sb(token).from(T.price_alerts)
+    .select('id', { count: 'exact', head: true }).eq('user_id', user.id);
+  if ((totalCount ?? 0) >= PRICE_ALERT_PRUNE_AT) {
+    const { data: oldest } = await sb(token).from(T.price_alerts)
+      .select('id').eq('user_id', user.id).eq('active', false)
+      .order('created_at', { ascending: true }).limit((totalCount ?? 0) - PRICE_ALERT_PRUNE_TO);
+    if (oldest?.length) await sb(token).from(T.price_alerts).delete().eq('user_id', user.id).in('id', oldest.map(r => r.id));
   }
 
   const { data, error } = await sb(token)

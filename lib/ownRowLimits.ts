@@ -21,6 +21,13 @@ export const TEXT_LIMITS = {
 /** At most this many ACTIVE price alerts per account. */
 export const ACTIVE_ALERT_CAP = 50;
 
+/* Price-alert rows per account IN TOTAL (the database's row cap, migration 20261021e), triggered and deleted ones included: "Delete" and a
+   trigger only switch an alert off, and those rows are never shown, so a user could not remove them and would meet the cap after ~1,000
+   alerts. The route therefore prunes the account's OLDEST inactive rows once it holds PRUNE_AT, back down to PRUNE_TO (QA, #1644). */
+export const PRICE_ALERT_ROW_CAP = 1000;
+export const PRICE_ALERT_PRUNE_AT = 900;
+export const PRICE_ALERT_PRUNE_TO = 800;
+
 export interface LimitRefusal { status: 400; error: string; message: string }
 
 /** A database refusal from one of the limits above, as a 400 the UI can show; null for any other error. */
