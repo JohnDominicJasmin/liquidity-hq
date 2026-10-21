@@ -142,9 +142,14 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   const askAi = async (): Promise<{ userPrompt: string; selection: string }> => {
     const before = chatBodies.length;
     await page.getByRole('button', { name: 'ASK AI', exact: true }).click();
+    // #1668 (owner, 2026-10-21): the click fills the question in and sends NOTHING - no AI use is spent until Send.
+    await expect(page.locator('textarea').first(), 'ASK AI did not fill the question into the chat input').not.toHaveValue('', { timeout: 5_000 });
+    await page.waitForTimeout(1_500);
+    expect(chatBodies.length, 'ASK AI sent a /api/grok-chat request on the click itself - it must wait for Send').toBe(before);
+    await page.getByRole('button', { name: 'Send' }).click();
     await expect.poll(() => chatBodies.length, {
-      message: 'ASK AI never produced a /api/grok-chat request', timeout: 10_000,
-    }).toBeGreaterThan(before);
+      message: 'Send never produced a /api/grok-chat request', timeout: 10_000,
+    }).toBe(before + 1);
     const { turns, selection } = chatBodies[chatBodies.length - 1];
     return {
       userPrompt: [...turns].reverse().find(t => t.role === 'user')?.content ?? '',
