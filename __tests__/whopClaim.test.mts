@@ -83,7 +83,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     }
     if (req.method === 'DELETE') {
       const key = eq('payload_hash'); const had = db.events.get(key); db.events.delete(key);
-      return wantsRep ? json(200, had ? [{ payload_hash: key }] : []) : json(204, null);
+      return wantsRep ? json(200, had ? [{ payload_hash: key }] : []) : new Response(null, { status: 204 }); // a 204 has no body; json(204, null) threw, so every plain delete read as failed
     }
   }
   if (table === T('user_subscriptions')) {
