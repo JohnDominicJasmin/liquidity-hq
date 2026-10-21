@@ -24,6 +24,7 @@ import {
 } from '@/lib/structurePrefs';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
 import { planKindOfRow } from '@/lib/paidPeriod';
+import { FREE_SIGNAL_COINS } from '@/lib/signalCoinGate';
 
 export const dynamic = 'force-dynamic';
 
@@ -2204,6 +2205,8 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // which includes trial) and then silently never receive a single alert for
   // the entire 14-day trial, since this cron excluded them.
   const proUserIds = new Set<string>();
+  // #1630 GO-LIVE 2: the users on a TRIAL (entitled, not paid). They get the Free coin ladder (BTC / ETH / SOL) here too, see below.
+  const trialUserIds = new Set<string>();
   try {
     const admin = getSupabaseAdmin();
     // Paged (#1397) - a plain read stops at 1000 rows, and a Pro user past
@@ -2213,7 +2216,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
     const now = Date.now();
     for (const row of data ?? []) {
       // #1630 GO-LIVE 1: paid Pro ends with the paid time (period end + 48 h), not only in the AI routes. One shared rule, lib/paidPeriod.ts.
-      if (planKindOfRow(row, now) !== 'free') proUserIds.add(row.user_id as string);
+      const kind = planKindOfRow(row, now);
+      if (kind !== 'free') proUserIds.add(row.user_id as string);
+      if (kind === 'trial') trialUserIds.add(row.user_id as string);
     }
   } catch { /* admin key not configured - allChatIds falls back to the env var below */ }
 
@@ -2306,6 +2311,17 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
     fetchAllFR(skipCounts), fetchSpotPrices(skipCounts), fetchAllLSR(skipCounts), fetchMutedKeysByUser(), fetchThresholdsByUser(),
   ]);
+
+  /* #1630 GO-LIVE 2: a trial gets signals on BTC / ETH / SOL only (owner rule, #1596), the same ladder as Free - paid Pro gets every coin. The page
+     already withheld the rest; the Telegram cron did not, so a trial user received server-sent signals on every coin. The per-recipient mute path
+     already decides delivery for Telegram AND Web Push (entryMuteKeys / the cost-control pre-filter below read `coin:<id>`), so the ladder is applied
+     there: every coin outside the Free list counts as muted for a trial user. Not written to the database; it only exists for this run. */
+  const mutedUsersStored = mutedByUser.size; // the stat below counts stored mutes, not the ladder
+  for (const uid of trialUserIds) {
+    const set = new Set(mutedByUser.get(uid) ?? []);
+    for (const c of COINS) if (!(FREE_SIGNAL_COINS as readonly string[]).includes(c)) set.add(`coin:${c}`);
+    mutedByUser.set(uid, set);
+  }
 
   // Coins muted by every single recipient - the only case it's safe to skip
   // fetching entirely (checkDistribution's cost-control pre-filter).
@@ -2490,7 +2506,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   return NextResponse.json({
     ok: true, fired,
     recipients: recipients.length,
-    mutedUsers: mutedByUser.size,
+    mutedUsers: mutedUsersStored,
     delivery: { queued: signalQueue.length, eligible, sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] },
     skipped: skipCounts,
     checked: [

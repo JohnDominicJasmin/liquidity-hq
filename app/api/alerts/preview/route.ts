@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { COINS, COIN_LABELS } from '@/lib/coins';
-import { hasProFeatures } from '@/lib/entitlements';
+import { getEntitlement } from '@/lib/entitlements';
+import { FREE_SIGNAL_COINS } from '@/lib/signalCoinGate';
 import { rateLimit } from '@/lib/rateLimit';
 import { EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles } from '@/lib/ribbonCandles';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/strategyCore';
@@ -82,12 +83,15 @@ export async function POST(req: NextRequest) {
   // TradeJournal:496). This route used to answer 'Pro required' - correctly
   // gated, wrong label - so no client could recognise it and /alerts rendered
   // the raw string to the user. Found by entitlements.spec.ts on its first run.
-  if (!(await hasProFeatures(token, userId))) {
+  const entitlement = await getEntitlement(token, userId);
+  if (!entitlement.proFeatures) {
     return NextResponse.json(
       { error: 'PRO_REQUIRED', message: 'Alert preview is a Pro feature.' },
       { status: 403 },
     );
   }
+  // #1630 GO-LIVE 2: a trial (entitled, not paid Pro) previews BTC / ETH / SOL only, the same ladder as the page and the Telegram cron.
+  const trialOnly = entitlement.role !== 'pro';
 
   if (!rateLimit(`alerts-preview:${userId}`, RATE_LIMIT, RATE_WINDOW_MS)) {
     return NextResponse.json({ error: 'Too many checks. Wait a minute.' }, { status: 429 });
@@ -103,7 +107,7 @@ export async function POST(req: NextRequest) {
 
   // Opt-out for coins and EMA timeframes (a row means muted), opt-IN for
   // structure (a row means enabled) - see lib/structurePrefs.ts.
-  const coins = COINS.filter(c => !keys.has(`coin:${c}`));
+  const coins = COINS.filter(c => !keys.has(`coin:${c}`) && (!trialOnly || (FREE_SIGNAL_COINS as readonly string[]).includes(c)));
   const emaTfs = EMA_SIGNAL_TFS.filter(tf => !keys.has(`ema_signal_${tf}`));
   const structTfs = STRUCTURE_TFS.filter(tf => isStructureEnabled(keys, tf));
 

@@ -17,9 +17,9 @@ import type { UsageTier } from './limits.ts';
    WHAT THIS GATES, AND WHAT IT CANNOT. The signal itself is computed in the browser from public candle data (lib/strategyCore.ts),
    so on the Arena the chart/panel part is a product gate in what the page shows, not a secret kept from the client. The AI part is
    different: Quick and Deep cost money per call, so /api/grok enforces aiCoinAllowed() on the server before it reserves quota or
-   calls xAI. Every route that SERVES signals to a user is Pro-only (alerts preview, Telegram alerts, the backtest), so for them the
-   ladder resolves to "every coin" and there is nothing to withhold server-side. If a route that serves signals to Free or signed-out
-   users is ever added, it must call signalsAllowedFor() with the caller's plan before sending anything. */
+   calls xAI. The routes that SERVE signals (alerts preview, Telegram alerts and Web Push) admit paid Pro AND trial, so they apply the
+   ladder on the server for a trial (#1630 GO-LIVE 2): the Telegram cron treats every coin outside FREE_SIGNAL_COINS as muted for a trial
+   user, and /api/alerts/preview previews FREE_SIGNAL_COINS only. Any new route that serves signals must apply it the same way. */
 export type SignalPlan = 'signed_out' | 'free' | 'trial' | 'pro' | 'pending';
 
 /** Easy to change: the coins whose signals each tier sees. */
