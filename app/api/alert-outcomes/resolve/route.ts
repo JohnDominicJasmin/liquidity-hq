@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +20,8 @@ interface FireRow { id: number; coin: string; dir: 'long' | 'short'; price_at_fi
 async function fetchCurrentPrices(): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
   const [bnR, bbR] = await Promise.allSettled([
-    fetch('https://api.binance.com/api/v3/ticker/price', { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
-    fetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
+    exchangeFetch('https://api.binance.com/api/v3/ticker/price', { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
+    exchangeFetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
   ]);
   if (bnR.status === 'fulfilled' && bnR.value.ok) {
     const data = await bnR.value.json() as Array<{ symbol: string; price: string }>;

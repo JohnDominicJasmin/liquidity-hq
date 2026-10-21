@@ -4,6 +4,7 @@ import { T } from '@/lib/tables';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ const TF_BY: Record<string, string> = { '1h': '60', '4h': '240' };
 const TF_MS: Record<string, number> = { '1h': 3_600_000, '4h': 4 * 3_600_000 };
 
 async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: number): Promise<OHLCV[]> {
-  const r = await fetch(
+  const r = await exchangeFetch(
     `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${interval}&limit=${limit}`,
     { signal: AbortSignal.timeout(12_000) },
   );
@@ -31,7 +32,7 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
 }
 
 async function fetchBybitKlines(sym: string, interval: string, limit: number): Promise<OHLCV[]> {
-  const r = await fetch(
+  const r = await exchangeFetch(
     `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=${interval}&limit=${limit}`,
     { signal: AbortSignal.timeout(12_000) },
   );

@@ -43,6 +43,7 @@ import { runPool, HttpStatusError, isRateLimitStatus } from '@/lib/pool';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { computeRSI14 } from '@/lib/rsi';
 import { getEntitlementStatusFromRequestToken } from '@/lib/entitlements';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -175,7 +176,7 @@ async function fetchCloses(job: Job, ep: Endpoint): Promise<number[] | null> {
   const ac  = new AbortController();
   const tid = setTimeout(() => ac.abort(), 8000);
   try {
-    const res = await fetch(job.url(ep), {
+    const res = await exchangeFetch(job.url(ep), {
       cache: 'no-store',
       signal: ac.signal,
       headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -249,7 +250,7 @@ async function resolveEndpoint(): Promise<Endpoint | null> {
     try {
       const ac  = new AbortController();
       const tid = setTimeout(() => ac.abort(), 5000);
-      const res = await fetch(`${ep.base}${ep.ping}`, {
+      const res = await exchangeFetch(`${ep.base}${ep.ping}`, {
         cache: 'no-store', signal: ac.signal, headers: { 'User-Agent': 'Mozilla/5.0' },
       });
       clearTimeout(tid);

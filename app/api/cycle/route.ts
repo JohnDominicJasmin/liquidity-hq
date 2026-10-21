@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 export interface CyclePoint { day: number; ratio: number; }
 
@@ -67,7 +68,7 @@ const HALVING_2024_MS = new Date('2024-04-19T00:00:00Z').getTime();
 async function fetchCycle2024(): Promise<CyclePoint[]> {
   const now = Date.now();
   const url = `https://api.bybit.com/v5/market/kline?category=linear&symbol=BTCUSDT&interval=W&start=${HALVING_2024_MS}&end=${now}&limit=200`;
-  const r = await fetch(url, { next: { revalidate: 3600 } });
+  const r = await exchangeFetch(url, { next: { revalidate: 3600 } });
   if (!r.ok) throw new Error(`Bybit ${r.status}`);
   const d = await r.json();
   if (d.retCode !== 0) throw new Error(`Bybit retCode ${d.retCode}: ${d.retMsg}`);

@@ -48,6 +48,7 @@ import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { shouldFailToBybit, canFailoverForRequest, bybitIntervalFor } from '@/lib/klinesFailover';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 type Source = 'bybit' | 'binance' | 'binance-futures';
 
@@ -163,8 +164,21 @@ function ttlFor(interval: string): number {
  * failure answers every caller for the whole hold - from the Bybit fallback
  * where one exists, as a 502 where none does. 30 seconds is also the shortest
  * TTL above, so no key holds a failure longer than it would hold a success.
- * Range requests bypass the cache entirely and are not covered by this. */
+ * Range requests are covered by it too since #1649 (they are cached now). */
 const KLINES_FAIL_TTL_MS = 30_000;
+
+/** #1649: range requests per minute per IP; ours is the 429, before any upstream call. */
+const KLINES_RANGE_PER_MIN = 30;
+const RANGE_HISTORY_TTL_MS = 6 * 60 * 60_000;
+
+/** How long a range answer is kept: 6 h once the window ended before the current candle opened (history cannot change), otherwise the
+ *  interval's normal TTL. Weekly and monthly have no fixed length (intervalToMs null), so they always take the normal TTL. */
+function rangeTtl(interval: string, end: string | null): number {
+  const iv = intervalToMs(interval);
+  const endMs = end ? Number(end) : NaN;
+  if (iv != null && Number.isFinite(endMs) && endMs < closedCandleKey(iv, Date.now())) return RANGE_HISTORY_TTL_MS;
+  return ttlFor(interval);
+}
 
 /* Trim a bucketed response back to what the caller actually asked for.
  *
@@ -241,20 +255,25 @@ export async function GET(req: NextRequest) {
   if (!Number.isFinite(limitRaw) || limitRaw < 1 || limitRaw > 1500) {
     return NextResponse.json({ error: 'limit must be between 1 and 1500' }, { status: 400 });
   }
+  // #1649 (security review): start/end are millisecond timestamps and nothing else, checked before they reach the exchange or a cache key.
+  if ((start && !/^\d{1,13}$/.test(start)) || (end && !/^\d{1,13}$/.test(end))) {
+    return NextResponse.json({ error: 'start and end must be millisecond timestamps' }, { status: 400 });
+  }
 
   const limit = bucketFor(limitRaw);
 
-  /* RANGE REQUESTS ARE NOT CACHED, on purpose.
+  /* RANGE REQUESTS (start/end cursors; two callers paginate with them) - #1649, replacing #1632 H3.
    *
-   * Two callers paginate with start/end cursors. Those are timestamps, so
-   * including them in the key makes the key space unbounded - the leak #199
-   * warns about. They are also one-shot by nature: a backfill walks each window
-   * exactly once, so a cache entry would never be read again anyway.
-   *
-   * Passing them through means those two keep their current upstream cost. That
-   * is honest rather than ideal, and it is called out in the PR rather than
-   * quietly counted as a win. */
+   * They used to skip the cache entirely, because timestamps in the key made the key space unbounded (#199). Two things changed: apiCache is
+   * bounded by SIZE since #1634 (48 MB, least recently used first), and an open range was a way to make this server call the exchange as
+   * often as anyone liked - the per-IP limit above is sized for cached reads. So now:
+   *   - at most 30 range requests per minute per IP (our 429, before any upstream call);
+   *   - cached: a window that ended before the current candle opened is history and cannot change, so it is kept 6 h; a window that reaches
+   *     the forming candle is kept like any other read of that interval. */
   const isRange = Boolean(start || end);
+  if (isRange && !rateLimit(`klines-range:${ip}`, KLINES_RANGE_PER_MIN, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
 
   const url = new URL(UPSTREAM[source]);
   if (source === 'bybit') {
@@ -273,7 +292,7 @@ export async function GET(req: NextRequest) {
   }
 
   const fetchUpstream = async () => {
-    const r = await fetch(url, { cache: 'no-store' });
+    const r = await exchangeFetch(url, { cache: 'no-store' });
     if (!r.ok) {
       /* Throwing rather than returning an empty body is the #228 lesson applied
          at the point it was learned: `cached()` never stores a rejection as an
@@ -329,7 +348,7 @@ export async function GET(req: NextRequest) {
   try {
     const key = `klines:${source}:${symbol}:${interval}:${limit}${closedTag}`;
     const raw = isRange
-      ? await fetchUpstream()
+      ? await cached(`klines:range:${source}:${symbol}:${interval}:${limit}:${start ?? ''}:${end ?? ''}`, rangeTtl(interval, end), fetchUpstream, { failTtlMs: KLINES_FAIL_TTL_MS })
       : await cached(key, ttl, fetchUpstream, { failTtlMs: KLINES_FAIL_TTL_MS });
     /* Slice AFTER the cache read, using the caller's own limit. The cache holds
        one bucket-sized copy that every caller in that bucket shares; each gets
@@ -375,7 +394,7 @@ export async function GET(req: NextRequest) {
             fbUrl.searchParams.set('symbol', bbSymbol);
             fbUrl.searchParams.set('interval', bbInterval);
             fbUrl.searchParams.set('limit', String(limit));
-            const r = await fetch(fbUrl, { cache: 'no-store' });
+            const r = await exchangeFetch(fbUrl, { cache: 'no-store' });
             if (!r.ok) {
               const err = new Error(`bybit fallback klines ${r.status}`);
               (err as Error & { status?: number }).status = r.status;
