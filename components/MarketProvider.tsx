@@ -923,13 +923,19 @@ export default function MarketProvider(
         { cache: 'no-cache' }
       );
       const data = await res.json();
-      const coins: Array<{ symbol: string; circulating: { peggedUSD?: number } }> =
+      type Pegged = { peggedUSD?: number };
+      const coins: Array<{ symbol: string; circulating: Pegged; circulatingPrevWeek?: Pegged; circulatingPrevMonth?: Pegged }> =
         data?.peggedAssets ?? [];
 
-      let total = 0;
-      coins.forEach(({ symbol, circulating }) => {
+      /* #1631 C: the 7- and 30-day change come from DefiLlama's own earlier readings. The prompt used to compare with the previous POLL
+         (minutes earlier), so "minting / burning" was noise, and on a first load there was no direction at all - and the model called
+         a shrinking supply "dry powder" ($257.6B a month ago, $254.9B now). A change is only given when both coins carry the old value. */
+      let total = 0, week = 0, month = 0, weekOk = true, monthOk = true;
+      coins.forEach(({ symbol, circulating, circulatingPrevWeek, circulatingPrevMonth }) => {
         if (symbol === 'USDT' || symbol === 'USDC') {
           total += circulating?.peggedUSD ?? 0;
+          if (typeof circulatingPrevWeek?.peggedUSD === 'number') week += circulatingPrevWeek.peggedUSD; else weekOk = false;
+          if (typeof circulatingPrevMonth?.peggedUSD === 'number') month += circulatingPrevMonth.peggedUSD; else monthOk = false;
         }
       });
 
@@ -940,6 +946,8 @@ export default function MarketProvider(
         ...s,
         stablecoinPrev: s.stablecoinSupply,
         stablecoinSupply: supplyB,
+        stablecoinChg7d: weekOk && week > 0 ? supplyB - week / 1e9 : null,
+        stablecoinChg30d: monthOk && month > 0 ? supplyB - month / 1e9 : null,
       }));
     } catch { /* fail silently */ }
   }, []);
@@ -1018,13 +1026,16 @@ export default function MarketProvider(
     try {
       const res = await fetch('/api/coinbase-price', { cache: 'no-store' });
       if (!res.ok) return;
-      const { price: cbPrice } = await res.json() as { price: number };
+      const { price: cbPrice, usdtUsd } = await res.json() as { price: number; usdtUsd?: number | null };
       if (!cbPrice || isNaN(cbPrice)) return;
       setStore(s => {
         const bybitPrice = s.coins.btc?.price;
-        if (!bybitPrice) return { ...s, cbPremium: null, cbPremiumPct: null };
-        const premium    = cbPrice - bybitPrice;
-        const premiumPct = (premium / bybitPrice) * 100;
+        /* #1631 C: Coinbase quotes USD, the exchange price is USDT. Converted to USD first; without the USDT rate the premium is
+           unknown, not a raw difference that is mostly USDT's own discount. */
+        if (!bybitPrice || !usdtUsd) return { ...s, cbPremium: null, cbPremiumPct: null };
+        const bybitUsd   = bybitPrice * usdtUsd;
+        const premium    = cbPrice - bybitUsd;
+        const premiumPct = (premium / bybitUsd) * 100;
         return { ...s, cbPremium: premium, cbPremiumPct: premiumPct };
       });
     } catch { /* fail silently */ }
@@ -1080,8 +1091,12 @@ export default function MarketProvider(
         spx:  { price: number; chg: number } | null;
         gold: { price: number; chg: number } | null;
         jpy:  { price: number; chg: number } | null;
+        tnx:  { price: number; chg: number } | null;
         real10y: RealYield | null;
       } = await res.json();
+      /* #1631 C: a yield moves in basis points, not percent of itself (4.10% -> 4.13% is +3bp, which is also +0.7%). The route gives
+         the percent change; the previous close it came from is price / (1 + chg/100). */
+      const tnxBp = d.tnx ? Math.round((d.tnx.price - d.tnx.price / (1 + d.tnx.chg / 100)) * 100) : null;
 
       setStore(s => ({
         ...s,
@@ -1090,6 +1105,7 @@ export default function MarketProvider(
         ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : {}),
         ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : {}),
         ...(d.jpy  ? { jpy:  d.jpy.price,  jpyChg:  d.jpy.chg  }       : {}),
+        ...(d.tnx  ? { bonds10y: d.tnx.price, bonds10yChgBp: tnxBp }   : {}),
         // No truthiness guard: the route always returns an object, and its
         // `unknown` state is information we want to keep rather than skip.
         ...(d.real10y ? { real10y: d.real10y } : {}),

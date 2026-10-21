@@ -180,6 +180,7 @@ function buildChatContext(
     fng: store.fng ?? undefined, fngLabel: store.fngLabel, btcDom: store.btcDom || undefined,
     btcPcRatio: store.btcPcRatio || undefined, btcMaxPain: store.btcMaxPain || undefined,
     stablecoinSupply: store.stablecoinSupply || undefined,
+    stablecoinChg30d: store.stablecoinChg30d ?? undefined,
     etfNetFlow: store.etfNetFlow ?? undefined, ethEtfNetFlow: store.ethEtfNetFlow ?? undefined,
     btcExchangeNetFlow: store.btcExchangeNetFlow ?? undefined,
     sectorRotation: computeSectorRotation(store, coin).line,

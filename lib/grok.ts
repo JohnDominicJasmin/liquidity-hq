@@ -170,7 +170,8 @@ export interface GrokContext {
   longShortRatio: string;
   /* macro */
   oilPrice: string;
-  bonds10y: string;
+  bonds10y: string;   // US 10Y Treasury yield, nominal (#1631 C)
+  real10y: string;    // US 10Y TIPS real yield, FRED DFII10 (#311)
   /* upcoming events */
   upcomingEvents: string;
   /* multi-timeframe RSI */
@@ -332,7 +333,7 @@ export function buildPrompt(ctx: GrokContext): string {
       'WEIGHT GEX HEAVILY for BTC - it sets the REGIME the rest of the signals live in, which matters more than any direction it implies: in LONG gamma, dealers suppress volatility so the market ranges/mean-reverts - FADE breakouts and distrust momentum signals (the max-pain magnet adds a mild pull toward that strike, but only bites as expiry approaches, so treat it as a tiebreaker, not a primary bias); in SHORT gamma, dealers amplify moves = trending, so treat breakouts as real and let trend + order-flow signals run with size. When the GEX regime conflicts with an oscillator, the regime wins on conviction.',
       '',
       '=== COINBASE PREMIUM INDEX ===',
-      `CB Premium (Coinbase BTC − Binance BTC):  ${ctx.cbPremium}`,
+      `CB Premium (Coinbase BTC/USD − exchange BTC/USDT converted to USD):  ${ctx.cbPremium}`,
       '(Positive premium = US buyers paying above Binance = institutional demand = bullish. Negative = US selling = bearish.)',
       '',
     ]),
@@ -342,7 +343,8 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     '=== MACRO ===',
     `US Oil (CL=F): ${ctx.oilPrice}`,
-    `US 10Y Bond Yield: ${ctx.bonds10y}`,
+    `US 10Y Treasury yield (nominal): ${ctx.bonds10y}`,
+    `US 10Y TIPS (real) yield (FRED DFII10): ${ctx.real10y}`,
     `DXY (US Dollar Index): ${ctx.dxyLine}`,
     `USD/JPY (Yen Carry Trade): ${ctx.yenWatch}`,
     /* Deliberately the SAME sentence the dashboard card shows. One vocabulary
@@ -520,7 +522,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '11b. PERP BASIS vs PERP ACTIVITY are DIFFERENT and may disagree. Basis is the PRICE premium of perps over spot. Activity is how much perp trading VOLUME there is against spot, measured against its own normal for that coin. Positive basis with normal activity = healthy demand for leverage. Positive basis with elevated activity = the move is leverage-led and unwinds faster. If they conflict, say so explicitly rather than choosing one silently.',
     ...btcOnly(['12. GEX (GAMMA EXPOSURE) - PRIMARY REGIME FILTER for BTC, weight it above the oscillators: Positive net GEX = dealers LONG gamma = range-bound/mean-reverting → fade extremes toward max pain, size down on breakout calls. Negative net GEX = moves amplified = trending/explosive volatility → trust breakouts, size up on momentum. Zero-gamma flip level crossing = regime shift; a call that ignores the GEX regime is low-conviction.']),
     '13. ORDER BOOK: Large bid walls = support. Large ask walls = resistance. Price often hunts walls before reversing.',
-    '14. STABLECOIN FLOWS: Growing USDT+USDC supply = dry powder entering = bullish medium-term. Shrinking = cashing out.',
+    '14. STABLECOIN FLOWS: judge by the 7d/30d change given, never by the level. Growing USDT+USDC supply = dry powder entering = bullish medium-term. Shrinking = capital leaving - never call a shrinking or unknown supply dry powder.',
     '15. EXCHANGE FLOWS: BTC flowing INTO exchanges = sell pressure. Flowing OUT = accumulation.',
     ...btcOnly(['16. COINBASE PREMIUM: CB premium > +$30 = US institutions buying aggressively (strong bullish). Negative = US selling/risk-off.']),
     '17. VWAP: Price above VWAP = institutions paying up (bullish). Price below VWAP = distributing (bearish).',
@@ -641,7 +643,8 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '-'}`,
     `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure, prefer BULLISH setups' : 'EMA 9 BELOW SMA 200 - bearish structure, prefer BEARISH setups but BULLISH still valid on 3+ exhaustion signals') : '-'}`,
     `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 (${priceText(chart.sma200)}) - bullish` : `BELOW SMA200 (${priceText(chart.sma200)}) - bearish, do not call BULLISH without reversal catalyst`) : '-'}`,
-    `Last 20 candles (OHLC): ${chart.recent20}`,
+    // #1631 C: says what is sent. Arena slices the last 15 (the field is still called recent20); the label claimed 20.
+    `Last 15 candles (OHLC): ${chart.recent20}`,
     chart.detectedPatterns ? `Pre-detected basic patterns: ${chart.detectedPatterns}` : '',
     '',
     'Cross-reference the candle key levels with order book walls, liquidation clusters, and derivatives data above.',

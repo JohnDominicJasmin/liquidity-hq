@@ -48,7 +48,7 @@ import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
 import { formatRsi } from '@/lib/rsi';
-import { priceText } from '@/lib/numberFormat';
+import { priceText, signedUsd } from '@/lib/numberFormat';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -1074,7 +1074,7 @@ function ArenaContent() {
 
     /* Exchange net flow */
     const exchangeNetFlow = store.btcExchangeNetFlow != null
-      ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M'
+      ? signedUsd(store.btcExchangeNetFlow, 'M', 1)
         + (store.btcExchangeNetFlow > 50 ? ' (inflow - sell pressure)' : store.btcExchangeNetFlow < -50 ? ' (outflow - accumulation)' : ' (neutral)')
       /* Same dead fallback as liqLevels below, and beyond #637's literal
          scope - fixed anyway because leaving one of two identical instances
@@ -1083,11 +1083,15 @@ function ArenaContent() {
       : 'Not available';
 
     /* Stablecoin flow */
+    /* #1631 C: the 7- and 30-day changes (DefiLlama), not the last poll, and a shrinking supply is never presented as dry powder. */
     const stablecoinFlow = store.stablecoinSupply != null
       ? '$' + store.stablecoinSupply.toFixed(1) + 'B'
-        + (store.stablecoinPrev != null
-          ? (store.stablecoinSupply > store.stablecoinPrev ? ' ↑ minting (bullish)' : ' ↓ burning (bearish)')
-          : '')
+        + (store.stablecoinChg7d != null ? ' | 7d ' + signedUsd(store.stablecoinChg7d, 'B', 1) : '')
+        + (store.stablecoinChg30d != null ? ' | 30d ' + signedUsd(store.stablecoinChg30d, 'B', 1) : '')
+        + (store.stablecoinChg30d == null ? ' (trend unknown - do not assume dry powder)'
+          : store.stablecoinChg30d >= 0.5 ? ' (growing - fresh liquidity, dry powder)'
+          : store.stablecoinChg30d <= -0.5 ? ' (SHRINKING - capital leaving, not dry powder)'
+          : ' (flat - no new dry powder)')
       : '-';
 
     /* Liquidation levels */
@@ -1150,7 +1154,7 @@ function ArenaContent() {
 
     /* Coinbase Premium */
     const cbPremium = store.cbPremium != null && store.cbPremiumPct != null
-      ? (store.cbPremium >= 0 ? '+' : '') + '$' + Math.abs(store.cbPremium).toFixed(1)
+      ? signedUsd(store.cbPremium, '', 1)
         + ' (' + (store.cbPremiumPct >= 0 ? '+' : '') + store.cbPremiumPct.toFixed(3) + '%)'
         + (store.cbPremiumPct > 0.05  ? ' - US institutional buying (BULLISH)'
         :  store.cbPremiumPct < -0.05 ? ' - US institutional selling (BEARISH)'
@@ -1196,7 +1200,12 @@ function ArenaContent() {
 
     /* Macro */
     const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' : '-';
-    const bonds10y  = store.bonds10y  != null ? store.bonds10y.toFixed(3)  + '%'   : '-';
+    /* #1631 C: both 10-year yields, each labelled. store.bonds10y was never filled, so this line always read "-"; it is now the nominal
+       10Y (Yahoo ^TNX, what a trader means by "the 10Y"), and the real yield (FRED DFII10, #311) is its own line. A missing one says so. */
+    const bonds10y  = store.bonds10y != null
+      ? store.bonds10y.toFixed(2) + '%' + (store.bonds10yChgBp != null ? ` (${store.bonds10yChgBp >= 0 ? '+' : ''}${store.bonds10yChgBp}bp 1d)` : '')
+      : 'unavailable';
+    const real10y   = store.real10y ? store.real10y.note : 'unavailable';
     const dxyLine   = store.dxy       != null ? store.dxy.toFixed(2) + (store.dxyChg != null ? ' (' + (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) + '%)' : '') + (store.dxyChg != null && store.dxyChg > 0.2 ? ' → BTC headwind' : store.dxyChg != null && store.dxyChg < -0.2 ? ' → BTC tailwind' : '') : '-';
     const spxLine   = store.spx       != null ? store.spx.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.spxChg != null ? ' (' + (store.spxChg >= 0 ? '+' : '') + store.spxChg.toFixed(2) + '%)' : '') + (store.spxChg != null && store.spxChg > 0.3 ? ' → risk-on' : store.spxChg != null && store.spxChg < -0.5 ? ' → risk-off' : '') : '-';
     const goldLine  = store.gold      != null ? '$' + store.gold.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.goldChg != null ? ' (' + (store.goldChg >= 0 ? '+' : '') + store.goldChg.toFixed(2) + '%)' : '') : '-';
@@ -1275,7 +1284,7 @@ function ArenaContent() {
       session, clusters: '-',
       news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 15).join('\n') : 'No recent alerts',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
-      oilPrice, bonds10y, upcomingEvents: upcoming,
+      oilPrice, bonds10y, real10y, upcomingEvents: upcoming,
       rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, liqLevels, btcDomTrend, sectorRotation,

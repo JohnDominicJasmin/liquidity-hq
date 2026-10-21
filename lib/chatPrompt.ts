@@ -29,7 +29,7 @@ export interface ChatContext {
   bidWalls?: number[];
   fng?: number; fngLabel?: string; btcDom?: number;
   btcPcRatio?: number; btcMaxPain?: number;
-  stablecoinSupply?: number; etfNetFlow?: number; ethEtfNetFlow?: number; btcExchangeNetFlow?: number;
+  stablecoinSupply?: number; stablecoinChg30d?: number; etfNetFlow?: number; ethEtfNetFlow?: number; btcExchangeNetFlow?: number;
   sectorRotation?: string; structure?: string; session?: string;
   headlines?: string[]; geo?: string[];
   selection?: string;                            // describeSelection() of the trader's indicators
@@ -61,7 +61,7 @@ export function parseChatContext(raw: unknown): ChatContext | null {
     bidWalls: Array.isArray(r.bidWalls) ? r.bidWalls.map(num).filter((x): x is number => x !== undefined).slice(0, 5) : undefined,
     fng: num(r.fng), fngLabel: str(r.fngLabel, 40), btcDom: num(r.btcDom),
     btcPcRatio: num(r.btcPcRatio), btcMaxPain: num(r.btcMaxPain),
-    stablecoinSupply: num(r.stablecoinSupply), etfNetFlow: num(r.etfNetFlow), ethEtfNetFlow: num(r.ethEtfNetFlow),
+    stablecoinSupply: num(r.stablecoinSupply), stablecoinChg30d: num(r.stablecoinChg30d), etfNetFlow: num(r.etfNetFlow), ethEtfNetFlow: num(r.ethEtfNetFlow),
     btcExchangeNetFlow: num(r.btcExchangeNetFlow),
     sectorRotation: str(r.sectorRotation, 300), structure: str(r.structure, 300), session: str(r.session, 60),
     headlines: strs(r.headlines, 8, 240), geo: strs(r.geo, 5, 240),
@@ -158,7 +158,10 @@ export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean;
       ln('BTC options put/call ratio', ctx.btcPcRatio != null ? ctx.btcPcRatio.toFixed(2) : '-'),
       ln('BTC options max pain', ctx.btcMaxPain != null ? fmtPrice(ctx.btcMaxPain) : '-'),
     ] : []),
-    ln('Stablecoin supply', ctx.stablecoinSupply != null ? '$' + ctx.stablecoinSupply.toFixed(1) + 'B' : '-'),
+    ln('Stablecoin supply', ctx.stablecoinSupply != null
+      ? '$' + ctx.stablecoinSupply.toFixed(1) + 'B' + (ctx.stablecoinChg30d != null
+        ? ` (30d ${signedUsd(ctx.stablecoinChg30d, 'B', 1)}${ctx.stablecoinChg30d <= -0.5 ? ' - shrinking, not dry powder' : ''})` : '')
+      : '-'),
     ln('BTC ETF flow', ctx.etfNetFlow != null ? signedUsd(ctx.etfNetFlow, 'M', 0) : '-'),
     ln('ETH ETF flow', ctx.ethEtfNetFlow != null ? signedUsd(ctx.ethEtfNetFlow, 'M', 0) : '-'),
     ln('BTC exchange net flow', ctx.btcExchangeNetFlow != null ? signedUsd(ctx.btcExchangeNetFlow, 'M', 1) : '-'),

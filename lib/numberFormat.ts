@@ -13,7 +13,10 @@ export function priceText(v: number): string {
   return '$' + body;
 }
 
+/** "+" or "-" for a value whose magnitude is printed separately (a sign in front of Math.abs must never be "" for a negative). */
+export const signOf = (v: number): '+' | '-' => (v >= 0 ? '+' : '-');
+
 /** A signed dollar amount in a unit, e.g. +$527M or -$26.1M. The sign is never dropped. */
-export function signedUsd(v: number, unit: 'K' | 'M' | 'B', digits: number): string {
+export function signedUsd(v: number, unit: '' | 'K' | 'M' | 'B', digits: number): string {
   return (v >= 0 ? '+' : '-') + '$' + Math.abs(v).toFixed(digits) + unit;
 }
