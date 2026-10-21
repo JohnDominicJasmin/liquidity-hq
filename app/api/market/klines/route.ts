@@ -255,6 +255,10 @@ export async function GET(req: NextRequest) {
   if (!Number.isFinite(limitRaw) || limitRaw < 1 || limitRaw > 1500) {
     return NextResponse.json({ error: 'limit must be between 1 and 1500' }, { status: 400 });
   }
+  // #1649 (security review): start/end are millisecond timestamps and nothing else, checked before they reach the exchange or a cache key.
+  if ((start && !/^\d{1,13}$/.test(start)) || (end && !/^\d{1,13}$/.test(end))) {
+    return NextResponse.json({ error: 'start and end must be millisecond timestamps' }, { status: 400 });
+  }
 
   const limit = bucketFor(limitRaw);
 

@@ -7,8 +7,9 @@
  * exchange a second later - which is exactly what extends a ban.
  *
  * WHAT IT DOES, per exchange, shared by every route and cron in the process (state on globalThis, like lib/apiCache.ts and lib/rateLimit.ts):
- *   1. Breaker. A ban answer (Binance 403/418/429/451, Bybit 403/429, OKX/Hyperliquid 429) stops ALL calls to that exchange for 10 minutes,
- *      doubling on a repeat within an hour (at most 6 hours), or longer when Retry-After says so. While it is open, exchangeFetch throws
+ *   1. Breaker. An answer that means "this IP is rate-limited or banned" (any 429, Binance's 418, a 503 with Retry-After, or a 403/451
+ *      whose body says rate limit; never a firewall page a caller could provoke, see opensBreaker) stops ALL calls to that exchange for 10
+ *      minutes, doubling on a repeat within an hour (at most 6 hours), or longer when Retry-After says so. While it is open, exchangeFetch throws
  *      HttpStatusError(429) without touching the network: the answer every caller already treats as "rate-limited, use the fallback or the
  *      cache" (lib/pool.ts isRateLimitStatus, the klines failover).
  *   2. Concurrency: at most 8 requests in flight per exchange (4 for OKX and Hyperliquid); the rest wait in a bounded queue.
@@ -39,22 +40,32 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 export const BINANCE_WEIGHT_SOFT_LIMIT = 1200;        // half of Binance's 2,400 per minute
 export const BYBIT_WINDOW_MS = 5_000;
 export const BYBIT_WINDOW_MAX = 250;                   // under half of Bybit's 600 per 5 s per IP
-const BAN_STATUS: Record<Exchange, ReadonlySet<number>> = {
-  binance: new Set([403, 418, 429, 451]),
-  bybit: new Set([403, 429]),
-  okx: new Set([429]),
-  hyperliquid: new Set([429]),
-};
+/* The answers that are looked at (body read for the evidence), and the ones that OPEN the breaker. Only an answer that means "this IP is
+   being rate-limited or banned" opens it: a 429, Binance's 418, or a 503 with Retry-After. A 403 (or 451) can also be an exchange's web
+   firewall refusing ONE odd request - something a caller can provoke - and tripping on it would let anyone switch an exchange off for every
+   user (security review, #1649). So a 403/451 opens the breaker only when its body says rate limit ("access too frequent", Binance's
+   -1003 "request weight", Bybit retCode 10006/10018); any other refusal page is reported as evidence, at most every 10 minutes, and the
+   caller simply gets its 403 as before. */
+const LOOKED_AT = new Set([403, 418, 429, 451, 503]);
+const RATE_LIMIT_BODY = /access too frequent|too many (visits|requests)|rate limit|request weight|"code"\s*:\s*-1003|"retCode"\s*:\s*100(06|18)/i;
+const EVIDENCE_EVERY_MS = 10 * 60_000;
+function opensBreaker(ex: Exchange, status: number, body: string, retryAfter: boolean): boolean {
+  if (status === 429) return true;
+  if (ex === 'binance' && status === 418) return true;
+  if (status === 503 && retryAfter) return true;
+  return (status === 403 || status === 451) && RATE_LIMIT_BODY.test(body);
+}
 
 interface ExchangeState {
   openUntil: number; strikes: number; lastTripAt: number;
   inFlight: number; waiters: Array<() => void>;
   recent: number[]; weight: number; weightMinute: number;
-  trips: number; refused: number;
+  trips: number; refused: number; lastEvidenceAt: number;
   lastTrip: { status: number; at: string; kind: string; body: string } | null;
 }
 const blank = (): ExchangeState => ({
-  openUntil: 0, strikes: 0, lastTripAt: 0, inFlight: 0, waiters: [], recent: [], weight: 0, weightMinute: 0, trips: 0, refused: 0, lastTrip: null,
+  openUntil: 0, strikes: 0, lastTripAt: 0, inFlight: 0, waiters: [], recent: [], weight: 0, weightMinute: 0, trips: 0, refused: 0,
+  lastEvidenceAt: 0, lastTrip: null,
 });
 const g = globalThis as { __lhqExchangeGuard?: Record<Exchange, ExchangeState> };
 const state = (g.__lhqExchangeGuard ??= { binance: blank(), bybit: blank(), okx: blank(), hyperliquid: blank() });
@@ -118,21 +129,32 @@ function release(s: ExchangeState): void {
   else s.inFlight = Math.max(0, s.inFlight - 1);
 }
 
-async function trip(ex: Exchange, s: ExchangeState, r: Response): Promise<void> {
+/** A refusal-shaped answer: read its body (first 300 characters), then either open the breaker (a rate limit or ban, see opensBreaker) or
+ *  only report it as evidence. The caller gets the same Response either way. */
+async function onRefusal(ex: Exchange, s: ExchangeState, r: Response): Promise<void> {
   const now = Date.now();
-  s.strikes = now - s.lastTripAt < STRIKE_MEMORY_MS ? s.strikes + 1 : 1;
-  s.lastTripAt = now;
+  let body = '';
+  try { body = (await r.clone().text()).replace(/\s+/g, ' ').trim().slice(0, 300); } catch { /* body unreadable: status alone */ }
   const retryAfterS = Number(r.headers.get('retry-after'));
   const retryAfterMs = Number.isFinite(retryAfterS) && retryAfterS > 0 ? retryAfterS * 1000 : 0;
+  const kind = RATE_LIMIT_BODY.test(body) ? 'rate-limit' : /<html|cloudfront|forbidden/i.test(body) ? 'blocked-page' : 'other';
+
+  if (!opensBreaker(ex, r.status, body, retryAfterMs > 0)) {
+    // Evidence only (a firewall page, a 451 without a rate-limit body, a 503 without Retry-After): throttled, because a caller can provoke it.
+    if (now - s.lastEvidenceAt < EVIDENCE_EVERY_MS) return;
+    s.lastEvidenceAt = now;
+    void report(ex, true, `HTTP ${r.status} (${kind}) not treated as a ban`, `[${ex}] HTTP ${r.status} (${kind}), breaker NOT opened. Body: ${body || '(empty)'}`);
+    return;
+  }
+
+  s.strikes = now - s.lastTripAt < STRIKE_MEMORY_MS ? s.strikes + 1 : 1;
+  s.lastTripAt = now;
   const ms = Math.min(COOLDOWN_MAX_MS, Math.max(COOLDOWN_MIN_MS * 2 ** (s.strikes - 1), retryAfterMs));
   // Several requests in flight can come back banned together: the breaker opens once, and only the first one reports.
   const alreadyOpen = now < s.openUntil;
   s.openUntil = Math.max(s.openUntil, now + ms);
   if (alreadyOpen) return;
   s.trips++;
-  let body = '';
-  try { body = (await r.clone().text()).replace(/\s+/g, ' ').trim().slice(0, 300); } catch { /* body unreadable: status alone */ }
-  const kind = /access too frequent|too many (visits|requests)|rate limit/i.test(body) ? 'rate-limit' : /<html|cloudfront|forbidden/i.test(body) ? 'blocked-page' : 'other';
   s.lastTrip = { status: r.status, at: new Date(now).toISOString(), kind, body };
   const detail = `HTTP ${r.status} (${kind}); every ${ex} call stopped for ${Math.round(ms / 60_000)} min, strike ${s.strikes}`;
   void report(ex, false, detail, `[${ex}] ${detail}. Body: ${body || '(empty)'}`);
@@ -158,7 +180,7 @@ export async function exchangeFetch(input: string | URL, init: RequestInit = {})
       const w = Number(r.headers.get('x-mbx-used-weight-1m'));
       if (Number.isFinite(w) && w > 0) { s.weight = w; s.weightMinute = minuteOf(Date.now()); }
     }
-    if (BAN_STATUS[ex].has(r.status) || (r.status >= 400 && r.headers.get('retry-after'))) await trip(ex, s, r);
+    if (LOOKED_AT.has(r.status)) await onRefusal(ex, s, r);
     else if (r.ok && s.lastTrip && Date.now() >= s.openUntil && s.strikes > 0 && Date.now() - s.lastTripAt >= STRIKE_MEMORY_MS) {
       s.strikes = 0;
       void report(ex, true, 'calls answered normally for an hour after the last stop');

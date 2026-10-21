@@ -126,6 +126,10 @@ interface PassEntry {
  * fix the rare one. */
 const CURSOR_PARAMS = ['startTime', 'endTime', 'start', 'end'] as const;
 
+/** What a passthrough parameter's VALUE may be (#1649): symbols and JSON symbol lists (`["BTCUSDT","ETHUSDT"]`), numbers, and short codes
+ *  such as 5m, 5min, BTC, option, true. Anything else is a 400 from us before any upstream call. */
+const PASSTHROUGH_VALUE = /^[A-Za-z0-9_.,:\-[\]"]{1,1000}$/;
+
 const PASSTHROUGH: Record<string, PassEntry> = {
   /* Bybit. Note for anyone slicing these later: Bybit returns NEWEST-first and
      Binance OLDEST-first - the bug qa/e2e/klines-route.spec.ts now guards. */
@@ -536,6 +540,13 @@ export async function GET(req: NextRequest) {
        none of their behaviour changes. */
     const entry = type ? PASSTHROUGH[type] : undefined;
     if (entry) {
+      /* #1649 (security review): the VALUES are checked, not only the names, before anything is sent to an exchange - including by the
+         Bybit fallbacks above, which read the same parameters. An odd value can make an exchange's firewall refuse this server, and a
+         request sent on a caller's behalf must not carry anything but symbol lists, numbers and short codes. */
+      for (const k of entry.params) {
+        const v = req.nextUrl.searchParams.get(k);
+        if (v != null && v !== '' && !PASSTHROUGH_VALUE.test(v)) return NextResponse.json({ error: `invalid ${k}` }, { status: 400 });
+      }
       const u = new URL(entry.url);
       for (const [k, v] of Object.entries(entry.fixed ?? {})) u.searchParams.set(k, v);
       for (const k of entry.params) {
