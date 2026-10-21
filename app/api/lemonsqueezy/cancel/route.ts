@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { apiError } from '@/lib/apiError';
 import { cancelSubscription, isLsApiConfigured } from '@/lib/lemonsqueezyApi';
+import { fetchAuthUser } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,13 +28,9 @@ export const dynamic = 'force-dynamic';
 async function getAuthedUserId(req: NextRequest): Promise<string | null> {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return null;
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
-  const { data } = await sb.auth.getUser();
-  return data.user?.id ?? null;
+  // #1397 review: this route WRITES with the service role on the strength of the token alone, so it asks Auth (fetchAuthUser): a signed-out,
+  // banned or deleted account is refused at once, not when its token expires. A deliberate user action, so the round trip is cheap.
+  return (await fetchAuthUser(token))?.id ?? null;
 }
 
 export async function POST(req: NextRequest) {

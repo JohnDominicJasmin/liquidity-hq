@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
+  return userClient(token);
 }
 
 function auth(req: NextRequest) {
@@ -19,7 +16,7 @@ function auth(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const token = auth(req);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data, error } = await sb(token)
@@ -35,7 +32,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const token = auth(req);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   const userId = authData.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

@@ -15,7 +15,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUsageTier } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
@@ -23,6 +22,8 @@ import { AI_LIMITS } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { clampMaxTokens } from '@/lib/grokTokenClamp';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -39,11 +40,7 @@ const MODEL = 'grok-4.3';
 const ALLOWED_SEARCH_TOOLS = [{ type: 'web_search' }, { type: 'x_search' }];
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  return userClient(token);
 }
 
 async function getUsageRow(token: string, userId: string, today: string) {
@@ -60,7 +57,7 @@ export async function GET(req: NextRequest) {
   if (!(await isFeatureEnabled('grok'))) return NextResponse.json({ error: 'LiquidityAI is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
-  const { data: userData } = await sb(token).auth.getUser();
+  const { data: userData } = await getUserCompat(token);
   if (!userData.user) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
   const userId = userData.user.id;
   const today = todayUtc();
@@ -86,7 +83,7 @@ export async function POST(req: NextRequest) {
   if (!token) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
-  const { data: userData } = await sb(token).auth.getUser();
+  const { data: userData } = await getUserCompat(token);
   if (!userData.user) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }

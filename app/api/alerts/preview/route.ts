@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { COINS, COIN_LABELS } from '@/lib/coins';
@@ -10,6 +9,7 @@ import { EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles } from '@/lib/ribb
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/strategyCore';
 import { detectStructureSignals } from '@/lib/priceAction';
 import { STRUCTURE_TFS, isStructureEnabled } from '@/lib/structurePrefs';
+import { getUserCompat } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,12 +60,8 @@ const RATE_WINDOW_MS = 60_000;
 async function authedUserId(req: NextRequest): Promise<{ userId: string; token: string } | null> {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return null;
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
-  const { data } = await sb.auth.getUser();
+  // #1397: verified locally (lib/authUser.ts), no Auth round trip per request.
+  const { data } = await getUserCompat(token);
   return data.user?.id ? { userId: data.user.id, token } : null;
 }
 

@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { hasProFeatures } from '@/lib/entitlements';
 import { rateLimit } from '@/lib/rateLimit';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 export const dynamic = 'force-dynamic';
 
 function makeSb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  return userClient(token);
 }
 
 export async function GET(req: NextRequest) {
@@ -34,7 +31,7 @@ export async function GET(req: NextRequest) {
   if (!userToken) return NextResponse.json({ ok: false, error: 'Sign in required' }, { status: 401 });
 
   const sb = makeSb(userToken);
-  const { data: { user } } = await sb.auth.getUser();
+  const { data: { user } } = await getUserCompat(userToken); // #1397: verified locally
   if (!user) return NextResponse.json({ ok: false, error: 'Sign in required' }, { status: 401 });
 
   if (!rateLimit(`telegram-test:${user.id}`, 5, 60_000)) {

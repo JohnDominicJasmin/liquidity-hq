@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUsageTier } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,11 +28,7 @@ Rules:
 - If nothing stands out, say so plainly`;
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  return userClient(token);
 }
 
 async function getUsageRow(token: string, userId: string, today: string) {
@@ -56,7 +53,7 @@ export async function POST(req: NextRequest) {
   if (!token) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
-  const { data: userData } = await sb(token).auth.getUser();
+  const { data: userData } = await getUserCompat(token);
   if (!userData.user) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
