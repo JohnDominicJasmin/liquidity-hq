@@ -931,13 +931,21 @@ export default function MarketProvider(
          (minutes earlier), so "minting / burning" was noise, and on a first load there was no direction at all - and the model called
          a shrinking supply "dry powder" ($257.6B a month ago, $254.9B now). A change is only given when both coins carry the old value. */
       let total = 0, week = 0, month = 0, weekOk = true, monthOk = true;
+      const answered = new Set<string>();
       coins.forEach(({ symbol, circulating, circulatingPrevWeek, circulatingPrevMonth }) => {
         if (symbol === 'USDT' || symbol === 'USDC') {
-          total += circulating?.peggedUSD ?? 0;
+          if (typeof circulating?.peggedUSD === 'number' && circulating.peggedUSD > 0) { total += circulating.peggedUSD; answered.add(symbol); }
           if (typeof circulatingPrevWeek?.peggedUSD === 'number') week += circulatingPrevWeek.peggedUSD; else weekOk = false;
           if (typeof circulatingPrevMonth?.peggedUSD === 'number') month += circulatingPrevMonth.peggedUSD; else monthOk = false;
         }
       });
+
+      /* QA's review of #1665: a coin whose CURRENT value is missing used to count as 0, so USDC's ~$75B vanished from the supply and the
+         30-day change read "SHRINKING - capital leaving". Both coins must answer, or the supply and its changes are unknown this time. */
+      if (!answered.has('USDT') || !answered.has('USDC')) {
+        setStore(s => ({ ...s, stablecoinSupply: null, stablecoinChg7d: null, stablecoinChg30d: null }));
+        return;
+      }
 
       const supplyB = total / 1e9;
       if (supplyB === 0) return;
