@@ -27,7 +27,7 @@ import { planKindOfRow } from '@/lib/paidPeriod';
 import { FREE_SIGNAL_COINS } from '@/lib/signalCoinGate';
 import { wilderRsi } from '@/lib/rsi';
 import { exchangeFetch } from '@/lib/exchangeGuard';
-import { afterSend, dueForRetry, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
+import { afterSend, dueForRetry, holdExpired, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
 
 export const dynamic = 'force-dynamic';
 
@@ -372,7 +372,9 @@ const sendTally = { ok: 0, failed: 0, reasons: new Set<string>() };
 /* #1667: triggered price alerts whose message has not landed yet, by alert id, with the message and its backoff (lib/priceAlertDelivery.ts).
    Process memory, like the tally above: a restart drops them, and the still-active alert fires again on its next touch. Bounded by the
    active alerts - entries for alerts that are gone are pruned on every run. */
-const PRICE_ALERT_PENDING = new Map<number, PendingDelivery>();
+/** What a hold owes: the touch, and the target / direction it was for (an edited alert drops its hold). */
+interface HeldTouch { target: number; direction: string; level: number; atMs: number }
+const PRICE_ALERT_PENDING = new Map<number, PendingDelivery<HeldTouch>>();
 
 function resetSendTally(): void {
   sendTally.ok = 0;
@@ -1147,7 +1149,11 @@ async function checkPriceAlerts(
 
     for (const alert of rows) {
       // #1667: a message that failed earlier is resent on its backoff; the touch already happened, so price is not re-checked for it.
-      const pending = PRICE_ALERT_PENDING.get(alert.id);
+      // A hold for an alert whose target or direction was edited since, or one older than a day, is dropped: the alert is judged afresh.
+      let pending = PRICE_ALERT_PENDING.get(alert.id);
+      if (pending && (pending.body.target !== alert.target_price || pending.body.direction !== alert.direction || holdExpired(pending, Date.now()))) {
+        PRICE_ALERT_PENDING.delete(alert.id); pending = undefined;
+      }
       if (pending && !dueForRetry(pending, Date.now())) continue;
       const price = prices[alert.coin];
       const touch = pending ? null : evaluatePriceAlert(alert, price ?? null, candlesByCoin.get(alert.coin) ?? []);
@@ -1170,18 +1176,26 @@ async function checkPriceAlerts(
       const label    = LABELS[alert.coin] ?? alert.coin.toUpperCase();
       const dirLabel = alert.direction === 'above' ? '📈 Crossed Above' : '📉 Crossed Below';
 
-      const body = pending ? pending.body : `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
+      /* What is owed is the TOUCH (QA's and PM's review of #1669). A retry rebuilds the message now, saying when the target was reached and
+         today's price, instead of resending a "Current: $X" that was current hours ago. */
+      const hit: HeldTouch = pending ? pending.body : touch!.via === 'wick'
+        ? { target: alert.target_price, direction: alert.direction, level: touch!.level, atMs: touch!.atMs }
+        : { target: alert.target_price, direction: alert.direction, level: touch!.price, atMs: Date.now() };
+      const at = new Date(hit.atMs).toISOString().slice(11, 16);
+      const body = `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
         `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
-        (touch!.via === 'wick'
-          ? `Reached: $${touch!.level.toLocaleString()} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${new Date(touch!.atMs).toISOString().slice(11, 16)} UTC)` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
-          : `Current: $${touch!.price.toLocaleString()}`) +
+        (pending
+          ? `Reached: $${hit.level.toLocaleString()} at ${at} UTC` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
+          : touch!.via === 'wick'
+            ? `Reached: $${touch!.level.toLocaleString()} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${at} UTC)` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
+            : `Current: $${touch!.price.toLocaleString()}`) +
         (alert.label ? `\nNote: ${escapeHtml(alert.label)}` : '') +
         `\n\n<i>${stamp}</i>`;
 
       /* #1667: switched off only when the message actually landed in at least one chat. A failed send keeps the alert active and holds the
          message for a retry on a backoff; a send paused by the /ops kill switch consumes nothing. This used to switch the alert off after
          any send, so a user whose message failed lost the alert silently. */
-      const next = afterSend(await tg(token, recipient, body), pending, body, Date.now());
+      const next = afterSend(await tg(token, recipient, body), pending, hit, Date.now());
       if (next.pending) PRICE_ALERT_PENDING.set(alert.id, next.pending); else PRICE_ALERT_PENDING.delete(alert.id);
       if (!next.consume) continue;
 
