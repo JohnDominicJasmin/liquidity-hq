@@ -4,6 +4,7 @@ import { T } from '@/lib/tables';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { selectAllRows } from '@/lib/selectAllRows';
+import { planKindOfRow } from '@/lib/paidPeriod';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,12 +105,11 @@ export async function GET(req: Request) {
     // Paged (#1397) - a plain read stops at 1000 rows, and a Pro user past
     // that point was treated as free and never sent a macro alert.
     const { data } = await selectAllRows('macro-alert:user_subscriptions', 'user_id', () =>
-      admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at'));
+      admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at, current_period_end'));
     const now = Date.now();
     for (const row of data ?? []) {
-      const isPro   = row.role === 'pro';
-      const isTrial = row.role !== 'pro' && !!row.trial_ends_at && new Date(row.trial_ends_at as string).getTime() > now;
-      if (isPro || isTrial) proUserIds.add(row.user_id as string);
+      // #1630 GO-LIVE 1: paid Pro ends with the paid time (period end + 48 h), not only in the AI routes. One shared rule, lib/paidPeriod.ts.
+      if (planKindOfRow(row, now) !== 'free') proUserIds.add(row.user_id as string);
     }
   } catch { /* admin not configured - chatIds falls back to the env var below */ }
 

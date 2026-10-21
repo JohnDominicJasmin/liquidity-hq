@@ -66,3 +66,27 @@ export function paidPeriodLapsed(
   if (!Number.isFinite(end)) return false;
   return end + PAID_GRACE_MS < nowMs;
 }
+
+/* THE ONE "WHAT PLAN IS THIS ROW ON, NOW" CHECK (#1630 GO-LIVE 1).
+ *
+ * paidPeriodLapsed existed, but only the AI routes (lib/entitlements.ts) applied it. Every other reader of a user_subscriptions row decided Pro from
+ * `role === 'pro'` alone: the browser (AuthProvider), the Telegram alert cron, the macro-alert cron and /api/subscription. A Whop buyer who cancelled
+ * kept Pro signals, a "Pro" badge in Settings and Telegram Pro alerts for ever, because nothing ever flips `role` back (the unlock never revokes, by
+ * design: cancel keeps paid time, and the period end is what ends it). Every reader now asks this function instead of re-deriving the rule.
+ *
+ *   pro    role is 'pro' and the paid period has not lapsed (end + 48 h grace, see PAID_GRACE_MS). A null period end never lapses (lifetime / admin).
+ *   trial  not paid, and the signup trial window is still open
+ *   free   everything else - including a lapsed paid account whose trial has also ended
+ *
+ * A lapsed paid account whose trial window is somehow still open reads as trial, the same order lib/entitlements.ts has always used. */
+export type PlanKind = 'pro' | 'trial' | 'free';
+
+export interface PlanRow { role?: string | null; trial_ends_at?: string | null; current_period_end?: string | null }
+
+export function planKindOfRow(row: PlanRow | null | undefined, nowMs: number = Date.now()): PlanKind {
+  if (!row) return 'free';
+  const paid = row.role === 'pro' && !paidPeriodLapsed('pro', row.current_period_end, nowMs);
+  if (paid) return 'pro';
+  const trialEnd = row.trial_ends_at ? new Date(row.trial_ends_at).getTime() : 0;
+  return trialEnd > nowMs ? 'trial' : 'free';
+}
