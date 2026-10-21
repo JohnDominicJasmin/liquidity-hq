@@ -13,9 +13,11 @@
  * WHEN AUTH IS STILL ASKED (`getUser()` over the network, the old behaviour): a token this file cannot verify locally - not a well-formed
  * ES256 JWT, or the key set cannot be fetched. A well-formed ES256 token that FAILS verification is rejected here, not passed to Auth.
  *
- * WHAT A LOCAL CHECK CANNOT KNOW: a token stays valid until it expires (at most an hour) even if the account was banned or deleted after it
- * was issued, and the token carries no "email confirmed" flag. Routes that need either (payments claim, admin, welcome email) keep calling
- * Auth directly - see `fetchAuthUser`. */
+ * WHAT A LOCAL CHECK CANNOT KNOW: a token stays valid until it expires (at most an hour) even if the account signed out, was banned or was
+ * deleted after it was issued, and the token carries no "email confirmed" flag. Routes that need either keep calling Auth directly - see
+ * `fetchAuthUser`: payments claim, admin, welcome email, Telegram status, and every route that WRITES with the service role on the strength
+ * of the token alone (push subscribe/test, Telegram link code, the alert-prefs save, Lemon Squeezy cancel). Routes whose reads and writes go
+ * through the user's own token are no weaker: PostgREST accepts that same token until it expires. */
 import { userClient } from '@/lib/supabase-user';
 
 export interface TokenUser {
