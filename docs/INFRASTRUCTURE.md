@@ -23,10 +23,10 @@ Anything created outside this repo has to be recorded in THIS table, not only in
 
 | Service | Render ID | Plan | Region | Branch | URL | Purpose |
 |---|---|---|---|---|---|---|
-| `liquidity-hq-prod` | `srv-d8aluf6l51nc73e1ijp0` | starter | Singapore | `main` | `liquidity-hq.onrender.com` | Production. `npm install; npm run build` → `npm start`. |
-| `liquidity-hq-dev` | `srv-d8prs6po3t8c739aepdg` | free | Singapore | `dev` | `liquidity-hq-dev.onrender.com` | Dev integration. Free plan — spins down after inactivity, first request after idle is slow/can fail. |
-| `liquidity-hq-staging` | `srv-d9qskniju40c73brtqgg` | free | Singapore | `staging` | `liquidity-hq-staging.onrender.com` | **The environment QA tests and signs off on.** Created 2026-08-07 12:06. Serves the release candidate, so what QA tests IS the release rather than a branch dev keeps advancing. `autoDeploy: no` — QA promotes `qa` → `staging`, then **dev** triggers the deploy (Render MCP is dev-side; see the promotion table below). Uses the **dev** Supabase project. Free plan, sleeps when idle. |
-| `liquidity-hq-qa` | `srv-d9p42ke1egvs73f8car0` | free | Singapore | `qa` | `liquidity-hq-qa.onrender.com` | **Dev's integration site, not QA's.** Serves `qa`, which dev promotes into freely; it exists so dev can confirm a promotion before QA sees it. `autoDeploy: no` — whoever merges `dev` → `qa` triggers the deploy. Uses the **dev** Supabase project (free plan caps the account at 2 active projects, so neither non-prod service has one of its own). Free plan, sleeps when idle. |
+| `liquidity-hq-prod` | `srv-d8aluf6l51nc73e1ijp0` | starter | Singapore | `main` | `liquidity-hq.onrender.com` | Production. `npm install; npm run build` → `npm start`. Health check path `/api/version` (set by the owner 2026-10-20 17:16 UTC; see "Health, monitoring and alerts" below). |
+| `liquidity-hq-dev` | `srv-d8prs6po3t8c739aepdg` | free | Singapore | `dev` | `liquidity-hq-dev.onrender.com` | Dev integration. Free plan — spins down after inactivity, first request after idle is slow/can fail. Deployed by **PM/DevOps** only when a deployed check is genuinely needed (assigned 2026-09-07; ~500 build-hour/month cap). |
+| `liquidity-hq-staging` | `srv-d9qskniju40c73brtqgg` | free | Singapore | `staging` | `liquidity-hq-staging.onrender.com` | **The environment QA tests and signs off on.** Created 2026-08-07 12:06. Serves the release candidate, so what QA tests IS the release rather than a branch dev keeps advancing. `autoDeploy: no` — **QA promotes `qa` → `staging` and deploys it** (both halves; see the promotion table below). Uses the **dev** Supabase project. Free plan, sleeps when idle. |
+| `liquidity-hq-qa` | `srv-d9p42ke1egvs73f8car0` | free | Singapore | `qa` | `liquidity-hq-qa.onrender.com` | **Dev's integration site, not QA's.** Serves `qa`, which dev promotes into freely; it exists so dev can confirm a promotion before QA sees it. `autoDeploy: no` — dev promotes `dev` → `qa`, **QA triggers the deploy** and says so. Uses the **dev** Supabase project (free plan caps the account at 2 active projects, so neither non-prod service has one of its own). Free plan, sleeps when idle. |
 | `n8n-workflows` | `srv-d6e4fkq4d50c73b8dpk0` | starter | Singapore | n/a (Docker image `n8nio/n8n:latest`) | `n8n-workflows-6ig6.onrender.com` | Self-hosted n8n instance, 5GB persistent disk. Shared across projects, not LHQ-exclusive. |
 
 **All four LHQ services have `autoDeploy: no`. No service in this project auto-deploys.** Pushing to any branch deploys nothing; every deploy is triggered by a person (Render dashboard, or the `mcp__render__trigger_deploy` tool).
@@ -35,20 +35,25 @@ That applies to each hop, and the person differs:
 
 | Promotion | Who promotes | Who deploys | Which service |
 |---|---|---|---|
-| `dev` → `qa` | dev | dev, as part of handing the build over | `liquidity-hq-qa` |
-| `qa` → `staging` | **QA** | **dev**, when QA says it has promoted | `liquidity-hq-staging` |
-| `staging` → `main` | **QA** | **QA**, owner-approved. Never dev. | `liquidity-hq-prod` |
+| `dev` → `qa` | dev | **QA**, and says so | `liquidity-hq-qa` |
+| `qa` → `staging` | **QA** | **QA** | `liquidity-hq-staging` |
+| `staging` → `main` | **PM/DevOps**, with the owner's approval for that release | **PM/DevOps**, with the owner's approval for that release. Never dev. | `liquidity-hq-prod` |
+| (no promotion) | — | **PM/DevOps**, only when a deployed check is needed | `liquidity-hq-dev` |
 
-**Promoting and deploying are separate people for `staging`, and that is
-deliberate rather than an oversight.** Changed 2026-08-10: `mcp__render__trigger_deploy`
-is available in the **dev** session and not in QA's, so QA cannot deploy anything
-even when the branch move is theirs. Before this, `staging` routinely served older
-code than its own branch — on 2026-08-09 it sat on `f6f3bf3` while the branch was
-two releases ahead, which silently kept a fixed bug alive in a shared health row.
+**Updated 2026-10-21 to match `CLAUDE.md` ("Who DEPLOYS", "Who MERGES"), which is
+the authority.** Until then this table said dev deploys `qa` and `staging` and QA
+merges and deploys production. All three changed: on 2026-09-03 dev came under a
+standing owner instruction to deploy no environment without the owner's go each
+time; QA has deployed `qa` and `staging` since (QA has the Render tools too, so the
+2026-08-10 premise that only dev could deploy was wrong); and on 2026-09-05 the
+owner gave the `staging` → `main` merge and the production deploy to PM/DevOps.
+The 2026-08-09 lesson still holds: a branch that moved while its service did not
+serves old code under a new commit message, so whoever promotes says so and the
+deploy follows at once, checked against `/api/version`.
 
-Production is the exception that keeps the gate meaningful: QA merges it, QA
-deploys it, and the owner approves it. Dev does not deploy prod even if asked
-through GitHub.
+Production is the exception that keeps the gate meaningful: PM/DevOps merges and
+deploys it only with the owner's approval for that release, and only after QA's
+sign-off. Dev deploys nothing, even if asked through GitHub.
 
 **A promotion into `qa` or `staging` fires no CI at all**, and that is deliberate — `.github/workflows/ci.yml` lists `push` branches as `[dev, main]` only. Both promotions are fast-forward, so the commit landing is bit-identical to one already tested on `dev`, and re-running would bill a second full suite for the same tree. Do not read a quiet Actions tab after a promotion as a failure to run.
 
@@ -88,6 +93,15 @@ This is recorded because acting on the opposite belief cost real time on 2026-08
 
 So when a hostname and a service name disagree, **the hostname is the older fact.** Read the URL column of the table above, never the service name, and never infer either from the branch.
 
+### Health, monitoring and alerts (recorded 2026-10-21)
+
+- **Render health check (production):** `healthCheckPath` = `/api/version`, set by the owner on 2026-10-20 at 17:16 UTC and verified by PM via the Render API. Render stops routing to, and restarts, an instance that stops answering. Before that, Render only checked that the port accepted a connection.
+- **Outside uptime alert:** the cron-job.org job `liquidity hq` (id 7680800, `GET https://liquidity-hq.com/` every 5 min, §2) notifies all of the owner's notification channels when the check fails twice in a row (~5-10 min down), when it recovers, when the job would be disabled, and when the TLS certificate expires within 7 days. Set by PM, owner-approved, 2026-10-21 09:43 UTC (#1594). **This is the check that catches a crash:** the out-of-memory abort of 2026-10-21 05:55 UTC never reached GlitchTip, because a crashed process cannot report itself.
+- **GlitchTip is not used for uptime:** the free plan allows 1,000 events/month, and a 60-second monitor would use ~43,200, which would stop production error reporting.
+- **Dependabot alerts:** switched on 2026-10-21 09:26 UTC at the owner's request (#1632). 59 open alerts at 09:55 UTC (`next` x17, 3 of them critical). PM files High and Critical ones on #1632. Secret scanning is a paid GitHub product and is off.
+- **Node version:** Render builds use **Node 24.14.1**, Render's default; `NODE_VERSION` is **not pinned** (read from a build log, 2026-10-21; pinning is an env-var change, the owner's call).
+- **The outbound IP is shared:** "Outbound IP ranges are shared across all services in the same region" (render.com/docs/static-outbound-ip-addresses). Every per-IP limit we depend on (Binance, Bybit, OKX, Hyperliquid) is shared with other Render customers. Dedicated outbound IPs are a paid option and are not taken (#1649).
+
 `render.yaml` in this repo has **no cron job definitions** — Render's own Cron Jobs feature is not used anywhere for this project (it has no free tier, unlike the alternatives below).
 
 ---
@@ -98,7 +112,7 @@ Account: `console.cron-job.org` (external, separate login — not in this repo, 
 
 | Job name | Target | Schedule | Status | Auth | Purpose |
 |---|---|---|---|---|---|
-| `liquidity hq` | `https://liquidity-hq.com/` | every 5 min | **Active**, succeeding | none | Keep-alive / uptime ping for prod root. |
+| `liquidity hq` | `https://liquidity-hq.com/` | every 5 min | **Active**, succeeding | none | Keep-alive and **uptime alert** for prod root (id 7680800). Since 2026-10-21 09:43 UTC it notifies the owner on 2 failures in a row, on recovery, before auto-disable, and on TLS expiry within 7 days (#1594). |
 | `LiquidityHQ` | `https://liquidity-hq.com/api/telegram/alert` | every 5 min (`*/5 * * * *`, tz Asia/Manila) | **Active**, succeeding | none (no custom headers sent) | The actual Telegram/Web Push alert scanner — RSI, EMA crosses, whale trades, OI spikes, news, fear/greed. See `docs/ARCHITECTURE.md` §7. |
 | `LiquidityHQ - macro-alert` | `https://liquidity-hq.com/api/macro-alert` | every 5 min (`*/5 * * * *`, tz Asia/Manila) | **Active**, confirmed succeeding (200 OK, first tick 2026-07-19 6:25 PM) | none | Economic-calendar event alerts (FOMC/NFP/CPI/etc). Wired 2026-07-19 — see §8, was previously the confirmed gap. |
 | `LiquidityHQ - signals/track` | `https://liquidity-hq.com/api/signals/track` | every 15 min (`*/15 * * * *`, tz Asia/Manila) | **Active**, route confirmed live via direct curl (200 OK) same day; first scheduled tick pending at creation time | none | Live EMA Ribbon signal detection + resolution (majors, 1h/4h) feeding `/live-tracking`. Wired 2026-07-19 — see §8, was previously the confirmed gap. |
@@ -600,8 +614,9 @@ From `.env.example` — the authoritative list of what needs a key. Whether each
 | Finnhub | `FINNHUB_KEY` | (economic calendar / macro data) | — |
 | Telegram Bot API | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET` | Alert delivery channel | — |
 | Web Push (VAPID) | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` | Browser push notifications | — |
-| Binance / Bybit public REST | none (no key) | Live price ticker used by `api/alert-outcomes/resolve` and elsewhere | Public, unauthenticated |
-| `CRON_SECRET` | `CRON_SECRET` | Meant to protect `telegram/alert`, `macro-alert`, `signals/track`, `telegram/setup-webhook`, `alert-outcomes/resolve` from unauthenticated triggering. **Confirmed unset on prod** as of 2026-07-19 (see §2). | — |
+| Binance / Bybit public REST (OKX and Hyperliquid planned) | none (no key) | Market data: prices, candles, funding, open interest, long/short, trades. **Every server call goes through one shared breaker and request budget** (`lib/exchangeGuard.ts`, #1659): on a ban answer it stops all calls to that exchange for the ban period. The fallback chain is on #1649: Bybit WebSocket (phase 2), OKX + our own snapshots (phase 3), Hyperliquid as third source (phase 4, owner 2026-10-21). Bybit answered 403 to production's candle requests 15 times between 2026-10-16 and 2026-10-21 (GlitchTip); whether that is its rate limit or a block is not yet confirmed (#1649). | Public, per-IP limits on a shared Render IP (§1). Terms: most exchanges restrict commercial use without written permission; the requests wait until after launch (owner, 2026-10-21 09:36 UTC) |
+| Whop | `NEXT_PUBLIC_WHOP_CHECKOUT_MONTHLY` / `_ANNUAL` / `_FORTNIGHTLY`, `WHOP_WEBHOOK_SECRET`, `WHOP_COMPANY_ID`, `WHOP_PLAN_ID_*` | Payments, Whop only since 2026-10-17 (#1567). The monthly link alone decides whether Pro is on sale (`lib/checkout.ts`, `isProBuyable`); the webhook refuses everything without its secret (`lib/whop.ts`). | **None set on production** (PM read the names on Render, 2026-10-21 ~14:17 UTC): payments are off there. Go-live sets all of them together, then rebuilds; never the links alone |
+| `CRON_SECRET` | `CRON_SECRET` | Protects `telegram/alert`, `macro-alert`, `signals/track`, `telegram/setup-webhook`, `alert-outcomes/resolve` and the ingest routes from unauthenticated triggering. **Set on prod** (named in production's Render environment and reported by `/api/version` as `cronSecret: true`, 2026-10-21); this row said "unset" until then, long after §2 was corrected. | — |
 
 **Coinglass is dead upstream (2026-07-30).** The row above previously claimed a
 free tier; that was wrong and it cost real debugging time. What is actually true:

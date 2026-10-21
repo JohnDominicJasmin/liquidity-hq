@@ -11,6 +11,20 @@ file.**
 
 ---
 
+> ### State on 2026-10-21 (PM/DevOps)
+>
+> The only dated status in this file. Check it against the live sources in the table further down.
+>
+> - **Production:** `b999f8c`, tag `v2026.10.17`. **Release v2026.10.21** (the out-of-memory crash fix and lighter
+>   sign-in checks, data fixes, security limits) passed QA's full regression on 2026-10-21 and is on `staging`,
+>   waiting for the owner's approval (#1654).
+> - **Four seats:** PM/DevOps (sequencing; `main` and production with the owner's approval each release), Dev
+>   (application code), QA (every test, the `qa` and `staging` deploys, sign-off), Marketing (Claude Cowork, folder
+>   `Documents\LiquidityHQ-Marketing`; PM keeps its `FACTS.md`). Who merges and deploys: `CLAUDE.md`.
+> - **Payments:** Whop only since 2026-10-17; built, switched off on production until go-live (#1567).
+> - **Read next:** `docs/OWNER-BACKLOG.md` (the owner's list, the 2026-10-21 decisions, the order of work) and
+>   `docs/WORK-QUEUE.md` (the lanes).
+
 > ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-27.
 >
 > Sections **§7 (Current progress)**, **§8 (Testing status)** and **§9 (Current issues)**
