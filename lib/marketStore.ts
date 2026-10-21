@@ -157,10 +157,13 @@ export type MarketStore = {
   wsStatus: string;
   newsCache: string[];
   oilPrice: number | null;
+  oilChg: number | null;         // its 1-day change in % (#1631 A)
   bonds10y: number | null;       // US 10Y Treasury yield, nominal, % (Yahoo ^TNX via /api/macro), #1631 C
   bonds10yChgBp: number | null;  // its 1-day change in basis points
   etfNetFlow: number | null;     // BTC spot ETF total net flow today in $M
   ethEtfNetFlow: number | null;  // ETH spot ETF total net flow today in $M
+  etfFlowDays: Array<{ date: string; flowM: number }> | null;     // BTC, last 3 US trading days, newest first, $M (#1631 A)
+  ethEtfFlowDays: Array<{ date: string; flowM: number }> | null;  // ETH, same
   /* Deribit options */
   btcPcRatio: number | null;
   btcMaxPain: number | null;
@@ -216,10 +219,13 @@ export const defaultStore: MarketStore = {
   wsStatus: 'Connecting...',
   newsCache: [],
   oilPrice: null,
+  oilChg: null,
   bonds10y: null,
   bonds10yChgBp: null,
   etfNetFlow: null,
   ethEtfNetFlow: null,
+  etfFlowDays: null,
+  ethEtfFlowDays: null,
   btcPcRatio: null,
   btcMaxPain: null,
   stablecoinSupply: null,

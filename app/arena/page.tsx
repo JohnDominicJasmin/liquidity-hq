@@ -50,6 +50,7 @@ import { usePerpSpot } from '@/lib/usePerpSpot';
 import { formatRsi } from '@/lib/rsi';
 import { priceDigits, priceText, signedUsd } from '@/lib/numberFormat';
 import { announcePageCoin } from '@/lib/pageCoin';
+import { ageText, utcStamp } from '@/lib/promptTime';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -188,7 +189,7 @@ function ArenaContent() {
   // the smallest bucket the freshness text distinguishes.
   const nowMs = useNow(30_000);
   const { store } = useMarket();
-  const { latestHeadlines, econEvents, whaleAlerts } = useNews();
+  const { latestNews, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements, isPro } = useAuth();
   const { settings, settingsLoadStatus, update, refresh: refreshSettings } = useSettings();
   const searchParams = useSearchParams();
@@ -1198,7 +1199,11 @@ function ArenaContent() {
     })();
 
     /* Macro */
-    const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' : '-';
+    // #1631 A: the oil move, not only the level - check 2's oil shock was a CHANGE the prompt never showed.
+    const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' + (store.oilChg != null ? ` (${store.oilChg >= 0 ? '+' : ''}${store.oilChg.toFixed(2)}% 1d)` : '') : '-';
+    /* #1631 A: spot ETF net flows by US trading day, newest first, each with its date - a +$526.7M day was missed or cited undated. */
+    const etfDaysText = (days: Array<{ date: string; flowM: number }> | null) =>
+      days && days.length > 0 ? days.map(d => `${d.date} ${signedUsd(d.flowM, 'M', 1)}`).join(' | ') : 'unavailable';
     /* #1631 C: both 10-year yields, each labelled. store.bonds10y was never filled, so this line always read "-"; it is now the nominal
        10Y (Yahoo ^TNX, what a trader means by "the 10Y"), and the real yield (FRED DFII10, #311) is its own line. A missing one says so. */
     const bonds10y  = store.bonds10y != null
@@ -1221,12 +1226,13 @@ function ArenaContent() {
         const actualStr = e.actual ? ` → ACTUAL: ${e.actual}` : ' → result pending/not yet in feed';
         const estStr = e.estimate ? ` | Est: ${e.estimate}` : '';
         const prevStr = e.previous ? ` | Prev: ${e.previous}` : '';
-        return `✅ RELEASED (${timeLabel}): ${e.name}${actualStr}${estStr}${prevStr}`;
+        // #1631 A: the UTC time beside the age, so a catalyst built on it can be dated.
+        return `✅ RELEASED (${utcStamp(e.dt.getTime())}, ${timeLabel}): ${e.name}${actualStr}${estStr}${prevStr}`;
       })
       .join('\n');
     const upcomingList = econEvents
       .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh > 0 && lh < 48; }).slice(0, 6)
-      .map(e => `UPCOMING: ${e.name} (${e.dateStr}, impact: ${e.impact})${e.estimate ? ' | Est: ' + e.estimate : ''}`)
+      .map(e => `UPCOMING: ${e.name} (${utcStamp(e.dt.getTime())}, impact: ${e.impact})${e.estimate ? ' | Est: ' + e.estimate : ''}`)
       .join('\n') || 'None in next 48h';
     const upcoming = [recentlyReleased, upcomingList].filter(Boolean).join('\n');
 
@@ -1281,9 +1287,14 @@ function ArenaContent() {
       fearGreed: store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '-',
       btcDominance: btcDomTrend,
       session, clusters: '-',
-      news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 15).join('\n') : 'No recent alerts',
+      // #1631 A: each headline with its UTC time, age and source, newest first - a catalyst taken from it can be dated and attributed.
+      news: latestNews.length > 0
+        ? [...latestNews].sort((a, b) => b.ts - a.ts).slice(0, 15)
+            .map(n => `- [${utcStamp(n.ts * 1000)}, ${ageText(now - n.ts * 1000)} | ${n.source || 'news feed'}] ${n.headline}`).join('\n')
+        : 'No recent alerts',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, real10y, upcomingEvents: upcoming,
+      etfFlows: etfDaysText(store.etfFlowDays), ethEtfFlows: etfDaysText(store.ethEtfFlowDays),
       rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, liqLevels, btcDomTrend, sectorRotation,
@@ -1679,7 +1690,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache, liqClusters]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, fundingData, resultsCache, liqClusters]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot

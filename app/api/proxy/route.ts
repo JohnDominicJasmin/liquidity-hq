@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
-import { etfFlowMillions } from '@/lib/etfFlows';
+import { etfFlowDays, type EtfFlowDay } from '@/lib/etfFlows';
 import { trackHealth, reportHealth } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { getUserCompat } from '@/lib/authUser';
@@ -479,7 +479,9 @@ export async function GET(req: NextRequest) {
          figure and only changes after a US trading session closes. */
       const ETF_TTL_MS = 60 * 60 * 1000;
 
-      async function fetchSoSoFlow(symbol: 'BTC' | 'ETH'): Promise<number | null> {
+      /* #1631 A: the last three trading days WITH their dates (limit=3), not one undated number - the AI reads them as dated catalysts.
+         `btc` / `eth` stay the latest day's flow for /briefing and the chat. */
+      async function fetchSoSoFlow(symbol: 'BTC' | 'ETH'): Promise<EtfFlowDay[] | null> {
         const apiKey = process.env.SOSOVALUE_API_KEY;
         /* No key: make no call and report nothing. Reporting a failure here
            would fill the health table on every environment that deliberately
@@ -487,9 +489,9 @@ export async function GET(req: NextRequest) {
            unhealthy. */
         if (!apiKey) return null;
 
-        return cached(`sosovalue:etf:${symbol}`, ETF_TTL_MS, async () => {
+        return cached(`sosovalue:etf-days:${symbol}`, ETF_TTL_MS, async () => {
           const url = 'https://openapi.sosovalue.com/openapi/v1/etfs/summary-history'
-            + `?symbol=${symbol}&country_code=US&limit=1`;
+            + `?symbol=${symbol}&country_code=US&limit=3`;
           const r = await exchangeFetch(url, {
             headers: { 'x-soso-api-key': apiKey, Accept: 'application/json' },
             signal: AbortSignal.timeout(8000),
@@ -502,7 +504,7 @@ export async function GET(req: NextRequest) {
              for why the unit is the dangerous half. Throws on an unusable
              payload, which the caller turns into a health failure rather than
              a silent zero. */
-          return etfFlowMillions(body);
+          return etfFlowDays(body, 3);
         });
       }
 
@@ -510,8 +512,10 @@ export async function GET(req: NextRequest) {
         fetchSoSoFlow('BTC'),
         fetchSoSoFlow('ETH'),
       ]);
-      const btc = btcRes.status === 'fulfilled' ? btcRes.value : null;
-      const eth = ethRes.status === 'fulfilled' ? ethRes.value : null;
+      const btcDays = btcRes.status === 'fulfilled' ? btcRes.value : null;
+      const ethDays = ethRes.status === 'fulfilled' ? ethRes.value : null;
+      const btc = btcDays?.[0]?.flowM ?? null;
+      const eth = ethDays?.[0]?.flowM ?? null;
 
       /* Only report health when a key exists. Otherwise every keyless
          environment reports a failure for a call it never made. */
@@ -533,7 +537,7 @@ export async function GET(req: NextRequest) {
          is undefined on a number, so the store would silently never have been
          set and the panel would have stayed exactly as broken as before, with
          the health table now green. Updated alongside this. */
-      return NextResponse.json({ btc, eth }, { headers: PROXY_CACHE });
+      return NextResponse.json({ btc, eth, btcDays, ethDays }, { headers: PROXY_CACHE });
     }
 
     /* Table-driven passthrough (#238). Placed after the hand-written branches so

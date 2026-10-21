@@ -108,6 +108,8 @@ interface NewsCtx {
   alertsLoaded: boolean;  // true once the initial news read has been applied
   newsActive: boolean;
   latestHeadlines: string[];
+  /** #1631 A: the same headlines with their source and time (ts in SECONDS), for prompts that must date what they cite. */
+  latestNews: Array<{ headline: string; source: string; ts: number }>;
   whaleAlerts: WhaleAlert[];
 }
 
@@ -162,6 +164,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const [eventsLoaded, setEventsLoaded] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [latestHeadlines, setLatestHeadlines] = useState<string[]>([]);
+  const [latestNews, setLatestNews] = useState<Array<{ headline: string; source: string; ts: number }>>([]);
   const [whaleAlerts, setWhaleAlerts] = useState<WhaleAlert[]>([]);
   const seenRef = useRef<Set<string>>(new Set());
   const alertIdRef = useRef(0);
@@ -209,6 +212,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     }
 
     setLatestHeadlines(prev => [headline, ...prev].slice(0, 25));
+    setLatestNews(prev => [{ headline, source, ts }, ...prev].slice(0, 25));
 
     const id = alertIdRef.current++;
     // Cap the alert list. It used to grow for the lifetime of the tab, bounded
@@ -446,7 +450,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const newsActive = alerts.some(a => nowMs / 1000 - a.ts < 5 * 60);
 
   return (
-    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, econRaw, econStale, econAgeMs: econStaleMs, geoEvents, eventsLoaded, alertsLoaded, newsActive, latestHeadlines, whaleAlerts }}>
+    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, econRaw, econStale, econAgeMs: econStaleMs, geoEvents, eventsLoaded, alertsLoaded, newsActive, latestHeadlines, latestNews, whaleAlerts }}>
       {children}
     </NewsContext.Provider>
   );
