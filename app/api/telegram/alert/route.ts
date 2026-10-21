@@ -27,6 +27,7 @@ import { planKindOfRow } from '@/lib/paidPeriod';
 import { FREE_SIGNAL_COINS } from '@/lib/signalCoinGate';
 import { wilderRsi } from '@/lib/rsi';
 import { exchangeFetch } from '@/lib/exchangeGuard';
+import { afterSend, dueForRetry, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
 
 export const dynamic = 'force-dynamic';
 
@@ -368,16 +369,24 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
    a warm process, hence the explicit reset rather than lazy init. */
 const sendTally = { ok: 0, failed: 0, reasons: new Set<string>() };
 
+/* #1667: triggered price alerts whose message has not landed yet, by alert id, with the message and its backoff (lib/priceAlertDelivery.ts).
+   Process memory, like the tally above: a restart drops them, and the still-active alert fires again on its next touch. Bounded by the
+   active alerts - entries for alerts that are gone are pruned on every run. */
+const PRICE_ALERT_PENDING = new Map<number, PendingDelivery>();
+
 function resetSendTally(): void {
   sendTally.ok = 0;
   sendTally.failed = 0;
   sendTally.reasons.clear();
 }
 
-async function tg(token: string, chatId: string | string[], text: string): Promise<void> {
+/* #1667: what one call delivered, per recipient chat, so a caller that must know (price alerts) can tell "sent", "failed" and "paused"
+   apart. Every other caller still ignores it, as before. */
+async function tg(token: string, chatId: string | string[], text: string): Promise<SendResult> {
   // Send-only kill switch (/ops/config) - detection/tracking above this call
   // keeps running either way, only the actual outbound message stops.
-  if (!(await isFeatureEnabled('telegram'))) return;
+  if (!(await isFeatureEnabled('telegram'))) return { sent: 0, failed: 0, paused: true };
+  const result: SendResult = { sent: 0, failed: 0, paused: false };
 
   const ids = Array.isArray(chatId) ? chatId : [chatId];
   // One rendered body per distinct timezone among these recipients.
@@ -404,8 +413,8 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
           body: JSON.stringify({ chat_id: id, text: body, parse_mode: 'HTML' }),
           signal: AbortSignal.timeout(10_000),
         });
-        if (res.ok) { sendTally.ok++; return; }
-        sendTally.failed++;
+        if (res.ok) { sendTally.ok++; result.sent++; return; }
+        sendTally.failed++; result.failed++;
         // description is Telegram's own reason ("chat not found", "bot was
         // blocked by the user") and is what makes the /ops entry actionable.
         const why = await res.json().then(
@@ -414,11 +423,12 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
         );
         sendTally.reasons.add(why);
       } catch (e) {
-        sendTally.failed++;
+        sendTally.failed++; result.failed++;
         sendTally.reasons.add(healthError(e));
       }
     });
   }));
+  return result;
 }
 
 /* ════════════════════════════════════════
@@ -1136,9 +1146,12 @@ async function checkPriceAlerts(
     }), 5);
 
     for (const alert of rows) {
+      // #1667: a message that failed earlier is resent on its backoff; the touch already happened, so price is not re-checked for it.
+      const pending = PRICE_ALERT_PENDING.get(alert.id);
+      if (pending && !dueForRetry(pending, Date.now())) continue;
       const price = prices[alert.coin];
-      const touch = evaluatePriceAlert(alert, price ?? null, candlesByCoin.get(alert.coin) ?? []);
-      if (!touch) continue;
+      const touch = pending ? null : evaluatePriceAlert(alert, price ?? null, candlesByCoin.get(alert.coin) ?? []);
+      if (!pending && !touch) continue;
 
       // Route to owner if known; only a row with NO user_id at all (true
       // legacy, pre-dates per-user ownership) falls back to broadcasting to
@@ -1157,15 +1170,20 @@ async function checkPriceAlerts(
       const label    = LABELS[alert.coin] ?? alert.coin.toUpperCase();
       const dirLabel = alert.direction === 'above' ? '📈 Crossed Above' : '📉 Crossed Below';
 
-      const body = `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
+      const body = pending ? pending.body : `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
         `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
-        (touch.via === 'wick'
-          ? `Reached: $${touch.level.toLocaleString()} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${new Date(touch.atMs).toISOString().slice(11, 16)} UTC)` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
-          : `Current: $${touch.price.toLocaleString()}`) +
+        (touch!.via === 'wick'
+          ? `Reached: $${touch!.level.toLocaleString()} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${new Date(touch!.atMs).toISOString().slice(11, 16)} UTC)` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
+          : `Current: $${touch!.price.toLocaleString()}`) +
         (alert.label ? `\nNote: ${escapeHtml(alert.label)}` : '') +
         `\n\n<i>${stamp}</i>`;
 
-      await tg(token, recipient, body);
+      /* #1667: switched off only when the message actually landed in at least one chat. A failed send keeps the alert active and holds the
+         message for a retry on a backoff; a send paused by the /ops kill switch consumes nothing. This used to switch the alert off after
+         any send, so a user whose message failed lost the alert silently. */
+      const next = afterSend(await tg(token, recipient, body), pending, body, Date.now());
+      if (next.pending) PRICE_ALERT_PENDING.set(alert.id, next.pending); else PRICE_ALERT_PENDING.delete(alert.id);
+      if (!next.consume) continue;
 
       triggeredIds.push(alert.id);
       // Deliberately NOT added to `fired`. Historically that list fed an
@@ -1178,6 +1196,10 @@ async function checkPriceAlerts(
       // definition one person's, so it must not leak into a shared surface if
       // one is ever reintroduced.
     }
+
+    // #1667: a held message for an alert that is no longer active (deleted, or switched off elsewhere) is dropped - the map stays bounded.
+    const activeIds = new Set(rows.map(a => a.id));
+    for (const id of [...PRICE_ALERT_PENDING.keys()]) if (!activeIds.has(id)) PRICE_ALERT_PENDING.delete(id);
 
     // Deactivate all fired alerts in a single round-trip
     if (triggeredIds.length > 0) {
@@ -2506,7 +2528,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     ok: true, fired,
     recipients: recipients.length,
     mutedUsers: mutedUsersStored,
-    delivery: { queued: signalQueue.length, eligible, sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] },
+    delivery: { queued: signalQueue.length, eligible, sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons], priceAlertsHeld: PRICE_ALERT_PENDING.size },
     skipped: skipCounts,
     checked: [
       'RSI', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD',
