@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
-import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // DeFi Llama's stablecoin series only updates once a day - cache generously.
@@ -18,11 +19,7 @@ class RateLimitError extends Error {
 }
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
+  return userClient(token);
 }
 
 interface LlamaEntry {
@@ -66,7 +63,7 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only. /upgrade sells the one-shot AI tools as a Pro feature

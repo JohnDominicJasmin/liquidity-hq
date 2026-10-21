@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  return userClient(token);
 }
 
 async function getUser(token: string) {
-  const { data } = await sb(token).auth.getUser();
+  const { data } = await getUserCompat(token);
   return data.user ?? null;
 }
 

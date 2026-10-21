@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { T } from '@/lib/tables';
+import { anonServerClient } from '@/lib/supabase-user';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,10 +39,7 @@ export async function POST(req: NextRequest) {
   const password = typeof body.password === 'string' ? body.password : '';
   if (!email || !password) return NextResponse.json({ reason: null });
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
+  const sb = anonServerClient();
   const { error } = await sb.auth.signInWithPassword({ email, password });
   if (!isBannedError(error)) return NextResponse.json({ reason: null });
 

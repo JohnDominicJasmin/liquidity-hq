@@ -114,7 +114,8 @@ export default function EconCalendarPage() {
   useEffect(() => {
     fetch('/api/econ-calendar')
       .then(r => r.json())
-      .then(d => { setEvents(d.events ?? []); setSource(d.source ?? ''); })
+      /* source 'none' is the route saying it could not produce a calendar (#1625): show the load error, never "no events" as if nothing were scheduled. */
+      .then(d => { if (d.source === 'none') { setFailed(true); return; } setEvents(d.events ?? []); setSource(d.source ?? ''); })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);

@@ -1,5 +1,6 @@
 import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
+import { wilderRsiSeries } from './rsi.ts';
 
 export interface GrokUsageInfo {
   deep_used:     number; deep_limit:     number;
@@ -25,7 +26,10 @@ export async function callGrokViaProxy(
   prompt: string,
   tf: string,
   session: string,
-  type: 'quick' | 'deep'
+  type: 'quick' | 'deep',
+  /** The coin the read is about (a coin id, e.g. 'xrp'). The server refuses Quick and Deep on a coin outside BTC/ETH/SOL for an account that
+   *  has not paid (#1596); it cannot read the coin out of the prompt, so it is sent beside it. */
+  coin?: string
 ): Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }> {
   const token = await getAuthToken();
 
@@ -35,7 +39,7 @@ export async function callGrokViaProxy(
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ prompt, tf, session, type }),
+    body: JSON.stringify({ prompt, tf, session, type, coin }),
   });
 
   if (!res.ok) {
@@ -46,13 +50,81 @@ export async function callGrokViaProxy(
     if (res.status === 403 && err.error === 'PRO_REQUIRED') {
       throw Object.assign(new Error('PRO_REQUIRED'), { code: 'PRO_REQUIRED', usage: err.usage });
     }
+    // #1596: refused because the coin is Pro-only for this account. Passed on as a code so the page shows its labelled line, not raw text.
+    if (res.status === 403 && err.code === 'COIN_LOCKED') {
+      throw Object.assign(new Error('COIN_LOCKED'), { code: 'COIN_LOCKED', usage: err.usage });
+    }
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
       : err.error ?? 'Grok proxy error';
     throw Object.assign(new Error(msg), { code: err.code, usage: err.usage });
   }
 
-  return res.json() as Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }>;
+  /* The answer is checked here, once, because every reader downstream (the page's raid alert, the result card, the history, the saved
+     signal) reads fields straight off `result`. A 200 whose body is `{}`, not JSON, or a result without a signal used to come back as
+     `{ result: undefined }` and surface as the raw text "Cannot read properties of undefined (reading 'raidSetup')" (#1583). The real
+     route cannot produce that (parseCombinedResponse always returns every field), so this guards a proxy, a cache, a stale deploy or a
+     stub. A missing signal or confidence is REFUSED rather than defaulted: "unknown" must not be shown as FLAT or 0%. */
+  let body: unknown;
+  try { body = await res.json(); } catch { body = null; }
+  const b = (typeof body === 'object' && body !== null ? body : {}) as { result?: unknown; usage?: unknown };
+  const result = normalizeCombinedResult(b.result, tf, session);
+  if (!result) throw Object.assign(new Error(GROK_EMPTY_ANSWER_MESSAGE), { code: 'BAD_ANSWER' });
+  return { result, usage: normalizeGrokUsage(b.usage) };
+}
+
+const USAGE_KEYS = ['deep_used', 'deep_limit', 'quick_used', 'quick_limit', 'chat_used', 'chat_limit', 'search_used', 'search_limit', 'briefing_used', 'briefing_limit'] as const;
+
+/** The usage the page shows in its chips, or null. A partial object would put `undefined` into the counters (NaN, "undefined of undefined"), and
+ *  null is the value every consumer already handles ("unknown" shows nothing rather than a false 0). */
+export function normalizeGrokUsage(raw: unknown): GrokUsageInfo | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const u = raw as Record<string, unknown>;
+  for (const k of USAGE_KEYS) if (typeof u[k] !== 'number' || !Number.isFinite(u[k] as number)) return null;
+  return raw as GrokUsageInfo;
+}
+
+/** Shown when the AI endpoint answered 200 but with nothing usable. Plain, no jargon, says what to do. */
+export const GROK_EMPTY_ANSWER_MESSAGE = 'The AI read came back empty. Try again in a moment.';
+
+const SIGNALS: ReadonlyArray<CombinedResult['signal']> = ['BULLISH', 'LEAN BULLISH', 'FLAT', 'LEAN BEARISH', 'BEARISH'];
+const strOrEmpty = (v: unknown): string => (typeof v === 'string' ? v : '');
+const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
+
+/** A complete CombinedResult from whatever the endpoint sent, or null when it is not an answer at all. Missing LISTS and TEXT become empty
+ *  (nothing to show is a true statement); a missing or invalid `signal` or `confidence` is NOT filled in (that would present an unknown
+ *  as a real verdict), so the result is refused. */
+export function normalizeCombinedResult(raw: unknown, tf: string, session: string): CombinedResult | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.signal !== 'string' || !SIGNALS.includes(r.signal as CombinedResult['signal'])) return null;
+  if (typeof r.confidence !== 'number' || !Number.isFinite(r.confidence)) return null;
+  const levels = Array.isArray(r.levels)
+    ? (r.levels as unknown[]).filter((l): l is CombinedResult['levels'][number] => {
+        const x = l as Record<string, unknown> | null;
+        return !!x && typeof x.price === 'number' && Number.isFinite(x.price) && typeof x.label === 'string' && (x.type === 'support' || x.type === 'resistance');
+      })
+    : [];
+  const strings = (v: unknown): string[] => (Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : []);
+  const bias = r.bias === 'BULLISH' || r.bias === 'BEARISH' || r.bias === 'NEUTRAL' ? r.bias : null;
+  const raidSetup = r.raidSetup === 'SHORT SQUEEZE' || r.raidSetup === 'LONG FLUSH' ? r.raidSetup : null;
+  return {
+    signal: r.signal as CombinedResult['signal'],
+    confidence: Math.max(0, Math.min(100, r.confidence)),
+    levels,
+    chartAnalysis: strOrEmpty(r.chartAnalysis),
+    patterns: strings(r.patterns),
+    reasoning: strOrEmpty(r.reasoning),
+    catalysts: strings(r.catalysts),
+    waitFor: strOrNull(r.waitFor),
+    bias,
+    raidSetup,
+    raidTarget: strOrNull(r.raidTarget),
+    raidTrigger: strOrNull(r.raidTrigger),
+    analyzedAt: typeof r.analyzedAt === 'number' && Number.isFinite(r.analyzedAt) ? r.analyzedAt : Date.now(),
+    tf: typeof r.tf === 'string' && r.tf ? r.tf : tf,
+    session: typeof r.session === 'string' && r.session ? r.session : session,
+  };
 }
 
 /** Fetch today's usage without running an analysis - call on page mount.
@@ -232,7 +304,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '(Divergence between exchanges = different trader bases are positioned differently = potential flow imbalance or arb. Extreme positive = longs overcrowded = flush risk. Extreme negative = shorts overcrowded = squeeze risk.)',
     `Open Interest: ${ctx.openInterest}`,
     `OI 1h Change: ${ctx.oi1hChange}`,
-    `OI Trend vs Price:  ${ctx.oiTrend}`,
+    `OI Trend vs Price (over the last 60 minutes, same window for OI and price):  ${ctx.oiTrend}`,
     '',
     '=== DERIVATIVES - EXTENDED ===',
     /* PRICE premium. Distinct from the ACTIVITY line in the MACRO block below,
@@ -508,25 +580,9 @@ export function calcSMA(closes: number[], period: number): (number | null)[] {
   return out;
 }
 
+/** Wilder RSI series with null where undefined - the app's one RSI (lib/rsi.ts, #1626 C). Pass CLOSED candles. */
 export function calcRSI(closes: number[], period = 14): (number | null)[] {
-  const n = closes.length;
-  const out: (number | null)[] = new Array(n).fill(null);
-  if (n <= period) return out;
-  const gains: number[] = [], losses: number[] = [];
-  for (let i = 1; i < n; i++) {
-    const d = closes[i] - closes[i - 1];
-    gains.push(d > 0 ? d : 0); losses.push(d < 0 ? -d : 0);
-  }
-  let ag = gains.slice(0, period).reduce((s, v) => s + v, 0) / period;
-  let al = losses.slice(0, period).reduce((s, v) => s + v, 0) / period;
-  const rsi = (g: number, l: number) => l === 0 ? 100 : 100 - 100 / (1 + g / l);
-  out[period] = rsi(ag, al);
-  for (let i = period; i < n - 1; i++) {
-    ag = (ag * (period - 1) + gains[i]) / period;
-    al = (al * (period - 1) + losses[i]) / period;
-    out[i + 1] = rsi(ag, al);
-  }
-  return out;
+  return wilderRsiSeries(closes, period).map(v => (Number.isFinite(v) ? v : null));
 }
 
 // ── Combined chart + market prompt ────────────────────────────────────────

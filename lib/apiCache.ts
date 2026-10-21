@@ -5,7 +5,11 @@
 // Not a distributed cache: fine for a small number of long-lived instances,
 // not meant for edge/multi-region deployments.
 
-const store = new Map<string, { ts: number; data: unknown }>();
+/* On globalThis, not module scope (QA, #1634): Next may compile instrumentation.ts (which starts lib/memWatch.ts) as a separate module graph from the
+   routes, and each graph would get its OWN copy of a module-level Map - the [mem] line would then read an empty cache for ever while the routes filled
+   another. One shared state object means every copy of this module sees the same store. */
+const shared = ((globalThis as { __lhqApiCache?: { store: Map<string, { ts: number; data: unknown; bytes: number }>; bytes: number } }).__lhqApiCache ??= { store: new Map(), bytes: 0 });
+const store = shared.store;
 
 /* SIZE CAP, because a Map that only ever grows is a leak with a slow fuse (#253).
  *
@@ -27,6 +31,20 @@ const store = new Map<string, { ts: number; data: unknown }>();
  */
 const MAX_ENTRIES = 500;
 
+/* BYTE BUDGET, because an entry COUNT is not a memory bound (#1397, prod memory creeping toward its 512 MB limit).
+ *
+ * 500 entries is only small if the entries are. Several callers cache a whole upstream response (klines, the Bybit fan-out maps, the news and
+ * ticker snapshots) and a response can be hundreds of KB, so a cap that is "never reached by legitimate traffic" in count can still hold tens of
+ * MB once it fills, and it fills one new key at a time (coin x timeframe x type) over days - the slope seen on prod (~2 MB/h, no traffic spike).
+ * The budget counts the JSON text length of each stored value (a close, cheap proxy for its heap size) and evicts least-recently-used entries
+ * until the total is back under it. 48 MB leaves the rest of a 512 MB instance to Next itself. One entry larger than the whole budget is kept
+ * alone (never refuse to cache the thing just fetched) and goes at the next insert. */
+const MAX_BYTES = 48 * 1024 * 1024;
+
+function approxBytes(data: unknown): number {
+  try { return JSON.stringify(data)?.length ?? 0; } catch { return 0; }
+}
+
 /* LRU, not oldest-inserted. A Map iterates in insertion order, so deleting and
    re-setting on every HIT moves the hot keys to the end and leaves the cold ones
    at the front to be evicted first.
@@ -35,19 +53,24 @@ const MAX_ENTRIES = 500;
    would drop exactly the entry that is standing in for a dead upstream - turning
    "serving slightly old data" into "every request hits the failing upstream",
    which is the opposite of what cachedStale exists for. */
-function touch(key: string, hit: { ts: number; data: unknown }): void {
+function touch(key: string, hit: { ts: number; data: unknown; bytes: number }): void {
   store.delete(key);
   store.set(key, hit);
 }
 
 function remember(key: string, data: unknown): void {
+  const prior = store.get(key);
+  if (prior) shared.bytes -= prior.bytes;
   store.delete(key);                 // so a re-write moves to the end too
-  store.set(key, { ts: Date.now(), data });
-  /* while, not if: a cap lowered at runtime should still converge. */
-  while (store.size > MAX_ENTRIES) {
-    const oldest = store.keys().next();
+  const bytes = approxBytes(data);
+  store.set(key, { ts: Date.now(), data, bytes });
+  shared.bytes += bytes;
+  /* while, not if: a cap lowered at runtime should still converge. Stops at one entry so the value just stored is never the one evicted. */
+  while (store.size > 1 && (store.size > MAX_ENTRIES || shared.bytes > MAX_BYTES)) {
+    const oldest = store.entries().next();
     if (oldest.done) break;          // cannot happen while size > 0, but a
-    store.delete(oldest.value);      // guard is cheaper than an infinite loop
+    shared.bytes -= oldest.value[1].bytes;
+    store.delete(oldest.value[0]);   // guard is cheaper than an infinite loop
   }
 }
 
@@ -55,6 +78,12 @@ function remember(key: string, data: unknown): void {
  *  holds - the bound is worth nothing if nobody can see it. */
 export function _cacheSize(): number {
   return store.size;
+}
+
+/** Entry count, total approximate bytes and the largest entries - what lib/memWatch.ts logs so a growing instance names what grew. */
+export function _cacheStats(top = 5): { entries: number; bytes: number; biggest: Array<{ key: string; bytes: number }> } {
+  const biggest = [...store.entries()].map(([key, v]) => ({ key: key.slice(0, 80), bytes: v.bytes })).sort((a, b) => b.bytes - a.bytes).slice(0, top);
+  return { entries: store.size, bytes: shared.bytes, biggest };
 }
 
 /* IN-FLIGHT REQUESTS, so N concurrent callers produce ONE upstream call (#199).
@@ -171,7 +200,7 @@ export async function cached<T>(
 export async function cachedStale<T>(
   key: string, ttlMs: number, fetcher: () => Promise<T>,
 ): Promise<{ data: T; stale: boolean; ageMs: number }> {
-  const hit = store.get(key) as { ts: number; data: T } | undefined;
+  const hit = store.get(key) as { ts: number; data: T; bytes: number } | undefined;
   const age = hit ? Date.now() - hit.ts : Infinity;
   if (hit && age < ttlMs) { touch(key, hit); return { data: hit.data, stale: false, ageMs: age }; }
 

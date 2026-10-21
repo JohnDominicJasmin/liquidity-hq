@@ -7,6 +7,7 @@ import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
+import { useLabels } from '@/lib/labels';
 import Tip from '@/components/Tip';
 import { barsAfter } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
@@ -776,6 +777,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     };
   }, [onResizeMove, onResizeEnd]);
   const { store } = useMarket();
+  const { t: tl } = useLabels();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
   const paOverlayIds              = useRef<string[]>([]);
@@ -2734,7 +2736,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   };
 
   /* ── Setup Quality: price near strong S/R + squeeze forming ── */
+  // #1609: no setup chip on a coin the viewer's plan locks (Free / trial off BTC/ETH/SOL), and none while the plan is still loading for such a coin.
+  // Its tooltip ("Possible long zone") says a trade is there, which contradicts a chart that is clean on purpose. Signed-out visitors keep
+  // it (their ladder is unchanged); Pro and unlocked coins are unchanged. Both chips (Prime Setup and Setup Forming) share this slot.
+  const setupChipHidden = emaSignal?.signalLock === 'free' || emaSignal?.planPending === true;
   const setupQuality = (() => {
+    if (setupChipHidden) return null;
     const price = lastCloseRef.current;
     if (!price || !srLevels.length) return null;
     const sq = computeSqueezeScore(coinData);
@@ -2756,8 +2763,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         ? `Support (${nearSR.touches}T) + Short Squeeze · Score ${sq.score}/100`
         : `Resistance (${nearSR.touches}T) + Long Flush · Score ${sq.score}/100`,
       explanation: nearSR.type === 'support'
-        ? "Squeeze + support confluence (separate from the chart's own Buy/Sell signal). Price is sitting on a tested support level while shorts are being squeezed out. High-probability long zone - watch for a confirmation candle before entering."
-        : "Squeeze + resistance confluence (separate from the chart's own Buy/Sell signal). Price is pressing against tested resistance while longs are getting flushed. High-probability short zone - watch for a rejection candle before entering.",
+        ? tl('CHART_SETUP_PRIME_LONG_TIP')
+        : tl('CHART_SETUP_PRIME_SHORT_TIP'),
       color: 'var(--amber)', bg: 'rgba(251,191,36,0.10)', bdr: 'rgba(251,191,36,0.28)',
     };
     return {

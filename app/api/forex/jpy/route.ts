@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { trackHealth } from '@/lib/apiHealth';
 import { cached } from '@/lib/apiCache';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 /* FIVE MINUTES, HELD IN THIS PROCESS (#1397, #1404) - the same five minutes the
  * fetch's `next: { revalidate: 300 }` and the response header already promised.
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
        whole point of #177. Kept at 300s; added swr so a slow upstream serves
        stale rather than blocking. */
     return NextResponse.json({ jpy }, {
-      headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' },
+      headers: { 'Cache-Control': polledCacheControl(300) },
     });
   } catch (e) {
     return apiError('forex/jpy', e, 502, 'Upstream fetch failed');

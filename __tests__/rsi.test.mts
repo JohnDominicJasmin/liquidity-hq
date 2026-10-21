@@ -5,7 +5,13 @@ import { computeRSI14 } from '../lib/rsi.ts';
 /* computeRSI14 was moved out of MarketProvider so app/api/market/rsi could
    share it. These lock the exact numbers the client produced before the move -
    the risk of the refactor is not a crash, it is the value shifting by a point
-   and silently moving coins across the 30/70 badge thresholds. */
+   and silently moving coins across the 30/70 badge thresholds.
+
+   CHANGED WITH #1626 C (owner, 2026-10-21: "Standard RSI"; Dev, intentionally): computeRSI14 is now the standard Wilder RSI, unrounded. Three
+   cases pinned the OLD simple windowed mean and were rewritten to the new rule: "alternating" (Wilder lands near 50, not on it), "history
+   counts" (was "reads only the last 14 changes": Wilder remembers the whole series, which is what TradingView shows), and "unrounded" (was
+   "rounded integer": rounding before a 30/70 comparison is what the owner ruled out). The 0/100/flat/15-close/30/70 cases are unchanged: with
+   exactly 15 closes Wilder's value IS its seed, the simple mean. */
 test('computeRSI14', async (t) => {
   await t.test('needs 15 closes to produce 14 changes', () => {
     assert.equal(computeRSI14([]), null);
@@ -32,32 +38,29 @@ test('computeRSI14', async (t) => {
     assert.equal(computeRSI14(closes), 0);
   });
 
-  await t.test('alternating equal gains and losses is 50', () => {
-    // 14 changes of +1/-1 in equal number: avgGain === avgLoss, so RSI is 50.
+  await t.test('alternating equal gains and losses stays near 50 (Wilder: the last change tilts it slightly)', () => {
     const closes = [100];
     for (let i = 0; i < 20; i++) closes.push(closes[closes.length - 1] + (i % 2 ? -1 : 1));
-    assert.equal(computeRSI14(closes), 50);
+    const v = computeRSI14(closes)!;
+    assert.ok(Math.abs(v - 50) < 1, `expected about 50, got ${v}`);
   });
 
-  await t.test('reads only the last 14 changes, not the whole array', () => {
-    /* The window is what makes the client's limit=16 and limit=20 requests
-       interchangeable, which the API route relies on. A long crash followed by
-       14 clean up-bars must read 100, not something dragged down by history. */
+  await t.test('history counts (standard Wilder): a long crash followed by 14 small up-bars still reads oversold, not 100', () => {
+    /* The old simple mean read only the last 14 changes and said 100 here. Wilder's average carries the crash forward, which is what
+       TradingView and the exchanges show (measured: 15.4). */
     const crash = Array.from({ length: 40 }, (_, i) => 500 - i * 10);   // ends at 110
-    // Continues up from where the crash ended, so all 14 trailing changes are
-    // gains. Starting the recovery at a lower price instead would leave the
-    // gap itself inside the window and correctly read ~57, not 100.
     const recovery = Array.from({ length: 14 }, (_, i) => 111 + i);
-    assert.equal(computeRSI14([...crash, ...recovery]), 100);
+    const v = computeRSI14([...crash, ...recovery])!;
+    assert.ok(v < 30, `expected the crash to still weigh (about 15.4), got ${v}`);
   });
 
-  await t.test('returns a rounded integer', () => {
+  await t.test('returns the unrounded value (one decimal is for display only, never before a comparison)', () => {
     const closes = [100, 102, 101, 104, 103, 107, 105, 110, 108, 113,
                     111, 116, 114, 119, 117, 122];
     const rsi = computeRSI14(closes);
     assert.ok(rsi !== null);
-    assert.equal(rsi, Math.round(rsi!));
-    assert.ok(rsi! >= 0 && rsi! <= 100);
+    assert.equal(Number.isInteger(rsi!), false, 'the value was rounded');
+    assert.ok(Math.abs(rsi! - 74.129) < 0.01, `expected about 74.13, got ${rsi}`);
   });
 
   /* TEST_GAPS.md §1: "RSI thresholds ... have fixtures but no spec asserts

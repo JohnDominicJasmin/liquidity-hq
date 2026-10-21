@@ -41,12 +41,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { cached } from '@/lib/apiCache';
-import { intervalToMs, closedCandleTtl } from '@/lib/candles';
+import { intervalToMs, closedCandleKey, CLOSE_SKEW_MS } from '@/lib/candles';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { shouldFailToBybit, canFailoverForRequest, bybitIntervalFor } from '@/lib/klinesFailover';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 type Source = 'bybit' | 'binance' | 'binance-futures';
 
@@ -313,12 +314,17 @@ export async function GET(req: NextRequest) {
    * Declared outside the try so the Bybit stand-in in the catch keeps the
    * same closed/live split (#1515 follow-up): before, its key had no closed
    * tag, so a closed=1 request and a live one shared one stand-in entry. */
+  /* #1626 A: KEYED BY THE CANDLE, not timed from the read. This used `closedCandleTtl(..., Date.now())` as the TTL, and cached() compares an
+     entry's age with the TTL of the request READING it - so a read just after a close asked "is this younger than the time to the NEXT close?",
+     and an entry written before the close always was. Measured: the Arena ribbon EMAs and SL/TP read the pre-close 4h candles for the hour after
+     05:00, and the daily payload was 16 h old. Now the key carries the open time of the current candle (closedCandleKey, CLOSE_SKEW_MS after the
+     close it changes), so the first read after a close misses and fetches once (single-flight per key), and every read within the candle hits.
+     The entry may live the whole candle (it cannot outlive its key); a period or the old stopwatch, whichever is longer. Still opt-in (closed=1)
+     and still a distinct key from a live request. Upstream traffic: one call per key per candle, never more than the old floor allowed. */
   const closedOnly = q.get('closed') === '1';
   const ivMs = closedOnly ? intervalToMs(interval) : null;
-  const ttl = ivMs != null
-    ? closedCandleTtl(ivMs, ttlFor(interval), Date.now())
-    : ttlFor(interval);
-  const closedTag = ivMs != null ? ':closed' : '';
+  const ttl = ivMs != null ? Math.max(ivMs + CLOSE_SKEW_MS, ttlFor(interval)) : ttlFor(interval);
+  const closedTag = ivMs != null ? `:closed:${closedCandleKey(ivMs, Date.now())}` : '';
 
   try {
     const key = `klines:${source}:${symbol}:${interval}:${limit}${closedTag}`;
@@ -336,7 +342,7 @@ export async function GET(req: NextRequest) {
       headers: {
         /* Shared edge cache too, for the day one exists in front of this. It is
            inert on Render today (#198) and correct the moment it is not. */
-        ...(isRange ? {} : { 'Cache-Control': `public, s-maxage=${Math.floor(ttlFor(interval) / 1000)}, stale-while-revalidate=600` }),
+        ...(isRange ? {} : { 'Cache-Control': polledCacheControl(ttlFor(interval) / 1000) }),
       },
     });
   } catch (e) {

@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { fetchAuthUser, getUserCompat } from '@/lib/authUser';
 
-async function getAuthedUserId(req: NextRequest | Request): Promise<string | null> {
+async function getAuthedUserId(req: NextRequest | Request, askAuth = false): Promise<string | null> {
   const token = (req.headers as Headers).get('Authorization')?.replace('Bearer ', '');
   if (!token) return null;
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
-  const { data } = await sb.auth.getUser();
+  // #1397: reads are verified locally (lib/authUser.ts). The save (askAuth) writes with the service role on the strength of the token alone,
+  // so it asks Auth: a signed-out, banned or deleted account is refused at once, not when its token expires.
+  if (askAuth) return (await fetchAuthUser(token))?.id ?? null;
+  const { data } = await getUserCompat(token);
   return data.user?.id ?? null;
 }
 
@@ -60,7 +58,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const userId = await getAuthedUserId(req);
+  const userId = await getAuthedUserId(req, true);
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

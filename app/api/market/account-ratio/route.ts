@@ -13,6 +13,7 @@ import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { feedFor } from '@/lib/marketFeeds';
 import { resolveFeedSnapshot } from '@/lib/marketSnapshot';
+import { polledCacheControl } from '@/lib/cacheHeaders';
 
 /* Only the periods the app actually asks for. An allowlist rather than a
    pass-through, because each distinct value is a separate cache entry and a
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
         droppedSymbols: snap.droppedSymbols,
         stale: snap.stale,
         from: 'snapshot',
-      }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } });
+      }, { headers: { 'Cache-Control': polledCacheControl(120) } });
     }
   }
 
@@ -100,7 +101,7 @@ export async function GET(req: NextRequest) {
        /api/market/snapshot uses for `partial`. Reported unhealthy too: a run cut
        short by a ban is not a success with fewer rows. */
     return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: Date.now() }, {
-      headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' },
+      headers: { 'Cache-Control': polledCacheControl(120) },
     });
   } catch (e) {
     reportHealth('bybit:account-ratio', 'market', false, String(e));

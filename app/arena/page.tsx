@@ -9,17 +9,17 @@ import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
-import { getSupabase, getAuthToken } from '@/lib/supabase';
+import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
-import { T } from '@/lib/tables';
 import { Warn, Lock } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import ConfluenceScore from '@/components/ConfluenceScore';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
+import { oiTrend1h } from '@/lib/oiTrend1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
@@ -37,7 +37,7 @@ import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
 import { describeSelection, overlayStates } from '@/lib/strategyRegistry';
-import { gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
+import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
@@ -47,6 +47,7 @@ import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_T
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
+import { formatRsi } from '@/lib/rsi';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -186,7 +187,7 @@ function ArenaContent() {
   const nowMs = useNow(30_000);
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
-  const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements } = useAuth();
+  const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements, isPro } = useAuth();
   const { settings, settingsLoadStatus, update, refresh: refreshSettings } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -337,7 +338,10 @@ function ArenaContent() {
   const filterParams = antiChopEnabled ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS;
   /* The signal coin gate (lib/signalCoinGate.ts): applied ONCE here, so the chart markers, the strategy panel, the latest signal,
      the Grok line, the confluence score and the higher-timeframe badge all read the same gated value. */
-  const signalPlan = signalPlanFor({ signedIn: !!user, entitlementStatus, authLoading });
+  const signalPlan = signalPlanFor({ signedIn: !!user, entitlementStatus, authLoading, isPro, entitlementsLoading });
+  /* #1596: a viewer who is KNOWN not to have paid (Free or free trial) on a coin outside BTC/ETH/SOL. Drives the one line above the chart and
+     locks Quick and Deep. False while the plan is loading or unknown: nothing is locked on a guess, and the server enforces the same rule. */
+  const coinLocked = coinLockedForUnpaid(signalPlan, selectedCoin);
   const rawEmaSignal = useEMAStrategy(
     selectedCoin,
     readTf,
@@ -347,6 +351,15 @@ function ArenaContent() {
     strategySelection,
   );
   const emaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
+  /* #1613: a value that has not arrived yet must read as LOADING, never as a final word. The AI-read card can render from a cached result before the
+     market feed has delivered this coin's funding rate; that used to read "n/a" and then "neutral" a moment later. Funding is `loading…` for a short
+     grace period after the page (or the coin) is opened, and `unavailable` after it if it still has not come. */
+  const [feedGraceOver, setFeedGraceOver] = useState(false);
+  useEffect(() => {
+    setFeedGraceOver(false);
+    const id = window.setTimeout(() => setFeedGraceOver(true), 15_000);
+    return () => window.clearTimeout(id);
+  }, [selectedCoin]);
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
   // landing within the same tick (measured live: ~200ms apart, well within
@@ -753,9 +766,10 @@ function ArenaContent() {
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
     if (oi1h.loading || oi1h.pct == null) return;
-    const { txt } = oi1hSignal(oi1h.pct, store.coins[selectedCoin]?.oiTrend);
+    // #1613: the AI read is told the 1h OI change with a trend text from the SAME hour (not the store's oiTrend, another window).
+    const { txt } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
     oi1hDataRef.current = { pct: oi1h.pct, signal: txt };
-  }, [oi1h.pct, oi1h.loading, selectedCoin, store.coins]);
+  }, [oi1h.pct, oi1h.pricePct, oi1h.loading, selectedCoin]);
 
   /* ── Sync EMA strategy → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -925,11 +939,11 @@ function ArenaContent() {
       if (coin.rsi1h >= settings.rsi_ob)
         fire(`rsi-ob-${selectedCoin}-${b2h}`,
           t('ARENA_NOTIF_RSI_OB_TITLE', { coin: sym }),
-          t('ARENA_NOTIF_RSI_OB_BODY', { rsi: coin.rsi1h.toFixed(0) }));
+          t('ARENA_NOTIF_RSI_OB_BODY', { rsi: formatRsi(coin.rsi1h) }));
       else if (coin.rsi1h <= settings.rsi_os)
         fire(`rsi-os-${selectedCoin}-${b2h}`,
           t('ARENA_NOTIF_RSI_OS_TITLE', { coin: sym }),
-          t('ARENA_NOTIF_RSI_OS_BODY', { rsi: coin.rsi1h.toFixed(0) }));
+          t('ARENA_NOTIF_RSI_OS_BODY', { rsi: formatRsi(coin.rsi1h) }));
     }
 
     /* 5 - Chart pattern detected (30 min cooldown) */
@@ -1470,7 +1484,8 @@ function ArenaContent() {
       const vis     = candles.slice(-80);
       const ema9    = calcEMA(closes, 9).at(-1) ?? null;
       const sma200  = calcSMA(closes, 200).at(-1) ?? null;
-      const rsi     = calcRSI(closes, 14).at(-1) ?? null;
+      // #1626 C: CLOSED candles only (the newest chart candle is still forming).
+      const rsi     = calcRSI(closes.slice(0, -1), 14).at(-1) ?? null;
       const lastC    = vis[vis.length - 1].c;
       const pDec     = lastC >= 10000 ? 0 : lastC >= 100 ? 2 : lastC >= 1 ? 3 : 4;
       // Include volume so AI can detect drying-up volume (exhaustion signal)
@@ -1494,9 +1509,11 @@ function ArenaContent() {
       let rsiDailyStr = '-';
       try {
         if (binanceSym) {
-          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=20`);
+          // #1626 C: 120 daily candles (Wilder needs the history), CLOSED ones only (Binance rows carry their close time at index 6).
+          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=120`);
           const dd = await dr.json() as (string|number)[][];
-          const dc = dd.map(k => Number(k[4]));
+          const nowMs = Date.now();
+          const dc = dd.filter(k => Number(k[6]) < nowMs).map(k => Number(k[4]));
           const dv = calcRSI(dc, 14).at(-1);
           if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
         } else if (bybitSym) {
@@ -1507,9 +1524,10 @@ function ArenaContent() {
           // this block sits inside the same function as the outer try at
           // the top of this handler, so `return` here would exit the whole
           // read early instead of just skipping the daily-RSI line.
-          const d = await fetchBybitKlinesRetry(bybitSym, 'D', 20);
+          const d = await fetchBybitKlinesRetry(bybitSym, 'D', 121);
           if (d === null) throw new Error('Bybit daily RSI klines failed after retry');
-          const dc = [...(d.result?.list ?? [])].reverse().map(k => parseFloat(k[4]));
+          // Newest-first, and the first row is today's forming candle: drop it.
+          const dc = [...(d.result?.list ?? [])].slice(1).reverse().map(k => parseFloat(k[4]));
           const dv = calcRSI(dc, 14).at(-1);
           if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
         }
@@ -1549,7 +1567,7 @@ function ArenaContent() {
             'with what the rest of the data shows.',
           ].join('\n')
         : base;
-      const { result: res, usage } = await callGrokViaProxy(prompt, readTf, ctx.session, mode);
+      const { result: res, usage } = await callGrokViaProxy(prompt, readTf, ctx.session, mode, selectedCoin);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
 
@@ -1592,12 +1610,6 @@ function ArenaContent() {
         coin: ctx.coin, time: new Date().toLocaleTimeString(),
         reasoning: res.reasoning, session: ctx.session,
       }, ...h].slice(0, 10));
-      if (user && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-        getSupabase()!.from(T.signals).insert({
-          coin: ctx.coin, signal: res.signal, confidence: res.confidence,
-          reasoning: res.reasoning, session: ctx.session,
-        }).then(() => {});
-      }
     } catch (e: unknown) {
       /* #1263: the server refuses a fast-timeframe read for a free account (403 PRO_REQUIRED) -
          reachable when the plan read here came back 'unknown' and the clamp above held the
@@ -1606,6 +1618,13 @@ function ArenaContent() {
          timeframes only, which is why the line names them. */
       if ((e as { code?: string }).code === 'PRO_REQUIRED') {
         setReadError(t('ARENA_READ_FAST_TF_PRO_REQUIRED'));
+        setReadProLocked(true);
+        return;
+      }
+      /* #1596: the server refuses Quick/Deep on a coin outside BTC/ETH/SOL for an account that has not paid (403 COIN_LOCKED). Reachable
+         when the plan was unknown to the page at click time. Same labelled line and Upgrade link as the lock above the chart. */
+      if ((e as { code?: string }).code === 'COIN_LOCKED') {
+        setReadError(t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }));
         setReadProLocked(true);
         return;
       }
@@ -1693,6 +1712,7 @@ function ArenaContent() {
       return;
     }
     if (!user) { window.location.href = '/login'; return; }
+    if (coinLocked) return; // #1596: Quick and Deep do not run on a locked coin (the server refuses it too)
     const entry = resultsCache[selectedCoin];
     const force = !!(entry && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
     readMarket(selection, kind, force, emaSignal.loading);
@@ -2079,15 +2099,15 @@ function ArenaContent() {
             matching the same "don't claim a fact we haven't confirmed"
             pattern as this file's other #1347 fixes. */}
         <button
-          className={`arena-fire-btn arena-quick-btn${!user && !authLoading ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
+          className={`arena-fire-btn arena-quick-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
+          disabled={readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
+          title={coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {!user && !authLoading && (
+              {((!user && !authLoading) || coinLocked) && (
                 <Lock size={12} />
               )}
               {t('ARENA_QUICK_RESEARCH_BUTTON')}
@@ -2097,15 +2117,15 @@ function ArenaContent() {
 
         {/* Deep button - requires sign-in. Same fix as Quick above. */}
         <button
-          className={`arena-fire-btn${!user && !authLoading ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || authLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
+          className={`arena-fire-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
+          disabled={readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
+          title={coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {!user && !authLoading && (
+              {((!user && !authLoading) || coinLocked) && (
                 <Lock size={12} />
               )}
               {t('ARENA_DEEP_RESEARCH_BUTTON')}
@@ -2306,7 +2326,7 @@ function ArenaContent() {
         const factors = [
           { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
           { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
-          { k: 'Funding',   v: frPct == null ? 'n/a' : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
+          { k: 'Funding',   v: frPct == null ? (feedGraceOver ? 'unavailable' : 'loading…') : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
           { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
           { k: 'Whale CVD', v: coinD?.cvdDivergence === 'bullish' ? 'bullish' : coinD?.cvdDivergence === 'bearish' ? 'bearish' : 'flat', c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
         ];
@@ -2466,6 +2486,15 @@ function ArenaContent() {
       {/* ── Workspace: chart (left) + evidence rail (right) ── */}
       <div className="arena-ws">
         <div className="arena-ws-chart">
+      {/* #1596: a coin outside BTC/ETH/SOL for an account that has not paid (Free or free trial): a clean chart, and this one line. No
+          markers and no locked circles are drawn (lib/signalCoinGate.ts gateSignal). */}
+      {coinLocked && (
+        <div data-testid="arena-coin-lock-line" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', marginBottom: 8, border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
+          <Lock size={14} style={{ color: 'var(--txt3)', flexShrink: 0 }} />
+          <span style={{ flex: '1 1 220px', minWidth: 0, fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.4 }}>{t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() })}</span>
+          <Link href="/upgrade" data-testid="arena-coin-lock-upgrade" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 14px', border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: 'var(--fs-label)', fontWeight: 700, textDecoration: 'none' }}>{t('TNAV_UPGRADE_LABEL')}</Link>
+        </div>
+      )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} />
       {/* Directly under the chart, on the owner's request (#370). The read

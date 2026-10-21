@@ -66,7 +66,7 @@ export default function EconCalendarWidget() {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     }))
       .then(r => r.json())
-      .then(d => { if (!cancelled) setEvents(d.events ?? []); })
+      .then(d => { if (cancelled) return; if (d.source === 'none') setError(true); else setEvents(d.events ?? []); })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
   }, []);

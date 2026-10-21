@@ -26,6 +26,7 @@ import { useState, useEffect, useSyncExternalStore, type ReactNode } from 'react
 import Link from 'next/link';
 import { useMarket, COIN_DEC, fmtPrice, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
+import { oiTrend1h } from '@/lib/oiTrend1h';
 import { BeamsBackground } from '@/components/BeamsBackground';
 import BrandMark from '@/components/BrandMark';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
@@ -107,7 +108,8 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const cbPct = store.cbPremiumPct;
   const cbCol = cbPct == null ? 'var(--txt)' : cbPct >= 0.05 ? 'var(--green)' : cbPct <= -0.05 ? 'var(--red)' : 'var(--txt)';
 
-  const { txt: oi1hTxt, col: oi1hColRaw } = oi1hSignal(oi1h.pct, d?.oiTrend);
+  /* #1613: the trend text must come from the SAME hour as the % beside it, so it is derived from the 1h samples, not from the store's oiTrend (another window). */
+  const { txt: oi1hTxt, col: oi1hColRaw } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
   const oi1hCol = oi1h.pct == null ? 'var(--txt2)' : oi1hColRaw;
 
   const evidence: { label: string; value: string | null; note: string; col: string }[] = [

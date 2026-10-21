@@ -5,11 +5,11 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { verifyBoomfiWebhook, boomfiOrgMatches } from '@/lib/boomfi';
 import { decideBoomfiEvent, extendedPeriodEnd } from '@/lib/boomfiEntitlement';
-import { isProBuyable } from '@/lib/checkout';
+import { isCryptoCheckoutConfigured } from '@/lib/checkout';
 import { payerOwnsAccount } from '@/lib/lemonsqueezy';
 
 /* BoomFi webhook (#861). Phase 1b was a shell; Phase 1c (below, after the organisation gate) acts on a verified, org-matched,
- * PAID event - but only while Pro is on sale on this host (isProBuyable), and by the rules in lib/boomfiEntitlement.ts, which
+ * PAID event - but only while Pro is on sale on this host (BoomFi's own link is set: isCryptoCheckoutConfigured, NOT isProBuyable, which is the Whop switch since #1567 Phase 2), and by the rules in lib/boomfiEntitlement.ts, which
  * refuses to guess any field BoomFi does not document. Cancel, expiry and a failed pull still revoke NOTHING.
  *
  * The rest of this header is the Phase 1b reasoning and still holds for everything up to the organisation gate:
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
   // ── The payments switch (#861, Phase 1c) ─────────────────────────────────
   // The same predicate /upgrade gates on. While Pro is not on sale on this host the route is exactly the shell it was: it records
   // and acts on nothing, and the reason string stops a green delivery in BoomFi's dashboard being read as "the account unlocked".
-  if (!isProBuyable(process.env)) {
+  if (!isCryptoCheckoutConfigured(process.env)) {
     return NextResponse.json({ received: true, recorded: true, ignored: 'payments_not_enabled' });
   }
 

@@ -10,6 +10,7 @@ import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { TEXT_LIMITS } from '@/lib/ownRowLimits';
 
 interface Hypothesis {
   id: string;
@@ -305,6 +306,7 @@ export default function HypothesisTracker() {
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>{t('HYPOTHESIS_TRACKER_TITLE_FIELD_LABEL')}</div>
             <input
               value={cfTitle}
+              maxLength={TEXT_LIMITS.hypothesisTitle}
               onChange={e => setCfTitle(e.target.value)}
               placeholder={t('HYPOTHESIS_TRACKER_TITLE_PLACEHOLDER')}
               style={inputStyle}
@@ -317,6 +319,7 @@ export default function HypothesisTracker() {
             </div>
             <textarea
               value={cfHypothesis}
+              maxLength={TEXT_LIMITS.hypothesis}
               onChange={e => setCfHypothesis(e.target.value)}
               placeholder={t('HYPOTHESIS_TRACKER_THESIS_PLACEHOLDER')}
               rows={3}
@@ -332,6 +335,7 @@ export default function HypothesisTracker() {
               <input
                 key={i}
                 value={c}
+                maxLength={TEXT_LIMITS.criterion}
                 onChange={e => setCfCriteria(prev => prev.map((x, j) => j === i ? e.target.value : x))}
                 placeholder={t('HYPOTHESIS_TRACKER_CRITERION_PLACEHOLDER', { n: i + 1 })}
                 style={{ ...inputStyle, marginBottom: 6 }}
@@ -662,6 +666,7 @@ export default function HypothesisTracker() {
                     </div>
                     <textarea
                       value={evContent}
+                      maxLength={TEXT_LIMITS.evidenceContent}
                       onChange={e => setEvContent(e.target.value)}
                       placeholder={t('HYPOTHESIS_TRACKER_EVIDENCE_PLACEHOLDER')}
                       rows={2}
@@ -669,6 +674,7 @@ export default function HypothesisTracker() {
                     />
                     <input
                       value={evSource}
+                      maxLength={TEXT_LIMITS.evidenceSource}
                       onChange={e => setEvSource(e.target.value)}
                       placeholder={t('HYPOTHESIS_TRACKER_SOURCE_PLACEHOLDER')}
                       style={{ ...inputStyle, marginBottom: 8 }}

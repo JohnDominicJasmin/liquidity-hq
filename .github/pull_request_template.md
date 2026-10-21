@@ -55,6 +55,20 @@
 - [ ] **Database migration?** If yes, say which file, and confirm it is applied to dev/qa **before** this merges — see CONTRIBUTING.md section 7
 - [ ] **New environment variable?** If yes, list it here and say which services still need it set. A var that exists only on dev is a broken deploy waiting to happen
 - [ ] Anything I could not verify is stated in the PR, not left for QA to discover
+- [ ] **Does this add or change a number users or the AI see?** If yes, fill in the data checklist below (owner rule 2026-10-21, #1651: we never sell inaccurate data)
+
+### Data checklist (only if a number is added or changed)
+
+| Field | Answer |
+|---|---|
+| Source (exchange / API / table) and fallback | |
+| Refresh interval and caching (server + browser) | |
+| Freshness budget (older than this = shown as stale) | |
+| Unknown / failed state (what the user sees; never 0, 50%, "Neutral" or "No events" as a default) | |
+| Unit, sign and precision (formatter used) | |
+| Same window / same source as anything printed next to it? | |
+| Sent to the AI? With its age and source? | |
+| Test that proves it (oracle or source comparison) | |
 
 > **Note on the browser suite.** CI runs Playwright on a PR into `main` only — the
 > release. Feature PRs and `dev` → `qa` promotions get the four fast gates above and

@@ -4,27 +4,11 @@
 // (momentum fading while price still pushes to a new extreme). The two are
 // meant to complement each other, not replace one another.
 import type { OHLCV } from './strategyCore.ts';
+import { wilderRsiSeries } from './rsi.ts';
 
+/** Wilder RSI series - the app's one RSI (lib/rsi.ts, #1626 C). Kept under this name for its callers. */
 export function rsiArr(closes: number[], period = 14): number[] {
-  const n = closes.length;
-  const out = new Array<number>(n).fill(NaN);
-  if (n <= period) return out;
-  const gains: number[] = [], losses: number[] = [];
-  for (let i = 1; i < n; i++) {
-    const d = closes[i] - closes[i - 1];
-    gains.push(d > 0 ? d : 0);
-    losses.push(d < 0 ? -d : 0);
-  }
-  let ag = gains.slice(0, period).reduce((s, v) => s + v, 0) / period;
-  let al = losses.slice(0, period).reduce((s, v) => s + v, 0) / period;
-  const rsi = (g: number, l: number) => l === 0 ? 100 : 100 - 100 / (1 + g / l);
-  out[period] = rsi(ag, al);
-  for (let i = period; i < n - 1; i++) {
-    ag = (ag * (period - 1) + gains[i]) / period;
-    al = (al * (period - 1) + losses[i]) / period;
-    out[i + 1] = rsi(ag, al);
-  }
-  return out;
+  return wilderRsiSeries(closes, period);
 }
 
 interface Swing { index: number; price: number; rsi: number }

@@ -13,6 +13,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { selectAllRows } from '@/lib/selectAllRows';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
+import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
   EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, BYBIT_KLINE_SYMS,
 } from '@/lib/ribbonCandles';
@@ -22,6 +23,9 @@ import {
   isStructureEnabled, structureTfForRuleKey,
 } from '@/lib/structurePrefs';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
+import { planKindOfRow } from '@/lib/paidPeriod';
+import { FREE_SIGNAL_COINS } from '@/lib/signalCoinGate';
+import { wilderRsi } from '@/lib/rsi';
 
 export const dynamic = 'force-dynamic';
 
@@ -558,6 +562,12 @@ async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, n
     if (!target) continue;
     (target.category === 'spot' ? bySpotSym : byLinSym).set(target.symbol, coin);
   }
+  /* #1626: the loop above only visits Binance-listed coins, so the coins that exist ONLY on Bybit (hype, pepe, bonk, xau, spx) never got a price here
+     and a price alert on them could never fire. They are read from Bybit's linear (perp) ticker, the market the app itself shows for them. */
+  for (const coin of Object.keys(BYBIT_SYMS)) {
+    if (bybitSpotOrLinear(coin)) continue;
+    byLinSym.set(BYBIT_SYMS[coin], coin);
+  }
 
   const [spotRes, linRes] = await Promise.all([
     fetchOrSkip('https://api.bybit.com/v5/market/tickers?category=spot', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit'),
@@ -578,7 +588,8 @@ async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, n
       const d = await linRes.json() as { result?: { list?: Array<{ symbol: string; lastPrice: string }> } };
       for (const item of d.result?.list ?? []) {
         const coin = byLinSym.get(item.symbol);
-        if (coin && item.lastPrice) out[coin] = parseFloat(item.lastPrice);
+        // 1000PEPE / 1000BONK quote per 1000 tokens: bring them to a per-token price like every other surface (lib/coins.ts bybitSymbolPriceFactor).
+        if (coin && item.lastPrice) out[coin] = parseFloat(item.lastPrice) * bybitSymbolPriceFactor(item.symbol);
       }
     }
   } catch { /* whatever parsed before the throw is still returned below */ }
@@ -592,7 +603,7 @@ async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, n
  * via bybitSpotOrLinear) explicitly. `skipCounts` is optional so a caller
  * that doesn't have one in scope (none do today, kept for symmetry with
  * fetchOrSkip) isn't forced to thread one through for no reason. */
-interface BybitCandle { o: number; h: number; l: number; c: number }
+interface BybitCandle { t: number; o: number; h: number; l: number; c: number }
 
 /* Raw OHLC, oldest-first, priceFactor applied - the shape checkRapidMove
  * needs for pattern detection (detectPatterns reads o/h/l/c, not just
@@ -613,7 +624,7 @@ async function fetchBybitCandles(
     const pf = bybitSymbolPriceFactor(symbol);
     // Bybit returns newest-first - reverse so index 0 = oldest
     return list.map(row => ({
-      o: parseFloat(row[1]) * pf, h: parseFloat(row[2]) * pf,
+      t: Number(row[0]), o: parseFloat(row[1]) * pf, h: parseFloat(row[2]) * pf,
       l: parseFloat(row[3]) * pf, c: parseFloat(row[4]) * pf,
     })).reverse();
   } catch { return []; }
@@ -637,18 +648,9 @@ async function fetchBybitKlines(
 /* ════════════════════════════════════════
    3. RSI (extremes)
    ════════════════════════════════════════ */
+/* The app's one RSI (lib/rsi.ts, #1626 C): standard Wilder RSI(14). 50 (neutral, fires nothing) when there is not enough history. */
 function computeRSI(closes: number[], period = 14): number {
-  if (closes.length < period + 2) return 50;
-  const ch = closes.slice(1).map((c, i) => c - closes[i]);
-  let ag = 0, al = 0;
-  for (let i = 0; i < period; i++) { ag += Math.max(ch[i], 0); al += Math.max(-ch[i], 0); }
-  ag /= period; al /= period;
-  for (let i = period; i < ch.length; i++) {
-    ag = (ag * (period - 1) + Math.max(ch[i], 0)) / period;
-    al = (al * (period - 1) + Math.max(-ch[i], 0)) / period;
-  }
-  if (al === 0) return 100;
-  return 100 - 100 / (1 + ag / al);
+  return wilderRsi(closes, period) ?? 50;
 }
 
 async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipient[], thresholdsByUser: Map<string, UserThresholds>, skipCounts: SkipCounts): Promise<string[]> {
@@ -681,7 +683,8 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
       } else {
         return;
       }
-      const rsi    = computeRSI(closes);
+      // #1626 C: CLOSED candles only - the last one Bybit returns is still forming.
+      const rsi    = computeRSI(closes.slice(0, -1));
       const r      = rsi.toFixed(1);
       const label  = LABELS[coin];
       const price  = closes[closes.length - 1];
@@ -1072,7 +1075,16 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
    Per-user: each alert fires only to its owner's Telegram.
    Falls back to allChatIds for legacy rows with no user_id.
    ════════════════════════════════════════ */
-interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; user_id?: string | null }
+interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; user_id?: string | null; created_at?: string | null }
+
+/* The Bybit market a coin's price is read from: the same choice fetchSpotPrices makes (spot for Binance-listed coins, linear for TAO and for the
+   coins that only exist on Bybit). */
+function bybitMarketForCoin(coin: string): { category: 'spot' | 'linear'; symbol: string } | null {
+  return bybitSpotOrLinear(coin) ?? (BYBIT_SYMS[coin] ? { category: 'linear', symbol: BYBIT_SYMS[coin] } : null);
+}
+
+/* How many 1-minute candles to look back for a wick: 15 = three cron periods, so one or two missed runs do not lose a touch. */
+const WICK_LOOKBACK_MIN = 15;
 
 async function checkPriceAlerts(
   token: string, stamp: string, prices: Record<string, number>,
@@ -1108,13 +1120,24 @@ async function checkPriceAlerts(
     // instead of a separate round-trip per triggered alert (N+1).
     const triggeredIds: number[] = [];
 
-    for (const alert of alertsRes.data as PriceAlert[]) {
+    /* #1626: a wick between two 5-minute checks. Only coins that still have an armed alert the live price did not already hit are read, one
+       1-minute kline request per coin. A failed read leaves that coin on the live-price rule, exactly as before. */
+    const rows = alertsRes.data as PriceAlert[];
+    const wickCoins = [...new Set(rows
+      .filter(a => evaluatePriceAlert(a, prices[a.coin] ?? null, []) == null)
+      .map(a => a.coin))];
+    const candlesByCoin = new Map<string, Candle1m[]>();
+    await runBatched(wickCoins.map(coin => async () => {
+      const m = bybitMarketForCoin(coin);
+      if (!m) return;
+      const cs = await fetchBybitCandles(m.symbol, '1', WICK_LOOKBACK_MIN, undefined, m.category);
+      candlesByCoin.set(coin, cs.filter(c => Number.isFinite(c.t) && Number.isFinite(c.h) && Number.isFinite(c.l)).map(c => ({ startMs: c.t, high: c.h, low: c.l })));
+    }), 5);
+
+    for (const alert of rows) {
       const price = prices[alert.coin];
-      if (price == null) continue;
-      const triggered =
-        (alert.direction === 'above' && price >= alert.target_price) ||
-        (alert.direction === 'below' && price <= alert.target_price);
-      if (!triggered) continue;
+      const touch = evaluatePriceAlert(alert, price ?? null, candlesByCoin.get(alert.coin) ?? []);
+      if (!touch) continue;
 
       // Route to owner if known; only a row with NO user_id at all (true
       // legacy, pre-dates per-user ownership) falls back to broadcasting to
@@ -1135,7 +1158,9 @@ async function checkPriceAlerts(
 
       const body = `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
         `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
-        `Current: $${price.toLocaleString()}` +
+        (touch.via === 'wick'
+          ? `Reached: $${touch.level.toLocaleString()} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${new Date(touch.atMs).toISOString().slice(11, 16)} UTC)` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
+          : `Current: $${touch.price.toLocaleString()}`) +
         (alert.label ? `\nNote: ${escapeHtml(alert.label)}` : '') +
         `\n\n<i>${stamp}</i>`;
 
@@ -1278,9 +1303,14 @@ async function checkDailySummary(
     // "Today" in the header means the recipient's own calendar date at their
     // 7am, not UTC's - someone far enough east or west of UTC can be on a
     // different UTC calendar day than their own local morning.
-    const dateStr = d.toLocaleString('en-GB', {
-      timeZone: zone, weekday: 'short', month: 'short', day: 'numeric',
-    });
+    // #1632 item 1: a stored zone that Intl rejects (written directly to the table before the column grants) used to throw here and reject the
+    // whole Promise.all - nobody got the Morning Briefing. Fall back to the historical anchor for that one recipient.
+    let dateStr: string;
+    try {
+      dateStr = d.toLocaleString('en-GB', { timeZone: zone, weekday: 'short', month: 'short', day: 'numeric' });
+    } catch {
+      dateStr = d.toLocaleString('en-GB', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric' });
+    }
     const bodyBase =
       `☀️ <b>Morning Briefing - ${dateStr}</b>` +
       `${fngLine}\n\n` +
@@ -2173,17 +2203,20 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // which includes trial) and then silently never receive a single alert for
   // the entire 14-day trial, since this cron excluded them.
   const proUserIds = new Set<string>();
+  // #1630 GO-LIVE 2: the users on a TRIAL (entitled, not paid). They get the Free coin ladder (BTC / ETH / SOL) here too, see below.
+  const trialUserIds = new Set<string>();
   try {
     const admin = getSupabaseAdmin();
     // Paged (#1397) - a plain read stops at 1000 rows, and a Pro user past
     // that point was treated as free and dropped from every alert.
     const { data } = await selectAllRows('alert:user_subscriptions', 'user_id', () =>
-      admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at'));
+      admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at, current_period_end'));
     const now = Date.now();
     for (const row of data ?? []) {
-      const isPro   = row.role === 'pro';
-      const isTrial = row.role !== 'pro' && !!row.trial_ends_at && new Date(row.trial_ends_at as string).getTime() > now;
-      if (isPro || isTrial) proUserIds.add(row.user_id as string);
+      // #1630 GO-LIVE 1: paid Pro ends with the paid time (period end + 48 h), not only in the AI routes. One shared rule, lib/paidPeriod.ts.
+      const kind = planKindOfRow(row, now);
+      if (kind !== 'free') proUserIds.add(row.user_id as string);
+      if (kind === 'trial') trialUserIds.add(row.user_id as string);
     }
   } catch { /* admin key not configured - allChatIds falls back to the env var below */ }
 
@@ -2276,6 +2309,17 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
     fetchAllFR(skipCounts), fetchSpotPrices(skipCounts), fetchAllLSR(skipCounts), fetchMutedKeysByUser(), fetchThresholdsByUser(),
   ]);
+
+  /* #1630 GO-LIVE 2: a trial gets signals on BTC / ETH / SOL only (owner rule, #1596), the same ladder as Free - paid Pro gets every coin. The page
+     already withheld the rest; the Telegram cron did not, so a trial user received server-sent signals on every coin. The per-recipient mute path
+     already decides delivery for Telegram AND Web Push (entryMuteKeys / the cost-control pre-filter below read `coin:<id>`), so the ladder is applied
+     there: every coin outside the Free list counts as muted for a trial user. Not written to the database; it only exists for this run. */
+  const mutedUsersStored = mutedByUser.size; // the stat below counts stored mutes, not the ladder
+  for (const uid of trialUserIds) {
+    const set = new Set(mutedByUser.get(uid) ?? []);
+    for (const c of COINS) if (!(FREE_SIGNAL_COINS as readonly string[]).includes(c)) set.add(`coin:${c}`);
+    mutedByUser.set(uid, set);
+  }
 
   // Coins muted by every single recipient - the only case it's safe to skip
   // fetching entirely (checkDistribution's cost-control pre-filter).
@@ -2460,7 +2504,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   return NextResponse.json({
     ok: true, fired,
     recipients: recipients.length,
-    mutedUsers: mutedByUser.size,
+    mutedUsers: mutedUsersStored,
     delivery: { queued: signalQueue.length, eligible, sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] },
     skipped: skipCounts,
     checked: [

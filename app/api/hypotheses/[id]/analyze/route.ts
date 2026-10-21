@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
+import { TEXT_LIMITS, clip } from '@/lib/ownRowLimits';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
+  return userClient(token);
 }
 
 interface Hypothesis {
@@ -96,7 +94,7 @@ function parseSection(text: string, key: string): string {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: authData } = await sb(token).auth.getUser();
+  const { data: authData } = await getUserCompat(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only. /upgrade sells the one-shot AI tools as a Pro feature
@@ -172,12 +170,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ? 'disconfirmed'
     : 'active';
 
+  // #1632 H1: the database limits these columns (migration 20261021e); an over-long AI answer is cut, never refused (a refused update loses the analysis).
   await sb(token).from(T.hypotheses).update({
     grok_verdict: normalizedVerdict,
-    grok_reasoning: reasoning,
-    grok_evidence_assessment: analysis,
-    grok_confidence: confidence,
-    grok_next_check: nextCheck,
+    grok_reasoning: clip(reasoning, TEXT_LIMITS.aiLong),
+    grok_evidence_assessment: clip(analysis, TEXT_LIMITS.aiLong),
+    grok_confidence: clip(confidence, TEXT_LIMITS.aiShort),
+    grok_next_check: clip(nextCheck, TEXT_LIMITS.aiNextCheck),
     grok_last_run: new Date().toISOString(),
     status: newStatus,
     updated_at: new Date().toISOString(),

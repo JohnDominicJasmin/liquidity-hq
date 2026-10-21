@@ -9,23 +9,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 import { etfFlowMillions } from '@/lib/etfFlows';
 import { trackHealth, reportHealth } from '@/lib/apiHealth';
+import { polledCacheControl } from '@/lib/cacheHeaders';
+import { getUserCompat } from '@/lib/authUser';
+import { userClient } from '@/lib/supabase-user';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
 const TRENDS_TTL = 60 * 60_000;
 
 function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  return userClient(token);
 }
 
 // Same shape as /api/cmc and /api/econ-calendar: intentionally unauthenticated
@@ -37,7 +35,7 @@ async function attributedUser(req: NextRequest): Promise<string> {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return 'anon';
   try {
-    const { data } = await sb(token).auth.getUser();
+    const { data } = await getUserCompat(token);
     return data.user?.id ?? 'anon';
   } catch {
     return 'anon';
@@ -52,7 +50,7 @@ async function attributedUser(req: NextRequest): Promise<string> {
    verbatim, and the trends path deliberately converts an upstream block into an
    empty 200 so the page degrades quietly. Caching either would hold a dead
    response at the edge for five minutes. Only genuine payloads get the header. */
-const PROXY_CACHE = { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' };
+const PROXY_CACHE = { 'Cache-Control': polledCacheControl(300) };
 const proxyCache = (ok: boolean) => (ok ? PROXY_CACHE : undefined);
 
 /* PASSTHROUGH TYPES (#238).

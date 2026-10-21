@@ -84,7 +84,10 @@ interface Props { signal: StrategySignal; tf?: string; coin?: CoinId }
 
 /* The signal coin gate's locked state (lib/signalCoinGate.ts): in place of the verdict, the checklist and the levels. */
 function LockedSignal({ lock }: { lock: 'signed_out' | 'free' }) {
-  const copy = signalLockCopy(lock);
+  const { t } = useLabels();
+  const base = signalLockCopy(lock);
+  // Free and trial: labelled in every language (#1596). The signed-out line is unchanged.
+  const copy = lock === 'free' ? { ...base, text: t('ARENA_COIN_LOCK_PANEL'), cta: t('TNAV_UPGRADE_LABEL') } : base;
   return (
     <div data-testid="signal-locked" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
       <Lock size={14} style={{ color: 'var(--txt3)' }} />
