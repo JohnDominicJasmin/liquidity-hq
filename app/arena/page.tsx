@@ -48,6 +48,7 @@ import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_T
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
+import { formatRsi } from '@/lib/rsi';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -939,11 +940,11 @@ function ArenaContent() {
       if (coin.rsi1h >= settings.rsi_ob)
         fire(`rsi-ob-${selectedCoin}-${b2h}`,
           t('ARENA_NOTIF_RSI_OB_TITLE', { coin: sym }),
-          t('ARENA_NOTIF_RSI_OB_BODY', { rsi: coin.rsi1h.toFixed(0) }));
+          t('ARENA_NOTIF_RSI_OB_BODY', { rsi: formatRsi(coin.rsi1h) }));
       else if (coin.rsi1h <= settings.rsi_os)
         fire(`rsi-os-${selectedCoin}-${b2h}`,
           t('ARENA_NOTIF_RSI_OS_TITLE', { coin: sym }),
-          t('ARENA_NOTIF_RSI_OS_BODY', { rsi: coin.rsi1h.toFixed(0) }));
+          t('ARENA_NOTIF_RSI_OS_BODY', { rsi: formatRsi(coin.rsi1h) }));
     }
 
     /* 5 - Chart pattern detected (30 min cooldown) */
@@ -1484,7 +1485,8 @@ function ArenaContent() {
       const vis     = candles.slice(-80);
       const ema9    = calcEMA(closes, 9).at(-1) ?? null;
       const sma200  = calcSMA(closes, 200).at(-1) ?? null;
-      const rsi     = calcRSI(closes, 14).at(-1) ?? null;
+      // #1626 C: CLOSED candles only (the newest chart candle is still forming).
+      const rsi     = calcRSI(closes.slice(0, -1), 14).at(-1) ?? null;
       const lastC    = vis[vis.length - 1].c;
       const pDec     = lastC >= 10000 ? 0 : lastC >= 100 ? 2 : lastC >= 1 ? 3 : 4;
       // Include volume so AI can detect drying-up volume (exhaustion signal)
@@ -1508,9 +1510,11 @@ function ArenaContent() {
       let rsiDailyStr = '-';
       try {
         if (binanceSym) {
-          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=20`);
+          // #1626 C: 120 daily candles (Wilder needs the history), CLOSED ones only (Binance rows carry their close time at index 6).
+          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=120`);
           const dd = await dr.json() as (string|number)[][];
-          const dc = dd.map(k => Number(k[4]));
+          const nowMs = Date.now();
+          const dc = dd.filter(k => Number(k[6]) < nowMs).map(k => Number(k[4]));
           const dv = calcRSI(dc, 14).at(-1);
           if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
         } else if (bybitSym) {
@@ -1521,9 +1525,10 @@ function ArenaContent() {
           // this block sits inside the same function as the outer try at
           // the top of this handler, so `return` here would exit the whole
           // read early instead of just skipping the daily-RSI line.
-          const d = await fetchBybitKlinesRetry(bybitSym, 'D', 20);
+          const d = await fetchBybitKlinesRetry(bybitSym, 'D', 121);
           if (d === null) throw new Error('Bybit daily RSI klines failed after retry');
-          const dc = [...(d.result?.list ?? [])].reverse().map(k => parseFloat(k[4]));
+          // Newest-first, and the first row is today's forming candle: drop it.
+          const dc = [...(d.result?.list ?? [])].slice(1).reverse().map(k => parseFloat(k[4]));
           const dv = calcRSI(dc, 14).at(-1);
           if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
         }

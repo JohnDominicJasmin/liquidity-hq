@@ -4,6 +4,7 @@ import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 import { useAuth } from '@/components/AuthProvider';
 import { isGatedTf } from '@/lib/limits';
+import { formatRsi } from '@/lib/rsi';
 
 type Bias = 'bullish' | 'bearish' | 'neutral';
 
@@ -128,7 +129,7 @@ function RsiRow({ tf, rsi, bias, last, locked }: { tf: string; rsi: number | nul
         fontFamily: 'var(--font-mono), monospace',
         ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}),
       }}>
-        {rsi != null ? rsi.toFixed(0) : '-'}
+        {formatRsi(rsi)}
       </span>
       <div aria-hidden={locked || undefined} style={{ display: 'flex', justifyContent: 'flex-end', ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}) }}>
         <BiasBadge bias={bias} />

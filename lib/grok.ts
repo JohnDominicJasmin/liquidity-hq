@@ -1,5 +1,6 @@
 import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
+import { wilderRsiSeries } from './rsi.ts';
 
 export interface GrokUsageInfo {
   deep_used:     number; deep_limit:     number;
@@ -579,25 +580,9 @@ export function calcSMA(closes: number[], period: number): (number | null)[] {
   return out;
 }
 
+/** Wilder RSI series with null where undefined - the app's one RSI (lib/rsi.ts, #1626 C). Pass CLOSED candles. */
 export function calcRSI(closes: number[], period = 14): (number | null)[] {
-  const n = closes.length;
-  const out: (number | null)[] = new Array(n).fill(null);
-  if (n <= period) return out;
-  const gains: number[] = [], losses: number[] = [];
-  for (let i = 1; i < n; i++) {
-    const d = closes[i] - closes[i - 1];
-    gains.push(d > 0 ? d : 0); losses.push(d < 0 ? -d : 0);
-  }
-  let ag = gains.slice(0, period).reduce((s, v) => s + v, 0) / period;
-  let al = losses.slice(0, period).reduce((s, v) => s + v, 0) / period;
-  const rsi = (g: number, l: number) => l === 0 ? 100 : 100 - 100 / (1 + g / l);
-  out[period] = rsi(ag, al);
-  for (let i = period; i < n - 1; i++) {
-    ag = (ag * (period - 1) + gains[i]) / period;
-    al = (al * (period - 1) + losses[i]) / period;
-    out[i + 1] = rsi(ag, al);
-  }
-  return out;
+  return wilderRsiSeries(closes, period).map(v => (Number.isFinite(v) ? v : null));
 }
 
 // ── Combined chart + market prompt ────────────────────────────────────────

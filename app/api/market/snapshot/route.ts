@@ -277,8 +277,9 @@ async function buildKlines(): Promise<{ out: Record<string, KlineMetrics>; viaFa
 
   const banned = symsToTry.length ? await runPool(symsToTry, CONCURRENCY, async ([coin, sym]) => {
     const url = fut
-      ? `${fut}/fapi/v1/klines?symbol=${sym}&interval=15m&limit=100`
-      : `${spot}/api/v3/klines?symbol=${sym}&interval=15m&limit=100`;
+      // 121: the RSI reads the 120 closed ones (#1626 C); every other metric still reads the newest 100 (lib/klineMetrics METRIC_WINDOW).
+      ? `${fut}/fapi/v1/klines?symbol=${sym}&interval=15m&limit=121`
+      : `${spot}/api/v3/klines?symbol=${sym}&interval=15m&limit=121`;
     const raw = await get(url);
     if (!Array.isArray(raw)) return;
     const m = computeKlineMetrics(raw as string[][]);
@@ -296,7 +297,7 @@ async function buildKlines(): Promise<{ out: Record<string, KlineMetrics>; viaFa
     await runPool(missing, CONCURRENCY, async ([coin, sym]) => {
       const bbSym = BYBIT_SYMS[coin];
       if (!bbSym) return; // fet - no Bybit linear perp (lib/coins.ts)
-      const body = await get(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bbSym}&interval=15&limit=100`);
+      const body = await get(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bbSym}&interval=15&limit=121`);
       const converted = bybitKlineToBinanceShape(body, bybitPriceFactor(coin));
       if (!converted) return;
       const m = computeKlineMetrics(converted);

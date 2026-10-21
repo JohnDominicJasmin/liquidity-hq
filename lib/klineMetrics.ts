@@ -40,8 +40,12 @@ const PATTERN_WINDOW = 25;
 /** Needs at least 15 closes for RSI14; fewer and the whole set is unreliable. */
 export const MIN_KLINES = 15;
 
-export function computeKlineMetrics(klines: string[][]): KlineMetrics | null {
-  if (!Array.isArray(klines) || klines.length < MIN_KLINES) return null;
+/** The newest this many klines feed every metric except RSI, exactly as before #1626 C (callers now fetch 121 so the RSI gets 120 closed). */
+export const METRIC_WINDOW = 100;
+
+export function computeKlineMetrics(allKlines: string[][]): KlineMetrics | null {
+  if (!Array.isArray(allKlines) || allKlines.length < MIN_KLINES) return null;
+  const klines = allKlines.length > METRIC_WINDOW ? allKlines.slice(-METRIC_WINDOW) : allKlines;
 
   const closes = klines.map(k => parseFloat(k[4]));
   const highs  = klines.map(k => parseFloat(k[2]));
@@ -57,7 +61,8 @@ export function computeKlineMetrics(klines: string[][]): KlineMetrics | null {
   const ma20Slice = closes.slice(-20);
   const ma20 = ma20Slice.reduce((a, b) => a + b, 0) / ma20Slice.length;
 
-  const rsi14 = computeRSI14(closes);
+  // #1626 C: standard Wilder RSI on every CLOSED kline given (up to 120; the final one is still forming, the same reason volRatio reads -2).
+  const rsi14 = computeRSI14(allKlines.slice(0, -1).map(k => parseFloat(k[4])));
 
   /* ── Volume profile: POC and value area ── */
   const allPrices = [...highs, ...lows];
