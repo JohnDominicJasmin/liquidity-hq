@@ -23,6 +23,8 @@ export async function GET(req: NextRequest) {
         const res = await fetch(CB_TICKER, {
           headers: { Accept: 'application/json' },
           cache: 'no-store',
+          // PM audit of #1665: neither Coinbase request had a timeout, so a hung answer held the route open.
+          signal: AbortSignal.timeout(5_000),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as { price?: string };
@@ -36,7 +38,7 @@ export async function GET(req: NextRequest) {
        into about +$8). Moves slowly: a minute is plenty. Optional - a miss answers null and the premium is shown as unknown. */
     const usdtUsd = await cached('coinbase-usdt-usd', 60_000, () =>
       trackHealth('coinbase:USDT-USD', 'market', async () => {
-        const res = await fetch(CB_USDT_TICKER, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+        const res = await fetch(CB_USDT_TICKER, { headers: { Accept: 'application/json' }, cache: 'no-store', signal: AbortSignal.timeout(5_000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as { price?: string };
         const p = parseFloat(data.price ?? '');
