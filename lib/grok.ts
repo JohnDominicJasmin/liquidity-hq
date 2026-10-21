@@ -428,7 +428,9 @@ export function buildPrompt(ctx: GrokContext): string {
     `  • OI Trend is strong_down or weak_down → ${ctx.oiTrend}`,
     `  • Long/Short ratio > 1.8:1 → ${ctx.longShortRatio}`,
     `  • Taker sell > 55% → ${ctx.takerRatio}`,
-    `  • Negative CB premium → ${ctx.cbPremium}`,
+    // #1631 B (PM audit): BTC's Coinbase premium is BTC's own market - fenced here too, or an XRP prompt says "not given for XRP" and then
+    // counts it toward a bearish regime twenty lines later.
+    ...btcOnly([`  • Negative CB premium → ${ctx.cbPremium}`]),
     `  • Price below VWAP → ${ctx.vwap}`,
     '',
     'IF IN BEARISH MOMENTUM REGIME:',
