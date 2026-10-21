@@ -71,7 +71,8 @@ test('C5. a cachedStale entry serving for a dead upstream is promoted, so the en
 
 test('C6. a second compiled copy of the module sees the same cache (globalThis, the #1634 [mem] fix)', async () => {
   await cached('c6:shared', 600_000, async () => 'from copy one');
-  const copy = await import('../lib/apiCache.ts?copy=two') as typeof import('../lib/apiCache.ts');
+  const second = '../lib/apiCache.ts?copy=two'; // a variable, so tsc does not try to resolve the query-string URL as a module path
+  const copy = await import(second) as typeof import('../lib/apiCache.ts');
   assert.ok(copy._cacheStats(1000).biggest.some((b) => b.key === 'c6:shared'), 'the second copy reads an empty or different store');
   assert.equal(await copy.cached('c6:shared', 600_000, async () => 'refetched'), 'from copy one');
 });
@@ -133,7 +134,8 @@ test('M2. startMemWatch starts one unref\'d 10-minute timer however often it is 
   const real = globalThis.setInterval; const seen: number[] = []; let unrefd = 0;
   (globalThis as { setInterval: unknown }).setInterval = ((fn: () => void, ms: number) => { seen.push(ms); const t = real(fn, 1e9); const u = t.unref.bind(t); (t as { unref: () => unknown }).unref = () => { unrefd++; return u(); }; return t; }) as typeof setInterval;
   try {
-    const { startMemWatch } = await import('../lib/memWatch.ts?fresh=m2') as typeof import('../lib/memWatch.ts');
+    const freshCopy = '../lib/memWatch.ts?fresh=m2';
+    const { startMemWatch } = await import(freshCopy) as typeof import('../lib/memWatch.ts');
     startMemWatch(); startMemWatch(); startMemWatch();
   } finally { globalThis.setInterval = real; }
   assert.deepEqual(seen, [600_000]);
