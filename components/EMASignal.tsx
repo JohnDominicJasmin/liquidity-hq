@@ -33,7 +33,8 @@ function fmt(n: number | null, decimals = 2): string {
 }
 
 function fireExplain(prompt: string, coin: CoinId) {
-  window.dispatchEvent(new CustomEvent('grok-chat', { detail: { coin, prompt } }));
+  // #1631 (owner 2026-10-21, applied here by PM): fill the question in and wait for Send - a click spends no AI use.
+  window.dispatchEvent(new CustomEvent('grok-chat', { detail: { coin, prompt, prefillOnly: true } }));
 }
 
 function buildSignalPrompt(signal: StrategySignal, coin: CoinId, tf: string, cfg: { label: string }): string {

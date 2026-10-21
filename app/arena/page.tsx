@@ -1716,6 +1716,8 @@ function ArenaContent() {
         detail: {
           coin: selectedCoin,
           selection,
+          // Owner, 2026-10-21 (#1631): fill the question in and wait for Send - a click spends no AI use.
+          prefillOnly: true,
           /* #1347 item 4, the "worst case" the audit named: citing a stale
              result's signal/confidence/reasoning as fact while appending
              the CURRENT selection below was one message asserting two

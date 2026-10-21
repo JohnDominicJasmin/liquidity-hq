@@ -491,7 +491,7 @@ export default function GrokChat() {
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
     const handler = (e: Event) => {
-      const ev = e as CustomEvent<{ coin?: string; prompt?: string; selection?: readonly string[] }>;
+      const ev = e as CustomEvent<{ coin?: string; prompt?: string; selection?: readonly string[]; prefillOnly?: boolean }>;
       /* QA's review of #1665: the opener's coin is checked like the page coin. The server now refuses a coin it does not track (400), so a
          future opener sending 'bitcoin' or 'BTCUSDT' would have shown that error in the chat; such a coin is ignored and the chat keeps its
          own (the page's, or the one already open). */
@@ -512,7 +512,24 @@ export default function GrokChat() {
       }
       setOpen(true);
       setHistView(false);
-      if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, evCoin), 200);
+      const prompt = ev.detail.prompt;
+      if (!prompt) return;
+      if (ev.detail.prefillOnly) {
+        /* Owner, 2026-10-21 05:18 UTC (#1631): an Ask button opens the chat with the question filled in and sends NOTHING - no daily AI use
+           is spent until the trader presses Send. A click used to send it at once and spend a use. Named for Arena's button; PM applied the
+           same rule to the News page and EMA Signal. Every opener in the app sets it now; an opener without it still sends. Same sizing as typing. */
+        setInput(prompt);
+        setTimeout(() => {
+          const el = inputRef.current;
+          if (!el) return;
+          el.style.height = 'auto';
+          el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+          el.focus();
+          el.setSelectionRange(el.value.length, el.value.length);
+        }, 200);
+        return;
+      }
+      setTimeout(() => sendMsg(prompt, evCoin), 200);
     };
     window.addEventListener('grok-chat', handler);
     return () => window.removeEventListener('grok-chat', handler);
