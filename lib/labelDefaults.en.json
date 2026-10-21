@@ -2654,6 +2654,7 @@
   "ALERTS_CONNECT_FAILED": "Could not start the connection. Please try again in a moment.",
   "ALERTS_CONNECT_SECURITY_NOTE": "The code proves the Telegram chat belongs to you. It works one time only, and only for your account.",
   "ALERTS_CONNECT_WEBHOOK_WARNING": "The bot is not responding properly right now, so it may not reply when you press Start. Try again in a few minutes.",
+  "ALERTS_BOT_STATUS_UNAVAILABLE": "Telegram status unavailable",
   "ALERTS_CONNECTED_DESC": "Your Telegram account is connected. Alerts arrive in your Telegram chat.",
   "ALERTS_DISCONNECT_BUTTON": "Disconnect",
   "ALERTS_DISCONNECTING": "Disconnecting…",
