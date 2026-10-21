@@ -15,7 +15,7 @@ Last verified: 2026-10-10; prices, payments state, environments and permissions 
 
 ## Plans and prices (owner final, 2026-10-08)
 - $49 monthly, $490 annual ("2 months free"), $20 every 2 weeks. Free tier.
-- Signal gate (`lib/signalCoinGate.ts`): signed-out BTC only; Free BTC/ETH/SOL (and signals only on 30m+); Pro and Trial all coins.
+- Signal gate (`lib/signalCoinGate.ts`; trial split from paid on 2026-10-20, #1596): signed-out BTC only; **Free and free trial** BTC/ETH/SOL (Free signals on 30m and slower only, `lib/limits.ts`); **paid Pro** every coin. A trial gets other Pro features but not the coin ladder; trial alerts are BTC/ETH/SOL only too (owner, 2026-10-21 04:43 UTC, #1630).
 - Checked 2026-10-21: the English defaults on `dev` (`lib/labelDefaults.en.json`: `UPGRADE_PRICE_*`, `UPGRADE_CHECKOUT_BUTTON_CTA`, `FAQ_Q_PRO_PRICE_A`) and production's `lhq_labels` (en) both say $49/$490/$20; no $35/$350 is left in either. `docs/PRICING_AND_LIMITS.md` carries no dollar prices.
 
 ## Contact
@@ -112,7 +112,7 @@ Owner decision at the time: use ALL THREE (superseded 2026-10-17: Whop only).
 - **Settings seen:** max price $2,500 per checkout ("Request increase" exists); payment orchestration ON (0.8% fee per Whop's text); 3D Secure frictionless; Dispute Fighter available, off; "$25 / Save 20%" strikethrough on the $20 plan has no setting and looks auto-computed.
 - **Legal tab:** Terms of Service, Privacy policy and Return policy PDFs uploaded by the owner; EULA left empty on purpose (a web app has no installed software; Google says Whop does not require any of the four, unverified). "Require terms and conditions acceptance" is ON.
 - **PDFs** (clean, built from the live site text): `Documents\LiquidityHQ-Whop-Legal\` (Terms-of-Service, Privacy-Policy with "Whop (payments)" instead of "Lemon Squeezy", Return-Policy). Return policy = owner choice A: all sales final, cancel any time, access until the paid period ends, double-charge review, payment-provider note, support@liquidity-hq.com.
-- **Site/PDF mismatch:** the live Privacy page still names Lemon Squeezy; `/refund` redirects to `/terms`; the footer still shows "Refund Policy". Tracked in issue #1571.
+- **Site/PDF mismatch:** the live Privacy page still names Lemon Squeezy; `/refund` redirects to `/terms`; the footer still shows "Refund Policy". Tracked in issue #1571. (2026-10-21: no longer true; neither production's nor staging's footer links "Refund Policy", per QA.)
 - **Product page:** headline "LiquidityHQ Pro: crypto market analytics" and a description with "Not financial advice" were added 2026-10-11 and saved.
 - **Whop Websites migration job** (builds a Whop-hosted copy of liquidity-hq.com): started on its own, owner stopped it. Not needed; the app stays on Render.
 - **Not done:** test purchase (the seller's "Get access" button is greyed out), test withdrawal, success redirect URL, statement descriptor, webhook/unlock (#1567). Settings tabs not read: Notifications, Analytics, Checkout branding, Open graph image, Home preferences, Partners, Authorized apps.
