@@ -8,11 +8,13 @@ const buckets = new Map<string, { count: number; resetAt: number; limit: number 
 /* Hard cap on live buckets (#1397). The sweep below only drops EXPIRED buckets, and a flood of distinct keys (one per IP per route) inside one
    window is all live. 20,000 is far past any real concurrent-visitor count here.
 
-   WHICH bucket goes when the cap is hit matters (security review of this change): dropping the oldest regardless would let a flood of throwaway keys
-   flush the buckets that are BLOCKING someone, a rate-limit bypass an attacker could trigger. So a bucket that has reached its limit is never evicted;
-   the oldest bucket still under its limit goes instead. If every bucket is at its limit (20,000 blockers) a NEW key is refused (fail closed) rather
-   than flushing any of them. */
+   WHICH bucket goes when the cap is hit matters (two rounds of security review on this change). Dropping the oldest regardless would let a flood of
+   throwaway keys flush the buckets that are BLOCKING someone. So eviction looks only at the oldest EVICT_SCAN buckets (O(1), never a full scan on the
+   request path) and takes the first that is expired or still under its limit; a bucket at its limit is never evicted. If those oldest few are all
+   live blockers, nothing is evicted and the NEW key is allowed this once without being stored (fail open for that key alone): refusing it would let an
+   attacker who parks 20,000 blocked keys lock every new visitor out of every rate-limited route. */
 const MAX_BUCKETS = 20_000;
+const EVICT_SCAN = 64;
 
 /** Live bucket count, for lib/memWatch.ts. */
 export function _bucketCount(): number {
@@ -41,8 +43,12 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
     buckets.delete(key);
     if (buckets.size >= MAX_BUCKETS) {
       let victim: string | null = null;
-      for (const [k, v] of buckets) { if (v.count < v.limit) { victim = k; break; } }
-      if (victim === null) return false; // every live bucket is a blocker: refuse the new key, evict none
+      let seen = 0;
+      for (const [k, v] of buckets) {
+        if (now > v.resetAt || v.count < v.limit) { victim = k; break; }
+        if (++seen >= EVICT_SCAN) break;
+      }
+      if (victim === null) return true; // the oldest few are all live blockers: allow this new key once, store nothing, evict nothing
       buckets.delete(victim);
     }
     buckets.set(key, { count: 1, resetAt: now + windowMs, limit });
