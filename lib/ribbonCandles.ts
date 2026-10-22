@@ -13,6 +13,7 @@
 import { BINANCE_SYMS, BYBIT_SYMS, bybitSymbolPriceFactor } from '@/lib/coins';
 import type { OHLCV } from '@/lib/strategyCore';
 import { reportHealth, healthError } from '@/lib/apiHealth';
+import { exchangeFetch } from './exchangeGuard.ts';
 
 export const EMA_SIGNAL_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
 export type EMASignalTF = typeof EMA_SIGNAL_TFS[number];
@@ -52,7 +53,7 @@ export const BYBIT_KLINE_SYMS: Record<string, string> = Object.fromEntries(
  *  never conflated with Bybit's own normal traffic. */
 async function fetchFromBybit(bySym: string, tf: EMASignalTF, healthSource: string): Promise<OHLCV[]> {
   try {
-    const res = await fetch(
+    const res = await exchangeFetch(
       `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bySym}&interval=${BYBIT_TF_INTERVAL[tf]}&limit=300`,
       { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
     );
@@ -90,7 +91,7 @@ export async function fetchRibbonCandles(coin: string, tf: EMASignalTF): Promise
   const bnSym = BINANCE_SYMS[coin];
   if (bnSym) {
     try {
-      const res = await fetch(
+      const res = await exchangeFetch(
         `https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${tf}&limit=300`,
         { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
       );

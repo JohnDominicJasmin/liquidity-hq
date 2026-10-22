@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { parseCombinedResponse } from '@/lib/grok';
+import { applyResultChecks, parseCombinedResponse } from '@/lib/grok';
+import { answerText, searchCitations } from '@/lib/xaiAnswer';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
@@ -9,7 +10,7 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
-import { getUserCompat } from '@/lib/authUser';
+import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { anonServerClient, userClient } from '@/lib/supabase-user';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
   // Auth required for both Quick and Deep - prevents unauthenticated API burn
   let userId: string | null = null;
   if (token) {
-    const { data } = await getUserCompat(token);
+    const { data } = await getUserCompatForBilledCall(token);
     userId = data.user?.id ?? null;
   }
 
@@ -191,6 +192,7 @@ export async function POST(req: NextRequest) {
 
   // ── Call xAI ──────────────────────────────────────────────────────────────
   let text: string;
+  let citations: string[] = [];
   try {
     if (type === 'deep') {
       // Responses API with live web + X search
@@ -212,8 +214,9 @@ export async function POST(req: NextRequest) {
       }
       const d = await r.json();
       await recordAiCall({ userId, callType: 'deep', model: d.model ?? 'grok-4.3', usage: d.usage });
-      const msg = d.output?.find((o: { type: string }) => o.type === 'message');
-      text = msg?.content?.[0]?.text ?? '';
+      text = answerText(d, true);
+      // #1631 A: the sources the search returned are kept - they used to be dropped here with everything but the text.
+      citations = searchCitations(d);
     } else {
       // chat/completions - no search tools, cheaper
       const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
@@ -231,13 +234,16 @@ export async function POST(req: NextRequest) {
       }
       const d = await r.json();
       await recordAiCall({ userId, callType: 'quick', model: d.model ?? 'grok-4.3', usage: d.usage });
-      text = d.choices?.[0]?.message?.content ?? '';
+      text = answerText(d, false);
     }
   } catch (e: unknown) {
     return apiError('grok', e, 500, 'AI service error');
   }
 
-  const result = parseCombinedResponse(text, tf, session);
+  /* #1631 B and D: the rules the answer can be checked against are applied here, where the prompt is known - a full tier the model's own
+     count does not support, a raid with no cluster data to aim at (both XRP runs invented a "long flush" target), and a missing
+     "perps-vs-spot unavailable" disclosure. See applyResultChecks in lib/grok.ts. */
+  const result = applyResultChecks({ ...parseCombinedResponse(text, tf, session), citations }, prompt);
 
   const newDeep  = type === 'deep'  ? usageResult.count : deepUsed;
   const newQuick = type === 'quick' ? usageResult.count : quickUsed;

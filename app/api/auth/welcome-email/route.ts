@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendWelcomeEmail } from '@/lib/email';
 import { T } from '@/lib/tables';
 import { classifyWelcomeClaim, missingRowReport } from '@/lib/signupIntegrity';
-import { userClient } from '@/lib/supabase-user';
+import { fetchAuthUser, getUserCompat } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,12 +19,25 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const sb = userClient(token);
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  /* #1397: SIGNED_IN fires on every page load of a signed-in user, and the email goes out once per account. So the token is checked locally,
+     and once welcome_email_sent_at is set there is nothing to do: no Auth round trip. Only an account still waiting for its email (the
+     first sign-in, or a missing row) takes the full path below, with Auth's own view of the address as before. */
+  const { data: { user: local } } = await getUserCompat(token);
+  if (!local) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const admin = getSupabaseAdmin();
+    const { data: done } = await admin
+      .from(T.user_subscriptions)
+      .select('welcome_email_sent_at')
+      .eq('user_id', local.id)
+      .maybeSingle();
+    if ((done as { welcome_email_sent_at?: string | null } | null)?.welcome_email_sent_at) {
+      return NextResponse.json({ ok: true, sent: false, outcome: classifyWelcomeClaim(false, true) });
+    }
+
+    const user = await fetchAuthUser(token);
+    if (!user?.email || user.id !== local.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // The signup trigger (lhq_grant_signup_trial) inserts this row in the same
     // transaction as auth.users, so by the time a client can be signed in and
     // calling this route, the row already exists - .maybeSingle() still guards

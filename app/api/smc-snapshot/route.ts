@@ -5,8 +5,9 @@ import { cached } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
-import { getUserCompat } from '@/lib/authUser';
+import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Every visitor requesting the same asset+timeframe within this window gets
@@ -42,7 +43,7 @@ interface Candle {
 }
 
 async function fetchCandles(symbol: string, interval: string, limit: number): Promise<Candle[]> {
-  const res = await fetch(
+  const res = await exchangeFetch(
     `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
   );
   if (!res.ok) throw new Error(`Binance ${res.status} for ${symbol}`);
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await getUserCompat(token);
+  const { data: authData } = await getUserCompatForBilledCall(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only. This tool is reachable in-product only from /backtest, which

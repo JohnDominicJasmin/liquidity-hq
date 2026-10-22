@@ -1,10 +1,9 @@
 # Work queue — pull from here, never idle
 
-**Lanes rewritten 2026-09-30 by PM/DevOps, after the closing sweep.** The owner resumed the
-team the same day he paused it (recorded on #861), then said to work every open item, with
-payments (BoomFi, Polar) last. Rows below name open work only; the Lemon Squeezy rows are
-gone because those issues closed (#1422, #1423, #1429, #1400, #1428) and the processor
-rejected the store.
+**Lanes rewritten 2026-10-21 by PM/DevOps**, after that day's full audit, QA's full
+regression and the owner's decisions (indexed in `docs/OWNER-BACKLOG.md`, "Owner decisions,
+2026-10-21"). The lanes had not been rewritten since 2026-09-30 and still named BoomFi and
+Polar, which the owner replaced with Whop only on 2026-10-17. Rows below name open work only.
 
 **This file exists because the PM was the bottleneck.** On 2026-09-06 both the Dev
 and QA sessions finished their work and then *waited* for the next assignment.
@@ -76,13 +75,13 @@ means*). **Every issue carries exactly one `priority:` label.**
 
 | # | Item | Notes |
 |---|---|---|
-| D1 | **#1434 - unknown URLs return 200 on production again** (high) | Cause found 2026-09-30: `app/not-found.tsx` called `headers()`, which made every page render per request and let unknown URLs answer 200; production's log confirms it. Fix merged to `dev` (#1471). **Needs a production release, which is the owner's approval.** |
-| D2 | **#1263 - Arena and Strategy Panel: saved selections vs settings load** (high) | Read the tracker first; say on it what you are taking. |
-| D3 | **#1113 - onboarding and first run** (high) | Same. |
-| D4 | **#1404 and #1397 - zero upstream calls per visitor, traffic readiness** (high) | Partly shipped. The trackers say what is left; do not assume from this row. |
-| D5 | **#1173 - auth and session timeouts** (medium) | |
-| D6 | **#1403 - record which plan a subscriber bought** | Rethink: the issue was written for Lemon Squeezy variants. Under BoomFi it is `billing_provider` plus which plan. Say on the issue what it becomes before building. |
-| D7 | **Payments (#861), parked by the owner on 2026-09-30: "put boomfi in last"** | Built and waiting: the entitlement decision as a pure function (`feature/boomfi-entitlement-prep`, local), the landing reframe for Polar (`feature/landing-reframe-review`, local). Blocked on the owner: his $10 test payment (the only source of a real BoomFi event), a cancel route for a BoomFi subscriber, the Polar application. |
+| D1 | **#1631 - AI correctness** (high) | Owner-approved 2026-10-21 09:10 UTC. E+B+C with the nominal 10-year yield: committed, PR next (heavy slot after QA's staging sign-off). Then A+D (Deep citations, our own dated data), stacked. |
+| D2 | **#1649 - exchange data never blocked** (high) | Phase 1 merged (#1659: shared breaker, budgets, klines range limit). Phase 2: server Bybit WebSocket. Phase 3: OKX + our own 5-minute snapshots (a table, so a migration: owner's word first). Phase 4: Hyperliquid as third source + funding-comparison inputs (owner, 2026-10-21 ~14:00 UTC). The first PR that calls OKX or Hyperliquid logs host + HTTP status once per process; PM reads the qa logs. |
+| D3 | **#1662 - real liquidation levels from Hyperliquid positions** (medium) | Estimate only, at a natural break: days, memory, DB, request budget, what a first version cuts. No build before D1 and D2. |
+| D4 | **#1651 - data guardrails** (high) | Owner order 2026-10-21. Reading type with ok/stale/unknown, freshness budgets, one formatter, AI input and answer checks. The PR template's data checklist (#1652) applies to every PR that adds or changes a number. |
+| D5 | **#1600 - all coins** (owner, 2026-10-21 08:58 UTC) | After the server fixes; more coins may not mean more upstream calls per minute (#1649 item 5). |
+| D6 | **#1632 - security items left** (high) | Includes the Next.js dependency bump (Dependabot), the liquidation page's 5,000-row download, and the AI prompts moved server-side (#1263). |
+| D7 | **Fails from QA's 2026-10-21 regression** (#1640) | R1 Arena 11 px too wide at 390; R2 `/api/ath` 502 when CoinGecko answers 429; R3 `/alerts` signed-out 401s; R4 `bot-info` 500; R9 `/about` still names Finnhub; R13 econ 429 shown as "No upcoming events" (PR #1637 open). R6-R8 are visual: the owner's look first. |
 
 **UI polish and accessibility audit work: last, not parked.** The owner parked it on
 2026-09-19 and on 2026-09-30 said to work "all items, issues, PRs and backlogs". So it is
@@ -145,30 +144,31 @@ controls** - to anything you touch.
 
 | # | Item | Notes |
 |---|---|---|
-| Q1 | **Tests for what merges** | QA owns every test (owner ruling, 2026-09-07). A test file must pass the PROJECT typecheck, not only a file-scoped one: on 2026-09-30 a new test passed alone and failed the hook, costing a push. |
-| Q2 | **Review Dev's open PRs** | Dev's blockers first, then open PRs, then your own specs. |
-| Q3 | **Cross-browser harness (#1410)** | Unparked 2026-09-30. Two extra routes (`/`, `/funding`) to commit, then a run against staging. A browser run is a heavy job: one at a time, measure first. **WebKit is not installed: Safari is unclaimed.** |
-| Q4 | **#1259 - make a red E2E run mean something** | |
-| Q5 | **`qa` and `staging` deploys** | Yours. **Setting a variable on a Render service deploys it by itself** (PM learned this on 2026-09-30 by doing it); expect a deploy id from whoever sets one, and read `/api/version` after. |
-| Q6 | **Payments (#861), parked with Dev's D7** | Waiting on the owner's test payment: the second reading of the recorded event, then tests for the entitlement decision. Two PM rulings are on #861 (an email mismatch credits the account the link named; "overdue" does not end access, the paid-through date does). |
-| Q7 | **Load testing beyond one address** | A single source hits our own per-IP limit long before the service. Real load needs many source IPs, a paid tool, so the owner's cost decision. **The page ramp yielded no ceiling and none is claimed.** |
-| Q8 | **Older items still open** | `TEST_GAPS.md` §1 (server time not controllable) and §6 (accessibility asserted, never heard). |
+| Q1 | **Release v2026.10.21 on `staging`** (#1654) | Regression passed (#1640); promoted and deployed 2026-10-21 14:10-14:13 UTC (`4cfd53c`). Staging checks and sign-off; open the `staging` → `main` PR (PM's go). The staging AI check waits for 00:00 UTC (dev daily AI cap). |
+| Q2 | **Review Dev's open PRs** | Dev's blockers first, then open PRs, then your own specs. #1631 E+B+C is next; its test plan is on #1631 (04:03 UTC). |
+| Q3 | **#1661 - test pins for #1653** | Reaped for low memory at 14:05 UTC on 2026-10-21; retry in the foreground after Dev's #1631 push. |
+| Q4 | **Tests for what merges** | QA owns every test (owner ruling, 2026-09-07). A test file must pass the PROJECT typecheck, not only a file-scoped one. |
+| Q5 | **`qa` and `staging` deploys** | Yours. **Setting a variable on a Render service deploys it by itself**; expect a deploy id from whoever sets one, and read `/api/version` after. |
+| Q6 | **Language scan of the ~29 pages not covered on 2026-10-21** | Chromium crashed for memory at 12:36 UTC; the 7 key pages and the release's wordings were checked. English found so far is all tracked on #1475. |
+| Q7 | **Cross-browser harness (#1410)** | Owner backlog item 15: Firefox and WebKit. A browser run is a heavy job: one at a time, measure first. |
+| Q8 | **Older items still open** | #1259 (make a red E2E run mean something); `TEST_GAPS.md` §1 and §6; load testing beyond one address needs many source IPs, a paid tool, so the owner's cost decision. |
 
 ## PM/DevOps lane
 
 | # | Item | Notes |
 |---|---|---|
-| P1 | **The closing sweep, after every production deploy** | Five conditions per issue; a tracker ticks only when verified on production (`git merge-base --is-ancestor <merge> <prod sha>`). |
-| P2 | **Drift check by hand while Actions cannot run** | Production served commit vs `main`, plus tags, recorded on #1413 every run. **A gap in that record is an unmeasured window, not a clean one.** |
-| P3 | **The release batch** | Wording and database changes the owner must approve. See "Owner-only" below; nothing is applied without his word each time. |
-| P4 | **Owner's batch** | One list, recommendation first. Drop what the owner has acknowledged and cannot act on. |
-| P5 | **The heavy-job slot** | One heavy job at a time on the laptop; PM assigns it. |
+| P1 | **Release v2026.10.21** (#1654) | After QA's sign-off: one owner approval (production migrations `20261017a` and `20261021e` plus the label files; no env change; payments stay off), then apply (`20261017a` before the deploy: this release's claim route reads its table on every signed-in page load), merge, deploy, check `/api/version`, one real AI read, a 5-minute watch, tag, closing sweep. |
+| P2 | **The closing sweep, after every production deploy** | Five conditions per issue; a tracker ticks only when verified on production (`git merge-base --is-ancestor <merge> <prod sha>`). |
+| P3 | **Drift check by hand while Actions cannot run** | Production served commit vs `main`, plus tags, recorded on #1413 every run. **A gap in that record is an unmeasured window, not a clean one.** |
+| P4 | **Owner's batch** | One list, recommendation first. Open on 2026-10-21: the X account and a yes/no on the reply plan; the $1 Whop test; 2FA on every account; pinning `NODE_VERSION`; the three visual fails R6-R8. Drop what the owner has acknowledged and cannot act on. |
+| P5 | **The heavy-job slot** | One heavy job at a time on the laptop; PM assigns it. Order set 2026-10-21: QA's staging checks, then Dev's #1631 push, then QA's #1661 retry. |
+| P6 | **Record every owner decision the same day** | The "Owner decisions" table in `docs/OWNER-BACKLOG.md`, the issue it belongs to, and the Marketing seat's `FACTS.md` when it changes what Marketing may say. |
 
 ## Unassigned - take with a reason
 
 | Item | Why it is here |
 |---|---|
-| **#1411 - sign-in shows a machine-generated domain** | Needs a paid Supabase plan for a custom auth domain; **deferred by the owner.** The Supabase paid-plan decision lives on that issue now. |
+| **#1411 - sign-in shows a machine-generated domain** | Needs a paid Supabase plan for a custom auth domain. Owner, 2026-10-21: Supabase Pro is bought the day payments go live; the custom domain (+$10) stays later. |
 | **#1152 - plans and upgrade messaging** | PR #1463 (one source for the Free and Pro feature lists) and its test #1464 are built and pushed; **held for the owner's look**, screenshots taken 2026-09-30. Do not merge #1464 first: it sits on #1463. |
 | **#1413 - GitHub Actions cannot start** | The account is locked for billing; acknowledged by the owner. The drift check is done by hand meanwhile. |
 
@@ -204,7 +204,15 @@ Visual sign-off stays with the owner (condition 5).
 
 ## Owner-only - do not queue these
 
-**Payments go-live (#861) — REPLANNED 2026-09-30, the Lemon Squeezy paragraph that used to
+**Payments go-live (#1567) — Whop only since 2026-10-17. The BoomFi/Polar plan below is
+SUPERSEDED and kept only as history.** Lemon Squeezy, Polar and Paddle rejected the store; the
+owner chose Whop on 2026-10-17. The Whop unlock is built and ships in release v2026.10.21, but
+**production has no Whop variables, so nothing can be bought there** (PM read the names on
+Render, 2026-10-21 ~14:17 UTC). What turns it on, all the owner's: his $1 test payment; the
+three checkout links, the webhook secret, the company id and the plan ids set together on
+production (never the links alone); Supabase Pro the same day.
+
+**Superseded 2026-10-17: Payments go-live (#861) — REPLANNED 2026-09-30, the Lemon Squeezy paragraph that used to
 sit here is DEAD.** Lemon Squeezy rejected the store application outright (crypto
 trading-signals business, no specific fix offered, no reapply path) — the "Copy to Live
 Mode" / store-activation flow below never happens now. Full record and the current plan:

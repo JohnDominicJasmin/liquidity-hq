@@ -5,6 +5,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 export const dynamic = 'force-dynamic';
 // Funding rates settle every 8h - a 20s cache collapses concurrent visitor
@@ -25,7 +26,7 @@ async function getBinance(): Promise<{ rates: Record<string, number>; nextMs: Re
     try {
       const ac  = new AbortController();
       const tid = setTimeout(() => ac.abort(), 6000);
-      const res = await fetch(`${host}/fapi/v1/premiumIndex`, {
+      const res = await exchangeFetch(`${host}/fapi/v1/premiumIndex`, {
         cache: 'no-store',
         signal: ac.signal,
         headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -50,7 +51,7 @@ async function getBinance(): Promise<{ rates: Record<string, number>; nextMs: Re
 }
 
 async function getBybit(): Promise<{ rates: Record<string, number>; nextMs: Record<string, number> }> {
-  const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store' });
+  const res = await exchangeFetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store' });
   if (!res.ok) throw new Error(`Bybit ${res.status}`);
   const data = await res.json() as { result?: { list?: BBTicker[] } };
   const rates: Record<string, number> = {};

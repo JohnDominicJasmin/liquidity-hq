@@ -3,8 +3,12 @@
  * Requires valid Supabase session token - keeps GROK_API_KEY off the client.
  *
  * POST /api/grok-chat
- *   { mode: 'chat',   model, messages, max_tokens }  → /v1/chat/completions
- *   { mode: 'search', model, input, tools }           → /v1/responses  (live web + X search)
+ *   { mode: 'chat',   context, messages, minimal?, max_tokens? }  → /v1/chat/completions (no tools)
+ *   { mode: 'search', context, messages, minimal? }               → /v1/responses        (live web + X search)
+ *   → { text, followUps, citations, _usage }   (#1631 E: the answer only, never xAI's raw JSON)
+ *
+ * `context` is market DATA for one tracked coin and `messages` the user/assistant turns; the system prompt is built here from them
+ * (lib/chatPrompt.ts). Model, tools and the token ceiling are pinned server-side.
  *
  * Daily limits live in lib/limits.ts (AI_LIMITS[role].chat / .search) - the
  * enforced source of truth. Deliberately not restated here: this docblock
@@ -22,8 +26,10 @@ import { AI_LIMITS } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { clampMaxTokens } from '@/lib/grokTokenClamp';
-import { getUserCompat } from '@/lib/authUser';
+import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { buildChatSystemPrompt, parseChatContext, parseChatHistory, splitFollowUps } from '@/lib/chatPrompt';
+import { answerText, searchCitations } from '@/lib/xaiAnswer';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -83,7 +89,7 @@ export async function POST(req: NextRequest) {
   if (!token) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
-  const { data: userData } = await getUserCompat(token);
+  const { data: userData } = await getUserCompatForBilledCall(token);
   if (!userData.user) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
@@ -97,8 +103,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { mode, ...payload } = body;
+  /* #1631 E: the browser sends DATA (context) and the conversation; the system prompt is written HERE (lib/chatPrompt.ts). A system turn
+     from the caller is never forwarded, and the coin is checked against the coins this app tracks. */
+  const mode = body.mode;
+  if (mode !== 'chat' && mode !== 'search') return NextResponse.json({ error: `Unknown mode: ${String(mode)}` }, { status: 400 });
   const isSearch = mode === 'search';
+  const ctx = parseChatContext(body.context);
+  if (!ctx) return NextResponse.json({ error: 'context.coin must be a coin this app tracks' }, { status: 400 });
+  const history = parseChatHistory(body.messages);
+  if (!history) return NextResponse.json({ error: 'messages must end with the trader\'s question' }, { status: 400 });
+  const messages = [{ role: 'system', content: buildChatSystemPrompt(ctx, { search: isSearch, minimal: body.minimal === true }) }, ...history];
 
   /* ── Rate limit check ── */
   const today = todayUtc();
@@ -133,42 +147,44 @@ export async function POST(req: NextRequest) {
     let status: number;
 
     if (isSearch) {
-      // Only `input` comes from the caller - model and tools are pinned above.
+      // The conversation is the only caller input - model and tools are pinned above.
       const r = await xaiFetch('https://api.x.ai/v1/responses', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-        body:    JSON.stringify({ model: MODEL, input: payload.input, tools: ALLOWED_SEARCH_TOOLS }),
-      });
-      data   = await r.json();
-      status = r.status;
-    } else if (mode === 'chat') {
-      // Only `messages` comes from the caller - model is pinned, and
-      // max_tokens is clamped rather than trusted outright, so a modified
-      // client can shrink it but never raise it past the real ceiling.
-      const maxTokens = clampMaxTokens(payload.max_tokens);
-      const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-        body:    JSON.stringify({ model: MODEL, messages: payload.messages, max_tokens: maxTokens }),
+        body:    JSON.stringify({ model: MODEL, input: messages, tools: ALLOWED_SEARCH_TOOLS }),
       });
       data   = await r.json();
       status = r.status;
     } else {
-      return NextResponse.json({ error: `Unknown mode: ${mode}` }, { status: 400 });
+      // Model pinned; max_tokens clamped rather than trusted, so a modified client can shrink it but never raise it past the ceiling.
+      const maxTokens = clampMaxTokens(body.max_tokens);
+      const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+        body:    JSON.stringify({ model: MODEL, messages, max_tokens: maxTokens }),
+      });
+      data   = await r.json();
+      status = r.status;
     }
 
     if (status >= 200 && status < 300) {
-      const body = data as { usage?: unknown; model?: string } | null;
-      await recordAiCall({ userId, callType: isSearch ? 'chat_search' : 'chat', model: body?.model ?? MODEL, usage: body?.usage });
+      const raw = data as { usage?: unknown; model?: string } | null;
+      await recordAiCall({ userId, callType: isSearch ? 'chat_search' : 'chat', model: raw?.model ?? MODEL, usage: raw?.usage });
       const newChat   = isSearch ? chatUsed   : usageResult.count;
       const newSearch = isSearch ? usageResult.count : searchUsed;
+      /* #1631 E: only the answer, its follow-up questions, any search citations and the usage reach the browser - not xAI's raw JSON
+         (reasoning_content, model name, system_fingerprint, cost ticks). */
+      const { text, followUps } = splitFollowUps(answerText(data, isSearch));
       return NextResponse.json({
-        ...((data as Record<string, unknown>) ?? {}),
+        text: text || '(no response)',
+        followUps,
+        citations: isSearch ? searchCitations(data) : [],
         _usage: { chat_used: newChat, chat_limit: chatLimit, search_used: newSearch, search_limit: searchLimit },
       }, { status });
     }
 
-    return NextResponse.json(data, { status });
+    // xAI refused: say so generically. Its error body is not passed through.
+    return apiError('grok-chat', new Error(`xAI answered ${status}`), 502, 'AI service error');
   } catch (e) {
     return apiError('grok-chat', e, 500, 'AI service error');
   }

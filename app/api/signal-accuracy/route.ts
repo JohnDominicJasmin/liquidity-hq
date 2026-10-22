@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
 import { wilderRsiSeries } from '@/lib/rsi';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 function emaArr(closes: number[], period: number): number[] {
   const result = new Array<number>(closes.length).fill(NaN);
@@ -38,7 +39,7 @@ export interface SignalStat {
 const SIGNAL_ACCURACY_TTL = 10 * 60_000;
 
 async function computeSignalAccuracy(): Promise<{ stats: SignalStat[]; candles: number }> {
-    const r = await fetch(
+    const r = await exchangeFetch(
       'https://api.bybit.com/v5/market/kline?category=linear&symbol=BTCUSDT&interval=240&limit=300',
       { next: { revalidate: 600 } }
     );

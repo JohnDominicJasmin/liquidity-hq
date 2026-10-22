@@ -109,7 +109,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (q.get('limit')) rows = rows.slice(0, Number(q.get('limit')));
       return out(rows.map((r) => ({ payload_hash: r.payload_hash })));
     }
-    if (req.method === 'DELETE') { db.events.delete(eq('payload_hash')); db.writes.push('events:delete'); return json(204, null); }
+    if (req.method === 'DELETE') { db.events.delete(eq('payload_hash')); db.writes.push('events:delete'); return new Response(null, { status: 204 }); } // a 204 has no body; json(204, null) threw, so every delete read as failed
   }
   if (table === T('user_subscriptions')) {
     if (req.method === 'GET') {

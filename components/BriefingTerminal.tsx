@@ -19,6 +19,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { formatRsi } from '@/lib/rsi';
+import { signedUsd } from '@/lib/numberFormat';
 
 /* ── helpers (identical to briefing/page.tsx) ── */
 
@@ -130,7 +131,7 @@ function buildBriefingContext(
     `BTC Dominance: ${store.btcDom?.toFixed(1) ?? '?'}%`,
     `DXY: ${store.dxy?.toFixed(2) ?? '?'} (${store.dxyChg != null ? (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) : '?'}% 24h)`,
     `USD/JPY (Yen Watch): ${jpyStatus}`,
-    `BTC ETF Flow: ${store.etfNetFlow != null ? (store.etfNetFlow >= 0 ? '+' : '') + '$' + store.etfNetFlow.toFixed(0) + 'M' : 'N/A'}`,
+    `BTC ETF Flow: ${store.etfNetFlow != null ? signedUsd(store.etfNetFlow, 'M', 0) : 'N/A'}`,
     '',
     'COINS (24h change | FR | RSI 15m | CVD divergence | OI trend):',
   ];
@@ -547,7 +548,7 @@ export default function BriefingTerminal() {
             <div className="mb-macro-item">
               <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip></div>
               <div className="mb-macro-val" style={{ color: etfColor }}>
-                {(etfFlow >= 0 ? '+' : '') + '$' + Math.abs(etfFlow).toFixed(0) + 'M'}
+                {signedUsd(etfFlow, 'M', 0)}
               </div>
               <div className="mb-macro-sub" style={{ color: etfColor }}>
                 {etfFlow > 100  ? t('BRIEFING_ETF_STRONG_IN')

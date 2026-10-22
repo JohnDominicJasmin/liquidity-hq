@@ -14,6 +14,7 @@ import { simulateTrades } from './backtestEngine.ts';
 import { TF_MS, CLOSE_SKEW_MS, dropForming, msUntilNextClose, sameCandle } from './candles.ts';
 import { getWaveTrendConfirmation } from './waveTrend.ts';
 import { fetchBybitKlinesRetry } from './bybitKlines.ts';
+import { priceText } from './numberFormat.ts';
 
 export type { SignalFilterParams } from './strategyCore.ts';
 export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore.ts';
@@ -893,7 +894,8 @@ export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
   const total   = sig.conditions.filter(c => c.pass !== null).length;
   const condStr = `${passing}/${total} conditions passing`;
   const sltp    = sig.sl && sig.tp
-    ? ` · SL $${sig.sl.toFixed(4)} · TP $${sig.tp.toFixed(4)}`
+    // #1631 B (PM audit): decimals by size - toFixed(4) printed PEPE's and BONK's stop and target as $0.0000.
+    ? ` · SL ${priceText(sig.sl)} · TP ${priceText(sig.tp)}`
     : '';
   // judgeRibbon already ends the phase with the flag; this covers a phase that a selected indicator rewrote.
   const counter = sig.counterTrend && !sig.phase.includes('counter-trend') ? ' · COUNTER-TREND vs the daily 200 SMA' : '';

@@ -26,6 +26,8 @@ import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, OHLCV } 
 import { planKindOfRow } from '@/lib/paidPeriod';
 import { FREE_SIGNAL_COINS } from '@/lib/signalCoinGate';
 import { wilderRsi } from '@/lib/rsi';
+import { exchangeFetch } from '@/lib/exchangeGuard';
+import { afterSend, dueForRetry, holdExpired, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +65,7 @@ function noteSkip(counts: SkipCounts, source: string): void {
  * caller's existing `if (!res) return;` shape barely changes. */
 async function fetchOrSkip(url: string, opts: RequestInit, skipCounts: SkipCounts, source: string): Promise<Response | null> {
   try {
-    const res = await fetch(url, opts);
+    const res = await exchangeFetch(url, opts);
     if (!res.ok) { noteSkip(skipCounts, source); return null; }
     return res;
   } catch {
@@ -367,16 +369,26 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
    a warm process, hence the explicit reset rather than lazy init. */
 const sendTally = { ok: 0, failed: 0, reasons: new Set<string>() };
 
+/* #1667: triggered price alerts whose message has not landed yet, by alert id, with the message and its backoff (lib/priceAlertDelivery.ts).
+   Process memory, like the tally above: a restart drops them, and the still-active alert fires again on its next touch. Bounded by the
+   active alerts - entries for alerts that are gone are pruned on every run. */
+/** What a hold owes: the touch, and the target / direction it was for (an edited alert drops its hold). */
+interface HeldTouch { target: number; direction: string; level: number; atMs: number }
+const PRICE_ALERT_PENDING = new Map<number, PendingDelivery<HeldTouch>>();
+
 function resetSendTally(): void {
   sendTally.ok = 0;
   sendTally.failed = 0;
   sendTally.reasons.clear();
 }
 
-async function tg(token: string, chatId: string | string[], text: string): Promise<void> {
+/* #1667: what one call delivered, per recipient chat, so a caller that must know (price alerts) can tell "sent", "failed" and "paused"
+   apart. Every other caller still ignores it, as before. */
+async function tg(token: string, chatId: string | string[], text: string): Promise<SendResult> {
   // Send-only kill switch (/ops/config) - detection/tracking above this call
   // keeps running either way, only the actual outbound message stops.
-  if (!(await isFeatureEnabled('telegram'))) return;
+  if (!(await isFeatureEnabled('telegram'))) return { sent: 0, failed: 0, paused: true };
+  const result: SendResult = { sent: 0, failed: 0, paused: false };
 
   const ids = Array.isArray(chatId) ? chatId : [chatId];
   // One rendered body per distinct timezone among these recipients.
@@ -403,8 +415,8 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
           body: JSON.stringify({ chat_id: id, text: body, parse_mode: 'HTML' }),
           signal: AbortSignal.timeout(10_000),
         });
-        if (res.ok) { sendTally.ok++; return; }
-        sendTally.failed++;
+        if (res.ok) { sendTally.ok++; result.sent++; return; }
+        sendTally.failed++; result.failed++;
         // description is Telegram's own reason ("chat not found", "bot was
         // blocked by the user") and is what makes the /ops entry actionable.
         const why = await res.json().then(
@@ -413,11 +425,12 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
         );
         sendTally.reasons.add(why);
       } catch (e) {
-        sendTally.failed++;
+        sendTally.failed++; result.failed++;
         sendTally.reasons.add(healthError(e));
       }
     });
   }));
+  return result;
 }
 
 /* ════════════════════════════════════════
@@ -517,8 +530,8 @@ async function fetchAllFR(skipCounts: SkipCounts): Promise<Record<string, number
   const result: Record<string, number | null> = {};
   COINS.forEach(c => (result[c] = null));
   const [bbR, bnR] = await Promise.allSettled([
-    fetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
-    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+    exchangeFetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+    exchangeFetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
   ]);
   if (bbR.status === 'fulfilled' && bbR.value.ok) {
     const d = await bbR.value.json() as { result?: { list?: BBTicker[] } };
@@ -616,7 +629,7 @@ async function fetchBybitCandles(
   const url = `https://api.bybit.com/v5/market/kline?category=${category}&symbol=${symbol}&interval=${interval}&limit=${limit}`;
   const res = skipCounts
     ? await fetchOrSkip(url, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit')
-    : await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }).then(r => (r.ok ? r : null)).catch(() => null);
+    : await exchangeFetch(url, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }).then(r => (r.ok ? r : null)).catch(() => null);
   if (!res) return [];
   try {
     const data = await res.json() as { result?: { list?: string[][] } };
@@ -1018,14 +1031,14 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
   await runBatched(Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
     try {
       const [kRes, tvRes] = await Promise.allSettled([
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=2`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+        exchangeFetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=2`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
         // #1266: was /futures/data/takerBuySellVol - that's the COIN-M (dapi)
         // path, which 404s on fapi (USD-M) for every symbol, every time.
         // Confirmed live: this was a 100% failure, not intermittent - CVD
         // never actually ran. /futures/data/takerlongshortRatio is the
         // correct USD-M path, verified live to return the same buyVol/
         // sellVol/timestamp shape TakerVolItem already expects below.
-        fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${sym}&period=5m&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+        exchangeFetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${sym}&period=5m&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
       ]);
       // One skip per coin if either leg failed, not one per endpoint - both
       // legs feed the SAME check for this coin, so counting each separately
@@ -1135,9 +1148,16 @@ async function checkPriceAlerts(
     }), 5);
 
     for (const alert of rows) {
+      // #1667: a message that failed earlier is resent on its backoff; the touch already happened, so price is not re-checked for it.
+      // A hold for an alert whose target or direction was edited since, or one older than a day, is dropped: the alert is judged afresh.
+      let pending = PRICE_ALERT_PENDING.get(alert.id);
+      if (pending && (pending.body.target !== alert.target_price || pending.body.direction !== alert.direction || holdExpired(pending, Date.now()))) {
+        PRICE_ALERT_PENDING.delete(alert.id); pending = undefined;
+      }
+      if (pending && !dueForRetry(pending, Date.now())) continue;
       const price = prices[alert.coin];
-      const touch = evaluatePriceAlert(alert, price ?? null, candlesByCoin.get(alert.coin) ?? []);
-      if (!touch) continue;
+      const touch = pending ? null : evaluatePriceAlert(alert, price ?? null, candlesByCoin.get(alert.coin) ?? []);
+      if (!pending && !touch) continue;
 
       // Route to owner if known; only a row with NO user_id at all (true
       // legacy, pre-dates per-user ownership) falls back to broadcasting to
@@ -1156,15 +1176,28 @@ async function checkPriceAlerts(
       const label    = LABELS[alert.coin] ?? alert.coin.toUpperCase();
       const dirLabel = alert.direction === 'above' ? '📈 Crossed Above' : '📉 Crossed Below';
 
+      /* What is owed is the TOUCH (QA's and PM's review of #1669). A retry rebuilds the message now, saying when the target was reached and
+         today's price, instead of resending a "Current: $X" that was current hours ago. */
+      const hit: HeldTouch = pending ? pending.body : touch!.via === 'wick'
+        ? { target: alert.target_price, direction: alert.direction, level: touch!.level, atMs: touch!.atMs }
+        : { target: alert.target_price, direction: alert.direction, level: touch!.price, atMs: Date.now() };
+      const at = new Date(hit.atMs).toISOString().slice(11, 16);
       const body = `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
         `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
-        (touch.via === 'wick'
-          ? `Reached: $${touch.level.toLocaleString()} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${new Date(touch.atMs).toISOString().slice(11, 16)} UTC)` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
-          : `Current: $${touch.price.toLocaleString()}`) +
+        (pending
+          ? `Reached: $${hit.level.toLocaleString()} at ${at} UTC` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
+          : touch!.via === 'wick'
+            ? `Reached: $${touch!.level.toLocaleString()} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${at} UTC)` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
+            : `Current: $${touch!.price.toLocaleString()}`) +
         (alert.label ? `\nNote: ${escapeHtml(alert.label)}` : '') +
         `\n\n<i>${stamp}</i>`;
 
-      await tg(token, recipient, body);
+      /* #1667: switched off only when the message actually landed in at least one chat. A failed send keeps the alert active and holds the
+         message for a retry on a backoff; a send paused by the /ops kill switch consumes nothing. This used to switch the alert off after
+         any send, so a user whose message failed lost the alert silently. */
+      const next = afterSend(await tg(token, recipient, body), pending, hit, Date.now());
+      if (next.pending) PRICE_ALERT_PENDING.set(alert.id, next.pending); else PRICE_ALERT_PENDING.delete(alert.id);
+      if (!next.consume) continue;
 
       triggeredIds.push(alert.id);
       // Deliberately NOT added to `fired`. Historically that list fed an
@@ -1177,6 +1210,10 @@ async function checkPriceAlerts(
       // definition one person's, so it must not leak into a shared surface if
       // one is ever reintroduced.
     }
+
+    // #1667: a held message for an alert that is no longer active (deleted, or switched off elsewhere) is dropped - the map stays bounded.
+    const activeIds = new Set(rows.map(a => a.id));
+    for (const id of [...PRICE_ALERT_PENDING.keys()]) if (!activeIds.has(id)) PRICE_ALERT_PENDING.delete(id);
 
     // Deactivate all fired alerts in a single round-trip
     if (triggeredIds.length > 0) {
@@ -1349,7 +1386,7 @@ async function checkSentimentExtremes(
     // Fetch F&G and BTC L/S ratio in parallel
     const [fngR, lsR] = await Promise.allSettled([
       fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
-      fetch('https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+      exchangeFetch('https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
     ]);
 
     // fngR (alternative.me) is not Binance - only lsR's failure counts here.
@@ -1428,7 +1465,7 @@ async function fetchAllLSR(skipCounts: SkipCounts): Promise<Record<string, numbe
     ...Object.entries(BYBIT_KLINE_SYMS).map(async ([coin, sym]) => {
       if (result[coin] != null) return;
       try {
-        const res = await fetch(
+        const res = await exchangeFetch(
           `https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=5min&limit=1`,
           { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
         );
@@ -1566,11 +1603,11 @@ async function checkDistribution(
       try {
         const sym = BINANCE_PERP[coin];
         const [kRes, oiRes, topRes] = await Promise.allSettled([
-          fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=26`,
+          exchangeFetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=26`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
-          fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=1h&limit=25`,
+          exchangeFetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=1h&limit=25`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
-          fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=1h&limit=1`,
+          exchangeFetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=1h&limit=1`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
         ]);
         // klines is the load-bearing leg here - oiRes/topRes degrade their own
@@ -2505,7 +2542,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     ok: true, fired,
     recipients: recipients.length,
     mutedUsers: mutedUsersStored,
-    delivery: { queued: signalQueue.length, eligible, sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] },
+    delivery: { queued: signalQueue.length, eligible, sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons], priceAlertsHeld: PRICE_ALERT_PENDING.size },
     skipped: skipCounts,
     checked: [
       'RSI', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD',

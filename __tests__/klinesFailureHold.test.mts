@@ -72,6 +72,8 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
 
 const { GET } = await import('../app/api/market/klines/route.ts');
 const { _resetApiHealthQueue } = await import('../lib/apiHealth.ts');
+// #1649: a 418 now also opens lib/exchangeGuard.ts's breaker for 10 minutes. Each test here pins the klines cache HOLD, so each starts closed.
+const { _resetExchangeGuard } = await import('../lib/exchangeGuard.ts');
 
 let ip = 0;
 const call = async (qs: string) => {
@@ -82,7 +84,7 @@ const call = async (qs: string) => {
 };
 function world(b: Mode, y: Mode) { net.binance = 0; net.bybit = 0; net.binanceMode = b; net.bybitMode = y; }
 
-afterEach(() => _resetApiHealthQueue());
+afterEach(() => { _resetApiHealthQueue(); _resetExchangeGuard(); });
 after(() => { globalThis.fetch = realFetch; mock.timers.reset(); });
 
 /* ── the tests ────────────────────────────────────────────────────────── */
@@ -159,7 +161,9 @@ test('K4. a held error keeps its HTTP status: with no stand-in available, the se
 
 test('K5. closed=1 and live requests are held and cached APART, on the main call and on the stand-in (#1523 key tag)', async () => {
   tick(61_000);
-  world(418, 'ok');
+  // #1649: a plain refusal (500), not a 418: a 418 would now open the exchange breaker, and the closed=1 call would (rightly) not reach
+  // Binance at all - this test is about the cache keys, not the ban.
+  world(500, 'ok');
   const live = 'source=binance&symbol=BNBUSDT&interval=5m&limit=100';
   const closed = live + '&closed=1';
   await call(live);
@@ -184,12 +188,14 @@ test('K6. a failure is never held longer than the shortest success TTL (30 s): t
   assert.ok(Number(fail[1].replace(/_/g, '')) <= min, 'a failure would be held longer than the shortest success is cached');
 });
 
-test('K7. range requests still skip the cache and the hold: each one calls the exchange', async () => {
+test('K7. range requests are cached and held per WINDOW since #1649 (H3): the same window asks once, another window is its own entry', async () => {
   tick(61_000);
   world(500, 500);
   const qs = 'source=binance&symbol=BTCUSDT&interval=1h&limit=100&start=1700000000000&end=1700003600000';
   await call(qs); await call(qs); await call(qs);
-  assert.equal(net.binance, 3, 'a paginated backfill must not be answered from a held failure of a different window');
+  assert.equal(net.binance, 1, 'the same window inside the hold must be answered from it, not by three exchange calls');
+  await call(qs.replace('start=1700000000000', 'start=1699996400000'));
+  assert.equal(net.binance, 2, 'a paginated backfill must not be answered from a held failure of a DIFFERENT window');
   assert.equal(net.bybit, 0, 'range requests never fail over (no splicing)');
 });
 
