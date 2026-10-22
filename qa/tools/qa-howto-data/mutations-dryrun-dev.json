@@ -1,0 +1,81 @@
+[
+ {
+  "id": "1523-bound",
+  "pr": 1523,
+  "test": "__tests__/qaSelectAllRows.test.mts",
+  "pass": 8,
+  "fail": 3,
+  "failed": [
+   "#1523: exactly 10,000 rows: 10,000 returned, NOT truncated, 0 warnings, 11 requests, last range(10000,10000)",
+   "#1514/#1523: 12,000 rows: 10,000 returned, truncated, one warning naming the label, 11 requests",
+   "#1523: {pageSize:3, maxRows:7}: 7 rows pages"
+  ]
+ },
+ {
+  "id": "1523-standin-key",
+  "pr": 1523,
+  "test": "__tests__/qaKlinesHold.test.mts",
+  "pass": 8,
+  "fail": 1,
+  "failed": [
+   "#1523 S1. stand-in key: closed=1 then live for the same symbol/interval/limit make two Bybit calls and two cache entries"
+  ]
+ },
+ {
+  "id": "1515-no-hold",
+  "pr": 1515,
+  "test": "__tests__/qaKlinesHold.test.mts",
+  "pass": 5,
+  "fail": 4,
+  "failed": [
+   "H1. Binance 418 then N requests within 30 s: 1 Binance call, every response 200 bybit-fallback, Bybit fetched once",
+   "H2. Binance 418 and Bybit 403: N requests within 30 s make 1 call to each, every response 502",
+   "H3. no Bybit path (binance 8h, and source=bybit) refusing: 1 call per 30 s, every response 502",
+   "H4. the first request at 30 s retries; a success after the failure is stored and served for the TTL"
+  ]
+ },
+ {
+  "id": "1514-one-page",
+  "pr": 1514,
+  "test": "__tests__/qaSelectAllRows.test.mts",
+  "pass": 4,
+  "fail": 7,
+  "failed": [
+   "exactly 1000 rows: two requests",
+   "1500 rows: two requests, 1500 rows in page order, no duplicates",
+   "error on page 2: data null, page 2 error by reference, not truncated, no partial list",
+   "#1523: exactly 10,000 rows: 10,000 returned, NOT truncated, 0 warnings, 11 requests, last range(10000,10000)",
+   "#1514/#1523: 12,000 rows: 10,000 returned, truncated, one warning naming the label, 11 requests",
+   "fresh builder per page: the factory is called once per request",
+   "#1523: {pageSize:3, maxRows:7}: 7 rows pages"
+  ]
+ },
+ {
+  "id": "1514-route-before",
+  "pr": 1514,
+  "test": "__tests__/qaSelectAllRows.test.mts",
+  "pass": 9,
+  "fail": 2,
+  "failed": [
+   "#1514 source scan: every read of the five tables in the three cron routes is paged or single-row",
+   "source scan positive control: a plain read added to a route is flagged"
+  ]
+ },
+ {
+  "id": "1522-route-before",
+  "pr": 1522,
+  "test": "__tests__/qaAiCostPaging.test.mts",
+  "pass": 1,
+  "fail": 4,
+  "failed": [
+   "1500 alert_grok_log rows: system.total7d and perDay count all 1500, not the first 1000",
+   "1500 grok_usage rows: cost.global30d and userCallsByType are the full sum",
+   "a Pro subscription at position 1101 still gives its top spender role pro and non-zero revenue",
+   "truncated is false under 10,000 rows and true past 10,000 in either read"
+  ]
+ },
+ {
+  "worktreeCleanAfter": true,
+  "status": ""
+ }
+]
