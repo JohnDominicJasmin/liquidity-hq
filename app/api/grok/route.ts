@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildVerdictRepairPrompt, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedResponse, parseVerdict } from '@/lib/grok';
+import { applyResultChecks, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedResponse, parseVerdict } from '@/lib/grok';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
@@ -280,6 +280,8 @@ export async function POST(req: NextRequest) {
      call (lib/aiUsage.ts). */
   let restated = false;
   if (!parseVerdict(text)) {
+    // Nothing to restate: an empty answer is refused as empty, without paying for a second call on it.
+    if (!text.trim()) return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage }, { status: 502 });
     const v = await restateVerdict(text, userId);
     if (!v) return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage }, { status: 502 });
     text = `SIGNAL: ${v.signal}\nCONFIDENCE: ${v.confidence}\n${text}`;
