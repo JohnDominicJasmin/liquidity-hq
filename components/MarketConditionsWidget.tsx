@@ -184,16 +184,15 @@ export default function MarketConditionsWidget() {
         </div>
       </div>
 
-      {/* BTC Long/Short. Hidden entirely when the split is unavailable: a heading over an empty space reads as broken, and the only
-          honest alternative - a line saying it is unavailable - is new copy, so it needs a label, a migration and the owner's eye.
-          Raised with PM rather than decided here; until then nothing is shown, which is at least not a number nobody measured. */}
-      {longShort !== 'unavailable' && (
+      {/* BTC Long/Short. When the split cannot be had, the block stays and says so: hiding it tells the user nothing, and the string
+          is the owner-approved STATE_UNAVAILABLE rather than copy invented here. */}
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '0.5px solid var(--bdr)' }}>
         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 5 }}>
           {t('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL')}
         </div>
-        {/* 'unavailable' is excluded by the wrapper above, so null here means still loading - the two are no longer the same value. */}
-        {longShort ? (() => {
+        {longShort === 'unavailable' ? (
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('STATE_UNAVAILABLE')}</div>
+        ) : longShort ? (() => {
           /* The `: 50` that used to sit on this line answered three different unknowns - a missing field, a non-numeric one, and a
              genuine 0/0 - with the same number a real even market produces. The pair is validated before it gets here, so a total
              that is not positive can no longer occur; it is asserted rather than defaulted. */
@@ -223,7 +222,6 @@ export default function MarketConditionsWidget() {
           </div>
         )}
       </div>
-      )}
     </div>
   );
 }
