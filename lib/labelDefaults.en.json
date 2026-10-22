@@ -1962,6 +1962,7 @@
   "LEARN_CONTENT_EMPTY_STATE": "No terms match \"{query}\".",
   "LEARN_CONTENT_CTA_HEADING": "See these signals live, not just defined.",
   "LEARN_CONTENT_CTA_BUTTON": "Get Started Free",
+  "LEARN_CONTENT_RESULTS_COUNT": "{count} of {total} terms",
   "ONBOARDING_FLOW_STEP_PROFILE": "Profile",
   "ONBOARDING_FLOW_STEP_EXPERIENCE": "Experience",
   "ONBOARDING_FLOW_STEP_STYLE": "Style",
