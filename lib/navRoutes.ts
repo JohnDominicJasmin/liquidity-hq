@@ -100,8 +100,14 @@ export const TAIL = [
  * family has to be a decision rather than an accident.
  *
  * ADD A ROUTE HERE when it renders its own nav. Do not re-add a `=== '/x'`
- * test at a call site - that is what produced #845. */
-export const OWN_NAV_ROUTES = ['/', '/learn'] as const;
+ * test at a call site - that is what produced #845.
+ *
+ * `/learn` LEFT THIS FAMILY on 2026-10-22 (owner, #1673 item 5: the Glossary
+ * should "Match the app"). LearnContent no longer adds `body.landing` or draws
+ * the `.lp-nav` shell described above; it renders inside the app shell like
+ * `/faq` and `/about`, so the app's own nav must show there. The #845 history
+ * above is kept because it is why this list exists. */
+export const OWN_NAV_ROUTES = ['/'] as const;
 
 /* The locales that actually HAVE a landing page - `ko` and `zh`, not the ten in
    lib/locales.ts.
