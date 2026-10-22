@@ -30,11 +30,46 @@ test('U1. no split: every band amount is null, so no dollar figure is invented',
   assert.deepEqual(all.filter((b) => b.usdM !== null), [], 'a band carries an amount with no split to derive it from');
 });
 
-test('U2. no split: no bar is drawn, rather than a bar of an invented length', () => {
+test('U2. no split: the bar PERCENTAGE is zero - which is a fact about the renderer INPUT, not about what is drawn (see U2b)', () => {
+  /* This assertion is NOT "no bar appears". It was captioned that way once and the caption was wrong: BandRow floors every bar at
+     `Math.max(b.barPct, 2)`, so 0 still painted a 2% stub on all 22 unknown rows while the amount column beside it said "-". Dev found
+     that by RENDERING it, which no data-level test here could have. U2b pins the thing this test cannot see. */
   const r = unknown();
   for (const b of [...r.longs, ...r.shortsDisplay]) {
-    assert.equal(b.barPct, 0, `a bar was drawn at ${b.barPct}% from an unknown split`);
+    assert.equal(b.barPct, 0, `a bar percentage of ${b.barPct} was computed from an unknown split`);
   }
+});
+
+test('U2b. THE BAR ELEMENT IS OMITTED on a row with no amount, not merely zero-width', () => {
+  /* The oracle is the 2% floor's existence: while `Math.max(b.barPct, 2)` is there, "barPct is 0" and "nothing is drawn" are different
+     facts, and only the second is what #1651 asks for. So this reads the renderer's own structure.
+     Comments are stripped FIRST, including JSX ones. Dev's equivalent probe passed on its own replacement comment, which quoted the old
+     line verbatim; the comment above this very row names both `Math.max` and `barPct`, so an unstripped match here would be vacuous. */
+  const src = read('components/LiqTerminal.tsx')
+    .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '')  /* JSX comments: {/* ... *\/} */
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '');
+
+  const start = src.indexOf('function BandRow');
+  assert.ok(start >= 0, 'BandRow is gone or renamed - this test no longer reads what it claims to');
+  const after = src.slice(start + 1);
+  const end = Math.min(...['\nfunction ', '\nexport '].map((m) => after.indexOf(m)).filter((i) => i >= 0));
+  const body = after.slice(0, end);
+
+  const bars = body.match(/className="liq-row-bar"/g) ?? [];
+  assert.equal(bars.length, 1, `expected exactly one bar element in BandRow, found ${bars.length} - the check below reads only one`);
+
+  /* The gate must sit immediately before the element, with nothing but whitespace between. */
+  assert.match(body, /b\.usdM !== null &&\s*<div className="liq-row-bar"/,
+    'the bar element is NOT gated on b.usdM !== null: an unknown row paints a stub, because the width floor turns 0 into 2%');
+
+  /* And the floor must be INSIDE that gate - a floor applied outside it would reintroduce the stub by another route. */
+  const gated = body.slice(body.search(/b\.usdM !== null &&\s*<div className="liq-row-bar"/));
+  assert.match(gated, /Math\.max\(b\.barPct, 2\)/,
+    'the 2% floor is no longer inside the gated element - check where it moved before trusting this row');
+
+  /* The amount column's dash is the other half of the same row, and it is cheap to pin here. */
+  assert.match(body, /b\.usdM === null \? '-'/, 'the amount column no longer renders "-" for an unknown amount');
 });
 
 test('U3. no split: no magnet is crowned and no totals are claimed', () => {
