@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useLabels } from '@/lib/labels';
 import { useNow } from '@/lib/useNow';
+import CloseIcon from '@/components/CloseIcon';
 
 // Slim in-flow countdown shown to users inside their 14-day Pro trial. Rendered
 // in normal document flow at the top of the content area (NOT position:fixed) so
@@ -123,9 +124,9 @@ export default function TrialBanner() {
           onClick={dismiss}
           aria-label={t('TRIAL_BANNER_DISMISS')}
           title={t('TRIAL_BANNER_DISMISS')}
-          style={{ position: 'absolute', insetInlineEnd: 6, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, border: 'none', background: 'transparent', color: 'var(--txt3)', fontSize: 'var(--fs-body)', lineHeight: 1, borderRadius: 8, cursor: 'pointer' }}
+          style={{ position: 'absolute', insetInlineEnd: 6, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, border: 'none', background: 'transparent', color: 'var(--txt3)', borderRadius: 8, cursor: 'pointer' }}
         >
-          ✕
+          <CloseIcon />
         </button>
       )}
     </div>
