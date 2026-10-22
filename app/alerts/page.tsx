@@ -99,6 +99,9 @@ export default function AlertsPage() {
   // user proves the chat is theirs by sending a one-time code to the bot.
   const [botUsername, setBotUsername] = useState<string | null>(null);
   const [webhookOk, setWebhookOk]     = useState(true);
+  // R4 (#1640): the bot status could not be read (503, ok: false, or no answer). Said on the page rather than left blank; it never
+  // changes the Connected / Not connected pill, which comes from the user's own settings, and never hides the connect steps.
+  const [botStatusUnavailable, setBotStatusUnavailable] = useState(false);
   const [linkCode, setLinkCode]       = useState<{ code: string; deepLink: string | null } | null>(null);
   const [linkSecondsLeft, setLinkSecondsLeft] = useState(0);
   const [linkIssuing, setLinkIssuing]   = useState(false);
@@ -151,9 +154,13 @@ export default function AlertsPage() {
   const [paLoadFailed, setPaLoadFailed] = useState(false);
 
   useEffect(() => {
-    fetch('/api/telegram/bot-info').then(r => r.json())
-      .then(d => { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); })
-      .catch(() => {});
+    fetch('/api/telegram/bot-info')
+      .then(async r => {
+        const d = await r.json().catch(() => null) as { ok?: boolean; username?: string | null; webhook_ok?: boolean } | null;
+        if (d) { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); }
+        if (!r.ok || d?.ok !== true) setBotStatusUnavailable(true);
+      })
+      .catch(() => setBotStatusUnavailable(true));
   }, []);
 
   // #1167: waits for AuthProvider's own session resolve before doing anything,
@@ -672,6 +679,12 @@ export default function AlertsPage() {
                 background: '#f8717114', borderRadius: 6, border: '0.5px solid #f8717144',
               }}>
                 <Warn /> {t('ALERTS_CONNECT_WEBHOOK_WARNING')}
+              </div>
+            )}
+
+            {botStatusUnavailable && (
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>
+                {t('ALERTS_BOT_STATUS_UNAVAILABLE')}
               </div>
             )}
 

@@ -24,6 +24,11 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  /* No Whop webhook on this host means no pending claim can exist (only the webhook writes them), so there is nothing to read. Answered
+     like every other "nothing to claim". Without this, a host whose database lacks the Whop table (production before 20261017a) failed the
+     read on every sign-in, fell through to an Auth call, and reported a 500 each time (QA, #1663). Read per request, not at load. */
+  if (!process.env.WHOP_WEBHOOK_SECRET) return NextResponse.json({ granted: 0 });
+
   /* #1397: AuthProvider calls this on every SIGNED_IN, which Supabase fires on every page load of a signed-in user. Almost always there is
      nothing to claim, so the token is checked locally first and Auth is asked only when a pending claim is waiting for the token's email.
      Granting still needs Auth's own view (a CONFIRMED address), exactly as before. Known limit: an address changed after the token was
