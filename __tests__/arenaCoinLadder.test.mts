@@ -132,8 +132,13 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(req.url);
   if (url.host === 'api.x.ai') {
     db.ai.push(url.pathname);
-    if (url.pathname.endsWith('/responses')) return json(200, { model: 'qa-stand-in', usage: {}, output: [{ type: 'message', content: [{ text: 'SIGNAL: BULLISH' }] }] });
-    return json(200, { model: 'qa-stand-in', usage: {}, choices: [{ message: { content: 'SIGNAL: BULLISH' } }] });
+    /* A COMPLETE answer - a signal AND a whole-number confidence. These tests are about the coin ladder, the quota and the endpoint, so
+       the answer's text is scaffolding; it just has to be one the route accepts. Since #1651 item 3 (owner-approved) an answer carrying
+       one and not the other is asked again and then refused with 502 BAD_ANSWER, rather than shown as "BULLISH 0%" - so a stub with no
+       CONFIDENCE line would make every test here fail for a reason none of them is about, and would also double the AI request count
+       the ladder tests assert. The refusal itself is pinned where it belongs, in the item 3 tests. */
+    if (url.pathname.endsWith('/responses')) return json(200, { model: 'qa-stand-in', usage: {}, output: [{ type: 'message', content: [{ text: 'SIGNAL: BULLISH\nCONFIDENCE: 60' }] }] });
+    return json(200, { model: 'qa-stand-in', usage: {}, choices: [{ message: { content: 'SIGNAL: BULLISH\nCONFIDENCE: 60' } }] });
   }
   if (url.origin !== SUPABASE) throw new Error(`stray request ${req.method} ${req.url}`);
   const p = url.pathname; const q = url.searchParams;
@@ -251,8 +256,15 @@ test('K1. KNOWN LIMIT, PINNED: the server trusts the coin a request DECLARES. A 
 
 test('S1. source: the coin check sits BEFORE the quota reservation and BEFORE any AI request, and the route exports only GET and POST', () => {
   const src = stripTsComments(read('app/api/grok/route.ts'));
-  const check = src.indexOf('aiCoinAllowed('); const reserve = src.indexOf('incrementUsageColumn('); const xai = src.indexOf('xaiFetch(');
-  assert.ok(check > 0 && reserve > 0 && xai > 0);
+  /* Scoped to the POST handler's own body, which is what this test means: "inside the request, the check runs before the reservation and
+     before any AI call". Searching the whole file made it an accident of where helpers sit - a helper defined ABOVE the handler that
+     calls xaiFetch (the verdict repair added by #1651 item 3) moved the first match out of the handler and turned this red while the
+     order inside POST was unchanged. A test that forces code to be arranged around a string search is not checking the order. */
+  const postAt = src.indexOf('export async function POST');
+  assert.ok(postAt > 0, 'the POST handler must be a named export - the whole test is scoped to its body');
+  const post = src.slice(postAt);
+  const check = post.indexOf('aiCoinAllowed('); const reserve = post.indexOf('incrementUsageColumn('); const xai = post.indexOf('xaiFetch(');
+  assert.ok(check > 0 && reserve > 0 && xai > 0, 'the coin check, the quota reservation and the AI call must all happen inside POST');
   assert.ok(check < reserve, 'the coin check must come before the quota reservation'); assert.ok(reserve < xai);
   assert.deepEqual([...src.matchAll(/export\s+(?:async\s+)?(?:function|const)\s+(\w+)/g)].map((m) => m[1]).sort(), ['GET', 'POST']);
 });
