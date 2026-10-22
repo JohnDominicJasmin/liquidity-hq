@@ -91,10 +91,12 @@ test('basis is labelled PRICE and activity is labelled VOLUME', () => {
   // Both were called "perp vs spot" until #343. They measure different things
   // and can point opposite ways, and rule 11 gives an unqualified bullish read
   // for positive basis. This guards the rename against a future tidy-up.
-  const prompt = buildPrompt(ctx({ basis: '+0.08%', perpSpot: reading(8).explanation }));
+  const explanation = reading(8).explanation;
+  const prompt = buildPrompt(ctx({ basis: '+0.08%', perpSpot: explanation }));
 
   const basisLine = prompt.split('\n').find(l => /basis/i.test(l) && /\+0\.08%/.test(l));
-  const actLine   = prompt.split('\n').find(l => /real yield|usual|leveraged|actually buying/i.test(l));
+  // Found by the card's own sentence: a keyword search found the first macro line that said "real yield" (#1665's TIPS line) instead.
+  const actLine   = prompt.split('\n').find(l => l.includes(explanation));
 
   assert.ok(basisLine, 'no basis line found');
   assert.ok(actLine, 'no perps-vs-spot line found');

@@ -24,10 +24,15 @@ import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_U
  *
  * NOT an AI-credit-costing run: /api/grok-chat is intercepted and stubbed,
  * so no real call reaches xAI. This inspects the OUTGOING request body for
- * whether the system context mentions the saved indicator - the same
- * "assert the request, not the card" methodology as item 1, applied here
- * for free since a mock suffices (the defect is in what gets INTO the
- * request, not in Grok's response).
+ * whether it carries the saved indicator - the same "assert the request,
+ * not the card" methodology as item 1, applied here for free since a mock
+ * suffices (the defect is in what gets INTO the request, not in Grok's
+ * response).
+ *
+ * Since #1665 (#1631 E) the selection travels as DATA, `context.selection`,
+ * and the server writes the "weighing these indicators" sentence from it.
+ * That half is __tests__/grokChatServerPrompt.test.mts (C3); this file
+ * checks the browser half.
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
@@ -74,7 +79,7 @@ test.describe('LiquidityAI must know a real saved selection even without an Aren
         grokChatBody = route.request().postDataJSON();
         return route.fulfill({
           status: 200, contentType: 'application/json',
-          body: JSON.stringify({ choices: [{ message: { content: 'stubbed reply' } }] }),
+          body: JSON.stringify({ text: 'stubbed reply', followUps: [], citations: [], _usage: null }),
         });
       });
 
@@ -125,20 +130,11 @@ test.describe('LiquidityAI must know a real saved selection even without an Aren
         timeout: 10_000,
       }).toBe(true);
 
-      // GrokChat.tsx's two send branches use different body shapes for the
-      // exact same conversation payload: the search branch (components/
-      // GrokChat.tsx ~line 525) sends `input`, the non-search 'chat' branch
-      // (~line 552) sends `messages` - same array-of-{role,content} shape
-      // either way. An earlier version of this assertion only checked
-      // `messages` and false-failed on a real, correct run that happened to
-      // go through the search branch (confirmed by reading the actual
-      // captured request body from that failure, not assumed) - the
-      // "weighing these indicators: SMA" sentence was genuinely present in
-      // `input`, this test just wasn't looking there.
-      const turns: Array<{ role: string; content: string }> = grokChatBody?.messages ?? grokChatBody?.input ?? [];
-      const systemMsg: string = turns.find(m => m.role === 'system')?.content ?? '';
-      expect(systemMsg, 'the account\'s real saved SMA selection never reached the chat\'s system context because this session never visited Arena - GrokChat has no other way to learn a saved selection (#1347 item 18)')
-        .toMatch(/weighing these indicators[\s\S]*SMA/i);
+      // Both modes send one body shape since #1665: `messages` plus `context`. The browser no longer sends a system turn at all.
+      const selection: string = grokChatBody?.context?.selection ?? '';
+      expect(selection, 'the account\'s real saved SMA selection never reached the chat request because this session never visited Arena - GrokChat has no other way to learn a saved selection (#1347 item 18)')
+        .toMatch(/SMA/);
+      expect((grokChatBody?.messages ?? []).some((m: { role: string }) => m.role === 'system'), 'the browser sent a system turn: since #1665 the server writes the prompt').toBe(false);
     } finally {
       await ctx.close();
     }

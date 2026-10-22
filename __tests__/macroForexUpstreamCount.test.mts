@@ -41,8 +41,8 @@ const tick = (ms: number) => mock.timers.tick(ms);
 /* ── the stand-in network ─────────────────────────────────────────────── */
 
 type Mode = 'ok' | 'http500' | 'noPrice' | 'network';
-const SYMBOL_LABEL: Record<string, string> = { 'CL%3DF': 'oil', 'DX-Y.NYB': 'dxy', '%5EGSPC': 'spx', 'GC%3DF': 'gold', 'JPY%3DX': 'jpy' };
-const SERIES = ['oil', 'dxy', 'spx', 'gold', 'jpy'] as const;
+const SYMBOL_LABEL: Record<string, string> = { 'CL%3DF': 'oil', 'DX-Y.NYB': 'dxy', '%5EGSPC': 'spx', 'GC%3DF': 'gold', 'JPY%3DX': 'jpy', '%5ETNX': 'tnx' };
+const SERIES = ['oil', 'dxy', 'spx', 'gold', 'jpy', 'tnx'] as const;
 const net = {
   yahoo: Object.fromEntries(SERIES.map((s) => [s, 0])) as Record<string, number>,
   yahooMode: Object.fromEntries(SERIES.map((s) => [s, 'ok'])) as Record<string, Mode>,
@@ -58,7 +58,8 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
   await new Promise((r) => setImmediate(r)); // a real await, so concurrent callers overlap
   if (url.host === 'query1.finance.yahoo.com') {
     const label = SYMBOL_LABEL[url.pathname.split('/').pop()!];
-    assert.ok(label, `unexpected Yahoo symbol ${url.pathname}`);
+    // Recorded, not asserted: a throw in here is caught by the route like any failed fetch, so an unknown symbol would just read null (#1665).
+    if (!label) { net.unexpected.push(`yahoo ${url.pathname}`); return new Response('unknown symbol', { status: 404 }); }
     net.yahoo[label]++;
     const m = net.yahooMode[label];
     if (m === 'network') throw new TypeError('fetch failed');
@@ -113,7 +114,7 @@ test('M2. N concurrent COLD calls share one upstream call per series', async () 
   tick(61_000); // past the one-minute window
   const before = yahooTotal();
   const bodies = await Promise.all(Array.from({ length: 12 }, () => macro()));
-  assert.equal(yahooTotal() - before, 5, `12 concurrent cold requests made ${yahooTotal() - before} Yahoo calls - expected 5, one per series`);
+  assert.equal(yahooTotal() - before, SERIES.length, `12 concurrent cold requests made ${yahooTotal() - before} Yahoo calls - expected ${SERIES.length}, one per series`);
   for (const b of bodies) for (const s of SERIES) assert.ok(b[s], `${s} null in a concurrent response`);
 });
 
