@@ -70,7 +70,9 @@ async function resetStrategySelection(page: Page, selection: string[]) {
 interface ChatTurn { role: string; content: string }
 
 /** Signs in as A, stubs every AI and candle call, runs one QUICK read with
- *  `firstPick` selected, and returns once the signal card is on screen. */
+ *  `firstPick` selected, and returns once the signal card is on screen.
+ *  The picks are indicator chips (MACD, SMA), never an overlay: since
+ *  d24619f0 the EMA ribbon chip is always on and cannot be clicked. */
 async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   const ctx = await signedInContext(browser, 'a');
   const page = await ctx.newPage();
@@ -162,7 +164,7 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
 
 test.describe('A read computed for a different selection is marked wherever it is shown, and not cited as fact (#1347 item 4)', () => {
   test('BASELINE: an unchanged selection shows no stale notice anywhere, and ASK AI still cites the read', async ({ browser }) => {
-    const { ctx, staleNotices, askAi } = await arrangeFreshRead(browser, ['EMA Ribbon']);
+    const { ctx, staleNotices, askAi } = await arrangeFreshRead(browser, ['MACD']);
     try {
       await expect(staleNotices, 'a stale notice appeared although the selection has not changed since the read - the non-stale path regressed').toHaveCount(0);
 
@@ -175,11 +177,11 @@ test.describe('A read computed for a different selection is marked wherever it i
   });
 
   test('a stale read is marked in BOTH the signal card and the reasoning block', async ({ browser }) => {
-    const { ctx, page, staleNotices, staleInCard } = await arrangeFreshRead(browser, ['EMA Ribbon']);
+    const { ctx, page, staleNotices, staleInCard } = await arrangeFreshRead(browser, ['MACD']);
     try {
       // Change the selection WITHOUT re-running - the read on screen is now
       // computed for a selection the trader no longer has.
-      await page.locator('button.strat-chip', { hasText: 'EMA Ribbon' }).click();
+      await page.locator('button.strat-chip', { hasText: 'MACD' }).click();
       const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
       await smaChip.click();
       await expect(smaChip).toHaveAttribute('aria-pressed', 'true');
@@ -194,9 +196,9 @@ test.describe('A read computed for a different selection is marked wherever it i
   });
 
   test('ASK AI does not cite a stale read, and still carries the CURRENT selection', async ({ browser }) => {
-    const { ctx, page, noResultPrefix, askAi } = await arrangeFreshRead(browser, ['EMA Ribbon']);
+    const { ctx, page, noResultPrefix, askAi } = await arrangeFreshRead(browser, ['MACD']);
     try {
-      await page.locator('button.strat-chip', { hasText: 'EMA Ribbon' }).click();
+      await page.locator('button.strat-chip', { hasText: 'MACD' }).click();
       const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
       await smaChip.click();
       await expect(smaChip).toHaveAttribute('aria-pressed', 'true');
@@ -215,26 +217,26 @@ test.describe('A read computed for a different selection is marked wherever it i
   });
 
   test('re-selecting the same indicators in a different order is NOT a change - no notice', async ({ browser }) => {
-    const { ctx, page, staleNotices } = await arrangeFreshRead(browser, ['EMA Ribbon', 'SMA']);
+    const { ctx, page, staleNotices } = await arrangeFreshRead(browser, ['MACD', 'SMA']);
     try {
-      const ema = page.locator('button.strat-chip', { hasText: 'EMA Ribbon' });
+      const macd = page.locator('button.strat-chip', { hasText: 'MACD' });
       const sma = page.locator('button.strat-chip', { hasText: 'SMA' });
       // With 2+ selected, clicking a chip that is NOT the focused one only
       // brings its params back into view - it does not deselect (#1027,
       // StrategyPanel `toggle`). Only re-clicking the FOCUSED chip removes
       // it. The last chip picked (SMA) holds focus, so SMA goes first, then
-      // EMA Ribbon becomes the focused one. An earlier version of this test
-      // clicked EMA Ribbon first, which just moved focus and left both
+      // MACD becomes the focused one. An earlier version of this test
+      // clicked the first chip first, which just moved focus and left both
       // pressed - a wrong model of the panel, not a product defect.
       await sma.click();
       await expect(sma).toHaveAttribute('aria-pressed', 'false');
-      await ema.click();
-      await expect(ema).toHaveAttribute('aria-pressed', 'false');
+      await macd.click();
+      await expect(macd).toHaveAttribute('aria-pressed', 'false');
       // Same two indicators, opposite click order: SMA first this time.
       await sma.click();
       await expect(sma).toHaveAttribute('aria-pressed', 'true');
-      await ema.click();
-      await expect(ema).toHaveAttribute('aria-pressed', 'true');
+      await macd.click();
+      await expect(macd).toHaveAttribute('aria-pressed', 'true');
 
       await expect(staleNotices,
         'order-independent comparison regressed: the same indicators picked in a different click order was reported as a changed selection').toHaveCount(0);
