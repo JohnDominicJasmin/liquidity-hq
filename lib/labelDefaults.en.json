@@ -885,6 +885,7 @@
   "LIQ_HEATMAP_COL_DENSITY": "Relative density (model)",
   "LIQ_HEATMAP_COL_EST_USD": "Est. USD",
   "LIQ_HEATMAP_LIVE_TAG": "LIVE",
+  "LIQ_HEATMAP_ESTIMATED_TAG": "Estimated",
   "LIQ_HEATMAP_OI_LABEL": "{amount} Open Interest",
   "LIQ_HEATMAP_LONG_HEADER": "↓ Long liquidation zones",
   "LIQ_HEATMAP_LONG_SUB": "price drops, longs get force-closed · {range}",
