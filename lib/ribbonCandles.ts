@@ -22,6 +22,18 @@ const BYBIT_TF_INTERVAL: Record<EMASignalTF, string> = {
   '1m': '1', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '1d': 'D',
 };
 
+const TF_MS: Record<EMASignalTF, number> = {
+  '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000, '1h': 3_600_000, '2h': 7_200_000, '4h': 14_400_000, '1d': 86_400_000,
+};
+
+/** The candles that have CLOSED by `nowMs`: one that opened at `time` closes at time + one timeframe. Binance and Bybit both return the
+ *  still-forming candle last. An EMA alert built on it could fire on a close that never happened - a candle above EMA50 mid-way that
+ *  then closed back below - and a sent message cannot be taken back (owner decision 2026-10-22, QA's #1651 finding 2). So alerts, and the
+ *  /alerts preview that predicts them, judge closed candles only. The Arena chart still draws its live marker on the forming candle. */
+export function closedCandles(candles: readonly OHLCV[], tf: EMASignalTF, nowMs = Date.now()): OHLCV[] {
+  return candles.filter(c => c.time + TF_MS[tf] <= nowMs);
+}
+
 /** Coins not listed on Binance perp - use Bybit for klines, open interest and
  *  whale checks. Exported because the alert cron's OI/whale paths need the same
  *  "is this a Bybit-only coin" answer this file uses for candles. */

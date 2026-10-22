@@ -27,6 +27,34 @@ export function pctChange(from: number | null, to: number | null): number | null
   return ((to - from) / from) * 100;
 }
 
+/** The OI change and the price change between the first and the last of Binance's openInterestHist samples (oldest first), so both moves are over the
+ *  same two moments. With `period=5m&limit=13` that is the hour the Arena card's "OI % 1h" shows (lib/useOI1h.ts) and the hour the Telegram
+ *  Distribution alert scores (app/api/telegram/alert/route.ts, #1651): one helper, so the two cannot drift apart. pricePct is null where the samples
+ *  carry no USD value (the Bybit fallback): unknown, never "flat". null with fewer than two samples. */
+export function oiHistChange(
+  samples: ReadonlyArray<{ sumOpenInterest?: unknown; sumOpenInterestValue?: unknown; timestamp?: unknown }>,
+  window?: { ms: number; toleranceMs: number },
+): { oiPct: number | null; pricePct: number | null } | null {
+  if (samples.length < 2) return null;
+  const first = samples[0], last = samples[samples.length - 1];
+  /* #1696 (QA's LOW finding): with `window` given, the samples must really SPAN that long. The count was the only check, so a gapped
+     series - the exchange skipping points - was read as "the last hour" because it still had 13 of them, and a card could say an hour
+     when it meant three. The timestamps are already in the payload; this just reads them. Unreadable timestamps are unknown, not a pass. */
+  if (window) {
+    const t0 = Number(first.timestamp), t1 = Number(last.timestamp);
+    if (!Number.isFinite(t0) || !Number.isFinite(t1)) return null;
+    if (Math.abs((t1 - t0) - window.ms) > window.toleranceMs) return null;
+  }
+  const num = (v: unknown): number | null => {
+    const n = typeof v === 'string' || typeof v === 'number' ? parseFloat(String(v)) : NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    oiPct: pctChange(num(first.sumOpenInterest), num(last.sumOpenInterest)),
+    pricePct: pctChange(impliedPrice(first.sumOpenInterest, first.sumOpenInterestValue), impliedPrice(last.sumOpenInterest, last.sumOpenInterestValue)),
+  };
+}
+
 /** Smallest moves that count as a trend over the hour: 0.3% of OI AND 0.2% of price (the thresholds the live path used). If either is smaller there is
  *  no strong signal and the card says so rather than picking a side. */
 export const OI_MOVE_MIN_PCT = 0.3;

@@ -1,0 +1,53 @@
+#!/bin/sh
+#
+# Refuses a commit made directly on a protected branch: main, staging, qa, dev.
+#
+# WHY THIS EXISTS, and it is not hypothetical. On 2026-10-22 QA committed tooling straight onto local `dev` instead of a branch, noticed
+# afterwards, moved the commit and reset. Nothing was pushed and no harm was done. But the guard QA then offered was "I check
+# `git branch --show-current` before committing" - and the whole of that day had been spent establishing that a rule which depends on
+# remembering is a rule that fails on a busy day. PM asked for the machine to hold it instead. So: the machine holds it.
+#
+# WHAT THE PROJECT'S OWN RULES SAY, which is why protecting all four is right rather than over-zealous (CONTRIBUTING.md, CLAUDE.md):
+#   main     - PM/DevOps merges a release PR, with the owner's approval for that release. Never a direct commit.
+#   staging  - QA promotes `qa` into it. A promotion is a merge, not a commit.
+#   qa       - fast-forward only: `git checkout qa && git merge --ff-only dev`. A direct commit is explicitly forbidden there.
+#   dev      - dev merges its own feature branches in. QA's code reaches it through a PR, never by committing on the branch.
+#
+# WHAT IT DOES NOT TOUCH, so neither folder is stuck:
+#   - A MERGE does not run this hook. Git runs `pre-merge-commit` for a merge commit, so dev merging a feature branch into `dev`, and QA
+#     promoting `qa` into `staging`, both pass straight through. That is deliberate: those are the legitimate ways onto these branches.
+#   - A fast-forward (`merge --ff-only`) creates no commit at all, so `dev` -> `qa` is unaffected.
+#   - `git commit --amend` on a protected branch is still refused: amending a merge someone else will pull is its own hazard.
+#
+# THE ESCAPE, named rather than hidden: `ALLOW_PROTECTED_COMMIT=1 git commit ...`. If you need it, you are doing something the rules above
+# do not cover - say so in the PR or the issue, the way a `--no-verify` would have to be declared. It exists so this hook is never the
+# reason someone reaches for `--no-verify`, which is the owner's hard no.
+#
+# Enabled by `git config core.hooksPath .githooks`, the same switch the pre-push gate uses. Verify rather than assume:
+# `git config core.hooksPath` should print `.githooks`. Both working folders need it separately - .git/ is not versioned.
+set -e
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+case "$branch" in
+  main|staging|qa|dev)
+    if [ "$ALLOW_PROTECTED_COMMIT" = "1" ]; then
+      printf '[pre-commit] committing on protected branch "%s" because ALLOW_PROTECTED_COMMIT=1 - say so in the PR or issue\n' "$branch"
+      exit 0
+    fi
+    printf '\n[pre-commit] REFUSED: this is a direct commit on "%s", which is a protected branch.\n\n' "$branch"
+    printf '  Nothing is lost - your changes are still staged. Put them on a branch instead:\n\n'
+    printf '      git stash\n'
+    printf '      git checkout -b <type>/<short-kebab-case-description>\n'
+    printf '      git stash pop\n'
+    printf '      git commit ...\n\n'
+    printf '  Or, if you have already committed here by mistake:\n\n'
+    printf '      git branch <type>/<description>    # keep the commit\n'
+    printf '      git reset --hard origin/%s          # put this branch back\n\n' "$branch"
+    printf '  Merges are NOT blocked by this hook (git uses pre-merge-commit for those), so promotions and feature merges still work.\n'
+    printf '  A genuine exception: ALLOW_PROTECTED_COMMIT=1 git commit ... - and declare it, the way a --no-verify would have to be.\n\n'
+    exit 1
+    ;;
+esac
+
+exit 0

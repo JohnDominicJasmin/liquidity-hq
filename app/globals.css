@@ -2622,6 +2622,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    .lp-footer-ack. Kept visually secondary by weight 500 against the header's
    700, which is what was actually wanted. */
 .liq-section-sub { font-size: var(--fs-caption); font-weight: 500; text-transform: none; letter-spacing: 0; }
+/* #1626 finding 9: says the ladder below is modelled, in the band's own colour so it reads as part of the heading rather than a warning. */
+.liq-section-est { font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.75; border: 0.5px solid currentColor; border-radius: 4px; padding: 1px 5px; flex-shrink: 0; }
 
 /* Derived from --accent-2, was rgba(26,122,255,...) (#652). Those literals
    are the current design's dark --accent-2, and the [data-theme="light"]

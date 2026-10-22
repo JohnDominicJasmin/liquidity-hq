@@ -606,6 +606,11 @@ export default function LiqTerminal() {
           <div className="liq-card">
             <div className="liq-section-hdr liq-section-hdr-short" role="heading" aria-level={3}>
               <span>{t('LIQ_HEATMAP_SHORT_HEADER')}</span>
+              {/* #1626 finding 9 (owner, 2026-10-22): these bands are MODELLED - computeBands() above builds them from a leverage table
+                  and open interest, not from exchange data. The "LIVE" tag sits in the current-price bar between the two ladders, where
+                  the price, the change and the OI really are live; this says where that stops. The owner chose labelling the ladder over
+                  moving or removing the badge, because the page already says "Estimated", "(model)" and "Est. USD" elsewhere. */}
+              <span className="liq-section-est">{t('LIQ_HEATMAP_ESTIMATED_TAG')}</span>
               <span className="liq-section-sub">{t('LIQ_HEATMAP_SHORT_SUB', { range: t(rangeConf.labelKey) })}</span>
             </div>
             <div role="table" aria-label={t('LIQ_HEATMAP_SHORT_ARIA')}>
@@ -631,6 +636,7 @@ export default function LiqTerminal() {
 
             <div className="liq-section-hdr liq-section-hdr-long" role="heading" aria-level={3}>
               <span>{t('LIQ_HEATMAP_LONG_HEADER')}</span>
+              <span className="liq-section-est">{t('LIQ_HEATMAP_ESTIMATED_TAG')}</span>
               <span className="liq-section-sub">{t('LIQ_HEATMAP_LONG_SUB', { range: t(rangeConf.labelKey) })}</span>
             </div>
             <div role="table" aria-label={t('LIQ_HEATMAP_LONG_ARIA')}>

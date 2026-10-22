@@ -8,6 +8,7 @@ import AuthGate from './AuthGate';
 import { useAuth } from './AuthProvider';
 import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
 import Tip from './Tip';
+import CoinMultiSelect from './CoinMultiSelect';
 import { Warn } from './icons';
 import { track } from '@/lib/analytics';
 import { withAlpha } from '@/lib/color';
@@ -893,18 +894,10 @@ function Inner() {
           {/* Coin + Direction */}
           <div className="tj-card">
             <div className="tj-card-lbl">{t('TRADE_JOURNAL_LOG_COIN_DIRECTION_LABEL')}</div>
-            <div className="tj-coins">
-              {COINS.map(c => (
-                <button
-                  key={c}
-                  className={`tj-coin${coin === c ? ' on' : ''}`}
-                  onClick={() => setCoin(c)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                >
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, background: coinBadgeColor(c) }} />
-                  {c.toUpperCase()}
-                </button>
-              ))}
+            {/* The search-and-pick dropdown Alerts and Settings use, in single mode (owner, 2026-10-22, #1673 item 4: "too many selections
+                put it into drop down with combination of search field and checkbox of items"). It was a wall of ~45 coin chips. */}
+            <div style={{ marginBottom: 10 }}>
+              <CoinMultiSelect single value={[coin]} onChange={([c]) => { if (c) setCoin(c as CoinId); }} />
             </div>
             <div className="tj-dir-row">
               <button className={`tj-dir-btn${direction === 'LONG' ? ' tj-long' : ''}`} onClick={() => setDirection('LONG')}>▲ {t('TRADE_JOURNAL_LOG_DIR_LONG_BUTTON')}</button>

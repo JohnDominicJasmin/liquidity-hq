@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useLabels } from '@/lib/labels';
+import CloseIcon from '@/components/CloseIcon';
 
 interface Props {
   pageKey: string;
@@ -98,24 +99,23 @@ export default function PageHint({ pageKey, title, body }: Props) {
           background: 'none',
           border: 'none',
           cursor: 'pointer',
+          /* Same icon, size and colour as the trial banner's x (owner, #1673 item 3) - so no 0.6 opacity, which the banner's x never had. */
           color: 'var(--txt3)',
-          fontSize: '1rem',
-          lineHeight: 1,
-          padding: '0 2px',
+          padding: 0,
           flexShrink: 0,
-          opacity: 0.6,
-          /* WCAG 2.2 SC 2.5.8: 24x24 minimum. The glyph alone measured 14x16,
-             and this button renders on every page carrying a hint - it was 5 of
-             the app's remaining tap-target failures by itself. Centred rather
-             than enlarged so the x looks identical; only the hit area grows. */
-          minWidth: 24,
-          minHeight: 24,
+          /* A 44x44 hit area, the trial banner's, that does not make the hint taller: the negative margins reach into the box's 10px top /
+             bottom and 12px end padding, so the button takes 24px of the row's height (the old 24px minimum, WCAG 2.2 SC 2.5.8) and the
+             rest of its hit area overlaps padding, not text. */
+          width: 44,
+          height: 44,
+          margin: '-10px -10px -10px -6px',
+          borderRadius: 8,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
         aria-label={t('PAGE_HINT_DISMISS_LABEL')}
-      >×</button>
+      ><CloseIcon /></button>
     </div>
   );
 }

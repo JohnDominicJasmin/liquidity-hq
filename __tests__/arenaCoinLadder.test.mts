@@ -120,8 +120,11 @@ const PERSONAS: Record<string, Persona> = {
   none:   { token: 'tok_none',   id: 'u-none',   row: null },
 };
 const db = {
-  ai: [] as string[], reservations: 0, usageWrites: 0, ledgerInserts: 0, failSubsRead: false,
-  reset() { this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; },
+  ai: [] as string[], reservations: 0, usageWrites: 0, ledgerInserts: 0, failSubsRead: false, banned: false,
+  /* Paths the route asked for that the stand-in does not model. Collected rather than thrown (see the fall-through below) and asserted
+     after every call, so a gap names itself instead of surfacing as a status mismatch several seconds later. */
+  unknown: [] as string[],
+  reset() { this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.banned = false; this.unknown = []; },
 };
 const T = (n: string) => (process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_') + n;
 const noRow = () => json(406, { code: 'PGRST116', details: 'The result contains 0 rows', message: 'JSON object requested, multiple (or no) rows returned' });
@@ -132,8 +135,13 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(req.url);
   if (url.host === 'api.x.ai') {
     db.ai.push(url.pathname);
-    if (url.pathname.endsWith('/responses')) return json(200, { model: 'qa-stand-in', usage: {}, output: [{ type: 'message', content: [{ text: 'SIGNAL: BULLISH' }] }] });
-    return json(200, { model: 'qa-stand-in', usage: {}, choices: [{ message: { content: 'SIGNAL: BULLISH' } }] });
+    /* A COMPLETE answer - a signal AND a whole-number confidence. These tests are about the coin ladder, the quota and the endpoint, so
+       the answer's text is scaffolding; it just has to be one the route accepts. Since #1651 item 3 (owner-approved) an answer carrying
+       one and not the other is asked again and then refused with 502 BAD_ANSWER, rather than shown as "BULLISH 0%" - so a stub with no
+       CONFIDENCE line would make every test here fail for a reason none of them is about, and would also double the AI request count
+       the ladder tests assert. The refusal itself is pinned where it belongs, in the item 3 tests. */
+    if (url.pathname.endsWith('/responses')) return json(200, { model: 'qa-stand-in', usage: {}, output: [{ type: 'message', content: [{ text: 'SIGNAL: BULLISH\nCONFIDENCE: 60' }] }] });
+    return json(200, { model: 'qa-stand-in', usage: {}, choices: [{ message: { content: 'SIGNAL: BULLISH\nCONFIDENCE: 60' } }] });
   }
   if (url.origin !== SUPABASE) throw new Error(`stray request ${req.method} ${req.url}`);
   const p = url.pathname; const q = url.searchParams;
@@ -159,21 +167,54 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (table === T('grok_usage') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('app_config') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('ai_call_log') && req.method === 'POST') { db.ledgerInserts++; return json(201, null); }
+  /* The ban flag, read by every BILLED call (lib/authUser.ts isAccountBanned -> T.user_status). The stand-in did not know this path and
+     THREW, which supabase-js reads as a network failure and retries about four times over some seven seconds - so one unmodelled read made
+     R1 take ~14 s. That slowness is what let the delayed `after` restore land mid-test in a cloud container (#1683): the race needed a slow
+     test to land in. Answering it is the fix the instrumented run measured; `db.banned` keeps the other half of the rule reachable. */
+  if (table === T('user_status') && req.method === 'GET') {
+    const row = { user_id: eq('user_id'), banned: db.banned };
+    return single ? json(200, row) : json(200, [row]);
+  }
   if (req.method !== 'GET') db.usageWrites++;
-  throw new Error(`stand-in does not know ${req.method} ${req.url}`);
+  /* A path the stand-in does not model is RECORDED and answered at once, never thrown. A throw is a network error to supabase-js, which
+     retries it with backoff: the failure then arrives seconds late, in a shape that reads as the route misbehaving. The 501 cannot be
+     mistaken for a real answer, and `nothingSpent`/`call` name the path. */
+  db.unknown.push(`${req.method} ${p}`);
+  return json(501, { code: 'QA_STAND_IN_GAP', message: `the stand-in does not model ${req.method} ${p}` });
 }) as typeof fetch;
 /* lib/xai.ts reports each AI request's outcome through a batched, delayed write (lib/apiHealth.ts). The stand-in must still be installed when that
    write fires, or it would try a real network call to the .invalid host after the last test: so restore the real fetch only after it has had time to flush. */
 after(async () => { await new Promise((r) => setTimeout(r, 2500)); globalThis.fetch = realFetch; });
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE; process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'placeholder-anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'placeholder-service'; process.env.GROK_API_KEY = 'placeholder-grok';
-const { POST } = await import('../app/api/grok/route.ts') as { POST: (r: NextRequest) => Promise<Response> };
+/* The route is imported as a PROMISE and awaited inside each test, never with a top-level await.
+ *
+ * A top-level `await import` here is a race, and it is the one that made this file fail in a Claude cloud session on 2026-10-22 while
+ * passing on QA's machine (#1683). node:test registers a file's tests as the module body runs; with the registration sitting behind an
+ * await, a run where the import settles slowly reaches the end of the file with NO tests registered, so the runner treats the file as
+ * finished and fires the `after` hook above - which puts the real `fetch` back. The import then settles, the tests register, and they run
+ * with the stand-in gone: every Supabase read fails, the entitlement read reports `failed`, and the route correctly answers 503
+ * PLAN_UNKNOWN where the test expected 403 COIN_LOCKED. Nothing about the product is involved.
+ *
+ * Awaiting the promise per test makes every test register synchronously, so the file can never look finished before they exist. */
+const routeP = import('../app/api/grok/route.ts') as Promise<{ POST: (r: NextRequest) => Promise<Response> }>;
+
+/* THE STAND-IN MUST STILL BE INSTALLED WHEN A TEST RUNS, and this says so out loud rather than letting the test fail somewhere downstream.
+   Without it, a run where the real `fetch` is back reads as a product failure: every Supabase read fails, so the entitlement read reports
+   `failed` and the route answers its designed 503 PLAN_UNKNOWN where the test asked for 403 COIN_LOCKED - which is what #1683 looked like
+   for an hour. A test that asserts the shape of its own instrument cannot be read as a finding about the app. */
+const standInFetch = globalThis.fetch;
+const assertStandIn = () => assert.equal(globalThis.fetch, standInFetch,
+  'the network stand-in is not installed: the real fetch is back, so this run measures nothing about the route - see #1683 (a top-level await used to let the after hook restore fetch before the tests registered)');
 
 type Body = { type?: 'quick' | 'deep'; tf?: string; coin?: unknown; prompt?: string };
 const call = async (who: keyof typeof PERSONAS | null, b: Body = {}) => {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (who) headers.authorization = `Bearer ${PERSONAS[who].token}`;
+  assertStandIn();
+  const { POST } = await routeP;
   const r = await POST(new NextRequest('http://localhost/api/grok', { method: 'POST', headers, body: JSON.stringify({ prompt: 'qa prompt', tf: '1h', session: 'ny', type: 'quick', ...b }) }));
+  assert.deepEqual(db.unknown, [], 'the route read a path the stand-in does not model: every result below it is about the gap, not about the route');
   return { status: r.status, body: await r.json().catch(() => ({})) as Record<string, unknown> };
 };
 const nothingSpent = (label: string) => { assert.equal(db.ai.length, 0, `${label}: an AI request was made`); assert.equal(db.reservations, 0, `${label}: quota was reserved`); assert.equal(db.ledgerInserts, 0, `${label}: the spend ledger was written`); };
@@ -235,6 +276,7 @@ test('R7. no token, or a token the database does not know: 401 and nothing is sp
   db.reset(); const r = await call(null, { coin: 'btc' });
   assert.equal(r.status, 401); nothingSpent('no token');
   db.reset();
+  const { POST } = await routeP;
   const r2 = await POST(new NextRequest('http://localhost/api/grok', { method: 'POST', headers: { authorization: 'Bearer tok_forged', 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'p', tf: '1h', session: 'ny', type: 'quick', coin: 'btc' }) }));
   assert.equal(r2.status, 401); nothingSpent('forged');
 });
@@ -251,8 +293,15 @@ test('K1. KNOWN LIMIT, PINNED: the server trusts the coin a request DECLARES. A 
 
 test('S1. source: the coin check sits BEFORE the quota reservation and BEFORE any AI request, and the route exports only GET and POST', () => {
   const src = stripTsComments(read('app/api/grok/route.ts'));
-  const check = src.indexOf('aiCoinAllowed('); const reserve = src.indexOf('incrementUsageColumn('); const xai = src.indexOf('xaiFetch(');
-  assert.ok(check > 0 && reserve > 0 && xai > 0);
+  /* Scoped to the POST handler's own body, which is what this test means: "inside the request, the check runs before the reservation and
+     before any AI call". Searching the whole file made it an accident of where helpers sit - a helper defined ABOVE the handler that
+     calls xaiFetch (the verdict repair added by #1651 item 3) moved the first match out of the handler and turned this red while the
+     order inside POST was unchanged. A test that forces code to be arranged around a string search is not checking the order. */
+  const postAt = src.indexOf('export async function POST');
+  assert.ok(postAt > 0, 'the POST handler must be a named export - the whole test is scoped to its body');
+  const post = src.slice(postAt);
+  const check = post.indexOf('aiCoinAllowed('); const reserve = post.indexOf('incrementUsageColumn('); const xai = post.indexOf('xaiFetch(');
+  assert.ok(check > 0 && reserve > 0 && xai > 0, 'the coin check, the quota reservation and the AI call must all happen inside POST');
   assert.ok(check < reserve, 'the coin check must come before the quota reservation'); assert.ok(reserve < xai);
   assert.deepEqual([...src.matchAll(/export\s+(?:async\s+)?(?:function|const)\s+(\w+)/g)].map((m) => m[1]).sort(), ['GET', 'POST']);
 });

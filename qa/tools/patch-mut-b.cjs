@@ -1,0 +1,11 @@
+const fs = require('fs');
+let s = fs.readFileSync('mutate-aicaps-b.mjs', 'utf8');
+const rep = (a, b) => { const n = s.split(a).length - 1; if (n !== 1) throw new Error('anchor x' + n + ': ' + a.slice(0, 70)); s = s.replace(a, () => b); };
+rep("from: 'security definer', to: '', red: ['M2.', 'M8.'] }", "from: 'stable\nsecurity definer\nset search_path', to: 'stable\nset search_path', red: ['M2.', 'M8.'] }");
+rep("red: ['M6.', 'M5.', 'M8.'] }", "red: ['M6.', 'M8.'] }");
+rep("red: ['Q6.', 'P3.', 'F3.'] }", "red: ['Q6.', 'P3.', 'F1.'] }");
+rep("red: ['Q6.', 'P15.', 'F16.'] }", "red: ['Q6.', 'P15.', 'P17.', 'F8.'] }");
+rep("red: ['M7.', 'M8.'] }", "red: ['M7.'] }");
+rep("for (const m of M) {", "const ONLY = (process.env.ONLY ?? '').split(',').filter(Boolean);\nfor (const m of M) {\n  if (ONLY.length && !ONLY.includes(m.name.split(' ')[0])) continue;");
+fs.writeFileSync('mutate-aicaps-b.mjs', s);
+console.log('patched');

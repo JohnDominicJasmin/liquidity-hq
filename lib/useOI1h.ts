@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { CoinId } from './marketStore.ts';
-import { impliedPrice, pctChange } from './oiTrend1h.ts';
+import { oiHistChange } from './oiTrend1h.ts';
 
 /* ── Endpoints ── */
 const BINANCE_OI: Partial<Record<CoinId, string>> = {
@@ -45,10 +45,11 @@ export function useOI1h(coin: CoinId): OI1hData {
             { cache: 'no-store' }
           );
           if (r.ok) {
-            const d = await r.json() as Array<{ sumOpenInterest: string; sumOpenInterestValue?: string }>;
+            const d = await r.json() as Array<{ sumOpenInterest: string; sumOpenInterestValue?: string; timestamp?: number }>;
             if (d.length >= 2) {
-              const newest = parseFloat(d[d.length - 1].sumOpenInterest);
-              const oldest = parseFloat(d[0].sumOpenInterest);
+              /* #1696: the 13 samples must SPAN the hour they claim, not merely number 13 - Binance can skip points, and the card would
+                 then label a three-hour move "1h" (QA's LOW finding). One poll of tolerance (5 minutes) either way. */
+              const change = oiHistChange(d, { ms: 60 * 60_000, toleranceMs: 5 * 60_000 });
               // #1238: sumOpenInterestValue is absent, not just unparseable,
               // when this came back via the proxy's Bybit fallback - Bybit's
               // open-interest endpoint has no USD-notional field to source
@@ -61,9 +62,10 @@ export function useOI1h(coin: CoinId): OI1hData {
               const rawUsd = parseFloat(d[d.length - 1].sumOpenInterestValue ?? '');
               result = {
                 oiUsd: Number.isFinite(rawUsd) ? rawUsd : null,
-                pct:   oldest > 0 ? (newest - oldest) / oldest * 100 : null,
-                // Same two samples, so the same hour: price = USD value / contracts at each end (#1613).
-                pricePct: pctChange(impliedPrice(d[0].sumOpenInterest, d[0].sumOpenInterestValue), impliedPrice(d[d.length - 1].sumOpenInterest, d[d.length - 1].sumOpenInterestValue)),
+                pct:   change?.oiPct ?? null,
+                // Same two samples, so the same hour: price = USD value / contracts at each end (#1613). The Telegram Distribution alert reads
+                // its OI trend through the same helper (#1651).
+                pricePct: change?.pricePct ?? null,
               };
             }
           }

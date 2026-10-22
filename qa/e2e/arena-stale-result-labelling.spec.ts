@@ -70,12 +70,14 @@ async function resetStrategySelection(page: Page, selection: string[]) {
 interface ChatTurn { role: string; content: string }
 
 /** Signs in as A, stubs every AI and candle call, runs one QUICK read with
- *  `firstPick` selected, and returns once the signal card is on screen. */
+ *  `firstPick` selected, and returns once the signal card is on screen.
+ *  The picks are indicator chips (MACD, SMA), never an overlay: since
+ *  d24619f0 the EMA ribbon chip is always on and cannot be clicked. */
 async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   const ctx = await signedInContext(browser, 'a');
   const page = await ctx.newPage();
   const grokPosts: string[] = [];
-  const chatBodies: Array<{ turns: ChatTurn[] }> = [];
+  const chatBodies: Array<{ turns: ChatTurn[]; selection: string }> = [];
 
   await page.route('**/api/grok', async route => {
     if (route.request().method() !== 'POST') {
@@ -96,12 +98,14 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
       }),
     });
   });
+  // #1665 (#1631 E): the browser sends the conversation as `messages` and the selection as DATA (`context.selection`); the server writes
+  // the system prompt from it. The answer is { text, followUps, citations, _usage }.
   await page.route('**/api/grok-chat', route => {
-    const body = route.request().postDataJSON() as { messages?: ChatTurn[]; input?: ChatTurn[] };
-    chatBodies.push({ turns: body?.messages ?? body?.input ?? [] });
+    const body = route.request().postDataJSON() as { messages?: ChatTurn[]; context?: { selection?: string } };
+    chatBodies.push({ turns: body?.messages ?? [], selection: body?.context?.selection ?? '' });
     return route.fulfill({
       status: 200, contentType: 'application/json',
-      body: JSON.stringify({ choices: [{ message: { content: 'stubbed reply' } }] }),
+      body: JSON.stringify({ text: 'stubbed reply', followUps: [], citations: [], _usage: null }),
     });
   });
   const fakeCandle = (i: number) => [Date.now() - (300 - i) * 60_000, 100, 101, 99, 100.5, 10];
@@ -137,16 +141,21 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   const staleNotices = page.locator('.arena-override-notice').filter({ hasText: stalePre });
   const staleInCard = page.locator('.arena-signal-card .arena-override-notice').filter({ hasText: stalePre });
 
-  const askAi = async (): Promise<{ userPrompt: string; systemMsg: string }> => {
+  const askAi = async (): Promise<{ userPrompt: string; selection: string }> => {
     const before = chatBodies.length;
     await page.getByRole('button', { name: 'ASK AI', exact: true }).click();
+    // #1668 (owner, 2026-10-21): the click fills the question in and sends NOTHING - no AI use is spent until Send.
+    await expect(page.locator('textarea').first(), 'ASK AI did not fill the question into the chat input').not.toHaveValue('', { timeout: 5_000 });
+    await page.waitForTimeout(1_500);
+    expect(chatBodies.length, 'ASK AI sent a /api/grok-chat request on the click itself - it must wait for Send').toBe(before);
+    await page.getByRole('button', { name: 'Send' }).click();
     await expect.poll(() => chatBodies.length, {
-      message: 'ASK AI never produced a /api/grok-chat request', timeout: 10_000,
-    }).toBeGreaterThan(before);
-    const turns = chatBodies[chatBodies.length - 1].turns;
+      message: 'Send never produced a /api/grok-chat request', timeout: 10_000,
+    }).toBe(before + 1);
+    const { turns, selection } = chatBodies[chatBodies.length - 1];
     return {
       userPrompt: [...turns].reverse().find(t => t.role === 'user')?.content ?? '',
-      systemMsg: turns.find(t => t.role === 'system')?.content ?? '',
+      selection,
     };
   };
 
@@ -155,7 +164,7 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
 
 test.describe('A read computed for a different selection is marked wherever it is shown, and not cited as fact (#1347 item 4)', () => {
   test('BASELINE: an unchanged selection shows no stale notice anywhere, and ASK AI still cites the read', async ({ browser }) => {
-    const { ctx, staleNotices, askAi } = await arrangeFreshRead(browser, ['EMA Ribbon']);
+    const { ctx, staleNotices, askAi } = await arrangeFreshRead(browser, ['MACD']);
     try {
       await expect(staleNotices, 'a stale notice appeared although the selection has not changed since the read - the non-stale path regressed').toHaveCount(0);
 
@@ -168,11 +177,11 @@ test.describe('A read computed for a different selection is marked wherever it i
   });
 
   test('a stale read is marked in BOTH the signal card and the reasoning block', async ({ browser }) => {
-    const { ctx, page, staleNotices, staleInCard } = await arrangeFreshRead(browser, ['EMA Ribbon']);
+    const { ctx, page, staleNotices, staleInCard } = await arrangeFreshRead(browser, ['MACD']);
     try {
       // Change the selection WITHOUT re-running - the read on screen is now
       // computed for a selection the trader no longer has.
-      await page.locator('button.strat-chip', { hasText: 'EMA Ribbon' }).click();
+      await page.locator('button.strat-chip', { hasText: 'MACD' }).click();
       const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
       await smaChip.click();
       await expect(smaChip).toHaveAttribute('aria-pressed', 'true');
@@ -187,47 +196,47 @@ test.describe('A read computed for a different selection is marked wherever it i
   });
 
   test('ASK AI does not cite a stale read, and still carries the CURRENT selection', async ({ browser }) => {
-    const { ctx, page, noResultPrefix, askAi } = await arrangeFreshRead(browser, ['EMA Ribbon']);
+    const { ctx, page, noResultPrefix, askAi } = await arrangeFreshRead(browser, ['MACD']);
     try {
-      await page.locator('button.strat-chip', { hasText: 'EMA Ribbon' }).click();
+      await page.locator('button.strat-chip', { hasText: 'MACD' }).click();
       const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
       await smaChip.click();
       await expect(smaChip).toHaveAttribute('aria-pressed', 'true');
 
-      const { userPrompt, systemMsg } = await askAi();
+      const { userPrompt, selection } = await askAi();
 
       expect(userPrompt, 'place 3: the ASK AI prompt cited the stale read as fact (its reasoning marker is present) - ' +
         'one message asserting the old selection\'s conclusion beside the current selection, the audit\'s worst case').not.toContain(MARKER);
       expect(userPrompt, 'the stale read\'s signal must not be cited either').not.toContain('LEAN BEARISH');
       expect(userPrompt, 'a stale read must be treated exactly like no read at all: expected the ARENA_CHAT_PROMPT_NO_RESULT wording ' +
         `(starts "${noResultPrefix.trim()}...") - Quick/Deep are one click away for a fresh read`).toContain(noResultPrefix);
-      expect(systemMsg, 'the CURRENT selection (SMA) must still reach the chat - not citing the stale read must not drop the live selection').toContain('SMA');
+      expect(selection, 'the CURRENT selection (SMA) must still reach the chat - not citing the stale read must not drop the live selection').toContain('SMA');
     } finally {
       await ctx.close();
     }
   });
 
   test('re-selecting the same indicators in a different order is NOT a change - no notice', async ({ browser }) => {
-    const { ctx, page, staleNotices } = await arrangeFreshRead(browser, ['EMA Ribbon', 'SMA']);
+    const { ctx, page, staleNotices } = await arrangeFreshRead(browser, ['MACD', 'SMA']);
     try {
-      const ema = page.locator('button.strat-chip', { hasText: 'EMA Ribbon' });
+      const macd = page.locator('button.strat-chip', { hasText: 'MACD' });
       const sma = page.locator('button.strat-chip', { hasText: 'SMA' });
       // With 2+ selected, clicking a chip that is NOT the focused one only
       // brings its params back into view - it does not deselect (#1027,
       // StrategyPanel `toggle`). Only re-clicking the FOCUSED chip removes
       // it. The last chip picked (SMA) holds focus, so SMA goes first, then
-      // EMA Ribbon becomes the focused one. An earlier version of this test
-      // clicked EMA Ribbon first, which just moved focus and left both
+      // MACD becomes the focused one. An earlier version of this test
+      // clicked the first chip first, which just moved focus and left both
       // pressed - a wrong model of the panel, not a product defect.
       await sma.click();
       await expect(sma).toHaveAttribute('aria-pressed', 'false');
-      await ema.click();
-      await expect(ema).toHaveAttribute('aria-pressed', 'false');
+      await macd.click();
+      await expect(macd).toHaveAttribute('aria-pressed', 'false');
       // Same two indicators, opposite click order: SMA first this time.
       await sma.click();
       await expect(sma).toHaveAttribute('aria-pressed', 'true');
-      await ema.click();
-      await expect(ema).toHaveAttribute('aria-pressed', 'true');
+      await macd.click();
+      await expect(macd).toHaveAttribute('aria-pressed', 'true');
 
       await expect(staleNotices,
         'order-independent comparison regressed: the same indicators picked in a different click order was reported as a changed selection').toHaveCount(0);
