@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
@@ -152,7 +153,8 @@ export async function GET(req: NextRequest) {
         body: JSON.stringify({
           model: 'grok-4.3',
           input: [{ role: 'user', content: prompt }],
-          tools: [{ type: 'web_search' }, { type: 'x_search' }],
+          // #1651 item 1: X posts from the last 3 days only - the prompt asks for CURRENT on-chain values.
+          tools: searchTools(searchWindow(3)),
         }),
         signal: AbortSignal.timeout(45000),
       });
