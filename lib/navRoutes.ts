@@ -203,6 +203,9 @@ export const SCREEN_NAMES: Record<string, LabelKey> = {
   '/refund':        'TNAV_REFUND_LABEL',
   '/disclaimer':    'TNAV_DISCLAIMER_LABEL',
   '/contact':       'ABOUT_CONTACT_LABEL',
+  /* Added with #1673 item 5: /learn renders inside the app shell now, so it shows this bar and needs a name. NAV_GLOSSARY is the name the
+     nav drawer already gives it, rather than a second key saying the same word. Caught by QA's N3, not by me - the gate did its job. */
+  '/learn':         'NAV_GLOSSARY',
 };
 
 // Title-cases each word of a raw route segment - "econ calendar" becomes
