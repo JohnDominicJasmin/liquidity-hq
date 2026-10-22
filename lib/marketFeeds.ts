@@ -40,6 +40,7 @@
  * path - refusing it would break a caller to win a statistic.
  */
 import { bybitFanout } from '@/lib/bybitFanout';
+import { parseRatioPair } from '@/lib/ratioPair';
 
 export type FeedResult = { payload: unknown; source: string; ok: number; total: number; stopped: boolean };
 
@@ -175,9 +176,12 @@ const accountRatio1h: MarketFeed = {
       (body) => {
         const item = (body as { result?: { list?: Array<Record<string, string>> } })?.result?.list?.[0];
         if (!item) return null;
+        /* #1651: was `parseFloat(item.buyRatio || '0.5')`. A row with no buyRatio became a measured-looking 50/50 here, at ingest,
+           where nothing downstream could ever tell it apart from a real even market. Unknown is now null and stays null. */
+        const pair = parseRatioPair(item.buyRatio, item.sellRatio);
         return {
-          longRatio:  parseFloat(item.buyRatio  || '0.5'),
-          shortRatio: parseFloat(item.sellRatio || '0.5'),
+          longRatio:  pair?.longRatio  ?? null,
+          shortRatio: pair?.shortRatio ?? null,
           /* ADDED field, never a reshape: the live route's parser is the same
              code and MarketProvider, BriefingTerminal and GrokChat all read
              longRatio/shortRatio by name, so an extra key is invisible to them. */
