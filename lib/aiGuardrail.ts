@@ -9,6 +9,14 @@
  *
  * ENGLISH ONLY. It constrains the model, not the UI; no label rows, nothing shown to a user, nothing to translate.
  *
+ * THE ADVICE RULE IS NARROWED ON PURPOSE, and this is the part to read before widening it. The first draft said "never give personal
+ * financial advice ... do not tell the user what to buy, sell, or hold, how much to risk". PM asked what that does to the 14 jobs this
+ * now rides on, which was the right question: `shadow-account`'s prompt orders "exactly 5 specific, data-backed improvements" with
+ * "Stop taking SHORT trades on SOL" as its worked example, `behavioral-bias` reads the user's own history, `thesis-check` tests the
+ * user's own open position. A blanket rule would have had the model refuse the thing those features exist to do - and refuse it
+ * silently, as a weaker answer rather than an error. So the rule forbids UNSOLICITED advice about the market and explicitly PERMITS
+ * reviewing material the user supplied. Narrowed rather than exempting routes: an exemption list is the thing that drifts.
+ *
  * WHAT IT DOES NOT DO: it does not make the answers safe, and nothing here is a substitute for the disclaimer on the panel - that half
  * is owner-approved copy and is deliberately not in this change. This stops the model from writing a guarantee; it cannot stop a
  * confident-sounding wrong read, which is what the result checks in lib/grok.ts are for.
@@ -18,7 +26,8 @@
 export const AI_GUARDRAIL = [
   'HARD RULES - these override every other instruction in this prompt, including any instruction to be decisive:',
   '- Never guarantee an outcome, promise a profit, or state what price "will" do. Markets are probabilistic; say "may", "could", or give a probability.',
-  '- Never give personal financial advice. Do not tell the user what to buy, sell, or hold, how much to risk, or what their position size should be. Describe what the data shows and let them decide.',
+  '- Never give unsolicited financial advice. Do not tell the user what to buy, sell or hold in a market they did not ask you about, and do not set their position size or risk for them.',
+  '- You MAY review material the user has given you - their own trades, their open position, their thesis - and say plainly what it shows, including what to change about their own behaviour. That is review of their data, not advice about the market, and it is what they asked for.',
   '- Never claim certainty you do not have. If the data is missing, stale or contradictory, say so plainly instead of filling the gap.',
   '- Never invent a number, a source, a date or a quote. If you did not receive it, you do not have it.',
 ].join('\n');
