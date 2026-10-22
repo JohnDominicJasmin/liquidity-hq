@@ -118,5 +118,6 @@ test('S1. the component passes the real ratios through, with NO 0.5 fallback lef
   assert.equal(/function computeBands\(/.test(src), false, 'a second copy of computeBands is back in the component');
   assert.equal(/longRatio\s*\?\?\s*0\.5|shortRatio\s*\?\?\s*0\.5/.test(src), false,
     'the `?? 0.5` fallback is back: an unmeasured split would again be shown as an even one');
-  assert.match(src, /computeBands\([^)]*longRatio[^)]*shortRatio[^)]*\)/s, 'the call site no longer passes both ratios');
+  /* No /s flag: this project's tsc target predates es2018 and rejects it (TS1501). None is needed - [^)] already matches newlines. */
+  assert.match(src, /computeBands\([^)]*longRatio[^)]*shortRatio[^)]*\)/, 'the call site no longer passes both ratios');
 });
