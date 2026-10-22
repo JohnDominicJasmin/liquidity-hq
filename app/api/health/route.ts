@@ -128,7 +128,10 @@ export async function GET(req: Request) {
     exchanges,
     /* The detailed view is credentialed. /api/health is public, and strikes + cooling window + last upstream status together map
        how close this server is to being rate-limited and how long it stays down - coarse in public, detail behind the secret. */
-    ...(checkCronAuth(req) ? { exchange_detail: _exchangeGuardStats(now) } : {}),
+    /* headerOnly (#1649, QA's review): checkCronAuth also accepts `?secret=`, which is right for a cron scheduler configured
+       once and wrong here - this endpoint is the one people paste into monitors and tickets, and a query string travels into
+       access logs and Referer headers in a way a header does not. Nothing calls /api/health on a schedule with a query secret. */
+    ...(checkCronAuth(req, { headerOnly: true }) ? { exchange_detail: _exchangeGuardStats(now) } : {}),
   };
 
   return NextResponse.json(body, { status: check.status, headers: { 'Cache-Control': 'no-store' } });
