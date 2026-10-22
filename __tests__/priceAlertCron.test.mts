@@ -176,6 +176,19 @@ test('A6. an alert edited while its message is held is judged afresh: the old ta
   a9.active = false;
 });
 
+test('A6b. an alert whose DIRECTION is edited while its message is held is judged afresh: the old "above" touch is never resent', async () => {
+  world.alerts.push(alert(11)); world.btc = 101_000; world.telegram = 'blocked';
+  tick(MIN); await run();                                         // fails: held for "above 100,000"
+  const a11 = world.alerts.find((a) => a.id === 11)!; a11.direction = 'below'; world.telegram = 'ok';
+  tick(6 * MIN);
+  const n = world.priceAlertMessages.length;
+  const r = await run();
+  assert.deepEqual(sentSince(n), [], 'the held "above" message went out after the alert was edited to "below" (price 101,000 is not below 100,000)');
+  assert.ok(!world.switchedOff.some((ids) => ids.includes(11)), 'the edited alert was consumed');
+  assert.equal(r.body.delivery?.priceAlertsHeld, 0, 'the stale hold was not dropped');
+  a11.active = false;
+});
+
 test('A7. a hold older than a day is dropped and the alert judged afresh: below target now, nothing is sent', async () => {
   world.alerts.push(alert(10)); world.btc = 101_000; world.telegram = 'blocked';
   tick(MIN); await run();                                         // first failed attempt: the day starts here
