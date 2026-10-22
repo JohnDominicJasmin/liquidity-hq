@@ -281,3 +281,131 @@ test('H8: a stall clears on the next check after the cache window, so the monito
   assert.equal(healed.res.status, 200, healed.text);
   assert.equal(healed.body.ok, true);
 });
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ * #1649, THE EXCHANGE BREAKER GAUGE. Written because the implementation arrived with NO committed coverage of its new payload: the
+ * ten assertions behind it were checked by a probe, and a probe is not coverage - nothing in the repo would catch a regression of
+ * the credential gate or of the all-four-named property. Those are the two that matter most, for opposite reasons: the gate is
+ * security-relevant, and the naming is what stops an absent key reading as a healthy one.
+ *
+ * The breaker is opened THE WAY PRODUCTION OPENS IT - exchangeFetch against a 429 - rather than through a test backdoor, so these
+ * tests exercise the real trip path. Each one restores the fetch stand-in and resets the guard, because a tripped breaker lasts ten
+ * minutes of fake-clock time and would otherwise leak into every test after it. ══════════════════════════════════════════════════ */
+
+const EXCHANGES = ['binance', 'bybit', 'okx', 'hyperliquid'];
+
+/** A request carrying the cron secret, which is how the detailed view is unlocked. */
+const withSecret = () => new NextRequest('http://localhost/api/health', { headers: { 'x-cron-secret': CRON } });
+async function callWith(GET: (req: NextRequest) => Promise<Response>, req: NextRequest) {
+  const res = await GET(req);
+  const text = await res.text();
+  return { res, text, body: JSON.parse(text) as Record<string, unknown> };
+}
+
+/** Open one exchange's breaker through the real path: a 429 from that host. Restores the Supabase stand-in afterwards. */
+async function tripBreaker(host: string) {
+  const { exchangeFetch } = await import('../lib/exchangeGuard.ts');
+  const saved = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    if (String(input).includes(host)) return new Response('{"retCode":10006,"retMsg":"Too many visits"}', { status: 429 });
+    throw new Error(`tripBreaker saw an unexpected request: ${String(input)}`);
+  }) as typeof fetch;
+  try {
+    await exchangeFetch(`https://${host}/v5/market/tickers`).catch(() => {});
+  } finally {
+    globalThis.fetch = saved;
+  }
+}
+const resetGuard = async () => (await import('../lib/exchangeGuard.ts'))._resetExchangeGuard();
+
+test('H10: the PUBLIC answer names every configured exchange, and carries no detailed figures', async () => {
+  await resetGuard();
+  const { body, text } = await call(await route());
+
+  const exchanges = body.exchanges as Record<string, { degraded?: unknown }> | undefined;
+  assert.ok(exchanges, 'no `exchanges` block: the breaker is invisible again, which is the whole point of #1649');
+  /* Every one, every time. An absent key cannot be told apart from a healthy one - the same lesson as `NaN != null`. */
+  for (const ex of EXCHANGES) {
+    assert.ok(ex in exchanges, `${ex} is missing from the payload; present keys: ${Object.keys(exchanges).join(', ')}`);
+    assert.equal(typeof exchanges[ex].degraded, 'boolean', `${ex}.degraded is ${JSON.stringify(exchanges[ex].degraded)}, not a boolean`);
+  }
+  assert.equal(Object.keys(exchanges).length, EXCHANGES.length, `unexpected exchanges: ${Object.keys(exchanges).join(', ')}`);
+
+  /* okx and hyperliquid were as invisible as the two we talk about, and #1701 cannot audit a venue it cannot observe. */
+  assert.ok('okx' in exchanges && 'hyperliquid' in exchanges, 'okx and hyperliquid must be reportable, not just binance and bybit');
+
+  /* The detail is credentialed: strikes + cooling window + last upstream status together map our rate-limit exposure, and this
+     endpoint is unauthenticated. A bare monitor request must not receive them. */
+  assert.equal(body.exchange_detail, undefined, 'the public answer leaked exchange_detail to a request with no secret');
+  assertNothingSensitive(text);
+});
+
+test('H11: WITH the cron secret the detail appears, and a counter that does not apply is null - never the string "undefined"', async () => {
+  await resetGuard();
+  const { res, body, text } = await callWith(await route(), withSecret());
+  assert.equal(res.status, 200, text);
+
+  const detail = body.exchange_detail as Record<string, Record<string, unknown>> | undefined;
+  assert.ok(detail, 'the cron secret did not unlock exchange_detail');
+  for (const ex of EXCHANGES) assert.ok(ex in detail, `${ex} missing from exchange_detail`);
+
+  /* "4 strikes" means nothing without "in 60 minutes", so the window travels with the count. */
+  assert.equal(typeof detail.bybit.strikes_window_ms, 'number', 'strikes_window_ms is missing, so a strike count cannot be read');
+
+  /* JSON.stringify DROPS an undefined value, so these keys vanished entirely and an absent key reads as healthy. null is the fix -
+     and the obvious wrong fix is to stringify, which satisfies a key-presence check while meaning nothing. Both are excluded. */
+  for (const [ex, other] of [['bybit', 'binanceWeight'], ['binance', 'bybitLast5s']] as const) {
+    assert.ok(other in detail[ex], `${ex}.${other} is absent; an absent key cannot be told apart from a healthy value`);
+    assert.notEqual(detail[ex][other], 'undefined', `${ex}.${other} is the STRING "undefined" - a dropped value "fixed" by stringifying it`);
+    assert.notEqual(detail[ex][other], 'null', `${ex}.${other} is the STRING "null"`);
+    assert.equal(detail[ex][other], null, `${ex}.${other} should be null where the counter does not apply, got ${JSON.stringify(detail[ex][other])}`);
+  }
+  assertNothingSensitive(text);
+});
+
+test('H12: an open breaker is reported as degraded on THAT exchange only, and ok stays true with a 200', async () => {
+  /* This is the assertion the implementation could only mark SKIP, because it needs the 200 database path. The stand-in supplies
+     exactly that, so it is testable here: degraded is not down. A health check that reddens during every cooldown gets ignored,
+     and then it is a mechanism wired to nothing - which is the failure #1649 exists to end. */
+  await resetGuard();
+  try {
+    await tripBreaker('api.bybit.com');
+    const { res, body, text } = await call(await route());
+
+    assert.equal(res.status, 200, `an open breaker changed the status code: ${text}`);
+    assert.equal(body.ok, true, 'an open breaker set ok:false - degraded is not down');
+
+    const ex = body.exchanges as Record<string, { degraded: boolean }>;
+    assert.equal(ex.bybit.degraded, true, 'bybit tripped but is not reported as degraded');
+    for (const other of ['binance', 'okx', 'hyperliquid']) {
+      assert.equal(ex[other].degraded, false, `${other} is reported degraded although only bybit tripped`);
+    }
+  } finally {
+    await resetGuard();
+  }
+});
+
+test('H13: the breaker is read PER REQUEST while the database stays cached', async () => {
+  /* The property that makes this an instrument rather than a decoration. If the exchange block were computed inside the cached
+     check, it would report healthy for up to 30 s into a cooldown and any cooldown shorter than that would be invisible for good.
+     So: trip the breaker BETWEEN two calls inside the 30 s window, and require the second answer to show it while db_checked_at
+     proves the database was not re-read. */
+  await resetGuard();
+  try {
+    const GET = await route();
+    const first = await call(GET);
+    assert.equal((first.body.exchanges as Record<string, { degraded: boolean }>).bybit.degraded, false, 'bybit degraded before anything tripped');
+    const readsAfterFirst = net.reads;
+
+    await tripBreaker('api.bybit.com');
+    offset += 5_000; /* still inside the 30 s database cache */
+
+    const second = await call(GET);
+    assert.equal((second.body.exchanges as Record<string, { degraded: boolean }>).bybit.degraded, true,
+      'the second answer still says healthy, so the exchange block is being cached with the database check');
+    assert.equal(second.body.db_checked_at, first.body.db_checked_at, 'precondition failed: the database WAS re-read, so this proves nothing about caching');
+    assert.equal(net.reads, readsAfterFirst, 'precondition failed: a second database read happened inside the window');
+  } finally {
+    await resetGuard();
+  }
+});
