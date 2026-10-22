@@ -29,7 +29,7 @@ import { clampMaxTokens } from '@/lib/grokTokenClamp';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { buildChatSystemPrompt, parseChatContext, parseChatHistory, splitFollowUps } from '@/lib/chatPrompt';
-import { answerText, searchCitations } from '@/lib/xaiAnswer';
+import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -43,7 +43,10 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const MODEL = 'grok-4.3';
 // The only tools the product's search mode ever offers - pinned rather than
 // forwarded, so a caller cannot substitute a pricier or unintended tool.
-const ALLOWED_SEARCH_TOOLS = [{ type: 'web_search' }, { type: 'x_search' }];
+// #1651 item 1: X is searched over the last 7 days, today included. Wider than
+// Deep's 2 because a chat question can be about the week ("why did ETH dump
+// on Monday?"); still bounded, so a months-old post cannot pass as news.
+const CHAT_X_DAYS = 7;
 
 function sb(token: string) {
   return userClient(token);
@@ -142,6 +145,7 @@ export async function POST(req: NextRequest) {
   }
 
   /* ── Call xAI ── */
+  const xWindow = searchWindow(CHAT_X_DAYS);
   try {
     let data: unknown;
     let status: number;
@@ -151,7 +155,7 @@ export async function POST(req: NextRequest) {
       const r = await xaiFetch('https://api.x.ai/v1/responses', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-        body:    JSON.stringify({ model: MODEL, input: messages, tools: ALLOWED_SEARCH_TOOLS }),
+        body:    JSON.stringify({ model: MODEL, input: messages, tools: searchTools(xWindow) }),
       });
       data   = await r.json();
       status = r.status;
@@ -178,7 +182,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         text: text || '(no response)',
         followUps,
-        citations: isSearch ? searchCitations(data) : [],
+        citations: isSearch ? searchCitations(data, xWindow) : [],
         _usage: { chat_used: newChat, chat_limit: chatLimit, search_used: newSearch, search_limit: searchLimit },
       }, { status });
     }

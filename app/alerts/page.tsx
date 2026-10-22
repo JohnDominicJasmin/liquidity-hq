@@ -99,6 +99,9 @@ export default function AlertsPage() {
   // user proves the chat is theirs by sending a one-time code to the bot.
   const [botUsername, setBotUsername] = useState<string | null>(null);
   const [webhookOk, setWebhookOk]     = useState(true);
+  // R4 (#1640): the bot status could not be read (503, ok: false, or no answer). Said on the page rather than left blank; it never
+  // changes the Connected / Not connected pill, which comes from the user's own settings, and never hides the connect steps.
+  const [botStatusUnavailable, setBotStatusUnavailable] = useState(false);
   const [linkCode, setLinkCode]       = useState<{ code: string; deepLink: string | null } | null>(null);
   const [linkSecondsLeft, setLinkSecondsLeft] = useState(0);
   const [linkIssuing, setLinkIssuing]   = useState(false);
@@ -144,11 +147,20 @@ export default function AlertsPage() {
   const [paLabel, setPaLabel]         = useState('');
   const [paAdding, setPaAdding]       = useState(false);
   const [paError, setPaError]         = useState('');
+  /* #1702: whether the LOAD failed, which is not the same question as `paError`. That one is shared with add, delete and test, so it
+     cannot say why the list is empty. Without this, a failed read left `priceAlerts` as [] and the length check below rendered
+     "No price alerts" underneath the error - the page reporting a failure and a confident negative about the same read, to a user who
+     may have ten alerts. */
+  const [paLoadFailed, setPaLoadFailed] = useState(false);
 
   useEffect(() => {
-    fetch('/api/telegram/bot-info').then(r => r.json())
-      .then(d => { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); })
-      .catch(() => {});
+    fetch('/api/telegram/bot-info')
+      .then(async r => {
+        const d = await r.json().catch(() => null) as { ok?: boolean; username?: string | null; webhook_ok?: boolean } | null;
+        if (d) { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); }
+        if (!r.ok || d?.ok !== true) setBotStatusUnavailable(true);
+      })
+      .catch(() => setBotStatusUnavailable(true));
   }, []);
 
   // #1167: waits for AuthProvider's own session resolve before doing anything,
@@ -367,9 +379,11 @@ export default function AlertsPage() {
          the one GET did not. */
       if (!res.ok) throw new Error(d.error ?? t('ALERTS_NETWORK_ERROR'));
       setPriceAlerts(d.alerts ?? []);
+      setPaLoadFailed(false);
       setPaError('');
     } catch (e) {
       setPaError(e instanceof Error ? e.message : t('ALERTS_NETWORK_ERROR'));
+      setPaLoadFailed(true);
     }
     setPaLoading(false);
   }, [t]);
@@ -668,6 +682,12 @@ export default function AlertsPage() {
               </div>
             )}
 
+            {botStatusUnavailable && (
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>
+                {t('ALERTS_BOT_STATUS_UNAVAILABLE')}
+              </div>
+            )}
+
             {!linkCode ? (
               <>
                 <button
@@ -881,7 +901,10 @@ export default function AlertsPage() {
           {paError && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{paError}</div>}
           {paLoading ? (
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10 }}>{t('ALERTS_LOADING')}</div>
-          ) : priceAlerts.length === 0 ? (
+          ) : paLoadFailed ? null : priceAlerts.length === 0 ? (
+            /* #1702: nothing is rendered here when the read failed. The error line above is true and already there; "No price alerts"
+               would be a claim we cannot make. A friendlier "Couldn't load this - try again" is deliberately NOT added in this change:
+               it is new copy, which needs the owner's word and a locale migration, and the lie is removed without it. */
             <div className="empty-state" style={{ marginTop: 8 }}>
               <div className="empty-state-title">{t('ALERTS_NO_PRICE_ALERTS_TITLE')}</div>
               <div className="empty-state-sub">{t('ALERTS_NO_PRICE_ALERTS_SUB')}</div>

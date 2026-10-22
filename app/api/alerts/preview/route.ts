@@ -5,7 +5,7 @@ import { COINS, COIN_LABELS } from '@/lib/coins';
 import { getEntitlement } from '@/lib/entitlements';
 import { FREE_SIGNAL_COINS } from '@/lib/signalCoinGate';
 import { rateLimit } from '@/lib/rateLimit';
-import { EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles } from '@/lib/ribbonCandles';
+import { EMA_SIGNAL_TFS, type EMASignalTF, closedCandles, fetchRibbonCandles } from '@/lib/ribbonCandles';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/strategyCore';
 import { detectStructureSignals } from '@/lib/priceAction';
 import { STRUCTURE_TFS, isStructureEnabled } from '@/lib/structurePrefs';
@@ -130,9 +130,12 @@ export async function POST(req: NextRequest) {
 
       if ((emaTfs as readonly string[]).includes(tf)) {
         // Only the variant matching this user's own Anti-Chop setting, so the
-        // answer matches the markers their Arena chart draws.
+        // answer matches the markers their Arena chart draws. Closed candles
+        // only, as the cron judges them since 2026-10-22: a preview that
+        // counted the forming candle would promise an alert the cron will not
+        // send until (unless) that candle closes beyond EMA50.
         const { signalLongs, signalShorts } = detectEMASignals(
-          candles, tf, antiChop ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS,
+          closedCandles(candles, tf), tf, antiChop ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS,
         );
         const all = [...signalLongs, ...signalShorts].sort((a, b) => b.timestamp - a.timestamp);
         const latest = all[0];
@@ -144,7 +147,8 @@ export async function POST(req: NextRequest) {
       }
 
       if ((structTfs as readonly string[]).includes(tf)) {
-        const sigs = detectStructureSignals(candles.map(c => ({
+        // Closed candles only, as the cron judges structure since 2026-10-22.
+        const sigs = detectStructureSignals(closedCandles(candles, tf).map(c => ({
           timestamp: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
         })));
         const latest = sigs[sigs.length - 1];

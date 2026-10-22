@@ -7,6 +7,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 import { getAuthToken } from '@/lib/supabase';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
 import { withAlpha } from '@/lib/color';
+import { calendarFromResponse } from '@/lib/econCalendarFeed';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -65,8 +66,9 @@ export default function EconCalendarWidget() {
     getAuthToken().then(token => fetch('/api/econ-calendar', {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     }))
-      .then(r => r.json())
-      .then(d => { if (cancelled) return; if (d.source === 'none') setError(true); else setEvents(d.events ?? []); })
+      .then(async r => calendarFromResponse<CalEvent>(r.ok, await r.json().catch(() => null)))
+      // #1637: a 429, a 500 or a body without events is a failed load, like source 'none' - never "no upcoming events".
+      .then(cal => { if (cancelled) return; if (!cal) setError(true); else setEvents(cal.events); })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
   }, []);

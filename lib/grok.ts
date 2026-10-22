@@ -88,6 +88,43 @@ export function normalizeGrokUsage(raw: unknown): GrokUsageInfo | null {
 /** Shown when the AI endpoint answered 200 but with nothing usable. Plain, no jargon, says what to do. */
 export const GROK_EMPTY_ANSWER_MESSAGE = 'The AI read came back empty. Try again in a moment.';
 
+/** #1651 item 3: shown when the answer named no verdict we can read, even after one retry. Never replaced by a default FLAT ("Wait"). */
+export const GROK_UNREADABLE_ANSWER_MESSAGE = 'The AI answer did not give a clear verdict, so it is not shown. Try again in a moment.';
+
+/** The SIGNAL and CONFIDENCE lines, shared by parseVerdict and parseCombinedResponse so the two can never read an answer differently.
+ *  `\*{0,2}` after the colon: "**SIGNAL:** BEARISH" (bold label, value outside it) left "**" between the colon and the value after the
+ *  line-edge strip, missed the match and was read as FLAT at 0% (#1651 item 3, found by its probe). */
+const SIGNAL_LINE = /SIGNAL:\*{0,2}\s*(LEAN BULLISH|LEAN BEARISH|BULLISH|BEARISH|FLAT)/i;
+const CONFIDENCE_LINE = /CONFIDENCE:\*{0,2}\s*(\d+)/i;
+
+/** #1651 item 3: the verdict read STRICTLY - one of the five signals and a whole-number confidence 0-100 - or null. parseCombinedResponse
+ *  reads the same two lines but falls back to FLAT and 0 when they are missing, so an answer the model wrote in the wrong shape used to be
+ *  shown as a confident-looking "Wait". The route asks once more when this is null, then refuses. Same normalisation and patterns as
+ *  parseCombinedResponse, so every answer that parsed before still parses. */
+export function parseVerdict(text: string): { signal: CombinedResult['signal']; confidence: number } | null {
+  const clean = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
+  const signal = clean.match(SIGNAL_LINE)?.[1]?.toUpperCase();
+  const conf = clean.match(CONFIDENCE_LINE)?.[1];
+  if (!signal || conf == null) return null;
+  const confidence = parseInt(conf, 10);
+  return confidence <= 100 ? { signal: signal as CombinedResult['signal'], confidence } : null;
+}
+
+/** #1651 item 3: the one retry. It asks the model to restate the verdict its OWN answer reached - not to analyse again, so it needs no
+ *  search and no market data - and to say UNREADABLE rather than invent one. The answer is cut to 8,000 characters (a Deep answer is
+ *  bounded at 2,000 output tokens, well inside that). */
+export function buildVerdictRepairPrompt(answer: string): string {
+  return [
+    'Below is a market analysis. Restate the verdict it reaches in exactly two lines and nothing else:',
+    'SIGNAL: one of BULLISH, LEAN BULLISH, FLAT, LEAN BEARISH, BEARISH',
+    'CONFIDENCE: a whole number from 0 to 100',
+    'Use only what the analysis itself concludes. Do not analyse the market again. If the analysis reaches no verdict, reply with the single word UNREADABLE.',
+    '',
+    '--- ANALYSIS ---',
+    answer.slice(0, 8000),
+  ].join('\n');
+}
+
 const SIGNALS: ReadonlyArray<CombinedResult['signal']> = ['BULLISH', 'LEAN BULLISH', 'FLAT', 'LEAN BEARISH', 'BEARISH'];
 const strOrEmpty = (v: unknown): string => (typeof v === 'string' ? v : '');
 const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
@@ -769,13 +806,14 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
 
   const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/[,$]/g, '')); return isNaN(v) || v <= 0 ? null : v; };
 
-  const signal     = (clean.match(/SIGNAL:\s*(LEAN BULLISH|LEAN BEARISH|BULLISH|BEARISH|FLAT)/i)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
+  // A missing verdict falls back to FLAT / 0 here only for a caller that has not checked it: the route checks parseVerdict first (#1651).
+  const signal     = (clean.match(SIGNAL_LINE)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
   const biasRaw    = clean.match(/BIAS_LEAN:\s*(BULLISH|BEARISH|NEUTRAL)/i)?.[1]?.toUpperCase();
   const bias: CombinedResult['bias'] = signal === 'LEAN BULLISH' ? 'BULLISH'
     : signal === 'LEAN BEARISH' ? 'BEARISH'
     : (biasRaw === 'BULLISH' || biasRaw === 'BEARISH' || biasRaw === 'NEUTRAL') ? biasRaw as CombinedResult['bias']
     : null;
-  const confidence = parseInt(clean.match(/CONFIDENCE:\s*(\d+)/i)?.[1] ?? '0');
+  const confidence = parseInt(clean.match(CONFIDENCE_LINE)?.[1] ?? '0');
 
   const levels: CombinedResult['levels'] = [];
   const levSect = clean.match(/LEVELS:\s*\n([\s\S]*?)(?=CATALYSTS:|CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';

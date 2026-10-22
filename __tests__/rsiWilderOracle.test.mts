@@ -101,18 +101,74 @@ test('S3. both RSI badges compare the unrounded value; only the text is rounded'
   assert.ok(/<RsiBadge\s+rsi=\{cd\.rsi14\} \/>/.test(setup), 'Setup Scanner: the badge is not given the raw rsi14');
 });
 
+/* L1 used to read one migration by name, `20261021f`. That made it a test about a FILE rather than about the rows, and the owner's #1673
+   item 1 rewrote three of these four labels in a later migration - so the named file stopped being what ships, and the test went red on
+   wording the owner had deliberately changed. It now finds, per key, the LAST migration that writes that key (the migrations are named in
+   date order, which is what makes a filename sort the apply order) and holds that one to the build default. Nothing else about it moved:
+   five locales, English equal to the default, and the same placeholders in every language, which is the drift this test exists to catch. */
 test('L1. the four RSI timeframe labels: five locales each, English equal to the build default, placeholders kept in every language', () => {
-  const rows = read('supabase/migrations/20261021f_labels_rsi_timeframes.sql').split('\n').filter((l) => l.startsWith("('"))
-    .map((l) => l.replace(/^\('/, '').replace(/'\)[,;]?\s*$/, '').split("','")).map(([key, locale, value]) => ({ key, locale, value: value.split("''").join("'") }));
   const keys = ['ALERTS_RSI_DESC', 'BRIEFING_TAG_RSI', 'MARKET_CONDITIONS_WIDGET_RSI_LABEL', 'SETUP_SCANNER_RSI_VAL'];
-  assert.deepEqual([...new Set(rows.map((r) => r.key))].sort(), keys);
+  const migrations = readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter((f) => f.endsWith('.sql')).sort();
+  /* Every ('KEY','locale','value') row in one migration. Other migrations in this folder open a line with (' and are not label rows at
+     all - two columns, or a different table - so a row is kept only when it has all three parts; a tolerant parse here, because this test
+     now reads the whole folder rather than one known file. */
+  const rowsIn = (file: string) => read(`supabase/migrations/${file}`).split('\n').filter((l) => l.startsWith("('"))
+    .map((l) => l.replace(/^\('/, '').replace(/'\)[,;]?\s*$/, '').split("','"))
+    .filter((parts) => parts.length === 3 && parts.every((p) => typeof p === 'string'))
+    .map(([key, locale, value]) => ({ key, locale, value: value.split("''").join("'") }));
+  /* A MIGRATION MARKED HELD IS NOT THE ANSWER TO "WHAT SHIPS".
+     #1673 item 1 split the work: 20261022b carries the English rows and will be applied; 20261022d carries all five locales for the same
+     keys and says "HELD: DO NOT APPLY" until a speaker of each language has read them (the owner's decision, told they were machine
+     translations). The first version of this test took the LAST migration writing each key by filename, which is the held file - so it
+     checked translations that are not going to run and reported success about the shipping state without measuring it. Green for the wrong
+     reason, which is worse than red. Held files are excluded from "latest" and checked separately below. */
+  const isHeld = (file: string) => /HELD:\s*DO NOT APPLY/i.test(read(`supabase/migrations/${file}`));
+  const latest = new Map<string, { file: string; rows: { key: string; locale: string; value: string }[] }>();
+  const heldRows = new Map<string, { file: string; locales: string[]; rows: { key: string; locale: string; value: string }[] }>();
+  for (const file of migrations) {
+    const rows = rowsIn(file);
+    for (const k of keys) {
+      const mine = rows.filter((r) => r.key === k);
+      if (!mine.length) continue;
+      if (isHeld(file)) heldRows.set(k, { file, locales: mine.map((r) => r.locale).sort(), rows: mine });
+      else latest.set(k, { file, rows: mine });
+    }
+  }
+  assert.deepEqual([...latest.keys()].sort(), keys, 'a label is written by no migration that will be applied: it would ship as the English default in every language');
   const defaults = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, string>;
   const placeholders = (s: string) => (s.match(/\{[a-zA-Z]+\}/g) ?? []).sort().join(',');
   for (const k of keys) {
-    const mine = rows.filter((r) => r.key === k);
-    assert.deepEqual(mine.map((r) => r.locale).sort(), ['ar', 'en', 'ko', 'ru', 'zh'], `${k}: not exactly five locales`);
-    assert.equal(mine.find((r) => r.locale === 'en')!.value, defaults[k], `${k}: the English row differs from lib/labelDefaults.en.json`);
-    for (const r of mine) assert.equal(placeholders(r.value), placeholders(defaults[k]), `${k} ${r.locale}: placeholders changed in "${r.value}"`);
+    const { file, rows } = latest.get(k)!;
+    const locales = rows.map((r) => r.locale).sort();
+    /* English must always match the build default: that is the row that ships, and a mismatch means the page shows one string and the
+       database another. */
+    const en = rows.find((r) => r.locale === 'en');
+    assert.ok(en, `${k}: ${file} writes no English row, so the default and the database cannot be compared`);
+    assert.equal(en.value, defaults[k], `${k}: the English row in ${file} differs from lib/labelDefaults.en.json`);
+    for (const r of rows) assert.equal(placeholders(r.value), placeholders(defaults[k]), `${k} ${r.locale}: placeholders changed in "${r.value}" (${file})`);
+    if (locales.length === 5) {
+      assert.deepEqual(locales, ['ar', 'en', 'ko', 'ru', 'zh'], `${k}: ${file} writes five rows but not the five locales`);
+      continue;
+    }
+    /* ENGLISH-ONLY IS ALLOWED, BUT ONLY WHEN THE REST IS WRITTEN DOWN SOMEWHERE. The owner chose "English now, the rest later", and
+       "later" has to be a file that exists, not an intention: otherwise the four other languages silently keep the old shorthand forever
+       and nothing in the repo remembers they were meant to change. */
+    assert.deepEqual(locales, ['en'], `${k}: ${file} writes ${locales.join('/')} - neither all five locales nor English alone`);
+    const held = heldRows.get(k);
+    assert.ok(held, `${k}: ${file} ships English only and NO held migration carries the other four locales - the translations are lost, `
+      + 'not deferred. Write them in a file marked "HELD: DO NOT APPLY" so the debt is in the repo.');
+    assert.deepEqual(held.locales, ['ar', 'en', 'ko', 'ru', 'zh'], `${k}: the held file ${held.file} does not cover all five locales`);
+    /* The held rows are checked for placeholder drift too, not only for coverage. A deferred translation that has lost its {value} is
+       still broken - it just breaks later, on the day someone applies it, with the number missing from the sentence and no test having
+       ever looked. Found by mutating a placeholder out of the held file and watching this test pass. */
+    for (const r of held.rows) assert.equal(placeholders(r.value), placeholders(defaults[k]),
+      `${k} ${r.locale}: placeholders changed in the HELD file ${held.file} ("${r.value}") - it would ship broken whenever it is applied`);
   }
-  assert.match(defaults.MARKET_CONDITIONS_WIDGET_RSI_LABEL, /\(14, 15m\)/); assert.match(defaults.SETUP_SCANNER_RSI_VAL, /^RSI 15m /); assert.match(defaults.ALERTS_RSI_DESC, /^1h RSI /);
+  /* The wording the owner chose for #1673 item 1: plain "15-minute", not the trader shorthand "15m" or the bare period "(14, 15m)".
+     ALERTS_RSI_DESC was left as it was, so it still has to read "1h RSI". These are the strings, not a shape: the point of item 1 is that
+     a first-time reader can tell what the number is of, so a later tidy back to "RSI 15m" has to be a decision. */
+  assert.equal(defaults.MARKET_CONDITIONS_WIDGET_RSI_LABEL, 'BTC RSI (15-minute chart)');
+  assert.match(defaults.SETUP_SCANNER_RSI_VAL, /^15-minute RSI /);
+  assert.match(defaults.BRIEFING_TAG_RSI, /^15-minute RSI /);
+  assert.match(defaults.ALERTS_RSI_DESC, /^1h RSI /);
 });

@@ -34,6 +34,8 @@ export const AI_CALL_TYPES = [
   'thesis_check', 'strategy_research', 'shadow_account', 'behavioral_bias',
   'pine_script', 'hypothesis_analyze', 'token_unlock', 'smc_snapshot',
   'dry_powder', 'macro_context', 'onchain',
+  // #1651 item 3: the one retry that asks for an unreadable Quick/Deep verdict again (app/api/grok/route.ts).
+  'verdict_repair',
 ] as const;
 export type AiCallType = typeof AI_CALL_TYPES[number];
 

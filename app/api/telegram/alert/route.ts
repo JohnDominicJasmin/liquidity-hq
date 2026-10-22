@@ -8,6 +8,7 @@ import { formatAlertTally } from '@/lib/alertTally';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
+import { bootstrapReadings, trendBetween } from '@/lib/oiTrendWindow';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { selectAllRows } from '@/lib/selectAllRows';
@@ -15,7 +16,7 @@ import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
 import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
-  EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, BYBIT_KLINE_SYMS,
+  EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, closedCandles, BYBIT_KLINE_SYMS,
 } from '@/lib/ribbonCandles';
 import { detectStructureSignals } from '@/lib/priceAction';
 import {
@@ -1582,9 +1583,12 @@ async function checkSqueezeAlerts(
    Server-side twin of the Dashboard's Distribution Tracker. Scoring lives in
    lib/distribution.ts (shared with the client) - this function only derives
    the inputs from Binance futures data: 1h klines carry taker-buy volume
-   (field 9) for the sell-flow + CVD proxy, openInterestHist gives the OI
-   trend, topLongShortPositionRatio gives whale positioning, funding from
-   frMap. Fires at score ≥ 70 with a 4h per-coin cooldown. Muted coins are
+   (field 9) for the sell-flow + CVD proxy, topLongShortPositionRatio gives
+   whale positioning, funding from
+   frMap. The OI trend is the one exception: it comes from BYBIT, through the
+   same bootstrapReadings + trendBetween the dashboard uses, so the two cannot
+   disagree about the same measurement (#1696). Fires at score >= 70 with a 4h
+   per-coin cooldown. Muted coins are
    skipped before fetching.
    ════════════════════════════════════════ */
 
@@ -1602,13 +1606,21 @@ async function checkDistribution(
     .map(coin => async () => {
       try {
         const sym = BINANCE_PERP[coin];
-        const [kRes, oiRes, topRes] = await Promise.allSettled([
+        /* #1696 (owner, 2026-10-22): the OI trend comes from BYBIT, the dashboard's source, not from Binance. The rest of this check stays
+           on Binance, because taker-buy volume and the top-trader ratio exist only there. Two Bybit calls replace the one Binance OI call:
+           the OI points, and the 5-minute klines whose opens date them - which is the pair bootstrapReadings takes, exactly as the
+           dashboard does it in components/MarketProvider.tsx. A coin Bybit does not list gets no OI trend, the way a coin Binance did not
+           list got none before. */
+        const bySym = BYBIT_SYMS[coin];
+        const [kRes, topRes, byOiRes, byKlRes] = await Promise.allSettled([
           exchangeFetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=26`,
-            { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
-          exchangeFetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=1h&limit=25`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
           exchangeFetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=1h&limit=1`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
+          bySym ? exchangeFetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${bySym}&intervalTime=5min&limit=13`,
+            { cache: 'no-store', signal: AbortSignal.timeout(8_000) }) : Promise.resolve(null),
+          bySym ? exchangeFetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bySym}&interval=5&limit=20`,
+            { cache: 'no-store', signal: AbortSignal.timeout(8_000) }) : Promise.resolve(null),
         ]);
         // klines is the load-bearing leg here - oiRes/topRes degrade their own
         // fields gracefully below (see oiTrend's own `if` guard) rather than
@@ -1638,21 +1650,21 @@ async function checkDistribution(
         const px12Pct = base12 > 0 ? (price - base12) / base12 * 100 : 0;
         const cvdDivergence: 'bearish' | null = (px12Pct >= 1 && (2 * tb12 - v12) < 0) ? 'bearish' : null;
 
-        // OI trend vs price - same semantics as the client store's oiTrend
+        /* OI trend vs price: ONE SOURCE, ONE WINDOW and ONE CODE PATH with the dashboard (#1617 the rule, #1696 the source).
+           bootstrapReadings takes Bybit's newest OI point and the one exactly 60 minutes before it, pairs each with the open of the
+           5-minute candle starting at that moment, and trendBetween applies the screens' floors (OI >= 0.3% AND price >= 0.2%).
+           It used to be 24 hourly Binance points against the 24 h price change with 2% / 0.5% floors, under a comment claiming it matched
+           the client store - untrue since #1617 (#1651, QA finding 1), and a different exchange besides (#1696, QA's follow-up).
+           This also closes QA's LOW finding for this path: bootstrapReadings requires the older point to be one window back to within a
+           minute, so a gapped series is rejected on ELAPSED TIME instead of counting as an hour because it has enough samples.
+           Bybit quotes some symbols per 1000 tokens, which cannot matter here: OI and price are both Bybit's own and the trend is a pair of
+           percentage changes, so a constant factor cancels. */
         let oiTrend: DistributionInputs['oiTrend'] = null;
-        if (oiRes.status === 'fulfilled' && oiRes.value.ok) {
-          const oi = await oiRes.value.json() as Array<{ sumOpenInterest: string }>;
-          if (oi.length >= 20) {
-            const oiStart = parseFloat(oi[0].sumOpenInterest);
-            const oiEnd   = parseFloat(oi[oi.length - 1].sumOpenInterest);
-            if (oiStart > 0) {
-              const oiChg = (oiEnd - oiStart) / oiStart * 100;
-              const pxUp = change24hPct >= 0.5, pxDn = change24hPct <= -0.5;
-              oiTrend = oiChg >= 2  ? (pxUp ? 'strong_up' : pxDn ? 'strong_down' : null)
-                      : oiChg <= -2 ? (pxUp ? 'weak_up'   : pxDn ? 'weak_down'   : null)
-                      : null;
-            }
-          }
+        if (byOiRes.status === 'fulfilled' && byOiRes.value?.ok && byKlRes.status === 'fulfilled' && byKlRes.value?.ok) {
+          const oiJson = await byOiRes.value.json() as { result?: { list?: Array<{ openInterest?: unknown; timestamp?: unknown }> } };
+          const klJson = await byKlRes.value.json() as { result?: { list?: string[][] } };
+          const readings = bootstrapReadings(oiJson.result?.list, klJson.result?.list);
+          if (readings) oiTrend = trendBetween(readings[0], readings[1]);
         }
 
         // Top-trader dollar-weighted long share
@@ -1779,7 +1791,9 @@ async function checkEMASignal(
 
   await Promise.all(COINS.map(async coin => {
     try {
-      const candles = await fetchRibbonCandles(coin, tf);
+      // Closed candles only (owner decision 2026-10-22): the newest kline is still forming, and an alert sent on it cannot be taken back if
+      // it closes back across EMA50. See closedCandles in lib/ribbonCandles.ts. The chart keeps its live marker.
+      const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);
       if (candles.length < 55) return; // same minimum runway the chart's own hook requires
 
       for (const mode of MODES) {
@@ -2015,7 +2029,9 @@ async function checkStructureSignal(
 
   await Promise.all(COINS.map(async coin => {
     try {
-      const candles = await fetchRibbonCandles(coin, tf);
+      // Closed candles only, like the EMA alert (owner, 2026-10-22: "alert only on finished candles"). The message says "price closed
+      // above the prior swing high"; on the forming candle that close has not happened yet. See closedCandles in lib/ribbonCandles.ts.
+      const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);
       if (candles.length < 30) return;
 
       const signals = detectStructureSignals(

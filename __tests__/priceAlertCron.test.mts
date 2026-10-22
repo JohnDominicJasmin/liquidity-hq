@@ -96,8 +96,17 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof fetch;
 after(() => { globalThis.fetch = realFetch; Date.now = realNow; });
 
-const { GET } = await import('../app/api/telegram/alert/route.ts');
+/* Imported as a PROMISE, awaited inside `run`, never with a top-level await - the same hazard #1683 found in arenaCoinLadder: node:test
+   registers a file's tests as the module body runs, so registration behind an await lets a slow import leave the file with no tests, the
+   runner call it finished, and the `after` hook above restore the real fetch and clock before the tests run. */
+const routeP = import('../app/api/telegram/alert/route.ts') as Promise<{ GET: (r: NextRequest) => Promise<Response> }>;
+/* The stand-in must still be installed when a test runs - asserted out loud, for the #1683 reason: with the real fetch back, every
+   Supabase read fails and the route's own failure handling reads as a product defect. */
+const standInFetch = globalThis.fetch;
 const run = async () => {
+  assert.equal(globalThis.fetch, standInFetch,
+    'the network stand-in is not installed: the real fetch is back, so this run measures nothing about the cron - see #1683');
+  const { GET } = await routeP;
   const r = await GET(new NextRequest('http://localhost/api/telegram/alert', { headers: { 'x-cron-secret': 'qa-cron-secret' } }));
   return { status: r.status, body: await r.json() as { delivery?: { priceAlertsHeld?: number } } };
 };
@@ -165,6 +174,19 @@ test('A6. an alert edited while its message is held is judged afresh: the old ta
   assert.ok(!world.switchedOff.some((ids) => ids.includes(9)), 'the edited alert was consumed');
   assert.equal(r.body.delivery?.priceAlertsHeld, 0, 'the stale hold was not dropped');
   a9.active = false;
+});
+
+test('A6b. an alert whose DIRECTION is edited while its message is held is judged afresh: the old "above" touch is never resent', async () => {
+  world.alerts.push(alert(11)); world.btc = 101_000; world.telegram = 'blocked';
+  tick(MIN); await run();                                         // fails: held for "above 100,000"
+  const a11 = world.alerts.find((a) => a.id === 11)!; a11.direction = 'below'; world.telegram = 'ok';
+  tick(6 * MIN);
+  const n = world.priceAlertMessages.length;
+  const r = await run();
+  assert.deepEqual(sentSince(n), [], 'the held "above" message went out after the alert was edited to "below" (price 101,000 is not below 100,000)');
+  assert.ok(!world.switchedOff.some((ids) => ids.includes(11)), 'the edited alert was consumed');
+  assert.equal(r.body.delivery?.priceAlertsHeld, 0, 'the stale hold was not dropped');
+  a11.active = false;
 });
 
 test('A7. a hold older than a day is dropped and the alert judged afresh: below target now, nothing is sent', async () => {

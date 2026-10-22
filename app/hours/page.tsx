@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getLocalNow, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
 import { utcWindowToLocalRange, localZoneAbbr } from '@/lib/resetTime';
 import SessionCountdown from '@/components/SessionCountdown';
@@ -19,7 +19,10 @@ import PageHint from '@/components/PageHint';
    Asia runs 23:00-03:00 UTC, written as 23->27 so the range stays ordered. */
 const TIMELINE_SEGS_UTC = [
   { start: 4,    end: 7,    bg: 'rgba(248,113,113,0.45)', labelKey: 'HOURS_SEG_DEAD' as LabelKey },
-  { start: 7,    end: 10,   bg: 'rgba(122,184,245,0.55)', labelKey: 'HOURS_SEG_LONDON' as LabelKey },
+  /* LONDON is a LIGHTER blue than NY on purpose (owner, 2026-10-22, R7): at 0.55 alpha the two were 1.15:1 apart on the dark ground and
+     read as one colour in the key the labels now fall back to. This is 2.19:1 from NY on dark, 1.30:1 on light, and its own label reads at
+     7.39 at worst instead of 5.33 (the table below). */
+  { start: 7,    end: 10,   bg: 'rgba(176,216,255,0.70)', labelKey: 'HOURS_SEG_LONDON' as LabelKey },
   { start: 12,   end: 13.5, bg: 'rgba(148,163,184,0.45)', labelKey: 'HOURS_SEG_PRE_NY' as LabelKey },
   { start: 13.5, end: 18,   bg: 'rgba(96,165,250,0.55)',  labelKey: 'HOURS_SEG_NY' as LabelKey },
   { start: 18,   end: 21,   bg: 'rgba(125,224,164,0.70)', labelKey: 'HOURS_SEG_PRIME' as LabelKey },
@@ -119,6 +122,28 @@ export default function BestHours() {
     };
   }, []);
 
+  /* R7 (owner, 2026-10-22, on the 390 px render: "too squeezed to each other"). At phone width a 3-hour band is ~40 px, narrower than
+     "LONDON", and the names ran into each other ("DEAD" into "LONDON"). Each name is MEASURED against its own band - the words differ by
+     language, design and font, so no fixed breakpoint suits them all - and if any one does not fit, every name in the bar is hidden and a
+     key is shown under it instead. All or none, so the bar never labels one band and leaves its neighbour of the same size blank. The names
+     stay mounted (hidden) so they are measured again when the bar widens, the language changes or the font settles. */
+  const barRef = useRef<HTMLDivElement>(null);
+  const [legendMode, setLegendMode] = useState(false);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!mounted || !bar) return;
+    const check = () => {
+      const names = Array.from(bar.querySelectorAll<HTMLElement>('[data-seg-label]'));
+      setLegendMode(names.some(el => el.offsetWidth > (el.parentElement?.clientWidth ?? 0) - 8));
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(bar);
+    bar.querySelectorAll('[data-seg-label]').forEach(el => ro.observe(el));
+    document.fonts?.ready.then(check).catch(() => {});
+    return () => ro.disconnect();
+  }, [mounted, t]);
+
   const now = new Date();
   const pht = getLocalNow();
   const win = getCurrentWindow(pht);
@@ -183,7 +208,7 @@ export default function BestHours() {
              treatment applied to fewer than all three separates them. */}
         <div dir="ltr" style={{ position: 'relative', marginBottom: 6 }}>
           {/* Segment strips */}
-          <div style={{ position: 'relative', height: 44, borderRadius: 8, background: 'var(--bg3)', overflow: 'hidden' }}>
+          <div ref={barRef} style={{ position: 'relative', height: 44, borderRadius: 8, background: 'var(--bg3)', overflow: 'hidden' }}>
             {/* Client-only: the viewer's UTC offset both shifts the blocks and can
                 split one in two, so the server (always UTC) and the client would
                 render a different NUMBER of children - a structural hydration
@@ -222,7 +247,7 @@ export default function BestHours() {
 
                         band     cur dark      cur light   term dark     term light
                         DEAD     white 8.34    black 11.57 white 8.17    black 11.28
-                        LONDON   white 5.42    black 12.66 white 5.33    black 12.37
+                        LONDON   black 7.39    black 14.85 black 7.46    black 14.64
                         PRE_NY   white 7.81    black 12.43 white 7.63    black 12.10
                         NY       white 6.23    black 11.43 white 6.12    black 11.15
                         PRIME    black 6.89    black 13.97 black 6.96    black 13.77
@@ -239,9 +264,10 @@ export default function BestHours() {
                       4.27, white 4.07). No colour clears that band through
                       the fade, so the fade had to be the thing that moved. */}
                   {width > 7 && (
-                    <span style={{
-                      fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
+                    <span data-seg-label="" style={{
+                      fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em', whiteSpace: 'nowrap',
                       color: pick ? pick.color : 'var(--txt)',
+                      visibility: legendMode ? 'hidden' : undefined,
                     }}>
                       {t(seg.labelKey)}
                     </span>
@@ -286,6 +312,22 @@ export default function BestHours() {
             </span>
           ))}
         </div>
+
+        {/* R7: the key, shown when the bands are too narrow for their names (legendMode above). In the order the bands come on the viewer's
+            own day, each swatch the band's colour on the bar's own ground. */}
+        {mounted && legendMode && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px 14px', marginBottom: 8 }}>
+            {TIMELINE_SEGS_UTC
+              .map(seg => ({ ...seg, localStart: (((seg.start - now.getTimezoneOffset() / 60) % 24) + 24) % 24 }))
+              .sort((a, b) => a.localStart - b.localStart)
+              .map(seg => (
+                <span key={seg.labelKey} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em', color: 'var(--txt2)' }}>
+                  <span aria-hidden style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, background: `linear-gradient(${seg.bg}, ${seg.bg}), var(--bg3)` }} />
+                  {t(seg.labelKey)}
+                </span>
+              ))}
+          </div>
+        )}
 
         {/* Current position label */}
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
