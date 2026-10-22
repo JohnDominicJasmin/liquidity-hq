@@ -191,17 +191,46 @@ test('H9: database settings missing on the host -> 503 "db_error", not a thrown 
   }
 });
 
-test('H5: N calls inside 30 s make ONE database read and return the same check', async () => {
+test('H5: N calls inside 30 s make ONE database read, while each RESPONSE is stamped when it was served', async () => {
+  /* REWRITTEN 2026-10-22, and the old version was wrong in a way worth recording. It asserted
+     `again.body.checked_at === first.body.checked_at` - i.e. it PINNED the bug.
+     Measured on production (8f4b23b, 17:56:22-28Z): three calls two seconds apart returned an identical `checked_at` AND an identical
+     `db_ms` under `Cache-Control: no-store`. The header promised freshness the body did not deliver, so a reader taking `checked_at` as
+     "now" was wrong by up to 30 seconds. For the breaker fields this is not cosmetic: an exchange block inside that cached body would
+     report healthy for up to 30 s into a cooldown, and any cooldown shorter than 30 s would be invisible permanently.
+     So the two facts are now carried by two fields, and this test checks both rather than conflating them:
+       db_checked_at - when the DATABASE was last actually read. Identical across the window. That is the cache.
+       checked_at    - when THIS response was served. Different every call. That is the freshness the no-store header promises.
+     The clock is advanced INSIDE the loop on purpose: the old test moved it once before four calls, so all four shared one instant and a
+     naive "they must differ" assertion would have failed a correct implementation. The fixture's Date.now is the only clock here. */
   const GET = await route();
   const first = await call(GET);
   const readsAfterFirst = net.reads;
   assert.ok(readsAfterFirst >= 1);
-  offset += 29_000;
-  for (let i = 0; i < 4; i++) {
+  assert.ok(first.body.db_checked_at, 'no db_checked_at: the cached read has no timestamp of its own');
+
+  const STEP = 2_000; /* 4 x 2 s = 8 s, comfortably inside the 30 s window, so none of these may re-read (H7 owns the expiry) */
+  let prev = first.body;
+  for (let i = 1; i <= 4; i++) {
+    offset += STEP;
     const again = await call(GET);
     assert.equal(again.res.status, 200);
-    assert.equal(again.body.checked_at, first.body.checked_at, 'a call inside 30 s ran a new check');
     assertNoStore(again.res);
+
+    assert.equal(again.body.db_checked_at, first.body.db_checked_at,
+      `call ${i} inside 30 s re-read the database, or db_checked_at is being regenerated per request`);
+    assert.notEqual(again.body.checked_at, prev.checked_at,
+      `call ${i} returned the PREVIOUS response's checked_at - a no-store response must say when it was served, not when the cache was filled`);
+    assert.ok(Date.parse(again.body.checked_at) > Date.parse(prev.checked_at),
+      `call ${i}'s checked_at went backwards or stood still: ${prev.checked_at} -> ${again.body.checked_at}`);
+
+    /* db_age_ms is the same fact a reader can see WITHOUT calling twice - the whole point of adding it. */
+    if (again.body.db_age_ms !== undefined) {
+      const expected = i * STEP;
+      assert.ok(Math.abs(again.body.db_age_ms - expected) <= 100,
+        `call ${i}: db_age_ms ${again.body.db_age_ms} does not track the clock (expected about ${expected})`);
+    }
+    prev = again.body;
   }
   assert.equal(net.reads, readsAfterFirst, `5 calls inside 30 s made ${net.reads} reads`);
 });
