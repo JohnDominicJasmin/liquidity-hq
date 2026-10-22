@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { GLOSSARY } from '@/lib/glossary';
@@ -21,7 +21,7 @@ const CSS = `
 .gl-sub { font-size: var(--fs-body); color: var(--txt3); line-height: 1.55; margin: 4px 0 0; max-width: 680px; }
 .gl-sticky {
   position: sticky; top: calc(var(--appbar-h) + var(--strip-h) + var(--banner-h)); z-index: 5;
-  background: var(--bg); padding: 14px 0 10px; margin-top: 18px; border-bottom: 0.5px solid var(--bdr);
+  background: var(--gl-page-bg, var(--bg)); padding: 14px 0 10px; margin-top: 18px; border-bottom: 0.5px solid var(--bdr);
 }
 .gl-search {
   width: 100%; height: 42px; padding: 0 12px; border-radius: 8px; border: 0.5px solid var(--bdr2);
@@ -70,6 +70,22 @@ export default function LearnContent() {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
 
+  /* The sticky search bar must be opaque and the exact colour of the page under it, or terms show through it / it reads as a band. The page
+     colour is set on <body> and differs by design and theme (globals.css: #06070a, #E8EAED, var(--bg0)), and no single token names it,
+     so it is read from <body> and re-read when the theme or design attribute changes - the same watch app/hours/page.tsx uses for --bg3. */
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const read = () => {
+      const bg = getComputedStyle(document.body).backgroundColor;
+      if (bg && wrapRef.current) wrapRef.current.style.setProperty('--gl-page-bg', bg);
+    };
+    read();
+    const observer = new MutationObserver(read);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-design'] });
+    window.addEventListener('theme-change', read);
+    return () => { observer.disconnect(); window.removeEventListener('theme-change', read); };
+  }, []);
+
   const q = query.trim().toLowerCase();
   const filtered = q
     ? GLOSSARY.map(cat => ({ ...cat, entries: cat.entries.filter(e => e.term.toLowerCase().includes(q) || e.definition.toLowerCase().includes(q)) }))
@@ -79,7 +95,7 @@ export default function LearnContent() {
   const shown = filtered.reduce((n, cat) => n + cat.entries.length, 0);
 
   return (
-    <div className="gl-wrap">
+    <div className="gl-wrap" ref={wrapRef}>
       <style>{CSS}</style>
 
       {/* The app's page-heading style (as on Trade Journal), one plain string: no accent word. */}
