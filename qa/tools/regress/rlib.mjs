@@ -54,6 +54,10 @@ export async function session(a) {
   return minted[a];
 }
 export const accountEmail = (a) => (a === 'anon' ? null : env[`E2E_USER_${a}_EMAIL`]);
+/** One value from the gitignored env files, by name. For the fixture ids a script needs beyond the helpers above (E2E_A_TRADE_ID and
+ *  friends). Here so no script re-reads the env file by an absolute path of its own: regress-crud.mjs did, and would have died on line 16
+ *  in any other checkout (Dev, reviewing #1690). Never print what this returns. */
+export const envVar = (k) => env[k];
 export const anonKey = () => env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const MARKET = /(^|\.)(binance\.com|binance\.vision|bybit\.com|bytick\.com|okx\.com|coinbase\.com|deribit\.com|coingecko\.com|kraken\.com)$/;

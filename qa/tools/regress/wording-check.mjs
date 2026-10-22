@@ -6,7 +6,8 @@
  * Writes off. usage: node wording-check.mjs [langs=ko,zh,ru]                                                                                        */
 import { chromium, open, quiet, sleep, BASE, ROOT } from './rlib.mjs';
 import { readFileSync, mkdirSync, appendFileSync } from 'node:fs';
-const REPO = 'C:/Users/Dominic/Documents/VS code/liquidity-hq-qa/liquidity-hq';
+import { fileURLToPath } from 'node:url';
+const REPO = process.env.QA_REPO || fileURLToPath(new URL('../../../', import.meta.url)).replace(/[\/]$/, ''); // #1690: was an absolute path
 const langs = (process.argv[2] || 'ko,zh,ru').split(',');
 const only = process.argv[3] ? new RegExp(process.argv[3], 'i') : null; // a case-name filter, e.g. 'Whop|no-profit'
 const DIR = `${ROOT}/language/wordings`; mkdirSync(DIR, { recursive: true });

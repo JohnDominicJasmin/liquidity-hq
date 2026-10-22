@@ -6,14 +6,15 @@
  * restored at the end, then compared with the recording. The Telegram link code is never printed and its t.me link is never opened.
  * "Survives reload" is checked in a NEW browser context (fresh storage: server state only), not just a same-tab reload.
  * usage: node regress-crud.mjs [accts=A,B,T] [parts=settings,alerts,journal,language]                                                              */
-import { chromium, open, quiet, sleep, session, BASE, ROOT, REF, anonKey } from './rlib.mjs';
+import { chromium, open, quiet, sleep, session, BASE, ROOT, REF, anonKey, envVar } from './rlib.mjs';
 import { mkdirSync, appendFileSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 const accts = (process.argv[2] || 'A,B,T').split(',');
 const parts = (process.argv[3] || 'settings,alerts,journal,language').split(',');
 const D = { settings: `${ROOT}/settings`, alerts: `${ROOT}/alerts`, journal: `${ROOT}/journal` }; for (const d of Object.values(D)) mkdirSync(d, { recursive: true });
 const LOG = `${ROOT}/_sweep/crud.jsonl`; mkdirSync(`${ROOT}/_sweep`, { recursive: true });
 const say = (o) => { console.log(JSON.stringify(o)); appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), ...o }) + '\n'); };
-const env = {}; for (const line of readFileSync('C:/Users/Dominic/Documents/VS code/liquidity-hq-qa/liquidity-hq/.env.e2e.local', 'utf8').split(/\r?\n/)) { const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line.replace(/^\uFEFF/, '')); if (m) env[m[1]] = m[2].trim().replace(/^["']|["']$/g, ''); }
+/* Credentials come from rlib, which finds the checkout from its own location - this line used to read the QA folder's .env.e2e.local
+   by an absolute path and would have died in any other checkout (Dev, reviewing #1690). */
 const stamp = () => new Date().toISOString().slice(11, 19);
 const browser = await chromium.launch();
 
@@ -60,7 +61,7 @@ const baseFile = (acct) => `${ROOT}/_sweep/crud-settings-before-${acct}.json`;
 async function settingsTest(acct) {
   if (existsSync(baseFile(acct)) && !JSON.parse(readFileSync(baseFile(acct), 'utf8')).restoredAt) { say({ acct, part: 'settings', ERROR: `unrestored baseline in ${baseFile(acct)}: run the restore part first` }); return; }
   let L = await load(acct, '/settings'); const base = await L.page.evaluate(READ_SETTINGS);
-  const rowBefore = await rest(acct, 'lhq_dev_user_settings', `select=*&user_id=eq.${env[`E2E_USER_${acct}_ID`]}`);
+  const rowBefore = await rest(acct, 'lhq_dev_user_settings', `select=*&user_id=eq.${envVar(`E2E_USER_${acct}_ID`)}`);
   writeFileSync(baseFile(acct), JSON.stringify({ at: new Date().toISOString(), base, row: Array.isArray(rowBefore.rows) ? rowBefore.rows[0] ?? null : null }, null, 1));
   say({ acct, part: 'settings', step: 'baseline (UI)', base, restRow: rowBefore.status, savedTo: baseFile(acct) });
   const pick = (cur, a, b) => (cur === a ? b : a);
@@ -77,7 +78,7 @@ async function settingsTest(acct) {
   // restore
   await setSettings(L.page, base, fresh); await quiet(L.page, L.inflight, 3000, 20_000); await L.ctx.close();
   L = await load(acct, '/settings'); const restored = await L.page.evaluate(READ_SETTINGS); await L.ctx.close();
-  const rowAfter = await rest(acct, 'lhq_dev_user_settings', `select=*&user_id=eq.${env[`E2E_USER_${acct}_ID`]}`);
+  const rowAfter = await rest(acct, 'lhq_dev_user_settings', `select=*&user_id=eq.${envVar(`E2E_USER_${acct}_ID`)}`);
   const rb = Array.isArray(rowBefore.rows) ? rowBefore.rows[0] || {} : {}; const ra = Array.isArray(rowAfter.rows) ? rowAfter.rows[0] || {} : {};
   const changedCols = Object.keys({ ...rb, ...ra }).filter((k) => !/updated_at|field_updated_at/.test(k) && JSON.stringify(rb[k]) !== JSON.stringify(ra[k]));
   const mismatches = Object.keys(base).filter((k) => restored[k] !== base[k]).map((k) => `${k}: base ${base[k]} now ${restored[k]}`);
@@ -96,7 +97,7 @@ async function settingsRestore(acct) {
   let L = await load(acct, '/settings'); const cur = await L.page.evaluate(READ_SETTINGS);
   await setSettings(L.page, saved.base, cur); await quiet(L.page, L.inflight, 3000, 20_000); await L.ctx.close();
   L = await load(acct, '/settings'); const now = await L.page.evaluate(READ_SETTINGS); await L.ctx.close();
-  const row = await rest(acct, 'lhq_dev_user_settings', `select=*&user_id=eq.${env[`E2E_USER_${acct}_ID`]}`); const ra = Array.isArray(row.rows) ? row.rows[0] || {} : {}; const rb = saved.row || {};
+  const row = await rest(acct, 'lhq_dev_user_settings', `select=*&user_id=eq.${envVar(`E2E_USER_${acct}_ID`)}`); const ra = Array.isArray(row.rows) ? row.rows[0] || {} : {}; const rb = saved.row || {};
   const mismatches = Object.keys(saved.base).filter((k) => now[k] !== saved.base[k]).map((k) => `${k}: base ${saved.base[k]} now ${now[k]}`);
   const changedCols = Object.keys({ ...rb, ...ra }).filter((k) => !/updated_at|field_updated_at/.test(k) && JSON.stringify(rb[k]) !== JSON.stringify(ra[k]));
   say({ acct, part: 'restore', step: 'restored from the baseline file', mismatchesVsBaseline: mismatches, dbColumnsDifferentFromBaseline: changedCols.map((k) => `${k}: ${JSON.stringify(rb[k])} -> ${JSON.stringify(ra[k])}`.slice(0, 160)) });

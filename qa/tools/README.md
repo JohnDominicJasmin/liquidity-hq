@@ -30,10 +30,15 @@ Everything else here is a one-off probe kept for its reasoning, not because it s
 - **Credentials are never in here.** `rlib.mjs` reads `.env.e2e.local` / `.env.local` from the checkout; both are gitignored and neither
   travels with the repo. Without them the real-account scripts cannot mint a session — ask the owner, who holds them.
 - **Evidence is written next to the checkout**, in `../qa-evidence/`, never inside the repo. `QA_ROOT` / `QA_OUT` override it.
-- **Paths.** `rlib.mjs`, `qa-howto-arena/lib.mjs` and `mutate-batch.mjs` find the repo from their own location and work in any checkout.
-  **The one-off probes still carry this laptop's absolute paths** (`C:/Users/Dominic/...`) and will not run elsewhere until the one you
-  need is fixed. They were archived as they were rather than rewritten blind: 110 of them reference such a path, and a silent rewrite of
-  a script nobody re-ran is how a tool starts lying about what it measured.
+- **Paths.** **Everything under `regress/`, plus `qa-howto-arena/lib.mjs`, `qa-howto-arena/prod-1676.mjs` and `mutate-batch.mjs`, finds
+  the checkout from its own location and runs anywhere.** `QA_REPO`, `QA_ROOT` and `QA_OUT` override. Verified by grep: no absolute
+  `C:/Users` path is left in that set outside prose comments.
+  **The one-off probes elsewhere in this folder still carry this laptop's absolute paths** and will not run in another checkout until the
+  one you need is fixed — 102 files. They were archived as they were rather than rewritten blind: a silent rewrite of a script nobody
+  re-ran is how a tool starts lying about what it measured.
+  **How this list got shorter:** Dev, reviewing the PR that moved all this, found `regress/regress-crud.mjs` reading the QA folder's
+  `.env.e2e.local` by absolute path — inside the very change whose purpose was portability. Credentials now come from `rlib.envVar`, and
+  the other six in the live set were swept at the same time.
 - **`rlib.mjs` refuses production and refuses any Supabase project but dev.** The production scripts are the ones that say `prod` in the
   name, they are read-only, and they never sign in.
 

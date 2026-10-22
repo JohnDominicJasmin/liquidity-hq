@@ -3,7 +3,8 @@
 # Each pass streams to its own log under _sweep/passes/. A pass that exits 3 (memory abort) is retried once after 3 minutes; a second abort is
 # recorded and the runner moves on. usage: bash run-passes.sh [names csv=all]   names: crud auth embed wording buttons reruns econ scan
 cd "$(dirname "$0")" || exit 1
-ROOT="C:/Users/Dominic/Documents/LiquidityHQ-QA-regression-2026-10-21"
+# Evidence root: QA_ROOT, else ../qa-evidence beside the checkout. It was an absolute C:/Users path (#1690).
+ROOT="${QA_ROOT:-$(cd "$(dirname "$0")/../../../.." && pwd)/qa-evidence}"
 LOGDIR="$ROOT/_sweep/passes"; mkdir -p "$LOGDIR"
 SUMMARY="$LOGDIR/summary.log"
 WANT="${1:-crud,auth,embed,wording,buttons,reruns,econ,scan}"
@@ -12,11 +13,11 @@ declare -A CMD=(
   [crud]="node regress-crud.mjs B,T settings,alerts,journal,language"
   [crudA]="node regress-crud.mjs A alerts,language"
   [auth]="node regress-auth.mjs"
-  [embed]="node ../qa-howto-arena/embed-phone.mjs C:/Users/Dominic/Documents/LiquidityHQ-QA-1606-phone/after-1636 390,360,1280"
+  [embed]="node ../qa-howto-arena/embed-phone.mjs "$ROOT/embed-phone" 390,360,1280"
   [wording]="node regress-i18n.mjs switch,scan ko,zh,ru,ar /arena,/upgrade,/terms,/calc,/journal,/hours,/dashboard"
   [buttons]="node regress-buttons.mjs"
   [reruns]="node regress-pages.mjs A 1280,390 /reset-password,/terms,/refund,/funding"
-  [econ]="node ../qa-howto-arena/econ-live.mjs C:/Users/Dominic/Documents/LiquidityHQ-QA-1625-live normal,none,http429"
+  [econ]="node ../qa-howto-arena/econ-live.mjs "$ROOT/econ-live" normal,none,http429"
   [scan]="node regress-i18n.mjs scan ko,zh,ru"
   [trialwording]="env I18N_ACCT=T node regress-i18n.mjs scan ko,zh,ru /dashboard,/arena"
   [onboarding]="node regress-auth.mjs onboarding"

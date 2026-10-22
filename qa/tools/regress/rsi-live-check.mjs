@@ -3,8 +3,10 @@
  * The route caches its slow group up to 15 minutes, so each value is compared with the oracle on the candles closed NOW and on those closed one candle
  * earlier; the closer one is reported, and which. usage: node rsi-live-check.mjs [coins csv=btc,eth,sol,xrp,doge] */
 import { writeFileSync, mkdirSync } from 'node:fs';
+/* Evidence root: QA_ROOT, else ../qa-evidence beside the checkout. It was an absolute C:/Users path (#1690). */
+const EVIDENCE = process.env.QA_ROOT || new URL('../../../../qa-evidence', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const BASE = process.env.QA_BASE || 'https://liquidity-hq-qa.onrender.com';
-const OUT = `${process.env.QA_ROOT || 'C:/Users/Dominic/Documents/LiquidityHQ-QA-regression-2026-10-21'}/rsi`; mkdirSync(OUT, { recursive: true });
+const OUT = `${EVIDENCE}/rsi`; mkdirSync(OUT, { recursive: true }); // ROOT comes from rlib: QA_ROOT, else ../qa-evidence beside the checkout (#1690)
 const coins = (process.argv[2] || 'btc,eth,sol,xrp,doge').split(',');
 const TF = [['rsi1h', '1h'], ['rsi4h', '4h'], ['rsiDaily', '1d'], ['rsiWeekly', '1w']];
 function wilder(closes) {

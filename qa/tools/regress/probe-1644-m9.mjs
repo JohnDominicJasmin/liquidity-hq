@@ -8,7 +8,7 @@
  * usage: node probe-1644-m9.mjs                                                                                                                      */
 import { session, BASE, REF, anonKey } from './rlib.mjs';
 import { appendFileSync, mkdirSync } from 'node:fs';
-const ROOT = 'C:/Users/Dominic/Documents/LiquidityHQ-QA-regression-2026-10-21'; mkdirSync(`${ROOT}/_sweep`, { recursive: true });
+const ROOT = process.env.QA_ROOT || new URL('../../../../qa-evidence', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'); mkdirSync(`${ROOT}/_sweep`, { recursive: true }); // #1690: was an absolute path
 const LOG = `${ROOT}/_sweep/probe-1644-m9.jsonl`;
 const SB = `https://${REF}.supabase.co/rest/v1/lhq_dev_price_alerts`;
 const s = await session('T'); const uid = s.user.id;
