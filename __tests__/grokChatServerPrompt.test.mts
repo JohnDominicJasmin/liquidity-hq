@@ -189,7 +189,20 @@ test('R3. search mode: the Responses API, exactly the two pinned tools whatever 
   assert.equal(r.status, 200); assert.equal(net.xai.length, 1);
   const { path, body } = net.xai[0];
   assert.equal(path, '/v1/responses');
-  assert.deepEqual(body.tools, [{ type: 'web_search' }, { type: 'x_search' }]);
+  /* The two pinned tools, and X search carries its DATE WINDOW (#1651 item 1, owner-approved, #1684): an old post must not be able to pose
+     as today's catalyst. Asserted as a SHAPE, not as today's literal dates - `from_date` and `to_date` move every day, so pinning the
+     strings would turn this test red at midnight UTC for no reason. What is pinned: both tools, in order, nothing else added by the
+     caller, the window present and well-formed, and `to_date` AFTER `from_date` (xAI treats it as exclusive, so equal dates would search
+     nothing). */
+  const tools = body.tools as Array<Record<string, unknown>>;
+  assert.equal(tools.length, 2, 'the caller\'s own tool reached xAI, or a pinned tool is gone');
+  assert.deepEqual(tools[0], { type: 'web_search' }, 'web search is no longer the first pinned tool, or carries parameters it did not before');
+  assert.equal(tools[1].type, 'x_search');
+  assert.deepEqual(Object.keys(tools[1]).sort(), ['from_date', 'to_date', 'type'], 'the X search tool gained or lost a parameter');
+  for (const k of ['from_date', 'to_date'] as const) {
+    assert.match(String(tools[1][k]), /^\d{4}-\d{2}-\d{2}$/, `${k} is not YYYY-MM-DD, which xAI silently ignores`);
+  }
+  assert.ok(String(tools[1].to_date) > String(tools[1].from_date), 'to_date is not after from_date: xAI treats it as exclusive, so the window would be empty');
   const sys = systemOf(body);
   assert.match(sys.content, /^=== LIVE DATA - ETH\/USDT ===$/m); assert.match(sys.content, /=== SEARCH INSTRUCTIONS ===/); assert.ok(!sys.content.includes(NO_TOOLS));
 });
