@@ -96,8 +96,17 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof fetch;
 after(() => { globalThis.fetch = realFetch; Date.now = realNow; });
 
-const { GET } = await import('../app/api/telegram/alert/route.ts');
+/* Imported as a PROMISE, awaited inside `run`, never with a top-level await - the same hazard #1683 found in arenaCoinLadder: node:test
+   registers a file's tests as the module body runs, so registration behind an await lets a slow import leave the file with no tests, the
+   runner call it finished, and the `after` hook above restore the real fetch and clock before the tests run. */
+const routeP = import('../app/api/telegram/alert/route.ts') as Promise<{ GET: (r: NextRequest) => Promise<Response> }>;
+/* The stand-in must still be installed when a test runs - asserted out loud, for the #1683 reason: with the real fetch back, every
+   Supabase read fails and the route's own failure handling reads as a product defect. */
+const standInFetch = globalThis.fetch;
 const run = async () => {
+  assert.equal(globalThis.fetch, standInFetch,
+    'the network stand-in is not installed: the real fetch is back, so this run measures nothing about the cron - see #1683');
+  const { GET } = await routeP;
   const r = await GET(new NextRequest('http://localhost/api/telegram/alert', { headers: { 'x-cron-secret': 'qa-cron-secret' } }));
   return { status: r.status, body: await r.json() as { delivery?: { priceAlertsHeld?: number } } };
 };

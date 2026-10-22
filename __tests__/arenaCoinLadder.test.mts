@@ -167,12 +167,32 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 after(async () => { await new Promise((r) => setTimeout(r, 2500)); globalThis.fetch = realFetch; });
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE; process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'placeholder-anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'placeholder-service'; process.env.GROK_API_KEY = 'placeholder-grok';
-const { POST } = await import('../app/api/grok/route.ts') as { POST: (r: NextRequest) => Promise<Response> };
+/* The route is imported as a PROMISE and awaited inside each test, never with a top-level await.
+ *
+ * A top-level `await import` here is a race, and it is the one that made this file fail in a Claude cloud session on 2026-10-22 while
+ * passing on QA's machine (#1683). node:test registers a file's tests as the module body runs; with the registration sitting behind an
+ * await, a run where the import settles slowly reaches the end of the file with NO tests registered, so the runner treats the file as
+ * finished and fires the `after` hook above - which puts the real `fetch` back. The import then settles, the tests register, and they run
+ * with the stand-in gone: every Supabase read fails, the entitlement read reports `failed`, and the route correctly answers 503
+ * PLAN_UNKNOWN where the test expected 403 COIN_LOCKED. Nothing about the product is involved.
+ *
+ * Awaiting the promise per test makes every test register synchronously, so the file can never look finished before they exist. */
+const routeP = import('../app/api/grok/route.ts') as Promise<{ POST: (r: NextRequest) => Promise<Response> }>;
+
+/* THE STAND-IN MUST STILL BE INSTALLED WHEN A TEST RUNS, and this says so out loud rather than letting the test fail somewhere downstream.
+   Without it, a run where the real `fetch` is back reads as a product failure: every Supabase read fails, so the entitlement read reports
+   `failed` and the route answers its designed 503 PLAN_UNKNOWN where the test asked for 403 COIN_LOCKED - which is what #1683 looked like
+   for an hour. A test that asserts the shape of its own instrument cannot be read as a finding about the app. */
+const standInFetch = globalThis.fetch;
+const assertStandIn = () => assert.equal(globalThis.fetch, standInFetch,
+  'the network stand-in is not installed: the real fetch is back, so this run measures nothing about the route - see #1683 (a top-level await used to let the after hook restore fetch before the tests registered)');
 
 type Body = { type?: 'quick' | 'deep'; tf?: string; coin?: unknown; prompt?: string };
 const call = async (who: keyof typeof PERSONAS | null, b: Body = {}) => {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (who) headers.authorization = `Bearer ${PERSONAS[who].token}`;
+  assertStandIn();
+  const { POST } = await routeP;
   const r = await POST(new NextRequest('http://localhost/api/grok', { method: 'POST', headers, body: JSON.stringify({ prompt: 'qa prompt', tf: '1h', session: 'ny', type: 'quick', ...b }) }));
   return { status: r.status, body: await r.json().catch(() => ({})) as Record<string, unknown> };
 };
@@ -235,6 +255,7 @@ test('R7. no token, or a token the database does not know: 401 and nothing is sp
   db.reset(); const r = await call(null, { coin: 'btc' });
   assert.equal(r.status, 401); nothingSpent('no token');
   db.reset();
+  const { POST } = await routeP;
   const r2 = await POST(new NextRequest('http://localhost/api/grok', { method: 'POST', headers: { authorization: 'Bearer tok_forged', 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'p', tf: '1h', session: 'ny', type: 'quick', coin: 'btc' }) }));
   assert.equal(r2.status, 401); nothingSpent('forged');
 });
