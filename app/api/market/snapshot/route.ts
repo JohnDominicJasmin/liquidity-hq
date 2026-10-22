@@ -47,6 +47,7 @@ import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 import { runPool, HttpStatusError, isRateLimitStatus } from '@/lib/pool';
+import { parseRatioPair } from '@/lib/ratioPair';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { computeKlineMetrics, type KlineMetrics } from '@/lib/klineMetrics';
 import { polledCacheControl } from '@/lib/cacheHeaders';
@@ -329,8 +330,13 @@ async function buildLsr(): Promise<Record<string, LsrEntry>> {
     const gi = Array.isArray(g) ? (g[0] as Record<string, string>) : null;
     const wi = Array.isArray(w) ? (w[0] as Record<string, string>) : null;
     const e: LsrEntry = {};
-    if (gi) { e.bnLongRatio = parseFloat(gi.longAccount || '0.5'); e.bnShortRatio = parseFloat(gi.shortAccount || '0.5'); }
-    if (wi) { e.bnWhaleLongRatio = parseFloat(wi.longAccount || '0.5'); e.bnWhaleShortRatio = parseFloat(wi.shortAccount || '0.5'); }
+    /* #1651: both lines were `parseFloat(gi.longAccount || '0.5')`. A row Binance returned without its ratio became a measured-looking
+       50/50 in the snapshot every client reads. A pair that does not parse, sit in [0,1] and sum to 1 is left OFF the entry entirely,
+       which the consumers already handle - they all test `!= null` before using it. */
+    const g2 = gi && parseRatioPair(gi.longAccount, gi.shortAccount);
+    const w2 = wi && parseRatioPair(wi.longAccount, wi.shortAccount);
+    if (g2) { e.bnLongRatio = g2.longRatio; e.bnShortRatio = g2.shortRatio; }
+    if (w2) { e.bnWhaleLongRatio = w2.longRatio; e.bnWhaleShortRatio = w2.shortRatio; }
     if (Object.keys(e).length) out[coin] = e;
   }, isBinanceBackoff);
 

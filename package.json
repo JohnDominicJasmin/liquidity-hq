@@ -28,7 +28,7 @@
     "import-in-the-middle": "^3.0.0",
     "klinecharts": "^10.0.0-beta3",
     "motion": "^12.42.2",
-    "next": "16.2.6",
+    "next": "16.3.8",
     "posthog-js": "^1.404.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -36,7 +36,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.4.0",
+    "@capacitor/android": "^8.4.3",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
     "@playwright/test": "^1.62.1",
@@ -47,7 +47,7 @@
     "@types/web-push": "^3.6.4",
     "axe-core": "^4.12.1",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.2.12",
+    "eslint-config-next": "^16.3.6",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
