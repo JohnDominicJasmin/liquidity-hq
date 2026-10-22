@@ -86,11 +86,15 @@ function BandRow({ b }: { b: Band }) {
         {b.lev}{b.isMagnet ? ' ◆' : ''}
       </span>
       <div className="liq-row-bar-wrap">
-        <div className="liq-row-bar" style={{
+        {/* #1651: the bar is omitted, not zero-width, when there is no amount. `Math.max(b.barPct, 2)` floors every bar at 2%, so an
+            unknown row still painted a stub - which reads as "a little liquidity here", a value, exactly what the fix removes from the
+            column beside it. The floor stays for real amounts, where it keeps the smallest tier visible. Caught by rendering it: the
+            data said barPct 0 and the screen said otherwise. */}
+        {b.usdM !== null && <div className="liq-row-bar" style={{
           width: Math.max(b.barPct, 2) + '%',
           background: `linear-gradient(90deg, ${isLong ? 'rgba(248,113,113,0.10)' : 'rgba(52,211,153,0.10)'}, ${isLong ? 'rgba(248,113,113,0.60)' : 'rgba(52,211,153,0.60)'})`,
           boxShadow: b.isMagnet ? `0 0 10px ${withAlpha(accent, '44')}` : 'none',
-        }} />
+        }} />}
       </div>
       <span className="liq-row-usd" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '-' : fmtM(b.usdM)}</span>
     </div>
