@@ -16,7 +16,7 @@ import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
 import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
-  EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, BYBIT_KLINE_SYMS,
+  EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, closedCandles, BYBIT_KLINE_SYMS,
 } from '@/lib/ribbonCandles';
 import { detectStructureSignals } from '@/lib/priceAction';
 import {
@@ -1791,7 +1791,9 @@ async function checkEMASignal(
 
   await Promise.all(COINS.map(async coin => {
     try {
-      const candles = await fetchRibbonCandles(coin, tf);
+      // Closed candles only (owner decision 2026-10-22): the newest kline is still forming, and an alert sent on it cannot be taken back if
+      // it closes back across EMA50. See closedCandles in lib/ribbonCandles.ts. The chart keeps its live marker.
+      const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);
       if (candles.length < 55) return; // same minimum runway the chart's own hook requires
 
       for (const mode of MODES) {
@@ -2027,7 +2029,9 @@ async function checkStructureSignal(
 
   await Promise.all(COINS.map(async coin => {
     try {
-      const candles = await fetchRibbonCandles(coin, tf);
+      // Closed candles only, like the EMA alert (owner, 2026-10-22: "alert only on finished candles"). The message says "price closed
+      // above the prior swing high"; on the forming candle that close has not happened yet. See closedCandles in lib/ribbonCandles.ts.
+      const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);
       if (candles.length < 30) return;
 
       const signals = detectStructureSignals(
