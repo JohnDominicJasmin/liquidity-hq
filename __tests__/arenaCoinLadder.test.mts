@@ -120,8 +120,11 @@ const PERSONAS: Record<string, Persona> = {
   none:   { token: 'tok_none',   id: 'u-none',   row: null },
 };
 const db = {
-  ai: [] as string[], reservations: 0, usageWrites: 0, ledgerInserts: 0, failSubsRead: false,
-  reset() { this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; },
+  ai: [] as string[], reservations: 0, usageWrites: 0, ledgerInserts: 0, failSubsRead: false, banned: false,
+  /* Paths the route asked for that the stand-in does not model. Collected rather than thrown (see the fall-through below) and asserted
+     after every call, so a gap names itself instead of surfacing as a status mismatch several seconds later. */
+  unknown: [] as string[],
+  reset() { this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.banned = false; this.unknown = []; },
 };
 const T = (n: string) => (process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_') + n;
 const noRow = () => json(406, { code: 'PGRST116', details: 'The result contains 0 rows', message: 'JSON object requested, multiple (or no) rows returned' });
@@ -159,8 +162,20 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (table === T('grok_usage') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('app_config') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('ai_call_log') && req.method === 'POST') { db.ledgerInserts++; return json(201, null); }
+  /* The ban flag, read by every BILLED call (lib/authUser.ts isAccountBanned -> T.user_status). The stand-in did not know this path and
+     THREW, which supabase-js reads as a network failure and retries about four times over some seven seconds - so one unmodelled read made
+     R1 take ~14 s. That slowness is what let the delayed `after` restore land mid-test in a cloud container (#1683): the race needed a slow
+     test to land in. Answering it is the fix the instrumented run measured; `db.banned` keeps the other half of the rule reachable. */
+  if (table === T('user_status') && req.method === 'GET') {
+    const row = { user_id: eq('user_id'), banned: db.banned };
+    return single ? json(200, row) : json(200, [row]);
+  }
   if (req.method !== 'GET') db.usageWrites++;
-  throw new Error(`stand-in does not know ${req.method} ${req.url}`);
+  /* A path the stand-in does not model is RECORDED and answered at once, never thrown. A throw is a network error to supabase-js, which
+     retries it with backoff: the failure then arrives seconds late, in a shape that reads as the route misbehaving. The 501 cannot be
+     mistaken for a real answer, and `nothingSpent`/`call` name the path. */
+  db.unknown.push(`${req.method} ${p}`);
+  return json(501, { code: 'QA_STAND_IN_GAP', message: `the stand-in does not model ${req.method} ${p}` });
 }) as typeof fetch;
 /* lib/xai.ts reports each AI request's outcome through a batched, delayed write (lib/apiHealth.ts). The stand-in must still be installed when that
    write fires, or it would try a real network call to the .invalid host after the last test: so restore the real fetch only after it has had time to flush. */
@@ -194,6 +209,7 @@ const call = async (who: keyof typeof PERSONAS | null, b: Body = {}) => {
   assertStandIn();
   const { POST } = await routeP;
   const r = await POST(new NextRequest('http://localhost/api/grok', { method: 'POST', headers, body: JSON.stringify({ prompt: 'qa prompt', tf: '1h', session: 'ny', type: 'quick', ...b }) }));
+  assert.deepEqual(db.unknown, [], 'the route read a path the stand-in does not model: every result below it is about the gap, not about the route');
   return { status: r.status, body: await r.json().catch(() => ({})) as Record<string, unknown> };
 };
 const nothingSpent = (label: string) => { assert.equal(db.ai.length, 0, `${label}: an AI request was made`); assert.equal(db.reservations, 0, `${label}: quota was reserved`); assert.equal(db.ledgerInserts, 0, `${label}: the spend ledger was written`); };
