@@ -20,7 +20,6 @@ import { SUPPORTED_LOCALES as APP_LOCALES } from '../lib/locales.ts';
 
 test('the marketing surfaces render their own nav', () => {
   assert.equal(rendersOwnNav('/'), true, 'the landing page - the #714 case');
-  assert.equal(rendersOwnNav('/learn'), true, 'the glossary - the #845 case');
 });
 
 test('every locale that HAS a landing page counts, because /ko is / in Korean', () => {
@@ -64,9 +63,12 @@ test('app routes keep the app nav', () => {
 /* These were checked by hand at 1440x900 and none had a covered control: they
    are public pages reached from INSIDE the app as well as from search, so the
    nav is the right thing to show. Asserted so a future widening of the family
-   has to be deliberate. */
+   has to be deliberate.
+   /learn joined them in #1673 item 5 ("Match the app"): the glossary was the
+   #845 case, a marketing surface with its own nav, until it moved inside the
+   app shell like /faq. */
 test('public info pages are not marketing surfaces - they keep the nav', () => {
-  for (const p of ['/faq', '/terms', '/refund', '/disclaimer', '/privacy', '/about']) {
+  for (const p of ['/faq', '/terms', '/refund', '/disclaimer', '/privacy', '/about', '/learn']) {
     assert.equal(rendersOwnNav(p), false, `${p} renders inside the app shell`);
   }
 });
@@ -85,7 +87,7 @@ test('an unsupported single segment is not a landing page', () => {
 });
 
 test('a trailing slash does not change the answer', () => {
-  assert.equal(rendersOwnNav('/learn/'), true);
   assert.equal(rendersOwnNav('/ko/'), true);
+  assert.equal(rendersOwnNav('/learn/'), false, 'the strip must not turn an app-shell page into a landing page either');
   assert.equal(rendersOwnNav('/'), true, 'the root is a trailing slash and must survive the strip');
 });
