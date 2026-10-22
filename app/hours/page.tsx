@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getLocalNow, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
 import { utcWindowToLocalRange, localZoneAbbr } from '@/lib/resetTime';
 import SessionCountdown from '@/components/SessionCountdown';
@@ -119,6 +119,28 @@ export default function BestHours() {
     };
   }, []);
 
+  /* R7 (owner, 2026-10-22, on the 390 px render: "too squeezed to each other"). At phone width a 3-hour band is ~40 px, narrower than
+     "LONDON", and the names ran into each other ("DEAD" into "LONDON"). Each name is MEASURED against its own band - the words differ by
+     language, design and font, so no fixed breakpoint suits them all - and if any one does not fit, every name in the bar is hidden and a
+     key is shown under it instead. All or none, so the bar never labels one band and leaves its neighbour of the same size blank. The names
+     stay mounted (hidden) so they are measured again when the bar widens, the language changes or the font settles. */
+  const barRef = useRef<HTMLDivElement>(null);
+  const [legendMode, setLegendMode] = useState(false);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!mounted || !bar) return;
+    const check = () => {
+      const names = Array.from(bar.querySelectorAll<HTMLElement>('[data-seg-label]'));
+      setLegendMode(names.some(el => el.offsetWidth > (el.parentElement?.clientWidth ?? 0) - 8));
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(bar);
+    bar.querySelectorAll('[data-seg-label]').forEach(el => ro.observe(el));
+    document.fonts?.ready.then(check).catch(() => {});
+    return () => ro.disconnect();
+  }, [mounted, t]);
+
   const now = new Date();
   const pht = getLocalNow();
   const win = getCurrentWindow(pht);
@@ -183,7 +205,7 @@ export default function BestHours() {
              treatment applied to fewer than all three separates them. */}
         <div dir="ltr" style={{ position: 'relative', marginBottom: 6 }}>
           {/* Segment strips */}
-          <div style={{ position: 'relative', height: 44, borderRadius: 8, background: 'var(--bg3)', overflow: 'hidden' }}>
+          <div ref={barRef} style={{ position: 'relative', height: 44, borderRadius: 8, background: 'var(--bg3)', overflow: 'hidden' }}>
             {/* Client-only: the viewer's UTC offset both shifts the blocks and can
                 split one in two, so the server (always UTC) and the client would
                 render a different NUMBER of children - a structural hydration
@@ -239,9 +261,10 @@ export default function BestHours() {
                       4.27, white 4.07). No colour clears that band through
                       the fade, so the fade had to be the thing that moved. */}
                   {width > 7 && (
-                    <span style={{
-                      fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
+                    <span data-seg-label="" style={{
+                      fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em', whiteSpace: 'nowrap',
                       color: pick ? pick.color : 'var(--txt)',
+                      visibility: legendMode ? 'hidden' : undefined,
                     }}>
                       {t(seg.labelKey)}
                     </span>
@@ -286,6 +309,22 @@ export default function BestHours() {
             </span>
           ))}
         </div>
+
+        {/* R7: the key, shown when the bands are too narrow for their names (legendMode above). In the order the bands come on the viewer's
+            own day, each swatch the band's colour on the bar's own ground. */}
+        {mounted && legendMode && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px 14px', marginBottom: 8 }}>
+            {TIMELINE_SEGS_UTC
+              .map(seg => ({ ...seg, localStart: (((seg.start - now.getTimezoneOffset() / 60) % 24) + 24) % 24 }))
+              .sort((a, b) => a.localStart - b.localStart)
+              .map(seg => (
+                <span key={seg.labelKey} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em', color: 'var(--txt2)' }}>
+                  <span aria-hidden style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, background: `linear-gradient(${seg.bg}, ${seg.bg}), var(--bg3)` }} />
+                  {t(seg.labelKey)}
+                </span>
+              ))}
+          </div>
+        )}
 
         {/* Current position label */}
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
