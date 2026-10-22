@@ -6,6 +6,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
 import PageHint from '@/components/PageHint';
+import { calendarFromResponse } from '@/lib/econCalendarFeed';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -113,9 +114,10 @@ export default function EconCalendarPage() {
 
   useEffect(() => {
     fetch('/api/econ-calendar')
-      .then(r => r.json())
-      /* source 'none' is the route saying it could not produce a calendar (#1625): show the load error, never "no events" as if nothing were scheduled. */
-      .then(d => { if (d.source === 'none') { setFailed(true); return; } setEvents(d.events ?? []); setSource(d.source ?? ''); })
+      .then(async r => calendarFromResponse<CalEvent>(r.ok, await r.json().catch(() => null)))
+      /* Not a calendar - source 'none' (#1625), a 429 or 500, a body without events (#1637): show the load error, never "no events" as if
+         nothing were scheduled. */
+      .then(cal => { if (!cal) { setFailed(true); return; } setEvents(cal.events); setSource(cal.source); })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);
