@@ -5,7 +5,7 @@ import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
 import { hasProFeatures, getUsageTier } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
-import { getUserCompat } from '@/lib/authUser';
+import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: authData } = await getUserCompat(token);
+  const { data: authData } = await getUserCompatForBilledCall(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Pro-only feature - checked server-side so the paid Grok call can't be

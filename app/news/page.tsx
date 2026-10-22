@@ -65,6 +65,8 @@ function askGrok(headline: string, t: TFn) {
     detail: {
       coin: 'btc',
       prompt: t('NEWS_ASK_GROK_PROMPT', { headline }),
+      // #1631 (owner 2026-10-21, applied here by PM): fill the question in and wait for Send - a click spends no AI use.
+      prefillOnly: true,
     },
   }));
 }
@@ -589,7 +591,7 @@ export default function NewsPage() {
                     />
                     <button className="ncard-ask-btn" onClick={() =>
                       window.dispatchEvent(new CustomEvent('grok-chat', {
-                        detail: { coin: w.symbol.toLowerCase() as 'btc' | 'eth', prompt: t('NEWS_WHALE_ASK_PROMPT', { action: isBuy ? t('NEWS_WHALE_BOUGHT') : t('NEWS_WHALE_SOLD'), usd: fmtUSD(w.usdValue), symbol: w.symbol, price: w.price.toLocaleString() }) },
+                        detail: { coin: w.symbol.toLowerCase() as 'btc' | 'eth', prompt: t('NEWS_WHALE_ASK_PROMPT', { action: isBuy ? t('NEWS_WHALE_BOUGHT') : t('NEWS_WHALE_SOLD'), usd: fmtUSD(w.usdValue), symbol: w.symbol, price: w.price.toLocaleString() }), prefillOnly: true },
                       }))
                     }><span className="ncard-ask-spark" aria-hidden>✦</span> {t('NEWS_ASK_AI_BUTTON')}</button>
                   </div>

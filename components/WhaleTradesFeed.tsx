@@ -5,6 +5,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
+import { signOf } from '@/lib/numberFormat';
 
 /* ── Binance futures combined aggTrade stream, Bybit publicTrade on failover ──
    #1059: client-side failover - a browser that cannot reach Binance (blocked
@@ -301,7 +302,7 @@ export default function WhaleTradesFeed() {
         <div className="wf-stat" style={{ textAlign: 'center' }}>
           <span className="wf-stat-lbl">{t('WHALE_TRADES_FEED_STAT_NET_FLOW')}</span>
           <span className="wf-stat-val" style={{ color: netFlow >= 0 ? 'var(--green)' : 'var(--red)' }}>
-            {netFlow >= 0 ? '+' : ''}{fmtUSD(Math.abs(netFlow))}
+            {signOf(netFlow)}{fmtUSD(Math.abs(netFlow))}
             <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', marginLeft: 3 }}>
               {netFlow >= 0 ? '↑' : '↓'}
             </span>

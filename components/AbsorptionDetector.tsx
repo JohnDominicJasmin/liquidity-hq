@@ -5,6 +5,7 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
+import { priceText } from '@/lib/numberFormat';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number; takerBuy: number }
@@ -141,7 +142,8 @@ function analyze(
       for (const w of walls) {
         const d = Math.abs(price - w.price) / price * 100;
         if (d < 0.8) {
-          nearLevel = `${d < 0.1 ? 'at' : d.toFixed(2) + '% from'} $${w.price.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${side} wall`;
+          // #1631 B (PM audit): decimals by size - maximumFractionDigits 0 read "at $2 bid wall" for XRP and "$0" for PEPE, and reaches the AI prompt.
+          nearLevel = `${d < 0.1 ? 'at' : d.toFixed(2) + '% from'} ${priceText(w.price)} ${side} wall`;
           break;
         }
       }
@@ -156,7 +158,7 @@ function analyze(
           Math.abs(price - f.price) < Math.abs(price - a.price) ? f : a
         );
         const d = Math.abs(price - near.price) / price * 100;
-        if (d < 0.5) nearLevel = `at ${near.label} fib ($${near.price.toLocaleString(undefined, { maximumFractionDigits: 0 })})`;
+        if (d < 0.5) nearLevel = `at ${near.label} fib (${priceText(near.price)})`;
       }
     }
   }

@@ -48,6 +48,9 @@ import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
 import { formatRsi } from '@/lib/rsi';
+import { priceDigits, priceText, signedUsd } from '@/lib/numberFormat';
+import { announcePageCoin } from '@/lib/pageCoin';
+import { ageText, utcStamp } from '@/lib/promptTime';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -186,7 +189,7 @@ function ArenaContent() {
   // the smallest bucket the freshness text distinguishes.
   const nowMs = useNow(30_000);
   const { store } = useMarket();
-  const { latestHeadlines, econEvents, whaleAlerts } = useNews();
+  const { latestNews, econEvents, whaleAlerts, eventsLoaded, alertsLoaded, econStale } = useNews();
   const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements, isPro } = useAuth();
   const { settings, settingsLoadStatus, update, refresh: refreshSettings } = useSettings();
   const searchParams = useSearchParams();
@@ -417,6 +420,10 @@ function ArenaContent() {
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('strategy-selection-changed', { detail: { selection: strategySelection } }));
   }, [strategySelection]);
+  /* #1631 E: tells the chat which coin this page shows; GrokChat follows it when it opens with no conversation (it used to start on BTC
+     on the XRP page). Cleared on leaving Arena, so other pages fall back to the shared selected coin. */
+  useEffect(() => { announcePageCoin(selectedCoin); }, [selectedCoin]);
+  useEffect(() => () => { announcePageCoin(null); }, []);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* Whether the scanner was opened by hover rather than by a click. Only a
@@ -998,7 +1005,7 @@ function ArenaContent() {
     const rsi14 = coin?.rsi14 != null
       ? coin.rsi14.toFixed(1) + (coin.rsi14 >= 70 ? ' (Overbought)' : coin.rsi14 <= 30 ? ' (Oversold)' : ' (Neutral)')
       : '-';
-    const ma20 = coin?.ma20 != null ? '$' + coin.ma20.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
+    const ma20 = coin?.ma20 != null ? priceText(coin.ma20) : '-';
     const priceVsMA = coin?.price && coin?.ma20
       ? coin.price > coin.ma20
         ? 'ABOVE MA20 (+' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% - bullish)'
@@ -1044,14 +1051,15 @@ function ArenaContent() {
           const fibs = computeFibLevels(coin.high, coin.low, coin.price);
           if (!fibs.length) return '-';
           const nearest = fibs.reduce((acc, f) => Math.abs(coin.price - f.price) < Math.abs(coin.price - acc.price) ? f : acc);
-          return nearest.label + ' @ $' + nearest.price.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' (' + nearest.dist + ')';
+          return nearest.label + ' @ ' + priceText(nearest.price) + ' (' + nearest.dist + ')';
         })()
       : '-';
 
     /* Order book walls */
     const orderWalls = coin?.orderBidWalls && coin?.orderAskWalls
-      ? 'Bid walls: ' + coin.orderBidWalls.map(w => '$' + w.price.toLocaleString(undefined, { maximumFractionDigits: 0 })).join(', ')
-        + ' | Ask walls: ' + coin.orderAskWalls.map(w => '$' + w.price.toLocaleString(undefined, { maximumFractionDigits: 0 })).join(', ')
+      /* #1631 B: decimals by size - maximumFractionDigits 0 printed every XRP wall as "$2". */
+      ? 'Bid walls: ' + coin.orderBidWalls.map(w => priceText(w.price)).join(', ')
+        + ' | Ask walls: ' + coin.orderAskWalls.map(w => priceText(w.price)).join(', ')
       : '-';
 
     /* Squeeze score */
@@ -1066,7 +1074,7 @@ function ArenaContent() {
 
     /* Exchange net flow */
     const exchangeNetFlow = store.btcExchangeNetFlow != null
-      ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M'
+      ? signedUsd(store.btcExchangeNetFlow, 'M', 1)
         + (store.btcExchangeNetFlow > 50 ? ' (inflow - sell pressure)' : store.btcExchangeNetFlow < -50 ? ' (outflow - accumulation)' : ' (neutral)')
       /* Same dead fallback as liqLevels below, and beyond #637's literal
          scope - fixed anyway because leaving one of two identical instances
@@ -1075,11 +1083,15 @@ function ArenaContent() {
       : 'Not available';
 
     /* Stablecoin flow */
+    /* #1631 C: the 7- and 30-day changes (DefiLlama), not the last poll, and a shrinking supply is never presented as dry powder. */
     const stablecoinFlow = store.stablecoinSupply != null
       ? '$' + store.stablecoinSupply.toFixed(1) + 'B'
-        + (store.stablecoinPrev != null
-          ? (store.stablecoinSupply > store.stablecoinPrev ? ' ↑ minting (bullish)' : ' ↓ burning (bearish)')
-          : '')
+        + (store.stablecoinChg7d != null ? ' | 7d ' + signedUsd(store.stablecoinChg7d, 'B', 1) : '')
+        + (store.stablecoinChg30d != null ? ' | 30d ' + signedUsd(store.stablecoinChg30d, 'B', 1) : '')
+        + (store.stablecoinChg30d == null ? ' (trend unknown - do not assume dry powder)'
+          : store.stablecoinChg30d >= 0.5 ? ' (growing - fresh liquidity, dry powder)'
+          : store.stablecoinChg30d <= -0.5 ? ' (SHRINKING - capital leaving, not dry powder)'
+          : ' (flat - no new dry powder)')
       : '-';
 
     /* Liquidation levels */
@@ -1123,9 +1135,9 @@ function ArenaContent() {
 
     /* Volume Profile POC */
     const pocLine = coin?.poc != null
-      ? '$' + coin.poc.toLocaleString(undefined, { maximumFractionDigits: 2 })
-        + (coin.vah != null ? ' | VAH $' + coin.vah.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '')
-        + (coin.val != null ? ' | VAL $' + coin.val.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '')
+      ? priceText(coin.poc)
+        + (coin.vah != null ? ' | VAH ' + priceText(coin.vah) : '')
+        + (coin.val != null ? ' | VAL ' + priceText(coin.val) : '')
         + (coin.price && coin.poc ? (coin.price > coin.poc ? ' - price ABOVE POC (bullish)' : ' - price BELOW POC (bearish)') : '')
       : '-';
 
@@ -1142,7 +1154,7 @@ function ArenaContent() {
 
     /* Coinbase Premium */
     const cbPremium = store.cbPremium != null && store.cbPremiumPct != null
-      ? (store.cbPremium >= 0 ? '+' : '') + '$' + Math.abs(store.cbPremium).toFixed(1)
+      ? signedUsd(store.cbPremium, '', 1)
         + ' (' + (store.cbPremiumPct >= 0 ? '+' : '') + store.cbPremiumPct.toFixed(3) + '%)'
         + (store.cbPremiumPct > 0.05  ? ' - US institutional buying (BULLISH)'
         :  store.cbPremiumPct < -0.05 ? ' - US institutional selling (BEARISH)'
@@ -1151,7 +1163,7 @@ function ArenaContent() {
 
     /* VWAP */
     const vwap = coin?.vwap != null
-      ? '$' + coin.vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })
+      ? priceText(coin.vwap)
         + (coin.price
           ? (coin.price > coin.vwap
               ? ' - price ABOVE VWAP (bullish, paying up)'
@@ -1187,8 +1199,17 @@ function ArenaContent() {
     })();
 
     /* Macro */
-    const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' : '-';
-    const bonds10y  = store.bonds10y  != null ? store.bonds10y.toFixed(3)  + '%'   : '-';
+    // #1631 A: the oil move, not only the level - check 2's oil shock was a CHANGE the prompt never showed.
+    const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' + (store.oilChg != null ? ` (${store.oilChg >= 0 ? '+' : ''}${store.oilChg.toFixed(2)}% 1d)` : '') : '-';
+    /* #1631 A: spot ETF net flows by US trading day, newest first, each with its date - a +$526.7M day was missed or cited undated. */
+    const etfDaysText = (days: Array<{ date: string; flowM: number }> | null) =>
+      days && days.length > 0 ? days.map(d => `${d.date} ${signedUsd(d.flowM, 'M', 1)}`).join(' | ') : 'unavailable';
+    /* #1631 C: both 10-year yields, each labelled. store.bonds10y was never filled, so this line always read "-"; it is now the nominal
+       10Y (Yahoo ^TNX, what a trader means by "the 10Y"), and the real yield (FRED DFII10, #311) is its own line. A missing one says so. */
+    const bonds10y  = store.bonds10y != null
+      ? store.bonds10y.toFixed(2) + '%' + (store.bonds10yChgBp != null ? ` (${store.bonds10yChgBp >= 0 ? '+' : ''}${store.bonds10yChgBp}bp 1d)` : '')
+      : 'unavailable';
+    const real10y   = store.real10y ? store.real10y.note : 'unavailable';
     const dxyLine   = store.dxy       != null ? store.dxy.toFixed(2) + (store.dxyChg != null ? ' (' + (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) + '%)' : '') + (store.dxyChg != null && store.dxyChg > 0.2 ? ' → BTC headwind' : store.dxyChg != null && store.dxyChg < -0.2 ? ' → BTC tailwind' : '') : '-';
     const spxLine   = store.spx       != null ? store.spx.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.spxChg != null ? ' (' + (store.spxChg >= 0 ? '+' : '') + store.spxChg.toFixed(2) + '%)' : '') + (store.spxChg != null && store.spxChg > 0.3 ? ' → risk-on' : store.spxChg != null && store.spxChg < -0.5 ? ' → risk-off' : '') : '-';
     const goldLine  = store.gold      != null ? '$' + store.gold.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.goldChg != null ? ' (' + (store.goldChg >= 0 ? '+' : '') + store.goldChg.toFixed(2) + '%)' : '') : '-';
@@ -1196,7 +1217,8 @@ function ArenaContent() {
     /* Upcoming events + recently released */
     const now = Date.now();
     const recentlyReleased = econEvents
-      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh >= -72 && lh < 0; })
+      // PM's audit of #1668: NewsProvider keeps released events for 24 h, so the window says 24 h (it claimed 72 h it never had).
+      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh >= -24 && lh < 0; })
       .sort((a, b) => b.dt.getTime() - a.dt.getTime())
       .slice(0, 6)
       .map(e => {
@@ -1205,13 +1227,18 @@ function ArenaContent() {
         const actualStr = e.actual ? ` → ACTUAL: ${e.actual}` : ' → result pending/not yet in feed';
         const estStr = e.estimate ? ` | Est: ${e.estimate}` : '';
         const prevStr = e.previous ? ` | Prev: ${e.previous}` : '';
-        return `✅ RELEASED (${timeLabel}): ${e.name}${actualStr}${estStr}${prevStr}`;
+        // #1631 A: the UTC time beside the age, so a catalyst built on it can be dated.
+        return `✅ RELEASED (${utcStamp(e.dt.getTime())}, ${timeLabel}): ${e.name}${actualStr}${estStr}${prevStr}`;
       })
       .join('\n');
     const upcomingList = econEvents
       .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh > 0 && lh < 48; }).slice(0, 6)
-      .map(e => `UPCOMING: ${e.name} (${e.dateStr}, impact: ${e.impact})${e.estimate ? ' | Est: ' + e.estimate : ''}`)
-      .join('\n') || 'None in next 48h';
+      .map(e => `UPCOMING: ${e.name} (${utcStamp(e.dt.getTime())}, impact: ${e.impact})${e.estimate ? ' | Est: ' + e.estimate : ''}`)
+      .join('\n')
+      /* PM's audit of #1668: "none" only from a calendar that loaded and is fresh. Unloaded or stale is unavailable - never an empty week. */
+      || (!eventsLoaded ? 'Calendar unavailable (not loaded) - do not assume there are no events'
+        : econStale ? 'Calendar unavailable (stale) - do not assume there are no events'
+        : 'None in next 48h');
     const upcoming = [recentlyReleased, upcomingList].filter(Boolean).join('\n');
 
     /* Liquidation cascade size (#30) */
@@ -1257,16 +1284,22 @@ function ArenaContent() {
 
     return {
       coin: selectedCoin.toUpperCase() + '/USDT',
-      price: coin?.price ? '$' + coin.price.toLocaleString() : '-',
+      // #1631 B: toLocaleString() keeps at most 3 decimals, so a PEPE-sized price read "$0".
+      price: coin?.price ? priceText(coin.price) : '-',
       change24h: coin?.change != null ? (coin.change >= 0 ? '+' : '') + coin.change.toFixed(2) + '%' : '-',
       fundingRate: coin?.fundingRate != null ? classifyFunding(coin.fundingRate).label : '-',
       openInterest: coin?.oi != null ? '$' + (coin.oi / 1e9).toFixed(2) + 'B' : '-',
       fearGreed: store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '-',
       btcDominance: btcDomTrend,
       session, clusters: '-',
-      news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 15).join('\n') : 'No recent alerts',
+      // #1631 A: each headline with its UTC time, age and source, newest first - a catalyst taken from it can be dated and attributed.
+      news: latestNews.length > 0
+        ? [...latestNews].sort((a, b) => b.ts - a.ts).slice(0, 15)
+            .map(n => `- [${utcStamp(n.ts * 1000)}, ${ageText(now - n.ts * 1000)} | ${n.source || 'news feed'}] ${n.headline}`).join('\n')
+        : alertsLoaded ? 'No recent alerts' : 'News feed unavailable (not loaded) - do not assume there is no news',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
-      oilPrice, bonds10y, upcomingEvents: upcoming,
+      oilPrice, bonds10y, real10y, upcomingEvents: upcoming,
+      etfFlows: etfDaysText(store.etfFlowDays), ethEtfFlows: etfDaysText(store.ethEtfFlowDays),
       rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, liqLevels, btcDomTrend, sectorRotation,
@@ -1366,8 +1399,9 @@ function ArenaContent() {
       emaStrategy: (emaLoading
         ? '[Still loading EMA technicals for the current coin/timeframe - the line below is the PREVIOUS selection\'s, not this one\'s] '
         : '') + strategyToGrokLine(emaSignalRef.current, readTf),
+      // #1631 B: decimals by size - toFixed(2) printed a small coin's 35% buffer as "$0.00".
       emaATR: emaSignalRef.current.atrLast != null
-        ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 35% buf = $${(emaSignalRef.current.atrLast * 0.35).toFixed(2)} min clearance above/below EMA50`
+        ? `ATR(14) = ${priceText(emaSignalRef.current.atrLast)} · 35% buf = ${priceText(emaSignalRef.current.atrLast * 0.35)} min clearance above/below EMA50`
         : '-',
       ema50Slope: (() => {
         const s = emaSignalRef.current.ema50Slope;
@@ -1486,10 +1520,9 @@ function ArenaContent() {
       const sma200  = calcSMA(closes, 200).at(-1) ?? null;
       // #1626 C: CLOSED candles only (the newest chart candle is still forming).
       const rsi     = calcRSI(closes.slice(0, -1), 14).at(-1) ?? null;
-      const lastC    = vis[vis.length - 1].c;
-      const pDec     = lastC >= 10000 ? 0 : lastC >= 100 ? 2 : lastC >= 1 ? 3 : 4;
       // Include volume so AI can detect drying-up volume (exhaustion signal)
-      const recent20 = vis.slice(-15).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)} V:${c.v >= 1e6 ? (c.v/1e6).toFixed(2)+'M' : c.v >= 1e3 ? (c.v/1e3).toFixed(1)+'K' : c.v.toFixed(0)}`).join(' | ');
+      // #1631 B (PM audit): decimals by size - a fixed 4 printed every PEPE candle as O:0.0000 H:0.0000 L:0.0000 C:0.0000.
+      const recent20 = vis.slice(-15).map(c => `O:${priceDigits(c.o)} H:${priceDigits(c.h)} L:${priceDigits(c.l)} C:${priceDigits(c.c)} V:${c.v >= 1e6 ? (c.v/1e6).toFixed(2)+'M' : c.v >= 1e3 ? (c.v/1e3).toFixed(1)+'K' : c.v.toFixed(0)}`).join(' | ');
       const detectedPatterns = detectPatterns(vis);
       // Structure read from the same candles already in hand - no extra fetch.
       // Deliberately independent of the EMA ribbon: the prompt is told to
@@ -1662,7 +1695,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache, liqClusters]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, liqClusters]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot
@@ -1688,6 +1721,8 @@ function ArenaContent() {
         detail: {
           coin: selectedCoin,
           selection,
+          // Owner, 2026-10-21 (#1631): fill the question in and wait for Send - a click spends no AI use.
+          prefillOnly: true,
           /* #1347 item 4, the "worst case" the audit named: citing a stale
              result's signal/confidence/reasoning as fact while appending
              the CURRENT selection below was one message asserting two

@@ -20,6 +20,7 @@
  * a forward magnet. The two look identical drawn on a chart, so every label
  * this feeds must say realized.
  */
+import { priceText } from './numberFormat.ts';
 
 export const LIQ_CLUSTER_LINES = 8;
 
@@ -50,7 +51,8 @@ export function formatClustersForPrompt<T extends { coin: string; price: number;
                 : b.total >= 1_000     ? `$${Math.round(b.total / 1_000)}K`
                 : `$${Math.round(b.total)}`;
       const side = b.longUsd > b.shortUsd ? 'longs' : b.shortUsd > b.longUsd ? 'shorts' : 'mixed';
-      return `$${b.price.toLocaleString('en-US')} ${usd} ${side}`;
+      // #1631 B: decimals by size. toLocaleString keeps at most 3, so a PEPE-sized cluster read "$0".
+      return `${priceText(b.price)} ${usd} ${side}`;
     })
     .join(' | ');
 }

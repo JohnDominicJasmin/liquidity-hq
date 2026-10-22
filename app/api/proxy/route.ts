@@ -12,11 +12,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
-import { etfFlowMillions } from '@/lib/etfFlows';
+import { etfFlowDays, etfFlowMillions, type EtfFlowDay } from '@/lib/etfFlows';
 import { trackHealth, reportHealth } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { exchangeFetch } from '@/lib/exchangeGuard';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
@@ -124,6 +125,10 @@ interface PassEntry {
  * the whole entry uncacheable would throw away the cache for the common case to
  * fix the rare one. */
 const CURSOR_PARAMS = ['startTime', 'endTime', 'start', 'end'] as const;
+
+/** What a passthrough parameter's VALUE may be (#1649): symbols and JSON symbol lists (`["BTCUSDT","ETHUSDT"]`), numbers, and short codes
+ *  such as 5m, 5min, BTC, option, true. Anything else is a 400 from us before any upstream call. */
+const PASSTHROUGH_VALUE = /^[A-Za-z0-9_.,:\-[\]"]{1,1000}$/;
 
 const PASSTHROUGH: Record<string, PassEntry> = {
   /* Bybit. Note for anyone slicing these later: Bybit returns NEWEST-first and
@@ -358,7 +363,7 @@ export async function GET(req: NextRequest) {
      */
     if (type === 'coinglass-flow') {
       const cgKey = process.env.COINGLASS_API_KEY;
-      const r = await fetch(
+      const r = await exchangeFetch(
         'https://open-api.coinglass.com/public/v2/exchange_amount_chart?symbol=BTC&time_type=h24',
         { next: { revalidate: 300 }, headers: cgKey ? { 'coinglassSecret': cgKey } : {} }
       );
@@ -368,7 +373,7 @@ export async function GET(req: NextRequest) {
     /* ── Coinglass: BTC liquidation levels ── */
     if (type === 'coinglass-liq') {
       const cgKey = process.env.COINGLASS_API_KEY;
-      const r = await fetch(
+      const r = await exchangeFetch(
         'https://open-api.coinglass.com/public/v2/liquidation_chart?symbol=BTC&time_type=h4',
         { next: { revalidate: 300 }, headers: cgKey ? { 'coinglassSecret': cgKey } : {} }
       );
@@ -395,7 +400,7 @@ export async function GET(req: NextRequest) {
             'https://trends.google.com/trends/api/explore?hl=en-US&tz=480&req=' +
             encodeURIComponent(exploreReq);
 
-          const exploreRes = await fetch(exploreUrl, {
+          const exploreRes = await exchangeFetch(exploreUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
               'Accept-Language': 'en-US,en;q=0.9',
@@ -420,7 +425,7 @@ export async function GET(req: NextRequest) {
             encodeURIComponent(JSON.stringify(ts.request)) +
             '&token=' + encodeURIComponent(ts.token);
 
-          const dataRes = await fetch(dataUrl, {
+          const dataRes = await exchangeFetch(dataUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             },
@@ -474,7 +479,11 @@ export async function GET(req: NextRequest) {
          figure and only changes after a US trading session closes. */
       const ETF_TTL_MS = 60 * 60 * 1000;
 
-      async function fetchSoSoFlow(symbol: 'BTC' | 'ETH'): Promise<number | null> {
+      /* #1631 A: the last three trading days WITH their dates (limit=3), not one undated number - the AI reads them as dated catalysts.
+         `btc` / `eth` stay the latest day's flow for /briefing and the chat. */
+      /* PM's audit of #1668: `btc` / `eth` (Briefing, the chat) stay what they always were - the NEWEST row's flow, null while that row is
+         unsettled - so yesterday's number is never shown, undated, as today's. The dated days for the AI read come from the same answer. */
+      async function fetchSoSoFlow(symbol: 'BTC' | 'ETH'): Promise<{ latest: number | null; days: EtfFlowDay[] | null } | null> {
         const apiKey = process.env.SOSOVALUE_API_KEY;
         /* No key: make no call and report nothing. Reporting a failure here
            would fill the health table on every environment that deliberately
@@ -482,10 +491,10 @@ export async function GET(req: NextRequest) {
            unhealthy. */
         if (!apiKey) return null;
 
-        return cached(`sosovalue:etf:${symbol}`, ETF_TTL_MS, async () => {
+        return cached(`sosovalue:etf-days:${symbol}`, ETF_TTL_MS, async () => {
           const url = 'https://openapi.sosovalue.com/openapi/v1/etfs/summary-history'
-            + `?symbol=${symbol}&country_code=US&limit=1`;
-          const r = await fetch(url, {
+            + `?symbol=${symbol}&country_code=US&limit=3`;
+          const r = await exchangeFetch(url, {
             headers: { 'x-soso-api-key': apiKey, Accept: 'application/json' },
             signal: AbortSignal.timeout(8000),
           });
@@ -497,7 +506,12 @@ export async function GET(req: NextRequest) {
              for why the unit is the dangerous half. Throws on an unusable
              payload, which the caller turns into a health failure rather than
              a silent zero. */
-          return etfFlowMillions(body);
+          let latest: number | null = null, days: EtfFlowDay[] | null = null;
+          try { latest = etfFlowMillions(body); } catch { /* the newest row is unsettled or unusable: unknown */ }
+          try { days = etfFlowDays(body, 3); } catch { /* no dated row */ }
+          // Neither usable is a failed read, reported to health like before.
+          if (latest === null && days === null) throw new Error('no usable total_net_inflow in response');
+          return { latest, days };
         });
       }
 
@@ -505,13 +519,16 @@ export async function GET(req: NextRequest) {
         fetchSoSoFlow('BTC'),
         fetchSoSoFlow('ETH'),
       ]);
-      const btc = btcRes.status === 'fulfilled' ? btcRes.value : null;
-      const eth = ethRes.status === 'fulfilled' ? ethRes.value : null;
+      const btcRead = btcRes.status === 'fulfilled' ? btcRes.value : null;
+      const ethRead = ethRes.status === 'fulfilled' ? ethRes.value : null;
+      const btc = btcRead?.latest ?? null, eth = ethRead?.latest ?? null;
+      const btcDays = btcRead?.days ?? null, ethDays = ethRead?.days ?? null;
 
       /* Only report health when a key exists. Otherwise every keyless
          environment reports a failure for a call it never made. */
       if (process.env.SOSOVALUE_API_KEY) {
-        const got = [btc, eth].filter(v => v != null).length;
+        // A read that answered counts, even when its newest row is not settled yet (btc/eth null, the dated days present).
+        const got = [btcRead, ethRead].filter(v => v != null).length;
         const why = [btcRes, ethRes]
           .filter((x): x is PromiseRejectedResult => x.status === 'rejected')
           .map(x => String(x.reason?.message ?? x.reason)).join('; ');
@@ -528,13 +545,20 @@ export async function GET(req: NextRequest) {
          is undefined on a number, so the store would silently never have been
          set and the panel would have stayed exactly as broken as before, with
          the health table now green. Updated alongside this. */
-      return NextResponse.json({ btc, eth }, { headers: PROXY_CACHE });
+      return NextResponse.json({ btc, eth, btcDays, ethDays }, { headers: PROXY_CACHE });
     }
 
     /* Table-driven passthrough (#238). Placed after the hand-written branches so
        none of their behaviour changes. */
     const entry = type ? PASSTHROUGH[type] : undefined;
     if (entry) {
+      /* #1649 (security review): the VALUES are checked, not only the names, before anything is sent to an exchange - including by the
+         Bybit fallbacks above, which read the same parameters. An odd value can make an exchange's firewall refuse this server, and a
+         request sent on a caller's behalf must not carry anything but symbol lists, numbers and short codes. */
+      for (const k of entry.params) {
+        const v = req.nextUrl.searchParams.get(k);
+        if (v != null && v !== '' && !PASSTHROUGH_VALUE.test(v)) return NextResponse.json({ error: `invalid ${k}` }, { status: 400 });
+      }
       const u = new URL(entry.url);
       for (const [k, v] of Object.entries(entry.fixed ?? {})) u.searchParams.set(k, v);
       for (const k of entry.params) {
@@ -547,7 +571,7 @@ export async function GET(req: NextRequest) {
        * origin - the flag travels with whatever `cached()` stored, not just
        * with the call that produced it (#1237). */
       const go = async (): Promise<{ body: unknown; viaFallback: boolean }> => {
-        const r = await fetch(u, { cache: 'no-store' });
+        const r = await exchangeFetch(u, { cache: 'no-store' });
         if (r.ok) return { body: await r.json(), viaFallback: false };
 
         /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
@@ -562,7 +586,7 @@ export async function GET(req: NextRequest) {
         const fbUrl = entry.bybitFallback?.buildUrl(req);
         if (fbUrl) {
           try {
-            const fr = await fetch(fbUrl, { cache: 'no-store' });
+            const fr = await exchangeFetch(fbUrl, { cache: 'no-store' });
             if (fr.ok) {
               const converted = entry.bybitFallback!.convert(await fr.json());
               // #1249's rule: an empty/malformed fallback body is a failure,

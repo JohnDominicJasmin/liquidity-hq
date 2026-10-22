@@ -157,15 +157,21 @@ export type MarketStore = {
   wsStatus: string;
   newsCache: string[];
   oilPrice: number | null;
-  bonds10y: number | null;
+  oilChg: number | null;         // its 1-day change in % (#1631 A)
+  bonds10y: number | null;       // US 10Y Treasury yield, nominal, % (Yahoo ^TNX via /api/macro), #1631 C
+  bonds10yChgBp: number | null;  // its 1-day change in basis points
   etfNetFlow: number | null;     // BTC spot ETF total net flow today in $M
   ethEtfNetFlow: number | null;  // ETH spot ETF total net flow today in $M
+  etfFlowDays: Array<{ date: string; flowM: number }> | null;     // BTC, last 3 US trading days, newest first, $M (#1631 A)
+  ethEtfFlowDays: Array<{ date: string; flowM: number }> | null;  // ETH, same
   /* Deribit options */
   btcPcRatio: number | null;
   btcMaxPain: number | null;
   /* Stablecoin supply */
   stablecoinSupply: number | null;   // $B
   stablecoinPrev: number | null;     // $B previous reading
+  stablecoinChg7d: number | null;    // $B change over 7 days (DefiLlama circulatingPrevWeek), #1631 C
+  stablecoinChg30d: number | null;   // $B change over 30 days (circulatingPrevMonth)
   /* Coinglass */
   btcExchangeNetFlow: number | null;
   btcLiqLevels: LiqLevel[];
@@ -185,8 +191,8 @@ export type MarketStore = {
   gold: number | null;       // Gold spot $/oz
   goldChg: number | null;
   /* Coinbase Premium Index */
-  cbPremium: number | null;    // Coinbase BTC − Binance BTC (USD)
-  cbPremiumPct: number | null; // as % of Binance price
+  cbPremium: number | null;    // Coinbase BTC/USD − exchange BTC/USDT converted to USD (#1631 C)
+  cbPremiumPct: number | null; // as % of the exchange price in USD
   /* GEX - Gamma Exposure from Deribit options */
   btcNetGex: number | null;    // total net GEX in $ (positive = dealers long gamma)
   btcGexFlip: number | null;   // zero-gamma strike - cross = regime change
@@ -213,13 +219,19 @@ export const defaultStore: MarketStore = {
   wsStatus: 'Connecting...',
   newsCache: [],
   oilPrice: null,
+  oilChg: null,
   bonds10y: null,
+  bonds10yChgBp: null,
   etfNetFlow: null,
   ethEtfNetFlow: null,
+  etfFlowDays: null,
+  ethEtfFlowDays: null,
   btcPcRatio: null,
   btcMaxPain: null,
   stablecoinSupply: null,
   stablecoinPrev: null,
+  stablecoinChg7d: null,
+  stablecoinChg30d: null,
   btcExchangeNetFlow: null,
   btcLiqLevels: [],
   dxy: null, dxyChg: null,

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import { claimPendingForAccount } from '@/lib/whopGrant';
-import { userClient } from '@/lib/supabase-user';
+import { claimPendingForAccount, hasPendingClaim } from '@/lib/whopGrant';
+import { fetchAuthUser, getUserCompat } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,13 +24,15 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const sb = userClient(token);
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  /* #1397: AuthProvider calls this on every SIGNED_IN, which Supabase fires on every page load of a signed-in user. Almost always there is
+     nothing to claim, so the token is checked locally first and Auth is asked only when a pending claim is waiting for the token's email.
+     Granting still needs Auth's own view (a CONFIRMED address), exactly as before. Known limit: an address changed after the token was
+     issued is seen from the next token (at most an hour), since the waiting-claim check reads the token's email. */
+  const { data: { user: local } } = await getUserCompat(token);
+  if (!local) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   // Per account, not per address: a page reload loop must not become a table scan loop.
-  if (!rateLimit(`whop-claim:${user.id}:${getClientIp(req)}`, 10, 60_000)) return NextResponse.json({ granted: 0 }, { status: 429 });
-  // No confirmed email, nothing to claim. Answered like "nothing to claim" so the caller learns nothing.
-  if (!user.email || !user.email_confirmed_at) return NextResponse.json({ granted: 0 });
+  if (!rateLimit(`whop-claim:${local.id}:${getClientIp(req)}`, 10, 60_000)) return NextResponse.json({ granted: 0 }, { status: 429 });
+  if (!local.email) return NextResponse.json({ granted: 0 });
 
   let admin: ReturnType<typeof getSupabaseAdmin>;
   try {
@@ -38,6 +40,14 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return apiError('whop/claim', e);
   }
+  // Nothing waiting: answered like every other "nothing to claim", with no Auth round trip. A failed check (null) takes the full path.
+  if ((await hasPendingClaim(admin, local.email)) === false) return NextResponse.json({ granted: 0 });
+
+  const user = await fetchAuthUser(token);
+  if (!user?.id || user.id !== local.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // No confirmed email, nothing to claim. Answered like "nothing to claim" so the caller learns nothing.
+  if (!user.email || !user.email_confirmed_at) return NextResponse.json({ granted: 0 });
+
   const r = await claimPendingForAccount(admin, { userId: user.id, email: user.email });
   if (r.refused.length > 0) apiError('whop/claim', new Error(`NEEDS MANUAL REVIEW, claim refused for account ${user.id}: ${r.refused.join(', ')}`));
   if (r.error && r.granted === 0) return apiError('whop/claim', r.error);
