@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { _exchangeGuardStats, exchangeDegraded } from '@/lib/exchangeGuard';
+import { checkCronAuth } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +14,16 @@ export const dynamic = 'force-dynamic';
  * its schema cache reloaded), and nobody knew until a person noticed. /api/version
  * could not have caught it - it answers without touching the database.
  *
- * 200 { ok: true, db_ms, checked_at } when one trivial read answers within 3 s.
+ * 200 { ok: true, db_ms, db_checked_at, checked_at, exchanges } when one trivial read answers within 3 s.
+ *
+ * `checked_at` is THIS answer's time, generated per request. `db_checked_at` is when the cached database read actually ran, which
+ * may be up to 30 s earlier - one field was doing both jobs until #1649, so a caller could not tell a fresh answer from a stale one.
+ *
+ * `exchanges` names every configured exchange every time - { bybit: { degraded }, binance: { degraded } } - healthy or not, because
+ * an absent key cannot be told apart from a healthy one. Read at request time, never cached. A degraded upstream does NOT set
+ * ok:false; the site is serving and the guards are working, and a check that goes red during every cooldown gets ignored.
+ * The detailed per-exchange figures (strikes, cooling window, last upstream status) are added only for a caller carrying
+ * CRON_SECRET: this endpoint is public, and those together map our rate-limit exposure.
  * 503 { ok: false, reason: 'db_slow' } when it does not answer in time.
  * 503 { ok: false, reason: 'db_error' } when it fails, or the client cannot be
  * built (settings missing on the host). The error text goes to the server log,
@@ -42,7 +53,7 @@ const BUDGET_MS = 3000;
 const CACHE_MS = 30_000;
 
 type Check =
-  | { status: 200; body: { ok: true; db_ms: number; checked_at: string } }
+  | { status: 200; body: { ok: true; db_ms: number; db_checked_at: string } }
   | { status: 503; body: { ok: false; reason: 'db_slow' | 'db_error' } };
 
 const SLOW: Check = { status: 503, body: { ok: false, reason: 'db_slow' } };
@@ -69,7 +80,10 @@ async function checkDb(): Promise<Check> {
       console.error('[health] db_error:', result.error.code, result.error.message);
       return ERROR;
     }
-    return { status: 200, body: { ok: true, db_ms: Math.round(performance.now() - started), checked_at: new Date(Date.now()).toISOString() } };
+    /* db_checked_at, not checked_at (#1649). This value is CACHED for 30 s with the rest of the check, so as `checked_at` it was
+       answering "when did you answer" with "when was the database last read" - two questions in one field, and the reason a caller
+       could not tell a fresh answer from a half-minute-old one. The answer time is added per request in GET. */
+    return { status: 200, body: { ok: true, db_ms: Math.round(performance.now() - started), db_checked_at: new Date(Date.now()).toISOString() } };
   } catch (e) {
     console.error('[health] db_error:', e instanceof Error ? e.message : e);
     return ERROR;
@@ -86,7 +100,26 @@ function currentCheck(): Promise<Check> {
   return inFlight;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const check = await currentCheck();
-  return NextResponse.json(check.body, { status: check.status, headers: { 'Cache-Control': 'no-store' } });
+
+  /* #1649: the exchange breakers, read AT REQUEST TIME and never cached. A cached breaker state reads as current, which is worse
+     than no instrument at all - it would have reported "healthy" through the whole of today's Bybit cooldown, and a blip shorter
+     than the cache would be invisible permanently. This is also why it is computed here rather than inside `currentCheck`. */
+  const now = Date.now();
+  const exchanges = exchangeDegraded(now);
+
+  /* An open breaker does NOT make `ok` false. Degraded is not down: the site serves, the guards do their job, and a health check
+     that goes red during every normal cooldown is one everybody learns to ignore - which is how a mechanism ends up wired to
+     nothing. `ok`, `db_ms` and the status codes are exactly as before. */
+  const body = {
+    ...check.body,
+    checked_at: new Date(now).toISOString(),
+    exchanges,
+    /* The detailed view is credentialed. /api/health is public, and strikes + cooling window + last upstream status together map
+       how close this server is to being rate-limited and how long it stays down - coarse in public, detail behind the secret. */
+    ...(checkCronAuth(req) ? { exchange_detail: _exchangeGuardStats(now) } : {}),
+  };
+
+  return NextResponse.json(body, { status: check.status, headers: { 'Cache-Control': 'no-store' } });
 }
