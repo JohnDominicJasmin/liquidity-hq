@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useLabels } from '@/lib/labels';
@@ -39,6 +39,21 @@ export default function TrialBanner() {
   const [dismissedDay, setDismissedDay] = useState<string | null | undefined>(() => {
     if (typeof window === 'undefined') return undefined;
     try { return window.localStorage.getItem(DISMISS_KEY); } catch { return null; /* storage blocked: treat as not dismissed */ }
+  });
+  // "PRO TRIAL ·" over "14 days left" left the separator dangling at the end of the first line (PM, #1673): once the countdown has wrapped
+  // below the label, the dot is hidden. Measured rather than a breakpoint, since where it wraps depends on the language and the width.
+  // visibility, not display: the dot keeps its width, so hiding it cannot let the line fit again and flip back.
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const countRef = useRef<HTMLElement>(null);
+  const [wrapped, setWrapped] = useState(false);
+  useLayoutEffect(() => {
+    const a = labelRef.current, b = countRef.current;
+    if (!a || !b) return;
+    const check = () => setWrapped(b.offsetTop > a.offsetTop + 2);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(a.parentElement ?? a);
+    return () => ro.disconnect();
   });
   if (!isTrial || trialEndsAt == null) return null;
 
@@ -86,7 +101,7 @@ export default function TrialBanner() {
     >
       {/* Wraps between "PRO TRIAL ·" and the countdown, never inside either: each part is nowrap. */}
       <span style={{ color: 'var(--txt2)', flex: '0 1 auto', minWidth: 0 }}>
-        <span style={{ whiteSpace: 'nowrap' }}>
+        <span ref={labelRef} style={{ whiteSpace: 'nowrap' }}>
           <span
             style={{
               fontFamily: 'var(--font-mono, monospace)',
@@ -97,10 +112,10 @@ export default function TrialBanner() {
           >
             {t('TRIAL_BANNER_LABEL')}
           </span>
-          <span aria-hidden="true" style={{ color: 'var(--txt3)', marginInlineEnd: 8 }}>·</span>
+          <span aria-hidden="true" style={{ color: 'var(--txt3)', marginInlineEnd: 8, visibility: wrapped ? 'hidden' : undefined }}>·</span>
         </span>
         <wbr />
-        <strong style={{ color: 'var(--txt)', fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</strong>
+        <strong ref={countRef} style={{ color: 'var(--txt)', fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</strong>
       </span>
       {/* A bordered pill, not a bare text link - the CTA previously differed
           from the surrounding sentence only by weight and colour, on a strip
