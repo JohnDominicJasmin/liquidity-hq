@@ -64,8 +64,17 @@ after(() => { globalThis.fetch = realFetch; Date.now = realNow; });
 let copy = 0;
 beforeEach(() => { net.mode = 'fast'; net.reads = 0; offset += 60_000; copy++; });
 
+/* THE STAND-IN MUST STILL BE INSTALLED WHEN A TEST RUNS, said out loud (#1683). With the real `fetch` back, the database read here would
+   reach a real network, fail, and the route would answer its designed 503 db_error - so a broken instrument would read as H1 finding a
+   product defect. This file imports the route inside each test, so it cannot hit the registration race that stranded arenaCoinLadder and
+   priceAlertCron; the assertion covers any other way the stand-in could go missing. H4b swaps in its own stub deliberately and restores
+   this one, which is why the check names the ORIGINAL stand-in rather than "not the real fetch". */
+const standInFetch = globalThis.fetch;
+
 /** A fresh copy of the route per test, so a module-level cache starts empty. */
 async function route() {
+  assert.equal(globalThis.fetch, standInFetch,
+    'the Supabase stand-in is not installed: this run would reach the real network, so it measures nothing about the route - see #1683');
   const mod = await import(`../app/api/health/route.ts?qa=${copy}`);
   return mod.GET as (req: NextRequest) => Promise<Response>;
 }
