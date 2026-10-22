@@ -65,8 +65,11 @@ export default function TrialBanner() {
     <div
       role="status"
       style={{
+        // ONE ROW at every width (owner, 2026-10-22, #1673 item 2: "put it into horizontal layout"). It wrapped, so at 390 px the countdown
+        // and the "Keep Pro" pill stacked on two centred lines. Now the text block shrinks and wraps inside itself (min-width 0) while the
+        // pill keeps its size; on desktop, where both fit, they sit centred exactly as before.
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        gap: 14, flexWrap: 'wrap',
+        gap: 14, flexWrap: 'nowrap',
         // Was 7px/--fs-caption with a 0.5px rule - a 12px strip that read as a
         // system notice and got skipped. This is the only standing reminder that
         // the trial ends, so it is sized to be read: body text, real padding,
@@ -81,19 +84,23 @@ export default function TrialBanner() {
         lineHeight: 1.45,
       }}
     >
-      <span style={{ color: 'var(--txt2)' }}>
-        <span
-          style={{
-            fontFamily: 'var(--font-mono, monospace)',
-            fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-            fontSize: 'var(--fs-label)',
-            color: accent, marginRight: 10,
-          }}
-        >
-          {t('TRIAL_BANNER_LABEL')}
+      {/* Wraps between "PRO TRIAL ·" and the countdown, never inside either: each part is nowrap. */}
+      <span style={{ color: 'var(--txt2)', flex: '0 1 auto', minWidth: 0 }}>
+        <span style={{ whiteSpace: 'nowrap' }}>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono, monospace)',
+              fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              fontSize: 'var(--fs-label)',
+              color: accent, marginRight: 10,
+            }}
+          >
+            {t('TRIAL_BANNER_LABEL')}
+          </span>
+          <span aria-hidden="true" style={{ color: 'var(--txt3)', marginInlineEnd: 8 }}>·</span>
         </span>
-        <span aria-hidden="true" style={{ color: 'var(--txt3)', marginInlineEnd: 8 }}>·</span>
-        <strong style={{ color: 'var(--txt)', fontWeight: 700 }}>{label}</strong>
+        <wbr />
+        <strong style={{ color: 'var(--txt)', fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</strong>
       </span>
       {/* A bordered pill, not a bare text link - the CTA previously differed
           from the surrounding sentence only by weight and colour, on a strip
@@ -107,7 +114,7 @@ export default function TrialBanner() {
           // banner taller on every viewport. 44px is the touch-target floor -
           // the first version of this pill was 29px, which is a miss on the one
           // control in the app whose entire job is being tapped.
-          padding: '0 15px', minHeight: 44, borderRadius: 999,
+          padding: '0 15px', minHeight: 44, borderRadius: 999, flex: 'none',
           border: `1px solid ${accent}`,
           fontSize: 'var(--fs-label)', fontWeight: 700,
           color: accent, textDecoration: 'none', whiteSpace: 'nowrap',
