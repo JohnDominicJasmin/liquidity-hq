@@ -1,13 +1,13 @@
 /* #1663 / #1475: what a SIGNED-OUT Korean visitor sees on production's Arena for a locked coin (XRP). Read-only: no sign-in, no
  * writes, one page load per locale. Every host except liquidity-hq.com is blocked (allowlist), so nothing third-party loads.
  * Records the signal panel's text, the Quick/Deep titles and <html lang>, plus a screenshot. Does NOT use rlib (rlib refuses prod). */
-import { chromium as pwChromium } from 'file:///C:/Users/Dominic/Documents/VS%20code/liquidity-hq-qa/liquidity-hq/node_modules/playwright/index.mjs';
+import { chromium as pwChromium } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { guarded } from './memguard.mjs';
 
 const chromium = guarded(pwChromium);
 const PROD = 'https://liquidity-hq.com';
-const DIR = 'C:/Users/Dominic/Documents/LiquidityHQ-QA-prod-1021/signedout-lock';
+const DIR = `${process.env.QA_ROOT || new URL('../../../../qa-evidence', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')}/prod-signedout-lock`; // #1690: was an absolute path
 mkdirSync(DIR, { recursive: true });
 const out = [];
 const browser = await chromium.launch();

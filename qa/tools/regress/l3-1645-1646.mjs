@@ -8,8 +8,10 @@
  *   volume), and the answer must already carry the new hour's candle (a fresh fetch after the close, not the entry cached before it).
  * usage: node l3-1645-1646.mjs [parts=headers,klines]  -> <ROOT>/_l3/l3-1645-1646-<time>.json                                                        */
 import { writeFileSync, mkdirSync } from 'node:fs';
+/* Evidence root: QA_ROOT, else ../qa-evidence beside the checkout. It was an absolute C:/Users path (#1690). */
+const EVIDENCE = process.env.QA_ROOT || new URL('../../../../qa-evidence', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const BASE = process.env.QA_BASE || 'https://liquidity-hq-qa.onrender.com';
-const OUT = `${process.env.QA_ROOT || 'C:/Users/Dominic/Documents/LiquidityHQ-QA-regression-2026-10-21'}/_l3`; mkdirSync(OUT, { recursive: true });
+const OUT = `${EVIDENCE}/_l3`; mkdirSync(OUT, { recursive: true }); // ROOT comes from rlib: QA_ROOT, else ../qa-evidence beside the checkout (#1690)
 const parts = (process.argv[2] || 'headers,klines').split(',');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
