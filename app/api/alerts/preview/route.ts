@@ -147,7 +147,8 @@ export async function POST(req: NextRequest) {
       }
 
       if ((structTfs as readonly string[]).includes(tf)) {
-        const sigs = detectStructureSignals(candles.map(c => ({
+        // Closed candles only, as the cron judges structure since 2026-10-22.
+        const sigs = detectStructureSignals(closedCandles(candles, tf).map(c => ({
           timestamp: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
         })));
         const latest = sigs[sigs.length - 1];

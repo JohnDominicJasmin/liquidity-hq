@@ -2017,7 +2017,9 @@ async function checkStructureSignal(
 
   await Promise.all(COINS.map(async coin => {
     try {
-      const candles = await fetchRibbonCandles(coin, tf);
+      // Closed candles only, like the EMA alert (owner, 2026-10-22: "alert only on finished candles"). The message says "price closed
+      // above the prior swing high"; on the forming candle that close has not happened yet. See closedCandles in lib/ribbonCandles.ts.
+      const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);
       if (candles.length < 30) return;
 
       const signals = detectStructureSignals(
