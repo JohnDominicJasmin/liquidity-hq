@@ -623,9 +623,16 @@ export function buildPrompt(ctx: GrokContext): string {
     '  • Pre-NY / Asia: subtract 10 from confidence. LEAN BEARISH and LEAN BULLISH are fully valid.',
     '  "Pre-NY session" is NEVER a standalone reason for FLAT - reduce confidence, not tier.',
     '',
+    /* #1631 item 1: the third line used to read "NEVER output FLAT just because you are uncertain - own the direction when signals
+       support it." It was written when FLAT was being used as a dodge, and the anti-dodge half is kept. The absolute is dropped,
+       because it now fights two things that did not exist when it was added: the guardrail injected into every system prompt, which
+       forbids claiming certainty the model does not have, and item 2's parser, which refuses an unreadable verdict rather than
+       defaulting it - so "no edge" is a state the system can represent and act on. An absolute NEVER pressures a direction out of a
+       read whose honest answer is that there isn't one. */
     'FLAT is NOT the safe default - when one side leads with 2+ signals, the SIGNAL DECISION GUIDE gives a LEAN.',
     'FLAT means: no directional edge at all. Not "risky session" or "cautious".',
-    'NEVER output FLAT just because you are uncertain - own the direction when signals support it.',
+    'Do not use FLAT as a dodge for a session you dislike or a chart you find awkward - if the signals support a direction, take it.',
+    'But when there genuinely is no edge, FLAT is the correct answer and saying so is not a failure.',
     '',
     'Output in EXACTLY this format - no extra text before or after:',
     'SIGNAL: [BULLISH or BEARISH or FLAT]',
