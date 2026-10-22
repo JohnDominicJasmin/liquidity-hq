@@ -1090,11 +1090,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }
           },
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { dir, pending, price, hovered } = overlay.extendData as {
+            const { dir, price, hovered } = overlay.extendData as {
               dir: 'long' | 'short' | 'locked'; pending: boolean; price?: number; hovered?: boolean;
             };
-            /* An unconfirmed marker is the same marker as a confirmed one but hollow and dashed, reading plain "Buy" / "Sell" at 9px
-               (owner, 2026-10-07: no "FORMING", no "?"). How far its hold has got is the line under the chart, not text here. */
+            /* An unconfirmed (pending) marker is drawn EXACTLY like a confirmed one: solid, white "Buy" / "Sell", same colours, same price tag
+               (owner, 2026-10-22, #1673 item 6: "just put sell indicator here not this dotted sell design", then "apply buy too"). It was hollow
+               and dashed. The owner chose "solid, identical" knowing a pending signal can still disappear if price crosses back before its hold
+               completes. `pending` stays in extendData and in the signal data: the backtest and the hold-progress line under the chart
+               ("Sell setup pending: N of M candles held", EMASignal.tsx) still read it, and that line is now the only cue that it is unconfirmed. */
             const coord = coordinates[0];
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.x < 0 || coord.y < 0) return [];
             const x = coord.x;
@@ -1114,9 +1117,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               if (!hovered || price == null || !isFinite(price)) return [];
               const isLong = dir === 'long';
               const tagY = isLong ? y + 40 : y - 40;
-              const col = pending
-                ? (isLong ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)')
-                : (isLong ? '#22c55e' : '#ef4444');
+              const col = isLong ? '#22c55e' : '#ef4444';
               return [{
                 type: 'text',
                 // Trailing zeros stripped: an alt priced at 0.00001234 and BTC
@@ -1135,21 +1136,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               }];
             };
             if (dir === 'long') {
-              if (pending) {
-                return [
-                  {
-                    type: 'polygon',
-                    attrs: { coordinates: [{ x, y: y + 4 }, { x: x - 14, y: y + 28 }, { x: x + 14, y: y + 28 }] },
-                    styles: { style: 'stroke', borderColor: 'rgba(34,197,94,0.6)', borderSize: 1.5, borderStyle: 'dashed', borderDashedValue: [3, 3] },
-                  },
-                  {
-                    type: 'text',
-                    attrs: { x, y: y + 20, text: 'Buy', align: 'center', baseline: 'middle' },
-                    styles: { color: 'rgba(34,197,94,0.95)', size: 9, weight: 'bold', backgroundColor: 'transparent' },
-                  },
-                  ...priceTag(),
-                ];
-              }
               return [
                 {
                   type: 'polygon',
@@ -1160,21 +1146,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   type: 'text',
                   attrs: { x, y: y + 20, text: 'Buy', align: 'center', baseline: 'middle' },
                   styles: { color: '#ffffff', size: 9, weight: 'bold', backgroundColor: 'transparent' },
-                },
-                ...priceTag(),
-              ];
-            }
-            if (pending) {
-              return [
-                {
-                  type: 'polygon',
-                  attrs: { coordinates: [{ x, y: y - 4 }, { x: x - 14, y: y - 28 }, { x: x + 14, y: y - 28 }] },
-                  styles: { style: 'stroke', borderColor: 'rgba(239,68,68,0.6)', borderSize: 1.5, borderStyle: 'dashed', borderDashedValue: [3, 3] },
-                },
-                {
-                  type: 'text',
-                  attrs: { x, y: y - 20, text: 'Sell', align: 'center', baseline: 'middle' },
-                  styles: { color: 'rgba(239,68,68,0.95)', size: 9, weight: 'bold', backgroundColor: 'transparent' },
                 },
                 ...priceTag(),
               ];
