@@ -101,18 +101,44 @@ test('S3. both RSI badges compare the unrounded value; only the text is rounded'
   assert.ok(/<RsiBadge\s+rsi=\{cd\.rsi14\} \/>/.test(setup), 'Setup Scanner: the badge is not given the raw rsi14');
 });
 
+/* L1 used to read one migration by name, `20261021f`. That made it a test about a FILE rather than about the rows, and the owner's #1673
+   item 1 rewrote three of these four labels in a later migration - so the named file stopped being what ships, and the test went red on
+   wording the owner had deliberately changed. It now finds, per key, the LAST migration that writes that key (the migrations are named in
+   date order, which is what makes a filename sort the apply order) and holds that one to the build default. Nothing else about it moved:
+   five locales, English equal to the default, and the same placeholders in every language, which is the drift this test exists to catch. */
 test('L1. the four RSI timeframe labels: five locales each, English equal to the build default, placeholders kept in every language', () => {
-  const rows = read('supabase/migrations/20261021f_labels_rsi_timeframes.sql').split('\n').filter((l) => l.startsWith("('"))
-    .map((l) => l.replace(/^\('/, '').replace(/'\)[,;]?\s*$/, '').split("','")).map(([key, locale, value]) => ({ key, locale, value: value.split("''").join("'") }));
   const keys = ['ALERTS_RSI_DESC', 'BRIEFING_TAG_RSI', 'MARKET_CONDITIONS_WIDGET_RSI_LABEL', 'SETUP_SCANNER_RSI_VAL'];
-  assert.deepEqual([...new Set(rows.map((r) => r.key))].sort(), keys);
+  const migrations = readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter((f) => f.endsWith('.sql')).sort();
+  /* Every ('KEY','locale','value') row in one migration. Other migrations in this folder open a line with (' and are not label rows at
+     all - two columns, or a different table - so a row is kept only when it has all three parts; a tolerant parse here, because this test
+     now reads the whole folder rather than one known file. */
+  const rowsIn = (file: string) => read(`supabase/migrations/${file}`).split('\n').filter((l) => l.startsWith("('"))
+    .map((l) => l.replace(/^\('/, '').replace(/'\)[,;]?\s*$/, '').split("','"))
+    .filter((parts) => parts.length === 3 && parts.every((p) => typeof p === 'string'))
+    .map(([key, locale, value]) => ({ key, locale, value: value.split("''").join("'") }));
+  /* The last migration that writes each key, and every row it gives that key. A key written by no migration at all is a failure, not a skip. */
+  const latest = new Map<string, { file: string; rows: { key: string; locale: string; value: string }[] }>();
+  for (const file of migrations) {
+    const rows = rowsIn(file);
+    for (const k of keys) {
+      const mine = rows.filter((r) => r.key === k);
+      if (mine.length) latest.set(k, { file, rows: mine });
+    }
+  }
+  assert.deepEqual([...latest.keys()].sort(), keys, 'a label is written by no migration: it would ship as the English default in every language');
   const defaults = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, string>;
   const placeholders = (s: string) => (s.match(/\{[a-zA-Z]+\}/g) ?? []).sort().join(',');
   for (const k of keys) {
-    const mine = rows.filter((r) => r.key === k);
-    assert.deepEqual(mine.map((r) => r.locale).sort(), ['ar', 'en', 'ko', 'ru', 'zh'], `${k}: not exactly five locales`);
-    assert.equal(mine.find((r) => r.locale === 'en')!.value, defaults[k], `${k}: the English row differs from lib/labelDefaults.en.json`);
-    for (const r of mine) assert.equal(placeholders(r.value), placeholders(defaults[k]), `${k} ${r.locale}: placeholders changed in "${r.value}"`);
+    const { file, rows } = latest.get(k)!;
+    assert.deepEqual(rows.map((r) => r.locale).sort(), ['ar', 'en', 'ko', 'ru', 'zh'], `${k}: ${file} does not give it exactly five locales`);
+    assert.equal(rows.find((r) => r.locale === 'en')!.value, defaults[k], `${k}: the English row in ${file} differs from lib/labelDefaults.en.json`);
+    for (const r of rows) assert.equal(placeholders(r.value), placeholders(defaults[k]), `${k} ${r.locale}: placeholders changed in "${r.value}" (${file})`);
   }
-  assert.match(defaults.MARKET_CONDITIONS_WIDGET_RSI_LABEL, /\(14, 15m\)/); assert.match(defaults.SETUP_SCANNER_RSI_VAL, /^RSI 15m /); assert.match(defaults.ALERTS_RSI_DESC, /^1h RSI /);
+  /* The wording the owner chose for #1673 item 1: plain "15-minute", not the trader shorthand "15m" or the bare period "(14, 15m)".
+     ALERTS_RSI_DESC was left as it was, so it still has to read "1h RSI". These are the strings, not a shape: the point of item 1 is that
+     a first-time reader can tell what the number is of, so a later tidy back to "RSI 15m" has to be a decision. */
+  assert.equal(defaults.MARKET_CONDITIONS_WIDGET_RSI_LABEL, 'BTC RSI (15-minute chart)');
+  assert.match(defaults.SETUP_SCANNER_RSI_VAL, /^15-minute RSI /);
+  assert.match(defaults.BRIEFING_TAG_RSI, /^15-minute RSI /);
+  assert.match(defaults.ALERTS_RSI_DESC, /^1h RSI /);
 });
