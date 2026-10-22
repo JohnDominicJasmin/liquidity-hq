@@ -9,26 +9,7 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-
-const TIERS = [
-  { lev: 125, dist: 0.0080, w: 0.02 },
-  { lev: 100, dist: 0.0100, w: 0.04 },
-  { lev: 75,  dist: 0.0133, w: 0.03 },
-  { lev: 50,  dist: 0.0200, w: 0.07 },
-  { lev: 40,  dist: 0.0250, w: 0.04 },
-  { lev: 30,  dist: 0.0333, w: 0.06 },
-  { lev: 25,  dist: 0.0400, w: 0.08 },
-  { lev: 20,  dist: 0.0500, w: 0.10 },
-  { lev: 15,  dist: 0.0667, w: 0.08 },
-  { lev: 12,  dist: 0.0833, w: 0.06 },
-  { lev: 10,  dist: 0.1000, w: 0.10 },
-  { lev: 8,   dist: 0.1250, w: 0.05 },
-  { lev: 6,   dist: 0.1667, w: 0.04 },
-  { lev: 5,   dist: 0.2000, w: 0.07 },
-  { lev: 4,   dist: 0.2500, w: 0.05 },
-  { lev: 3,   dist: 0.3333, w: 0.06 },
-  { lev: 2,   dist: 0.5000, w: 0.05 },
-];
+import { computeBands, type Band } from '@/lib/liqBands';
 
 type TimeRange = '12h' | '24h' | '48h' | '3d' | '1w';
 
@@ -57,43 +38,6 @@ const RANGES: { key: TimeRange; labelKey: LabelKey; maxDist: number; hintKey: La
   { key: '3d',  labelKey: 'LIQ_RANGE_LABEL_3D',  maxDist: 0.25,  hintKey: 'LIQ_RANGE_HINT_3D' },
   { key: '1w',  labelKey: 'LIQ_RANGE_LABEL_1W',  maxDist: 0.50,  hintKey: 'LIQ_RANGE_HINT_1W' },
 ];
-
-interface Band {
-  price: number; distPct: number; usdM: number;
-  lev: string; side: 'long' | 'short'; barPct: number; isMagnet: boolean;
-}
-
-function computeBands(price: number, oi: number, longR: number, shortR: number, maxDist: number) {
-  const oiM = oi / 1e6;
-  const active = TIERS.filter(t => t.dist <= maxDist);
-
-  const longs: Band[] = active.map(t => ({
-    price: price * (1 - t.dist), distPct: t.dist * 100,
-    usdM: oiM * longR * t.w, lev: `${t.lev}x`,
-    side: 'long' as const, barPct: 0, isMagnet: false,
-  }));
-  const shorts: Band[] = active.map(t => ({
-    price: price * (1 + t.dist), distPct: t.dist * 100,
-    usdM: oiM * shortR * t.w, lev: `${t.lev}x`,
-    side: 'short' as const, barPct: 0, isMagnet: false,
-  }));
-
-  const maxUSD = Math.max(...longs.map(b => b.usdM), ...shorts.map(b => b.usdM), 1);
-  [...longs, ...shorts].forEach(b => { b.barPct = (b.usdM / maxUSD) * 100; });
-
-  const magL = longs.length  ? [...longs].sort((a, b)  => b.usdM - a.usdM)[0] : null;
-  const magS = shorts.length ? [...shorts].sort((a, b) => b.usdM - a.usdM)[0] : null;
-  if (magL) magL.isMagnet = true;
-  if (magS) magS.isMagnet = true;
-
-  return {
-    longs, shortsDisplay: [...shorts].reverse(),
-    magnetLong: magL, magnetShort: magS,
-    totalLongM: longs.reduce((s, b) => s + b.usdM, 0),
-    totalShortM: shorts.reduce((s, b) => s + b.usdM, 0),
-    tierCount: active.length,
-  };
-}
 
 function fmtP(price: number): string {
   if (price >= 10_000) return '$' + Math.round(price).toLocaleString('en-US');
@@ -147,7 +91,7 @@ function BandRow({ b }: { b: Band }) {
           boxShadow: b.isMagnet ? `0 0 10px ${withAlpha(accent, '44')}` : 'none',
         }} />
       </div>
-      <span className="liq-row-usd" style={{ color: accent }}>{fmtM(b.usdM)}</span>
+      <span className="liq-row-usd" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '-' : fmtM(b.usdM)}</span>
     </div>
   );
 }
@@ -335,10 +279,11 @@ export default function LiqTerminal() {
 
   const bands = useMemo(() => {
     if (!cd?.price || !cd?.oi) return null;
-    return computeBands(cd.price, cd.oi, cd.longRatio ?? 0.5, cd.shortRatio ?? 0.5, rangeConf.maxDist);
+    return computeBands(cd.price, cd.oi, cd.longRatio ?? null, cd.shortRatio ?? null, rangeConf.maxDist);
   }, [cd?.price, cd?.oi, cd?.longRatio, cd?.shortRatio, rangeConf.maxDist]);
 
-  const bias = bands
+  /* No positioning, no bias: "balanced" would be a claim about a split nobody measured. */
+  const bias = bands && bands.totalLongM !== null && bands.totalShortM !== null
     ? bands.totalLongM > bands.totalShortM * 1.15
       ? { txt: t('LIQ_BIAS_LONG_HEAVY'), sub: t('LIQ_BIAS_LONG_HEAVY_SUB'), col: 'var(--red)' }
       : bands.totalShortM > bands.totalLongM * 1.15
@@ -439,7 +384,8 @@ export default function LiqTerminal() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>
-                    {((bybitPos?.longRatio ?? cd.longRatio ?? 0.5) * 100).toFixed(0)}%
+                    {/* #1651: "-" rather than 50%, which was an invented number wearing a measurement's clothes. */}
+                    {(bybitPos?.longRatio ?? cd.longRatio) == null ? '-' : `${((bybitPos?.longRatio ?? cd.longRatio)! * 100).toFixed(0)}%`}
                   </span>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
                 </div>
@@ -472,7 +418,7 @@ export default function LiqTerminal() {
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--green-2)', fontVariantNumeric: 'tabular-nums' }}>
-                    {((bybitPos?.shortRatio ?? cd.shortRatio ?? 0.5) * 100).toFixed(0)}%
+                    {(bybitPos?.shortRatio ?? cd.shortRatio) == null ? '-' : `${((bybitPos?.shortRatio ?? cd.shortRatio)! * 100).toFixed(0)}%`}
                   </span>
                 </div>
                 {(retailPos?.shortRatio ?? cd.bnShortRatio) != null && (
