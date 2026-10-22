@@ -51,6 +51,7 @@ import { formatRsi } from '@/lib/rsi';
 import { priceDigits, priceText, signedUsd } from '@/lib/numberFormat';
 import { announcePageCoin } from '@/lib/pageCoin';
 import { ageText, utcStamp } from '@/lib/promptTime';
+import AiDisclaimer from '@/components/AiDisclaimer';
 
 /* Slowest rate at which realized liquidation clusters are handed to the chart.
    Matches LiqFeed's own EVENTS_EMIT_MS for the same reason: the clusters
@@ -2584,6 +2585,8 @@ function ArenaContent() {
             <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
             <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
           </div>
+          {/* #1631: last thing under the read, so the signal, the confidence and the reasoning are all above it. */}
+          <AiDisclaimer />
         </>
       )}
 

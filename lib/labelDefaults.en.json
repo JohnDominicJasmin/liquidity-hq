@@ -1763,6 +1763,7 @@
   "MARKET_CONDITIONS_WIDGET_LOADING_SR": "Loading…",
   "MARKET_CONDITIONS_WIDGET_DATA_SOURCE": "Data by Binance",
   "STATE_UNAVAILABLE": "Unavailable",
+  "AI_DISCLAIMER": "Not financial advice. You're still the one who decides your trades.",
   "LIQ_HEATMAP_TITLE": "BTC Liquidation Clusters",
   "LIQ_HEATMAP_SUBTITLE": "BTC only · Coinglass",
   "LIQ_HEATMAP_SHORT_SECTION_LABEL": "Short liquidations above - bulls target here",
