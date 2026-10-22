@@ -800,7 +800,7 @@ function fieldRx(name: string): RegExp {
   return new RegExp('\\*{0,2}' + name + '\\*{0,2}:\\s*', 'i');
 }
 
-export function parseCombinedResponse(text: string, tf: string, session: string): CombinedResult {
+export function parseCombinedResponse(text: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult {
   // Normalise: strip leading ** from every line so field detection works
   const clean = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
 
@@ -830,7 +830,7 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
   for (const line of catSect.split('\n')) {
     const m = line.match(/^-\s*(.+)/);
     if (!m) continue;
-    const c = formatCatalyst(stripMd(m[1]));
+    const c = formatCatalyst(stripMd(m[1]), nowMs);
     if (c) catalysts.push(c);
   }
 
@@ -916,7 +916,34 @@ export function parseCounted(text: string): { bullish: number; bearish: number }
 }
 
 /** "claim | source | when" -> "claim - source, when"; null for a "None ..." line or one without a source and a date. */
-function formatCatalyst(raw: string): string | null {
+/** The UTC date and time at the start of a catalyst's "when": `2026-10-22 03:51 UTC` or `2026-10-22T03:51Z`. Milliseconds, or null. */
+function catalystTimeMs(when: string): number | null {
+  const m = when.match(/(20\d\d-\d\d-\d\d)[T ](\d\d):(\d\d)/);
+  if (!m) return null;
+  const ms = Date.parse(`${m[1]}T${m[2]}:${m[3]}:00Z`);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** How old, in words: minutes under the hour, hours under two days, then days. */
+function ageText(ms: number): string {
+  const mins = Math.round(ms / 60_000);
+  if (mins < 60) return `${Math.max(mins, 0)}m old`;
+  const hours = ms / 3_600_000;
+  if (hours < 48) return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)}h old`;
+  return `${Math.round(hours / 24)}d old`;
+}
+
+/* #1651 (QA, 2026-10-22): the AGE is computed HERE from the timestamp, and whatever the model wrote is discarded.
+ *
+ * A Deep read at 10:55:38 UTC cited "2026-10-22 03:51 UTC (age ~18h)". The timestamp was correct; the article was 7.1 hours old. The age
+ * was invented and wrong by eleven hours. That instance overstated staleness, which is the harmless direction - the same mechanism can
+ * say "age ~2h" over a day-old story, which reads as breaking news, and that is the direction a trader acts on.
+ *
+ * Nothing validated it, and it is arithmetic we can do ourselves from a timestamp already on the line. A prompt rule was the other option
+ * and was rejected: an instruction can be drifted from, subtraction cannot. If the timestamp cannot be parsed the line keeps its stamp and
+ * carries NO age - an age we cannot derive is one we cannot stand behind. A stamp in the future is the model's error, so it gets no age
+ * either, and the stamp stays visible so a reader can see what was claimed. */
+function formatCatalyst(raw: string, nowMs: number): string | null {
   if (!raw || /^none\b/i.test(raw)) return null;
   const parts = raw.split('|').map((p) => p.trim()).filter(Boolean);
   if (parts.length < 3) return null;
@@ -926,7 +953,10 @@ function formatCatalyst(raw: string): string | null {
   // PM's audit of #1668: a date in the source slot, or "memory" as the source, is not a source.
   if (CATALYST_WHEN.test(source) || NOT_A_SOURCE.test(source)) return null;
   const claim = parts.slice(0, -2).join(' | ');
-  return `${claim} - ${source}, ${when}`;
+  const stamp = when.replace(/\s*\((?:[^()]*\b(?:ago|old|age)\b[^()]*)\)\s*$/i, '').trim();
+  const ts = catalystTimeMs(stamp);
+  const withAge = ts !== null && ts <= nowMs + 5 * 60_000 ? `${stamp} (${ageText(nowMs - ts)})` : stamp;
+  return `${claim} - ${source}, ${withAge}`;
 }
 
 /** The perps-vs-spot reading's "could not be measured" sentence (lib/perpSpot.ts), as it reaches the prompt. */
