@@ -4,6 +4,7 @@ import { useMarket, BINANCE_SYMS } from '@/lib/marketStore';
 import Sparkline from './Sparkline';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { parseRatioPair } from '@/lib/ratioPair';
 
 /* ── Fear & Greed label → CSS class (existing .score-* tokens, previously
    unused - this widget is the first to actually wire them up). Derived from
@@ -90,17 +91,25 @@ function useFngHistory(): number[] {
   return points;
 }
 
-function useBtcLongShort(): { long: number; short: number } | null {
-  const [ratio, setRatio] = useState<{ long: number; short: number } | null>(null);
+/* #1651 (QA's sweep, finding A): 'loading' and 'unavailable' were the same value - null - and both rendered the skeleton, while a row
+   whose FIELDS were missing rendered 50/50. The guard below rejects the pair; this type is what stops the rejection from silently
+   becoming an eternal "loading". */
+type LongShort = { long: number; short: number } | 'unavailable' | null;
+
+function useBtcLongShort(): LongShort {
+  const [ratio, setRatio] = useState<LongShort>(null);
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/proxy?type=lsr-global&symbol=${BINANCE_SYMS.btc}&period=1h&limit=1`)
       .then(r => r.json())
       .then((data: Array<{ longAccount: string; shortAccount: string }>) => {
-        if (cancelled || !Array.isArray(data) || !data[0]) return;
-        setRatio({ long: parseFloat(data[0].longAccount), short: parseFloat(data[0].shortAccount) });
+        if (cancelled) return;
+        /* Line 100 used to guard data[0] but not its FIELDS, so a missing longAccount became NaN, total became NaN, and the
+           percentage fell through to a hardcoded 50 - the same 50/50 as the ladder, as a literal rather than a `?? 0.5`. */
+        const pair = Array.isArray(data) && data[0] ? parseRatioPair(data[0].longAccount, data[0].shortAccount) : null;
+        setRatio(pair ? { long: pair.longRatio, short: pair.shortRatio } : 'unavailable');
       })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setRatio('unavailable'); });
     return () => { cancelled = true; };
   }, []);
   return ratio;
@@ -175,14 +184,21 @@ export default function MarketConditionsWidget() {
         </div>
       </div>
 
-      {/* BTC Long/Short */}
+      {/* BTC Long/Short. Hidden entirely when the split is unavailable: a heading over an empty space reads as broken, and the only
+          honest alternative - a line saying it is unavailable - is new copy, so it needs a label, a migration and the owner's eye.
+          Raised with PM rather than decided here; until then nothing is shown, which is at least not a number nobody measured. */}
+      {longShort !== 'unavailable' && (
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '0.5px solid var(--bdr)' }}>
         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 5 }}>
           {t('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL')}
         </div>
+        {/* 'unavailable' is excluded by the wrapper above, so null here means still loading - the two are no longer the same value. */}
         {longShort ? (() => {
+          /* The `: 50` that used to sit on this line answered three different unknowns - a missing field, a non-numeric one, and a
+             genuine 0/0 - with the same number a real even market produces. The pair is validated before it gets here, so a total
+             that is not positive can no longer occur; it is asserted rather than defaulted. */
           const total = longShort.long + longShort.short;
-          const longPct  = total > 0 ? (longShort.long / total) * 100 : 50;
+          const longPct  = (longShort.long / total) * 100;
           const shortPct = 100 - longPct;
           return (
             <>
@@ -207,6 +223,7 @@ export default function MarketConditionsWidget() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
