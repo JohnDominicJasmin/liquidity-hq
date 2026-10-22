@@ -6,7 +6,7 @@
  * page, dark and light, in <ROOT>/<page>/.
  * One JSON line per (account, page, width) is appended to <ROOT>/_sweep/results.jsonl; a re-run skips lines already there (resume after a reap).
  * usage: node regress-pages.mjs [accts=anon,B,T,A] [widths=1280,390] [pages csv=all]                                                                  */
-import { chromium, open, quiet, sleep, flipTheme, dirFor, BASE, ROOT } from './rlib.mjs';
+import { chromium, open, quiet, sleep, flipTheme, dirFor, BASE, ROOT, marketDataOutcome, assertMarketDataReached } from './rlib.mjs';
 import { PAGES } from './pages.mjs';
 import { mkdirSync, existsSync, readFileSync, appendFileSync } from 'node:fs';
 const accts = (process.argv[2] || 'anon,B,T,A').split(',');
@@ -87,6 +87,11 @@ try {
       row.failed = failed.filter((f) => f.kind === 'FAILED'); row.fenced = failed.filter((f) => f.kind === 'fence').map((f) => f.u.replace(/\?.*$/, '')).filter((v, i, a) => a.indexOf(v) === i);
       row.refused = failed.filter((f) => f.kind === 'refused').length; row.aborted = failed.filter((f) => f.kind === 'aborted').length;
       const sum = {}; for (const n of rec) { const k = `${n.kind} ${n.m} ${n.url.replace(/\?.*$/, '')}`; sum[k] = (sum[k] || 0) + 1; } row.fence = sum;
+      /* Market data reached, or this row is an ERROR rather than a result (#1688). A page whose prices never arrived looks calm, not
+         broken, so recording it as a measured row is how a geo-blocked run turns into false evidence. `market` is kept either way, so a
+         reader can see which hosts answered. */
+      row.market = marketDataOutcome(ctx);
+      assertMarketDataReached(ctx, key);
     } catch (e) { row.error = String(e.message || e).slice(0, 200); }
     try { await ctx?.close(); } catch { /* */ }
     appendFileSync(OUTF, JSON.stringify(row) + '\n');

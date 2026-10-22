@@ -68,6 +68,33 @@ const DENY = /^\/api\/(grok|grok-chat|briefing|behavioral-bias|hypotheses|pine-s
 /* The local answer mirrors the shape /api/settings returns ({ ok, accepted, rejected, settings }), so a page that reads it does not log a fence artifact. */
 const localAnswer = (req) => { let f = []; try { f = Object.keys(JSON.parse(req.postData() || '{}')).filter((k) => k !== 'knownAsOf'); } catch { /* not JSON */ } return JSON.stringify({ ok: true, accepted: f, rejected: [], settings: {}, qaLocal: true }); };
 
+/** Per-context market-data outcome, keyed weakly so a closed context is collectable. See the block inside open() for why it exists. */
+const MARKET_BY_CTX = new WeakMap();
+
+/** What this context's exchange requests did: which hosts were asked, which answered, and why any failed. */
+export function marketDataOutcome(ctx) {
+  const m = MARKET_BY_CTX.get(ctx);
+  if (!m) return { asked: [], ok: [], failed: {}, reached: false, tracked: false };
+  return {
+    asked: [...m.asked].sort(), ok: [...m.ok].sort(), failed: Object.fromEntries(m.failed),
+    reached: m.ok.size > 0, tracked: true,
+  };
+}
+
+/** Throw unless at least one exchange host answered this context. A run that asked for market data and got none must NOT report a result:
+ *  no prices reads as a calm market, and that is indistinguishable from a real one in the evidence (#1688, the cloud geo-block). A run that
+ *  never asked for market data at all is fine - pass { requireAsked: false } is not needed for that, it is the default. */
+export function assertMarketDataReached(ctx, label = 'this run') {
+  const o = marketDataOutcome(ctx);
+  if (!o.tracked) throw new Error(`${label}: market-data tracking is missing - the context was not opened through rlib.open()`);
+  if (o.asked.length === 0) return o;                      // nothing market-shaped was needed
+  if (o.reached) return o;
+  const why = Object.entries(o.failed).map(([h, e]) => `${h}: ${e}`).join('; ') || 'no response at all';
+  throw new Error(`${label}: NOT REPORTING - every exchange host failed, so this run measured an empty market, not a quiet one. `
+    + `Asked ${o.asked.join(', ')}. ${why}. A cloud container is geo-blocked by Bybit and Binance (#1688): run this against a deployed `
+    + `environment instead, or on a machine that is not blocked.`);
+}
+
 /* o: { acct='anon'|'A'|'B'|'T', w=1280, h, theme='dark', lang, consent='denied'|null, ls:{}, writes=false, allowAI:RegExp, onboarding='done'|'real',
         allowHosts:RegExp, appStub(r,req,u)->bool, sbStub(r,req,u)->bool, rec:[] } */
 export async function open(browser, o = {}) {
@@ -82,6 +109,32 @@ export async function open(browser, o = {}) {
   await ctx.routeWebSocket(/^wss:\/\/stream\.(bybit|bytick|binance)\.com/, (ws) => { ws.connectToServer(); });
   const rec = o.rec ?? [];
   const note = (kind, req, u) => rec.push({ t: Date.now(), kind, m: req.method(), url: u.host === APP ? u.pathname + u.search : u.host + u.pathname });
+
+  /* MARKET DATA REACHED, OR THE RUN SAYS NOTHING. Every exchange host this context asked for, and what came back.
+     Why this exists: the fence lets public market-data GETs through on purpose, so when the HOST is unreachable - a cloud container is
+     geo-blocked by Bybit and Binance (#1688) - the page gets no prices and the pass records an EMPTY result. Empty reads exactly like a
+     calm market, which is the silent-stop shape #1649 exists to prevent, and under the owner's 2026-10-22 order far more of these passes
+     run where that block is. `marketDataOutcome(ctx)` reports it and `assertMarketDataReached(ctx)` refuses to let a run report at all.
+     Counted from the context's own events rather than the route handler, because `continue()` says nothing about what came back. */
+  const market = { asked: new Set(), ok: new Set(), failed: new Map() };
+  /* `asked` is filled from the EVENTS, not only from the route handler below, and that distinction is the guard. A request can be stopped
+     before it ever reaches the handler - another route registered later, a proxy, an extension - and if `asked` only counted what the
+     handler saw, such a run would look like one that never needed market data and would be allowed to report. The self-test's negative
+     case found exactly that hole. So: any market host this context mentions at all counts as asked. */
+  ctx.on('response', (res) => {
+    const host = new URL(res.url()).host;
+    if (!MARKET.test(host)) return;
+    market.asked.add(host);
+    if (res.status() >= 200 && res.status() < 400) market.ok.add(host);
+    else market.failed.set(host, `HTTP ${res.status()}`);
+  });
+  ctx.on('requestfailed', (req) => {
+    const host = new URL(req.url()).host;
+    if (!MARKET.test(host)) return;
+    market.asked.add(host);
+    market.failed.set(host, req.failure()?.errorText ?? 'request failed');
+  });
+  MARKET_BY_CTX.set(ctx, market);
   await ctx.route('**/*', async (r) => {
     const req = r.request(); const u = new URL(req.url()); const m = req.method();
     if (u.protocol === 'data:' || u.protocol === 'blob:') return r.continue();
@@ -114,7 +167,10 @@ export async function open(browser, o = {}) {
       if (o.writes) { note('sb-write-through', req, u); return r.continue(); }
       note('sb-refused', req, u); return r.abort('accessdenied');
     }
-    if ((m === 'GET' || m === 'HEAD') && req.resourceType() !== 'document' && (MARKET.test(u.host) || FONTS.test(u.host))) return r.continue();
+    if ((m === 'GET' || m === 'HEAD') && req.resourceType() !== 'document' && (MARKET.test(u.host) || FONTS.test(u.host))) {
+      if (MARKET.test(u.host)) market.asked.add(u.host);
+      return r.continue();
+    }
     if (o.allowHosts && o.allowHosts.test(u.host)) return r.continue();
     note('fence', req, u); return r.abort('blockedbyclient');
   });
