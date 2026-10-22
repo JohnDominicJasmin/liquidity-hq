@@ -49,8 +49,16 @@ export function withGuardrail(body: BodyInit | null | undefined): BodyInit | nul
   if (!Array.isArray(obj.messages)) return body;
   const messages = obj.messages as Msg[];
 
-  /* Already carrying it - a retry, or a caller that added it itself. Adding it twice wastes tokens on every call. */
-  if (messages.some((m) => typeof m?.content === 'string' && m.content.includes('HARD RULES'))) return body;
+  /* Already carrying it - a retry, or a caller that added it itself. Adding it twice wastes tokens on every call.
+   *
+   * SYSTEM MESSAGES ONLY, and this is a security property rather than a tidy-up. The first version scanned EVERY message, so a user
+   * who typed the words "HARD RULES" suppressed the guardrail on their own request - the untrusted half of the conversation got a
+   * vote on whether a safety rule applied. Found by QA with a control. Checking the first line rather than anywhere in the content
+   * closes the same hole one level down: a system prompt that happens to quote the phrase mid-text no longer counts as carrying it. */
+  const alreadyGuarded = messages.some(
+    (m) => m?.role === 'system' && typeof m.content === 'string' && m.content.startsWith(AI_GUARDRAIL.split('\n')[0]),
+  );
+  if (alreadyGuarded) return body;
 
   const firstSystem = messages.findIndex((m) => m?.role === 'system');
   const next = firstSystem === -1
