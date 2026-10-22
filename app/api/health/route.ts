@@ -17,7 +17,9 @@ export const dynamic = 'force-dynamic';
  * 200 { ok: true, db_ms, db_checked_at, checked_at, exchanges } when one trivial read answers within 3 s.
  *
  * `checked_at` is THIS answer's time, generated per request. `db_checked_at` is when the cached database read actually ran, which
- * may be up to 30 s earlier - one field was doing both jobs until #1649, so a caller could not tell a fresh answer from a stale one.
+ * may be up to 30 s earlier, and `db_age_ms` is the gap at this request - one field was doing both jobs until #1649, so a caller
+ * could not tell a fresh answer from a stale one. Measured on production before the split: three calls across six seconds all
+ * returned the same `checked_at` and the same `db_ms` under `Cache-Control: no-store`.
  *
  * `exchanges` names every configured exchange every time - { bybit: { degraded }, binance: { degraded } } - healthy or not, because
  * an absent key cannot be told apart from a healthy one. Read at request time, never cached. A degraded upstream does NOT set
@@ -112,9 +114,17 @@ export async function GET(req: Request) {
   /* An open breaker does NOT make `ok` false. Degraded is not down: the site serves, the guards do their job, and a health check
      that goes red during every normal cooldown is one everybody learns to ignore - which is how a mechanism ends up wired to
      nothing. `ok`, `db_ms` and the status codes are exactly as before. */
+  /* How old the cached database reading is, at THIS request. /api/ath already solved this problem with its `X-Data-Stale:
+     true; age=<seconds>` header - the one place in this codebase that distinguishes fresh from stale from failed without anyone
+     reading a log - so the idea is copied rather than reinvented. Measured live on production before this existed: three calls
+     across six seconds returned an identical `checked_at` and an identical `db_ms` under a `Cache-Control: no-store` header, so
+     the header promised a freshness the body did not deliver. With the age in the body, a caller can see that for itself. */
+  const dbAgeMs = cached ? Math.max(0, now - cached.at) : 0;
+
   const body = {
     ...check.body,
     checked_at: new Date(now).toISOString(),
+    db_age_ms: dbAgeMs,
     exchanges,
     /* The detailed view is credentialed. /api/health is public, and strikes + cooling window + last upstream status together map
        how close this server is to being rate-limited and how long it stays down - coarse in public, detail behind the secret. */
