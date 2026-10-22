@@ -20,6 +20,20 @@ cloud session starts from GitHub: anything not committed is stranded. PM asked f
 | `qa-howto-arena/lib.mjs` | The lighter harness for How-to-test runs: a **synthetic** session (fake token, plan answered locally), so nothing reaches a real account. |
 | `qa-howto-arena/prod-1676.mjs` | The release check on production QA can run without a real account: signed-out pages, and that Ask is prefilled and sends nothing before Send. |
 | `mutate-batch.mjs` | Breaks the code one edit at a time and requires a named test to go red. `node mutate-batch.mjs <repoRoot> <mutations.json>`; the file's bytes are restored after every run. |
+| `regress/selftest-marketguard.mjs` | Proves the market-data guard below, both ways, in seconds. No deployed site and no account. **It is the one run that needs a machine with exchange access**, since its positive case is "the exchange answered". |
+
+## The market-data guard
+
+`rlib` lets public exchange GETs through on purpose, so when an exchange host is **unreachable** the page simply has no prices — and an
+empty result reads as a calm market rather than a failure. That is the silent-stop shape #1649 exists to prevent, and a cloud container is
+geo-blocked by Bybit and Binance (#1688), so it is now the common case rather than a rare one.
+
+- `marketDataOutcome(ctx)` — which exchange hosts this context asked for, which answered, and why any failed.
+- `assertMarketDataReached(ctx, label)` — **throws** if every exchange host failed. A run that asked for no market data is unaffected.
+
+**Which passes enforce it today:** `regress-pages.mjs` (a blocked row is written as an `error`, so a later run retries it rather than
+counting it) and `ask5.mjs`. **The others do not yet** — `regress-auth`, `regress-crud`, `regress-buttons`, `regress-arena`,
+`regress-i18n` — so add the call when you next touch one, and do not assume a green run there saw a live market.
 
 Everything else here is a one-off probe kept for its reasoning, not because it still runs.
 

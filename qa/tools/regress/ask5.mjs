@@ -2,7 +2,7 @@
  * POST /api/grok-chat. Five buttons: Arena page "Ask LiquidityAI", the chart panel "ASK AI", EMA signal "Explain signal" (all /arena), a news
  * headline's and a whale card's "Ask LiquidityAI" (/news). As Pro A, 1280. NO AI SPEND: rlib answers every /api/grok* request locally
  * (POST = app-write-local, paid GET = ai-get-local) and records it. usage: node ask5.mjs [acct=A] */
-import { chromium, open, quiet, sleep, BASE, ROOT } from './rlib.mjs';
+import { chromium, open, quiet, sleep, BASE, ROOT, assertMarketDataReached } from './rlib.mjs';
 import { mkdirSync, appendFileSync } from 'node:fs';
 const acct = process.argv[2] || 'A';
 const only = process.argv[3] ? new RegExp(process.argv[3], 'i') : null; // optional: run only the buttons whose label matches
@@ -52,6 +52,9 @@ try {
       onSend = ai(rec, s0).filter((x) => x.startsWith('POST'));
       await page.screenshot({ path: `${DIR}/${b.label.replace(/[^a-z0-9]+/gi, '-')}.jpg`, type: 'jpeg', quality: 70 });
     }
+    /* Market data reached, or this button reports nothing (#1688): a blocked exchange leaves the Arena without prices, which can change
+       whether a button renders at all - and "NOT PRESENT" would then be false evidence about the app. */
+    assertMarketDataReached(ctx, `ask5 ${b.label}`);
     const pass = found && onClick.length === 0 && panelOpen && prefilled.length > 0 && onSend.length === 1 && onSend[0] === 'POST /api/grok-chat';
     say({ acct, button: b.label, found, panelOpen, prefilled, postsOnClick: onClick, postsOnSend: onSend, verdict: found ? (pass ? 'PASS' : 'FAIL') : 'NOT PRESENT' });
     await ctx.close();
