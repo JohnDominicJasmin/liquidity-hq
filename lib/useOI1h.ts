@@ -45,9 +45,11 @@ export function useOI1h(coin: CoinId): OI1hData {
             { cache: 'no-store' }
           );
           if (r.ok) {
-            const d = await r.json() as Array<{ sumOpenInterest: string; sumOpenInterestValue?: string }>;
+            const d = await r.json() as Array<{ sumOpenInterest: string; sumOpenInterestValue?: string; timestamp?: number }>;
             if (d.length >= 2) {
-              const change = oiHistChange(d);
+              /* #1696: the 13 samples must SPAN the hour they claim, not merely number 13 - Binance can skip points, and the card would
+                 then label a three-hour move "1h" (QA's LOW finding). One poll of tolerance (5 minutes) either way. */
+              const change = oiHistChange(d, { ms: 60 * 60_000, toleranceMs: 5 * 60_000 });
               // #1238: sumOpenInterestValue is absent, not just unparseable,
               // when this came back via the proxy's Bybit fallback - Bybit's
               // open-interest endpoint has no USD-notional field to source

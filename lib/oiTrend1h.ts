@@ -31,9 +31,20 @@ export function pctChange(from: number | null, to: number | null): number | null
  *  same two moments. With `period=5m&limit=13` that is the hour the Arena card's "OI % 1h" shows (lib/useOI1h.ts) and the hour the Telegram
  *  Distribution alert scores (app/api/telegram/alert/route.ts, #1651): one helper, so the two cannot drift apart. pricePct is null where the samples
  *  carry no USD value (the Bybit fallback): unknown, never "flat". null with fewer than two samples. */
-export function oiHistChange(samples: ReadonlyArray<{ sumOpenInterest?: unknown; sumOpenInterestValue?: unknown }>): { oiPct: number | null; pricePct: number | null } | null {
+export function oiHistChange(
+  samples: ReadonlyArray<{ sumOpenInterest?: unknown; sumOpenInterestValue?: unknown; timestamp?: unknown }>,
+  window?: { ms: number; toleranceMs: number },
+): { oiPct: number | null; pricePct: number | null } | null {
   if (samples.length < 2) return null;
   const first = samples[0], last = samples[samples.length - 1];
+  /* #1696 (QA's LOW finding): with `window` given, the samples must really SPAN that long. The count was the only check, so a gapped
+     series - the exchange skipping points - was read as "the last hour" because it still had 13 of them, and a card could say an hour
+     when it meant three. The timestamps are already in the payload; this just reads them. Unreadable timestamps are unknown, not a pass. */
+  if (window) {
+    const t0 = Number(first.timestamp), t1 = Number(last.timestamp);
+    if (!Number.isFinite(t0) || !Number.isFinite(t1)) return null;
+    if (Math.abs((t1 - t0) - window.ms) > window.toleranceMs) return null;
+  }
   const num = (v: unknown): number | null => {
     const n = typeof v === 'string' || typeof v === 'number' ? parseFloat(String(v)) : NaN;
     return Number.isFinite(n) ? n : null;
