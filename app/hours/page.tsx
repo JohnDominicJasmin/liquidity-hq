@@ -19,7 +19,10 @@ import PageHint from '@/components/PageHint';
    Asia runs 23:00-03:00 UTC, written as 23->27 so the range stays ordered. */
 const TIMELINE_SEGS_UTC = [
   { start: 4,    end: 7,    bg: 'rgba(248,113,113,0.45)', labelKey: 'HOURS_SEG_DEAD' as LabelKey },
-  { start: 7,    end: 10,   bg: 'rgba(122,184,245,0.55)', labelKey: 'HOURS_SEG_LONDON' as LabelKey },
+  /* LONDON is a LIGHTER blue than NY on purpose (owner, 2026-10-22, R7): at 0.55 alpha the two were 1.15:1 apart on the dark ground and
+     read as one colour in the key the labels now fall back to. This is 2.19:1 from NY on dark, 1.30:1 on light, and its own label reads at
+     7.39 at worst instead of 5.33 (the table below). */
+  { start: 7,    end: 10,   bg: 'rgba(176,216,255,0.70)', labelKey: 'HOURS_SEG_LONDON' as LabelKey },
   { start: 12,   end: 13.5, bg: 'rgba(148,163,184,0.45)', labelKey: 'HOURS_SEG_PRE_NY' as LabelKey },
   { start: 13.5, end: 18,   bg: 'rgba(96,165,250,0.55)',  labelKey: 'HOURS_SEG_NY' as LabelKey },
   { start: 18,   end: 21,   bg: 'rgba(125,224,164,0.70)', labelKey: 'HOURS_SEG_PRIME' as LabelKey },
@@ -244,7 +247,7 @@ export default function BestHours() {
 
                         band     cur dark      cur light   term dark     term light
                         DEAD     white 8.34    black 11.57 white 8.17    black 11.28
-                        LONDON   white 5.42    black 12.66 white 5.33    black 12.37
+                        LONDON   black 7.39    black 14.85 black 7.46    black 14.64
                         PRE_NY   white 7.81    black 12.43 white 7.63    black 12.10
                         NY       white 6.23    black 11.43 white 6.12    black 11.15
                         PRIME    black 6.89    black 13.97 black 6.96    black 13.77
