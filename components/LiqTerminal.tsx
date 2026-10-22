@@ -59,38 +59,46 @@ const RANGES: { key: TimeRange; labelKey: LabelKey; maxDist: number; hintKey: La
 ];
 
 interface Band {
-  price: number; distPct: number; usdM: number;
+  /* #1651: usdM is null when the long/short split is UNKNOWN. The price level is price x 1/leverage and stands on its own; the dollar
+     figure is openInterest x that split, so without it there is no amount to show - and 50/50 was being substituted silently. */
+  price: number; distPct: number; usdM: number | null;
   lev: string; side: 'long' | 'short'; barPct: number; isMagnet: boolean;
 }
 
-function computeBands(price: number, oi: number, longR: number, shortR: number, maxDist: number) {
+/* #1651 (owner's data rule): longR/shortR are NULL when nothing measured the split. They used to arrive as `?? 0.5`, so an unknown
+   became a plausible 50/50 and was multiplied through every dollar figure and bar on screen. Unknown now stays unknown: the ladder keeps
+   its price levels and leverages, the amounts read "-", no bar is drawn, and the long-vs-short bias is not claimed at all. */
+function computeBands(price: number, oi: number, longR: number | null, shortR: number | null, maxDist: number) {
   const oiM = oi / 1e6;
   const active = TIERS.filter(t => t.dist <= maxDist);
 
   const longs: Band[] = active.map(t => ({
     price: price * (1 - t.dist), distPct: t.dist * 100,
-    usdM: oiM * longR * t.w, lev: `${t.lev}x`,
+    usdM: longR === null ? null : oiM * longR * t.w, lev: `${t.lev}x`,
     side: 'long' as const, barPct: 0, isMagnet: false,
   }));
   const shorts: Band[] = active.map(t => ({
     price: price * (1 + t.dist), distPct: t.dist * 100,
-    usdM: oiM * shortR * t.w, lev: `${t.lev}x`,
+    usdM: shortR === null ? null : oiM * shortR * t.w, lev: `${t.lev}x`,
     side: 'short' as const, barPct: 0, isMagnet: false,
   }));
 
-  const maxUSD = Math.max(...longs.map(b => b.usdM), ...shorts.map(b => b.usdM), 1);
-  [...longs, ...shorts].forEach(b => { b.barPct = (b.usdM / maxUSD) * 100; });
+  const amounts = [...longs, ...shorts].map(b => b.usdM).filter((v): v is number => v !== null);
+  const maxUSD = Math.max(...amounts, 1);
+  [...longs, ...shorts].forEach(b => { b.barPct = b.usdM === null ? 0 : (b.usdM / maxUSD) * 100; });
 
-  const magL = longs.length  ? [...longs].sort((a, b)  => b.usdM - a.usdM)[0] : null;
-  const magS = shorts.length ? [...shorts].sort((a, b) => b.usdM - a.usdM)[0] : null;
+  /* The magnet is the biggest band. With no amounts there is no biggest, so nothing is marked rather than the first row being crowned. */
+  const byUsd = (a: Band, b: Band) => (b.usdM ?? 0) - (a.usdM ?? 0);
+  const magL = longs.length  && longs[0].usdM  !== null ? [...longs].sort(byUsd)[0]  : null;
+  const magS = shorts.length && shorts[0].usdM !== null ? [...shorts].sort(byUsd)[0] : null;
   if (magL) magL.isMagnet = true;
   if (magS) magS.isMagnet = true;
 
   return {
     longs, shortsDisplay: [...shorts].reverse(),
     magnetLong: magL, magnetShort: magS,
-    totalLongM: longs.reduce((s, b) => s + b.usdM, 0),
-    totalShortM: shorts.reduce((s, b) => s + b.usdM, 0),
+    totalLongM: longR === null ? null : longs.reduce((s, b) => s + (b.usdM ?? 0), 0),
+    totalShortM: shortR === null ? null : shorts.reduce((s, b) => s + (b.usdM ?? 0), 0),
     tierCount: active.length,
   };
 }
@@ -147,7 +155,7 @@ function BandRow({ b }: { b: Band }) {
           boxShadow: b.isMagnet ? `0 0 10px ${withAlpha(accent, '44')}` : 'none',
         }} />
       </div>
-      <span className="liq-row-usd" style={{ color: accent }}>{fmtM(b.usdM)}</span>
+      <span className="liq-row-usd" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '-' : fmtM(b.usdM)}</span>
     </div>
   );
 }
@@ -335,10 +343,11 @@ export default function LiqTerminal() {
 
   const bands = useMemo(() => {
     if (!cd?.price || !cd?.oi) return null;
-    return computeBands(cd.price, cd.oi, cd.longRatio ?? 0.5, cd.shortRatio ?? 0.5, rangeConf.maxDist);
+    return computeBands(cd.price, cd.oi, cd.longRatio ?? null, cd.shortRatio ?? null, rangeConf.maxDist);
   }, [cd?.price, cd?.oi, cd?.longRatio, cd?.shortRatio, rangeConf.maxDist]);
 
-  const bias = bands
+  /* No positioning, no bias: "balanced" would be a claim about a split nobody measured. */
+  const bias = bands && bands.totalLongM !== null && bands.totalShortM !== null
     ? bands.totalLongM > bands.totalShortM * 1.15
       ? { txt: t('LIQ_BIAS_LONG_HEAVY'), sub: t('LIQ_BIAS_LONG_HEAVY_SUB'), col: 'var(--red)' }
       : bands.totalShortM > bands.totalLongM * 1.15
@@ -439,7 +448,8 @@ export default function LiqTerminal() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>
-                    {((bybitPos?.longRatio ?? cd.longRatio ?? 0.5) * 100).toFixed(0)}%
+                    {/* #1651: "-" rather than 50%, which was an invented number wearing a measurement's clothes. */}
+                    {(bybitPos?.longRatio ?? cd.longRatio) == null ? '-' : `${((bybitPos?.longRatio ?? cd.longRatio)! * 100).toFixed(0)}%`}
                   </span>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
                 </div>
@@ -472,7 +482,7 @@ export default function LiqTerminal() {
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--green-2)', fontVariantNumeric: 'tabular-nums' }}>
-                    {((bybitPos?.shortRatio ?? cd.shortRatio ?? 0.5) * 100).toFixed(0)}%
+                    {(bybitPos?.shortRatio ?? cd.shortRatio) == null ? '-' : `${((bybitPos?.shortRatio ?? cd.shortRatio)! * 100).toFixed(0)}%`}
                   </span>
                 </div>
                 {(retailPos?.shortRatio ?? cd.bnShortRatio) != null && (
