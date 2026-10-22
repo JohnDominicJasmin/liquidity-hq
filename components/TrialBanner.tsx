@@ -46,6 +46,10 @@ export default function TrialBanner() {
   const labelRef = useRef<HTMLSpanElement>(null);
   const countRef = useRef<HTMLElement>(null);
   const [wrapped, setWrapped] = useState(false);
+  /* The day count is derived here, ABOVE the effect and the early returns, because the effect's dependency list needs it and hooks cannot
+     sit behind a branch. `msLeft` is 0 when there is no trial, which the early return below turns into no banner at all. */
+  const msLeft = trialEndsAt != null ? trialEndsAt - now : 0;
+  const daysLeft = Math.ceil(msLeft / 86_400_000);
   useLayoutEffect(() => {
     const a = labelRef.current, b = countRef.current;
     if (!a || !b) return;
@@ -54,12 +58,12 @@ export default function TrialBanner() {
     const ro = new ResizeObserver(check);
     ro.observe(a.parentElement ?? a);
     return () => ro.disconnect();
-  });
+    // The observer is rebuilt when the countdown's text could change or the banner appears, not on every render - useNow re-renders this
+    // component every minute (QA, #1678). dismissedDay is in the list because dismissing and restoring unmounts and remounts the row.
+  }, [daysLeft, isTrial, dismissedDay]);
   if (!isTrial || trialEndsAt == null) return null;
 
-  const msLeft = trialEndsAt - now;
   if (msLeft <= 0) return null;
-  const daysLeft = Math.ceil(msLeft / 86_400_000);
   const label = daysLeft === 1
     ? t('TRIAL_BANNER_LAST_DAY')
     : t('TRIAL_BANNER_DAYS_LEFT', { days: daysLeft });
