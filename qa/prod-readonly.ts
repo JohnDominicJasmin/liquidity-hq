@@ -116,6 +116,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'arena-read-card', needs: 'pro' },
   { spec: 'econ-staleness', needs: 'pro' },
   { spec: 'grok-header-meta', needs: 'pro' },
+  { spec: 'grokchat-page-coin-handoff', needs: 'pro', note: 'reads only: a hard page load of /arena?coin=xrp, then the chat opened from the launcher. The answer is stubbed in the browser, so no AI credit is spent, and it PATCHes nothing (unlike its sibling grokchat-selection-without-arena-visit, which resets strategy_selection and is excluded)' },
   { spec: 'perp-spot', needs: 'pro' },
   { spec: 'perps-unknown-disclosure', needs: 'pro' },
   { spec: 'plan-badge-mobile', needs: 'pro' },
