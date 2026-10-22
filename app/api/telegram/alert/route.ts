@@ -1401,7 +1401,12 @@ async function checkSentimentExtremes(
 
     const lsData  = await lsR.value.json() as LSItem[];
     if (!lsData?.length) return [];
-    const longPct  = parseFloat(lsData[0].longAccount) * 100;   // e.g. 60.87
+    /* #1651 (QA finding C): an unguarded parseFloat here made both sentiment gates false, so the alert simply did not fire - "no
+       extreme" and "we could not read positioning" looked identical. Return early instead: nothing is sent either way, but the
+       reason is now in the code rather than in the arithmetic. */
+    const longFrac = parseFloat(lsData[0].longAccount);
+    if (!Number.isFinite(longFrac) || longFrac < 0 || longFrac > 1) return [];
+    const longPct  = longFrac * 100;   // e.g. 60.87
     const shortPct = 100 - longPct;
     const frPct    = btcFR * 100;
 
@@ -1459,7 +1464,10 @@ async function fetchAllLSR(skipCounts: SkipCounts): Promise<Record<string, numbe
         );
         if (!res) return;
         const d = await res.json() as Array<{ longAccount: string }>;
-        if (d?.[0]) result[coin] = parseFloat(d[0].longAccount);
+        /* #1651 (QA finding B): was an unguarded parseFloat. `NaN != null` is TRUE, so a corrupt Binance field filled this slot, the
+           Bybit branch below read the coin as already done and never ran, and a bad source silently suppressed a working one. */
+        const v = d?.[0] ? parseFloat(d[0].longAccount) : NaN;
+        if (Number.isFinite(v) && v >= 0 && v <= 1) result[coin] = v;
       } catch { /* skip */ }
     }),
     // Bybit-only coins L/S ratio
@@ -1473,7 +1481,10 @@ async function fetchAllLSR(skipCounts: SkipCounts): Promise<Record<string, numbe
         if (!res.ok) return;
         const d = await res.json() as { result?: { list?: Array<{ buyRatio: string }> } };
         const item = d.result?.list?.[0];
-        if (item) result[coin] = parseFloat(item.buyRatio);
+        /* Same guard on the fallback itself: a NaN here would reach calcSqueezeScore, where every threshold against it is false, so
+           positioning would contribute nothing to the score with nothing saying positioning was missing. */
+        const v = item ? parseFloat(item.buyRatio) : NaN;
+        if (Number.isFinite(v) && v >= 0 && v <= 1) result[coin] = v;
       } catch { /* skip */ }
     }),
   ]);

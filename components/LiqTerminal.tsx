@@ -10,6 +10,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { computeBands, type Band } from '@/lib/liqBands';
+import { parseRatioPair } from '@/lib/ratioPair';
 
 type TimeRange = '12h' | '24h' | '48h' | '3d' | '1w';
 
@@ -85,11 +86,15 @@ function BandRow({ b }: { b: Band }) {
         {b.lev}{b.isMagnet ? ' ◆' : ''}
       </span>
       <div className="liq-row-bar-wrap">
-        <div className="liq-row-bar" style={{
+        {/* #1651: the bar is omitted, not zero-width, when there is no amount. `Math.max(b.barPct, 2)` floors every bar at 2%, so an
+            unknown row still painted a stub - which reads as "a little liquidity here", a value, exactly what the fix removes from the
+            column beside it. The floor stays for real amounts, where it keeps the smallest tier visible. Caught by rendering it: the
+            data said barPct 0 and the screen said otherwise. */}
+        {b.usdM !== null && <div className="liq-row-bar" style={{
           width: Math.max(b.barPct, 2) + '%',
           background: `linear-gradient(90deg, ${isLong ? 'rgba(248,113,113,0.10)' : 'rgba(52,211,153,0.10)'}, ${isLong ? 'rgba(248,113,113,0.60)' : 'rgba(52,211,153,0.60)'})`,
           boxShadow: b.isMagnet ? `0 0 10px ${withAlpha(accent, '44')}` : 'none',
-        }} />
+        }} />}
       </div>
       <span className="liq-row-usd" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '-' : fmtM(b.usdM)}</span>
     </div>
@@ -236,7 +241,9 @@ export default function LiqTerminal() {
       .then(r => r.json())
       .then((data: Array<{ longAccount: string; shortAccount: string }>) => {
         if (cancelled || !Array.isArray(data) || !data[0]) return;
-        setWhalePos({ longRatio: parseFloat(data[0].longAccount), shortRatio: parseFloat(data[0].shortAccount) });
+        /* #1651: a bare parseFloat on a missing field is NaN, which passes every `!= null` check downstream and reaches the screen
+           as "NaN%". An unusable row is unknown, and unknown is null. */
+        setWhalePos(parseRatioPair(data[0].longAccount, data[0].shortAccount));
       })
       .catch(() => { if (!cancelled) setWhalePos(null); });
     return () => { cancelled = true; };
@@ -251,7 +258,7 @@ export default function LiqTerminal() {
       .then(r => r.json())
       .then((data: Array<{ longAccount: string; shortAccount: string }>) => {
         if (cancelled || !Array.isArray(data) || !data[0]) return;
-        setRetailPos({ longRatio: parseFloat(data[0].longAccount), shortRatio: parseFloat(data[0].shortAccount) });
+        setRetailPos(parseRatioPair(data[0].longAccount, data[0].shortAccount));
       })
       .catch(() => { if (!cancelled) setRetailPos(null); });
     return () => { cancelled = true; };
@@ -268,7 +275,7 @@ export default function LiqTerminal() {
         if (cancelled) return;
         const item = d.result?.list?.[0];
         if (!item) return;
-        setBybitPos({ longRatio: parseFloat(item.buyRatio), shortRatio: parseFloat(item.sellRatio) });
+        setBybitPos(parseRatioPair(item.buyRatio, item.sellRatio));
       })
       .catch(() => { if (!cancelled) setBybitPos(null); });
     return () => { cancelled = true; };
@@ -461,10 +468,13 @@ export default function LiqTerminal() {
           {(whalePos != null || (cd.bnWhaleLongRatio != null && cd.bnWhaleShortRatio != null)) && (() => {
             const whaleLong  = whalePos?.longRatio  ?? cd.bnWhaleLongRatio!;
             const whaleShort = whalePos?.shortRatio ?? cd.bnWhaleShortRatio!;
-            const retailLong = cd.bnLongRatio ?? 0.5;
+            /* #1651: was `?? 0.5`. The substituted half never tripped either threshold, so an unknown retail split read as "no
+               divergence" - a verdict, quietly, from a number nobody measured. Unknown now means the comparison is not made, and the
+               banner's retailPct can never be an invented 50. */
+            const retailLong = cd.bnLongRatio ?? null;
 
-            const longSqueezeRisk  = retailLong  > 0.55 && whaleShort > 0.52;
-            const shortSqueezeRisk = retailLong  < 0.45 && whaleLong  > 0.52;
+            const longSqueezeRisk  = retailLong !== null && retailLong > 0.55 && whaleShort > 0.52;
+            const shortSqueezeRisk = retailLong !== null && retailLong < 0.45 && whaleLong  > 0.52;
             const hasDivergence    = longSqueezeRisk || shortSqueezeRisk;
 
             const whaleSide = whaleLong > whaleShort ? 'long' : 'short';
