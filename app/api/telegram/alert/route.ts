@@ -8,6 +8,7 @@ import { formatAlertTally } from '@/lib/alertTally';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
+import { oiHistChange, oiTrend1h } from '@/lib/oiTrend1h';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { selectAllRows } from '@/lib/selectAllRows';
@@ -1583,7 +1584,8 @@ async function checkSqueezeAlerts(
    lib/distribution.ts (shared with the client) - this function only derives
    the inputs from Binance futures data: 1h klines carry taker-buy volume
    (field 9) for the sell-flow + CVD proxy, openInterestHist gives the OI
-   trend, topLongShortPositionRatio gives whale positioning, funding from
+   trend over the last hour by the screens' rule (lib/oiTrend1h.ts),
+   topLongShortPositionRatio gives whale positioning, funding from
    frMap. Fires at score ≥ 70 with a 4h per-coin cooldown. Muted coins are
    skipped before fetching.
    ════════════════════════════════════════ */
@@ -1605,7 +1607,7 @@ async function checkDistribution(
         const [kRes, oiRes, topRes] = await Promise.allSettled([
           exchangeFetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=26`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
-          exchangeFetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=1h&limit=25`,
+          exchangeFetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
           exchangeFetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=1h&limit=1`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
@@ -1638,21 +1640,16 @@ async function checkDistribution(
         const px12Pct = base12 > 0 ? (price - base12) / base12 * 100 : 0;
         const cvdDivergence: 'bearish' | null = (px12Pct >= 1 && (2 * tb12 - v12) < 0) ? 'bearish' : null;
 
-        // OI trend vs price - same semantics as the client store's oiTrend
+        // OI trend vs price, by the screens' rule (#1617, lib/oiTrend1h.ts): the last 60 minutes, OI and price at the same two moments (13
+        // five-minute samples, price = USD value / contracts), OI >= 0.3% AND price >= 0.2%. Read through oiHistChange, the helper the Arena
+        // card's "OI % 1h" uses. It was 24 hourly points against the 24 h price change with 2% / 0.5% floors, under a comment saying it matched
+        // the client store - untrue since #1617, so the alert's score could count a trend the screens did not, or the reverse (#1651, QA).
         let oiTrend: DistributionInputs['oiTrend'] = null;
         if (oiRes.status === 'fulfilled' && oiRes.value.ok) {
-          const oi = await oiRes.value.json() as Array<{ sumOpenInterest: string }>;
-          if (oi.length >= 20) {
-            const oiStart = parseFloat(oi[0].sumOpenInterest);
-            const oiEnd   = parseFloat(oi[oi.length - 1].sumOpenInterest);
-            if (oiStart > 0) {
-              const oiChg = (oiEnd - oiStart) / oiStart * 100;
-              const pxUp = change24hPct >= 0.5, pxDn = change24hPct <= -0.5;
-              oiTrend = oiChg >= 2  ? (pxUp ? 'strong_up' : pxDn ? 'strong_down' : null)
-                      : oiChg <= -2 ? (pxUp ? 'weak_up'   : pxDn ? 'weak_down'   : null)
-                      : null;
-            }
-          }
+          const oi = await oiRes.value.json() as Array<{ sumOpenInterest: string; sumOpenInterestValue?: string }>;
+          // A full hour only: fewer samples would be a shorter window, which is a different rule.
+          const change = Array.isArray(oi) && oi.length >= 13 ? oiHistChange(oi) : null;
+          if (change) oiTrend = oiTrend1h(change.oiPct, change.pricePct);
         }
 
         // Top-trader dollar-weighted long share
