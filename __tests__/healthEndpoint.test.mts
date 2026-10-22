@@ -203,11 +203,26 @@ test('H5: N calls inside 30 s make ONE database read, while each RESPONSE is sta
        checked_at    - when THIS response was served. Different every call. That is the freshness the no-store header promises.
      The clock is advanced INSIDE the loop on purpose: the old test moved it once before four calls, so all four shared one instant and a
      naive "they must differ" assertion would have failed a correct implementation. The fixture's Date.now is the only clock here. */
+  /* `call()` types the body as Record<string, unknown> for the whole file, so these two narrow it HERE rather than casting. A cast would
+     silence tsc while asserting nothing; these assert the type and then return it, which also covers the "present but carrying the STRING
+     'undefined'" case - a field that vanished through JSON.stringify and was 'fixed' by stringifying it satisfies a key-presence check
+     and means nothing. */
+  const str = (v: unknown, name: string): string => {
+    assert.equal(typeof v, 'string', `${name} is not a string: ${JSON.stringify(v)}`);
+    return v as string;
+  };
+  const num = (v: unknown, name: string): number => {
+    assert.equal(typeof v, 'number', `${name} is not a number: ${JSON.stringify(v)}`);
+    return v as number;
+  };
+
   const GET = await route();
   const first = await call(GET);
   const readsAfterFirst = net.reads;
   assert.ok(readsAfterFirst >= 1);
   assert.ok(first.body.db_checked_at, 'no db_checked_at: the cached read has no timestamp of its own');
+  str(first.body.db_checked_at, 'db_checked_at');
+  str(first.body.checked_at, 'checked_at');
 
   const STEP = 2_000; /* 4 x 2 s = 8 s, comfortably inside the 30 s window, so none of these may re-read (H7 owns the expiry) */
   let prev = first.body;
@@ -221,14 +236,16 @@ test('H5: N calls inside 30 s make ONE database read, while each RESPONSE is sta
       `call ${i} inside 30 s re-read the database, or db_checked_at is being regenerated per request`);
     assert.notEqual(again.body.checked_at, prev.checked_at,
       `call ${i} returned the PREVIOUS response's checked_at - a no-store response must say when it was served, not when the cache was filled`);
-    assert.ok(Date.parse(again.body.checked_at) > Date.parse(prev.checked_at),
+    assert.ok(Date.parse(str(again.body.checked_at, `call ${i} checked_at`)) > Date.parse(str(prev.checked_at, 'previous checked_at')),
       `call ${i}'s checked_at went backwards or stood still: ${prev.checked_at} -> ${again.body.checked_at}`);
 
-    /* db_age_ms is the same fact a reader can see WITHOUT calling twice - the whole point of adding it. */
-    if (again.body.db_age_ms !== undefined) {
+    /* db_age_ms is the same fact a reader can see WITHOUT calling twice - the whole point of adding it.
+       `!= null` rather than `!== undefined`: the route's type allows null, and a null here must skip the arithmetic, not do it on 0. */
+    if (again.body.db_age_ms != null) {
+      const age = num(again.body.db_age_ms, `call ${i} db_age_ms`);
       const expected = i * STEP;
-      assert.ok(Math.abs(again.body.db_age_ms - expected) <= 100,
-        `call ${i}: db_age_ms ${again.body.db_age_ms} does not track the clock (expected about ${expected})`);
+      assert.ok(Math.abs(age - expected) <= 100,
+        `call ${i}: db_age_ms ${age} does not track the clock (expected about ${expected})`);
     }
     prev = again.body;
   }
