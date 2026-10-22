@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
 import { wilderRsiSeries } from '@/lib/rsi';
 import { exchangeFetch } from '@/lib/exchangeGuard';
+import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 
 function emaArr(closes: number[], period: number): number[] {
   const result = new Array<number>(closes.length).fill(NaN);
@@ -182,6 +183,12 @@ async function computeSignalAccuracy(): Promise<{ stats: SignalStat[]; candles: 
 }
 
 export async function GET() {
+  /* #1677: the route follows the same flag as the screen it feeds. While SHOW_PERFORMANCE_STATS is off, components/SignalAccuracy.tsx
+     renders nothing, but this route still served accuracy3 / accuracy6 / avgReturn3 / avgReturn6 per signal to anyone, signed out - the
+     exact win-rate numbers the owner took off the product in #1574, readable with one curl (PM found it on production, #1677).
+     404, not 403: with the feature off there is nothing here to ask for, and saying "forbidden" would advertise that there is. The
+     component is gated by the same constant, so with the flag off nothing in the app calls this; with it on, both come back together. */
+  if (!SHOW_PERFORMANCE_STATS) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   try {
     const payload = await cached('signal-accuracy', SIGNAL_ACCURACY_TTL, computeSignalAccuracy);
     /* Historical hit-rates. They only change when an outcome resolves, which
