@@ -79,24 +79,55 @@ const VIEWPORTS = [
 const THEMES = ['dark', 'light'] as const;
 
 /** What a cell records. Numbers and booleans only - no screenshots unless something fails. */
+/** One element past the viewport's right edge, or one of the widest boxes - enough to name it in a bug report. */
+interface Box { right: number; w: number; over: boolean; tag: string; cls: string; id: string | null; testid: string | null }
+
 interface Cell {
   state: StateId; path: string; viewport: string; theme: string;
   scrollWidth: number; requested: number; overflowPx: number;
   rendered: boolean; textLength: number;
   purchaseCta: number; planMentions: number; trialMentions: number;
   theming: string | null;
+  /* THE CENSUS LIVES HERE NOW, not only in the probe (#1263). The probe reproduced the /arena 421 zero times in 16
+     runs; the matrix reproduced it twice in eight. Capture belongs where the symptom appears, not where it is
+     convenient - so the next matrix run that overflows NAMES the element in the same breath rather than starting
+     another hunt. Cost measured in the probe: 1-5ms over ~680 nodes, so it is a snapshot rather than a smear. */
+  offenders: Box[];
+  widestBox: Box[];
+  /* PAGE STATE, two fields, because Dev's account of the 0-of-16 is better than my contention theory and is checkable:
+     every probe sample carried `body.consent-open`, so the probe only ever sampled /arena with the consent bar
+     showing. The matrix visits four other pages first, so a cell could reach /arena in the consent-ANSWERED state -
+     a page state the probe never entered. `consent-open`'s own rules are vertical (padding-bottom on .app-content, a
+     bottom offset on .gchat-fab), so this is not a claim that consent causes a horizontal overflow. It is a claim
+     that the two runs were in different page states and only one of them was ever sampled. If 421 only appears in
+     one of these columns, that is the whole bisection. */
+  bodyClass: string;
+  consentOpen: boolean;
   /** Did two samples 1.5s apart agree? Only a settled cell's state-dependent counts are reportable. */
   settled?: boolean;
 }
 
 const recorded: Cell[] = [];
 
-async function measure(page: Page, cell: Omit<Cell, 'scrollWidth' | 'overflowPx' | 'rendered' | 'textLength' | 'purchaseCta' | 'planMentions' | 'trialMentions' | 'theming'>): Promise<Cell> {
+async function measure(page: Page, cell: Pick<Cell, 'state' | 'path' | 'viewport' | 'theme' | 'requested'>): Promise<Cell> {
   const m = await page.evaluate(() => {
     const text = document.body?.innerText ?? '';
+    const vw = document.documentElement.clientWidth;
+    const describe = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return {
+        right: Math.round(r.right), w: Math.round(r.width), over: r.right > vw + 1,
+        tag: el.tagName.toLowerCase(), cls: (el.className?.toString?.() ?? '').slice(0, 60),
+        id: el.id || null, testid: el.getAttribute('data-testid'),
+      };
+    };
+    const all = Array.from(document.querySelectorAll('*')).map(describe);
+    const offenders = all.filter((x) => x.over).sort((a, b) => b.right - a.right).slice(0, 5);
+    const widestBox = [...all].sort((a, b) => b.w - a.w).slice(0, 3);
+    const bodyClass = document.body?.className ?? '';
     /* A purchase call to action by ROLE and accessible name, not by class or test id: the question is what a user can
        click, and a class name is an implementation detail that changes without the behaviour changing. */
-    const clickable = [...document.querySelectorAll('button, a[href]')]
+    const clickable = Array.from(document.querySelectorAll('button, a[href]'))
       .map((el) => (el.textContent ?? '').trim())
       .filter((t) => /upgrade|subscribe|buy|get pro|start.*trial|checkout|pay/i.test(t));
     return {
@@ -108,6 +139,10 @@ async function measure(page: Page, cell: Omit<Cell, 'scrollWidth' | 'overflowPx'
       planMentions: (text.match(/\$\s?\d|per month|monthly|annual|fortnight/gi) ?? []).length,
       trialMentions: (text.match(/trial/gi) ?? []).length,
       theming: document.documentElement.getAttribute('data-theme'),
+      offenders,
+      widestBox,
+      bodyClass,
+      consentOpen: /\bconsent-open\b/.test(bodyClass),
     };
   });
   return { ...cell, ...m, overflowPx: Math.max(0, m.scrollWidth - cell.requested) };
@@ -169,13 +204,20 @@ for (const { path, states } of PAGES) {
               && Math.abs(first.textLength - cell.textLength) <= 20;
             recorded.push(cell);
             // eslint-disable-next-line no-console
-            console.log(`CELL ${JSON.stringify(cell)}`);
+            console.log(`CELL ${JSON.stringify({ ...cell, offenders: cell.offenders.length, widestBox: cell.widestBox.map((b) => `${b.tag}.${b.cls.split(' ')[0]}:${b.w}`) })}`);
+            if (cell.offenders.length) console.log(`  OFFENDERS ${JSON.stringify(cell.offenders)}`);
 
             /* INVARIANT 1: app content, not a shell. */
             expect(cell.rendered, `${name}: no app content rendered (${cell.textLength} chars of text) - a cell that measured a loading screen would report confident numbers about the wrong document`).toBe(true);
 
             /* INVARIANT 2: no sideways scroll at the requested width. Measured as scrollWidth, never innerWidth. */
-            expect(cell.overflowPx, `${name}: scrollWidth ${cell.scrollWidth} against a requested ${cell.requested} - overflows by ${cell.overflowPx}px`).toBeLessThanOrEqual(1);
+            /* The offender list goes in the failure MESSAGE, not just the log: a cell that reproduces #1263's 421 names
+               the element in the artifact a reader opens first, rather than in a console line they have to go find. */
+            expect(cell.overflowPx,
+              `${name}: scrollWidth ${cell.scrollWidth} against a requested ${cell.requested} - overflows by ${cell.overflowPx}px.`
+              + ` consentOpen=${cell.consentOpen} body="${cell.bodyClass}".`
+              + ` Past the right edge: ${cell.offenders.map((o) => `<${o.tag}${o.cls ? ` class="${o.cls}"` : ''}${o.testid ? ` data-testid="${o.testid}"` : ''}> right=${o.right} w=${o.w}`).join(' | ') || 'nothing - the overflow is gone by the time we look, so capture at first paint'}`)
+              .toBeLessThanOrEqual(1);
 
             /* The theme we asked for is the theme that rendered - otherwise the light pass silently measured dark. */
             expect(cell.theming, `${name}: data-theme is ${cell.theming}, so this cell did not measure the ${theme} theme`).toBe(theme);
