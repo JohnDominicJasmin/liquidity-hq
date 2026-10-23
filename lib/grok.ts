@@ -94,15 +94,23 @@ export const GROK_UNREADABLE_ANSWER_MESSAGE = 'The AI answer did not give a clea
 /** The SIGNAL and CONFIDENCE lines, shared by parseVerdict and parseCombinedResponse so the two can never read an answer differently.
  *  `\*{0,2}` after the colon: "**SIGNAL:** BEARISH" (bold label, value outside it) left "**" between the colon and the value after the
  *  line-edge strip, missed the match and was read as FLAT at 0% (#1651 item 3, found by its probe). */
-const SIGNAL_LINE = /SIGNAL:\*{0,2}\s*(LEAN BULLISH|LEAN BEARISH|BULLISH|BEARISH|FLAT)/i;
-const CONFIDENCE_LINE = /CONFIDENCE:\*{0,2}\s*(\d+)/i;
+const SIGNAL_LINE = /SIGNAL:\s*(LEAN BULLISH|LEAN BEARISH|BULLISH|BEARISH|FLAT)/i;
+const CONFIDENCE_LINE = /CONFIDENCE:\s*(\d+)/i;
+
+/* #1721: markdown is STRIPPED before matching rather than tolerated inside the pattern. `\*{0,2}` used to sit between the colon and
+   the whitespace, so "**SIGNAL:** BULLISH" matched and "SIGNAL: **BULLISH**" did not - and bolding the VALUE is the single most
+   ordinary thing a model does to a labelled field. The asymmetry was invisible precisely because the pattern looked like it handled
+   asterisks. Widening it again would buy one more spelling and still miss `*BULLISH*`, `__BULLISH__` and backticks; one strip covers
+   the class. The emphasis characters are the only thing removed - letters, digits and the colon are untouched, so UNREADABLE stays
+   unreadable rather than being coerced into a verdict. */
+const stripMarkdown = (line: string) => line.replace(/[*_`]/g, '');
 
 /** #1651 item 3: the verdict read STRICTLY - one of the five signals and a whole-number confidence 0-100 - or null. parseCombinedResponse
  *  reads the same two lines but falls back to FLAT and 0 when they are missing, so an answer the model wrote in the wrong shape used to be
  *  shown as a confident-looking "Wait". The route asks once more when this is null, then refuses. Same normalisation and patterns as
  *  parseCombinedResponse, so every answer that parsed before still parses. */
 export function parseVerdict(text: string): { signal: CombinedResult['signal']; confidence: number } | null {
-  const clean = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
+  const clean = text.split('\n').map(stripMarkdown).join('\n');
   const signal = clean.match(SIGNAL_LINE)?.[1]?.toUpperCase();
   const conf = clean.match(CONFIDENCE_LINE)?.[1];
   if (!signal || conf == null) return null;
@@ -623,9 +631,16 @@ export function buildPrompt(ctx: GrokContext): string {
     '  • Pre-NY / Asia: subtract 10 from confidence. LEAN BEARISH and LEAN BULLISH are fully valid.',
     '  "Pre-NY session" is NEVER a standalone reason for FLAT - reduce confidence, not tier.',
     '',
+    /* #1631 item 1: the third line used to read "NEVER output FLAT just because you are uncertain - own the direction when signals
+       support it." It was written when FLAT was being used as a dodge, and the anti-dodge half is kept. The absolute is dropped,
+       because it now fights two things that did not exist when it was added: the guardrail injected into every system prompt, which
+       forbids claiming certainty the model does not have, and item 2's parser, which refuses an unreadable verdict rather than
+       defaulting it - so "no edge" is a state the system can represent and act on. An absolute NEVER pressures a direction out of a
+       read whose honest answer is that there isn't one. */
     'FLAT is NOT the safe default - when one side leads with 2+ signals, the SIGNAL DECISION GUIDE gives a LEAN.',
     'FLAT means: no directional edge at all. Not "risky session" or "cautious".',
-    'NEVER output FLAT just because you are uncertain - own the direction when signals support it.',
+    'Do not use FLAT as a dodge for a session you dislike or a chart you find awkward - if the signals support a direction, take it.',
+    'But when there genuinely is no edge, FLAT is the correct answer and saying so is not a failure.',
     '',
     'Output in EXACTLY this format - no extra text before or after:',
     'SIGNAL: [BULLISH or BEARISH or FLAT]',
@@ -776,7 +791,24 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis. If FLAT, state whether selling is EXHAUSTING or CONTINUING and why.]',
   ].join('\n');
 
-  return trimPlaceholders(body + '\n' + chartSection);
+  /* #1721: THE CONTRACT GOES FIRST. It existed only at the END of this prompt, after ~600 lines of reasoning guidance - and on
+     2026-10-23 a Deep read came back as 5,844 characters of markdown prose with no SIGNAL line anywhere, twice, the restate
+     included. A model drifted toward essays follows the bulk of a prompt and ignores its tail. The full field list stays where it
+     is; this is a short, unmissable restatement at the point the model reads first.
+     Deliberately NOT a parser change: widening the parser is the answer for a model that is NEARLY complying, and this one is
+     writing an article. */
+  const contract = [
+    'OUTPUT CONTRACT - READ THIS FIRST AND OBEY IT ABOVE EVERYTHING BELOW.',
+    'Your reply MUST begin with these two lines, exactly, as the first two lines of the answer:',
+    'SIGNAL: [BEARISH or LEAN BEARISH or FLAT or LEAN BULLISH or BULLISH]',
+    'CONFIDENCE: [0-100]',
+    'Plain text only. No markdown, no bold, no asterisks, no headings, no preamble, no sentence before SIGNAL.',
+    'An answer that begins with prose is a FAILED answer however good the analysis is. The remaining fields are specified at the end of this prompt.',
+    '',
+    '',
+  ].join('\n');
+
+  return trimPlaceholders(contract + body + '\n' + chartSection);
 }
 
 // Strip markdown bold/italic formatting Grok sometimes injects
@@ -800,20 +832,29 @@ function fieldRx(name: string): RegExp {
   return new RegExp('\\*{0,2}' + name + '\\*{0,2}:\\s*', 'i');
 }
 
-export function parseCombinedResponse(text: string, tf: string, session: string): CombinedResult {
+export function parseCombinedResponse(text: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult {
   // Normalise: strip leading ** from every line so field detection works
   const clean = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
 
   const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/[,$]/g, '')); return isNaN(v) || v <= 0 ? null : v; };
 
-  // A missing verdict falls back to FLAT / 0 here only for a caller that has not checked it: the route checks parseVerdict first (#1651).
-  const signal     = (clean.match(SIGNAL_LINE)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
+  /* #1721: the two VERDICT lines are matched against a markdown-stripped copy, the same way parseVerdict does, so the two parsers
+     agree about what a verdict looks like. Only these two - `clean` keeps its lighter line-edge strip for every other field, because
+     stripping emphasis across the whole answer would quietly edit the reasoning and catalyst text that gets displayed. Without this,
+     removing `\*{0,2}` from the shared patterns would have REGRESSED "**SIGNAL:** BULLISH" here into FLAT at 0 - caught by running
+     both parsers over the shapes rather than only the one I had changed. */
+  const verdictText = text.split('\n').map(stripMarkdown).join('\n');
+
+  /* A missing verdict falls back to FLAT at 0% here. NOTHING IN THIS FUNCTION PREVENTS THAT REACHING A USER - the protection is that
+     the caller checked `parseVerdict` first, which is a promise made in another file. Call `parseCombinedRead` below instead; it
+     refuses. This pair is deleted in step 3, once QA's tests are off this entry point. */
+  const signal     = (verdictText.match(SIGNAL_LINE)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
   const biasRaw    = clean.match(/BIAS_LEAN:\s*(BULLISH|BEARISH|NEUTRAL)/i)?.[1]?.toUpperCase();
   const bias: CombinedResult['bias'] = signal === 'LEAN BULLISH' ? 'BULLISH'
     : signal === 'LEAN BEARISH' ? 'BEARISH'
     : (biasRaw === 'BULLISH' || biasRaw === 'BEARISH' || biasRaw === 'NEUTRAL') ? biasRaw as CombinedResult['bias']
     : null;
-  const confidence = parseInt(clean.match(CONFIDENCE_LINE)?.[1] ?? '0');
+  const confidence = parseInt(verdictText.match(CONFIDENCE_LINE)?.[1] ?? '0');
 
   const levels: CombinedResult['levels'] = [];
   const levSect = clean.match(/LEVELS:\s*\n([\s\S]*?)(?=CATALYSTS:|CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
@@ -830,7 +871,7 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
   for (const line of catSect.split('\n')) {
     const m = line.match(/^-\s*(.+)/);
     if (!m) continue;
-    const c = formatCatalyst(stripMd(m[1]));
+    const c = formatCatalyst(stripMd(m[1]), nowMs);
     if (c) catalysts.push(c);
   }
 
@@ -884,6 +925,22 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
   return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
 }
 
+/** THE READ, REFUSED RATHER THAN DEFAULTED. Use this. `parseCombinedResponse` above still answers FLAT at 0% for an answer that
+ *  states no verdict, and its only protection is that today's one production caller happens to check `parseVerdict` first - a
+ *  guarantee held in a different file, by a comment, that the compiler cannot enforce and a second caller would not inherit.
+ *
+ *  Step 1 of 3, deliberately in this order so no step crosses an ownership line or pushes a red gate:
+ *    1. (here) add this, move the route to it.
+ *    2. QA moves `__tests__/aiReadChecks.test.mts` onto it - ~10 call sites, each needing a non-null assertion. Dev does not
+ *       write tests (CONTRIBUTING.md, owner ruling 2026-09-07), and tsconfig's `include` covers .mts, so changing the signature
+ *       underneath those tests turns dev's own pre-push tsc red and the change cannot be pushed at all.
+ *    3. dev makes `parseCombinedResponse` non-exported and deletes the `?? 'FLAT'` / `?? '0'` pair outright.
+ *
+ *  Until step 3 the trapdoor still exists; what this removes is the production path to it. */
+export function parseCombinedRead(text: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult | null {
+  return parseVerdict(text) ? parseCombinedResponse(text, tf, session, nowMs) : null;
+}
+
 /** A date or an age somewhere in the last part of a catalyst: 2026-10-20, 2026-10-19T14:00Z, Oct 20, 16h ago, 3 days ago. The date is not
  *  required to end on a word boundary, so an ISO time straight after it ("T14:00Z", PM's audit of #1668) still counts. */
 const CATALYST_WHEN = /\b(20\d\d-\d\d-\d\d(?!\d)|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\d+\s*(m|min|mins|minutes?|h|hrs?|hours?|d|days?)\s+ago\b)/i;
@@ -916,7 +973,34 @@ export function parseCounted(text: string): { bullish: number; bearish: number }
 }
 
 /** "claim | source | when" -> "claim - source, when"; null for a "None ..." line or one without a source and a date. */
-function formatCatalyst(raw: string): string | null {
+/** The UTC date and time at the start of a catalyst's "when": `2026-10-22 03:51 UTC` or `2026-10-22T03:51Z`. Milliseconds, or null. */
+function catalystTimeMs(when: string): number | null {
+  const m = when.match(/(20\d\d-\d\d-\d\d)[T ](\d\d):(\d\d)/);
+  if (!m) return null;
+  const ms = Date.parse(`${m[1]}T${m[2]}:${m[3]}:00Z`);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** How old, in words: minutes under the hour, hours under two days, then days. */
+function ageText(ms: number): string {
+  const mins = Math.round(ms / 60_000);
+  if (mins < 60) return `${Math.max(mins, 0)}m old`;
+  const hours = ms / 3_600_000;
+  if (hours < 48) return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)}h old`;
+  return `${Math.round(hours / 24)}d old`;
+}
+
+/* #1651 (QA, 2026-10-22): the AGE is computed HERE from the timestamp, and whatever the model wrote is discarded.
+ *
+ * A Deep read at 10:55:38 UTC cited "2026-10-22 03:51 UTC (age ~18h)". The timestamp was correct; the article was 7.1 hours old. The age
+ * was invented and wrong by eleven hours. That instance overstated staleness, which is the harmless direction - the same mechanism can
+ * say "age ~2h" over a day-old story, which reads as breaking news, and that is the direction a trader acts on.
+ *
+ * Nothing validated it, and it is arithmetic we can do ourselves from a timestamp already on the line. A prompt rule was the other option
+ * and was rejected: an instruction can be drifted from, subtraction cannot. If the timestamp cannot be parsed the line keeps its stamp and
+ * carries NO age - an age we cannot derive is one we cannot stand behind. A stamp in the future is the model's error, so it gets no age
+ * either, and the stamp stays visible so a reader can see what was claimed. */
+function formatCatalyst(raw: string, nowMs: number): string | null {
   if (!raw || /^none\b/i.test(raw)) return null;
   const parts = raw.split('|').map((p) => p.trim()).filter(Boolean);
   if (parts.length < 3) return null;
@@ -926,7 +1010,10 @@ function formatCatalyst(raw: string): string | null {
   // PM's audit of #1668: a date in the source slot, or "memory" as the source, is not a source.
   if (CATALYST_WHEN.test(source) || NOT_A_SOURCE.test(source)) return null;
   const claim = parts.slice(0, -2).join(' | ');
-  return `${claim} - ${source}, ${when}`;
+  const stamp = when.replace(/\s*\((?:[^()]*\b(?:ago|old|age)\b[^()]*)\)\s*$/i, '').trim();
+  const ts = catalystTimeMs(stamp);
+  const withAge = ts !== null && ts <= nowMs + 5 * 60_000 ? `${stamp} (${ageText(nowMs - ts)})` : stamp;
+  return `${claim} - ${source}, ${withAge}`;
 }
 
 /** The perps-vs-spot reading's "could not be measured" sentence (lib/perpSpot.ts), as it reaches the prompt. */

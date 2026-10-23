@@ -919,6 +919,12 @@ export const LABEL_KEYS = [
   'MARKET_CONDITIONS_WIDGET_RSI_OVERBOUGHT', 'MARKET_CONDITIONS_WIDGET_RSI_OVERSOLD', 'MARKET_CONDITIONS_WIDGET_RSI_NEUTRAL',
   'MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL', 'MARKET_CONDITIONS_WIDGET_LONG_PCT', 'MARKET_CONDITIONS_WIDGET_SHORT_PCT',
   'MARKET_CONDITIONS_WIDGET_LOADING_SR', 'MARKET_CONDITIONS_WIDGET_DATA_SOURCE',
+  /* Shared state strings, owner-approved first-hand 2026-10-22 ~11:1x UTC, English-only with translations held. Not per-feature on
+     purpose: "Unavailable" means the same thing wherever a reading cannot be had, and one key keeps the wording from drifting. */
+  'STATE_UNAVAILABLE',
+  /* #1631 item 1: the line under every AI verdict. Owner-approved wording; English only, translations held. Its own key rather
+     than reusing ABOUT_REMINDER_TITLE, which is the About page's heading - sharing it would couple two unrelated surfaces. */
+  'AI_DISCLAIMER',
   // LiqHeatmap
   'LIQ_HEATMAP_TITLE', 'LIQ_HEATMAP_SUBTITLE', 'LIQ_HEATMAP_SHORT_SECTION_LABEL',
   'LIQ_HEATMAP_CURRENT_LABEL', 'LIQ_HEATMAP_LONG_SECTION_LABEL',

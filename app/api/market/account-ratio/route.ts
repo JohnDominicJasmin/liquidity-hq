@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { bybitFanout } from '@/lib/bybitFanout';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
+import { parseRatioPair } from '@/lib/ratioPair';
 import { reportHealth } from '@/lib/apiHealth';
 import { feedFor } from '@/lib/marketFeeds';
 import { resolveFeedSnapshot } from '@/lib/marketSnapshot';
@@ -75,9 +76,12 @@ export async function GET(req: NextRequest) {
       (body) => {
         const item = (body as { result?: { list?: Array<Record<string, string>> } })?.result?.list?.[0];
         if (!item) return null;
+        /* #1651: was `parseFloat(item.buyRatio || '0.5')` - a missing side became a plausible 50/50 at the edge, and every consumer
+           downstream then treated it as measured. Unknown is null; the pair is rejected together if it does not add up. */
+        const pair = parseRatioPair(item.buyRatio, item.sellRatio);
         return {
-          longRatio:  parseFloat(item.buyRatio  || '0.5'),
-          shortRatio: parseFloat(item.sellRatio || '0.5'),
+          longRatio:  pair?.longRatio  ?? null,
+          shortRatio: pair?.shortRatio ?? null,
           /* ADDED, never a reshape (#1404, QA's review). Bybit stamps each item
              with the time the ratio was measured, and this parser used to drop
              it - so nothing downstream could tell a fresh figure from a stale

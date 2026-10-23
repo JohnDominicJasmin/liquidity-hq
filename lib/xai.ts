@@ -15,6 +15,7 @@
 // callers already check their own parse results. This answers "is xAI
 // answering us", not "was the answer any good".
 import { reportHealth, healthError } from '@/lib/apiHealth';
+import { withGuardrail } from '@/lib/aiGuardrail';
 
 const XAI_SOURCE = 'xai:grok';
 
@@ -25,7 +26,9 @@ const XAI_SOURCE = 'xai:grok';
  */
 export async function xaiFetch(url: string, init: RequestInit): Promise<Response> {
   try {
-    const res = await fetch(url, init);
+    /* #1631 item 1: the guardrail goes in HERE rather than at the 14 call sites, because this is the one place every xAI request
+       passes through and the fifteenth route will not remember. Non-chat bodies and unparsable ones are returned untouched. */
+    const res = await fetch(url, { ...init, body: withGuardrail(init.body) });
     reportHealth(XAI_SOURCE, 'ai', res.ok, res.ok ? 'ok' : `HTTP ${res.status}`);
     return res;
   } catch (e) {

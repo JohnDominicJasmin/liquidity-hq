@@ -11,6 +11,7 @@ import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { TEXT_LIMITS } from '@/lib/ownRowLimits';
+import AiDisclaimer from '@/components/AiDisclaimer';
 
 interface Hypothesis {
   id: string;
@@ -528,6 +529,9 @@ export default function HypothesisTracker() {
                           <span style={{ fontWeight: 700 }}>{t('HYPOTHESIS_TRACKER_NEXT_CHECK_LABEL')} </span>{h.grok_next_check}
                         </div>
                       )}
+                      {/* #1631: this block shows a model verdict AND a model confidence against the user's own hypothesis, which is
+                          the exact shape the label is for. Inside the block, so it travels with the verdict rather than the card. */}
+                      <AiDisclaimer />
                     </div>
                   )}
 

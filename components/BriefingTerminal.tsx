@@ -20,6 +20,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { formatRsi } from '@/lib/rsi';
 import { signedUsd } from '@/lib/numberFormat';
+import AiDisclaimer from '@/components/AiDisclaimer';
 
 /* ── helpers (identical to briefing/page.tsx) ── */
 
@@ -492,6 +493,9 @@ export default function BriefingTerminal() {
                 return <div className="mb-brief-cached">{t('BRIEFING_BRIEF_CACHED', { label, mins: Math.max(0, 240 - mins) })}</div>;
               } catch { return null; }
             })()}
+            {/* #1631: the briefing is model-written prose about what to expect from the session - it carries no confidence number,
+                but it is exactly the kind of directional read the label exists for. */}
+            <AiDisclaimer />
           </div>
         )}
       </TPanel>

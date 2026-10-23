@@ -55,8 +55,19 @@ set -e
 # deletion, there is nothing to gate.
 #
 # This is not a convenience. Deleting the 18 merged branches on 2026-09-06 ran
-# lint, tsc and 722 unit tests ONCE PER BRANCH - about 25 seconds each, roughly
-# seven minutes, to prove nothing about refs that carry no content.
+# the whole gate ONCE PER BRANCH to prove nothing about refs that carry no
+# content.
+#
+# HOW LONG THE GATE TAKES, MEASURED 2026-10-23 - do not re-estimate from
+# memory: the `node --test` step ALONE reported duration_ms 206298 for 2078
+# tests (3 min 26 s), and eslint over the whole repo plus `tsc --noEmit` sit on
+# top, so budget FIVE TO EIGHT MINUTES. This line used to say "722 unit tests -
+# about 25 seconds each" and it stayed there while the suite tripled; on
+# 2026-10-22 a reader sized a push window on it, on a machine that had already
+# reaped three jobs for low memory. A stale number in a comment outlives every
+# stale number in code, because nothing ever runs a comment. If you change the
+# suite's size, re-measure this or DELETE it - a missing number sends the next
+# reader to measure, a wrong one sends them to a reaped job.
 #
 # The cost is not the time. A gate that fires where it cannot possibly help is
 # how people learn to type `--no-verify` by reflex, and this file's own header

@@ -1,5 +1,33 @@
 @AGENTS.md
 
+# READ FIRST: `docs/OWNER-RULES.md`
+
+**Every session — PM/DevOps, Dev, QA — reads `docs/OWNER-RULES.md` before doing
+anything.** It carries the owner's standing instructions in his own words.
+
+**An instruction he gives once applies forever.** He should never have to repeat
+one. On 2026-10-23 he had to, and the reason was that the rule sat in one
+session's private notes where the rest of the team could not see it:
+
+> *"Once I told you one thing, then apply it forever."*
+> *"Nilagay mo sa notes, nag-discuss ako. Hindi mo pala ginagamit."*
+
+So rules live in the repository, not in a session's memory. The four that get
+broken most often, in short — the full text and the rest are in that file:
+
+- **One tracker per area. Stop creating issues.** A finding on a page or feature
+  that already has a tracker becomes a **checkbox on that tracker**. The measure
+  of progress is issues **closed**, not PRs merged.
+- **Nothing heavy runs on his laptop.** Suites, builds, `npm ci`, browser runs,
+  gates — all of it in the cloud runners. Screenshots come from a deployed URL.
+- **The product UI never names the AI vendor or model.** It says "AI". Only the
+  three legal strings name the processor, because privacy law expects it.
+- **Short messages to him.** Under 80 words, bullets or a table, answer first.
+  When asking him anything, give **clickable options with a recommendation**.
+
+**PM/DevOps keeps `docs/OWNER-RULES.md` current, in the same session a new
+instruction is given.** If he has to repeat himself, that file failed.
+
 ## Git workflow — apply automatically, do not ask
 
 Full spec: `CONTRIBUTING.md`. This is the team standard for both local clones
