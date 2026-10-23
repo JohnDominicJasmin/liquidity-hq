@@ -783,7 +783,24 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis. If FLAT, state whether selling is EXHAUSTING or CONTINUING and why.]',
   ].join('\n');
 
-  return trimPlaceholders(body + '\n' + chartSection);
+  /* #1721: THE CONTRACT GOES FIRST. It existed only at the END of this prompt, after ~600 lines of reasoning guidance - and on
+     2026-10-23 a Deep read came back as 5,844 characters of markdown prose with no SIGNAL line anywhere, twice, the restate
+     included. A model drifted toward essays follows the bulk of a prompt and ignores its tail. The full field list stays where it
+     is; this is a short, unmissable restatement at the point the model reads first.
+     Deliberately NOT a parser change: widening the parser is the answer for a model that is NEARLY complying, and this one is
+     writing an article. */
+  const contract = [
+    'OUTPUT CONTRACT - READ THIS FIRST AND OBEY IT ABOVE EVERYTHING BELOW.',
+    'Your reply MUST begin with these two lines, exactly, as the first two lines of the answer:',
+    'SIGNAL: [BEARISH or LEAN BEARISH or FLAT or LEAN BULLISH or BULLISH]',
+    'CONFIDENCE: [0-100]',
+    'Plain text only. No markdown, no bold, no asterisks, no headings, no preamble, no sentence before SIGNAL.',
+    'An answer that begins with prose is a FAILED answer however good the analysis is. The remaining fields are specified at the end of this prompt.',
+    '',
+    '',
+  ].join('\n');
+
+  return trimPlaceholders(contract + body + '\n' + chartSection);
 }
 
 // Strip markdown bold/italic formatting Grok sometimes injects
