@@ -2072,7 +2072,7 @@
   "SPOTLIGHT_TOUR_STEP4_BODY": "Funding rate, long/short ratio, taker pressure, and volume are combined into a single score. When it hits 70+, a Telegram alert fires on the next check, within 5 minutes.",
   "SPOTLIGHT_TOUR_STEP5_TAG": "YOU'RE READY",
   "SPOTLIGHT_TOUR_STEP5_TITLE": "Your scanner is live right now.",
-  "SPOTLIGHT_TOUR_STEP5_BODY": "LiquidityHQ is scanning every major coin in real time. Open Arena to see live scores, pick a coin, and let LiquidityAI analyze the setup for you.",
+  "SPOTLIGHT_TOUR_STEP5_BODY": "LiquidityHQ is scanning the major coins in real time. Open Arena to see live scores, pick a coin, and let LiquidityAI analyze the setup for you.",
   "SPOTLIGHT_TOUR_SKIP_ARIA": "Skip tour",
   "SPOTLIGHT_TOUR_BACK_BTN": "← Back",
   "SPOTLIGHT_TOUR_NEXT_BTN": "Next →",
