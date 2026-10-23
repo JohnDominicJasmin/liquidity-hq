@@ -845,7 +845,9 @@ export function parseCombinedResponse(text: string, tf: string, session: string,
      both parsers over the shapes rather than only the one I had changed. */
   const verdictText = text.split('\n').map(stripMarkdown).join('\n');
 
-  // A missing verdict falls back to FLAT / 0 here only for a caller that has not checked it: the route checks parseVerdict first (#1651).
+  /* A missing verdict falls back to FLAT at 0% here. NOTHING IN THIS FUNCTION PREVENTS THAT REACHING A USER - the protection is that
+     the caller checked `parseVerdict` first, which is a promise made in another file. Call `parseCombinedRead` below instead; it
+     refuses. This pair is deleted in step 3, once QA's tests are off this entry point. */
   const signal     = (verdictText.match(SIGNAL_LINE)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
   const biasRaw    = clean.match(/BIAS_LEAN:\s*(BULLISH|BEARISH|NEUTRAL)/i)?.[1]?.toUpperCase();
   const bias: CombinedResult['bias'] = signal === 'LEAN BULLISH' ? 'BULLISH'
@@ -921,6 +923,22 @@ export function parseCombinedResponse(text: string, tf: string, session: string,
   );
 
   return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
+}
+
+/** THE READ, REFUSED RATHER THAN DEFAULTED. Use this. `parseCombinedResponse` above still answers FLAT at 0% for an answer that
+ *  states no verdict, and its only protection is that today's one production caller happens to check `parseVerdict` first - a
+ *  guarantee held in a different file, by a comment, that the compiler cannot enforce and a second caller would not inherit.
+ *
+ *  Step 1 of 3, deliberately in this order so no step crosses an ownership line or pushes a red gate:
+ *    1. (here) add this, move the route to it.
+ *    2. QA moves `__tests__/aiReadChecks.test.mts` onto it - ~10 call sites, each needing a non-null assertion. Dev does not
+ *       write tests (CONTRIBUTING.md, owner ruling 2026-09-07), and tsconfig's `include` covers .mts, so changing the signature
+ *       underneath those tests turns dev's own pre-push tsc red and the change cannot be pushed at all.
+ *    3. dev makes `parseCombinedResponse` non-exported and deletes the `?? 'FLAT'` / `?? '0'` pair outright.
+ *
+ *  Until step 3 the trapdoor still exists; what this removes is the production path to it. */
+export function parseCombinedRead(text: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult | null {
+  return parseVerdict(text) ? parseCombinedResponse(text, tf, session, nowMs) : null;
 }
 
 /** A date or an age somewhere in the last part of a catalyst: 2026-10-20, 2026-10-19T14:00Z, Oct 20, 16h ago, 3 days ago. The date is not

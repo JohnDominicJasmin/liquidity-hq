@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedResponse, parseVerdict } from '@/lib/grok';
+import { applyResultChecks, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict } from '@/lib/grok';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
@@ -340,7 +340,13 @@ export async function POST(req: NextRequest) {
   /* #1631 B and D: the rules the answer can be checked against are applied here, where the prompt is known - a full tier the model's own
      count does not support, a raid with no cluster data to aim at (both XRP runs invented a "long flush" target), and a missing
      "perps-vs-spot unavailable" disclosure. See applyResultChecks in lib/grok.ts. */
-  const result = applyResultChecks({ ...parseCombinedResponse(text, tf, session), citations }, prompt);
+  /* parseCombinedRead, not parseCombinedResponse: the second answers FLAT at 0% for an answer that states no verdict, and until now
+     the only thing stopping that reaching a user was the check twelve lines above - a guard in this file protecting a default in
+     another one. Unreachable today precisely because that guard is there, which is the point: the refusal is now local and typed,
+     so it survives someone editing, moving or short-circuiting the restate block. */
+  const parsed = parseCombinedRead(text, tf, session);
+  if (!parsed) return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage }, { status: 502 });
+  const result = applyResultChecks({ ...parsed, citations }, prompt);
   if (restated) (result.checks ??= []).push('verdict restated by a second pass: the answer did not state SIGNAL and CONFIDENCE in the required form');
 
   return NextResponse.json({ result, usage });
