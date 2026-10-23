@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, BILLED_CALLS_READY, BILLED_CALLS_SKIP_REASON } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1348 item 1 (from #1347's audit) - the audit's headline target.
  *
@@ -58,6 +59,7 @@ test.describe('QUICK/DEEP must send the selection current at click time, not a s
     const page = await ctx.newPage();
     try {
       const grokRequestBodies: string[] = [];
+      await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
       await page.route('**/api/grok', route => {
         if (route.request().method() === 'POST') {
           grokRequestBodies.push(route.request().postData() ?? '');

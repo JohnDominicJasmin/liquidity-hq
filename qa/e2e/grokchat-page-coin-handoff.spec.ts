@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1631 E (#1665): a chat opened on Arena with no conversation yet asks about ARENA's coin. Before #1665 it started on BTC whatever the
  * page showed, so on the XRP page a Pro user spent a credit on BTC.
@@ -22,6 +23,7 @@ test('a hard-loaded /arena?coin=xrp: the chat opened from the launcher asks abou
   const page = await ctx.newPage();
   try {
     const sent: Array<{ context?: { coin?: string }; messages?: Array<{ role: string }> }> = [];
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     await page.route('**/api/grok-chat', (route) => {
       if (route.request().method() === 'GET') {
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ chat_used: 0, chat_limit: 50, search_used: 0, search_limit: 10 }) });

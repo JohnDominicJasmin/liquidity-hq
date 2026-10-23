@@ -1,0 +1,100 @@
+/* THE FENCE'S LIST, PINNED AGAINST THE SOURCE - and the specs that need the fence, pinned against themselves.
+ *
+ * Dev's design point on #1632, and it is the one that matters: do not key the guard to the thing it is guarding against changing.
+ * `qa/e2e/_no-paid-ai.ts` refuses any unstubbed request to a paid AI route. If its list of paid routes is a hand-written constant,
+ * then the day a fourteenth route starts calling xAI the fence silently stops covering it - a second thing reporting success while
+ * measuring nothing, which is the exact failure the fence exists to prevent.
+ *
+ * So: P1 reads `app/api/**-/route.ts` for the routes that actually call xAI and asserts the fence covers every one. The source is the
+ * authority; the constant is the copy. Same shape as `testIdParity.test.mts`, which is why that file is the precedent Dev named.
+ *
+ * P2 is the other half and it is the one that will go red first. A spec that stubs `/api/grok` and does NOT install the fence is
+ * exactly the spec that silently starts paying when the path is renamed: its glob stops matching, Playwright passes the request
+ * through, the real route answers, and the spec still passes. Ten spec files are in that state today.
+ *
+ * NO NETWORK, NO BROWSER: this reads files. */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ROOT = process.cwd();
+
+/** Every `route.ts` under app/api, with its path segments relative to app/api. */
+function routeFiles(dir: string, rel: string[] = []): Array<{ file: string; segments: string[] }> {
+  const out: Array<{ file: string; segments: string[] }> = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) out.push(...routeFiles(full, [...rel, entry]));
+    else if (entry === 'route.ts') out.push({ file: full, segments: rel });
+  }
+  return out;
+}
+
+/** The routes that actually spend money: they call xAI, directly or through the shared helper. */
+function paidRouteSegments(): string[] {
+  const hits: string[] = [];
+  for (const { file, segments } of routeFiles(join(ROOT, 'app', 'api'))) {
+    const src = readFileSync(file, 'utf8');
+    if (/xaiFetch|api\.x\.ai/.test(src)) hits.push(segments[0]);
+  }
+  return [...new Set(hits)].sort();
+}
+
+const fence = readFileSync(join(ROOT, 'qa', 'e2e', '_no-paid-ai.ts'), 'utf8');
+/** The declared list, read out of the fence rather than imported: this file must not need the Playwright types to run. */
+const declared = [...(fence.match(/export const PAID_AI_SEGMENTS = \[([\s\S]*?)\] as const;/)?.[1] ?? '')
+  .matchAll(/'([^']+)'/g)].map((m) => m[1]);
+
+test('P1. every route that calls xAI is covered by the fence\'s segment list', () => {
+  const paid = paidRouteSegments();
+  assert.ok(paid.length >= 10, `only ${paid.length} xAI routes found - the enumeration broke, so this test is vacuous`);
+  assert.ok(declared.length > 0, 'PAID_AI_SEGMENTS could not be read out of qa/e2e/_no-paid-ai.ts');
+
+  const missing = paid.filter((s) => !declared.includes(s));
+  assert.deepEqual(missing, [],
+    `these routes call xAI and the fence does not list them: ${missing.join(', ')}. `
+    + 'A spec could reach them unstubbed and be billed while still passing. Add them to PAID_AI_SEGMENTS.');
+});
+
+test('P1b. the fence lists nothing that has stopped calling xAI - a stale entry is a claim nobody checks', () => {
+  const paid = paidRouteSegments();
+  const stale = declared.filter((s) => !paid.includes(s));
+  assert.deepEqual(stale, [],
+    `the fence lists ${stale.join(', ')}, which no longer calls xAI. Harmless to traffic, but it means the list is a `
+    + 'hand-maintained guess rather than a reflection of the source - and the next reader cannot tell which entries are real.');
+});
+
+/* ── P2: the specs that stub a paid path must install the fence ─────────────────────────────────────────────────── */
+
+const SPEC_DIR = join(ROOT, 'qa', 'e2e');
+const specs = readdirSync(SPEC_DIR).filter((f) => f.endsWith('.spec.ts'));
+
+/** A spec "stubs a paid path" if it registers a route whose pattern names one of the paid segments. */
+function stubsPaidPath(src: string): string[] {
+  const found = new Set<string>();
+  for (const m of src.matchAll(/\.route\(\s*['"`]([^'"`]+)['"`]/g)) {
+    const pattern = m[1];
+    for (const seg of declared) if (new RegExp(`/api/${seg}(?:[/*?'"\`]|$)`).test(pattern)) found.add(seg);
+  }
+  return [...found];
+}
+
+test('P2. a spec that stubs a paid AI path also installs the fence, so a renamed path cannot slip past its glob', () => {
+  const offenders: string[] = [];
+  for (const f of specs) {
+    const src = readFileSync(join(SPEC_DIR, f), 'utf8');
+    const paid = stubsPaidPath(src);
+    if (paid.length === 0) continue;
+    /* A CALL, not a mention. `/installPaidAiFence/` also matches the import line, so a spec that imports the fence and never calls
+       it passed this test - found by mutation (removing the call from arena-read-card left P2 green), which is the whole argument
+       for running the control before trusting a green. */
+    const calls = [...src.matchAll(/installPaidAiFence\s*\(/g)].length;
+    if (calls === 0) offenders.push(`${f} (stubs ${paid.join(', ')})`);
+  }
+  assert.deepEqual(offenders, [],
+    `${offenders.length} spec(s) stub a paid AI path by glob without installing the fence:\n  ${offenders.join('\n  ')}\n`
+    + 'Each one keeps passing if the path is renamed - the glob stops matching, the request reaches the real route, and xAI bills '
+    + 'for it. Add `await installPaidAiFence(page)` BEFORE the spec\'s own routes (Playwright matches the most recently '
+    + 'registered handler first, so installing it last would swallow the stubs instead).');
+});
