@@ -8,7 +8,7 @@ import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/en
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { anonServerClient, userClient } from '@/lib/supabase-user';
@@ -274,16 +274,31 @@ export async function POST(req: NextRequest) {
     briefing_used: briefingUsed, briefing_limit: briefingLimit,
   };
 
+  /* The refused response must report the count the user actually has left, not the one that was reserved and given back - otherwise
+     the counter on screen says they spent a read they did not. `refunded` is null when the refund did not land (migration 20261023a
+     not applied yet), and then the honest number is the reserved one. */
+  const usageAfterRefund = (refunded: number | null) =>
+    refunded === null ? usage : { ...usage, [type === 'deep' ? 'deep_used' : 'quick_used']: refunded };
+
   /* #1651 item 3: the verdict must be one of the five signals with a 0-100 confidence. An answer without them used to be parsed as FLAT
      at 0% and shown as a "Wait" the model never said. One retry asks for the verdict again; if that is unreadable too, the read is
-     refused with a plain message (the client's existing BAD_ANSWER path). The use is already counted - no refund, as for any failed xAI
-     call (lib/aiUsage.ts). */
+     refused with a plain message (the client's existing BAD_ANSWER path).
+
+     THE USE IS REFUNDED. This comment used to say "no refund, as for any failed xAI call" and that was wrong in the one case that
+     matters: the customer paid a Deep read and saw nothing. PM measured it on 2026-10-22 - two refusals took deep_used 1 -> 2 with
+     no answer either time. The reservation stays before the call (it closes a TOCTOU race); it is handed back here instead. */
   let restated = false;
   if (!parseVerdict(text)) {
     // Nothing to restate: an empty answer is refused as empty, without paying for a second call on it.
-    if (!text.trim()) return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage }, { status: 502 });
+    if (!text.trim()) {
+      const refunded = await refundUsageColumn(userId, column);
+      return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+    }
     const v = await restateVerdict(text, userId);
-    if (!v) return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage }, { status: 502 });
+    if (!v) {
+      const refunded = await refundUsageColumn(userId, column);
+      return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+    }
     text = `SIGNAL: ${v.signal}\nCONFIDENCE: ${v.confidence}\n${text}`;
     restated = true;
   }

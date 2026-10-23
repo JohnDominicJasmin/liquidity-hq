@@ -213,3 +213,32 @@ export async function incrementGlobalUsage(): Promise<boolean> {
   }
   return true;
 }
+
+/* Give back a reservation when the answer never reached the user (#1631, PM's finding 2026-10-22).
+ *
+ * The count is reserved BEFORE the xAI call, which is correct - it closes the TOCTOU race between concurrent requests. But a Deep
+ * read refused as BAD_ANSWER returned nothing and still cost the customer the read: two 502s took deep_used 1 -> 2. Billing after
+ * the answer would reopen the race, so the reservation is returned instead.
+ *
+ * TOLERATES THE MIGRATION NOT BEING APPLIED. 20261023a is written and held - production writes need the owner's word - so until it
+ * runs, the function does not exist and PostgREST answers PGRST202 / 42883. That is logged once and swallowed: a refund that fails
+ * must never turn a refused answer into a failed request, which would be a worse bug than the one it fixes.
+ *
+ * Never throws. Returns the new count when the refund landed, null otherwise.
+ */
+export async function refundUsageColumn(userId: string, column: string): Promise<number | null> {
+  try {
+    const { data, error } = await getSupabaseAdmin().rpc('refund_ai_usage', {
+      p_user_id: userId, p_date: todayUtc(), p_column: column,
+    });
+    if (error) {
+      const missing = error.code === 'PGRST202' || error.code === '42883';
+      console.warn(`[aiUsage] refund of ${column} did not land${missing ? ' (refund_ai_usage not deployed yet - migration 20261023a)' : ''}: ${error.message}`);
+      return null;
+    }
+    return typeof data === 'number' ? data : null;
+  } catch (e) {
+    console.warn('[aiUsage] refund threw:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
