@@ -1611,6 +1611,21 @@ thing", it was not ready.
 
 ### Two PRs, and who opens which
 
+> **MEASURED 2026-10-23: this automation has not run since 2026-10-01, so the
+> announcement is HAND-WRITTEN until Actions is restored.** The workflow is
+> `active` but every push since produces a synthetic run with `path:
+> "BuildFailed"` that never reaches a workflow file, and the CI workflow is
+> `disabled_manually`. `gh run list --limit 200` returns **zero** runs with
+> `conclusion: success`. #1714 is the hand-written version for the 2026-10-22
+> batch, written because nothing opened itself. **Whoever promotes `dev` → `qa`
+> writes the hand-off by hand and says so.** Do not read the silence as "no
+> promotions happened". Tracked on #1413.
+>
+> The paragraph below describes the mechanism as designed. It is kept rather
+> than deleted because it is what should happen again once Actions works, and
+> because a document that quietly drops a broken promise teaches nothing about
+> why it broke.
+
 **Nobody has to remember to announce a promotion.** Pushing to `qa` opens or
 updates a **"Ready for QA" issue** automatically —
 `.github/workflows/ready-for-qa.yml`. It lists every PR that is on `qa` and not
