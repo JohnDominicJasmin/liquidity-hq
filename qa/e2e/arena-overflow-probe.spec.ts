@@ -41,27 +41,41 @@ const HEIGHT = 844;
    function to the page either way, so the behaviour is identical - and a string plus eval would be an unnecessary
    dynamic-code path in a test harness, which is worth avoiding even when the string is a constant in this same file. */
 
-interface Sample { when: 'early' | 'late'; scrollWidth: number; clientWidth: number; offenders: unknown[] }
+interface Box { right: number; w: number; over: boolean; tag: string; cls: string; id: string | null; testid: string | null }
+interface Sample { when: 'early' | 'late'; scrollWidth: number; clientWidth: number; offenders: Box[]; widestRight: Box[]; widestBox: Box[] }
 
 const results: Array<{ state: string; theme: string; run: number; samples: Sample[] }> = [];
 
 async function sample(page: import('@playwright/test').Page, when: 'early' | 'late'): Promise<Sample> {
   const m = await page.evaluate(() => {
     const vw = document.documentElement.clientWidth;
-    const offenders = Array.from(document.querySelectorAll('*'))
-      .map((el) => ({ el, right: el.getBoundingClientRect().right }))
-      .filter((x) => x.right > vw + 1)
-      .sort((a, b) => b.right - a.right)
-      .slice(0, 5)
-      .map((x) => ({
-        right: Math.round(x.right),
-        tag: x.el.tagName.toLowerCase(),
-        cls: (x.el.className?.toString?.() ?? '').slice(0, 60),
-        id: x.el.id || null,
-        testid: x.el.getAttribute('data-testid'),
-        w: Math.round(x.el.getBoundingClientRect().width),
-      }));
-    return { scrollWidth: document.documentElement.scrollWidth, clientWidth: vw, offenders };
+    const describe = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return {
+        right: Math.round(r.right),
+        w: Math.round(r.width),
+        over: r.right > vw + 1,
+        tag: el.tagName.toLowerCase(),
+        cls: (el.className?.toString?.() ?? '').slice(0, 60),
+        id: el.id || null,
+        testid: el.getAttribute('data-testid'),
+      };
+    };
+    const all = Array.from(document.querySelectorAll('*'));
+    /* THE CENSUS, IN EVERY CELL - Dev's refinement, and it needs no selector known in advance.
+       The widest five right edges are recorded whether or not they overflow, so a PASSING cell shows whether the same
+       element is present and merely not overflowing. That distinguishes two defects wearing one symptom: present
+       everywhere and overflowing sometimes (something upstream is sized differently, the element is a victim) versus
+       present only when it overflows (its own conditional render is the whole story, and the fix is one `&&`).
+       Doing it per cell beats a second run keyed on the first run's selector, which would need the first run to have
+       found something. */
+    const widestRight = all.map(describe).sort((a, b) => b.right - a.right).slice(0, 5);
+    /* And the widest elements by WIDTH, because Dev's reading is that the offender is binary-present at a FIXED width
+       rather than a growing one - two cells landing on exactly 421 is not what ticking text does. An element 421px wide
+       sitting inside a 390px viewport is the thing to look for, and it is findable even in a cell that does not
+       overflow (clipped, scrolled, or positioned so its right edge stays inside). */
+    const widestBox = all.map(describe).sort((a, b) => b.w - a.w).slice(0, 3);
+    return { scrollWidth: document.documentElement.scrollWidth, clientWidth: vw, offenders: widestRight.filter((x) => x.over), widestRight, widestBox };
   });
   return { when, ...m };
 }
@@ -99,7 +113,11 @@ for (const state of ['out', 'free'] as const) {
 
           results.push({ state, theme, run, samples: [early, late] });
           // eslint-disable-next-line no-console
-          console.log(`PROBE ${JSON.stringify({ state, theme, run, early: { sw: early.scrollWidth, n: early.offenders.length }, late: { sw: late.scrollWidth, n: late.offenders.length }, offenders: (late.offenders.length ? late.offenders : early.offenders) })}`);
+          console.log(`PROBE ${JSON.stringify({ state, theme, run,
+            early: { sw: early.scrollWidth, over: early.offenders.length },
+            late: { sw: late.scrollWidth, over: late.offenders.length },
+            offenders: (late.offenders.length ? late.offenders : early.offenders),
+            widestBoxLate: late.widestBox })}`);
 
           /* The assertion is on the LATE sample, because that is what a user is left looking at. An early-only
              overflow is recorded and reported rather than failed - it is a different defect. */
