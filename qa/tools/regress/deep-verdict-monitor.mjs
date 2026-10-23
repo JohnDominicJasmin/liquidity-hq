@@ -39,7 +39,11 @@ if (missing.length) { console.error(`missing from the local env files: ${missing
 const ver = await (await fetch(`${BASE}/api/version`, { cache: 'no-store', signal: AbortSignal.timeout(30_000) })).json();
 console.log(`build: commit=${ver.commit} branch=${ver.branch} appEnv=${ver.appEnv}  at ${new Date().toISOString()}`);
 
-if (DRY) { console.log('DRY: would POST /api/grok {type:deep, coin:btc, tf:4h}. No call made, nothing billed.'); process.exit(0); }
+/* `process.exit()` right after a fetch aborts the process with a libuv assertion (UV_HANDLE_CLOSING) instead of exiting - and for a
+   MONITOR the exit code IS the contract, so a crash where a 0 belongs would read to a scheduler as a failed check. Everything below
+   therefore lives in main(), and the exit status is set with `process.exitCode`, letting Node close its own handles. */
+async function main() {
+if (DRY) { console.log('DRY: would POST /api/grok {type:deep, coin:btc, tf:4h}. No call made, nothing billed.'); return 0; }
 
 const auth = await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
   method: 'POST',
@@ -47,9 +51,9 @@ const auth = await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_ty
   body: JSON.stringify({ email: env.E2E_USER_A_EMAIL, password: env.E2E_USER_A_PASSWORD }),
   signal: AbortSignal.timeout(60_000),
 });
-if (!auth.ok) { console.error(`sign-in failed: HTTP ${auth.status}`); process.exit(2); }
+if (!auth.ok) { console.error(`sign-in failed: HTTP ${auth.status}`); return 2; }
 const token = (await auth.json()).access_token;
-if (!token) { console.error('sign-in returned no access_token'); process.exit(2); }
+if (!token) { console.error('sign-in returned no access_token'); return 2; }
 
 /* Neutral phrasing on purpose. An advice-shaped question ("should I go long") is a legitimate thing for the model to decline, so it
    cannot be used to test availability - that confound cost a billed call to discover on 2026-10-23. */
@@ -78,11 +82,15 @@ if (parseable) {
   console.log(`PASS: verdict=${signal} confidence=${confidence} (HTTP ${res.status}) on ${ver.commit}`);
   console.log(`usage: ${JSON.stringify(json?.usage ?? json?._usage ?? '(not reported)')}`);
   console.log(`saved ${file}`);
-  process.exit(0);
+  return 0;
 }
 
 console.error(`FAIL on ${ver.commit}: no parseable verdict. HTTP ${res.status}`);
 console.error(`signal=${JSON.stringify(signal)} confidence=${JSON.stringify(confidence)}`);
 console.error(`RAW BODY (for the issue):\n${text.slice(0, 1200)}`);
 console.error(`saved ${file}`);
-process.exit(1);
+return 1;
+}
+
+/* exitCode rather than exit(): see the note on main(). 0 = parseable verdict, 1 = the feature is broken, 2 = the check could not run. */
+process.exitCode = await main();
