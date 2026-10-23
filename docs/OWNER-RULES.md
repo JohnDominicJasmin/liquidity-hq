@@ -26,6 +26,8 @@ Current trackers — use these, do not create siblings:
 | **#1413** | Build, CI & test infrastructure — dead automations, the gate, integrated verification |
 | **#1631** | AI answers — honesty label, no fake verdicts, no wasted quota |
 | **#1632** | Security |
+| **#1173** | Auth and session timeouts |
+| **#1113** | Onboarding and first run |
 
 A new issue is justified only when something fits **none** of these. If you open one, say in the body why no tracker fits.
 
@@ -44,7 +46,9 @@ A new issue is justified only when something fits **none** of these. If you open
 - A mistake is **one line**: what was wrong, what is right.
 - Long form is allowed only for `/update-big-picture` and approval asks.
 
-**This applies to the PM session only.** Detail belongs on GitHub, where Dev and QA write whatever the work needs.
+**This is about WHERE detail goes, not permission to be long with him.** Dev and QA write whatever the work needs - on GitHub,
+in PRs, issues and commit messages. **When he asks any session directly, the same limit applies: under 80 words, answer
+first.** The routing differs; the rule about his attention does not.
 
 ---
 
@@ -58,7 +62,13 @@ A new issue is justified only when something fits **none** of these. If you open
 - **Batch questions** — several at once, not a trickle.
 - **Never ask him to approve something he has not seen.** Paired before/after screenshots first.
 
-**Only four things need his word:** merging to `main`, production deploys, his money, and visual sign-off. Everything else, decide it.
+**Five things need his word, and the first three are from `CLAUDE.md`:** merging to
+`main`, **production deploys**, **writes to the production database**, his money,
+and visual sign-off. Everything else, decide it.
+
+**The production database write is the one with no recovery** - prod Supabase is on
+the free plan and has no backups. Dev-side migrations are PM's to sequence (his
+ruling, 2026-10-23); production never is.
 
 > *"Decide basic, ask hard, document everything."*
 
@@ -75,7 +85,14 @@ That means test suites, builds, `npm ci`, browser runs, dev servers, page sweeps
 
 Known cloud limits, so nobody is surprised: Bybit and Binance geo-block cloud IPs (app-served data is fine, direct venue reads are not); CoinGecko rate-limits the egress; signed-in work needs secrets he provisions directly.
 
-**The structural trap:** the four gates run in a **pre-push hook**, so they execute where the commits are. Moving "jobs" to the cloud does not move that one. The cloud runner must author and push its own work. Tracked on #1413.
+**The structural trap:** the four gates run in a **pre-push hook**, so they execute where the commits are. Moving "jobs" to the
+cloud does not move that one. The cloud runner must author and push its own work. Tracked on #1413.
+
+**So what do you do when the only way to push a local commit is a gate on his laptop?** Ask him, and say what it costs. Do not
+push without the gate - `--no-verify` is rule 11 - and do not run an eight-minute gate on his machine on your own judgement.
+**He granted exactly that once, on 2026-10-23, for eleven commits that had nowhere else to go, and called it a one-time
+exception.** Before starting one he has allowed: read free memory, refuse below ~2.5 GB, and report the reading before and
+after. A gate that dies at minute six leaves an orphan on his machine, which is worse than not starting.
 
 ---
 
@@ -85,7 +102,11 @@ Known cloud limits, so nobody is surprised: Bybit and Binance geo-block cloud IP
 
 - **Product UI says "AI".** Never the vendor or model name — not in tooltips, buttons, descriptions, bylines or empty states.
 - **The three legal strings keep it**: `DISCLAIMER_SECTION_AI_ANALYSIS_BODY`, `PRIVACY_SECTION_THIRD_PARTY_BODY`, `TERMS_SECTION_THIRD_PARTY_DATA_BODY` — privacy law expects third-party processors to be named.
-- **A UI sweep is not enough.** `GET /api/version` returned `"grok": true` unauthenticated to the open internet while we were fixing labels. **An API response is rendered surface too.**
+- **A UI sweep is not enough, and this is CURRENTLY LEAKING.** `GET /api/version`
+  returns `"grok": true` **unauthenticated on production right now** - verified
+  2026-10-23 on `8f4b23b` (prod) and `8158adf` (dev). **An API response is rendered
+  surface too.** Tracked as #1632 item 12; note there that **`grok` is the KEY name**,
+  so "genericise the values" does not fix it.
 
 ---
 
@@ -162,7 +183,9 @@ Ship what is built. A new finding goes on the tracker as a checkbox; it does not
 
 2. **Sweep for every instance, state the count — and then measure whether each one actually bites.** "Found 26 keys, 23 in product UI, 3 legal" is a scope. "Found one" is a guess. **A label-file sweep is not a source sweep** — a hardcoded `{['50','Grok','Auto'][i]}` is invisible to every label search we own.
 
-   **The measuring half is not optional, and QA earned it the hard way on 2026-10-23.** They swept a test-harness race, found **nine files with the shape**, and were ready to call it systemic. Measuring the eight unguarded ones gave **84 tests, 9.4 seconds, zero escapes**. **The class was real and the harm was not.**
+   **The measuring half is not optional, and QA earned it the hard way on 2026-10-23.** They swept a test-harness race, found **nine files with the shape**, and were ready to call it systemic. Measuring the eight unguarded ones gave **84 tests, zero escapes** - 9.4 s before the guards and 6.4 s after, the same eight
+   files. **The class was real and the harm was not.** Quote both runs rather than the one that suits the point: a single
+   figure for a before-and-after invites the reader to assume which it was.
 
    **Naming a class without measuring harm generates work on eight files that did not need it — which is the same endlessness from the other direction.** The count tells you the scope; the measurement tells you which of it is worth doing, and in what order. Report both, and say plainly when a member of the class is present but harmless.
 
