@@ -202,6 +202,9 @@ export async function POST(req: NextRequest) {
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const column = type === 'deep' ? 'deep_count' : 'quick_count';
   const limit  = type === 'deep' ? deepLimit : quickLimit;
+  /* The date the reservation is written under, captured HERE and reused for any refund - a Deep call can cross UTC midnight,
+     and recomputing the date at refund time would credit a row that never paid. */
+  const reservedOn = todayUtc();
   const usageResult = await incrementUsageColumn(userId, role, column, limit);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
@@ -291,12 +294,19 @@ export async function POST(req: NextRequest) {
   if (!parseVerdict(text)) {
     // Nothing to restate: an empty answer is refused as empty, without paying for a second call on it.
     if (!text.trim()) {
-      const refunded = await refundUsageColumn(userId, column);
+      /* LOGS, because a refusal that writes nothing is unmeasurable (#1631, QA). PM searched production for this failure and found
+         silence - which meant nothing, since these two paths were plain NextResponse.json with no apiError, no console, no health
+         report. Without a line here the eventual FIX is also unverifiable on prod: we would ship it and have no way to know. */
+      console.error(`[grok] BAD_ANSWER empty-text type=${type} coin=${coin ?? 'unknown'} tf=${tf} restated=false`);
+      const refunded = await refundUsageColumn(userId, column, reservedOn);
       return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
     }
     const v = await restateVerdict(text, userId);
     if (!v) {
-      const refunded = await refundUsageColumn(userId, column);
+      /* restated=true: the restatement attempt RAN and still produced no verdict - a different fault from an answer that arrived
+         empty, and the distinction is the first thing anyone debugging this will want. */
+      console.error(`[grok] BAD_ANSWER unreadable-verdict type=${type} coin=${coin ?? 'unknown'} tf=${tf} restated=true chars=${text.trim().length}`);
+      const refunded = await refundUsageColumn(userId, column, reservedOn);
       return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
     }
     text = `SIGNAL: ${v.signal}\nCONFIDENCE: ${v.confidence}\n${text}`;

@@ -226,10 +226,13 @@ export async function incrementGlobalUsage(): Promise<boolean> {
  *
  * Never throws. Returns the new count when the refund landed, null otherwise.
  */
-export async function refundUsageColumn(userId: string, column: string): Promise<number | null> {
+export async function refundUsageColumn(userId: string, column: string, reservedOn: string): Promise<number | null> {
   try {
+    /* `reservedOn` is the date the RESERVATION was written, passed in rather than recomputed. A Deep call can outlive UTC midnight -
+       they take tens of seconds - and calling todayUtc() again here would decrement the NEXT day's row, which never paid for
+       anything: quota minted on one day, a charge left standing on the other. Flagged by the automated security review. */
     const { data, error } = await getSupabaseAdmin().rpc('refund_ai_usage', {
-      p_user_id: userId, p_date: todayUtc(), p_column: column,
+      p_user_id: userId, p_date: reservedOn, p_column: column,
     });
     if (error) {
       const missing = error.code === 'PGRST202' || error.code === '42883';
