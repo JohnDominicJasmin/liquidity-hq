@@ -11,17 +11,39 @@ file.**
 
 ---
 
-> ### State on 2026-10-21 (PM/DevOps)
+> ### State on 2026-10-23 (PM/DevOps)
 >
 > The only dated status in this file. Check it against the live sources in the table further down.
 >
-> - **Production:** `b999f8c`, tag `v2026.10.17`. **Release v2026.10.21** (the out-of-memory crash fix, with sign-in
->   tokens now checked locally, data fixes, security limits) passed QA's full regression on 2026-10-21 and is on `staging`,
->   waiting for the owner's approval (#1654).
+> - **Production:** `9a7fed19`, tag `v2026.10.23`, live 13:42:43Z. Verified independently by PM before the owner's
+>   go-ahead and by QA after: the admin console's copy is no longer in the anonymous `/api/labels` payload
+>   (195 `OPS_*` keys → 0, including the model name and the margin formula), the four legal disclosures are intact,
+>   anonymous `DELETE` and `UPDATE` are revoked on `lhq_liq_events`, and an unreadable AI answer is refused rather
+>   than shown as a confident `FLAT`.
+> - **Liquidation retention is server-side now.** `/api/liq-events/purge`, driven by cron-job.org daily 04:00. Proved
+>   by a run rather than a schedule: 633 rows → 301, the predicted 332 deletions exactly, nothing older than the
+>   cutoff surviving. The browser no longer needs `DELETE`.
+> - **CI IS DOWN and this is the biggest standing gap.** Every workflow run has failed at startup since
+>   2026-10-22 09:59Z — the owner's GitHub bill is unpaid. The committed 600-test browser suite **has not completed
+>   anywhere since 2026-09-18**: CI cannot run it and it does not fit on the owner's laptop (it reached test 600 of
+>   600 and was killed for memory). **Nobody can currently claim "the committed suite passes".** Tracked on #1413.
+> - **Four gaps were named in QA's production sign-off** rather than left implied: the suite above; the bundle half
+>   of the admin-copy leak (4 chunks still carry 195 `OPS_*` key names, `grok-4.3` and both vendor-named routes);
+>   `payments-write-path` has no password for test account C; and `/arena` overflows 31 px at 390 px width — shipped
+>   knowingly, pre-existing, the owner was told.
 > - **Four seats:** PM/DevOps (sequencing; `main` and production with the owner's approval each release), Dev
 >   (application code), QA (every test, the `qa` and `staging` deploys, sign-off), Marketing (Claude Cowork, folder
 >   `Documents\LiquidityHQ-Marketing`; PM keeps its `FACTS.md`). Who merges and deploys: `CLAUDE.md`.
-> - **Payments:** Whop only since 2026-10-17; built, switched off on production until go-live (#1567).
+> - **Payments: Whop only, and it is now waiting on the OWNER, not on code.** Dev audited the existing route on
+>   2026-10-23 — **62 tests, 62 pass**: the plan is recorded on grant, paid time is never shortened, cancel/refund/
+>   dispute never revoke, replays are handled, an unknown plan id goes to review rather than being rounded. Every
+>   payment flag reads `false` on production because **the environment variables are not set**, not because anything
+>   is missing. Eight to set, and **three are `NEXT_PUBLIC_*` so they need a redeploy to take effect** — set them
+>   without rebuilding and nothing changes while the dashboard shows them saved. The owner then fires one test
+>   delivery from Whop: that is the only way to prove Whop signs the way its documentation says, and if it does not,
+>   buyers pay and get nothing.
+> - **BoomFi is PAUSED** (owner, 2026-10-23). Three real links remain at the superseded $35/$350 prices; the amount
+>   table holds 49/490/20/10, so a $35 payment matches no plan, and `boomfiWebhook` is `false` on production.
 > - **Read next:** `docs/PRODUCT-FACTS.md` (audience, prices, payments state, support email),
 >   `docs/OWNER-BACKLOG.md` (the owner's list, the 2026-10-21 decisions, what waits on the owner, the order of work)
 >   and `docs/WORK-QUEUE.md` (the lanes).
