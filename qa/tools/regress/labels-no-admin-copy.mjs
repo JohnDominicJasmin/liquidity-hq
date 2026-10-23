@@ -73,6 +73,16 @@ async function main() {
   console.log(`\n3. values naming the AI vendor outside the four legal keys: ${leaks.length}  ${leaks.length === 0 ? 'PASS' : 'FAIL'}`);
   for (const k of leaks) console.log(`   ${k}: ${String(labels[k]).replace(/\s+/g, ' ').slice(0, 110)}`);
 
+  /* ASSERTION 4, added after #1731: THE KEY NAMES ARE SERVED TOO. The response is a key -> value map, so an anonymous caller reads
+     every key name as well as every value. Five keys carried the vendor's name on 2026-10-23 - NEWS_ASK_GROK_PROMPT,
+     HYPOTHESIS_TRACKER_GROK_VERDICT_PREFIX, GROK_SIGNAL_CHART_FULLSCREEN, GROK_SIGNAL_CHART_EXIT_FULLSCREEN and
+     OPS_CONFIG_FEATURE_GROK - and four of them are NOT `OPS_*`, so excluding admin copy does not remove them. Every sweep until
+     then, this script included, looked only at values. No legal exception applies here: a disclosure needs the vendor named in its
+     TEXT, never in its key. */
+  const keyLeaks = keys.filter((k) => VENDOR.test(k));
+  console.log(`\n4. KEY NAMES containing the vendor: ${keyLeaks.length}  ${keyLeaks.length === 0 ? 'PASS' : 'FAIL'}`);
+  for (const k of keyLeaks) console.log(`   ${k}${/^OPS_/.test(k) ? '  (also caught by assertion 1)' : '  <- survives an OPS_ exclusion'}`);
+
   /* And the legal four must still be PRESENT - a fix that strips the vendor name everywhere would break the disclosure the law
      expects, and would otherwise pass assertion 3 silently. */
   const legalPresent = [...LEGAL_KEYS].filter((k) => typeof labels[k] === 'string' && VENDOR.test(labels[k]));
@@ -111,10 +121,10 @@ async function main() {
   const dir = `${REPO}/../qa-evidence-guardrail`;
   mkdirSync(dir, { recursive: true });
   const file = `${dir}/labels-leak-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-  writeFileSync(file, JSON.stringify({ base: BASE, locale: LOCALE, bytes: raw.length, keys: keys.length, opsKeys: ops, vendorLeaks: leaks.map((k) => ({ key: k, value: labels[k] })) }, null, 2));
+  writeFileSync(file, JSON.stringify({ base: BASE, locale: LOCALE, bytes: raw.length, keys: keys.length, opsKeys: ops, vendorLeaks: leaks.map((k) => ({ key: k, value: labels[k] })), vendorKeyNames: keyLeaks }, null, 2));
   console.log(`\nsaved ${file}`);
 
-  const failed = ops.length > 0 || leaks.length > 0 || legalPresent.length !== LEGAL_KEYS.size;
+  const failed = ops.length > 0 || leaks.length > 0 || keyLeaks.length > 0 || legalPresent.length !== LEGAL_KEYS.size;
   console.log(failed ? '\nFAIL: the anonymous payload carries admin copy and/or the vendor name.' : '\nPASS: no admin copy, no vendor name outside the legal four.');
   return failed ? 1 : 0;
 }
