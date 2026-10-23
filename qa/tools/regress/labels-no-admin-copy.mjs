@@ -92,14 +92,26 @@ async function main() {
     console.log('   a fix must EXCLUDE admin copy, not strip the vendor name from the legal disclosures.');
   }
 
-  /* ASSERTION 2: an admin caller still gets the ops copy, or the console silently loses its text. Skipped rather than faked when no
-     admin credential is configured - a skipped assertion that says so is worth more than a green that tested nothing. */
-  let adminNote = 'SKIPPED - no E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD in the env files';
-  if (env.E2E_ADMIN_EMAIL && env.E2E_ADMIN_PASSWORD && env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  /* ASSERTION 2, REWRITTEN AFTER IT FIRST RAN. It used to demand that an admin caller still receives the `OPS_*` keys, and it failed:
+     an admin gets ZERO, exactly like an anonymous caller.
+     THAT IS THE DESIGN, NOT A DEFECT, and the assertion was encoding a design that had been deliberately rejected. #1732 filters
+     `OPS_*` unconditionally BECAUSE a second payload would need a cache dimension on both the in-memory cache (keyed on locale) and
+     the edge cache (keyed on the URL, which carries no identity) - without it a warmed admin payload gets served to the next
+     anonymous caller and the leak returns looking fixed. `/ops` takes its copy from `DEFAULT_EN_LABELS`, the build-time snapshot the
+     client already bundles. I reviewed that reasoning and agreed with it, then wrote a test demanding the opposite.
+     So what this now asserts is the property that actually matters: THERE IS NO SECOND PAYLOAD. An admin and an anonymous caller get
+     the same thing. If an admin branch ever appears, this fails and the cache question has to be answered again rather than
+     rediscovered.
+     AND THE CONSEQUENCE WORTH KNOWING, because it puts the two halves of item 15 in tension: `/ops`'s copy now depends on the very
+     bundle inclusion that condition A of `vendor-name-not-public.mjs` exists to remove. Split the defaults so `OPS_*` leaves the
+     public chunk and `/ops` loses its text unless the split gives that route its own chunk. Neither half is wrong; they have to land
+     together. */
+  let adminNote = 'SKIPPED - no E2E_USER_ADMIN_EMAIL / E2E_USER_ADMIN_PASSWORD in the env files';
+  if (env.E2E_USER_ADMIN_EMAIL && env.E2E_USER_ADMIN_PASSWORD && env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     const auth = await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY },
-      body: JSON.stringify({ email: env.E2E_ADMIN_EMAIL, password: env.E2E_ADMIN_PASSWORD }),
+      body: JSON.stringify({ email: env.E2E_USER_ADMIN_EMAIL, password: env.E2E_USER_ADMIN_PASSWORD }),
       signal: AbortSignal.timeout(60_000),
     });
     if (!auth.ok) adminNote = `admin sign-in failed: HTTP ${auth.status}`;
@@ -112,7 +124,12 @@ async function main() {
       });
       const adminLabels = adminRes.ok ? await adminRes.json().then((j) => j.labels ?? j).catch(() => null) : null;
       const adminOps = adminLabels ? Object.keys(adminLabels).filter((k) => /^OPS_/.test(k)).length : 0;
-      adminNote = `${adminOps} OPS_* keys for an admin caller  ${adminOps > 0 ? 'PASS' : 'FAIL - the ops console has lost its copy'}`;
+      const adminKeys = adminLabels ? Object.keys(adminLabels).length : -1;
+      const sameAsAnon = adminKeys === keys.length;
+      adminNote = adminOps === 0 && sameAsAnon
+        ? `no second payload: an admin caller gets ${adminKeys} keys and 0 OPS_*, identical to anonymous  PASS`
+        : `an admin caller gets ${adminKeys} keys and ${adminOps} OPS_*  FAIL - a second payload exists, so the caches need an `
+          + 'identity dimension or a warmed admin payload reaches the next anonymous caller (#1732)';
     }
   }
   console.log(`\n2. ${adminNote}`);
