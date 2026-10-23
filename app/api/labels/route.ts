@@ -114,7 +114,36 @@ export async function GET(req: NextRequest) {
     for (const row of rows) {
       if (row.locale === locale) merged.set(row.key, row.value);
     }
-    data = Object.fromEntries(merged);
+    /* #1632 item 15: the admin console's copy is not UI copy for this route's audience.
+     *
+     * This endpoint is public and unauthenticated by design - that part is fine, it is translated
+     * interface text. But it was serving all 195 `OPS_*` strings to anyone, which publishes the
+     * model name, the margin formula and the existence of a daily spend cap. Measured on production
+     * with no cookie and no header: 180,842 bytes, 2,651 keys, 195 of them `OPS_*`.
+     *
+     * FILTERED HERE, BEFORE THE CACHE IS POPULATED, deliberately. The obvious alternative - an admin
+     * branch on this route - needs a matching dimension on BOTH caches or a warmed admin payload
+     * gets served to the next anonymous caller and the leak returns looking fixed. The in-memory
+     * cache is keyed on locale alone, and the edge cache (`s-maxage=60`) is keyed on the URL, which
+     * carries no identity at all. Filtering unconditionally means there is no second payload to key
+     * on, so the trap cannot be sprung.
+     *
+     * It also could not have worked: nothing sends credentials here. LabelsProvider fetches this
+     * with no Authorization header, and this app's auth tokens live in localStorage rather than a
+     * cookie, so the server has no way to tell an admin from a visitor on this request.
+     *
+     * /ops keeps its copy from DEFAULT_EN_LABELS, the build-time snapshot the client already
+     * bundles. The trade-off, stated rather than discovered later: an `OPS_*` row edited in the
+     * database no longer reaches /ops until the next deploy. Acceptable for admin console copy;
+     * it would not be for customer-facing text.
+     *
+     * THIS CLOSES ONE OF TWO PATHS. components/LabelsProvider.tsx is a client component that
+     * imports lib/labelDefaults.en.json whole, so those same 195 strings ship inside the public JS
+     * bundle to every anonymous visitor regardless of this filter. See the issue - that half needs
+     * the defaults file split, and it is not done here. */
+    data = Object.fromEntries(
+      [...merged].filter(([key]) => !key.startsWith('OPS_'))
+    );
   } catch { /* fail open to {} */ }
 
   // An empty map means the query failed and we fell open - never a real answer,
