@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedResponse, parseVerdict } from '@/lib/grok';
+import { applyResultChecks, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict } from '@/lib/grok';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
@@ -340,7 +340,22 @@ export async function POST(req: NextRequest) {
   /* #1631 B and D: the rules the answer can be checked against are applied here, where the prompt is known - a full tier the model's own
      count does not support, a raid with no cluster data to aim at (both XRP runs invented a "long flush" target), and a missing
      "perps-vs-spot unavailable" disclosure. See applyResultChecks in lib/grok.ts. */
-  const result = applyResultChecks({ ...parseCombinedResponse(text, tf, session), citations }, prompt);
+  /* parseCombinedRead, not parseCombinedResponse: the second answers FLAT at 0% for an answer that states no verdict, and until now
+     the only thing stopping that reaching a user was the check twelve lines above - a guard in this file protecting a default in
+     another one. Unreachable today precisely because that guard is there, which is the point: the refusal is now local and typed,
+     so it survives someone editing, moving or short-circuiting the restate block. */
+  const parsed = parseCombinedRead(text, tf, session);
+  if (!parsed) {
+    /* The same two calls as both siblings above, and QA was right to insist (#1727 review): a path whose entire purpose is to
+       survive someone editing the restate block must not behave WORSE than the code it is backstopping. Without these it would
+       charge the user for a read it refused (the defect #1724 fixed) and write nothing to the log (the silence PM searched
+       production for). `restated=${restated}` is the field that tells the two causes apart: false means the guard above let an
+       answer through that this one rejected, which should be impossible and is the first thing worth knowing. */
+    console.error(`[grok] BAD_ANSWER strict-read-refused type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=${restated} chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
+    const refunded = await refundUsageColumn(userId, column, reservedOn);
+    return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+  }
+  const result = applyResultChecks({ ...parsed, citations }, prompt);
   if (restated) (result.checks ??= []).push('verdict restated by a second pass: the answer did not state SIGNAL and CONFIDENCE in the required form');
 
   return NextResponse.json({ result, usage });
