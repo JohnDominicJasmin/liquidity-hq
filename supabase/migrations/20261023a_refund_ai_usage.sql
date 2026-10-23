@@ -33,8 +33,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_new     integer;
-  v_refunds integer;
+  v_new integer;
 begin
   if p_column not in ('deep_count', 'quick_count', 'chat_count', 'search_count', 'briefing_count') then
     raise exception 'refund_ai_usage: unknown column %', p_column using errcode = '22023';
@@ -42,20 +41,22 @@ begin
 
   -- CAPPED AT 3 A DAY, and the cap is the point. Without it the refund removes the only ceiling on OUR xAI spend: a user who can
   -- reliably produce an unparseable answer loops prompt -> refusal -> refund and calls xAI forever at our cost, while their own
-  -- counter never moves. Flagged by the automated security review. Three covers the honest case - a genuinely broken day for one
-  -- user - and stops the loop. Beyond it the refusal still costs them a read, which is the pre-existing behaviour, not a new harm.
-  select coalesce(refund_count, 0) into v_refunds
-    from lhq_grok_usage where user_id = p_user_id and date = p_date;
-  if v_refunds >= 3 then
-    raise notice 'refund_ai_usage: daily refund cap reached for %', p_user_id;
-    return null;
-  end if;
-
+  -- counter never moves. Three covers the honest case - a genuinely broken day for one user - and stops the loop. Beyond it the
+  -- refusal still costs them a read, which is the pre-existing behaviour, not a new harm.
+  --
+  -- ONE STATEMENT, not select-then-update. The first draft read refund_count, compared it, then updated - and two concurrent
+  -- refusals both read 2, both passed the check and both refunded, which is the cap failing exactly when it is being attacked.
+  -- Flagged by the automated security review. The predicate lives in the UPDATE, so the row is locked by the same statement that
+  -- tests it; a caller over the cap matches no row, v_new comes back null, and the caller reports no refund.
   execute format(
     'update lhq_grok_usage set %I = greatest(%I - 1, 0), refund_count = coalesce(refund_count, 0) + 1, updated_at = now() '
-    'where user_id = $1 and date = $2 returning %I',
-    p_column, p_column
+    'where user_id = $1 and date = $2 and coalesce(refund_count, 0) < 3 returning %I',
+    p_column, p_column, p_column
   ) into v_new using p_user_id, p_date;
+
+  if v_new is null then
+    raise notice 'refund_ai_usage: no refund for % on % (no row, or the daily refund cap is reached)', p_user_id, p_date;
+  end if;
 
   return v_new;
 end;

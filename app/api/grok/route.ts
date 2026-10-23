@@ -205,6 +205,11 @@ export async function POST(req: NextRequest) {
   /* The date the reservation is written under, captured HERE and reused for any refund - a Deep call can cross UTC midnight,
      and recomputing the date at refund time would credit a row that never paid. */
   const reservedOn = todayUtc();
+  /* Anything from the request body is attacker-controlled text before it is a log field: a coin of "btc
+[grok] BAD_ANSWER ..."
+     writes a second line that reads like ours and forges whatever it likes into the record we debug from. Flagged by the automated
+     security review. Stripped to the characters a coin id or a timeframe can legitimately contain, and truncated. */
+  const logTag = (v: unknown) => String(v ?? 'unknown').replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 24) || 'unknown';
   const usageResult = await incrementUsageColumn(userId, role, column, limit);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
@@ -297,7 +302,7 @@ export async function POST(req: NextRequest) {
       /* LOGS, because a refusal that writes nothing is unmeasurable (#1631, QA). PM searched production for this failure and found
          silence - which meant nothing, since these two paths were plain NextResponse.json with no apiError, no console, no health
          report. Without a line here the eventual FIX is also unverifiable on prod: we would ship it and have no way to know. */
-      console.error(`[grok] BAD_ANSWER empty-text type=${type} coin=${coin ?? 'unknown'} tf=${tf} restated=false`);
+      console.error(`[grok] BAD_ANSWER empty-text type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=false`);
       const refunded = await refundUsageColumn(userId, column, reservedOn);
       return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
     }
@@ -305,7 +310,7 @@ export async function POST(req: NextRequest) {
     if (!v) {
       /* restated=true: the restatement attempt RAN and still produced no verdict - a different fault from an answer that arrived
          empty, and the distinction is the first thing anyone debugging this will want. */
-      console.error(`[grok] BAD_ANSWER unreadable-verdict type=${type} coin=${coin ?? 'unknown'} tf=${tf} restated=true chars=${text.trim().length}`);
+      console.error(`[grok] BAD_ANSWER unreadable-verdict type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=true chars=${text.trim().length}`);
       const refunded = await refundUsageColumn(userId, column, reservedOn);
       return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
     }
