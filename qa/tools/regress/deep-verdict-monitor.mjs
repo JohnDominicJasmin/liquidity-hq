@@ -32,6 +32,10 @@ for (const f of ['.env.e2e.local', '.env.local']) {
     if (m && !(m[1] in env)) env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
   }
 }
+/* process.env fills any name the files did not supply: the cloud runner has no .env.e2e.local. Files win, so a stale exported
+   variable cannot silently override the checked-in ones. */
+for (const [k, v] of Object.entries(process.env)) if (!(k in env) && typeof v === 'string' && v !== '') env[k] = v;
+
 const need = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'E2E_USER_A_EMAIL', 'E2E_USER_A_PASSWORD'];
 const missing = need.filter((k) => !env[k]);
 if (missing.length) { console.error(`missing from the local env files: ${missing.join(', ')}`); process.exit(2); }
