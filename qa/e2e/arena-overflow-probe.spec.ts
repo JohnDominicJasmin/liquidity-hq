@@ -42,7 +42,7 @@ const HEIGHT = 844;
    dynamic-code path in a test harness, which is worth avoiding even when the string is a constant in this same file. */
 
 interface Box { right: number; w: number; over: boolean; tag: string; cls: string; id: string | null; testid: string | null }
-interface Sample { when: 'early' | 'late'; scrollWidth: number; clientWidth: number; offenders: Box[]; widestRight: Box[]; widestBox: Box[] }
+interface Sample { when: 'early' | 'late'; scrollWidth: number; clientWidth: number; nodes: number; censusMs: number; offenders: Box[]; widestRight: Box[]; widestBox: Box[] }
 
 const results: Array<{ state: string; theme: string; run: number; samples: Sample[] }> = [];
 
@@ -61,6 +61,11 @@ async function sample(page: import('@playwright/test').Page, when: 'early' | 'la
         testid: el.getAttribute('data-testid'),
       };
     };
+    /* THE CENSUS TIMES ITSELF - Dev's line, and it turns a caveat into a figure. A census that took 12ms at the 600ms
+       mark is a snapshot; one that took 300ms is a smear across half the interval, and the reader can tell which
+       without anyone arguing about it. The rect reads force layout once rather than once per node (nothing mutates
+       the DOM in the loop), so the exposure is wall-clock on a still-painting page - which is what this measures. */
+    const t0 = performance.now();
     const all = Array.from(document.querySelectorAll('*'));
     /* THE CENSUS, IN EVERY CELL - Dev's refinement, and it needs no selector known in advance.
        The widest five right edges are recorded whether or not they overflow, so a PASSING cell shows whether the same
@@ -75,7 +80,9 @@ async function sample(page: import('@playwright/test').Page, when: 'early' | 'la
        sitting inside a 390px viewport is the thing to look for, and it is findable even in a cell that does not
        overflow (clipped, scrolled, or positioned so its right edge stays inside). */
     const widestBox = all.map(describe).sort((a, b) => b.w - a.w).slice(0, 3);
-    return { scrollWidth: document.documentElement.scrollWidth, clientWidth: vw, offenders: widestRight.filter((x) => x.over), widestRight, widestBox };
+    const censusMs = Math.round(performance.now() - t0);
+    return { scrollWidth: document.documentElement.scrollWidth, clientWidth: vw, nodes: all.length, censusMs,
+      offenders: widestRight.filter((x) => x.over), widestRight, widestBox };
   });
   return { when, ...m };
 }
@@ -114,8 +121,8 @@ for (const state of ['out', 'free'] as const) {
           results.push({ state, theme, run, samples: [early, late] });
           // eslint-disable-next-line no-console
           console.log(`PROBE ${JSON.stringify({ state, theme, run,
-            early: { sw: early.scrollWidth, over: early.offenders.length },
-            late: { sw: late.scrollWidth, over: late.offenders.length },
+            early: { sw: early.scrollWidth, over: early.offenders.length, censusMs: early.censusMs, nodes: early.nodes },
+            late: { sw: late.scrollWidth, over: late.offenders.length, censusMs: late.censusMs, nodes: late.nodes },
             offenders: (late.offenders.length ? late.offenders : early.offenders),
             widestBoxLate: late.widestBox })}`);
 
@@ -145,6 +152,6 @@ test.afterAll(() => {
   for (const r of results) {
     const [e, l] = r.samples;
     // eslint-disable-next-line no-console
-    console.log(`  ${r.state}/${r.theme}/run${r.run}: early ${e.scrollWidth} (${e.offenders.length} offenders), late ${l.scrollWidth} (${l.offenders.length})`);
+    console.log(`  ${r.state}/${r.theme}/run${r.run}: early ${e.scrollWidth} (${e.offenders.length} over, census ${e.censusMs}ms over ${e.nodes} nodes), late ${l.scrollWidth} (${l.offenders.length} over, census ${l.censusMs}ms)`);
   }
 });
