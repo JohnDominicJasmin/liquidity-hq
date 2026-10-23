@@ -85,6 +85,8 @@ interface Cell {
   rendered: boolean; textLength: number;
   purchaseCta: number; planMentions: number; trialMentions: number;
   theming: string | null;
+  /** Did two samples 1.5s apart agree? Only a settled cell's state-dependent counts are reportable. */
+  settled?: boolean;
 }
 
 const recorded: Cell[] = [];
@@ -147,7 +149,24 @@ for (const { path, states } of PAGES) {
             if (state.who) await gotoSignedIn(page, path);
             else { await page.goto(path, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(3000); }
 
+            /* MEASURED TWICE, 1.5s APART, AND THE CELL SAYS WHETHER IT SETTLED.
+             *
+             * The first run of this matrix reported that `/upgrade` showed a free account two purchase buttons in dark and
+             * zero in light, and that `/dashboard` showed a free account 0 CTAs in dark and 2 in light. A theme cannot change
+             * content - those were the SAME page caught at different render stages behind a fixed wait, with text lengths of
+             * 2,223 against 1,194 on one pair and 3,319 against 286 on another. Five of twenty-two theme pairs disagreed.
+             *
+             * So a single sample behind a timeout is not a measurement here: entitlements resolve asynchronously and the
+             * buttons appear when they land. Two samples that agree is weak evidence of a settled page; two that disagree is
+             * strong evidence the number is not reportable, and the cell records which it was rather than quietly printing
+             * one of them. The invariants are unaffected - overflow and the applied theme do not move once painted - so this
+             * only governs what goes in the observation table. */
+            const first = await measure(page, { state: stateId, path, viewport: viewport.id, theme, requested: viewport.width });
+            await page.waitForTimeout(1500);
             const cell = await measure(page, { state: stateId, path, viewport: viewport.id, theme, requested: viewport.width });
+            cell.settled = first.purchaseCta === cell.purchaseCta
+              && first.planMentions === cell.planMentions
+              && Math.abs(first.textLength - cell.textLength) <= 20;
             recorded.push(cell);
             // eslint-disable-next-line no-console
             console.log(`CELL ${JSON.stringify(cell)}`);
@@ -177,9 +196,9 @@ test.afterAll(() => {
   // eslint-disable-next-line no-console
   console.log('\nSTATE-DEPENDENT OBSERVATIONS (for the owner; nothing here is asserted)');
   // eslint-disable-next-line no-console
-  console.log('path | state | viewport | theme | purchase CTAs | price/plan mentions | trial mentions');
+  console.log('path | state | viewport | theme | purchase CTAs | price/plan mentions | trial mentions | settled?');
   for (const c of recorded) {
     // eslint-disable-next-line no-console
-    console.log(`${c.path} | ${c.state} | ${c.viewport} | ${c.theme} | ${c.purchaseCta} | ${c.planMentions} | ${c.trialMentions}`);
+    console.log(`${c.path} | ${c.state} | ${c.viewport} | ${c.theme} | ${c.purchaseCta} | ${c.planMentions} | ${c.trialMentions} | ${c.settled ? 'settled' : 'UNSETTLED - not reportable'}`);
   }
 });
