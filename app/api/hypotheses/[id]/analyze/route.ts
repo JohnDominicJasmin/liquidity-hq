@@ -142,7 +142,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     if (!r.ok) {
       const e = await r.json().catch(() => ({})) as { error?: string };
-      return NextResponse.json({ error: e.error ?? 'Grok error' }, { status: 502 });
+      return NextResponse.json({ error: e.error ?? 'AI service error' }, { status: 502 });
     }
     const d = await r.json();
     await recordAiCall({ userId: authData.user.id, callType: 'hypothesis_analyze', model: d.model ?? 'grok-4.3', usage: d.usage });

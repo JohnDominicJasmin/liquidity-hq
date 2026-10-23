@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (!GROK_KEY) {
-    return NextResponse.json({ error: 'Grok API not configured' }, { status: 503 });
+    return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
   }
   if (!(await isFeatureEnabled('grok'))) {
     return NextResponse.json({ error: 'LiquidityAI is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });

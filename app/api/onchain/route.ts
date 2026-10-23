@@ -160,7 +160,7 @@ export async function GET(req: NextRequest) {
       });
       if (!r.ok) {
         const e = await r.json().catch(() => ({})) as { error?: string };
-        throw new Error(e.error ?? 'Grok error');
+        throw new Error(e.error ?? 'AI service error');
       }
       const d = await r.json();
       await recordAiCall({ userId: authData.user.id, callType: 'onchain', model: d.model ?? 'grok-4.3', usage: d.usage });
