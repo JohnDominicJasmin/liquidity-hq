@@ -210,6 +210,11 @@ export async function POST(req: NextRequest) {
      writes a second line that reads like ours and forges whatever it likes into the record we debug from. Flagged by the automated
      security review. Stripped to the characters a coin id or a timeframe can legitimately contain, and truncated. */
   const logTag = (v: unknown) => String(v ?? 'unknown').replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 24) || 'unknown';
+  /* The HEAD of an unparseable answer, one line, 160 characters. Without it the log says a verdict could not be read and not what
+     arrived instead, which is the difference between knowing and guessing - QA's candidate for #1721 is that the model now bolds the
+     VALUE ("SIGNAL: **BULLISH**"), a shape these regexes reject while accepting every other markdown variant. This line settles that
+     on the next failure at no cost. Newlines become a marker so a crafted answer cannot forge a second log line. */
+  const logHead = (v: string) => v.replace(/\s*[\r\n]+\s*/g, ' | ').replace(/[^\x20-\x7E]/g, '').slice(0, 160);
   const usageResult = await incrementUsageColumn(userId, role, column, limit);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
@@ -310,7 +315,7 @@ export async function POST(req: NextRequest) {
     if (!v) {
       /* restated=true: the restatement attempt RAN and still produced no verdict - a different fault from an answer that arrived
          empty, and the distinction is the first thing anyone debugging this will want. */
-      console.error(`[grok] BAD_ANSWER unreadable-verdict type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=true chars=${text.trim().length}`);
+      console.error(`[grok] BAD_ANSWER unreadable-verdict type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=true chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
       const refunded = await refundUsageColumn(userId, column, reservedOn);
       return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
     }
