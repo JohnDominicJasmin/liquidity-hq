@@ -1,0 +1,77 @@
+-- #1632 item 4, the ERASURE half.
+--
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ALREADY APPLIED. 2026-10-23, by PM/DevOps, on the owner's direct instruction, to BOTH databases:
+-- prod (qdpwhnvmhqgzijuwopso) and dev (wdtjhrilakoitfcezxpx, which also serves qa and staging).
+--
+-- DO NOT RUN THIS FILE. It is a record of a change that has already happened, kept so the migration
+-- folder can explain the live grants without a chat log.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- This file is history rather than an instruction, and it exists ON PURPOSE rather than being
+-- deleted as redundant. A DDL change applied to production with no artifact in the repository is
+-- the same failure as a label row no migration inserted: the next person reading
+-- 20260807a_rls_grant_hardening.sql finds `liq_events_delete_expired` created and nothing anywhere
+-- revoking it, and concludes the grant is still live. The folder is the only durable record of how
+-- the grants reached their current state.
+--
+-- ── WHAT WAS WRONG ─────────────────────────────────────────────────────────────────────────────
+--
+-- `liq_events_delete_expired` (20260807a:87) granted DELETE to anon and authenticated with
+-- `using (ts < now() - 7 days)`. QA verified it against production's pg_policies on 2026-10-23,
+-- RLS confirmed enabled. Any anonymous caller could erase every row older than seven days in one
+-- statement, on a table every visitor loads a 5,000-row window from.
+--
+-- The grant was not an oversight - it was the mechanism. components/LiqFeed.tsx ran the retention
+-- purge from the visitor's browser and this policy is what allowed it.
+--
+-- ── WHAT WAS ACTUALLY RUN ──────────────────────────────────────────────────────────────────────
+--
+-- Reproduced here as it was executed, including one revoke this file did not originally propose.
+--
+--   drop policy if exists liq_events_delete_expired on public.lhq_liq_events;
+--   revoke delete, update on public.lhq_liq_events from anon, authenticated;
+--
+--   -- dev, same statements against public.lhq_dev_liq_events
+--
+-- UPDATE WAS REVOKED TOO, AND THAT WAS PM'S FIND, NOT THIS FILE'S. The table-level UPDATE grant
+-- existed with no policy behind it, so RLS was the only thing refusing an anonymous update. A
+-- grant whose only guard is the absence of a policy is one `create policy` away from being live.
+--
+-- INSERT and SELECT were deliberately left: the browser still feeds the chart, which is intended
+-- until the collector moves server-side.
+--
+-- 633 rows were preserved. The seven-day cleanup was NOT run while the connection was open - prod
+-- Supabase is free-plan with no backups, so that delete is unrecoverable, and nothing is harmed by
+-- a few hundred extra rows. An irreversible delete riding along with a reversible change is how
+-- that goes wrong.
+--
+-- ── VERIFIED AFTER ─────────────────────────────────────────────────────────────────────────────
+--
+--   prod lhq_liq_events:  INSERT -> {anon,authenticated}   SELECT -> {public}
+--                         write grants: INSERT only
+--
+-- PM also swept the whole production `public` schema for the CLASS - every policy granting anon
+-- INSERT/UPDATE/DELETE/ALL - rather than fixing the one table. `lhq_liq_events` was the only one.
+--
+-- ── WHAT IS STILL OPEN ─────────────────────────────────────────────────────────────────────────
+--
+-- POISONING. `liq_events_insert_bounded` still lets anyone anonymous write rows every visitor
+-- loads. Closing it needs the collector server-side, and liquidations arrive over WebSocket
+-- (fstream.binance.com ...@forceOrder, stream.bybit.com/v5/public/linear) with no REST equivalent.
+-- PM read the n8n node catalogue rather than assuming: scheduleTrigger and httpRequest exist, a
+-- WebSocket node does not - so n8n can schedule the purge forever and can never be the collector.
+-- A separate, costed decision for the owner.
+--
+-- RETENTION IS UNENFORCED UNTIL /api/liq-events/purge IS SCHEDULED (#1730, merged 95f44f73).
+-- Nothing deletes rows past seven days right now. ~633 rows in a week, so slow - which is a reason
+-- not to panic, not a reason to call it fine.
+--
+-- ── ROLLBACK ───────────────────────────────────────────────────────────────────────────────────
+--
+--   create policy liq_events_delete_expired on public.lhq_liq_events
+--     for delete to anon, authenticated
+--     using (ts < (extract(epoch from (now() - interval '7 days')) * 1000));
+--   grant delete on public.lhq_liq_events to anon, authenticated;
+--
+-- Rolling back restores the anonymous erasure hole. Fix the purge forward instead.
