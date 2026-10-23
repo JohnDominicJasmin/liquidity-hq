@@ -28,11 +28,25 @@ async function restateVerdict(answer: string, userId: string) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
       body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'user', content: buildVerdictRepairPrompt(answer) }], max_tokens: 200 }),
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      console.error(`[grok] restate transport failed: HTTP ${r.status}`);
+      return null;
+    }
     const d = await r.json();
     await recordAiCall({ userId, callType: 'verdict_repair', model: d.model ?? 'grok-4.3', usage: d.usage });
-    return parseVerdict(answerText(d, false));
-  } catch {
+    const repaired = answerText(d, false);
+    const parsed = parseVerdict(repaired);
+    /* #1721: `restated=true` on the refusal line says the repair RAN, not what it RETURNED - and those are different questions.
+       On 2026-10-23 the primary answer came back as prose with no SIGNAL line; this says whether the repair, which asks for
+       exactly two lines and nothing else, produced the contract or more prose. One field, no extra call. Same flattening as the
+       other log heads so a crafted answer cannot forge a line. */
+    if (!parsed) {
+      const head = repaired.replace(/\s*[\r\n]+\s*/g, ' | ').replace(/[^\x20-\x7E]/g, '').slice(0, 160);
+      console.error(`[grok] restate produced no verdict chars=${repaired.trim().length} head=${JSON.stringify(head)}`);
+    }
+    return parsed;
+  } catch (e) {
+    console.error('[grok] restate threw:', e instanceof Error ? e.message : e);
     return null;
   }
 }
