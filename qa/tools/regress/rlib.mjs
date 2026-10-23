@@ -32,6 +32,12 @@ mkdirSync(ROOT, { recursive: true });
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const env = {};
 for (const f of ['.env.e2e.local', '.env.local']) { const p = `${REPO}/${f}`; if (!existsSync(p)) continue; for (const line of readFileSync(p, 'utf8').split(/\r?\n/)) { const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line.replace(/^\uFEFF/, '')); if (m && !(m[1] in env)) env[m[1]] = m[2].trim().replace(/^["']|["']$/g, ''); } }
+/* THEN process.env, FOR ANY NAME THE FILES DID NOT SUPPLY. The cloud runner has no .env.e2e.local - it is gitignored and nobody
+ * transmits it - so without this, provisioned cloud secrets are read by nothing and every signed-in run fails as "missing env" AFTER
+ * someone has done the work of setting them. Owner approved provisioning them himself (2026-10-23); this is what makes that arrive.
+ * FILES WIN DELIBERATELY: a stale E2E_* left exported in a local shell must not silently override the checked-in files, which is the
+ * one way this change could cost a wrong run. Env only fills gaps. */
+for (const [k, v] of Object.entries(process.env)) if (!(k in env) && typeof v === 'string' && v !== '') env[k] = v;
 export const ACCT_NAME = { anon: 'signed out', B: 'Free (B)', T: 'trial (T)', A: 'Pro (A)' };
 export const userId = (a) => (a === 'anon' ? null : env[`E2E_USER_${a}_ID`]);
 

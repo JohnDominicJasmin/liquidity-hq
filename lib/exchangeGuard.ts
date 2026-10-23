@@ -198,11 +198,32 @@ export function _exchangeGuardStats(now: number = Date.now()) {
     const s = state[ex];
     out[ex] = {
       open: now < s.openUntil, openUntil: s.openUntil ? new Date(s.openUntil).toISOString() : null, strikes: s.strikes,
+      /* #1649: the window the strikes are counted in travels WITH the count. "4 strikes" means nothing without "in 60 minutes", and
+         the distinction between four in an hour and four across a day is what told us today's cooldown was not a one-off. */
+      strikes_window_ms: STRIKE_MEMORY_MS,
       inFlight: s.inFlight, waiting: s.waiters.length, trips: s.trips, refused: s.refused,
-      binanceWeight: ex === 'binance' ? s.weight : undefined, bybitLast5s: ex === 'bybit' ? s.recent.filter((t) => now - t < BYBIT_WINDOW_MS).length : undefined,
+      /* NULL, never `undefined`, for the exchange a counter does not apply to. `JSON.stringify` DROPS an undefined value, so the key
+         vanished from the payload entirely - and an absent key cannot be told apart from a healthy one by a test. Same lesson as
+         `NaN != null` in a different costume: absence must not be readable as a value. Not the string "undefined" either. */
+      binanceWeight: ex === 'binance' ? s.weight : null,
+      bybitLast5s: ex === 'bybit' ? s.recent.filter((t) => now - t < BYBIT_WINDOW_MS).length : null,
       lastTrip: s.lastTrip,
     };
   }
+  return out;
+}
+
+/** The public, coarse view: which upstreams are degraded right now, and nothing about timing, counts or statuses.
+ *
+ *  Split from the detailed stats on purpose - /api/health is UNAUTHENTICATED, and `strikes` + `cooling_until` + `last_strike_status`
+ *  together publish how close this server is to being rate-limited and how long it stays down when it is. Nobody has an incentive to
+ *  care at our size, which is a reason to decide it rather than a reason not to notice it. PM's call, #1649.
+ *
+ *  Every configured exchange is named every time, healthy or not: the degenerate case is the one that ships broken, because nobody
+ *  looks at a response that says nothing is wrong. */
+export function exchangeDegraded(now: number = Date.now()): Record<Exchange, { degraded: boolean }> {
+  const out = {} as Record<Exchange, { degraded: boolean }>;
+  for (const ex of Object.keys(state) as Exchange[]) out[ex] = { degraded: now < state[ex].openUntil };
   return out;
 }
 

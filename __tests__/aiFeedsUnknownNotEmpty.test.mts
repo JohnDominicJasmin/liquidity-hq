@@ -99,11 +99,39 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (url.host === 'supabase.invalid') return req.method === 'GET' ? json(200, []) : new Response(null, { status: 201 });
   return new Response('unavailable in the QA stand-in', { status: 503 });
 }) as typeof fetch;
-after(() => { globalThis.fetch = realFetch; Date.now = realNow; });
+/* Kept so every test can prove the stand-in is still installed when it runs - see the assertion in etf() below. */
+const standInFetch = globalThis.fetch;
 
+/* THE AWAIT COMES BEFORE THE after() HOOK, AND THAT ORDER IS THE WHOLE FIX (#1683 family, found by the cloud gate 2026-10-23).
+ *
+ * It used to read: install the stand-in, register after(), THEN `await import`. A top-level await SUSPENDS the module, so E1-E3 had not
+ * registered yet - the runner saw only U1-U5, concluded the file was done, and fired after(), which put the REAL fetch back about 10 ms
+ * after the stand-in went in. E1 then made a real request to openapi.sosovalue.com (403 from a container, 2,816 ms), the route correctly
+ * answered null for an upstream it could not read, and the assertion failed on `null` where fixture data was expected.
+ *
+ * Three things make that the mechanism rather than a story: E3 - the one test expecting everything null - PASSED, while the two wanting
+ * fixture values failed; E1 took 2,816 ms against E2's 270 and E3's 227, the signature of a real network attempt; and the route itself
+ * was never at fault. It PASSES on a warm laptop, where the import resolves fast enough to win the race, which is why nine per-branch
+ * runs were green and only the integrated run caught it. A green run elsewhere is not evidence this file is sound.
+ *
+ * With the await first, every test() call registers synchronously after it, so the runner cannot see an empty queue mid-file. */
 const { GET } = await import('../app/api/proxy/route.ts');
+
+/* THE CLOCK IS RESTORED; THE FETCH STAND-IN IS DELIBERATELY NOT. Each test file runs in its own process, so restoring `fetch` at
+ * teardown protects nothing - and it actively lets a late write ESCAPE TO THE REAL NETWORK. The route's `reportHealth`
+ * (app/api/proxy/route.ts:535) is fire-and-forget, so it settles after the test that triggered it has finished; with the stand-in
+ * removed by then, it reached the real internet and printed "[apiHealth] write failed: TypeError: fetch failed" on every run of this
+ * file. Leaving the stand-in in place for the life of the process means that write is answered by the stub, as it should be.
+ * Measured: with the restore, one escape per run; without it, none. */
+after(() => { Date.now = realNow; });
+void realFetch; /* kept deliberately unused: see above. Restoring it is what caused the escape. */
 let ip = 0;
 const etf = async (btc: unknown, eth: unknown) => {
+  /* THE STAND-IN MUST STILL BE INSTALLED WHEN THE TEST RUNS. Without this, the after()-fires-early race above presented as
+     `null !== 23.2` - a mismatch that reads like a product defect in the ETF parser and took a probe in a container to diagnose.
+     With it, the same failure says what actually happened, in one line, wherever it next occurs. */
+  assert.equal(globalThis.fetch, standInFetch,
+    'the fetch stand-in was removed before this test ran: the after() hook fired early, so this request would reach the real network and the route would correctly answer null (#1683 family)');
   offset += 3 * 3_600_000; soso.BTC = btc; soso.ETH = eth;
   const r = await GET(new NextRequest('http://localhost/api/proxy?type=etf', { headers: { 'x-forwarded-for': `10.0.0.${++ip}` } }));
   assert.equal(r.status, 200);

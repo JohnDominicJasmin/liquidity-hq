@@ -682,9 +682,20 @@ export default function AlertsPage() {
               </div>
             )}
 
+            {/* #1672: amber, not the subtitle's grey. The defect this line exists to report is that a failed status check LOOKED like a
+                working one, and a grey line in a grey paragraph reproduces that at one remove. Amber is this app's "not right, not broken"
+                (the webhook warning above it is red because that one IS broken). Tokens, not literals: --amber is per-context - #fbbf24 on
+                the dark canvas, #8F4508 in light, #755100 in terminal light, each already measured against its own surface.
+
+                NO BORDER, and that is the owner's choice between two shot variants, not a default. Bordered, this sits directly above the
+                bordered amber Connect Telegram button at the same width: at 390 they read as two controls and the top one does nothing
+                when tapped. Tint and icon carry the emphasis; the button stays the only bordered thing in the card. */}
             {botStatusUnavailable && (
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>
-                {t('ALERTS_BOT_STATUS_UNAVAILABLE')}
+              <div style={{
+                fontSize: 'var(--fs-caption)', color: 'var(--amber)', marginBottom: 14, padding: '8px 12px',
+                background: 'var(--amber-bg)',
+              }}>
+                <Warn /> {t('ALERTS_BOT_STATUS_UNAVAILABLE')}
               </div>
             )}
 

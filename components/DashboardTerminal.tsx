@@ -140,7 +140,10 @@ function TCoinSidebar() {
         const chg    = d?.change ?? 0;
         const up     = chg >= 0;
         const sel    = store.selectedCoin === id;
-        const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
+        /* #1494 class: null, not 50. A coin whose taker ratio has not arrived used to draw this bar half-full,
+           which is a real reading of balanced flow - the same picture a genuinely 50/50 coin gets. Unknown now
+           draws nothing, the same way price falls back to '-' twenty lines below rather than to a number. */
+        const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : null;
         const health = computeCoinHealth(d);
         const badgeCol = coinBadgeColor(id);
 
@@ -173,7 +176,7 @@ function TCoinSidebar() {
           else                   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_NEUTRAL'),        col: 'var(--txt3)' };
         }
 
-        const barCol = tbp >= 60 ? 'var(--green)' : tbp <= 40 ? 'var(--red)' : 'var(--txt3)';
+        const barCol = tbp == null ? 'var(--txt3)' : tbp >= 60 ? 'var(--green)' : tbp <= 40 ? 'var(--red)' : 'var(--txt3)';
 
         return (
           <div
@@ -244,7 +247,7 @@ function TCoinSidebar() {
             </div>
 
             <div className="csb2-bar-track">
-              <div className="csb2-bar-fill" style={{ width: tbp + '%', background: barCol }} />
+              <div className="csb2-bar-fill" style={{ width: (tbp ?? 0) + '%', background: barCol }} />
             </div>
           </div>
         );

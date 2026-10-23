@@ -93,15 +93,46 @@ const ANSWER = [
   'CHART_ANALYSIS: higher lows', 'REASONING: momentum turning.',
 ].join('\n');
 
+/* THE CLOCK IS PINNED, and that is not a convenience. Since #1651 the age on a catalyst line is DERIVED from the timestamp on that
+   line, so "2d old" today is "3d old" tomorrow, and a test that hard-codes the words would go red overnight for no reason - which
+   teaches the next reader to ignore it. `parseCombinedResponse` takes `nowMs` for exactly this. The instant is the moment of the read
+   that found the defect (QA on #1651: the model wrote "age ~18h" for an article 7.1 hours old). */
+const NOW = Date.parse('2026-10-22T10:55:38Z');
+
 test('P1. a catalyst is kept only with a source and a date or age, shown as "claim - source, when"; "None ..." is not a catalyst', () => {
-  const r = parseCombinedResponse(ANSWER, '1h', 'NY');
-  assert.deepEqual(r.catalysts, ['ETF inflow of +$526.7M - SoSoValue, 2026-10-20 00:00 UTC (40h ago)', 'Fed speaker hawkish - Reuters, 3h ago']);
+  const r = parseCombinedResponse(ANSWER, '1h', 'NY', NOW);
+  /* The age is OURS, derived from the stamp: 2026-10-20 00:00 UTC to the pinned now is just under 59 hours, so "2d old". "3h ago"
+     carries no parsable stamp, so it is left exactly as the model wrote it - an age we cannot derive is one we cannot stand behind. */
+  assert.deepEqual(r.catalysts, ['ETF inflow of +$526.7M - SoSoValue, 2026-10-20 00:00 UTC (2d old)', 'Fed speaker hawkish - Reuters, 3h ago']);
 });
 
-const catalystsOf = (...lines: string[]) => parseCombinedResponse(['SIGNAL: FLAT', 'CONFIDENCE: 70', 'CATALYSTS:', ...lines, 'REASONING: r.'].join('\n'), '1h', 'NY').catalysts;
+test("P1a. the model's OWN age is discarded, not shown beside ours - the defect was a line disagreeing with itself (#1651)", () => {
+  const [etf] = parseCombinedResponse(ANSWER, '1h', 'NY', NOW).catalysts;
+  assert.equal(etf.includes('40h'), false, 'the model\'s "(40h ago)" survived: the line carries two ages, which is the defect wearing a hat');
+  assert.equal((etf.match(/\(/g) ?? []).length, 1, 'more than one parenthetical on the line');
+  assert.match(etf, /\(2d old\)$/, 'the derived age is not at the end of the line');
+});
+
+test('P1c. no age is INVENTED where none can be derived: an unparsable "when", and a stamp in the future', () => {
+  /* The half most likely to be "improved" later by adding a fallback. Both must come back bare. */
+  assert.deepEqual(catalystsOf('- Fed speaker hawkish | Reuters | 3h ago'), ['Fed speaker hawkish - Reuters, 3h ago'], 'an unparsable when gained an age');
+  const future = new Date(NOW + 6 * 3_600_000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+  assert.deepEqual(catalystsOf('- Scheduled CPI | Reuters | ' + future), ['Scheduled CPI - Reuters, ' + future], 'a stamp in the future gained an age');
+});
+
+test('P1d. KNOWN GAP, PINNED: an age in the MIDDLE of the "when" is not stripped (Dev, #1651)', () => {
+  /* The strip is anchored to the end of the string on purpose - an unanchored one would eat a legitimate parenthetical such as
+     "(revised)". So a line that puts its invented age mid-string keeps it. Recorded rather than discovered: if this ever goes green the
+     anchoring changed, and someone should decide whether a legitimate parenthetical is now at risk. */
+  const [only] = catalystsOf('- Squeeze reversal | CoinDesk | 2026-10-22 03:51 UTC (age ~18h) via newswire');
+  assert.ok(only && only.includes('age ~18h'), 'the mid-string age is now stripped - that is a decision, not a tidy-up: ' + only);
+});
+
+const catalystsOf = (...lines: string[]) => parseCombinedResponse(['SIGNAL: FLAT', 'CONFIDENCE: 70', 'CATALYSTS:', ...lines, 'REASONING: r.'].join('\n'), '1h', 'NY', NOW).catalysts;
 
 test('P1b. an ISO time is a date; a date in the SOURCE slot is not a source, and neither is "memory" (PM audit of #1668, item 7)', () => {
-  assert.deepEqual(catalystsOf('- Fed hold | Reuters | 2026-10-19T14:00Z'), ['Fed hold - Reuters, 2026-10-19T14:00Z'], 'an ISO-time catalyst was dropped');
+  /* An ISO stamp now GAINS a derived age where it had none: 2026-10-19 14:00Z to the pinned now is just under 69 hours, so "3d old". */
+  assert.deepEqual(catalystsOf('- Fed hold | Reuters | 2026-10-19T14:00Z'), ['Fed hold - Reuters, 2026-10-19T14:00Z (3d old)'], 'an ISO-time catalyst was dropped or lost its derived age');
   assert.deepEqual(catalystsOf('- Fed hold | 2026-10-19 | 3h ago'), [], 'a date in the source slot was accepted as a source');
   assert.deepEqual(catalystsOf('- BTC halving cycle | memory | 2d ago'), [], '"memory" was accepted as a source - the prompt forbids it');
 });
@@ -267,7 +298,12 @@ test('R1. Deep keeps its search sources and its checks: citations, the downgrade
   assert.equal(res.signal, 'LEAN BULLISH', 'BULLISH on a count of 2 was not held to the table'); assert.equal(res.confidence, 75);
   assert.deepEqual(res.counted, { bullish: 2, bearish: 1 });
   assert.ok(Array.isArray(res.checks) && res.checks.length >= 1);
-  assert.deepEqual(res.catalysts, ['ETF inflow of +$526.7M - SoSoValue, 2026-10-20 00:00 UTC (40h ago)', 'Fed speaker hawkish - Reuters, 3h ago']);
+  /* Through the route the age is derived against the REAL clock, so the words move with the day - assert the shape: the stamp survives,
+     the model's own age does not, and a derived age sits at the end. */
+  const [etfCat, fedCat] = res.catalysts;
+  assert.match(etfCat, /^ETF inflow of \+\$526\.7M - SoSoValue, 2026-10-20 00:00 UTC \((?:\d+m|[\d.]+h|\d+d) old\)$/, 'the ETF catalyst shape changed: ' + etfCat);
+  assert.equal(etfCat.includes('40h'), false, "the model's own age survived through the route");
+  assert.equal(fedCat, 'Fed speaker hawkish - Reuters, 3h ago', 'an unparsable when was altered');
 });
 
 test('R2. Quick has no search: citations is an empty list, and the same checks apply', async () => {

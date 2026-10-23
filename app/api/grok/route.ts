@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedResponse, parseVerdict } from '@/lib/grok';
+import { applyResultChecks, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict } from '@/lib/grok';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { anonServerClient, userClient } from '@/lib/supabase-user';
@@ -28,11 +28,25 @@ async function restateVerdict(answer: string, userId: string) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
       body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'user', content: buildVerdictRepairPrompt(answer) }], max_tokens: 200 }),
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      console.error(`[grok] restate transport failed: HTTP ${r.status}`);
+      return null;
+    }
     const d = await r.json();
     await recordAiCall({ userId, callType: 'verdict_repair', model: d.model ?? 'grok-4.3', usage: d.usage });
-    return parseVerdict(answerText(d, false));
-  } catch {
+    const repaired = answerText(d, false);
+    const parsed = parseVerdict(repaired);
+    /* #1721: `restated=true` on the refusal line says the repair RAN, not what it RETURNED - and those are different questions.
+       On 2026-10-23 the primary answer came back as prose with no SIGNAL line; this says whether the repair, which asks for
+       exactly two lines and nothing else, produced the contract or more prose. One field, no extra call. Same flattening as the
+       other log heads so a crafted answer cannot forge a line. */
+    if (!parsed) {
+      const head = repaired.replace(/\s*[\r\n]+\s*/g, ' | ').replace(/[^\x20-\x7E]/g, '').slice(0, 160);
+      console.error(`[grok] restate produced no verdict chars=${repaired.trim().length} head=${JSON.stringify(head)}`);
+    }
+    return parsed;
+  } catch (e) {
+    console.error('[grok] restate threw:', e instanceof Error ? e.message : e);
     return null;
   }
 }
@@ -202,6 +216,19 @@ export async function POST(req: NextRequest) {
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const column = type === 'deep' ? 'deep_count' : 'quick_count';
   const limit  = type === 'deep' ? deepLimit : quickLimit;
+  /* The date the reservation is written under, captured HERE and reused for any refund - a Deep call can cross UTC midnight,
+     and recomputing the date at refund time would credit a row that never paid. */
+  const reservedOn = todayUtc();
+  /* Anything from the request body is attacker-controlled text before it is a log field: a coin of "btc
+[grok] BAD_ANSWER ..."
+     writes a second line that reads like ours and forges whatever it likes into the record we debug from. Flagged by the automated
+     security review. Stripped to the characters a coin id or a timeframe can legitimately contain, and truncated. */
+  const logTag = (v: unknown) => String(v ?? 'unknown').replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 24) || 'unknown';
+  /* The HEAD of an unparseable answer, one line, 160 characters. Without it the log says a verdict could not be read and not what
+     arrived instead, which is the difference between knowing and guessing - QA's candidate for #1721 is that the model now bolds the
+     VALUE ("SIGNAL: **BULLISH**"), a shape these regexes reject while accepting every other markdown variant. This line settles that
+     on the next failure at no cost. Newlines become a marker so a crafted answer cannot forge a second log line. */
+  const logHead = (v: string) => v.replace(/\s*[\r\n]+\s*/g, ' | ').replace(/[^\x20-\x7E]/g, '').slice(0, 160);
   const usageResult = await incrementUsageColumn(userId, role, column, limit);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
@@ -274,16 +301,38 @@ export async function POST(req: NextRequest) {
     briefing_used: briefingUsed, briefing_limit: briefingLimit,
   };
 
+  /* The refused response must report the count the user actually has left, not the one that was reserved and given back - otherwise
+     the counter on screen says they spent a read they did not. `refunded` is null when the refund did not land (migration 20261023a
+     not applied yet), and then the honest number is the reserved one. */
+  const usageAfterRefund = (refunded: number | null) =>
+    refunded === null ? usage : { ...usage, [type === 'deep' ? 'deep_used' : 'quick_used']: refunded };
+
   /* #1651 item 3: the verdict must be one of the five signals with a 0-100 confidence. An answer without them used to be parsed as FLAT
      at 0% and shown as a "Wait" the model never said. One retry asks for the verdict again; if that is unreadable too, the read is
-     refused with a plain message (the client's existing BAD_ANSWER path). The use is already counted - no refund, as for any failed xAI
-     call (lib/aiUsage.ts). */
+     refused with a plain message (the client's existing BAD_ANSWER path).
+
+     THE USE IS REFUNDED. This comment used to say "no refund, as for any failed xAI call" and that was wrong in the one case that
+     matters: the customer paid a Deep read and saw nothing. PM measured it on 2026-10-22 - two refusals took deep_used 1 -> 2 with
+     no answer either time. The reservation stays before the call (it closes a TOCTOU race); it is handed back here instead. */
   let restated = false;
   if (!parseVerdict(text)) {
     // Nothing to restate: an empty answer is refused as empty, without paying for a second call on it.
-    if (!text.trim()) return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage }, { status: 502 });
+    if (!text.trim()) {
+      /* LOGS, because a refusal that writes nothing is unmeasurable (#1631, QA). PM searched production for this failure and found
+         silence - which meant nothing, since these two paths were plain NextResponse.json with no apiError, no console, no health
+         report. Without a line here the eventual FIX is also unverifiable on prod: we would ship it and have no way to know. */
+      console.error(`[grok] BAD_ANSWER empty-text type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=false`);
+      const refunded = await refundUsageColumn(userId, column, reservedOn);
+      return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+    }
     const v = await restateVerdict(text, userId);
-    if (!v) return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage }, { status: 502 });
+    if (!v) {
+      /* restated=true: the restatement attempt RAN and still produced no verdict - a different fault from an answer that arrived
+         empty, and the distinction is the first thing anyone debugging this will want. */
+      console.error(`[grok] BAD_ANSWER unreadable-verdict type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=true chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
+      const refunded = await refundUsageColumn(userId, column, reservedOn);
+      return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+    }
     text = `SIGNAL: ${v.signal}\nCONFIDENCE: ${v.confidence}\n${text}`;
     restated = true;
   }
@@ -291,7 +340,22 @@ export async function POST(req: NextRequest) {
   /* #1631 B and D: the rules the answer can be checked against are applied here, where the prompt is known - a full tier the model's own
      count does not support, a raid with no cluster data to aim at (both XRP runs invented a "long flush" target), and a missing
      "perps-vs-spot unavailable" disclosure. See applyResultChecks in lib/grok.ts. */
-  const result = applyResultChecks({ ...parseCombinedResponse(text, tf, session), citations }, prompt);
+  /* parseCombinedRead, not parseCombinedResponse: the second answers FLAT at 0% for an answer that states no verdict, and until now
+     the only thing stopping that reaching a user was the check twelve lines above - a guard in this file protecting a default in
+     another one. Unreachable today precisely because that guard is there, which is the point: the refusal is now local and typed,
+     so it survives someone editing, moving or short-circuiting the restate block. */
+  const parsed = parseCombinedRead(text, tf, session);
+  if (!parsed) {
+    /* The same two calls as both siblings above, and QA was right to insist (#1727 review): a path whose entire purpose is to
+       survive someone editing the restate block must not behave WORSE than the code it is backstopping. Without these it would
+       charge the user for a read it refused (the defect #1724 fixed) and write nothing to the log (the silence PM searched
+       production for). `restated=${restated}` is the field that tells the two causes apart: false means the guard above let an
+       answer through that this one rejected, which should be impossible and is the first thing worth knowing. */
+    console.error(`[grok] BAD_ANSWER strict-read-refused type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=${restated} chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
+    const refunded = await refundUsageColumn(userId, column, reservedOn);
+    return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+  }
+  const result = applyResultChecks({ ...parsed, citations }, prompt);
   if (restated) (result.checks ??= []).push('verdict restated by a second pass: the answer did not state SIGNAL and CONFIDENCE in the required form');
 
   return NextResponse.json({ result, usage });

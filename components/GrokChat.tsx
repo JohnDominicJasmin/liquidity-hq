@@ -21,6 +21,7 @@ import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
 import { PAGE_COIN_EVENT, currentPageCoin } from '@/lib/pageCoin';
+import AiDisclaimer from '@/components/AiDisclaimer';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -1104,6 +1105,11 @@ export default function GrokChat() {
                 aria-label="Send"
               >↑</button>
             </div>
+            {/* #1631: ONCE per thread, under the input where it stays visible without scrolling - not under every bubble. PM's call
+                and the reasoning holds: a chat already frames itself as a model (the user opened it, every answer carries a GROK
+                byline), so a fifth footnote adds nothing - and a disclaimer repeated until it is wallpaper stops being read on the
+                Arena panel, where a verdict with a confidence number genuinely can be mistaken for an instrument reading. */}
+            <AiDisclaimer style={{ marginTop: 8 }} />
           </>
         )}
       </div>
