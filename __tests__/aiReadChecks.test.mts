@@ -278,6 +278,20 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 }) as typeof fetch;
 after(() => { globalThis.fetch = realFetch; });
 
+/* #1683: THE STAND-IN MUST STILL BE INSTALLED WHEN A TEST RUNS. The after() above restores the real fetch, and a top-level
+   `await import` SUSPENDS this module - so if any test group has not registered by then, the runner thinks the file is done,
+   fires after(), and every later test silently talks to the real internet. That happened in aiFeedsUnknownNotEmpty: one test
+   took 26 seconds, called sosovalue for real, got a 403 in the container, and the route correctly answered null - which read as
+   a product defect. This guard makes the recurrence name itself instead of presenting as a wrong value.
+   IN THIS FILE IT COVERS TWO OF THE TWENTY TESTS, and that is correct rather than partial: X1-S1 above are pure functions over
+   strings, registered before the stand-in exists and incapable of touching the network. R1/R2 below are the only ones that import
+   the route. Measured by mutation - an early restore reddens 2 and leaves 18 green, which is exactly the set that depends on it. */
+const standInFetch = globalThis.fetch;
+beforeEach(() => {
+  assert.equal(globalThis.fetch, standInFetch,
+    'the fetch stand-in is not installed: this run would reach the real network, so it measures nothing about the code under test - see #1683');
+});
+
 const { POST } = await import('../app/api/grok/route.ts');
 const { _resetApiHealthQueue } = await import('../lib/apiHealth.ts');
 beforeEach(() => { net.xai = []; net.stray = []; });

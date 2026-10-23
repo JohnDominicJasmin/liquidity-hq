@@ -10,7 +10,7 @@
  * once it lands, with no second request; both requests carry a 5 s timeout.
  *
  * WHAT IT CANNOT PROVE: Coinbase's real latency, or the premium MarketProvider computes from these numbers (client code). */
-import test, { after, afterEach, mock } from 'node:test';
+import test, { after, afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { NextRequest } from 'next/server';
@@ -44,6 +44,17 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   return new Response('[]', { status: 200 });
 }) as typeof fetch;
 after(() => { releaseHang?.(); globalThis.fetch = realFetch; mock.timers.reset(); });
+
+/* #1683: THE STAND-IN MUST STILL BE INSTALLED WHEN A TEST RUNS. The after() above restores the real fetch, and a top-level
+   `await import` SUSPENDS this module - so if any test group has not registered by then, the runner thinks the file is done,
+   fires after(), and every later test silently talks to the real internet. That happened in aiFeedsUnknownNotEmpty: one test
+   took 26 seconds, called sosovalue for real, got a 403 in the container, and the route correctly answered null - which read as
+   a product defect. This guard makes the recurrence name itself instead of presenting as a wrong value. */
+const standInFetch = globalThis.fetch;
+beforeEach(() => {
+  assert.equal(globalThis.fetch, standInFetch,
+    'the fetch stand-in is not installed: this run would reach the real network, so it measures nothing about the code under test - see #1683');
+});
 
 const { GET } = await import('../app/api/coinbase-price/route.ts');
 const { _resetApiHealthQueue } = await import('../lib/apiHealth.ts');
