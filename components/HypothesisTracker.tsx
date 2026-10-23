@@ -513,7 +513,7 @@ export default function HypothesisTracker() {
                           color: VERDICT_META[h.grok_verdict]?.col ?? 'var(--txt)',
                           letterSpacing: '0.05em',
                         }}>
-                          {t('HYPOTHESIS_TRACKER_GROK_VERDICT_PREFIX', { verdict: h.grok_verdict })}
+                          {t('HYPOTHESIS_TRACKER_AI_VERDICT_PREFIX', { verdict: h.grok_verdict })}
                         </span>
                         {h.grok_confidence && (
                           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>· {h.grok_confidence}</span>
