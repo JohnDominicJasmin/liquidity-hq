@@ -45,9 +45,17 @@ export function withGuardrail(body: BodyInit | null | undefined): BodyInit | nul
   try { parsed = JSON.parse(body); } catch { return body; }
   if (typeof parsed !== 'object' || parsed === null) return body;
 
-  const obj = parsed as { messages?: unknown };
-  if (!Array.isArray(obj.messages)) return body;
-  const messages = obj.messages as Msg[];
+  /* TWO SHAPES, because this app talks to xAI through two APIs. Chat Completions sends `messages`; the Responses API sends `input`,
+     and `/api/grok` (Deep Research), `/api/onchain` and `/api/grok-chat`'s live-search branch all use that one. Handling only
+     `messages` meant those three reached xaiFetch correctly and then received NO rules at all - a no-op on the shape rather than a
+     bypass of the hook, which is why "every route goes through the chokepoint" was true and not sufficient. They are also the three
+     that ingest third-party web and X content, which is where an instruction to promise a profit is most likely to arrive, and the
+     live-search branch carries `tools` on the same call. Found by QA, confirmed by PM against the three call sites. */
+  const obj = parsed as { messages?: unknown; input?: unknown };
+  const key: 'messages' | 'input' | null =
+    Array.isArray(obj.messages) ? 'messages' : Array.isArray(obj.input) ? 'input' : null;
+  if (!key) return body;
+  const messages = obj[key] as Msg[];
 
   /* Already carrying it - a retry, or a caller that added it itself. Adding it twice wastes tokens on every call.
    *
@@ -62,9 +70,10 @@ export function withGuardrail(body: BodyInit | null | undefined): BodyInit | nul
 
   const firstSystem = messages.findIndex((m) => m?.role === 'system');
   const next = firstSystem === -1
-    /* 11 of the 14 call sites send a user message and no system message at all, so one is created for them. */
+    /* Most call sites send a user message and no system message at all, so one is created for them. The Responses API takes the
+       same {role, content} entries, so one prepend serves both shapes. */
     ? [{ role: 'system', content: AI_GUARDRAIL }, ...messages]
     : messages.map((m, i) => (i === firstSystem ? { ...m, content: `${AI_GUARDRAIL}\n\n${String(m.content ?? '')}` } : m));
 
-  try { return JSON.stringify({ ...(parsed as object), messages: next }); } catch { return body; }
+  try { return JSON.stringify({ ...(parsed as object), [key]: next }); } catch { return body; }
 }
