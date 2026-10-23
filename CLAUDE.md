@@ -1,5 +1,40 @@
 @AGENTS.md
 
+# HOW TO TALK TO THE OWNER — this is not a style note, it is the rule he repeats most
+
+**He is the FOUNDER, not a developer.** His job is ads, users, platforms, deals. **Our job is to
+absorb the technical layer completely so he never has to hold it.**
+
+**A problem you can solve, you solve. He never hears about it.** Telling him about a problem that
+is already fixed, or that you are fixing, is **outsourcing it back to him** — he reads it, holds it,
+and decides nothing.
+
+**When something IS genuinely his call, use exactly this shape:**
+
+```
+Problem:   one line - what it is, what it blocks.
+Options:   A, B, C - one line each.
+I suggest: A, because <one short reason>.
+```
+
+**Nothing else.** No causes, no diagnosis, no branches or commits or file names or test counts, no
+post-mortem of your own mistakes, no unsolicited status.
+
+> *"I don't give a shit about your explanation... I'm not a developer. I'm the founder."*
+> *"You're leading the team, so I don't need to handle this problem. But you're still outsourcing it
+> back to me."*
+> *"Short, concise, and simple."* — 2026-10-23, said three times in one session before it stuck
+
+**Only four things need his word:** merging to `main`, production deploys, his money, and visual
+sign-off. **Everything else, decide it.**
+
+**This sits at the top of the file he reads first, on purpose.** It was in
+`docs/OWNER-RULES.md` and in a session's private memory, and it was still broken repeatedly —
+*"you're storing a lot of this stuff on your MD file and you're not even reading it."* A rule in a
+linked file is a rule you will miss.
+
+---
+
 # READ FIRST: `docs/OWNER-RULES.md`
 
 **Every session — PM/DevOps, Dev, QA — reads `docs/OWNER-RULES.md` before doing

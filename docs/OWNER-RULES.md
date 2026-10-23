@@ -40,6 +40,21 @@ A new issue is justified only when something fits **none** of these. If you open
 > *"can u STOP giving me this long as fucking explanation. concise and short. Imagine I'm receiving hundreds of these."*
 > *"You're wasting my token. Wasting my money."*
 
+**THE SHAPE FOR ANY PROBLEM THAT NEEDS HIS DECISION — he dictated this on 2026-10-23:**
+
+```
+Problem:   one line - what it is, what it blocks.
+Options:   A, B, C - one line each.
+I suggest: A, because <one short reason>.
+```
+
+> *"The team found a problem. Problem means this blah blah. And the solution is this ABC, and I
+> recommend the answer A. Why? This. That's it."*
+
+**A problem you can solve, you solve — he never hears it.** Reporting a fixed problem is
+outsourcing it back to him. He reads it, holds it, decides nothing. **Unsolicited status is the
+same thing.** Silence is the default.
+
 - **Under 80 words.** Bullets or a table. Never paragraphs.
 - **Answer first.** No build-up, no preamble.
 - **Numbers, not descriptions of numbers.**
