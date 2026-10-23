@@ -231,8 +231,11 @@ export default function MarketsTerminal() {
           const up     = chg >= 0;
           const health = computeCoinHealth(d);
           const sig    = topSignal(d);
-          const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
-          const barCol = tbp >= 55 ? 'var(--green-2)' : tbp <= 45 ? 'var(--red)' : '#555';
+          /* #1494 class: null, not 50. This one also PRINTS the number - a coin with no taker data read
+             "50% buy" in plain text beside a half-filled bar, which is not a weaker claim than a real
+             reading, it is the same claim. Unknown now shows '-', as price and signal already do. */
+          const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : null;
+          const barCol = tbp == null ? '#555' : tbp >= 55 ? 'var(--green-2)' : tbp <= 45 ? 'var(--red)' : '#555';
           const badgeCol = coinBadgeColor(id);
 
           return (
@@ -305,10 +308,10 @@ export default function MarketsTerminal() {
               {/* Pressure bar */}
               <div className="mkt-col-pressure" style={{ paddingLeft: 16, paddingRight: 8 }}>
                 <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 0 }}>
-                  <div style={{ height: '100%', width: tbp + '%', background: barCol, borderRadius: 0, transition: 'width 0.5s' }} />
+                  <div style={{ height: '100%', width: (tbp ?? 0) + '%', background: barCol, borderRadius: 0, transition: 'width 0.5s' }} />
                 </div>
                 <div className="mkt-mono" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
-                  {t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
+                  {tbp == null ? '-' : t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
                 </div>
               </div>
 
@@ -324,7 +327,7 @@ export default function MarketsTerminal() {
               {/* Bottom accent line = buy pressure */}
               <div style={{
                 position: 'absolute', bottom: 0, left: 0,
-                width: tbp + '%', height: 1,
+                width: (tbp ?? 0) + '%', height: 1,
                 background: barCol, opacity: 0.2,
               }} />
             </div>
