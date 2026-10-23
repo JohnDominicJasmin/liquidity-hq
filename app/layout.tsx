@@ -3,6 +3,8 @@ import localFont from 'next/font/local';
 import Script from 'next/script';
 import './globals.css';
 import AppShell from '@/components/AppShell';
+import StructuredData from '@/components/StructuredData';
+import { organizationGraph } from '@/lib/structuredData';
 
 // Self-hosted, previously next/font/google.
 //
@@ -68,7 +70,10 @@ export const metadata: Metadata = {
   // canonical entry URLs.
   metadataBase: new URL('https://liquidity-hq.com'),
   title: {
-    default: 'LiquidityHQ',
+    /* #1740 item 3: was the bare 'LiquidityHQ' - 11 characters on the one page with the most to say
+       for itself. This is the DEFAULT, so it titles '/' only; every other route sets its own and gets
+       the template below. Kept under ~60 so a search result does not truncate it. */
+    default: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
     template: '%s - LiquidityHQ',
   },
   description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
@@ -148,6 +153,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           is one level deep, so this silences <body>'s own attributes and nothing
           inside it. A genuine mismatch in the tree still reports. */}
       <body className="consent-pending" suppressHydrationWarning>
+        {/* #1740 item 4: the publisher, on every page, so a crawler can tie the whole site to one
+            entity. Page-specific graphs (FAQPage, Product, BreadcrumbList) are added by the layout
+            of the page they describe, not here. */}
+        <StructuredData graph={organizationGraph()} />
         {/* beforeInteractive - injected into the initial server HTML and
             runs before hydration, so data-theme is correct before first
             paint (no flash of the wrong theme). Mirrors lib/theme.ts's
