@@ -67,17 +67,54 @@ test('P1b. the fence lists nothing that has stopped calling xAI - a stale entry 
 
 /* ── P3: the free-GET exception, pinned against the source ───────────────────────────────── */
 
-/** Does this route's GET handler call xAI? Read from the handler body, not the file, so a POST-only spend does not count. */
+const SPENDS = /xaiFetch|api\.x\.ai/;
+
+/** Module-scope function bodies by name: `function f(...) {...}`, `const f = (...) => {...}`, `const f = async (...) => {...}`. */
+function moduleHelpers(src: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const m of src.matchAll(/^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm)) {
+    const end = src.indexOf('\n}', m.index!);
+    out.set(m[1], src.slice(m.index!, end === -1 ? undefined : end));
+  }
+  for (const m of src.matchAll(/^(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(/gm)) {
+    const end = src.indexOf('\n};', m.index!);
+    out.set(m[1], src.slice(m.index!, end === -1 ? src.indexOf('\n}', m.index!) : end));
+  }
+  return out;
+}
+
+/** Does this route's GET handler reach xAI - directly, or through a module-scope helper it calls?
+ *
+ *  THE INDIRECTION IS NOT HYPOTHETICAL AND DEV FOUND IT IN THE FILE THIS EXCEPTION COVERS. `app/api/grok/route.ts` has
+ *  `restateVerdict()` at module scope, which calls `xaiFetch`. Today only POST calls it, so the allowlist entry is correct - but a
+ *  purely textual check of the handler BODY would stay green if someone wired a usage-repair path into GET, and the allowlist entry
+ *  would silently become a licence to bill. The guarantee has to be "cannot reach xAI", not "contains no literal xaiFetch", because
+ *  those come apart exactly where the money is.
+ *
+ *  Transitive rather than one hop: a helper calling a helper costs two lines here and is the same class of gap. */
 function getHandlerSpends(segment: string): boolean | null {
   const file = join(ROOT, 'app', 'api', segment, 'route.ts');
   let src: string;
   try { src = readFileSync(file, 'utf8'); } catch { return null; }
   const at = src.indexOf('export async function GET');
   if (at === -1) return null;
-  /* To the next top-level `}` - crude, and sufficient: a handler that calls xAI does so inside its own body. */
   const end = src.indexOf('\n}', at);
   const body = src.slice(at, end === -1 ? undefined : end);
-  return /xaiFetch|api\.x\.ai/.test(body);
+  if (SPENDS.test(body)) return true;
+
+  const helpers = moduleHelpers(src);
+  const seen = new Set<string>();
+  const queue = [...body.matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]);
+  while (queue.length) {
+    const name = queue.shift()!;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const h = helpers.get(name);
+    if (!h) continue;
+    if (SPENDS.test(h)) return true;
+    queue.push(...[...h.matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]));
+  }
+  return false;
 }
 
 test('P3. the fence only lets a GET through where that GET handler does NOT call xAI', () => {
