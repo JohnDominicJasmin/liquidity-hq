@@ -17,7 +17,7 @@
  * NO BILLED CALLS AND NO NETWORK: this imports the parser and feeds it strings. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseVerdict } from '../lib/grok.ts';
+import { parseVerdict, parseCombinedResponse } from '../lib/grok.ts';
 
 /** A full answer in the shape the prompt asks for, with the verdict lines substituted in. */
 const answer = (signalLine: string, confLine: string) =>
@@ -80,6 +80,52 @@ test('V-gap: both values bolded, which is what a markdown-formatting model would
 });
 
 /* ── and the thing the fix must NOT do ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── THE TWO PARSERS MUST AGREE. Added 2026-10-23 after this file let a regression through. ────────────────────────
+ *
+ * `lib/grok.ts` reads a verdict twice: `parseVerdict` (strict, refuses) and `parseCombinedResponse` (lenient, defaults to FLAT at 0).
+ * Everything above only exercised the strict one — so when Dev fixed the markdown gap by removing `\*{0,2}` from the shared patterns,
+ * `**SIGNAL:** BULLISH` started coming out of the LENIENT parser as FLAT at 0 and this file stayed green. That is the exact coercion
+ * 0d63309b set out to end, reintroduced by the fix for it, and my tests could not see it because they only asked one parser.
+ *
+ * Dev caught it by running both parsers over the shapes rather than the one they had changed. These tests make that permanent: any shape
+ * the app must accept has to produce the SAME verdict from both readers, because the two disagreeing is how a displayed verdict and a
+ * refused one come apart. */
+
+const TF = '4h';
+const SESSION = 'ny';
+
+for (const [label, sig, conf] of ACCEPTED) {
+  test(`V-agree: both parsers read the same verdict - ${label}`, () => {
+    const strict = parseVerdict(answer(sig, conf));
+    assert.ok(strict, `the strict parser refused a shape the app must accept: ${sig}`);
+    const lenient = parseCombinedResponse(answer(sig, conf), TF, SESSION, Date.parse('2026-10-23T04:00:00Z'));
+    assert.equal(lenient.signal, strict.signal,
+      `the parsers disagree on "${sig}": strict says ${strict.signal}, lenient says ${lenient.signal} - a lenient FLAT here is the coerced verdict 0d63309b removed`);
+    assert.equal(lenient.confidence, strict.confidence,
+      `the parsers disagree on confidence for "${conf}": strict ${strict.confidence}, lenient ${lenient.confidence}`);
+  });
+}
+
+test('V-agree: underscore emphasis parses in BOTH, since a fix for asterisks must not stop at asterisks', { todo: '#1721: __SIGNAL:__ is refused on dev - Dev\'s 8d064a99 strips emphasis rather than widening the pattern, which turns this green' }, () => {
+  const text = answer('__SIGNAL:__ BULLISH', '__CONFIDENCE:__ 62');
+  const strict = parseVerdict(text);
+  const lenient = parseCombinedResponse(text, TF, SESSION, Date.parse('2026-10-23T04:00:00Z'));
+  assert.ok(strict, '__SIGNAL:__ BULLISH was refused by the strict parser');
+  assert.equal(lenient.signal, strict.signal, `underscore emphasis disagrees: strict ${strict.signal}, lenient ${lenient.signal}`);
+});
+
+test('V-trapdoor: the lenient parser STILL coerces an unreadable answer to FLAT at 0 - pinned so removing it is visible', () => {
+  /* This is not approval. parseCombinedResponse is reached only after parseVerdict has passed, so the default is unreachable today -
+     which makes it a trap for the next caller who changes the order rather than a live defect. Dev and I agreed it comes out in its own
+     PR, not bundled with a regex fix. This test records the CURRENT behaviour so that PR has something to flip, and so nobody
+     "simplifies" it in passing and believes they changed nothing. */
+  const unreadable = 'I could not reach a verdict for BTC on this timeframe.';
+  assert.equal(parseVerdict(unreadable), null, 'the strict parser must refuse an answer with no verdict');
+  const lenient = parseCombinedResponse(unreadable, TF, SESSION, Date.parse('2026-10-23T04:00:00Z'));
+  assert.equal(lenient.signal, 'FLAT', 'the lenient default changed - if that was deliberate, this test is the one to update');
+  assert.equal(lenient.confidence, 0, 'the lenient confidence default changed');
+});
 
 test('V-strict: whatever shape is added, UNREADABLE must still be refused', () => {
   /* The fix for the gap above is to tolerate more markdown. The failure mode of that fix is tolerating too much and reading a verdict
