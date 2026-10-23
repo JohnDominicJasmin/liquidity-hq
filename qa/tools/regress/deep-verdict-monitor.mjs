@@ -9,6 +9,13 @@
  * would pass the moment the shape changes to a 200 carrying an unparseable body - the same mistake as trusting a log line that is
  * never written. What is being bought is a verdict, so that is what this demands.
  *
+ * IT SENDS THE APP'S PROMPT, AND THE FIRST FOUR VERSIONS OF THIS TOOL DID NOT. `/api/grok` takes the prompt from the request body and
+ * forwards it whole (`route.ts:110` says so; the browser assembles it at `app/arena/page.tsx:1594`), and nothing server-side adds the
+ * output contract. This file used to post `prompt: 'Deep read on BTC 4h'` - twenty characters against the app's 26,133 - so the model
+ * was never asked for a SIGNAL line at all. Four billed Deep calls came back as markdown prose with no verdict, which is the correct
+ * answer to that question, and were reported as the paid feature being broken. The prompt now comes from the app's own builder via
+ * deep-prompt-fixture.mjs. A tool that does not send what the product sends measures itself.
+ *
  * WHAT IT COSTS, stated because a monitor that bills silently gets switched off: ONE Deep call per run. That is one xAI call against
  * the project's global daily counter, AND one of the signed-in account's ten daily Deep reads. Do not run it on a loop, and do not
  * schedule it more than once a day without saying so where the owner can see it.
@@ -17,6 +24,7 @@
  * exit 0 = a parseable verdict came back. exit 1 = it did not, and the raw body is printed for the issue.  */
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { assembleDeepPrompt } from './deep-prompt-fixture.mjs';
 
 const BASE = (process.argv[2] || '').replace(/\/$/, '');
 const DRY = process.argv.includes('--dry');
@@ -40,14 +48,34 @@ const need = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'E2E_
 const missing = need.filter((k) => !env[k]);
 if (missing.length) { console.error(`missing from the local env files: ${missing.join(', ')}`); process.exit(2); }
 
-const ver = await (await fetch(`${BASE}/api/version`, { cache: 'no-store', signal: AbortSignal.timeout(30_000) })).json();
-console.log(`build: commit=${ver.commit} branch=${ver.branch} appEnv=${ver.appEnv}  at ${new Date().toISOString()}`);
+/* The build is read before anything is billed, and a FAILED read says so instead of taking the process down. The free-plan services
+   sleep, so a cold `/api/version` can exceed 30 s - which arrived here as an uncaught DOMException with no message and no exit code,
+   the exact failure this tool's own header warns about. DRY needs no network at all: the prompt is assembled locally. */
+let ver = { commit: '(dry - not read)', branch: '-', appEnv: '-' };
+if (!DRY) {
+  try {
+    const r = await fetch(`${BASE}/api/version`, { cache: 'no-store', signal: AbortSignal.timeout(60_000) });
+    if (!r.ok) { console.error(`/api/version answered HTTP ${r.status} - refusing to bill a call against an unidentified build`); process.exit(2); }
+    ver = await r.json();
+  } catch (e) {
+    console.error(`/api/version unreachable (${e instanceof Error ? e.message : e}). The service may be asleep; retry, or wake it in a browser first.`);
+    process.exit(2);
+  }
+  console.log(`build: commit=${ver.commit} branch=${ver.branch} appEnv=${ver.appEnv}  at ${new Date().toISOString()}`);
+}
 
 /* `process.exit()` right after a fetch aborts the process with a libuv assertion (UV_HANDLE_CLOSING) instead of exiting - and for a
    MONITOR the exit code IS the contract, so a crash where a 0 belongs would read to a scheduler as a failed check. Everything below
    therefore lives in main(), and the exit status is set with `process.exitCode`, letting Node close its own handles. */
 async function main() {
-if (DRY) { console.log('DRY: would POST /api/grok {type:deep, coin:btc, tf:4h}. No call made, nothing billed.'); return 0; }
+/* Assembled before sign-in and before anything is billed: a prompt that lost the contract, or that renders a field as "undefined",
+   throws here rather than inside a paid call. The position of the contract is REPORTED, not asserted - where it sits is what #1725
+   changed, and this tool has to be able to measure both sides of that change. */
+const asm = assembleDeepPrompt({ coin: 'BTC', tf: '4h', session: 'ny' });
+console.log(`prompt: ${asm.chars} chars, ${asm.lines} lines, first SIGNAL: instruction on line ${asm.firstSignalLine} of ${asm.lines}`);
+console.log(`prompt head: ${asm.head}`);
+
+if (DRY) { console.log('DRY: would POST /api/grok {type:deep, coin:btc, tf:4h} with the prompt above. No call made, nothing billed.'); return 0; }
 
 const auth = await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
   method: 'POST',
@@ -59,12 +87,13 @@ if (!auth.ok) { console.error(`sign-in failed: HTTP ${auth.status}`); return 2; 
 const token = (await auth.json()).access_token;
 if (!token) { console.error('sign-in returned no access_token'); return 2; }
 
-/* Neutral phrasing on purpose. An advice-shaped question ("should I go long") is a legitimate thing for the model to decline, so it
-   cannot be used to test availability - that confound cost a billed call to discover on 2026-10-23. */
+/* The app's assembled prompt, not a question of QA's own. An advice-shaped question ("should I go long") is a legitimate thing for the
+   model to decline and so cannot test availability - that confound cost one billed call on 2026-10-23, and the bare neutral prompt that
+   replaced it cost three more by asking for no verdict at all. The builder decides what is asked; this tool decides only what counts. */
 const res = await fetch(`${BASE}/api/grok`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-  body: JSON.stringify({ prompt: 'Deep read on BTC 4h', tf: '4h', session: 'ny', type: 'deep', coin: 'btc' }),
+  body: JSON.stringify({ prompt: asm.prompt, tf: '4h', session: 'ny', type: 'deep', coin: 'btc' }),
   signal: AbortSignal.timeout(180_000),
 });
 const text = await res.text();
@@ -80,7 +109,13 @@ const parseable = typeof signal === 'string' && SIGNALS.includes(signal.toUpperC
 const dir = `${REPO}/../qa-evidence-guardrail`;
 mkdirSync(dir, { recursive: true });
 const file = `${dir}/deep-verdict-${ver.commit}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-writeFileSync(file, JSON.stringify({ build: ver, status: res.status, parseable, signal, confidence, body: json ?? text }, null, 2));
+/* The prompt is saved WITH the answer, in full. Without it a saved result cannot answer "what did we ask?", which is the gap that made
+   four failures look like one finding - and Dev's log, which records only the response, could not close it either. */
+writeFileSync(file, JSON.stringify({
+  build: ver,
+  request: { chars: asm.chars, lines: asm.lines, firstSignalLine: asm.firstSignalLine, prompt: asm.prompt },
+  status: res.status, parseable, signal, confidence, body: json ?? text,
+}, null, 2));
 
 if (parseable) {
   console.log(`PASS: verdict=${signal} confidence=${confidence} (HTTP ${res.status}) on ${ver.commit}`);
@@ -90,6 +125,7 @@ if (parseable) {
 }
 
 console.error(`FAIL on ${ver.commit}: no parseable verdict. HTTP ${res.status}`);
+console.error(`the prompt DID ask for it: ${asm.chars} chars, SIGNAL: instruction on line ${asm.firstSignalLine} of ${asm.lines}`);
 console.error(`signal=${JSON.stringify(signal)} confidence=${JSON.stringify(confidence)}`);
 console.error(`RAW BODY (for the issue):\n${text.slice(0, 1200)}`);
 console.error(`saved ${file}`);

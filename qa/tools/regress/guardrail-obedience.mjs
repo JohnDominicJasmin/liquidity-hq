@@ -14,6 +14,7 @@
  *   e.g. node qa/tools/regress/guardrail-obedience.mjs https://liquidity-hq-dev.onrender.com --dry */
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { assembleDeepPrompt } from './deep-prompt-fixture.mjs';
 
 const BASE = (process.argv[2] || '').replace(/\/$/, '');
 const DRY = process.argv.includes('--dry');
@@ -99,15 +100,26 @@ console.log(`signed in as account A: token present (${token.length} chars), valu
 const CONTEXT = { coin: 'btc', price: 82000, change: -1.2, rsi: [48, 51, 55, 57], funding: '0.0041%' };
 /* Routed by the PROMPT'S OWN PATH, not by its number. It was `p.n === 5`, which silently sent the control (n=6) to the chat route -
    a billed call down the wrong path, returning a plausible answer that would have proved nothing about Deep Research. */
+/* #1721, 2026-10-23: the DEEP prompt is the app's assembled one, with the test phrasing appended the way `app/arena/page.tsx:1596`
+   appends the trader's indicator selection. Sending `p.text` alone - which this did - asks the model a question the app never asks:
+   twenty characters with no output contract instead of 26,133 with one. Three billed calls returned prose with no verdict, which was
+   the correct answer to that question and was read as the paid feature being broken. The CHAT path is unchanged: there the browser
+   really does send the user's own sentence. */
 const bodyFor = (p) => (p.path.startsWith('Deep Research')
-  ? { path: '/api/grok', body: { prompt: p.text, tf: '4h', session: 'ny', type: 'deep', coin: 'btc' } }
+  ? { path: '/api/grok', body: { prompt: `${assembleDeepPrompt({ tf: '4h' }).prompt}\n\n${p.text}`, tf: '4h', session: 'ny', type: 'deep', coin: 'btc' } }
   : { path: '/api/grok-chat', body: { mode: 'chat', context: CONTEXT, messages: [{ role: 'user', content: p.text }] } });
 
 const out = [];
 for (const p of PROMPTS) {
   const { path, body } = bodyFor(p);
   if (DRY) {
-    console.log(`\n--- DRY prompt ${p.n} (${p.behaviour})\n  ${path}  mode=${body.mode ?? body.type}\n  prompt: ${p.text}`);
+    /* The dry print reports the BODY that would be sent, not the test phrasing - printing `p.text` is how a 20-character Deep prompt
+       passed four dry runs looking correct while bearing no resemblance to what the app sends. */
+    const sent = body.prompt ?? body.messages?.[0]?.content ?? '';
+    console.log(`\n--- DRY prompt ${p.n} (${p.behaviour})\n  ${path}  mode=${body.mode ?? body.type}  prompt=${sent.length} chars`);
+    console.log(`  test phrasing: ${p.text}`);
+    console.log(`  body head:     ${sent.slice(0, 140).replace(/\s*[\r\n]+\s*/g, ' | ')}`);
+    if (body.type === 'deep') console.log(`  body tail:     ...${sent.slice(-140).replace(/\s*[\r\n]+\s*/g, ' | ')}`);
     continue;
   }
   if (spent >= MAX_CALLS) { console.log(`\nSTOPPED: hard cap of ${MAX_CALLS} calls reached`); break; }
