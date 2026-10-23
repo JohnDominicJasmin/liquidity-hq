@@ -1,0 +1,92 @@
+-- Anonymous grants inherited by `create table as select`, revoked. Two findings, one mechanism.
+--
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ALREADY APPLIED. 2026-10-23, by PM/DevOps, to BOTH databases: prod (qdpwhnvmhqgzijuwopso) and
+-- dev (wdtjhrilakoitfcezxpx, which also serves qa and staging).
+--
+-- DO NOT RUN THIS FILE. It records a change that has already happened. It exists because a live
+-- grant change with nothing in the repository to explain it is how the next reader concludes the
+-- grants are something other than what they are - the same reason 20261023c exists.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- ── THE MECHANISM, WHICH IS THE ONLY PART WORTH REMEMBERING ────────────────────────────────────
+--
+-- `create table as select` produces a table that inherits the schema's DEFAULT GRANTS and starts
+-- with RLS OFF. Neither is obvious at the point of writing it, and both are invisible afterwards
+-- unless someone goes looking. The defect is the statement, not any particular table, which is why
+-- the fix below was applied as a sweep rather than to a name list.
+--
+-- ── FINDING 1: THE REVERT SNAPSHOT REPUBLISHED WHAT THE WRITE HAD JUST REMOVED ──────────────────
+--
+-- `lhq_labels_vendor_backup_20261023` was created as the rollback for the vendor-name write (#1185)
+-- - 85 rows holding the PRE-change values, vendor name included. Inheriting default grants with RLS
+-- off meant PostgREST served it to anonymous callers.
+--
+-- So the operation removed the vendor name from one table and published it from another, in the
+-- same breath, and the backup existed precisely BECAUSE the change was being made carefully. QA
+-- found it.
+--
+-- Fixed: grants revoked, RLS enabled. Verified FROM OUTSIDE rather than from the dashboard, using
+-- the anon key recovered from a production JS chunk: the backup table answers 401, `lhq_labels`
+-- still answers 200. All 85 revert rows intact.
+--
+-- ── FINDING 2: TRUNCATE GRANTED TO anon ON 17 TABLES, ACROSS BOTH PROJECTS ──────────────────────
+--
+-- Same mechanism, found by looking for the class rather than the instance.
+--
+-- **RLS CANNOT RESTRAIN `TRUNCATE` AT ALL.** Row-level policies are evaluated per row; truncate does
+-- not visit rows. So unlike DELETE - where a policy at least bounded what an anonymous caller could
+-- remove (20261023c) - a TRUNCATE grant is unconditional. Every row, no predicate, no recourse.
+--
+-- Revoked by iterating `information_schema.role_table_grants` rather than from a list of names,
+-- because a list would have been correct on the day and wrong the next time someone runs
+-- `create table as select`.
+--
+-- ── VERIFIED AFTER ─────────────────────────────────────────────────────────────────────────────
+--
+--   both projects:  zero TRUNCATE grants to anon in `public`
+--   both projects:  zero tables in `public` with RLS disabled
+--
+-- THE SECOND LINE ORIGINALLY READ "prod:" AND THAT WAS A GAP, NOT A RESULT. The RLS sweep was
+-- reported for production and the dev project was never named - and dev is the one that serves
+-- dev, qa AND staging, so a snapshot table left exposed there is exposed to three environments.
+-- An automated review caught the asymmetry in this file; I had transcribed it without noticing
+-- that one line said "both" and the next said "prod".
+--
+-- Measured directly on dev (wdtjhrilakoitfcezxpx) rather than inferred, 2026-10-23, read-only:
+--
+--   tables in `public` with RLS disabled ............... 0
+--   TRUNCATE granted to anon / authenticated .......... 0
+--   write policies reachable by anon .................. all qualified `auth.uid() = user_id`
+--
+-- `auth.uid()` is NULL for an anonymous caller, so `NULL = user_id` is never true and those
+-- policies match no rows. The only intentional anon write on dev is `liq_events_insert_bounded`,
+-- which is the poisoning half still open per 20261023c.
+--
+-- So the claim was incomplete, not the state. Recorded this way round because "we checked and it
+-- was fine" and "we never checked" are the same sentence once the detail is gone.
+--
+-- TWO THINGS SEEN WHILE MEASURING, NEITHER A HOLE, BOTH WORTH KNOWING:
+--
+--   * anon holds TABLE-LEVEL delete on 13 dev tables and update on 12, inert only because no
+--     policy permits it. Same shape as the lhq_liq_events UPDATE grant revoked in 20261023c: a
+--     grant whose only guard is the absence of a policy is one `create policy` away from live.
+--   * lhq_dev_hypotheses and lhq_dev_hypothesis_evidence each carry TWO overlapping ALL policies.
+--     Permissive policies OR together. Both copies are identically qualified today, so there is no
+--     gap - but editing one and not the other opens a hole that reads as closed.
+--
+-- ── WHAT TO DO INSTEAD, NEXT TIME ──────────────────────────────────────────────────────────────
+--
+-- A snapshot table taken before a data write is a good practice and should continue. It needs two
+-- statements after it, every time, in the same transaction that creates it:
+--
+--   alter table public.<snapshot> enable row level security;
+--   revoke all on public.<snapshot> from anon, authenticated;
+--
+-- With no policy created, RLS-enabled plus no grants means service-role only, which is what a
+-- rollback table should be. Writing them as a reflex is cheaper than remembering the mechanism.
+--
+-- ── ROLLBACK ───────────────────────────────────────────────────────────────────────────────────
+--
+-- None offered. Restoring anonymous TRUNCATE or exposing a rollback snapshot has no legitimate use;
+-- if a real caller is refused, grant exactly what it needs to the role it actually uses.
