@@ -94,15 +94,23 @@ export const GROK_UNREADABLE_ANSWER_MESSAGE = 'The AI answer did not give a clea
 /** The SIGNAL and CONFIDENCE lines, shared by parseVerdict and parseCombinedResponse so the two can never read an answer differently.
  *  `\*{0,2}` after the colon: "**SIGNAL:** BEARISH" (bold label, value outside it) left "**" between the colon and the value after the
  *  line-edge strip, missed the match and was read as FLAT at 0% (#1651 item 3, found by its probe). */
-const SIGNAL_LINE = /SIGNAL:\*{0,2}\s*(LEAN BULLISH|LEAN BEARISH|BULLISH|BEARISH|FLAT)/i;
-const CONFIDENCE_LINE = /CONFIDENCE:\*{0,2}\s*(\d+)/i;
+const SIGNAL_LINE = /SIGNAL:\s*(LEAN BULLISH|LEAN BEARISH|BULLISH|BEARISH|FLAT)/i;
+const CONFIDENCE_LINE = /CONFIDENCE:\s*(\d+)/i;
+
+/* #1721: markdown is STRIPPED before matching rather than tolerated inside the pattern. `\*{0,2}` used to sit between the colon and
+   the whitespace, so "**SIGNAL:** BULLISH" matched and "SIGNAL: **BULLISH**" did not - and bolding the VALUE is the single most
+   ordinary thing a model does to a labelled field. The asymmetry was invisible precisely because the pattern looked like it handled
+   asterisks. Widening it again would buy one more spelling and still miss `*BULLISH*`, `__BULLISH__` and backticks; one strip covers
+   the class. The emphasis characters are the only thing removed - letters, digits and the colon are untouched, so UNREADABLE stays
+   unreadable rather than being coerced into a verdict. */
+const stripMarkdown = (line: string) => line.replace(/[*_`]/g, '');
 
 /** #1651 item 3: the verdict read STRICTLY - one of the five signals and a whole-number confidence 0-100 - or null. parseCombinedResponse
  *  reads the same two lines but falls back to FLAT and 0 when they are missing, so an answer the model wrote in the wrong shape used to be
  *  shown as a confident-looking "Wait". The route asks once more when this is null, then refuses. Same normalisation and patterns as
  *  parseCombinedResponse, so every answer that parsed before still parses. */
 export function parseVerdict(text: string): { signal: CombinedResult['signal']; confidence: number } | null {
-  const clean = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
+  const clean = text.split('\n').map(stripMarkdown).join('\n');
   const signal = clean.match(SIGNAL_LINE)?.[1]?.toUpperCase();
   const conf = clean.match(CONFIDENCE_LINE)?.[1];
   if (!signal || conf == null) return null;
@@ -830,14 +838,21 @@ export function parseCombinedResponse(text: string, tf: string, session: string,
 
   const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/[,$]/g, '')); return isNaN(v) || v <= 0 ? null : v; };
 
+  /* #1721: the two VERDICT lines are matched against a markdown-stripped copy, the same way parseVerdict does, so the two parsers
+     agree about what a verdict looks like. Only these two - `clean` keeps its lighter line-edge strip for every other field, because
+     stripping emphasis across the whole answer would quietly edit the reasoning and catalyst text that gets displayed. Without this,
+     removing `\*{0,2}` from the shared patterns would have REGRESSED "**SIGNAL:** BULLISH" here into FLAT at 0 - caught by running
+     both parsers over the shapes rather than only the one I had changed. */
+  const verdictText = text.split('\n').map(stripMarkdown).join('\n');
+
   // A missing verdict falls back to FLAT / 0 here only for a caller that has not checked it: the route checks parseVerdict first (#1651).
-  const signal     = (clean.match(SIGNAL_LINE)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
+  const signal     = (verdictText.match(SIGNAL_LINE)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
   const biasRaw    = clean.match(/BIAS_LEAN:\s*(BULLISH|BEARISH|NEUTRAL)/i)?.[1]?.toUpperCase();
   const bias: CombinedResult['bias'] = signal === 'LEAN BULLISH' ? 'BULLISH'
     : signal === 'LEAN BEARISH' ? 'BEARISH'
     : (biasRaw === 'BULLISH' || biasRaw === 'BEARISH' || biasRaw === 'NEUTRAL') ? biasRaw as CombinedResult['bias']
     : null;
-  const confidence = parseInt(clean.match(CONFIDENCE_LINE)?.[1] ?? '0');
+  const confidence = parseInt(verdictText.match(CONFIDENCE_LINE)?.[1] ?? '0');
 
   const levels: CombinedResult['levels'] = [];
   const levSect = clean.match(/LEVELS:\s*\n([\s\S]*?)(?=CATALYSTS:|CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
