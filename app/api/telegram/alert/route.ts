@@ -1231,6 +1231,25 @@ async function checkPriceAlerts(
    ════════════════════════════════════════ */
 interface FNGData { value: string; value_classification: string }
 
+/* THE INDEX, OR NULL. Never a default, and never a second way of reading the same endpoint.
+   Three places in this file read api.alternative.me/fng/ and two of them used to substitute `?? '50'`
+   for an answer they could not read - the exact middle of a 0-100 scale, so an unreadable response
+   arrived downstream as a real neutral reading with nothing able to tell the two apart. The `isNaN`
+   guard that followed never caught it: parseInt('50') is 50.
+   Nothing fired on a fabricated 50 (the gates are <=15, >=75, <=25), so the symptom was an alert that
+   silently did not go out - which is the failure #1651 (QA finding C) named for `longAccount` in
+   checkSentimentExtremes: "no extreme" and "we could not read it" looked identical. That one was fixed
+   with an early return; the field beside it, in the same function, was left as it was.
+   The third reader (the daily summary) was already correct - it omits the line when there is no value -
+   and now all three go through it, so the behaviour cannot drift apart again. */
+function readFng(json: { data?: FNGData[] }): { value: number; label: string } | null {
+  const raw = json.data?.[0]?.value;
+  if (typeof raw !== 'string') return null;
+  const value = parseInt(raw, 10);
+  if (!Number.isFinite(value) || value < 0 || value > 100) return null;
+  return { value, label: json.data?.[0]?.value_classification ?? '' };
+}
+
 async function checkFearGreed(
   token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
 ): Promise<string[]> {
@@ -1241,9 +1260,10 @@ async function checkFearGreed(
     const res  = await fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
     if (!res.ok) return [];
     const json = await res.json() as { data: FNGData[] };
-    const val  = parseInt(json.data?.[0]?.value ?? '50');
-    const cls  = json.data?.[0]?.value_classification ?? '';
-    if (isNaN(val)) return [];
+    const read = readFng(json);
+    if (!read) return [];
+    const val  = read.value;
+    const cls  = read.label;
 
     if (val <= 15 && !onCooldown('fng_fear', CD.fng)) {
       await tg(token, chatId,
@@ -1303,9 +1323,12 @@ async function checkDailySummary(
     const fngRes = await fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
     if (fngRes.ok) {
       const fngJson = await fngRes.json() as { data: FNGData[] };
-      const val = fngJson.data?.[0]?.value;
-      const cls = fngJson.data?.[0]?.value_classification;
-      if (val) { fngLine = `\n😨 F&amp;G: <b>${val}</b> (${cls})`; }
+      /* Already correct before readFng existed - it omitted the line rather than inventing one, which is
+         why the helper is shaped the way it is. Routed through it so there is one reader, not three.
+         One tightening: a non-numeric value used to be printed verbatim; it is now dropped like a
+         missing one. */
+      const read = readFng(fngJson);
+      if (read) { fngLine = `\n😨 F&amp;G: <b>${read.value}</b> (${read.label})`; }
     }
   } catch { /* skip */ }
 
@@ -1395,9 +1418,10 @@ async function checkSentimentExtremes(
     if (lsR.status  !== 'fulfilled' || !lsR.value.ok)  { noteSkip(skipCounts, 'binance'); return []; }
 
     const fngJson = await fngR.value.json() as { data: FNGData[] };
-    const fng     = parseInt(fngJson.data?.[0]?.value ?? '50');
-    const fngCls  = fngJson.data?.[0]?.value_classification ?? '';
-    if (isNaN(fng)) return [];
+    const fngRead = readFng(fngJson);
+    if (!fngRead) return [];
+    const fng     = fngRead.value;
+    const fngCls  = fngRead.label;
 
     const lsData  = await lsR.value.json() as LSItem[];
     if (!lsData?.length) return [];
