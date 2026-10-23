@@ -1,0 +1,132 @@
+import { test, expect } from '@playwright/test';
+import { FIXTURES, signedInContext, gotoSignedIn } from './_auth';
+import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
+
+/* WHICH ELEMENT MAKES /arena 421px WIDE AT 390 - and is it a race or a state? (#1263)
+ *
+ * The state matrix found `/arena` reading `scrollWidth` 421 against a requested 390 in two of eight phone cells:
+ * signed-out/dark and free/light. Dev's read, which is the one this probe is built on: **neither variable explains it.**
+ * If it were the account state, signed-out would fail in both themes; if it were the theme, dark would fail in every
+ * state. Each failing state passes in the other theme. That leaves TIMING - an element whose width is wrong only while
+ * something has not settled, caught in the two cells whose measurement happened to land early.
+ *
+ * Dev also searched the CSS and ruled out, by reading rather than assuming: `.arena-ws`'s fixed 320px column (it has a
+ * phone override at globals.css:3507), `UpgradeGateModal`/`LockedFeatureCard` (every container is width:100% with a
+ * maxWidth, which clamps rather than overflows), and any `min-width` between 300 and 500px in globals.css. So a static
+ * hunt may never find it, and the question moves to the harness.
+ *
+ * ── WHAT THIS DOES THAT THE MATRIX DID NOT ──────────────────────────────────────────────────────────────────────
+ *
+ * 1. NAMES THE ELEMENT. On overflow it records the five deepest right edges past the viewport - Dev's snippet. The
+ *    widest right edge is the culprit; the rest are usually its ancestors.
+ * 2. SAMPLES TWICE IN TIME, EARLY AND LATE. If 421 appears only in the early sample, this is a layout FLASH rather
+ *    than a persistent overflow - a different fix and arguably a different severity. The matrix measured once, after a
+ *    wait, which is why it saw this in two cells rather than in none or eight.
+ * 3. REPEATS. Two of eight may be "one in four" rather than "these two cells", and that distinction decides whether
+ *    Dev is hunting a race or a state. Each (state, theme) pair runs REPEATS times.
+ *
+ * ── AND IT REPORTS AN EMPTY OFFENDER LIST AS A RESULT, NOT A FAILURE ────────────────────────────────────────────
+ *
+ * If `scrollWidth` reads 421 and nothing's right edge exceeds the viewport, that IS the answer: the overflow is gone
+ * by the time we look. It confirms timing and says to capture at first paint instead. A probe that treated that as
+ * "found nothing" would throw away its most informative outcome.
+ *
+ * usage: E2E_BASE_URL=https://liquidity-hq-staging.onrender.com npx playwright test arena-overflow-probe --project=desktop */
+
+const REPEATS = 4;
+const WIDTH = 390;
+const HEIGHT = 844;
+
+/* Dev's snippet runs as a FUNCTION passed to page.evaluate, not as a string through eval. Playwright serialises the
+   function to the page either way, so the behaviour is identical - and a string plus eval would be an unnecessary
+   dynamic-code path in a test harness, which is worth avoiding even when the string is a constant in this same file. */
+
+interface Sample { when: 'early' | 'late'; scrollWidth: number; clientWidth: number; offenders: unknown[] }
+
+const results: Array<{ state: string; theme: string; run: number; samples: Sample[] }> = [];
+
+async function sample(page: import('@playwright/test').Page, when: 'early' | 'late'): Promise<Sample> {
+  const m = await page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    const offenders = Array.from(document.querySelectorAll('*'))
+      .map((el) => ({ el, right: el.getBoundingClientRect().right }))
+      .filter((x) => x.right > vw + 1)
+      .sort((a, b) => b.right - a.right)
+      .slice(0, 5)
+      .map((x) => ({
+        right: Math.round(x.right),
+        tag: x.el.tagName.toLowerCase(),
+        cls: (x.el.className?.toString?.() ?? '').slice(0, 60),
+        id: x.el.id || null,
+        testid: x.el.getAttribute('data-testid'),
+        w: Math.round(x.el.getBoundingClientRect().width),
+      }));
+    return { scrollWidth: document.documentElement.scrollWidth, clientWidth: vw, offenders };
+  });
+  return { when, ...m };
+}
+
+for (const state of ['out', 'free'] as const) {
+  for (const theme of ['dark', 'light'] as const) {
+    for (let run = 1; run <= REPEATS; run++) {
+      test(`/arena 390px · ${state} · ${theme} · run ${run}`, async ({ browser, page: plainPage }) => {
+        test.skip(test.info().project.name !== 'desktop', 'the probe sets its own viewport');
+        test.skip(state === 'free' && (!FIXTURES.bEmail || !FIXTURES.bPassword), 'no credentials for the free account');
+
+        let page = plainPage;
+        let ctx: Awaited<ReturnType<typeof browser.newContext>> | null = null;
+
+        if (state === 'free') {
+          ctx = await signedInContext(browser, 'b', { viewport: { width: WIDTH, height: HEIGHT }, theme });
+          page = await ctx.newPage();
+        } else {
+          await page.setViewportSize({ width: WIDTH, height: HEIGHT });
+          await page.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch { /* private mode */ } }, theme);
+        }
+        await installPaidAiFence(page);
+
+        try {
+          if (state === 'free') await gotoSignedIn(page, '/arena');
+          else await page.goto('/arena', { waitUntil: 'domcontentloaded' });
+
+          /* EARLY: deliberately soon after the document exists, to catch a flash the matrix's 3-4s wait would miss. */
+          await page.waitForTimeout(600);
+          const early = await sample(page, 'early');
+
+          /* LATE: after the page has had time to settle, which is where the matrix measured. */
+          await page.waitForTimeout(4000);
+          const late = await sample(page, 'late');
+
+          results.push({ state, theme, run, samples: [early, late] });
+          // eslint-disable-next-line no-console
+          console.log(`PROBE ${JSON.stringify({ state, theme, run, early: { sw: early.scrollWidth, n: early.offenders.length }, late: { sw: late.scrollWidth, n: late.offenders.length }, offenders: (late.offenders.length ? late.offenders : early.offenders) })}`);
+
+          /* The assertion is on the LATE sample, because that is what a user is left looking at. An early-only
+             overflow is recorded and reported rather than failed - it is a different defect. */
+          expect(late.scrollWidth,
+            `/arena ${state}/${theme} run ${run}: scrollWidth ${late.scrollWidth} against clientWidth ${late.clientWidth}`)
+            .toBeLessThanOrEqual(late.clientWidth + 1);
+        } finally {
+          assertNoUnstubbedPaidAi(page, `/arena ${state}/${theme} run ${run}`);
+          await ctx?.close();
+        }
+      });
+    }
+  }
+}
+
+test.afterAll(() => {
+  if (!results.length) return;
+  const over = (s: Sample) => s.scrollWidth > s.clientWidth + 1;
+  const earlyOnly = results.filter((r) => over(r.samples[0]) && !over(r.samples[1])).length;
+  const lateToo = results.filter((r) => over(r.samples[1])).length;
+  // eslint-disable-next-line no-console
+  console.log(`\nARENA OVERFLOW PROBE: ${results.length} runs | overflowing early only: ${earlyOnly} | still overflowing late: ${lateToo}`);
+  // eslint-disable-next-line no-console
+  console.log('If "early only" is the larger number this is a layout FLASH, not a persistent overflow - a different fix.');
+  for (const r of results) {
+    const [e, l] = r.samples;
+    // eslint-disable-next-line no-console
+    console.log(`  ${r.state}/${r.theme}/run${r.run}: early ${e.scrollWidth} (${e.offenders.length} offenders), late ${l.scrollWidth} (${l.offenders.length})`);
+  }
+});
