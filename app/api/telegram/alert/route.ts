@@ -11,6 +11,7 @@ import { computeDistributionScore, DistributionInputs } from '@/lib/distribution
 import { bootstrapReadings, trendBetween } from '@/lib/oiTrendWindow';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
@@ -1229,26 +1230,8 @@ async function checkPriceAlerts(
 /* ════════════════════════════════════════
    9. FEAR & GREED EXTREME
    ════════════════════════════════════════ */
-interface FNGData { value: string; value_classification: string }
-
-/* THE INDEX, OR NULL. Never a default, and never a second way of reading the same endpoint.
-   Three places in this file read api.alternative.me/fng/ and two of them used to substitute `?? '50'`
-   for an answer they could not read - the exact middle of a 0-100 scale, so an unreadable response
-   arrived downstream as a real neutral reading with nothing able to tell the two apart. The `isNaN`
-   guard that followed never caught it: parseInt('50') is 50.
-   Nothing fired on a fabricated 50 (the gates are <=15, >=75, <=25), so the symptom was an alert that
-   silently did not go out - which is the failure #1651 (QA finding C) named for `longAccount` in
-   checkSentimentExtremes: "no extreme" and "we could not read it" looked identical. That one was fixed
-   with an early return; the field beside it, in the same function, was left as it was.
-   The third reader (the daily summary) was already correct - it omits the line when there is no value -
-   and now all three go through it, so the behaviour cannot drift apart again. */
-function readFng(json: { data?: FNGData[] }): { value: number; label: string } | null {
-  const raw = json.data?.[0]?.value;
-  if (typeof raw !== 'string') return null;
-  const value = parseInt(raw, 10);
-  if (!Number.isFinite(value) || value < 0 || value > 100) return null;
-  return { value, label: json.data?.[0]?.value_classification ?? '' };
-}
+/* FNGData and readFng moved to lib/fng.ts so the predicate can be unit-tested without a route
+   or a fetch stand-in (QA, #1727). The reasoning for the whole-string match lives with it. */
 
 async function checkFearGreed(
   token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
@@ -1263,12 +1246,14 @@ async function checkFearGreed(
     const read = readFng(json);
     if (!read) return [];
     const val  = read.value;
-    const cls  = read.label;
+    /* The classification line disappears when alternative.me sent no wording, rather than printing
+       "Classification: <b></b>" (QA, #1727). The number is the alert; the wording is decoration. */
+    const clsLine = read.label ? `Classification: <b>${read.label}</b>\n` : '';
 
     if (val <= 15 && !onCooldown('fng_fear', CD.fng)) {
       await tg(token, chatId,
         `🩸 <b>Extreme Fear - Fear &amp; Greed: ${val}</b>\n\n` +
-        `Classification: <b>${cls}</b>\n` +
+        clsLine +
         `Signal: Market in panic - historically a contrarian accumulation zone\n` +
         `Action: Watch for capitulation candle + volume spike as entry signal.\n\n` +
         `<i>${stamp}</i>`);
@@ -1277,7 +1262,7 @@ async function checkFearGreed(
     if (val >= 85 && !onCooldown('fng_greed', CD.fng)) {
       await tg(token, chatId,
         `🔥 <b>Extreme Greed - Fear &amp; Greed: ${val}</b>\n\n` +
-        `Classification: <b>${cls}</b>\n` +
+        clsLine +
         `Signal: Market euphoria - historically a distribution zone\n` +
         `Action: Consider tightening stops and reducing position size.\n\n` +
         `<i>${stamp}</i>`);
@@ -1328,7 +1313,7 @@ async function checkDailySummary(
          One tightening: a non-numeric value used to be printed verbatim; it is now dropped like a
          missing one. */
       const read = readFng(fngJson);
-      if (read) { fngLine = `\n😨 F&amp;G: <b>${read.value}</b> (${read.label})`; }
+      if (read) { fngLine = `\n😨 F&amp;G: <b>${read.value}</b>` + (read.label ? ` (${read.label})` : ''); }
     }
   } catch { /* skip */ }
 
@@ -1421,7 +1406,8 @@ async function checkSentimentExtremes(
     const fngRead = readFng(fngJson);
     if (!fngRead) return [];
     const fng     = fngRead.value;
-    const fngCls  = fngRead.label;
+    // Already parenthesised, or empty - so a missing classification leaves no "( )" behind.
+    const fngCls  = fngRead.label ? ` (${fngRead.label})` : '';
 
     const lsData  = await lsR.value.json() as LSItem[];
     if (!lsData?.length) return [];
@@ -1439,7 +1425,7 @@ async function checkSentimentExtremes(
     if (fng >= 75 && frPct >= 0.04 && longPct >= 60 && !onCooldown('sentiment_bear', CD.sentiment)) {
       await tg(token, chatId,
         `🚨 <b>Sentiment Extremes - All 3 Bearish</b>\n\n` +
-        `😱 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
+        `😱 F&amp;G: <b>${fng}</b>${fngCls}\n` +
         `💸 BTC FR: <b>+${frPct.toFixed(4)}%</b> - Longs overcrowded\n` +
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at extremes - <b>long flush risk elevated</b>\n` +
@@ -1455,7 +1441,7 @@ async function checkSentimentExtremes(
     if (fng <= 25 && frPct <= -0.02 && longPct <= 40 && !onCooldown('sentiment_bull', CD.sentiment)) {
       await tg(token, chatId,
         `🟢 <b>Sentiment Extremes - Contrarian BULLISH Setup</b>\n\n` +
-        `😨 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
+        `😨 F&amp;G: <b>${fng}</b>${fngCls}\n` +
         `💸 BTC FR: <b>${frPct.toFixed(4)}%</b> - Shorts paying\n` +
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at fear extremes - <b>potential contrarian reversal zone</b>\n` +

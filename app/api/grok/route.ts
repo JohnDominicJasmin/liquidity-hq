@@ -345,7 +345,16 @@ export async function POST(req: NextRequest) {
      another one. Unreachable today precisely because that guard is there, which is the point: the refusal is now local and typed,
      so it survives someone editing, moving or short-circuiting the restate block. */
   const parsed = parseCombinedRead(text, tf, session);
-  if (!parsed) return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage }, { status: 502 });
+  if (!parsed) {
+    /* The same two calls as both siblings above, and QA was right to insist (#1727 review): a path whose entire purpose is to
+       survive someone editing the restate block must not behave WORSE than the code it is backstopping. Without these it would
+       charge the user for a read it refused (the defect #1724 fixed) and write nothing to the log (the silence PM searched
+       production for). `restated=${restated}` is the field that tells the two causes apart: false means the guard above let an
+       answer through that this one rejected, which should be impossible and is the first thing worth knowing. */
+    console.error(`[grok] BAD_ANSWER strict-read-refused type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=${restated} chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
+    const refunded = await refundUsageColumn(userId, column, reservedOn);
+    return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+  }
   const result = applyResultChecks({ ...parsed, citations }, prompt);
   if (restated) (result.checks ??= []).push('verdict restated by a second pass: the answer did not state SIGNAL and CONFIDENCE in the required form');
 
