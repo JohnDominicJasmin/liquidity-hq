@@ -217,10 +217,22 @@ sit here is DEAD.** Lemon Squeezy rejected the store application outright (crypt
 trading-signals business, no specific fix offered, no reapply path) — the "Copy to Live
 Mode" / store-activation flow below never happens now. Full record and the current plan:
 **#861's 2026-09-30 comment.** Short version:
-- **BoomFi (crypto) is live** — 3 real payment links exist (Monthly $35, Yearly $350, Weekly
-  $10 as the BoomFi-only 2wk substitute). Settlement runs Base/Binance/Solana/TON; Polygon
-  and Arbitrum are off (they caused a real duplicate-account bug there, root-caused not
-  guessed).
+- **BoomFi is PAUSED — owner, 2026-10-23. Whop is the payment route and the priority.**
+  This line read **"BoomFi (crypto) is live"** until then, which would have had the next
+  reader treat crypto as a working path to revenue. It is not.
+
+  **What is still true and is why the pause matters:** three real payment links were
+  created, priced at the **superseded** figures — **Monthly $35, Yearly $350**, Weekly $10.
+  Live prices are **$20 / $49 / $490**. `lib/boomfiEntitlement.ts` maps a plan by the exact
+  amount paid, and its table holds 49 / 490 / 20 / 10 — so **a $35 payment matches nothing
+  and goes to review, never Pro.** Combined with `boomfiWebhook: false` on production, a
+  payment on a stale link would arrive at BoomFi and the product would never hear about it:
+  money in, nothing out, no alert. **Raised with the owner 2026-10-23; he confirmed the
+  pause.** Whether the links are deleted is his call and lives in his BoomFi dashboard, not
+  in this repo.
+
+  Settlement ran Base/Binance/Solana/TON; Polygon and Arbitrum were off (they caused a real
+  duplicate-account bug, root-caused not guessed). Kept for whenever crypto resumes.
 - **Polar (fiat/card) is spec'd, not started.** No entity needed (individual/sole-proprietor
   onboarding), needs a landing-page copy reframe before applying (exact swaps + a footer
   disclaimer are on #861), then the application itself (~14 day review).

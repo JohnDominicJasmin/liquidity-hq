@@ -101,7 +101,11 @@ after. A gate that dies at minute six leaves an orphan on his machine, which is 
 > *"Don't show grok... Why are you specifying the LLM that we are using?"* — 2026-10-23
 
 - **Product UI says "AI".** Never the vendor or model name — not in tooltips, buttons, descriptions, bylines or empty states.
-- **The three legal strings keep it**: `DISCLAIMER_SECTION_AI_ANALYSIS_BODY`, `PRIVACY_SECTION_THIRD_PARTY_BODY`, `TERMS_SECTION_THIRD_PARTY_DATA_BODY` — privacy law expects third-party processors to be named.
+- **The FOUR legal strings keep it**: `DISCLAIMER_SECTION_AI_ANALYSIS_BODY`, `PRIVACY_SECTION_THIRD_PARTY_BODY`, `TERMS_SECTION_THIRD_PARTY_DATA_BODY`, and **`DISCLAIMER_SECTION_PLATFORM_IDENTITY_BODY`** — privacy law expects third-party processors to be named, and the fourth is the trademark non-affiliation notice, which names xAI alongside Binance, Bybit and Finnhub. **It names the vendor in order to disclaim affiliation — the opposite reason to the other three, the same legal purpose.**
+
+  **This said "three" until 2026-10-23, and the fourth was missed twice in one day** — once when the rule was written, once when PM swept production's label rows and had to add it back mid-sweep. **Both times because the sweep looked for "Grok" and that string says only "xAI".** QA and Dev reached it independently, from a payload measurement and from the file. It is the one most likely to be deleted by a future tidy-up, which is why it is named here rather than left to inference.
+
+- **The vendor name leaks where no label is rendered. Six exits found on 2026-10-23, by five different instruments:** label values (fixed), label KEY names (the payload serves keys too), `OPS_*` strings in the anonymous `/api/labels` payload (fixed, #1732), the same strings in the **public JS bundle** (open — `grok-4.3` and the margin formula, downloaded by every anonymous visitor), `data-testid` attributes in server-rendered HTML, and **`/api/grok` as a URL the browser requests**. **The class was named correctly on day one; every instrument since was narrower than it.** So: *"the product UI never names the vendor"* is not satisfied by checking what the product UI **displays**. Check what it **downloads**.
 - **A UI sweep is not enough, and this is CURRENTLY LEAKING.** `GET /api/version`
   returns `"grok": true` **unauthenticated on production right now** - verified
   2026-10-23 on `8f4b23b` (prod) and `8158adf` (dev). **An API response is rendered
@@ -191,9 +195,29 @@ Ship what is built. A new finding goes on the tracker as a checkbox; it does not
 
 3. **Write the control that proves the fix, and run it against the UNFIXED code first.** If it does not fail there, it proves nothing. Dev and QA both did this unprompted and it caught two near-regressions in one evening — including a "fix" that would have reintroduced the exact coercion it was fixing.
 
+4. **A verification covers what it names, and nothing else — state the scope in the same breath as the result.**
+
+   *"Both projects: zero"* and *"prod: zero"* sitting in adjacent lines is how an unchecked environment reads as a checked one.
+
+   > **"We checked and it was fine" and "we never checked" become the same sentence once the detail is gone.**
+
+   The asymmetry is invisible to the person who did the work and invisible to the person reading it. Only the words carry it. Written by Dev Team on 2026-10-23, after PM ran an RLS sweep on production only and reported it inside a paragraph covering both projects.
+
+   **A check that cannot fail is worse than no check**, because it gets reported as a pass. Before trusting a detector, confirm it has ever produced output. Three instances in one day: the news bug self-clears, so polling for it reads all-clear forever; `deleted=0` on a dev purge was about to be read as success, and it is also what a wrong table name returns; the RLS sweep measured one project and claimed two.
+
+   **And the two failure directions are opposite, which QA named after six corrections in a day:**
+
+   > **Wrong NUMBERS were almost all FLOORS. Wrong SCOPES were almost all CEILINGS.**
+
+   A count comes out too low because the instrument looked at part of the thing — 17 chunks of 35, a literal grep against a DOM built by string concatenation, a version pattern stopping at the first digit. A scope comes out too wide because it was written from reasoning rather than measurement — three test fixtures specified for a database column **nothing in the codebase reads**, two specs recorded as permanently blocked when the credentials for one were in a teammate's environment under a name nobody was asking for.
+
+   **Same cause, opposite sign: neither was measured before it was written down.** The floor under-reports a real problem. **The ceiling generates work that asserts nothing and looks like diligence** — and that one is more expensive, because it ships.
+
+5. **Read file state from a named ref, never from your working tree.** A PM checkout 586 commits behind `dev` produced three confident wrong negatives on 2026-10-23: a payments file "still naming Lemon Squeezy" that no branch had named for weeks, "no Whop route exists" when the route, its claim handler, four test files and four migrations were all on `dev`, and — worst — **rules edits written all day into a local orphan copy of this very file**, while the team was told they were in it. `git show origin/dev:<path>`, or say which ref you read.
+
 ### Why this is cheap
 
-Steps 1-3 cost roughly ten minutes before a fix. They replace three to four review-and-rework rounds, each carrying a gate run, a screenshot pass, and a message cycle with the owner.
+Steps 1-5 cost roughly ten minutes before a fix. They replace three to four review-and-rework rounds, each carrying a gate run, a screenshot pass, and a message cycle with the owner.
 
 **And they prevent the worse outcome:** a fix that looks complete, closes an issue, and leaves the class open — which is how an issue count stays flat while work happens.
 
