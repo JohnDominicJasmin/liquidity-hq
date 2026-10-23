@@ -11,7 +11,7 @@
  *
  * WHAT IT CANNOT PROVE: what Yahoo sends on any given day (the fixtures are its documented shapes), or how MarketProvider and the
  * Arena prompt print the number (lib/grok.ts prints it as given). */
-import test, { after, before } from 'node:test';
+import test, { after, before, beforeEach } from 'node:test';
 import { register } from 'node:module';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
@@ -55,6 +55,17 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
   return new Response('[]', { status: 200 });
 }) as typeof fetch;
 after(() => { globalThis.fetch = realFetch; });
+
+/* #1683: THE STAND-IN MUST STILL BE INSTALLED WHEN A TEST RUNS. The after() above restores the real fetch, and a top-level
+   `await import` SUSPENDS this module - so if any test group has not registered by then, the runner thinks the file is done,
+   fires after(), and every later test silently talks to the real internet. That happened in aiFeedsUnknownNotEmpty: one test
+   took 26 seconds, called sosovalue for real, got a 403 in the container, and the route correctly answered null - which read as
+   a product defect. This guard makes the recurrence name itself instead of presenting as a wrong value. */
+const standInFetch = globalThis.fetch;
+beforeEach(() => {
+  assert.equal(globalThis.fetch, standInFetch,
+    'the fetch stand-in is not installed: this run would reach the real network, so it measures nothing about the code under test - see #1683');
+});
 
 const { GET } = await import('../app/api/macro/route.ts');
 const { _resetApiHealthQueue } = await import('../lib/apiHealth.ts');

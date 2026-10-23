@@ -11,7 +11,7 @@
  *
  * WHAT IT CANNOT PROVE: real PostgREST/RLS behaviour for the delete (the stand-in imitates the filters), or the database trigger caps themselves
  * (the live check in QA's window, #1632). No real credentials, no real database: the Supabase URL is a `.invalid` host. */
-import test, { after } from 'node:test';
+import test, { after, beforeEach } from 'node:test';
 import { register } from 'node:module';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
@@ -71,6 +71,17 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   throw new Error(`stand-in does not know ${req.method} ${req.url}`);
 }) as typeof fetch;
 after(() => { globalThis.fetch = realFetch; });
+
+/* #1683: THE STAND-IN MUST STILL BE INSTALLED WHEN A TEST RUNS. The after() above restores the real fetch, and a top-level
+   `await import` SUSPENDS this module - so if any test group has not registered by then, the runner thinks the file is done,
+   fires after(), and every later test silently talks to the real internet. That happened in aiFeedsUnknownNotEmpty: one test
+   took 26 seconds, called sosovalue for real, got a 403 in the container, and the route correctly answered null - which read as
+   a product defect. This guard makes the recurrence name itself instead of presenting as a wrong value. */
+const standInFetch = globalThis.fetch;
+beforeEach(() => {
+  assert.equal(globalThis.fetch, standInFetch,
+    'the fetch stand-in is not installed: this run would reach the real network, so it measures nothing about the code under test - see #1683');
+});
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE; process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'placeholder-anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'placeholder-service';
 const { POST } = await import('../app/api/price-alerts/route.ts');
