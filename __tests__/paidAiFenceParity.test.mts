@@ -65,6 +65,42 @@ test('P1b. the fence lists nothing that has stopped calling xAI - a stale entry 
     + 'hand-maintained guess rather than a reflection of the source - and the next reader cannot tell which entries are real.');
 });
 
+/* ── P3: the free-GET exception, pinned against the source ───────────────────────────────── */
+
+/** Does this route's GET handler call xAI? Read from the handler body, not the file, so a POST-only spend does not count. */
+function getHandlerSpends(segment: string): boolean | null {
+  const file = join(ROOT, 'app', 'api', segment, 'route.ts');
+  let src: string;
+  try { src = readFileSync(file, 'utf8'); } catch { return null; }
+  const at = src.indexOf('export async function GET');
+  if (at === -1) return null;
+  /* To the next top-level `}` - crude, and sufficient: a handler that calls xAI does so inside its own body. */
+  const end = src.indexOf('\n}', at);
+  const body = src.slice(at, end === -1 ? undefined : end);
+  return /xaiFetch|api\.x\.ai/.test(body);
+}
+
+test('P3. the fence only lets a GET through where that GET handler does NOT call xAI', () => {
+  const allowed = [...(fence.match(/const FREE_GET_PATHS = new Set\(\[([\s\S]*?)\]\)/)?.[1] ?? '')
+    .matchAll(/'\/api\/([^']+)'/g)].map((m) => m[1]);
+  assert.ok(allowed.length > 0, 'FREE_GET_PATHS could not be read out of qa/e2e/_no-paid-ai.ts');
+
+  for (const seg of allowed) {
+    const spends = getHandlerSpends(seg);
+    assert.notEqual(spends, null, `the fence lets a GET through to /api/${seg}, which has no GET handler at all`);
+    assert.equal(spends, false,
+      `/api/${seg}'s GET handler calls xAI, and the fence passes GETs to it through. A spec would be BILLED for a request the `
+      + 'fence was installed to refuse. Remove it from FREE_GET_PATHS.');
+  }
+
+  /* And the other direction: a route that spends in GET must never be in the exception list. */
+  for (const seg of declared) {
+    if (getHandlerSpends(seg) === true) {
+      assert.ok(!allowed.includes(seg), `/api/${seg} spends in its GET handler and is in FREE_GET_PATHS`);
+    }
+  }
+});
+
 /* ── P2: the specs that stub a paid path must install the fence ─────────────────────────────────────────────────── */
 
 const SPEC_DIR = join(ROOT, 'qa', 'e2e');

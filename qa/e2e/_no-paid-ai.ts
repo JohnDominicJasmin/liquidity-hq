@@ -52,6 +52,19 @@ const PAID = new RegExp(
   'i',
 );
 
+/* FREE READS ON A PAID PATH, and this is the fence's one exception.
+ *
+ * Dev counted five paid routes exporting `GET` where I had said three spend on one. Both were right and the difference is the point:
+ * `macro-context`, `dry-powder` and `onchain` call xAI inside their GET handler, so a GET to those three costs money. `grok` and
+ * `grok-chat` also export GET, but theirs returns the USAGE COUNTERS - `getUsageRow`, the limits, no xAI call anywhere in the
+ * handler. `UsageRings` and `GrokUsageProvider` poll it on any page that shows the rings.
+ *
+ * Aborting those would make the fence overshoot into a false positive: a spec asserting the usage display would fail because of the
+ * guard rather than the product, and the failure would look like a real defect. So a GET to exactly these two is passed through, and
+ * `P3` in the parity test pins the exception against the source - if either handler ever starts calling xAI, the test fails rather
+ * than the fence quietly allowing a billed call. */
+const FREE_GET_PATHS = new Set(['/api/grok', '/api/grok-chat']);
+
 const violations = new WeakMap<Page, string[]>();
 
 /** Install before any spec-specific `page.route`. Returns the array it records into, for a spec that wants to inspect it directly. */
@@ -70,7 +83,10 @@ export async function installPaidAiFence(page: Page): Promise<string[]> {
   if (BILLED_CALLS_READY) return seen;
 
   await page.route((url) => PAID.test(url.pathname + url.search), async (route: Route, request: PWRequest) => {
-    const where = `${request.method()} ${new URL(request.url()).pathname}`;
+    const { pathname } = new URL(request.url());
+    /* The usage counters are free and polled by any page showing the rings - see FREE_GET_PATHS. */
+    if (request.method() === 'GET' && FREE_GET_PATHS.has(pathname)) return route.fallback();
+    const where = `${request.method()} ${pathname}`;
     seen.push(where);
     /* `blockedbyclient` rather than `failed`: the app's own error handling reads a network failure, which is the honest shape here,
        and the reason string shows up in a trace so the abort is findable without this file. */
