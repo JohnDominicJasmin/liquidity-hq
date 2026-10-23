@@ -1013,7 +1013,7 @@ export default function GrokChat() {
               {msgs.map((m, i) => (
                 <div key={i} className={`gchat-msg gchat-msg-${m.role}`}>
                   {m.role === 'assistant' && (
-                    <div className="gchat-grok-label">GROK · {m.ts}</div>
+                    <div className="gchat-grok-label">AI · {m.ts}</div>
                   )}
 
                   {/* Bubble */}
@@ -1049,7 +1049,7 @@ export default function GrokChat() {
 
               {loading && (
                 <div className="gchat-msg gchat-msg-assistant">
-                  <div className="gchat-grok-label">GROK · thinking</div>
+                  <div className="gchat-grok-label">AI · thinking</div>
                   <div className="gchat-bubble gchat-thinking">
                     <span className="gchat-dot" />
                     <span className="gchat-dot" />
