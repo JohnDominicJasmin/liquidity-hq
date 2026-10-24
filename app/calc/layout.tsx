@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Crypto Position Size Calculator - Risk, Stop & Leverage',
+  title: 'Crypto Position Size Calculator',
   description:
     'Work out position size from account size, risk per trade and stop distance, with the leverage and liquidation distance that result.',
 };

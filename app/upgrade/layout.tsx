@@ -3,7 +3,7 @@ import StructuredData from '@/components/StructuredData';
 import { proProductGraph, breadcrumbGraph } from '@/lib/structuredData';
 
 export const metadata: Metadata = {
-  title: 'LiquidityHQ Pro - Full Access to Every Market Tool',
+  title: 'Pro - Full Access to Every Market Tool',
   description:
     'What LiquidityHQ Pro unlocks: every coin on the scanner, the full liquidation map, AI market reads and alerting. Current pricing is shown on the page.',
 };
