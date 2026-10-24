@@ -371,3 +371,37 @@ not when it was last touched.
 
 No spec asserts on this key today, so the edit changes no result; it keeps the fixture from
 serving wording the site no longer shows. Add a row here for any further hand edit.
+
+### The five KEY renames of #1736 — a different kind of edit from the four above
+
+Those four changed a **value**. These five change the **key**, which is the first time this
+fixture has needed that, so the reasoning is recorded rather than left to the diff.
+
+| Old key | New key | Value change |
+|---|---|---|
+| `NEWS_ASK_GROK_PROMPT` | `NEWS_ASK_AI_PROMPT` | none |
+| `HYPOTHESIS_TRACKER_GROK_VERDICT_PREFIX` | `HYPOTHESIS_TRACKER_AI_VERDICT_PREFIX` | `"GROK: {verdict}"` → `"AI: {verdict}"` |
+| `GROK_SIGNAL_CHART_FULLSCREEN` | `AI_SIGNAL_CHART_FULLSCREEN` | none |
+| `GROK_SIGNAL_CHART_EXIT_FULLSCREEN` | `AI_SIGNAL_CHART_EXIT_FULLSCREEN` | none |
+| `OPS_CONFIG_FEATURE_GROK` | `OPS_CONFIG_FEATURE_AI` | `"Grok / LiquidityAI"` → `"LiquidityAI"` |
+
+**Why a key rename is not optional here, unlike the value edits.** After #1736 the components
+ask for the new names (`app/news/page.tsx`, `components/HypothesisTracker.tsx`,
+`components/GrokSignalChart.tsx`, `app/ops/config/page.tsx`). A fixture holding only the old
+names answers those lookups with nothing, so a spec served by this file would render **raw key
+names** and might still pass — a label-shaped hole that no assertion is pointed at.
+
+**And one of these was stale on its value before the rename, which is why Dev flagged it.** The
+fixture held `"GROK: {verdict}"` while production has served `"AI: {verdict}"` since 2026-10-23
+11:10 UTC. **A fixture that disagrees with production is a test passing against a world we do not
+ship** — the same class as deriving a test's expectations from the thing under test.
+
+**The old names are REMOVED rather than kept alongside the new ones.** Production carries both
+today, because the rows were added additively so the code could land without a gap, and the old
+rows drop after #1736 deploys. Keeping both here would mirror a state that exists for one
+release and then mislead for every release after — and the point of the rename is that the key
+names are themselves the leak (#1731), so a fixture retaining them keeps a copy of the thing
+being removed.
+
+Verified after the edit: `/grok|xai/i` matches **0** key names in this file, and the key count is
+unchanged.

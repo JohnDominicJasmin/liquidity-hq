@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { ROUTES, gotoGuarded } from './_shared';
 import { signedInContext } from './_auth';
 import { installMarketFixtures } from './_fixtures';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* THE MIRROR OF `layout.spec.ts`, AND IT EXISTS BECAUSE THAT FILE FACES ONE WAY.
  *
@@ -391,6 +392,7 @@ test.describe('text is not silently tappable as a control', () => {
      * 10 searches / 50 messages reproduces what QA saw rendered on qa@6fe3f6c,
      * so the counter is the same width as the real one - which matters here,
      * because the whole question is what its edges touch. */
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     await page.route('**/api/grok', route => route.fulfill({
       status: 200,
       contentType: 'application/json',

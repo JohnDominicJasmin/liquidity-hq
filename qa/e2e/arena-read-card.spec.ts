@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* The AI Read card's VISIBILITY state machine (#278, #279).
  *
@@ -94,6 +95,7 @@ async function installGrok(page: Page, control: GrokControl) {
   await page.route('**/api/market/klines**', (r: Route) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(klines()) }));
 
+  await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
   await page.route('**/api/grok**', async (r: Route) => {
     if (r.request().method() === 'GET') {
       return r.fulfill({

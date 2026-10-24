@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Browser } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { servedLabels } from './_shared';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1347 item 4 (#1365, fix by Dev Team) - a read computed for one indicator
  * selection kept being SHOWN after the trader changed the selection, and only
@@ -79,6 +80,7 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   const grokPosts: string[] = [];
   const chatBodies: Array<{ turns: ChatTurn[]; selection: string }> = [];
 
+  await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
   await page.route('**/api/grok', async route => {
     if (route.request().method() !== 'POST') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ usage: null }) });
@@ -100,6 +102,7 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   });
   // #1665 (#1631 E): the browser sends the conversation as `messages` and the selection as DATA (`context.selection`); the server writes
   // the system prompt from it. The answer is { text, followUps, citations, _usage }.
+  await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
   await page.route('**/api/grok-chat', route => {
     const body = route.request().postDataJSON() as { messages?: ChatTurn[]; context?: { selection?: string } };
     chatBodies.push({ turns: body?.messages ?? [], selection: body?.context?.selection ?? '' });

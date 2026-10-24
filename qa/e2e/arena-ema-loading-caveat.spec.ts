@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1347 item 5 (#1368, fix by Dev Team, follow-up 91f388fd) - while the EMA
  * hook is LOADING (a coin or timeframe switch it has not finished fetching for),
@@ -88,6 +89,7 @@ async function arrange(browser: import('@playwright/test').Browser) {
   const prompts: string[] = [];
   const state = { hold: false };
 
+  await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
   await page.route('**/api/grok', async route => {
     if (route.request().method() !== 'POST') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ usage: null }) });
