@@ -18,7 +18,7 @@ interface ConfigData {
 }
 
 const FEATURE_LABEL_KEYS: Record<keyof FeatureFlags, LabelKey> = {
-  grok: 'OPS_CONFIG_FEATURE_GROK',
+  grok: 'OPS_CONFIG_FEATURE_AI',
   telegram: 'OPS_CONFIG_FEATURE_TELEGRAM',
   signups: 'OPS_CONFIG_FEATURE_SIGNUPS',
   // Unlike the three above, this switch turns a feature ON rather than killing

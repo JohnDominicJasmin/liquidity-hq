@@ -86,7 +86,7 @@ export default function GrokSignalChart({ coin: coinProp, tf }: { coin?: string;
         </div>
         <button
           onClick={toggleFullscreen}
-          title={isFullscreen ? t('GROK_SIGNAL_CHART_EXIT_FULLSCREEN') : t('GROK_SIGNAL_CHART_FULLSCREEN')}
+          title={isFullscreen ? t('AI_SIGNAL_CHART_EXIT_FULLSCREEN') : t('AI_SIGNAL_CHART_FULLSCREEN')}
           style={{
             background: 'none', border: '0.5px solid var(--bdr2)', borderRadius: 6,
             color: 'var(--txt3)', cursor: 'pointer', padding: '3px 8px',
