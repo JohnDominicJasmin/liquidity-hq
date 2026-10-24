@@ -90,12 +90,41 @@ test('#1742 step 5: a Pro account never has a buy button in the DOM on /upgrade,
   const page = await ctx.newPage();
   await installPaidAiFence(page);
   try {
+    /* THE ENTITLEMENT READ IS SLOWED ON PURPOSE, AND WITHOUT THIS THE CELL PROVES NOTHING.
+     *
+     * Measured on qa fb6419e before this was added: 70 samples over 5,966ms, billing present in 0, reveal
+     * enabled in 0 - a clean pass, and a vacuous one. `reveal` read **absent** in all 70 samples, because for
+     * a Pro account `isPro` replaces the whole page with the redirect, so the button never exists. The cell
+     * was green whether the gate worked or whether the page had never rendered at all.
+     *
+     * The window that matters is `user` set AND `entitlementsLoading` true AND `isPro` not yet true, and on qa
+     * it closed before the first sample at 166ms. `entitlementsLoading` is cleared by the `user_subscriptions`
+     * read in components/AuthProvider.tsx, so delaying THAT request widens the window to something samplable.
+     *
+     * This slows the real read rather than faking a state - the page follows its own code path, just later.
+     * Which is the requirement I put on #1737's control and failed to apply here: inject, do not observe. */
+    const ENTITLEMENT_DELAY_MS = 2500;
+    await page.route('**/rest/v1/*user_subscriptions*', async (route) => {
+      await new Promise((r) => setTimeout(r, ENTITLEMENT_DELAY_MS));
+      await route.continue();
+    });
+
     /* `commit` rather than `load`: sampling must start as early as the document exists, because the defect
        lives in the first few hundred milliseconds. */
     await page.goto('/upgrade', { waitUntil: 'commit' });
     const shots = await sampleUntilSettled(page);
 
     expect(shots.length, 'no samples were taken - the sampler itself failed').toBeGreaterThan(3);
+
+    /* THE CELL MUST PROVE IT SAW THE UNDECIDED STATE, or it fails as NOT EXERCISED rather than passing as NOT
+       BREACHED. A reveal that is `absent` throughout means the page went straight to the redirect and the gate
+       was never put to the question - which is exactly the pass this cell returned before the delay existed. */
+    const sawGate = shots.filter((s) => s.reveal === 'disabled');
+    expect(sawGate.length,
+      `the undecided window was never observed: reveal was ${[...new Set(shots.map((s) => s.reveal))].join('/')} `
+      + `across ${shots.length} samples, so this cell did not exercise the gate. Raise ENTITLEMENT_DELAY_MS, or `
+      + 'check that the user_subscriptions route pattern still matches.')
+      .toBeGreaterThan(0);
 
     const withBilling = shots.filter((s) => s.billing);
     const enabledOnUpgrade = shots.filter((s) => s.reveal === 'enabled' && s.url === '/upgrade');
