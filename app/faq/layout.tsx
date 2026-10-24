@@ -3,7 +3,7 @@ import StructuredData from '@/components/StructuredData';
 import { faqGraph, breadcrumbGraph } from '@/lib/structuredData';
 
 export const metadata: Metadata = {
-  title: 'Frequently Asked Questions - Plans, Data & Signals',
+  title: 'FAQ - Plans, Data & Signals',
   description:
     'Answers to the common questions about LiquidityHQ: what the data covers, how the signals are produced, what each plan includes, and how billing works.',
 };

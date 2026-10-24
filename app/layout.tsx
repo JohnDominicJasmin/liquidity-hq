@@ -81,7 +81,12 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'LiquidityHQ',
-    title: 'LiquidityHQ - Crypto Market Analytics',
+    /* #1740: the same string as the <title> default above. These three disagreed - <title> said
+       'LiquidityHQ', openGraph said 'Crypto Market Analytics', twitter said 'LiquidityHQ' - so
+       one page carried three names depending on who asked. appleWebApp.title stays the bare
+       'LiquidityHQ' on purpose: that is the installed PWA's name on a home screen, not a page
+       title, and it has a much shorter budget. */
+    title: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
     // #1633: this pointed at /icons/icon-512.jpg, which does not exist (404), so every shared link showed no picture. The file is a .png.
     // A real 1200x630 share image is a separate, owner-approved piece of work.
@@ -89,7 +94,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary',
-    title: 'LiquidityHQ',
+    title: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
     images: ['/icons/icon-512.png'],
   },
