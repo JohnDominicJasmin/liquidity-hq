@@ -29,7 +29,13 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 const { answerText, searchCitations } = await import('../lib/xaiAnswer.ts');
 const { etfFlowDays } = await import('../lib/etfFlows.ts');
 const { utcStamp, ageText } = await import('../lib/promptTime.ts');
-const { parseCombinedResponse, normalizeCombinedResult, applyResultChecks, buildCombinedPrompt, buildQuickPrompt } = await import('../lib/grok.ts');
+/* parseCombinedRead, not parseCombinedResponse — step 2 of 3 on #1727/#1631. The old entry point answers FLAT at 0% for an answer
+   that states no verdict, which is the coercion #1651 item 3 removed from the product; the new one refuses and returns null. Dev
+   could not change that signature first: `tsconfig`'s `include` covers `.mts`, so dev's own pre-push `tsc` would go red on THIS
+   file and the change would be unpushable. So the order is dev adds the strict read, QA moves these call sites, dev deletes the
+   default. Every `!` below is load-bearing in exactly one way — it says "this fixture states a verdict, so a null here is a bug in
+   the parser, not in the test" — and where a test reads naturally with a real assertion it gets one instead (see P1). */
+const { parseCombinedRead, normalizeCombinedResult, applyResultChecks, buildCombinedPrompt, buildQuickPrompt } = await import('../lib/grok.ts');
 type GrokContext = import('../lib/grok.ts').GrokContext;
 type CombinedResult = import('../lib/grok.ts').CombinedResult;
 
@@ -95,19 +101,20 @@ const ANSWER = [
 
 /* THE CLOCK IS PINNED, and that is not a convenience. Since #1651 the age on a catalyst line is DERIVED from the timestamp on that
    line, so "2d old" today is "3d old" tomorrow, and a test that hard-codes the words would go red overnight for no reason - which
-   teaches the next reader to ignore it. `parseCombinedResponse` takes `nowMs` for exactly this. The instant is the moment of the read
+   teaches the next reader to ignore it. `parseCombinedRead` takes `nowMs` for exactly this. The instant is the moment of the read
    that found the defect (QA on #1651: the model wrote "age ~18h" for an article 7.1 hours old). */
 const NOW = Date.parse('2026-10-22T10:55:38Z');
 
 test('P1. a catalyst is kept only with a source and a date or age, shown as "claim - source, when"; "None ..." is not a catalyst', () => {
-  const r = parseCombinedResponse(ANSWER, '1h', 'NY', NOW);
+  const r = parseCombinedRead(ANSWER, '1h', 'NY', NOW);
+  assert.ok(r, 'the strict read refused an answer that states SIGNAL and CONFIDENCE - the fixture is readable, so this is the parser');
   /* The age is OURS, derived from the stamp: 2026-10-20 00:00 UTC to the pinned now is just under 59 hours, so "2d old". "3h ago"
      carries no parsable stamp, so it is left exactly as the model wrote it - an age we cannot derive is one we cannot stand behind. */
   assert.deepEqual(r.catalysts, ['ETF inflow of +$526.7M - SoSoValue, 2026-10-20 00:00 UTC (2d old)', 'Fed speaker hawkish - Reuters, 3h ago']);
 });
 
 test("P1a. the model's OWN age is discarded, not shown beside ours - the defect was a line disagreeing with itself (#1651)", () => {
-  const [etf] = parseCombinedResponse(ANSWER, '1h', 'NY', NOW).catalysts;
+  const [etf] = parseCombinedRead(ANSWER, '1h', 'NY', NOW)!.catalysts;
   assert.equal(etf.includes('40h'), false, 'the model\'s "(40h ago)" survived: the line carries two ages, which is the defect wearing a hat');
   assert.equal((etf.match(/\(/g) ?? []).length, 1, 'more than one parenthetical on the line');
   assert.match(etf, /\(2d old\)$/, 'the derived age is not at the end of the line');
@@ -128,7 +135,13 @@ test('P1d. KNOWN GAP, PINNED: an age in the MIDDLE of the "when" is not stripped
   assert.ok(only && only.includes('age ~18h'), 'the mid-string age is now stripped - that is a decision, not a tidy-up: ' + only);
 });
 
-const catalystsOf = (...lines: string[]) => parseCombinedResponse(['SIGNAL: FLAT', 'CONFIDENCE: 70', 'CATALYSTS:', ...lines, 'REASONING: r.'].join('\n'), '1h', 'NY', NOW).catalysts;
+/* The fixture always states SIGNAL and CONFIDENCE, so a null here means the parser stopped reading a verdict it must read - which is
+   a louder failure than any catalyst assertion below, hence the throw rather than a bang. */
+const catalystsOf = (...lines: string[]) => {
+  const r = parseCombinedRead(['SIGNAL: FLAT', 'CONFIDENCE: 70', 'CATALYSTS:', ...lines, 'REASONING: r.'].join('\n'), '1h', 'NY', NOW);
+  if (!r) throw new Error('the strict read refused a fixture that states SIGNAL: FLAT and CONFIDENCE: 70');
+  return r.catalysts;
+};
 
 test('P1b. an ISO time is a date; a date in the SOURCE slot is not a source, and neither is "memory" (PM audit of #1668, item 7)', () => {
   /* An ISO stamp now GAINS a derived age where it had none: 2026-10-19 14:00Z to the pinned now is just under 69 hours, so "3d old". */
@@ -137,22 +150,39 @@ test('P1b. an ISO time is a date; a date in the SOURCE slot is not a source, and
   assert.deepEqual(catalystsOf('- BTC halving cycle | memory | 2d ago'), [], '"memory" was accepted as a source - the prompt forbids it');
 });
 
+/* THE POINT OF THE NEW ENTRY POINT, pinned here so step 3 cannot quietly undo itself. `parseCombinedResponse` answers FLAT at 0%
+   for an answer that states no verdict - the coercion #1651 item 3 removed from the product, which showed users a "Wait" the model
+   never said. `parseCombinedRead` refuses instead. If someone later "simplifies" it back to the defaulting version, the first two
+   assertions here go red with that sentence attached, and the fourth stops the fix overshooting into refusing readable answers. */
+test('R0. the strict read refuses an answer that states no verdict, and still accepts one that does (#1727 step 2)', () => {
+  assert.equal(parseCombinedRead('REASONING: the market looks constructive above 80,900.', '1h', 'NY'), null,
+    'prose with no SIGNAL line was read as a verdict - that is the FLAT-at-0 coercion back');
+  assert.equal(parseCombinedRead('SIGNAL: BULLISH\nREASONING: no confidence line here.', '1h', 'NY'), null,
+    'a SIGNAL with no CONFIDENCE was accepted: half a verdict is not a verdict');
+  assert.equal(parseCombinedRead('UNREADABLE', '1h', 'NY'), null,
+    'the model saying it cannot read its own answer was accepted as one');
+  const ok = parseCombinedRead('SIGNAL: FLAT\nCONFIDENCE: 70\nREASONING: r.', '1h', 'NY');
+  assert.ok(ok, 'a readable verdict was refused - the refusal has overshot');
+  assert.equal(ok.signal, 'FLAT');
+  assert.equal(ok.confidence, 70);
+});
+
 test('P2. COUNTED is read, also as "bullish: 2"; with no COUNTED line it is null', () => {
-  assert.deepEqual(parseCombinedResponse(ANSWER, '1h', 'NY').counted, { bullish: 2, bearish: 1 });
-  assert.equal(parseCombinedResponse('SIGNAL: FLAT\nCONFIDENCE: 70', '1h', 'NY').counted, null);
+  assert.deepEqual(parseCombinedRead(ANSWER, '1h', 'NY')!.counted, { bullish: 2, bearish: 1 });
+  assert.equal(parseCombinedRead('SIGNAL: FLAT\nCONFIDENCE: 70', '1h', 'NY')!.counted, null);
 });
 
 test('P2b. a bold, reversed or comma-separated COUNTED line is still read (PM audit of #1668, item 2: an unread one let a full tier through)', () => {
   for (const line of ['**COUNTED:** bullish 3 (a, b, c) | bearish 1 (d)', 'COUNTED: bearish 1 (d) | bullish 3 (a, b, c)', 'COUNTED: bullish 3, bearish 1']) {
-    assert.deepEqual(parseCombinedResponse(`SIGNAL: BULLISH\nCONFIDENCE: 80\n${line}`, '1h', 'NY').counted, { bullish: 3, bearish: 1 }, `not read: ${line}`);
+    assert.deepEqual(parseCombinedRead(`SIGNAL: BULLISH\nCONFIDENCE: 80\n${line}`, '1h', 'NY')!.counted, { bullish: 3, bearish: 1 }, `not read: ${line}`);
   }
 });
 
 test('P2c. a side named INSIDE the other side\'s list is not read as its count (PM re-audit of #1668, item A: it flipped the tier)', () => {
   const line = 'COUNTED: bullish 3 (reclaimed bearish 4h breaker, CVD divergence, RSI 28) | bearish 1 (OI rising)';
-  assert.deepEqual(parseCombinedResponse(`SIGNAL: BULLISH\nCONFIDENCE: 80\n${line}`, '1h', 'NY').counted, { bullish: 3, bearish: 1 });
+  assert.deepEqual(parseCombinedRead(`SIGNAL: BULLISH\nCONFIDENCE: 80\n${line}`, '1h', 'NY')!.counted, { bullish: 3, bearish: 1 });
   const mirrored = 'COUNTED: bullish 1 (bullish 4h engulfing) | bearish 3 (lower high, CVD down, OI rising)';
-  assert.deepEqual(parseCombinedResponse(`SIGNAL: BEARISH\nCONFIDENCE: 80\n${mirrored}`, '1h', 'NY').counted, { bullish: 1, bearish: 3 });
+  assert.deepEqual(parseCombinedRead(`SIGNAL: BEARISH\nCONFIDENCE: 80\n${mirrored}`, '1h', 'NY')!.counted, { bullish: 1, bearish: 3 });
 });
 
 /* P2c's line is read right by either half of #1668's fix alone (dropping the parenthesised lists, or reading a side only where it starts a
@@ -163,13 +193,13 @@ test('P2d. a side named in a list without brackets, or after a comma inside brac
     'COUNTED: bullish 3: reclaimed bearish 4h breaker | bearish 1',
     'COUNTED: bullish 3 (CVD divergence, bearish 4h breaker reclaimed, RSI 28) | bearish 1 (OI rising)',
   ]) {
-    assert.deepEqual(parseCombinedResponse(`SIGNAL: BULLISH\nCONFIDENCE: 80\n${line}`, '1h', 'NY').counted, { bullish: 3, bearish: 1 }, `misread: ${line}`);
+    assert.deepEqual(parseCombinedRead(`SIGNAL: BULLISH\nCONFIDENCE: 80\n${line}`, '1h', 'NY')!.counted, { bullish: 3, bearish: 1 }, `misread: ${line}`);
   }
 });
 
 /* ── the server's checks ───────────────────────────────────────────────── */
 
-const base = (over: Partial<CombinedResult>): CombinedResult => ({ ...parseCombinedResponse('SIGNAL: FLAT\nCONFIDENCE: 70\nREASONING: r.', '1h', 'NY'), ...over });
+const base = (over: Partial<CombinedResult>): CombinedResult => ({ ...parseCombinedRead('SIGNAL: FLAT\nCONFIDENCE: 70\nREASONING: r.', '1h', 'NY')!, ...over });
 const NO_CLUSTERS = '=== REALIZED LIQUIDATION CLUSTERS (XRP/USDT, last 24h) ===\nNot available\n';
 
 /* The tier the SIGNAL DECISION GUIDE gives a count, read from the prompt's table, not from applyResultChecks: a full tier needs 3+ and more
@@ -277,6 +307,20 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   return new Response(null, { status: 201 });
 }) as typeof fetch;
 after(() => { globalThis.fetch = realFetch; });
+
+/* #1683: THE STAND-IN MUST STILL BE INSTALLED WHEN A TEST RUNS. The after() above restores the real fetch, and a top-level
+   `await import` SUSPENDS this module - so if any test group has not registered by then, the runner thinks the file is done,
+   fires after(), and every later test silently talks to the real internet. That happened in aiFeedsUnknownNotEmpty: one test
+   took 26 seconds, called sosovalue for real, got a 403 in the container, and the route correctly answered null - which read as
+   a product defect. This guard makes the recurrence name itself instead of presenting as a wrong value.
+   IN THIS FILE IT COVERS TWO OF THE TWENTY TESTS, and that is correct rather than partial: X1-S1 above are pure functions over
+   strings, registered before the stand-in exists and incapable of touching the network. R1/R2 below are the only ones that import
+   the route. Measured by mutation - an early restore reddens 2 and leaves 18 green, which is exactly the set that depends on it. */
+const standInFetch = globalThis.fetch;
+beforeEach(() => {
+  assert.equal(globalThis.fetch, standInFetch,
+    'the fetch stand-in is not installed: this run would reach the real network, so it measures nothing about the code under test - see #1683');
+});
 
 const { POST } = await import('../app/api/grok/route.ts');
 const { _resetApiHealthQueue } = await import('../lib/apiHealth.ts');

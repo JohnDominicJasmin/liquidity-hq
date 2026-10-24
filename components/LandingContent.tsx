@@ -60,11 +60,24 @@ export default function LandingContent({ dict, locale, dir }: Props) {
     };
   }, [locale, dir]);
 
-  // `loading` starts true on both the server render and the client's first
-  // hydration pass (Supabase's session check is async either way), so this
-  // branch is identical on both sides - no hydration mismatch. It also means
-  // the marketing page is never painted at all for a returning session.
-  if (loading || user) {
+  /* #1740: `loading` NO LONGER SUPPRESSES THE PAGE, and the hydration argument that justified it is
+     what makes removing it safe.
+
+     The old condition was `loading || user`. `loading` starts true on the server render AND on the
+     client's first hydration pass, which is why the old branch could not mismatch - and that property
+     belongs to the FLAG, not to what is rendered inside the branch. Rendering the marketing page in
+     that state is identical on both sides for exactly the same reason.
+
+     Why it had to change: the server therefore sent a spinner and nothing else to every visitor.
+     Measured on production - `/` served 47 words and no <h1>, against /learn's 1,548 and one. Google
+     runs JavaScript so Google mostly saw the page; AI assistants, Bing and link-preview bots did not.
+     That is the half of the discovery surface the owner is about to spend money driving traffic to.
+
+     What this costs, approved by the owner on 2026-10-24: a returning signed-in visitor may see the
+     marketing page for a beat before the redirect below moves them to /arena. The `user` branch still
+     covers the window between auth resolving and the redirect landing - it is only the UNRESOLVED
+     state that now paints content instead of a spinner. */
+  if (user) {
     return (
       <div className="lp-loading" style={{ background: 'var(--bg0)' }}>
         <span

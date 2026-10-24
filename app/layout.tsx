@@ -3,6 +3,8 @@ import localFont from 'next/font/local';
 import Script from 'next/script';
 import './globals.css';
 import AppShell from '@/components/AppShell';
+import StructuredData from '@/components/StructuredData';
+import { organizationGraph } from '@/lib/structuredData';
 
 // Self-hosted, previously next/font/google.
 //
@@ -68,7 +70,10 @@ export const metadata: Metadata = {
   // canonical entry URLs.
   metadataBase: new URL('https://liquidity-hq.com'),
   title: {
-    default: 'LiquidityHQ',
+    /* #1740 item 3: was the bare 'LiquidityHQ' - 11 characters on the one page with the most to say
+       for itself. This is the DEFAULT, so it titles '/' only; every other route sets its own and gets
+       the template below. Kept under ~60 so a search result does not truncate it. */
+    default: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
     template: '%s - LiquidityHQ',
   },
   description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
@@ -76,7 +81,12 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'LiquidityHQ',
-    title: 'LiquidityHQ - Crypto Market Analytics',
+    /* #1740: the same string as the <title> default above. These three disagreed - <title> said
+       'LiquidityHQ', openGraph said 'Crypto Market Analytics', twitter said 'LiquidityHQ' - so
+       one page carried three names depending on who asked. appleWebApp.title stays the bare
+       'LiquidityHQ' on purpose: that is the installed PWA's name on a home screen, not a page
+       title, and it has a much shorter budget. */
+    title: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
     // #1633: this pointed at /icons/icon-512.jpg, which does not exist (404), so every shared link showed no picture. The file is a .png.
     // A real 1200x630 share image is a separate, owner-approved piece of work.
@@ -84,7 +94,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary',
-    title: 'LiquidityHQ',
+    title: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
     images: ['/icons/icon-512.png'],
   },
@@ -148,6 +158,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           is one level deep, so this silences <body>'s own attributes and nothing
           inside it. A genuine mismatch in the tree still reports. */}
       <body className="consent-pending" suppressHydrationWarning>
+        {/* #1740 item 4: the publisher, on every page, so a crawler can tie the whole site to one
+            entity. Page-specific graphs (FAQPage, Product, BreadcrumbList) are added by the layout
+            of the page they describe, not here. */}
+        <StructuredData graph={organizationGraph()} />
         {/* beforeInteractive - injected into the initial server HTML and
             runs before hydration, so data-theme is correct before first
             paint (no flash of the wrong theme). Mirrors lib/theme.ts's

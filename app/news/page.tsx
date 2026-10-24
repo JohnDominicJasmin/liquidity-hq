@@ -64,7 +64,7 @@ function askGrok(headline: string, t: TFn) {
   window.dispatchEvent(new CustomEvent('grok-chat', {
     detail: {
       coin: 'btc',
-      prompt: t('NEWS_ASK_GROK_PROMPT', { headline }),
+      prompt: t('NEWS_ASK_AI_PROMPT', { headline }),
       // #1631 (owner 2026-10-21, applied here by PM): fill the question in and wait for Send - a click spends no AI use.
       prefillOnly: true,
     },
