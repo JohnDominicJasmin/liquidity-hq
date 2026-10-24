@@ -5,10 +5,10 @@ import { T } from '@/lib/tables';
 
 /* Retention for the liquidation history, run on a schedule with the service role (#1632 item 4).
  *
- * ── WHY THIS EXISTS: THE BROWSER IS DOING IT TODAY ──────────────────────────
+ * ── WHY THIS EXISTS: THE BROWSER USED TO DO IT ──────────────────────────────
  *
- * `components/LiqFeed.tsx:397` runs `delete().lt('ts', cutoff)` from the visitor's browser after each
- * save. That is only possible because `liq_events_delete_expired` grants DELETE to `{anon,
+ * `components/LiqFeed.tsx` RAN `delete().lt('ts', cutoff)` from the visitor's browser after each save -
+ * removed in #1735, in the same window as the revoke. That is only possible because `liq_events_delete_expired` grants DELETE to `{anon,
  * authenticated}` where `ts < now() - 7 days` - which also means **any anonymous caller can erase all
  * history older than seven days in one statement.** QA verified the policy against production on
  * 2026-10-23.
@@ -43,8 +43,9 @@ import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
 
-/** Matches SB_RETAIN_MS in components/LiqFeed.tsx. Both must say seven days or the browser purge and
- *  this one disagree about what retention means while they overlap. */
+/** THE retention period. Was duplicated as SB_RETAIN_MS in components/LiqFeed.tsx while the browser
+ *  also purged; that copy went with the browser purge in #1735, so this is now the only definition.
+ *  Two copies of a retention period is how they come to disagree. */
 const RETAIN_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** The oldest cutoff this route will ever accept, as a sanity floor on the arithmetic. A cutoff that

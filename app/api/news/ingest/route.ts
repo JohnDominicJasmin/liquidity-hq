@@ -35,12 +35,12 @@ const MAX_AGE_SEC = 6 * 3600;
  *
  * One threshold rather than an accept-at-5min / reject-at-2h pair: a band leaves the middle
  * undefined, which is a question for the next reader with no answer in the code. */
-const MAX_FUTURE_SEC = 15 * 60;
+export const MAX_FUTURE_SEC = 15 * 60;
 
-type TsVerdict = 'ok' | 'too_old' | 'too_new' | 'unreadable';
+export type TsVerdict = 'ok' | 'too_old' | 'too_new' | 'unreadable';
 
 /** The feed's own timestamp, judged against ours. Seconds, both. */
-function judgeTs(ts: number, nowSec: number): TsVerdict {
+export function judgeTs(ts: number, nowSec: number): TsVerdict {
   if (typeof ts !== 'number' || !Number.isFinite(ts)) return 'unreadable';
   if (ts < nowSec - MAX_AGE_SEC)    return 'too_old';
   if (ts > nowSec + MAX_FUTURE_SEC) return 'too_new';
@@ -257,8 +257,14 @@ export async function POST(req: Request) {
       .gt('published_at', new Date((nowSec + MAX_FUTURE_SEC) * 1000).toISOString());
 
     const rejectedTotal = Object.values(rejected).reduce((a, b) => a + b, 0);
-    if (rejectedTotal > 0 || (futureHeld ?? 0) > 0) {
-      console.warn(`[news/ingest] rejected=${rejectedTotal} ${JSON.stringify(rejected)} future_rows_held=${futureHeld ?? 0}`);
+    /* #1737 (QA): the warn fires on the UNEXPECTED verdicts only. `too_old` is the normal state of a
+       feed - measured on the real ones, 123 of 147 items - so counting it here made this line print on
+       every single run, and the `too_new` it exists to surface would arrive looking like the three
+       hundred that did not matter. A log line that always fires is not a signal. too_old stays in the
+       RETURNED counts, where a caller can read it deliberately. */
+    const notable = Object.entries(rejected).filter(([k]) => !k.startsWith('too_old:'));
+    if (notable.length > 0 || (futureHeld ?? 0) > 0) {
+      console.warn(`[news/ingest] notable=${JSON.stringify(Object.fromEntries(notable))} rejected_total=${rejectedTotal} future_rows_held=${futureHeld ?? 0}`);
     }
 
     return NextResponse.json({ ok: true, scanned: rows.length, inserted, rejected, futureHeld: futureHeld ?? 0 });
