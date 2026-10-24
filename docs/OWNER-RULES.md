@@ -122,8 +122,11 @@ after. A gate that dies at minute six leaves an orphan on his machine, which is 
 
 - **The vendor name leaks where no label is rendered. Six exits found on 2026-10-23, by five different instruments:** label values (fixed), label KEY names (the payload serves keys too), `OPS_*` strings in the anonymous `/api/labels` payload (fixed, #1732), the same strings in the **public JS bundle** (open — `grok-4.3` and the margin formula, downloaded by every anonymous visitor), `data-testid` attributes in server-rendered HTML, and **`/api/grok` as a URL the browser requests**. **The class was named correctly on day one; every instrument since was narrower than it.** So: *"the product UI never names the vendor"* is not satisfied by checking what the product UI **displays**. Check what it **downloads**.
 - **A UI sweep is not enough, and this is CURRENTLY LEAKING.** `GET /api/version`
-  returns `"grok": true` **unauthenticated on production right now** - verified
-  2026-10-23 on `8f4b23b` (prod) and `8158adf` (dev). **An API response is rendered
+  returns `"grok": true` **unauthenticated on production right now** - first verified
+  2026-10-23 on `8f4b23b`, **re-verified 2026-10-24 on `9a7fed1`, so it SURVIVED a
+  release**. The SHA is updated rather than left: a reader who checks the old one finds
+  a commit that is no longer deployed and can reasonably dismiss a live finding as
+  history. **An API response is rendered
   surface too.** Tracked as #1632 item 12; note there that **`grok` is the KEY name**,
   so "genericise the values" does not fix it.
 
