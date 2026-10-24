@@ -11,9 +11,27 @@ file.**
 
 ---
 
-> ### State on 2026-10-23 (PM/DevOps)
+> ### State on 2026-10-24 (PM/DevOps)
 >
 > The only dated status in this file. Check it against the live sources in the table further down.
+>
+> - **`qa` is `fb6419e` and verified.** 42 commits ahead of what production serves. Carries the SEO
+>   work and the crawler fix: **`/` went from 48 words to 851 for a crawler that does not run
+>   JavaScript, `/upgrade` from 63 to 187**, and both now serve an `h1`. Sitemap 9 → 19 pages.
+>   JSON-LD for Organization, Product with three Offers, FAQPage and BreadcrumbList.
+> - **An SEO audit on 2026-10-24 scored 48/100** and is tracked on **#1740**. Nothing was broken;
+>   almost all of it was absent. The two findings that mattered: the sitemap listed 9 of 33 public
+>   pages, and the landing and pricing pages served **no content at all** to a non-JS crawler because
+>   both sat behind an auth-loading gate.
+> - **#675 is REOPENED**, and it is the one to read first if you touch copy. **30 product labels
+>   differ between the shipped `labelDefaults.en.json` and production's live rows, and the row
+>   wins.** The file carries the owner's plain-language pass — `RSI (1-hour chart)`, `24 hours`,
+>   `3 days` — and production serves the abbreviations he rejected on 2026-10-22. **That work shipped
+>   and has never rendered.** Also measured: 83 labels in the file with no row, 7 served with no
+>   default. **With the owner as a production write.**
+> - **Owner decisions, 2026-10-24:** ship the 4,038 ms marketing flash and reduce it later; option A
+>   for the crawler fix (not split-by-visitor, which is cloaking); SEO items 1-4 approved.
+> - **BoomFi is PAUSED** (owner, 2026-10-23). Whop is the route.
 >
 > - **Production:** `9a7fed19`, tag `v2026.10.23`, live 13:42:43Z. Verified independently by PM before the owner's
 >   go-ahead and by QA after: the admin console's copy is no longer in the anonymous `/api/labels` payload
