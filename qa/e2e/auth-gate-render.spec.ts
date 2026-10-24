@@ -129,9 +129,17 @@ test('#1742 step 5: a Pro account never has a buy button in the DOM on /upgrade,
     const withBilling = shots.filter((s) => s.billing);
     const enabledOnUpgrade = shots.filter((s) => s.reveal === 'enabled' && s.url === '/upgrade');
 
+    /* THE LOG HAS TO PRINT WHAT PROVES THE CELL WAS EXERCISED, not just its endpoints. The first version
+       printed only the first and last sample - both `absent`, because the page starts bare and ends on the
+       redirect - so a pass and the vacuous pass it replaced produced indistinguishable output. The state
+       distribution is the evidence: `disabled` appearing at all is what says the gate was put to the
+       question, and the reader should not have to infer it from the absence of a failure. */
+    const dist = shots.reduce<Record<string, number>>((a, s) => ({ ...a, [s.reveal]: (a[s.reveal] ?? 0) + 1 }), {});
+    const firstDisabled = shots.find((s) => s.reveal === 'disabled');
     // eslint-disable-next-line no-console
     console.log(`PRO /upgrade: ${shots.length} samples over ${shots[shots.length - 1].t}ms | `
-      + `billing present in ${withBilling.length} | reveal enabled in ${enabledOnUpgrade.length} | `
+      + `reveal states ${JSON.stringify(dist)} | billing present in ${withBilling.length} | `
+      + `reveal enabled in ${enabledOnUpgrade.length} | gate observed at ${firstDisabled ? `${firstDisabled.t}ms` : 'NEVER'} | `
       + `first ${JSON.stringify(shots[0])} | last ${JSON.stringify(shots[shots.length - 1])}`);
 
     /* THE ASSERTION. Not "disabled while loading" - "never openable at all", which is what #1309 item 12 needs
