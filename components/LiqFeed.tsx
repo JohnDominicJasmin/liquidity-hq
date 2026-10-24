@@ -43,7 +43,9 @@ const SB_SAVE_MS         = 5 * 60 * 1000;          // save to Supabase every 5 m
    screen while re-rendering the page. */
 const EVENTS_EMIT_MS     = 15 * 1000;
 const SB_WIN_MS          = 24 * 60 * 60 * 1000;    // load last 24h from Supabase
-const SB_RETAIN_MS       = 7 * 24 * 60 * 60 * 1000; // purge events older than 7 days
+// SB_RETAIN_MS (7 days) lived here while the browser ran the purge. Retention is server-side now -
+// RETAIN_MS in app/api/liq-events/purge/route.ts is the single definition. Not kept as a comment
+// for reference on purpose: two copies of a retention period is how they come to disagree.
 const SB_SAVE_TS_KEY     = 'liq-sb-ts';            // localStorage: last Supabase save timestamp
 const BYBIT_COINS        = Object.values(BYBIT_SYMS);
 
@@ -392,9 +394,14 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
           // failed save is retried on the next tick rather than silently dropped.
           for (const key of batchKeys) persistedKeysRef.current.add(key);
           localStorage.setItem(SB_SAVE_TS_KEY, String(Date.now()));
-          // Occasional purge - delete events older than 7 days
-          const cutoff = Date.now() - SB_RETAIN_MS;
-          sb.from(T.liq_events).delete().lt('ts', cutoff).then(() => { /* fire and forget */ });
+          /* Retention used to run HERE - `delete().lt('ts', cutoff)`, fire and forget - and the
+             policy that allowed it (`liq_events_delete_expired`, DELETE to anon) also let any
+             anonymous caller erase every row older than seven days in one statement (#1632 item 4).
+             It now runs server-side on a schedule: app/api/liq-events/purge, service role (#1730).
+
+             Removed in the SAME window as the revoke, deliberately. Left in afterwards it would
+             fail forever and silently - there is no error branch on that promise - and the next
+             reader would find retention code here and conclude the browser still does it. */
         });
       }, SB_SAVE_MS);
     }

@@ -9,7 +9,12 @@ export default function About() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('ABOUT_PAGE_TITLE')}</div>
+        {/* #1740 item 3: an <h1>, not a styled <div>. This already LOOKED like the page heading and was
+            already the first thing on it - it just was not marked as one, so the page had no h1 at all.
+            Same label, same styles, so nothing moves: fs-section and weight 700 are carried explicitly
+            and the browser's default h1 margin is zeroed. /  and /upgrade already have one; /about was
+            the only page of the three that genuinely did not, which corrects the brief. */}
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', margin: '0 0 2px' }}>{t('ABOUT_PAGE_TITLE')}</h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('ABOUT_PAGE_SUBTITLE')}</div>
       </div>
 

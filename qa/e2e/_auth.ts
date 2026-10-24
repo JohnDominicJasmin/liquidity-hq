@@ -58,6 +58,21 @@ export const FIXTURES = {
    *  depends on. */
   cEmail: process.env.E2E_USER_C_EMAIL ?? '',
   cPassword: process.env.E2E_USER_C_PASSWORD ?? '',
+
+  /* T AND ADMIN, added 2026-10-23 for the state matrix the owner commissioned: "account signed in, account is free,
+   * account is pro, login, logout, or a free trial ... Just have multiple accounts."
+   *
+   * They are NOT in REQUIRED_FIXTURES below, deliberately. AUTH_READY gates ~20 specs that only need A and B; adding
+   * these would make all of them skip on an environment that has what they actually need. The matrix checks its own
+   * two accounts and says which state it could not reach, which is the shape every other gate here already uses. */
+  tEmail: process.env.E2E_USER_T_EMAIL ?? '',
+  tPassword: process.env.E2E_USER_T_PASSWORD ?? '',
+  tId: process.env.E2E_USER_T_ID ?? '',
+  /** The trial's end date, so a spec can say "active" or "expired" from the fixture rather than from the rendered page. */
+  tTrialEnds: process.env.E2E_USER_T_TRIAL_ENDS ?? '',
+  adminEmail: process.env.E2E_USER_ADMIN_EMAIL ?? '',
+  adminPassword: process.env.E2E_USER_ADMIN_PASSWORD ?? '',
+  adminId: process.env.E2E_USER_ADMIN_ID ?? '',
   cId: process.env.E2E_USER_C_ID ?? '',
 } as const;
 
@@ -287,17 +302,36 @@ export async function signIn(email: string, password: string): Promise<string> {
  */
 export async function signedInContext(
   browser: import('@playwright/test').Browser,
-  who: 'a' | 'b' | 'c' = 'a',
-  opts: { viewport?: { width: number; height: number } } = {},
+  who: 'a' | 'b' | 'c' | 't' | 'admin' = 'a',
+  opts: { viewport?: { width: number; height: number }; theme?: 'dark' | 'light' } = {},
 ) {
-  const email = who === 'a' ? FIXTURES.aEmail : who === 'b' ? FIXTURES.bEmail : FIXTURES.cEmail;
-  const password = who === 'a' ? FIXTURES.aPassword : who === 'b' ? FIXTURES.bPassword : FIXTURES.cPassword;
+  const creds: Record<string, [string, string]> = {
+    a: [FIXTURES.aEmail, FIXTURES.aPassword],
+    b: [FIXTURES.bEmail, FIXTURES.bPassword],
+    c: [FIXTURES.cEmail, FIXTURES.cPassword],
+    t: [FIXTURES.tEmail, FIXTURES.tPassword],
+    admin: [FIXTURES.adminEmail, FIXTURES.adminPassword],
+  };
+  const [email, password] = creds[who];
+  if (!email || !password) {
+    throw new Error(
+      `no credentials for account '${who}' - set E2E_USER_${who.toUpperCase()}_EMAIL and _PASSWORD. `
+      + 'Throwing rather than signing in as someone else: a matrix cell that silently measured a different account would '
+      + 'report a state it never reached.',
+    );
+  }
 
   const session = await getOrMintSession(email, password);
 
   // supabase-js v2 reads sb-<projectRef>-auth-token from localStorage.
   const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0];
   const ctx = await browser.newContext({ viewport: opts.viewport ?? { width: 1440, height: 900 } });
+  /* THEME SEEDED BEFORE THE FIRST FRAME, not clicked after it. `app/layout.tsx` runs an inline script that reads
+     localStorage before hydration and stamps `data-theme`, so seeding the key means the page never renders a frame of
+     the theme we are not measuring - and there is no race with a toggle. Same approach as contrast.spec.ts. */
+  if (opts.theme) {
+    await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch { /* private mode */ } }, opts.theme);
+  }
   await ctx.addInitScript(
     ([ref, s]: [string, CachedSession]) => {
       localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify({

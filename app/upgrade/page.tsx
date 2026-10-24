@@ -199,6 +199,24 @@ export default function UpgradePage() {
     window.location.href = whopUrl;
   }
 
+  /* #1740: CAN WE SAFELY OFFER A PURCHASE YET? Separate from whether the page may RENDER.
+
+     The page used to return a full-page spinner while auth or the entitlement read was outstanding, so the
+     server sent no copy at all - production served 64 words and no <h1>, all of it shared chrome. The plan
+     names, prices and comparison are public information a crawler should have; only the CONTROLS depend on
+     knowing who is asking.
+
+     SO THIS SPLITS THE #1309 item 12 GATE RATHER THAN REMOVING IT. That gate exists because `isPro` is false
+     until the subscription read settles, and a Pro account was shown checkout buttons in the meantime - its
+     own comment says "fix before they open", and Whop is the next thing to open. Relaxing it wholesale to
+     server-render the page would re-open exactly that, for real money this time. Gating the controls instead
+     keeps it closed: a subscriber never sees a buy button, and a crawler still gets the page.
+
+     Undecided reads as NOT ready, deliberately. A crawler missing a button costs nothing; a subscriber being
+     offered a purchase they already made costs a refund and a support thread. */
+  const purchaseReady = !loading && !(user && entitlementsLoading);
+
+
   /* One button per plan, styled like the monthly one. Shown wherever its link is
      set (the price and period are labels, so a price change is a row, not a
      deploy). */
@@ -306,7 +324,10 @@ export default function UpgradePage() {
      could be charged twice today - fix before they open). A signed-in visitor now waits for the plan; if it
      could not be read at all, the page says so and offers a retry rather than selling Pro to someone who may
      already have it. Signed-out visitors are unaffected: entitlementsLoading settles false for them. */
-  if (loading || (user && entitlementsLoading) || isPro) {
+  /* Only `isPro` still replaces the whole page: a subscriber is being sent elsewhere, so there is nothing
+     here for them. `loading` and `entitlementsLoading` now suppress the CONTROLS (see purchaseReady above)
+     rather than the page, which is what puts the copy in the server HTML. */
+  if (isPro) {
     return <LoadingState message={isPro ? t('UPGRADE_LOADING_REDIRECTING') : t('UPGRADE_LOADING')} fullPage />;
   }
   if (user && entitlementStatus === 'unknown') {
@@ -429,8 +450,14 @@ export default function UpgradePage() {
                 aria-expanded={plansOpen}
                 aria-controls="billing-choices"
                 onClick={() => setPlansOpen(true)}
-                disabled={plansOpen}
-                style={{ width: '100%', minHeight: 48, marginTop: 20, fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '12px 20px', borderRadius: 12, border: 'none', cursor: plansOpen ? 'default' : 'pointer', opacity: plansOpen ? 0.6 : 1 }}
+                /* #1740: also disabled until `purchaseReady` - see its declaration. The plan buttons
+                   themselves need no gate: `plansOpen` starts false, so they are never in the server
+                   render and never appear before a deliberate click. This reveal IS that click, which
+                   makes it the one place where "do we know who is asking yet?" has to be answered.
+                   Keeps #1309 item 12 closed - a Pro account mid-entitlement-read cannot open the
+                   billing choices, so it cannot be offered a purchase it has already made. */
+                disabled={plansOpen || !purchaseReady}
+                style={{ width: '100%', minHeight: 48, marginTop: 20, fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '12px 20px', borderRadius: 12, border: 'none', cursor: (plansOpen || !purchaseReady) ? 'default' : 'pointer', opacity: (plansOpen || !purchaseReady) ? 0.6 : 1 }}
               >
                 {t('UPGRADE_GATE_CTA')}
               </button>
