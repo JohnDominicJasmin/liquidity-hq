@@ -39,6 +39,45 @@ import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 const REVEAL = 'button[aria-controls="billing-choices"]';
 const BILLING = '#billing-choices';
 
+/* THE REVEAL DOES NOT EXIST ON AN ENVIRONMENT WITH NO CHECKOUT URL, AND THREE CELLS HERE ARE ABOUT THE REVEAL.
+ *
+ * `app/upgrade/page.tsx:446` wraps it in `{CHECKOUT_CONFIGURED && (`, where `CHECKOUT_CONFIGURED = isProBuyable()`
+ * - the same value `/api/version` reports as `proBuyable`. So on a build with no Whop monthly URL the button is
+ * not rendered at all, and steps 3, 4 and 5 are unanswerable rather than failing.
+ *
+ * Measured 2026-10-24: qa `fb6419e` reports proBuyable TRUE, staging `4220541` reports FALSE, production
+ * `9a7fed1` reports FALSE. Run against staging without this gate, the three cells failed with "the reveal
+ * button is not on the page" and "the undecided window was never observed" - correct refusals, and they read
+ * exactly like product defects to anyone who did not check the flag first.
+ *
+ * SO THEY SKIP WITH THE REASON, WHICH IS #1413's COMPLAINT APPLIED TO MY OWN SPEC: a spec that fails for a
+ * missing credential or a missing configuration costs the next person a triage pass and teaches them to ignore
+ * red. Skipping names the environment; failing blames the code.
+ *
+ * Asked ONCE per run and cached - `/api/version` is cheap but a free-plan staging host cold-starts, and twelve
+ * cells each waking it is a minute of nothing. */
+let proBuyableCache: boolean | null = null;
+async function checkoutConfigured(): Promise<boolean> {
+  if (proBuyableCache !== null) return proBuyableCache;
+  const base = (process.env.E2E_BASE_URL ?? '').replace(/\/$/, '');
+  if (!base) return (proBuyableCache = true); // local run: let the cells speak for themselves
+  try {
+    const res = await fetch(`${base}/api/version`, { cache: 'no-store', signal: AbortSignal.timeout(180_000) });
+    const v = await res.json();
+    /* Undecided reads as CONFIGURED, deliberately: a flag we could not read must not silently disable three
+       cells. A false negative here hides the gate test; a false positive merely fails loudly. */
+    proBuyableCache = v?.configured?.proBuyable !== false;
+  } catch {
+    proBuyableCache = true;
+  }
+  return proBuyableCache;
+}
+
+const NO_CHECKOUT_REASON =
+  'the reveal is gated on isProBuyable() (app/upgrade/page.tsx:446) and /api/version reports proBuyable=false '
+  + 'on this environment, so the button is not rendered and steps 3-5 are unanswerable here. Run them against a '
+  + 'build with the Whop monthly URL set - qa had it on 2026-10-24.';
+
 /* The Pro cell samples every 40ms for 6s. 40ms because the thing being caught is a frame, and 6s because the
    entitlement read plus the redirect comfortably fits inside it on the qa database - the sampler stops early
    once the page has clearly left the undecided state, so a fast settle does not cost six seconds. */
@@ -85,6 +124,7 @@ async function sampleUntilSettled(page: import('@playwright/test').Page): Promis
 test('#1742 step 5: a Pro account never has a buy button in the DOM on /upgrade, sampled from navigation', async ({ browser }) => {
   test.skip(test.info().project.name !== 'desktop', 'sets its own viewport');
   test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+  test.skip(!(await checkoutConfigured()), NO_CHECKOUT_REASON);
 
   const ctx = await signedInContext(browser, 'a', { viewport: { width: 1280, height: 900 } });
   const page = await ctx.newPage();
@@ -160,6 +200,7 @@ for (const [who, label] of [[null, 'signed out'], ['b', 'signed in, not Pro']] a
   test(`#1742 steps 3-4: the reveal becomes enabled and opens the billing choices (${label})`, async ({ browser, page: plainPage }) => {
     test.skip(test.info().project.name !== 'desktop', 'sets its own viewport');
     test.skip(who === 'b' && (!FIXTURES.bEmail || !FIXTURES.bPassword), 'no credentials for the free account');
+    test.skip(!(await checkoutConfigured()), NO_CHECKOUT_REASON);
 
     let page = plainPage;
     let ctx: Awaited<ReturnType<typeof browser.newContext>> | null = null;
