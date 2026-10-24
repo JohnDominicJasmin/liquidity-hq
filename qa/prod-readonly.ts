@@ -128,6 +128,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'tnav-russian-768', needs: 'pro', note: 'Russian test is test.fail() while #1255 stands' },
   // ── signed in, free ──
   { spec: 'plan-badge-trial-flip', needs: 'free' },
+  { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
 ];
 
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
@@ -137,6 +138,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'cross-browser-surface': 'the #1410 cross-browser pass: staging-scoped by its own tracker, run through qa/crossbrowser.config.ts against Firefox and Brave, and it writes to the visitor\'s own localStorage to prove storage round-trips',
   'ops-admit': 'needs admin fixtures',
   'plan-badge-same-user-auth-event': 'signs in as BOTH a Pro and a free account: needs two production accounts',
+  'state-matrix': 'signs in as free, Pro, trial AND admin across 60 cells: needs four production accounts, one of them an admin, and `needs` describes a single tier. Same reason as plan-badge-same-user-auth-event and ops-admit, and the admin half is the stronger one - signing in as an administrator on production to measure layout is not something an allowlist should permit by default. It writes nothing and classifies clean, so the exclusion is about the accounts rather than the code',
   'arena-alert-resilience': 'clicks Save on a price alert on purpose; safe only while a route stub matches, and a missed match would create a real alert',
   'checkout': 'clicks the checkout CTA on purpose; safe only while a route stub matches, and a missed match would create a real checkout session',
   'lemonsqueezy-real-purchase': 'a real purchase',
