@@ -301,10 +301,15 @@ test('#1742 step 2: a signed-in visitor leaves / for /arena, and the marketing f
   await installPaidAiFence(page);
   try {
     await page.goto('/', { waitUntil: 'commit' });
+    /* TWENTY SECONDS, NOT TEN, AND THE REASON IS MEASURED. On a cold free-plan staging host the redirect
+       had not happened inside 10s and this cell reported "left / at never" - a false failure that reads as
+       a broken redirect. Warm, the same host redirects at 4.8-7.5s and production (paid plan) is faster.
+       So the budget has to clear the slowest environment it runs against, or the cell fails on host speed
+       rather than on behaviour. The flash DURATION is still only recorded, never asserted. */
     const t0 = Date.now();
     let sawMarketing: number | null = null;
     let leftAt: number | null = null;
-    while (Date.now() - t0 < 10_000) {
+    while (Date.now() - t0 < 20_000) {
       let state: { path: string; marketing: boolean } | null = null;
       try {
         state = await page.evaluate(() => ({
