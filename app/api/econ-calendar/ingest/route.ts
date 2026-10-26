@@ -74,11 +74,41 @@ export async function POST(req: Request) {
     // answers 200 with `{events: [], source: 'none'}` when it cannot produce a
     // calendar (the schedule table has expired), so status alone would report
     // that as healthy.
+
+    /* ...and the count is not the VALUES either (#1651). The table draws eight columns; PREVIOUS, CONSENSUS
+       and ACTUAL are three of them, and on production 001d0c1 all three read `-` on all twenty rows while
+       this route reported a healthy twenty events. A count-based check cannot see that, for the same reason
+       the status-based one above could not see an empty calendar: it measures the wrong thing one level up.
+
+       WHY THEY ARE EMPTY, traced 2026-10-26 rather than guessed:
+
+         actual    - produced by enrichWithFRED, and ONLY for events already past (within 30 days). Every one
+                     of the twenty is in the FUTURE, so zero is CORRECT here, not a failure. It fills in as
+                     releases happen.
+         previous  - no producer. Declared on CalEvent, assigned by nothing in the codebase.
+         estimate  - no producer, same.
+         delta     - the page computes it from actual and estimate, so it cannot populate while estimate has
+                     no source.
+
+       Finnhub is NOT involved: /api/econ-calendar never calls it. The dates come from the agencies' own
+       schedules and the values from FRED.
+
+       So this logs coverage rather than fixing it. `previous 0/20` reading zero forever is the intended
+       output until something produces those values - the point is that the next person reads the number
+       instead of inferring it from a table full of dashes. */
+    const coverageOf = (key: 'actual' | 'previous' | 'estimate') =>
+      (events ?? []).filter((e) => (e as Record<string, unknown>)[key]).length;
+    const total = events?.length ?? 0;
+    const fieldCoverage = `actual ${coverageOf('actual')}/${total}, previous ${coverageOf('previous')}/${total}, estimate ${coverageOf('estimate')}/${total}`;
+    if (total > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`[econ-calendar/ingest] ${total} events via ${source ?? 'unknown'} | ${fieldCoverage}`);
+    }
     await recordApiHealth([{
       source: 'econ-calendar',
       category: 'macro',
       ok: (events?.length ?? 0) > 0,
-      detail: events?.length ? `${events.length} events via ${source ?? 'unknown'}` : 'no events - the release schedule table has expired or could not be read',
+      detail: events?.length ? `${events.length} events via ${source ?? 'unknown'} | ${fieldCoverage}` : 'no events - the release schedule table has expired or could not be read',
       items: events?.length ?? 0,
     }]);
 
