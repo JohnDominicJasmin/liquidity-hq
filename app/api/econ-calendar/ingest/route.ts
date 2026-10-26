@@ -13,6 +13,18 @@ import { retryRefusedWhopDeliveries, type RetrySummary } from '@/lib/whopGrant';
 // it instead of each polling /api/econ-calendar on their own hour timer.
 // Scheduled hourly from cron-job.org - see docs/INFRASTRUCTURE.md §2.
 //
+// THAT JOB POSTS TO PRODUCTION ONLY (https://liquidity-hq.com). There is no qa, staging or dev
+// equivalent, and there deliberately will not be: the job authenticates with `x-cron-secret`, and a
+// production secret must never be copied to a non-production service (the same reasoning is recorded
+// against the market-ingest job, 2026-09-26; this route's row simply has no non-prod counterpart).
+//
+// SO NOTHING HERE EVER RUNS ON qa, AND WAITING FOR IT TO IS WAITING FOR SOMETHING THAT CANNOT HAPPEN.
+// This is written down because the opposite reading cost a verification on 2026-10-27: the field
+// coverage line below was merged to `qa`, seven days of qa service logs were searched for
+// `[econ-calendar/ingest]`, nothing was found, and the natural conclusion - "it has not fired yet" -
+// sends the next reader back to wait. The code and the scheduler were simply on different hosts.
+// Anything logged or written here becomes observable one hour after it reaches PRODUCTION.
+//
 // Calls this app's own /api/econ-calendar rather than importing its internals:
 // that route builds the calendar from the agencies' published schedules
 // (lib/econSchedule.ts, plus a live read of the Fed's FOMC page) and enriches
