@@ -96,8 +96,22 @@ export async function POST(req: Request) {
        So this logs coverage rather than fixing it. `previous 0/20` reading zero forever is the intended
        output until something produces those values - the point is that the next person reads the number
        instead of inferring it from a table full of dashes. */
+    /* PRESENT, not TRUTHY. The first version of this counter was `filter((e) => e[key])`, which reads a
+       genuine value of `0` as missing - and a 0.0% CPI print is exactly the reading this counter exists to
+       confirm arrived. It would have reported the one interesting case as the failure case.
+
+       Not reachable today: all three keys are absent entirely, so the two tests agree on every event. It
+       becomes silent and wrong the moment a producer exists, which is also the moment anyone starts trusting
+       the number - so it is fixed before the producer, not after. QA found it reviewing #1754.
+
+       Same family as the Fear & Greed guard (lib/fng.ts): `parseInt('0x1f', 10)` is 0, and 0 is extreme fear,
+       so a malformed read fired a real alert. A falsy-but-valid zero is the recurring shape, not a one-off.
+
+       Whitespace counts as absent: a `' '` from an upstream is a missing value wearing a string. */
+    const hasValue = (v: unknown) =>
+      v !== undefined && v !== null && !(typeof v === 'string' && v.trim() === '');
     const coverageOf = (key: 'actual' | 'previous' | 'estimate') =>
-      (events ?? []).filter((e) => (e as Record<string, unknown>)[key]).length;
+      (events ?? []).filter((e) => hasValue((e as Record<string, unknown>)[key])).length;
     const total = events?.length ?? 0;
     const fieldCoverage = `actual ${coverageOf('actual')}/${total}, previous ${coverageOf('previous')}/${total}, estimate ${coverageOf('estimate')}/${total}`;
     if (total > 0) {
