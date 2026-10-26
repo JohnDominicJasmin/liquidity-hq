@@ -40,7 +40,15 @@ export default function LiquidityPlaybook() {
     <div className="playbook-term-wrap">
       <PageHint pageKey="playbook" title={t('PLAYBOOK_HINT_TITLE')} body={t('PLAYBOOK_HINT_BODY')} />
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('PLAYBOOK_PAGE_TITLE')}</div>
+        {/* #1740 item 3: an <h1>, not a styled <div>. Same change as /about in #1741, and the same
+            nothing-moves rules: fs-section and weight 700 carried explicitly, the browser's default
+            h1 margin zeroed.
+
+            This page earns it more than any other. Measured on the qa build (fb6419e): /playbook
+            serves 2,171 words to a client that runs no JavaScript - more than any other public page,
+            /learn included - and had no heading at all. A crawler got the richest page on the site
+            with nothing telling it what the page was about. */}
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', margin: '0 0 2px' }}>{t('PLAYBOOK_PAGE_TITLE')}</h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('PLAYBOOK_SUBTITLE', { count: SECRETS.length })}</div>
       </div>
 

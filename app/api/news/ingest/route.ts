@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { judgeTs, notableOf, MAX_AGE_SEC, MAX_FUTURE_SEC, type TsVerdict } from '@/lib/newsTs';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { apiError } from '@/lib/apiError';
@@ -14,38 +15,8 @@ import { T } from '@/lib/tables';
 // have no push mechanism, so the polling still has to happen - it just happens
 // once here now, and clients receive the result over Supabase Realtime.
 //
-// Scheduled from cron-job.org, not in this repo - see docs/INFRASTRUCTURE.md §2.
-
-// Anything older than this can't be "breaking" and is already past the client's
-// own 6h display cutoff, so ingesting it would only produce dead rows.
-const MAX_AGE_SEC = 6 * 3600;
-
-/* #1651: HOW FAR AHEAD OF OUR OWN CLOCK A FEED'S TIMESTAMP MAY BE AND STILL BE BELIEVED.
- *
- * Nothing used to test this end. All three loops below checked `ts < cutoff` and nothing checked
- * too-new, so a future-stamped item was stored - and because the client sorts on `published_at`
- * descending (components/NewsProvider.tsx:336), it pinned itself to the top of the feed as the
- * newest thing there. Measured on a production article at +24.07h on 2026-10-22.
- *
- * FIFTEEN MINUTES, AND THE NUMBER IS A JUDGEMENT RATHER THAN A STANDARD. Real clock skew between
- * us and a feed is seconds to a minute, so this clears it with room, and publishers do sometimes
- * stamp a piece slightly ahead. It also bounds the damage: a bad stamp inside the tolerance sits
- * at the top for at most a quarter of an hour and then self-clears, and 15 minutes is far below
- * the 6h relevance window, so it cannot meaningfully distort ordering.
- *
- * One threshold rather than an accept-at-5min / reject-at-2h pair: a band leaves the middle
- * undefined, which is a question for the next reader with no answer in the code. */
-export const MAX_FUTURE_SEC = 15 * 60;
-
-export type TsVerdict = 'ok' | 'too_old' | 'too_new' | 'unreadable';
-
-/** The feed's own timestamp, judged against ours. Seconds, both. */
-export function judgeTs(ts: number, nowSec: number): TsVerdict {
-  if (typeof ts !== 'number' || !Number.isFinite(ts)) return 'unreadable';
-  if (ts < nowSec - MAX_AGE_SEC)    return 'too_old';
-  if (ts > nowSec + MAX_FUTURE_SEC) return 'too_new';
-  return 'ok';
-}
+/* judgeTs, MAX_FUTURE_SEC, MAX_AGE_SEC and TsVerdict moved to lib/newsTs.ts - pure, importable by a
+   test without this file's framework imports, and the only way notableOf could be exported at all. */
 
 type Row = {
   dedup_key: string;
@@ -262,7 +233,7 @@ export async function POST(req: Request) {
        every single run, and the `too_new` it exists to surface would arrive looking like the three
        hundred that did not matter. A log line that always fires is not a signal. too_old stays in the
        RETURNED counts, where a caller can read it deliberately. */
-    const notable = Object.entries(rejected).filter(([k]) => !k.startsWith('too_old:'));
+    const notable = notableOf(rejected);
     if (notable.length > 0 || (futureHeld ?? 0) > 0) {
       console.warn(`[news/ingest] notable=${JSON.stringify(Object.fromEntries(notable))} rejected_total=${rejectedTotal} future_rows_held=${futureHeld ?? 0}`);
     }
