@@ -91,7 +91,14 @@ test('E4: a planted value is counted per field, and the zero is the one that pro
     { ...TODAYS_EVENT, estimate: NaN },    // parsed from something malformed - present, unusable
     { ...TODAYS_EVENT, actual: Infinity }, // an overflowing parse - present, equally unusable
   ];
-  assert.equal(coverageOf(events, 'actual'), 1, 'the planted 0 must be counted');
+  /* THE `actual` COUNT NOW CARRIES TWO FACTS - the 0 is counted AND the Infinity is not - so a bare
+     `=== 1` would go red without saying which half moved. Each is isolated first, then the combined
+     count follows. Dev raised this on #1761: an assertion whose message names one of the two things it
+     proves tells a half-truth exactly when it fails, which is the moment the message is read. */
+  assert.equal(coverageOf([{ ...TODAYS_EVENT, actual: 0 }], 'actual'), 1, 'a planted 0 on its own is counted');
+  assert.equal(coverageOf([{ ...TODAYS_EVENT, actual: Infinity }], 'actual'), 0, 'a planted Infinity on its own is not');
+
+  assert.equal(coverageOf(events, 'actual'), 1, 'over the mixed payload: the 0 counted, the Infinity not');
   assert.equal(coverageOf(events, 'previous'), 0, 'whitespace must not be counted');
   assert.equal(coverageOf(events, 'estimate'), 0, 'NaN must not be counted');
 });
