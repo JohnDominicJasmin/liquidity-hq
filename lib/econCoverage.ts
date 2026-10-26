@@ -48,6 +48,15 @@ export type ValueField = (typeof VALUE_FIELDS)[number];
  *             passes an existence test while being unusable. "Is it there" and "is it usable" are
  *             different questions, and a coverage counter answers the second whether it means to or
  *             not - a feed that returns NaN for every print would report full coverage.
+ *    Infinity the same case one value along, and the first fix MISSED IT. `Number('1e999')` is
+ *             Infinity, so it arrives by exactly the route NaN does: an upstream figure that does not
+ *             parse to a real number. Excluding NaN while admitting Infinity splits a class the rest
+ *             of this repo already treats as one - __tests__/numberFormatProperties.test.mts F7 reads
+ *             "an unknown number (NaN, Infinity) is never printed as one".
+ *
+ *  SO THE TEST IS `Number.isFinite`, NOT `!Number.isNaN`. Naming the two bad values one at a time is
+ *  how the second was missed: the rule is "a usable figure", and every non-finite number fails it
+ *  including ones nobody has thought of. Enumerating exceptions invites a third.
  *
  *  None of the three is reachable today, because the fields are absent entirely. That is the argument
  *  for fixing them now rather than later: the moment a producer exists is the same moment someone
@@ -59,7 +68,7 @@ export type ValueField = (typeof VALUE_FIELDS)[number];
 export function hasValue(v: unknown): boolean {
   if (v === undefined || v === null) return false;
   if (typeof v === 'string') return v.trim() !== '';
-  if (typeof v === 'number') return !Number.isNaN(v);
+  if (typeof v === 'number') return Number.isFinite(v);
   return true;
 }
 
