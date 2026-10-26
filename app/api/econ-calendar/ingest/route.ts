@@ -3,6 +3,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { apiError } from '@/lib/apiError';
 import { recordApiHealth } from '@/lib/apiHealth';
+import { formatFieldCoverage } from '@/lib/econCoverage';
 import { runHealthAlert } from '@/lib/healthAlert';
 import { T } from '@/lib/tables';
 import type { CalEvent } from '../route';
@@ -80,26 +81,16 @@ export async function POST(req: Request) {
        this route reported a healthy twenty events. A count-based check cannot see that, for the same reason
        the status-based one above could not see an empty calendar: it measures the wrong thing one level up.
 
-       WHY THEY ARE EMPTY, traced 2026-10-26 rather than guessed:
+       This LOGS the gap rather than closing it, and a zero here is not a failure - `previous` and
+       `estimate` have no producer anywhere, and `actual` is only ever filled for events already past.
+       Why, measured rather than inferred, and why Finnhub is not involved at any point: lib/econCoverage.ts.
 
-         actual    - produced by enrichWithFRED, and ONLY for events already past (within 30 days). Every one
-                     of the twenty is in the FUTURE, so zero is CORRECT here, not a failure. It fills in as
-                     releases happen.
-         previous  - no producer. Declared on CalEvent, assigned by nothing in the codebase.
-         estimate  - no producer, same.
-         delta     - the page computes it from actual and estimate, so it cannot populate while estimate has
-                     no source.
-
-       Finnhub is NOT involved: /api/econ-calendar never calls it. The dates come from the agencies' own
-       schedules and the values from FRED.
-
-       So this logs coverage rather than fixing it. `previous 0/20` reading zero forever is the intended
-       output until something produces those values - the point is that the next person reads the number
-       instead of inferring it from a table full of dashes. */
-    const coverageOf = (key: 'actual' | 'previous' | 'estimate') =>
-      (events ?? []).filter((e) => (e as Record<string, unknown>)[key]).length;
+       The counting lives there rather than here because the bug it guards against is unreachable from
+       outside. All three fields are absent from every event today, so a test driven through this route
+       answers the same on a correct counter and a broken one; only a test that PLANTS a value tells them
+       apart, and that means calling the function directly. A closure here could not be called at all. */
     const total = events?.length ?? 0;
-    const fieldCoverage = `actual ${coverageOf('actual')}/${total}, previous ${coverageOf('previous')}/${total}, estimate ${coverageOf('estimate')}/${total}`;
+    const fieldCoverage = formatFieldCoverage(events);
     if (total > 0) {
       // eslint-disable-next-line no-console
       console.log(`[econ-calendar/ingest] ${total} events via ${source ?? 'unknown'} | ${fieldCoverage}`);
