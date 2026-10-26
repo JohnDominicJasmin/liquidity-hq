@@ -40,9 +40,19 @@ test('E1: hasValue answers "is it usable", not merely "is it present"', () => {
      coverage - the worst possible reading from an instrument built to catch exactly that case. */
   assert.equal(hasValue(NaN), false, 'NaN is there but not usable');
   assert.equal(hasValue(Number('nope')), false, 'the same thing arriving from a failed parse');
+
+  /* AND EVERY OTHER NON-FINITE NUMBER, which is why the test is `Number.isFinite` and not a list of
+     bad values. Infinity arrives by exactly the route NaN does - `Number('1e999')` IS Infinity - so the
+     first fix excluded NaN and admitted it, and a feed producing it for every print would have reported
+     FULL coverage: the same worst case, one value along (#1760, found by Dev reviewing this suite).
+     The repo had already named the class: numberFormatProperties F7 reads "an unknown number (NaN,
+     Infinity) is never printed as one". Enumerating exceptions invites a third. */
+  assert.equal(hasValue(Infinity), false, 'Infinity is a number and not a usable figure');
+  assert.equal(hasValue(-Infinity), false);
+  assert.equal(hasValue(Number('1e999')), false, 'the route it actually arrives by: an overflowing parse');
 });
 
-test('E2 CONTROL: hasValue disagrees with truthiness on the two cases that are the entire fix', () => {
+test('E2 CONTROL: hasValue disagrees with truthiness on the three cases that are the behaviour change', () => {
   /* Without this, the fix and a no-op are indistinguishable. Each disagreement is named rather than
      counted, so a regression says WHICH case moved instead of just lowering a number. */
   const truthy = (v: unknown) => Boolean(v);
@@ -53,8 +63,16 @@ test('E2 CONTROL: hasValue disagrees with truthiness on the two cases that are t
   assert.equal(truthy('   '), true, 'the old predicate counted whitespace as a value ...');
   assert.equal(hasValue('   '), false, '... and the new one does not');
 
-  /* NaN was falsy before and is false now, so it is NOT part of the behaviour change - it was already
-     excluded by accident rather than on purpose, and E1 pins it so it stays excluded deliberately. */
+  /* Infinity is the THIRD disagreement and it belongs here rather than only in E1, because
+     `Boolean(Infinity)` is TRUE - so excluding it is a genuine behaviour change, not a pin. Recording it
+     in E1 alone would file a change as though nothing had moved. Dev made this distinction when the fix
+     landed and it is the right one. */
+  assert.equal(truthy(Infinity), true, 'truthiness counts Infinity as a value ...');
+  assert.equal(hasValue(Infinity), false, '... and the predicate does not');
+
+  /* NaN by contrast was falsy before and is false now, so it is NOT part of the behaviour change - it
+     was excluded by accident rather than on purpose, and E1 pins it so it stays excluded deliberately.
+     The two cases look identical in a coverage count and are opposite in this respect. */
   assert.equal(truthy(NaN), false);
   assert.equal(hasValue(NaN), false, 'same answer, different reason - accident before, rule now');
 });
@@ -71,7 +89,7 @@ test('E4: a planted value is counted per field, and the zero is the one that pro
     { ...TODAYS_EVENT, actual: 0 },        // a real 0.0 print - the case truthiness missed
     { ...TODAYS_EVENT, previous: '   ' },  // whitespace from an upstream - absent
     { ...TODAYS_EVENT, estimate: NaN },    // parsed from something malformed - present, unusable
-    { ...TODAYS_EVENT },
+    { ...TODAYS_EVENT, actual: Infinity }, // an overflowing parse - present, equally unusable
   ];
   assert.equal(coverageOf(events, 'actual'), 1, 'the planted 0 must be counted');
   assert.equal(coverageOf(events, 'previous'), 0, 'whitespace must not be counted');
