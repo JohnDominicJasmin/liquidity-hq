@@ -50,18 +50,30 @@ test('V1: the first venue that answers wins, and no later venue is even called',
   assert.deepEqual(log, ['Bybit'], 'the fallback must not be called when the primary answers');
 });
 
-test('V2: a venue that resolves a falsy value has ANSWERED, and is returned as-is', async () => {
-  /* The trap in `return await live[i].run()` is the version that looks tidier:
-         const r = await live[i].run(); if (r) return r;
-     An empty candle array, a 0, a false, a null - all legitimate answers for some subject - would then fall
-     through to the fallback, and when the last venue answers falsy too the caller gets
-     "All venues failed" for a run in which NOTHING failed. Four values because the bug is about
-     falsiness, not about any one of them. */
+test('V2: the answer is returned WITHOUT being inspected - resolving is answering', async () => {
+  /* `return await live[i].run()` does not look at what came back, and the two tidier-looking rewrites both
+     do. They fail on different values, which is why this cell asserts four and says which catches which:
+
+       (a) const r = await live[i].run(); if (r) return r;
+           Falls through on a FALSY answer. Caught by 0, false and null below.
+
+       (b) const r = await live[i].run(); if (Array.isArray(r) && r.length) return r;
+           The klines-shaped version - "if we got candles, return them". Falls through on an EMPTY ARRAY.
+           Caught by [] below, and by nothing else here.
+
+     Either way, when the last venue also answers that way the caller gets "All venues failed" for a run in
+     which NOTHING failed.
+
+     `[]` IS TRUTHY, which is the correction worth keeping. An earlier version of this comment listed it
+     first among "falsy values" - wrong, and vacuous against rewrite (a), since `if ([])` is taken. It earns
+     its place against (b) instead, as the realistic shape a klines fetch returns for a quiet or
+     unlisted window. A test whose comment names a mechanism its assertion does not exercise is the exact
+     defect I corrected in arena-venue-fallback case 3; this is the same shape in my own file. */
   const log: string[] = [];
-  assert.deepEqual(await firstVenueThatAnswers([ok('Bybit', [], log)], 'btc'), []);
-  assert.equal(await firstVenueThatAnswers([ok('Bybit', 0, log)], 'btc'), 0);
-  assert.equal(await firstVenueThatAnswers([ok('Bybit', false, log)], 'btc'), false);
-  assert.equal(await firstVenueThatAnswers([ok('Bybit', null, log)], 'btc'), null);
+  assert.deepEqual(await firstVenueThatAnswers([ok('Bybit', [], log)], 'btc'), [], 'truthy, and the case for (b)');
+  assert.equal(await firstVenueThatAnswers([ok('Bybit', 0, log)], 'btc'), 0, 'falsy, and a case for (a)');
+  assert.equal(await firstVenueThatAnswers([ok('Bybit', false, log)], 'btc'), false, 'falsy, and a case for (a)');
+  assert.equal(await firstVenueThatAnswers([ok('Bybit', null, log)], 'btc'), null, 'falsy, and a case for (a)');
   assert.deepEqual(log, ['Bybit', 'Bybit', 'Bybit', 'Bybit'], 'each call used the primary and stopped there');
 });
 
