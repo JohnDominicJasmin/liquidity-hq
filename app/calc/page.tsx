@@ -57,16 +57,7 @@ function CalcPageContent() {
   }, [coinMenuOpen]);
 
   return (
-    <div className="calc-term-wrap">
-      {/* #1113: the PageHint is the sole page intro now - both the old subtitle
-          (duplicated its body) and the h1 (duplicated its title) were dropped,
-          owner-approved, matching scanner/journal exactly. */}
-      <PageHint pageKey="calc" title={t('CALC_HINT_TITLE')} body={t('CALC_HINT_BODY')} />
-      {/* The visible h1 was dropped on purpose (above). This one is for screen
-          readers and search engines only: a page still needs a heading that
-          names it, and the hint collapses to a chip for returning visitors, so
-          it cannot be that heading. Nothing changes on screen. */}
-      <h1 className="sr-only">{t('CALC_PAGE_TITLE')}</h1>
+    <>
 
       <div className="ps-presets" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
         {TABS.map(tabDef => (
@@ -135,14 +126,37 @@ function CalcPageContent() {
       {tab === 'rr'          && <RiskRewardCalc coin={coin} />}
       {tab === 'funding'     && <FundingCostCalc />}
       {tab === 'dca'         && <DcaCalc coin={coin} />}
-    </div>
+    </>
   );
 }
 
+/* #1740: THE HEADING AND THE HINT SIT ABOVE THE SUSPENSE BOUNDARY, NOT INSIDE IT.
+ *
+ * `CalcPageContent` calls `useSearchParams()`, which on a statically rendered route makes the closest
+ * Suspense boundary serve its FALLBACK into the HTML. This boundary had no fallback, so `/calc` served
+ * nothing of its own: 62 words against a 90-word 404 baseline on the same build, and zero <h1> despite
+ * the sr-only one below having existed since #1113. It was inside the boundary the whole time.
+ *
+ * Measured rather than read off the docs: `data-page-hint` appears once on /econ-calendar and once on
+ * /scanner, and ZERO times on /calc - same component, same production build. That is what distinguishes
+ * this from the other three pages, which render their shells correctly and are missing only live data.
+ *
+ * The tabs and the calculators stay inside. They are interactive and there is nothing in them for a
+ * crawler; only the heading and the intro need to survive without JavaScript. Nothing moves on screen -
+ * same elements, same order, same wrapper - so this is not a visual change. */
 export default function CalcPage() {
+  const { t } = useLabels();
   return (
-    <Suspense>
-      <CalcPageContent />
-    </Suspense>
+    <div className="calc-term-wrap">
+      {/* #1113: the PageHint is the sole page intro now - both the old subtitle (duplicated its body)
+          and the h1 (duplicated its title) were dropped, owner-approved, matching scanner/journal. */}
+      <PageHint pageKey="calc" title={t('CALC_HINT_TITLE')} body={t('CALC_HINT_BODY')} />
+      {/* For screen readers and search engines only: a page needs a heading that names it, and the hint
+          collapses to a chip for returning visitors so it cannot be that heading. */}
+      <h1 className="sr-only">{t('CALC_PAGE_TITLE')}</h1>
+      <Suspense>
+        <CalcPageContent />
+      </Suspense>
+    </div>
   );
 }
