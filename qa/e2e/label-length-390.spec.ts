@@ -39,9 +39,15 @@ import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 const WIDTH = 390;
 const HEIGHT = 844;
 
-/* The six values as MEASURED on production `lhq_labels`, locale en, 2026-10-27 - not invented, and not taken
-   from the issue text. `git`-style provenance matters here because an injected value that does not match
-   production would measure a string nobody ships. */
+/* The six values as MEASURED on production `lhq_labels`, locale en, 2026-10-27 - not invented and not taken
+   from the issue text, because an injected value that does not match production would measure a string nobody
+   ships.
+
+   ONE OF THEM NO LONGER MATCHES PRODUCTION, AND THAT IS DELIBERATE. `ARENA_SCANNER_COL_24H` was reverted to
+   `24h` on production and dev at ~12:00Z on 2026-10-27, because this spec measured the long form CLIPPING its
+   40px track - box 40x33, scrollWidth 42 against clientWidth 40. The long form is kept here on purpose as the
+   constraint under test: its cell asserts that `24 HOURS` does NOT fit, which is the finding that caused the
+   revert. See `expectOverflow` below. Every other value is production's current string. */
 const PRODUCTION_VALUES: Record<string, string> = {
   MARKET_CONDITIONS_WIDGET_RSI_LABEL: 'BTC RSI (15-minute chart)',
   HOURS_SESSION_MAP_TITLE: '24-hour session map',
@@ -61,7 +67,27 @@ const PREVIOUS: Record<string, string> = {
   ABSORPTION_DETECTOR_MTF_BADGE: '1H ✓',
 };
 
-interface Target { key: string; path: string; note: string }
+interface Target {
+  key: string;
+  path: string;
+  note: string;
+  /* Some labels sit behind an interaction. The scanner column headers live in a hover flyout that is
+     conditionally rendered, so nothing measures them until it is open. */
+  open?: (page: import('@playwright/test').Page) => Promise<void>;
+  /* A target whose injected string is EXPECTED not to fit. Used for a copy change that was reverted because
+     it clipped: the cell pins the constraint rather than sitting permanently red. It goes red if someone
+     widens the track, drops the tracking, or shortens the string - all of which would mean the long form had
+     become viable and the revert could be revisited. */
+  expectOverflow?: boolean;
+}
+
+/* The scanner flyout opens on an 800ms hover timer (app/arena/page.tsx:598) attached to an unclassed wrapper
+   div. mouseenter on a parent fires when entering a child, so hovering the caret inside the trigger bar is
+   enough and does not depend on a class that does not exist. Shared by both /arena targets. */
+async function openScannerFlyout(page: import('@playwright/test').Page) {
+  await page.locator('span[aria-hidden="true"]').filter({ hasText: '▼' }).first().hover({ timeout: 15_000 });
+  await page.waitForTimeout(1_400);
+}
 
 const TARGETS: Target[] = [
   { key: 'MARKET_CONDITIONS_WIDGET_RSI_LABEL', path: '/dashboard', note: 'uppercase inline, .06em tracking, flex space-between with the value on the right' },
@@ -71,7 +97,35 @@ const TARGETS: Target[] = [
   /* /arena, not /dashboard - AbsorptionDetector renders from app/arena/page.tsx. And the badge is gated on
      `d.mtfConfirmed` (AbsorptionDetector.tsx:342), a live-market condition, so it is absent most of the time
      through no fault of the override. The sentinel below tells those two apart. */
-  { key: 'ABSORPTION_DETECTOR_MTF_BADGE', path: '/arena', note: 'badge, flex-shrink: 0, gated on d.mtfConfirmed' },
+  {
+    key: 'ABSORPTION_DETECTOR_MTF_BADGE',
+    path: '/arena',
+    note: 'badge, flex-shrink: 0, gated on d.mtfConfirmed',
+    /* THE HOVER IS HERE FOR THE SENTINEL, NOT FOR THIS BADGE. On /arena the only two injected values are the
+       scanner column header (behind this hover) and this badge (behind live-market state). With neither
+       rendered the sentinel cannot tell "the override failed" from "the render condition is unmet", so the
+       cell failed when it should have skipped. Opening the flyout puts a known injected string on the page,
+       which lets the sentinel confirm the override took and attribute the missing badge correctly. */
+    open: openScannerFlyout,
+  },
+  /* THE SIXTH TARGET, ADDED AFTER PM AND DEV CAUGHT IT MISSING. It was in PRODUCTION_VALUES and PREVIOUS and
+     absent from TARGETS - six values injected, five measured - and it is the strongest candidate in the set
+     rather than an also-ran:
+       - it renders UPPERCASE (app/arena/page.tsx:2014, textTransform uppercase, letterSpacing .07em,
+         fs-micro), so this change has THREE uppercase labels and the spec was measuring two;
+       - the flyout grid at <=480px is `1fr 65px 40px 60px 28px` (globals.css:1588) with `vsbtc` hidden, and
+         the full column array is name, price, 24h, vsbtc, status, score - so the five VISIBLE headers map
+         onto the five tracks and `24h` lands on the 40px one;
+       - the string goes `24H` -> `24 HOURS`.
+     `24H` fits 40px. `24 HOURS` uppercased and letter-spaced is exactly what this spec exists to catch, and
+     if it cannot fit then "leave it uppercase" is not an option the owner can pick for this label at all. */
+  {
+    key: 'ARENA_SCANNER_COL_24H',
+    path: '/arena',
+    note: 'flyout column header, 40px fixed track at <=480px, uppercase + .07em tracking',
+    expectOverflow: true,
+    open: openScannerFlyout,
+  },
 ];
 
 async function installLabelOverride(page: import('@playwright/test').Page) {
@@ -115,6 +169,7 @@ for (const target of TARGETS) {
 
     try {
       await gotoSignedIn(page, target.path);
+      if (target.open) await target.open(page);
 
       const injected = PRODUCTION_VALUES[target.key];
       const measured = await page.evaluate(([text, vw]) => {
@@ -195,10 +250,21 @@ for (const target of TARGETS) {
         `${target.path} scrolls sideways at ${WIDTH}px with the new copy: scrollWidth ${m.pageScrollWidth}`)
         .toBeLessThanOrEqual(m.viewport + 1);
 
-      /* And the element must not clip its own text. */
-      expect(m.overflowsSelf,
-        `${target.key} overflows its own box: scrollWidth ${m.scrollWidth} vs clientWidth ${m.clientWidth}`)
-        .toBe(false);
+      /* And the element must not clip its own text - except where a target exists precisely to pin that it
+         does. `24 HOURS` in a 40px track was measured at scrollWidth 42 against clientWidth 40 and reverted
+         on that evidence; asserting the overflow keeps the finding executable instead of leaving a red cell
+         or deleting the only test that would catch the long form coming back. */
+      if (target.expectOverflow) {
+        expect(m.overflowsSelf,
+          `${target.key} was expected NOT to fit its track - it now does (scrollWidth ${m.scrollWidth} vs `
+          + `clientWidth ${m.clientWidth}). Either the track was widened, the tracking dropped or the string `
+          + 'shortened, so the long form may now be viable and the revert can be revisited.')
+          .toBe(true);
+      } else {
+        expect(m.overflowsSelf,
+          `${target.key} overflows its own box: scrollWidth ${m.scrollWidth} vs clientWidth ${m.clientWidth}`)
+          .toBe(false);
+      }
     } finally {
       assertNoUnstubbedPaidAi(page, `#675 ${target.key}`);
       await ctx.close();
