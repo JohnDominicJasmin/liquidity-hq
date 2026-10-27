@@ -5387,18 +5387,33 @@ body.landing {
 
 /* ── ECONOMIC CALENDAR - mobile grid ─────────────────────────────────── */
 @media (max-width: 480px) {
-  /* Collapse COUNTRY (always "US"), DELTA and IMPACT (impact already shown as the
-     row's left border) so TIME/EVENT/PREVIOUS/CONSENSUS/ACTUAL fit without the
-     680px min-width forcing an undiscoverable horizontal scroll. */
+  /* REWRITTEN FOR THE FOUR-COLUMN TABLE (#1651, owner-approved 2026-10-27).
+     This block used to read:
+
+       grid-template-columns: 52px 0 1fr 54px 58px 54px 0 0 !important;
+       .ec-grid > *:nth-child(2), :nth-child(7), :nth-child(8) { overflow: hidden }
+
+     It collapsed COUNTRY, DELTA and IMPACT to zero width so that TIME, EVENT,
+     PREVIOUS, CONSENSUS and ACTUAL could fit. Three of those five no longer
+     exist, and the nth-child indices counted into an eight-column row - at four
+     columns, :nth-child(7) and :nth-child(8) match nothing and :nth-child(2)
+     would have been the only surviving rule, leaving a four-track template
+     applied to a four-column grid with three zero tracks. Index-based CSS does
+     not fail loudly when the thing it indexes into changes shape.
+
+     Nothing needs collapsing now: 52 + 40 + 62 is 154px of fixed width, so EVENT
+     keeps the rest even on a 320px screen and the horizontal scroll is gone
+     rather than hidden. COUNTRY stays visible because the owner approved it in
+     the rendered four-column preview, and a column present on desktop and absent
+     on a phone is the kind of divergence nobody signs off on twice. */
   .ec-grid {
-    grid-template-columns: 52px 0 1fr 54px 58px 54px 0 0 !important;
+    grid-template-columns: 52px 40px 1fr 62px !important;
     min-width: 0 !important; column-gap: 4px !important;
     padding-left: 10px !important; padding-right: 10px !important;
   }
   .ec-grid > *:nth-child(2),
-  .ec-grid > *:nth-child(7),
-  .ec-grid > *:nth-child(8) { overflow: hidden; white-space: nowrap; }
-  /* Header labels: drop tracking + shrink so PREVIOUS/CONSENSUS/ACTUAL don't collide */
+  .ec-grid > *:nth-child(4) { overflow: hidden; white-space: nowrap; }
+  /* Header labels: drop tracking + shrink so COUNTRY and IMPACT do not collide */
   .ec-hdr > div { font-size: 0.6875rem !important; letter-spacing: 0 !important; overflow: hidden; }
 }
 
