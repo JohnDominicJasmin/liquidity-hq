@@ -23,8 +23,15 @@
 -- TERMS_SECTION_THIRD_PARTY_DATA_BODY and DISCLAIMER_SECTION_DATA_PROVIDERS_BODY both enumerate providers and both omit FRED;
 -- those two also omit CoinMarketCap, which /about does name. Reported on #1651, not fixed.
 --
--- LOCALES. The privacy paragraph has five rows (en, ar, ko, ru, zh), the /about value four (en, ar, ko, zh) - taken from the
--- seed migrations. THE DATABASE, NOT THIS DIRECTORY, IS THE RECORD: production rows exist that no migration inserted, so
+-- LOCALES. BOTH keys have FIVE rows: en, ar, ko, ru, zh.
+--
+-- The /about value was written here as FOUR, from the seed migrations - and a `ru` row exists in production that no
+-- migration in this directory inserted. QA found it by running the check the next paragraph asks for, and it was
+-- confirmed against the live /api/labels payload for all five locales. Left out, the RUSSIAN /about would have gone on
+-- naming a provider the route never calls - the exact error this migration exists to correct.
+--
+-- `ko` AND `ru` BOTH HELD THE UNTRANSLATED ENGLISH STRING. That was right while the value was a proper noun
+-- ("Finnhub Calendar API"); it is a description now, so both are translated here rather than left in English. THE DATABASE, NOT THIS DIRECTORY, IS THE RECORD: production rows exist that no migration inserted, so
 -- whoever applies this should check for locale rows beyond these before assuming the set is complete. ar/ko/ru/zh here are
 -- machine-translated and not native-reviewed, the same standing caveat as 20261017b.
 --
@@ -40,6 +47,7 @@ insert into lhq_labels (key, locale, value) values
 ('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','en','Official US agency schedules (BLS, BEA, Census, Fed) + FRED'),
 ('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','ar','الجداول الرسمية للوكالات الأمريكية (BLS، BEA، Census، Fed) + FRED'),
 ('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','ko','미국 정부기관 공식 일정 (BLS, BEA, Census, Fed) + FRED'),
+('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','ru','Официальные графики агентств США (BLS, BEA, Census, Fed) + FRED'),
 ('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','zh','美国官方机构日程（BLS、BEA、Census、Fed）+ FRED'),
 ('PRIVACY_SECTION_THIRD_PARTY_BODY','en','LiquidityHQ integrates with third-party services including Supabase (database), PostHog (product analytics and session recording), xAI Grok (AI analysis), Brevo (email delivery), Whop (payments), Binance and Bybit (price, funding, and open interest data), Finnhub (news), FRED (St. Louis Federal Reserve economic data), and Alternative.me (Fear & Greed index). These providers have their own privacy policies and data practices. We are not responsible for their data handling.'),
 ('PRIVACY_SECTION_THIRD_PARTY_BODY','ar','تتكامل LiquidityHQ مع خدمات طرف ثالث تشمل Supabase (قاعدة البيانات)، وPostHog (تحليلات المنتج وتسجيل الجلسات)، وxAI Grok (تحليل بالذكاء الاصطناعي)، وBrevo (إرسال البريد الإلكتروني)، وWhop (المدفوعات)، وBinance وBybit (بيانات الأسعار والتمويل والفائدة المفتوحة)، وFinnhub (الأخبار)، وFRED (البيانات الاقتصادية لبنك الاحتياطي الفيدرالي في سانت لويس)، وAlternative.me (مؤشر الخوف والجشع). لهذه الجهات سياسات خصوصية وممارسات بيانات خاصة بها، ولسنا مسؤولين عن كيفية تعاملها مع البيانات.'),
@@ -54,6 +62,7 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 -- ('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','en','Official US agency schedules (BLS, BEA, Census, Fed) + FRED'),
 -- ('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','ar','الجداول الرسمية للوكالات الأمريكية (BLS، BEA، Census، Fed) + FRED'),
 -- ('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','ko','미국 정부기관 공식 일정 (BLS, BEA, Census, Fed) + FRED'),
+-- ('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','ru','Официальные графики агентств США (BLS, BEA, Census, Fed) + FRED'),
 -- ('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE','zh','美国官方机构日程（BLS、BEA、Census、Fed）+ FRED'),
 -- ('PRIVACY_SECTION_THIRD_PARTY_BODY','en','LiquidityHQ integrates with third-party services including Supabase (database), PostHog (product analytics and session recording), xAI Grok (AI analysis), Brevo (email delivery), Whop (payments), Binance and Bybit (price, funding, and open interest data), Finnhub (news), FRED (St. Louis Federal Reserve economic data), and Alternative.me (Fear & Greed index). These providers have their own privacy policies and data practices. We are not responsible for their data handling.'),
 -- ('PRIVACY_SECTION_THIRD_PARTY_BODY','ar','تتكامل LiquidityHQ مع خدمات طرف ثالث تشمل Supabase (قاعدة البيانات)، وPostHog (تحليلات المنتج وتسجيل الجلسات)، وxAI Grok (تحليل بالذكاء الاصطناعي)، وBrevo (إرسال البريد الإلكتروني)، وWhop (المدفوعات)، وBinance وBybit (بيانات الأسعار والتمويل والفائدة المفتوحة)، وFinnhub (الأخبار)، وFRED (البيانات الاقتصادية لبنك الاحتياطي الفيدرالي في سانت لويس)، وAlternative.me (مؤشر الخوف والجشع). لهذه الجهات سياسات خصوصية وممارسات بيانات خاصة بها، ولسنا مسؤولين عن كيفية تعاملها مع البيانات.'),
