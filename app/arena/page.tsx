@@ -1823,6 +1823,14 @@ function ArenaContent() {
       {/* ── SQUEEZE SCANNER - hover flyout (Bybit-style watchlist) ── */}
       <div
         ref={scannerRef}
+        /* #1775: a stable handle for the hover, because document order is not one. The scanner opens on an
+           800ms mouseenter on THIS div, and until now a test had to find it by hovering the first
+           `span[aria-hidden]` containing a caret. About nine components on /arena render that caret, this
+           wrapper is unclassed, the trigger button has no aria-label or aria-controls, and its
+           `aria-expanded` is shared with TerminalNav, MarketRead, HypothesisTracker and KLineProChart -
+           several of them earlier in the document. So the selector was correct only by DOM order, and a
+           missed hover surfaced as a failed label override two layers away (QA filed it on #1775). */
+        data-testid="scanner-trigger"
         style={{ position: 'relative', marginBottom: 12 }}
         onMouseEnter={handleScannerHoverEnter}
         onMouseLeave={handleScannerHoverLeave}
