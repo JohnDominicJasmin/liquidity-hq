@@ -231,7 +231,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 features locked and only sends to /login on an explicit action (app/arena/page.tsx:1750). So the
                 worst case of a false positive is a visitor landing on /arena signed-out, not a cycle.
               * CRAWLERS ARE UNAFFECTED, which protects #1740. No localStorage token means no redirect, so the
-                1,013 words of marketing copy are still what a crawler is served.
+                marketing copy is still what a crawler is served - the whole point of #1740, and the thing this
+                script could most easily have broken without any timing measurement noticing.
+
+                NO WORD COUNT HERE ON PURPOSE. This line quoted "1,013 words" and that figure does not
+                reproduce. Three measurements of the same production page gave three answers - 1,013
+                (original, method unknown), 852 (PM) and 1,059 (mine: strip <script> and <style> bodies, strip
+                tags, count whitespace-separated tokens). The page is not what differs; the stripping rule is,
+                and a browser's innerText excludes hidden text that a regex over raw HTML counts. A count
+                without its rule is not a measurement, so the assertion here is the PROPERTY - copy is served -
+                and the number belongs in whatever check states its own method.
 
             ONLY THE THREE LANDING ROUTES. /about, /faq and the rest have no such redirect and must not gain one. */}
         <Script id="landing-signed-in-redirect" strategy="beforeInteractive">
