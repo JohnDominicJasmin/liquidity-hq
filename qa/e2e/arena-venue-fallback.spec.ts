@@ -25,9 +25,23 @@ import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
  *   1. BOTH-VENUE COIN, Bybit down    -> a signal still renders, and the fallback says so in the console.
  *   2. BOTH VENUES DOWN               -> the failure message MUST still appear. A fix that made a real
  *                                        outage look like a working signal would be worse than the bug.
- *   3. BYBIT-ONLY COIN, Bybit down    -> the failure message, NOT a signal. There is no second venue, and a
- *                                        Binance price for a 1000x-denominated symbol would be wrong by
- *                                        1000x rather than merely absent.
+ *   3. BYBIT-ONLY COIN, Bybit down    -> the failure message, NOT a signal, and ZERO fallback log lines.
+ *                                        The log count is what separates this from case 2: both end in the
+ *                                        failure message, but only case 2 had a second venue to try. Without
+ *                                        it, case 3 passes on any path that fails for any reason.
+ *
+ * WHAT CASE 3 DOES *NOT* PROVE, SINCE AN EARLIER VERSION OF THIS COMMENT CLAIMED IT DID. It read "a Binance
+ * price for a 1000x-denominated symbol would be wrong by 1000x rather than merely absent", and used `hype`.
+ * `BYBIT_SYMS.hype` is `HYPEUSDT` - not a 1000x symbol at all, so the cell proved the Bybit-only path and
+ * nothing whatever about the price factor. It is `pepe` now, which is `1000PEPEUSDT` and so carries both
+ * properties at once.
+ *
+ * The honest footnote is that there is no live 1000x risk to catch EITHER WAY: `BINANCE_SYMS` has no `pepe`
+ * or `bonk` entry (lib/coins.ts - "Binance uses 1000x denomination - kept Bybit-only to avoid display
+ * confusion"), so for the only two 1000x coins there is no second attempt for a wrong factor to apply to.
+ * `bybitSymbolPriceFactor` therefore stays unexercised by this spec BY DESIGN. That makes case 3 a
+ * regression guard for whoever adds `pepe: '1000PEPEUSDT'` to the Binance map - a useful thing to be, and a
+ * different claim from the one it used to make.
  *
  * usage: E2E_BASE_URL=https://liquidity-hq-qa.onrender.com npx playwright test arena-venue-fallback --project=desktop */
 
@@ -58,9 +72,11 @@ async function arenaSignalState(page: import('@playwright/test').Page) {
 }
 
 for (const scenario of [
-  { name: '1. both-venue coin with Bybit down: the fallback runs and a signal renders', coin: 'btc', broken: ['bybit'] as const, expectFailure: false },
-  { name: '2. both venues down: the failure message must STILL appear', coin: 'btc', broken: ['bybit', 'binance-futures'] as const, expectFailure: true },
-  { name: '3. Bybit-only coin with Bybit down: the failure message, not a 1000x price', coin: 'hype', broken: ['bybit'] as const, expectFailure: true },
+  { name: '1. both-venue coin with Bybit down: the fallback runs and a signal renders', coin: 'btc', broken: ['bybit'] as const, expectFailure: false, expectLogs: 'some' as const },
+  { name: '2. both venues down: the failure message must STILL appear', coin: 'btc', broken: ['bybit', 'binance-futures'] as const, expectFailure: true, expectLogs: 'some' as const },
+  /* pepe, not hype: `1000PEPEUSDT` is Bybit-only AND 1000x-denominated, so one cell carries both. See the
+     header - the 1000x half is a guard for a future Binance entry, not a measurement of today's code. */
+  { name: '3. Bybit-only coin with Bybit down: the failure message and NO fallback attempt', coin: 'pepe', broken: ['bybit'] as const, expectFailure: true, expectLogs: 'none' as const },
 ]) {
   test(`#1767 ${scenario.name}`, async ({ browser }) => {
     test.skip(test.info().project.name !== 'desktop', 'sets its own viewport');
@@ -95,6 +111,21 @@ for (const scenario of [
           `with ${scenario.broken.join(' and ')} down the card must still say "${FAILURE_TEXT}" - a fix that `
           + 'makes a real outage look like a working signal is worse than the bug it replaced')
           .toBe(true);
+
+        /* THE DISCRIMINATOR. Cases 2 and 3 both end on the failure message, so the message alone cannot say
+           which path produced it. The log count can: case 2 had a second venue and announced the handover,
+           case 3 had none and must announce nothing. Without this, case 3 would pass on a coin that is not
+           Bybit-only, on a card that failed for an unrelated reason, or on a break that took too widely. */
+        if (scenario.expectLogs === 'none') {
+          expect(logs, `${scenario.coin} has no Binance symbol, so there is nothing to fall back to and no `
+            + '"falling back to" line may be logged - one here means the coin is not Bybit-only, which is the '
+            + 'entire premise of this cell')
+            .toEqual([]);
+        } else {
+          expect(logs.length, 'both venues were broken, so the handover to the second must still have been '
+            + 'announced before it failed too - no line means the Bybit break did not take')
+            .toBeGreaterThan(0);
+        }
       } else {
         expect(state.showsFailure,
           `with only Bybit down a signal must render: the Binance fallback should have answered. `
