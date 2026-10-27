@@ -82,11 +82,42 @@ interface Target {
 }
 
 /* The scanner flyout opens on an 800ms hover timer (app/arena/page.tsx:598) attached to an unclassed wrapper
-   div. mouseenter on a parent fires when entering a child, so hovering the caret inside the trigger bar is
-   enough and does not depend on a class that does not exist. Shared by both /arena targets. */
+   div. mouseenter on a parent fires when entering a child, so hovering anything inside the trigger bar is
+   enough and does not depend on a class that does not exist. Shared by both /arena targets.
+ *
+ * THE HOVER IS NOW ASSERTED RATHER THAN WAITED OUT, BECAUSE THE SELECTOR CANNOT BE MADE PRECISE FROM HERE.
+ *
+ * This hovered the caret and then slept 1,400ms with nothing checking that the panel opened. On a missed
+ * hover the injected column header was simply absent - and the cell's own sentinel then reported THE
+ * OVERRIDE DID NOT TAKE, on a run where the override took and the hover missed. Wrong half of the test, and
+ * this helper carries BOTH /arena targets including the MTF badge sentinel, so one wrong attribution
+ * mislabels two cells.
+ *
+ * `.first()` IS DOM-ORDER DEPENDENT AND THERE IS NO BETTER HANDLE IN THE MARKUP. '▼' is rendered by about
+ * nine components that appear on /arena - EMASignal, ConfluenceScore, MarketStructure, MultiTFAlignment,
+ * KLineProChart, MarketRead, HypothesisTracker, CoinMarketSnapshot - so this picks the first in document
+ * order and not "the scanner's". The trigger itself offers nothing to anchor on: the wrapper div carrying
+ * the hover handlers is unclassed (page.tsx:1845), the button has no aria-label and no aria-controls
+ * (page.tsx:1867), and its accessible name is live state - the selected coin's ticker plus either signal
+ * chips or "All neutral". `button[aria-expanded]` is not usable either: TerminalNav, MarketRead,
+ * HypothesisTracker and KLineProChart each carry one, several of them earlier in the document.
+ *
+ * So the selector stays as it was and the ASSERTION is what changed. `.scanner-flyout` (page.tsx:1969)
+ * exists only inside `{scannerOpen && (` at 1967, which makes it an exact witness for "the panel opened" -
+ * independent of the /api/labels override, so it separates the two failures this helper used to confuse. A
+ * wrong element now fails here, saying the flyout never opened, which is the true statement.
+ *
+ * FILED FOR DEV rather than worked around further: the scanner trigger needs a stable test handle. QA does
+ * not write app code, and a spec that re-derives the trigger from document order will keep finding new ways
+ * to be wrong about it. */
 async function openScannerFlyout(page: import('@playwright/test').Page) {
   await page.locator('span[aria-hidden="true"]').filter({ hasText: '▼' }).first().hover({ timeout: 15_000 });
-  await page.waitForTimeout(1_400);
+  await expect(page.locator('.scanner-flyout'), 'the scanner flyout never appeared, so the hover missed the '
+    + 'trigger or the 800ms timer was cancelled - any injected column header is absent for THAT reason, not '
+    + 'because the /api/labels override failed')
+    .toBeVisible({ timeout: 6_000 });
+  /* The panel is in the DOM before its grid has laid out, and this spec measures track widths. */
+  await page.waitForTimeout(600);
 }
 
 const TARGETS: Target[] = [
