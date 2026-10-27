@@ -234,13 +234,28 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 marketing copy is still what a crawler is served - the whole point of #1740, and the thing this
                 script could most easily have broken without any timing measurement noticing.
 
-                NO WORD COUNT HERE ON PURPOSE. This line quoted "1,013 words" and that figure does not
-                reproduce. Three measurements of the same production page gave three answers - 1,013
-                (original, method unknown), 852 (PM) and 1,059 (mine: strip <script> and <style> bodies, strip
-                tags, count whitespace-separated tokens). The page is not what differs; the stripping rule is,
-                and a browser's innerText excludes hidden text that a regex over raw HTML counts. A count
-                without its rule is not a measurement, so the assertion here is the PROPERTY - copy is served -
-                and the number belongs in whatever check states its own method.
+                NO WORD COUNT HERE ON PURPOSE, and the reason is not that the page is hard to measure.
+
+                This line quoted "1,013 words" with no method attached. Three sessions measured the same
+                production page on 2026-10-27 and the results group cleanly ONCE THE METHOD IS NAMED:
+
+                   A  alpha words only, script+style bodies stripped    835 / 855
+                   B  all whitespace tokens, same stripping           1,060 / 1,059 / 1,059
+                   C  script bodies counted                           1,614 / 1,613 / 1,613
+
+                B agrees to within ONE TOKEN across three independent instruments, so the page is not
+                ambiguous - only the reporting was. The withdrawn 1,013 sits in the B family on an earlier
+                build; 1,013 -> 1,059 is an ordinary copy change, not a contradiction.
+
+                The number is still gone, because a bare figure in a comment is unverifiable WHATEVER it is
+                and whether or not it reconciles: nothing here can fail when it drifts. So this asserts the
+                PROPERTY - a crawler is served the copy - and the figure belongs in a check that states its
+                own method and can go red.
+
+                STILL UNMEASURED, and it is a real axis rather than a caveat: all three methods above are
+                regex over raw HTML. A browser's innerText excludes hidden and offscreen text that a regex
+                counts, so it would differ - and it would differ MOST on /calc and /hours, which carry
+                sr-only headings. Nobody should compare a browser-measured page against these numbers.
 
             ONLY THE THREE LANDING ROUTES. /about, /faq and the rest have no such redirect and must not gain one. */}
         <Script id="landing-signed-in-redirect" strategy="beforeInteractive">
