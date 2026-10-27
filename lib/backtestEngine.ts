@@ -5,6 +5,7 @@
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
 import { fetchBybitKlinesRetry } from './bybitKlines.ts';
+import { firstVenueThatAnswers } from './venueFallback.ts';
 import {
   OHLCV, SignalEvent, SignalFilterParams,
   DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, detectEMASignals,
@@ -57,7 +58,12 @@ async function fetchBinanceFuturesKlinesRange(sym: string, interval: string, sta
     if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
     const raw = await r.json() as (string | number)[][];
     if (!raw.length) break;
-    const batch = raw.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
+    /* #1263: the same 1000x correction the Bybit range path applies. `bybitSymbolPriceFactor` reads the
+       SYMBOL STRING, not the venue, so it is right for a Binance `1000PEPEUSDT` too. Unreachable today -
+       BINANCE_SYMS has no 1000x entry - but this path now actually runs as a fallback, and a backtest
+       priced 1000x out reads as a plausible result rather than an error. */
+    const pf = bybitSymbolPriceFactor(sym);
+    const batch = raw.map(k => ({ time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5] }));
     out.push(...batch);
     const lastTime = batch[batch.length - 1].time;
     if (lastTime <= cursor) break; // no progress - bail to avoid infinite loop
@@ -168,10 +174,16 @@ export async function fetchHistoricalOHLCV(coin: CoinId, tf: string, yearsBack: 
   const startTime = endTime - yearsBack * 365 * 24 * 3_600_000;
   const bnSym = BINANCE_SYMS[coin];
   const bySym = BYBIT_SYMS[coin];
-  // #1059: Bybit primary, Binance fallback.
-  if (bySym) return fetchBybitKlinesRange(bySym, byInterval, startTime, endTime);
-  if (bnSym) return fetchBinanceFuturesKlinesRange(bnSym, bnInterval, startTime, endTime);
-  throw new Error(`No symbol for ${coin}`);
+  /* #1059: Bybit primary, Binance fallback.
+     #1263: and the fallback was unreachable here too - the identical shape to
+     lib/useEMAStrategy.ts, found while fixing that one rather than reported separately.
+     `if (bySym) return ...` returns on success and throws on failure, so the Binance
+     line ran only for coins Bybit does not list. Same comment, same claim, same absence.
+     Fixed as the class rather than the one instance the owner happened to hit. */
+  return firstVenueThatAnswers<OHLCV[]>([
+    bySym ? { venue: 'Bybit', run: () => fetchBybitKlinesRange(bySym, byInterval, startTime, endTime) } : null,
+    bnSym ? { venue: 'Binance futures', run: () => fetchBinanceFuturesKlinesRange(bnSym, bnInterval, startTime, endTime) } : null,
+  ], coin);
 }
 
 /* ── Trade simulation ─────────────────────────────────────────────────────── */
