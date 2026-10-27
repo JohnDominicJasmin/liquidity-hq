@@ -12,6 +12,16 @@ type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
   /* Computed date, not a published one (#245). */
   estimated?: boolean;
+  /* STILL IN THE PAYLOAD, NO LONGER DRAWN (#1651, owner 2026-10-27). The table
+     showed PREVIOUS, CONSENSUS, ACTUAL and DELTA as four columns of `-`:
+     `previous` and `estimate` have no producer anywhere in the codebase, and
+     DELTA is derived from the two. `actual` is produced - enrichWithFRED fills
+     it for events already past - but a forward-looking calendar has none, so it
+     read empty too.
+
+     Kept on the type and in the response on purpose. The FRED enrichment path is
+     untouched, so `actual` keeps populating; bringing the column back is a
+     rendering change, not a data one. */
   previous?: string; estimate?: string; actual?: string;
 };
 
@@ -53,16 +63,9 @@ function formatCountdown(c: Countdown, t: TFn): string {
   return t('ECON_CALENDAR_COUNTDOWN_MINUTES', { m: c.m });
 }
 
-function calcDelta(actual?: string, estimate?: string): { text: string; positive: boolean } | null {
-  if (!actual || !estimate) return null;
-  const strip = (s: string) => parseFloat(s.replace(/[^0-9.\-]/g, ''));
-  const a = strip(actual);
-  const e = strip(estimate);
-  if (isNaN(a) || isNaN(e)) return null;
-  const d = a - e;
-  const unit = actual.includes('%') ? '%' : actual.match(/[KMB]$/) ? actual.slice(-1) : '';
-  return { text: (d >= 0 ? '+' : '') + d.toFixed(2) + unit, positive: d >= 0 };
-}
+/* `calcDelta` was here and is gone with the DELTA column. It computed
+   `actual - estimate`, and `estimate` has no producer, so it returned null on
+   every row of every payload this page has ever rendered. */
 
 /* Keyed by econImpactKey, never by the raw feed string - the feed says 'high'
    and 'med' in lowercase, so indexing this map directly missed on every row and
@@ -91,11 +94,18 @@ const IMPACT_CFG: Record<EconImpact, { color: string; bg: string; border: string
   LOW:    { color: 'var(--txt-dim)', bg: 'color-mix(in srgb, var(--txt3) 10%, transparent)', border: 'color-mix(in srgb, var(--txt3) 25%, transparent)', accent: 'color-mix(in srgb, var(--txt3) 40%, transparent)' },
 };
 
-const COLS = '68px 72px 1fr 90px 95px 82px 72px 70px';
+/* FOUR COLUMNS, not eight (#1651, owner-approved 2026-10-27 from a rendered preview).
+   The four that were dropped - PREVIOUS, CONSENSUS, ACTUAL, DELTA - read `-` on every
+   row of every payload, so the table promised four numbers it has never once shown.
+
+   Their ECON_CALENDAR_COL_* label keys are deliberately LEFT DEFINED. ACTUAL has a real
+   producer (enrichWithFRED, for past events) and the owner kept that path, so its column
+   is expected back; deleting the keys would mean re-adding them across the defaults and
+   every locale to restore a column that only needs a render. */
+const COLS = '68px 72px 1fr 70px';
 
 const COL_LABEL_KEYS: LabelKey[] = [
-  'ECON_CALENDAR_COL_TIME', 'ECON_CALENDAR_COL_COUNTRY', 'ECON_CALENDAR_COL_EVENT', 'ECON_CALENDAR_COL_PREVIOUS',
-  'ECON_CALENDAR_COL_CONSENSUS', 'ECON_CALENDAR_COL_ACTUAL', 'ECON_CALENDAR_COL_DELTA', 'ECON_CALENDAR_COL_IMPACT',
+  'ECON_CALENDAR_COL_TIME', 'ECON_CALENDAR_COL_COUNTRY', 'ECON_CALENDAR_COL_EVENT', 'ECON_CALENDAR_COL_IMPACT',
 ];
 
 export default function EconCalendarPage() {
@@ -213,7 +223,7 @@ export default function EconCalendarPage() {
                 display: 'grid', gridTemplateColumns: COLS,
                 padding: '8px 16px', gap: 8,
                 borderBottom: '0.5px solid var(--bdr)',
-                minWidth: 680,
+                minWidth: 420,
               }}>
                 {COL_LABEL_KEYS.map(h => (
                   <div key={h} style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.07em', color: 'var(--txt3)' }}>
@@ -227,7 +237,6 @@ export default function EconCalendarPage() {
                 const ic      = IMPACT_CFG[econImpactKey(e.impact)];
                 const isPast  = new Date(e.isoDate).getTime() < now;
                 const isNext  = next?.isoDate === e.isoDate && next?.name === e.name;
-                const delta   = calcDelta(e.actual, e.estimate);
                 const ctObj   = countdown(e.isoDate);
                 const ct      = formatCountdown(ctObj, t);
 
@@ -297,7 +306,7 @@ export default function EconCalendarPage() {
                          border moves no text contrast at all. */
                       ['--ec-muted' as string]: isNext || (isPast && !e.actual)
                         ? 'var(--txt-dash)' : 'var(--txt3)',
-                      minWidth: 680,
+                      minWidth: 420,
                     }}
                   >
                     {/* TIME */}
@@ -345,34 +354,6 @@ export default function EconCalendarPage() {
                       <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', lineHeight: 1.3 }}>
                         {e.name}
                       </div>
-                    </div>
-
-                    {/* PREVIOUS */}
-                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>
-                      {e.previous || '-'}
-                    </div>
-
-                    {/* CONSENSUS */}
-                    <div style={{ fontSize: 'var(--fs-caption)', color: e.estimate ? 'var(--amber)' : 'var(--ec-muted)', fontVariantNumeric: 'tabular-nums', fontWeight: e.estimate ? 500 : 400 }}>
-                      {e.estimate || '-'}
-                    </div>
-
-                    {/* ACTUAL */}
-                    <div style={{
-                      fontSize: 'var(--fs-caption)', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
-                      color: e.actual
-                        ? (delta ? (delta.positive ? 'var(--green-2)' : 'var(--red)') : 'var(--green-2)')
-                        : 'var(--ec-muted)',
-                    }}>
-                      {e.actual || '-'}
-                    </div>
-
-                    {/* DELTA */}
-                    <div style={{
-                      fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums',
-                      color: delta ? (delta.positive ? 'var(--green-fg)' : 'var(--red)') : 'var(--ec-muted)',
-                    }}>
-                      {delta?.text || '-'}
                     </div>
 
                     {/* IMPACT */}

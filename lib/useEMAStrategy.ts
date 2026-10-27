@@ -14,6 +14,7 @@ import { simulateTrades } from './backtestEngine.ts';
 import { TF_MS, CLOSE_SKEW_MS, dropForming, msUntilNextClose, sameCandle } from './candles.ts';
 import { getWaveTrendConfirmation } from './waveTrend.ts';
 import { fetchBybitKlinesRetry } from './bybitKlines.ts';
+import { firstVenueThatAnswers } from './venueFallback.ts';
 import { priceText } from './numberFormat.ts';
 
 export type { SignalFilterParams } from './strategyCore.ts';
@@ -113,8 +114,19 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
   );
   if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
   const raw = await r.json() as (string | number)[][];
+  /* THE SAME 1000x CORRECTION THE BYBIT PATH APPLIES, and it was missing here (#1263).
+     `bybitSymbolPriceFactor` reads the SYMBOL STRING, not the venue - `startsWith('1000')` - so it is
+     correct for a Binance `1000PEPEUSDT` too, and only its name says otherwise.
+
+     Not reachable today: BINANCE_SYMS has no pepe or bonk entry (lib/coins.ts keeps them Bybit-only
+     precisely to avoid the 1000x denomination), so no symbol reaching this function starts with 1000.
+     It is here because the fallback below now actually runs, and the day someone adds a 1000x symbol
+     to BINANCE_SYMS the failure is entry, stop-loss and take-profit wrong by 1000x on a live signal -
+     silent, plausible-looking numbers. Guarding the rule costs one line; relying on a list staying
+     short is how #1059's own comment says this broke the first time. */
+  const pf = bybitSymbolPriceFactor(sym);
   return raw.map(k => ({
-    time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
+    time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],
   }));
 }
 
@@ -151,10 +163,31 @@ async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: strin
      418) while Bybit answers normally from the same IP, for BTC/ETH/SOL/DOGE/
      XRP/HYPE and both 1000x meme coins Binance doesn't even list. Bybit's
      public limit (600 req/5s per IP) is orders of magnitude above what this
-     hook needs. fetchBybitKlines already applies bybitSymbolPriceFactor. */
-  if (bySym) return fetchBybitKlines(bySym, bybitInterval, limit);
-  if (bnSym) return fetchBinanceFuturesKlines(bnSym, bnInterval, limit);
-  throw new Error(`No symbol for ${coin}`);
+     hook needs. fetchBybitKlines already applies bybitSymbolPriceFactor.
+
+     #1263: AND UNTIL NOW THE FALLBACK DID NOT EXIST. This read:
+
+         if (bySym) return fetchBybitKlines(bySym, bybitInterval, limit);
+         if (bnSym) return fetchBinanceFuturesKlines(bnSym, bnInterval, limit);
+
+     with no `try`. The first line returns on success and THROWS on failure, so the
+     second ran only for a coin Bybit does not list - the one case where it is not a
+     fallback. For the 44 coins on both venues, a Bybit 502 went straight to `load()`'s
+     catch and the card printed "Signal unavailable right now" with a working source one
+     unreached line below. The owner reported exactly that, intermittently. The comment
+     above described behaviour the code did not have, and had done since #1059.
+
+     Order is unchanged - Bybit first, deliberately, for the egress reason above. */
+  return firstVenueThatAnswers<OHLCV[]>([
+    bySym ? { venue: 'Bybit', run: () => fetchBybitKlines(bySym, bybitInterval, limit) } : null,
+    bnSym ? { venue: 'Binance futures', run: () => fetchBinanceFuturesKlines(bnSym, bnInterval, limit) } : null,
+  ], coin, (failed, err, next) => {
+    /* Nothing collects this today - it is client-side and GlitchTip's coverage of it is unconfirmed.
+       Logged anyway because the alternative is that a venue failover leaves NO trace at all: the card
+       recovers, the user sees a signal, and nobody can answer how often the primary is down. */
+    console.warn(`[useEMAStrategy] ${failed} klines failed for ${coin}, falling back to ${next}:`,
+      err instanceof Error ? err.message : String(err));
+  });
 }
 
 /* ── Initial / loading state ─────────────────────────────────────────────── */
