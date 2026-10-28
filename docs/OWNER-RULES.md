@@ -152,6 +152,28 @@ No line may mention a feature or setup we do not have. No "cancel anytime" befor
 
 **Cancelling never forfeits paid time** — access runs to `ends_at`, then Free. Go-live criterion.
 
+### Copy that lives in the DATABASE skips every gate — check the render BEFORE writing it
+
+> owner, 2026-10-28
+
+**Label text is stored in the database, not in the code. A wording change therefore reaches the
+live site with NO build, NO tests and NO staging — it passes none of the three gates every code
+change passes.**
+
+**So: run QA's phone-width measurement against any changed label BEFORE applying it.** That spec
+exists (#1768, #1771). It catches clipping, wrapping and uppercase expansion in fixed-width
+containers.
+
+**What prompted it:** an approved wording change — `24h` to `24 hours` — went into a **40px fixed
+grid track**, uppercased and letter-spaced by the panel's own style. It wrapped to three lines and
+still overflowed by 2px. Live for an hour, caught by a teammate measuring at 390px, reverted.
+
+**Why automatic rather than careful:** a standing rule to check `text-transform` before approving a
+label with units already existed, and was not followed. **A second rule that relies on remembering
+would have been worth nothing.** The owner chose the automated option over eyeballing it.
+
+**The approval he gives is for the TEXT. The render is ours to verify.**
+
 ---
 
 ## 8. WHAT "CLOSED" MEANS
