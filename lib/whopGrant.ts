@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import type { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
-import { decideWhopEvent, extendedPeriodEnd, readWhopPayment, whopCompanyMatches } from '@/lib/whopEntitlement';
+import { decideWhopEvent, decideWhopMembership, extendedPeriodEnd, readWhopMembership, readWhopPayment, whopCompanyMatches } from '@/lib/whopEntitlement';
 import { payerOwnsAccount } from '@/lib/lemonsqueezy';
 import { apiError } from '@/lib/apiError';
 
@@ -51,6 +51,105 @@ export function retryHash(paymentId: string): string {
  *  email (Whop's member:email:read permission; see the PR: a STORED body that lacks the email cannot gain it on a retry). */
 export function isSettingsRefusal(reason: string): boolean {
   return reason.startsWith('unknown_plan:') || reason === 'no_payer_email' || reason === 'company_does_not_match';
+}
+
+/* THE MEMBERSHIP LINK (#1630 Step 1, the cancel flow). ONE MORE SMALL ROW, the same pattern as the three above: same table, no
+ * migration, primary key = a hash of the MEMBERSHIP id.
+ *
+ * It exists because a cancellation arrives as `membership.updated`, which names the MEMBERSHIP and nothing else - not the payment, not
+ * the account, and the email in it is a Whop profile address that need not be the LiquidityHQ one. Without a recorded link there is
+ * nothing to attach a cancellation to, so the state path matches on this row's key and never on an email. That also keeps the whole
+ * cancel path clear of Whop's `member:email:read` permission, which the GRANT path depends on and which has already produced refusals.
+ *
+ * The row's body carries { account_id, plan, cancel_at_period_end, canceled_at }. It is written at grant time, and the cancel fields
+ * are set and CLEARED by membership.updated. Nothing in it decides access.
+ *
+ * A payment whose body carried no membership id simply has no row: the cancel state is then unavailable for that account and the
+ * Settings panel falls back to the provider-managed view, which still links out to Whop. Degraded, never wrong. */
+export const WHOP_MEMBERSHIP_EVENT = 'lhq.membership';
+
+export function membershipHash(membershipId: string): string {
+  return crypto.createHash('sha256').update(`whop-membership:${membershipId}`).digest('hex');
+}
+
+export interface MembershipLinkBody { account_id: string; plan?: string | null; cancel_at_period_end?: boolean; canceled_at?: string | null }
+
+/** Links a membership to the account it granted Pro to. Best effort: a failure here costs the cancel STATE, never the grant, so it is
+ *  swallowed by the caller. A second payment on the same membership (a renewal) is a harmless duplicate key. */
+export async function recordMembershipLink(sb: Admin, i: { membershipId: string; accountId: string; plan?: string | null }): Promise<{ ok: boolean; error?: unknown }> {
+  const body: MembershipLinkBody = { account_id: i.accountId, plan: i.plan ?? null, cancel_at_period_end: false, canceled_at: null };
+  const { error } = await sb.from(T.whop_webhook_events).insert({
+    payload_hash: membershipHash(i.membershipId),
+    webhook_id: null,
+    event: WHOP_MEMBERSHIP_EVENT,
+    resource_id: i.membershipId,
+    body,
+  });
+  if (error && error.code !== '23505') return { ok: false, error };
+  return { ok: true };
+}
+
+export type MembershipOutcome =
+  | { kind: 'recorded'; membershipId: string; cancelAtPeriodEnd: boolean }
+  | { kind: 'ignored'; reason: string }
+  | { kind: 'review'; reason: string; membershipId: string | null }
+  | { kind: 'error'; what: string; err: unknown };
+
+/** A verified `membership.*` event, applied to the CANCEL STATE and to nothing else.
+ *
+ *  It writes no role, moves no period end, grants nothing and revokes nothing - `decideWhopPayment` still answers
+ *  `membership_event_never_grants_or_revokes` for the access question, unchanged. The only write is to this membership's own link row.
+ *
+ *  Both directions: `cancel_at_period_end` true records "will not renew", false CLEARS it. The clearing path is what keeps a
+ *  cancellation from being permanent - a customer who cancels and resubscribes would otherwise buy a period that then ends with no
+ *  grace, because the flag the demotion reads would still be set. */
+export async function applyWhopMembershipEvent(
+  sb: Admin,
+  i: { event: Record<string, unknown> },
+  env: Record<string, string | undefined> = process.env,
+  now: Date = new Date(),
+): Promise<MembershipOutcome> {
+  const decision = decideWhopMembership(i.event);
+  if (decision.kind === 'ignore') return { kind: 'ignored', reason: decision.reason };
+  if (decision.kind === 'review') return { kind: 'review', reason: decision.reason, membershipId: null };
+
+  const state = readWhopMembership(i.event);
+  if (state && !whopCompanyMatches({ companyId: state.companyId }, env.WHOP_COMPANY_ID)) {
+    return { kind: 'review', reason: 'company_does_not_match', membershipId: decision.membershipId };
+  }
+
+  const key = membershipHash(decision.membershipId);
+  const { data: link, error: readErr } = await sb.from(T.whop_webhook_events).select('body').eq('payload_hash', key).maybeSingle();
+  if (readErr) return { kind: 'error', what: 'membership link read', err: readErr };
+  // No link: this membership never granted Pro here (a payment before Step 1 shipped, a body with no membership id, or somebody else's
+  // membership entirely). The delivery is already recorded; there is nothing to attach and nothing to guess at.
+  if (!link || typeof link.body !== 'object' || link.body === null) return { kind: 'ignored', reason: 'membership_not_linked_to_an_account' };
+
+  const current = link.body as MembershipLinkBody;
+  const cancelled = decision.kind === 'cancelled';
+  const next: MembershipLinkBody = {
+    ...current,
+    cancel_at_period_end: cancelled,
+    canceled_at: cancelled ? (decision.canceledAt ?? now.toISOString()) : null,
+  };
+  const { error: writeErr } = await sb.from(T.whop_webhook_events).update({ body: next }).eq('payload_hash', key);
+  if (writeErr) return { kind: 'error', what: 'membership cancel-state write', err: writeErr };
+  return { kind: 'recorded', membershipId: decision.membershipId, cancelAtPeriodEnd: cancelled };
+}
+
+/** The cancel state for one ACCOUNT, for the Settings panel. Null when this account has no linked Whop membership, which is every
+ *  account that paid before Step 1 shipped - the panel then shows the provider-managed view rather than inventing a state. */
+export async function membershipStateForAccount(sb: Admin, accountId: string): Promise<{ cancelAtPeriodEnd: boolean; canceledAt: string | null } | null> {
+  const { data, error } = await sb
+    .from(T.whop_webhook_events)
+    .select('body')
+    .eq('event', WHOP_MEMBERSHIP_EVENT)
+    .eq('body->>account_id', accountId)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data || typeof data.body !== 'object' || data.body === null) return null;
+  const b = data.body as MembershipLinkBody;
+  return { cancelAtPeriodEnd: b.cancel_at_period_end === true, canceledAt: typeof b.canceled_at === 'string' ? b.canceled_at : null };
 }
 
 export const WHOP_PENDING_CLAIM_EVENT = 'lhq.pending_claim';
@@ -112,7 +211,7 @@ export async function grantToAccount(sb: Admin, accountId: string, d: { plan: st
 
 /** grantToAccount behind the APPLIED MARKER: the marker is written first, and only the writer that creates it may grant. A duplicate means
  *  this payment was already applied (by any path); nothing is written. If the grant does not happen, the marker is removed again. */
-export async function grantOnce(sb: Admin, paymentId: string, accountId: string, d: { plan: string; add: { months?: number; days?: number } }, now: Date = new Date()): Promise<GrantResult | { kind: 'already_applied' }> {
+export async function grantOnce(sb: Admin, paymentId: string, accountId: string, d: { plan: string; add: { months?: number; days?: number }; membershipId?: string | null }, now: Date = new Date()): Promise<GrantResult | { kind: 'already_applied' }> {
   const marker = appliedHash(paymentId);
   const { error: lockErr } = await sb.from(T.whop_webhook_events).insert({
     payload_hash: marker,
@@ -131,6 +230,15 @@ export async function grantOnce(sb: Admin, paymentId: string, accountId: string,
     /* QA on #1643: if this delete fails too, the marker stays and every later attempt (a Whop retry, the hourly retry, the sign-up claim) is
        answered "already applied" while the buyer has no Pro. That cannot fix itself, so it is reported for a person with the payment id. */
     if (unlockErr) apiError('whop/grant', new Error(`NEEDS MANUAL REVIEW: payment ${paymentId} was NOT granted (${res.kind}) and its applied marker could not be removed - every retry will now say "already applied". Delete the lhq.applied row for this payment after checking: ${unlockErr.message}`));
+    return res;
+  }
+  /* The membership link (#1630 Step 1), written only after a grant actually happened and only for a body that carried a membership id.
+     Best effort BY DESIGN: this row buys the cancel STATE, and a paid customer with no cancel state is a worse product than a paid
+     customer with one - but a paid customer with no PRO is the failure that matters, and that has already succeeded by this line. So a
+     failure here is reported and swallowed; it never turns a successful grant into an error. */
+  if (d.membershipId) {
+    const link = await recordMembershipLink(sb, { membershipId: d.membershipId, accountId, plan: d.plan });
+    if (!link.ok) apiError('whop/grant', new Error(`payment ${paymentId} granted, but its membership ${d.membershipId} could not be linked - the cancel state will be unavailable for this account: ${(link.error as { message?: string })?.message ?? String(link.error)}`));
   }
   return res;
 }

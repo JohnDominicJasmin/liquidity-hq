@@ -1317,6 +1317,8 @@ export const LABEL_KEYS = [
   'SETTINGS_SUB_CANCEL_CONFIRM_NO', 'SETTINGS_SUB_CANCELLING', 'SETTINGS_SUB_CANCELLED_UNTIL',
   'SETTINGS_SUB_CANCELLED_NO_DATE', 'SETTINGS_SUB_CANCEL_FAILED', 'SETTINGS_SUB_MANAGED',
   'SETTINGS_SUB_LOAD_FAILED',
+  // #1630 Step 1: the Whop-backed subscription panel - the state a paying customer actually has.
+  'SETTINGS_SUB_RENEWS_ON', 'SETTINGS_SUB_MANAGE_ON_WHOP', 'SETTINGS_SUB_CANCEL_KEEPS_ACCESS',
   // AI dollar caps (#1399 part 2). Owner-approved copy (PM batch with cancel copy).
   'AI_CAP_PRO_DAILY', 'AI_CAP_PRO_MONTHLY', 'AI_CAP_FREE_DAILY', 'AI_CAP_FUSE',
   // Chart setup chip tooltips (#1569): moved out of KLineProChart.tsx so the wording is a label, in every language.
