@@ -173,9 +173,25 @@ each with a path, a note and sometimes an interaction. **A seventh label is simp
 the run goes green without it.** The spec lives in `qa/`, so the entry is QA's to write: a label
 change with layout risk now has a QA handoff in front of it, deliberately.
 
-**WHEN IT APPLIES, so the cost stays proportionate:** when the new value is **longer than the old**,
-or lands in a **fixed-width container**. A change that shortens a string cannot clip. The trigger is
-mechanical on purpose — the judgement call is what failed last time.
+**WHEN IT APPLIES: any key that has no `TARGETS` entry yet.** First change to a key costs an entry;
+every later change to it is just a run. **No length comparison, no container inspection, no
+judgement** — and cheaper than a per-change test, because the cost is one-time per key.
+
+**Two triggers were tried first and both were wrong, recorded so they are not re-proposed.**
+*"The new value is longer than the old"* substitutes **character count for pixels**: these labels
+render in a proportional font, uppercased and letter-spaced, so a **shorter string of wide glyphs
+can be wider** than a longer string of narrow ones. *"It lands in a fixed-width container"* is
+sound but **not mechanical** — knowing the container means finding the render site and reading the
+CSS, which is exactly the inspection the rule exists because nobody did. Whoever writes a row
+usually has a key and a string; the 40px track was not visible from where the `24h` change was made.
+
+**So: the easy test was unsound and the sound test needed the work the rule routes around.** The
+key-without-an-entry trigger keeps both properties and needs neither.
+
+**It also composes with the spec itself.** Once the spec takes a candidate key and **fails loudly
+when that key has no registered target**, the trigger stops being something to remember: **run it,
+and it tells you whether an entry is owed.** An omission that fails is a different risk from an
+omission that passes.
 
 **What prompted it:** an approved wording change — `24h` to `24 hours` — went into a **40px fixed
 grid track**, uppercased and letter-spaced by the panel's own style. It wrapped to three lines and
