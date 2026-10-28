@@ -180,8 +180,19 @@ the string being written.**
 is a hardcoded map, injected wholesale over `/api/labels`, and each cell measures the value from that
 map — not the value you are shipping. **So for an already-registered key you could change the label,
 run the spec exactly as instructed, and watch it go green on the OLD string.** Both clauses are
-mechanical: *is the key in this list* and *is this exact string in this list*. No judgement returns. **No length comparison, no container inspection, no
-judgement** — and cheaper than a per-change test, because the cost is one-time per key.
+mechanical — *is the key in this list*, *is this exact string in this list* — so no length
+comparison, no container inspection and no judgement returns. **The cost is one entry per key, then
+one `PRODUCTION_VALUES` line per new value.**
+
+**THIS SECTION IS WRITTEN TO BE DELETED.** It has been revised four times in one day and **each
+revision introduced the next error** — length versus pixels, then container inspection not being
+mechanical, then a registered key not being sufficient, then a stale cost claim left standing four
+lines below its own correction. Every one was caught by a reader rather than its author, which is
+the system working **and** the signal that prose is the wrong medium for this rule.
+
+**When the spec FAILS on an unregistered key or an unmatched value, delete everything below the
+first paragraph and replace it with one line: run the command.** A rule a command enforces does not
+need four paragraphs on when to remember it. **Do not revise this a fifth time; remove it.**
 
 **Two triggers were tried first and both were wrong, recorded so they are not re-proposed.**
 *"The new value is longer than the old"* substitutes **character count for pixels**: these labels
