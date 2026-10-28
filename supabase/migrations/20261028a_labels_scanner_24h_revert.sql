@@ -1,0 +1,61 @@
+-- #675 INVERTED: the shipped default was the CLIPPING value and only a database row was holding the line.
+--
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ALREADY APPLIED to both databases, by PM/DevOps, ~12:00Z on 2026-10-27, as part of the revert.
+-- This file RECORDS a change that has already happened. Verified against the live production
+-- /api/labels payload on 2026-10-28 before writing it, all five locales.
+--
+-- It is here because 20261022b and 20261022d still say `24 hours`, so a fresh seed - or anyone
+-- replaying the migrations - reintroduces the value that clips. Same reason 20261023c and
+-- 20261023d exist: a live state no migration explains is how the next reader concludes the
+-- opposite of what is true.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- ── WHAT WAS WRONG, AND WHICH HALF ─────────────────────────────────────────────────────────────
+--
+-- `24h` -> `24 hours` was approved copy. It landed in the scanner flyout's THIRD grid track, which
+-- is 40px at <=480px (app/globals.css, `.scanner-flyout-grid: 1fr 65px 40px 60px 28px`), uppercased
+-- and letter-spaced by the header's own style (app/arena/page.tsx:2014). Measured at 390px: box
+-- 40x33, scrollWidth 42 against clientWidth 40 - wrapped to three lines and still 2px over.
+--
+-- The DATABASE row was reverted. `lib/labelDefaults.en.json` WAS NOT, and nor was the migration
+-- history. Since a DB row silently wins over the shipped default (lib/labelOverrides.ts), the only
+-- thing standing between production and the clipping render was one row that no migration
+-- recorded. Delete or reset it and the clip returns, with nothing in the repository explaining why.
+--
+-- The shipped default is corrected in the same commit as this file. QA's own fixture
+-- (qa/fixtures/proxy/labels.json) already held `24h`, so the default was the outlier of the three.
+--
+-- ── TWO LOCALES, NOT ONE ───────────────────────────────────────────────────────────────────────
+--
+-- Reported as an `en` problem, and `ru` is the same shape. Measured live, all five:
+--
+--   en   live "24h"        20261022b says "24 hours"    <- differs
+--   ru   live "24ч"        20261022d says "24 часа"     <- differs
+--   ar   live "24 ساعة"     matches
+--   ko   live "24시간"       matches
+--   zh   live "24小时"       matches
+--
+-- The detector that found this reads `lib/labelDefaults.en.json`, which is English only, so it
+-- cannot see a non-English row that drifted. `ru` was reverted alongside `en` and recorded nowhere.
+-- An instrument scoped to one locale reporting on all of them is the thing to watch here.
+--
+-- ── NOT A JUDGEMENT ON THE COPY ────────────────────────────────────────────────────────────────
+--
+-- The owner approved the plain-language wording and that approval stands; what failed was the
+-- render, in one container, at one breakpoint. The constraint is kept executable rather than
+-- forgotten: `qa/labelCandidates.ts` still carries `24 hours` for this key with `expectOverflow`,
+-- so the spec asserts it does NOT fit. If the track is ever widened or the tracking dropped, that
+-- cell goes red and the long form can be revisited.
+
+insert into lhq_labels (key, locale, value) values
+('ARENA_SCANNER_COL_24H','en','24h'),
+('ARENA_SCANNER_COL_24H','ru','24ч')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();
+
+-- DEV: the same rows against lhq_dev_labels.
+--
+-- insert into lhq_dev_labels (key, locale, value) values
+-- ('ARENA_SCANNER_COL_24H','en','24h'),
+-- ('ARENA_SCANNER_COL_24H','ru','24ч')
+-- on conflict (key, locale) do update set value = excluded.value, updated_at = now();
