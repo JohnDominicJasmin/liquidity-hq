@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
+import { CANDIDATES, candidateValues, type LabelCandidate, type OpenerName } from '../labelCandidates.ts';
 
 /* #675: DO THE PLAIN-LANGUAGE LABELS FIT AT 390px, AND WHAT DOES UPPERCASE DO TO THEM?
  *
@@ -39,47 +40,24 @@ import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 const WIDTH = 390;
 const HEIGHT = 844;
 
-/* The six values as MEASURED on production `lhq_labels`, locale en, 2026-10-27 - not invented and not taken
-   from the issue text, because an injected value that does not match production would measure a string nobody
-   ships.
+/* THE CANDIDATES NOW LIVE IN `qa/labelCandidates.ts` AND NOT HERE, which is the point rather than tidiness.
+ *
+ * This file used to hold three parallel lists - the injected values, their previous values, and the targets
+ * to measure - and a label present in the first two and absent from the third was measured by nobody while
+ * the run went green. That happened: six values injected, five measured (#1771). `docs/OWNER-RULES.md` §7
+ * then made adding a target a written rule, which is the same omission relying on someone's memory.
+ *
+ * One list, with `path` and `note` REQUIRED, makes the omission impossible to write instead of a thing to
+ * remember. `__tests__/labelCandidates.test.mts` enforces the rest in the pre-push gate.
+ *
+ * Everything below this line is unchanged: the three names are derived so the refactor cannot alter what is
+ * measured or how it is reported. */
+const PRODUCTION_VALUES = candidateValues();
+const PREVIOUS: Record<string, string> = Object.fromEntries(CANDIDATES.map((c) => [c.key, c.was]));
 
-   ONE OF THEM NO LONGER MATCHES PRODUCTION, AND THAT IS DELIBERATE. `ARENA_SCANNER_COL_24H` was reverted to
-   `24h` on production and dev at ~12:00Z on 2026-10-27, because this spec measured the long form CLIPPING its
-   40px track - box 40x33, scrollWidth 42 against clientWidth 40. The long form is kept here on purpose as the
-   constraint under test: its cell asserts that `24 HOURS` does NOT fit, which is the finding that caused the
-   revert. See `expectOverflow` below. Every other value is production's current string. */
-const PRODUCTION_VALUES: Record<string, string> = {
-  MARKET_CONDITIONS_WIDGET_RSI_LABEL: 'BTC RSI (15-minute chart)',
-  HOURS_SESSION_MAP_TITLE: '24-hour session map',
-  ARENA_SCANNER_COL_24H: '24 hours',
-  MARKETS_24H_COL_LABEL: '24 hours',
-  FUNDING_RANGE_24H: '24 hours',
-  ABSORPTION_DETECTOR_MTF_BADGE: '1-hour ✓',
-};
-
-/* What each string was before, so the report says how much longer it got rather than only how wide it is. */
-const PREVIOUS: Record<string, string> = {
-  MARKET_CONDITIONS_WIDGET_RSI_LABEL: 'BTC RSI (14, 15m)',
-  HOURS_SESSION_MAP_TITLE: '24h Session Map',
-  ARENA_SCANNER_COL_24H: '24h',
-  MARKETS_24H_COL_LABEL: '24h',
-  FUNDING_RANGE_24H: '24h',
-  ABSORPTION_DETECTOR_MTF_BADGE: '1H ✓',
-};
-
-interface Target {
-  key: string;
-  path: string;
-  note: string;
-  /* Some labels sit behind an interaction. The scanner column headers live in a hover flyout that is
-     conditionally rendered, so nothing measures them until it is open. */
-  open?: (page: import('@playwright/test').Page) => Promise<void>;
-  /* A target whose injected string is EXPECTED not to fit. Used for a copy change that was reverted because
-     it clipped: the cell pins the constraint rather than sitting permanently red. It goes red if someone
-     widens the track, drops the tracking, or shortens the string - all of which would mean the long form had
-     become viable and the revert could be revisited. */
-  expectOverflow?: boolean;
-}
+/** A candidate plus the resolved opener. `labelCandidates.ts` names the opener as a string so it stays free
+ *  of browser types; this is where the name becomes the function. */
+type Target = LabelCandidate & { open?: (page: import('@playwright/test').Page) => Promise<void> };
 
 /* The scanner flyout opens on an 800ms hover timer (app/arena/page.tsx:598) attached to an unclassed wrapper
    div. mouseenter on a parent fires when entering a child, so hovering anything inside the trigger bar is
@@ -120,44 +98,17 @@ async function openScannerFlyout(page: import('@playwright/test').Page) {
   await page.waitForTimeout(600);
 }
 
-const TARGETS: Target[] = [
-  { key: 'MARKET_CONDITIONS_WIDGET_RSI_LABEL', path: '/dashboard', note: 'uppercase inline, .06em tracking, flex space-between with the value on the right' },
-  { key: 'HOURS_SESSION_MAP_TITLE', path: '/hours', note: 'uppercase via .lbl, .12em tracking' },
-  { key: 'MARKETS_24H_COL_LABEL', path: '/markets', note: 'column header, right-aligned' },
-  { key: 'FUNDING_RANGE_24H', path: '/funding', note: 'range selector' },
-  /* /arena, not /dashboard - AbsorptionDetector renders from app/arena/page.tsx. And the badge is gated on
-     `d.mtfConfirmed` (AbsorptionDetector.tsx:342), a live-market condition, so it is absent most of the time
-     through no fault of the override. The sentinel below tells those two apart. */
-  {
-    key: 'ABSORPTION_DETECTOR_MTF_BADGE',
-    path: '/arena',
-    note: 'badge, flex-shrink: 0, gated on d.mtfConfirmed',
-    /* THE HOVER IS HERE FOR THE SENTINEL, NOT FOR THIS BADGE. On /arena the only two injected values are the
-       scanner column header (behind this hover) and this badge (behind live-market state). With neither
-       rendered the sentinel cannot tell "the override failed" from "the render condition is unmet", so the
-       cell failed when it should have skipped. Opening the flyout puts a known injected string on the page,
-       which lets the sentinel confirm the override took and attribute the missing badge correctly. */
-    open: openScannerFlyout,
-  },
-  /* THE SIXTH TARGET, ADDED AFTER PM AND DEV CAUGHT IT MISSING. It was in PRODUCTION_VALUES and PREVIOUS and
-     absent from TARGETS - six values injected, five measured - and it is the strongest candidate in the set
-     rather than an also-ran:
-       - it renders UPPERCASE (app/arena/page.tsx:2014, textTransform uppercase, letterSpacing .07em,
-         fs-micro), so this change has THREE uppercase labels and the spec was measuring two;
-       - the flyout grid at <=480px is `1fr 65px 40px 60px 28px` (globals.css:1588) with `vsbtc` hidden, and
-         the full column array is name, price, 24h, vsbtc, status, score - so the five VISIBLE headers map
-         onto the five tracks and `24h` lands on the 40px one;
-       - the string goes `24H` -> `24 HOURS`.
-     `24H` fits 40px. `24 HOURS` uppercased and letter-spaced is exactly what this spec exists to catch, and
-     if it cannot fit then "leave it uppercase" is not an option the owner can pick for this label at all. */
-  {
-    key: 'ARENA_SCANNER_COL_24H',
-    path: '/arena',
-    note: 'flyout column header, 40px fixed track at <=480px, uppercase + .07em tracking',
-    expectOverflow: true,
-    open: openScannerFlyout,
-  },
-];
+/** Resolves an `opener` name to the function. Exhaustive BY TYPE: adding a name in `labelCandidates.ts` is a
+ *  compile error here until it is handled, which is what a loose string lookup would give away. */
+const OPENERS: Record<OpenerName, (page: import('@playwright/test').Page) => Promise<void>> = {
+  scannerFlyout: openScannerFlyout,
+};
+
+/* Derived from the one list, in its order. NOTHING is selected or filtered here, deliberately: every
+   candidate gets a cell, which is what makes "injected but not measured" unrepresentable rather than
+   reviewed for. The notes and the reasoning that used to sit in this array are in `labelCandidates.ts`,
+   beside the values they describe. */
+const TARGETS: Target[] = CANDIDATES.map((c) => ({ ...c, open: c.opener ? OPENERS[c.opener] : undefined }));
 
 async function installLabelOverride(page: import('@playwright/test').Page) {
   await page.route('**/api/labels*', async (route) => {
