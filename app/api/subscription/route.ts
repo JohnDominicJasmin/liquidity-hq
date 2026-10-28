@@ -60,9 +60,18 @@ export async function GET(req: NextRequest) {
     let cancelAtPeriodEnd = false;
     let canceledAt: string | null = null;
     if (role === 'pro' && provider === 'whop') {
-      const state = await membershipStateForAccount(db, userId);
-      cancelAtPeriodEnd = state?.cancelAtPeriodEnd === true;
-      canceledAt = state?.canceledAt ?? null;
+      /* FAILS TO "NOT CANCELLED", NEVER TO A FAILED PANEL. This is a second table, so it is a second thing that can be down - and the
+       * subscription panel must not disappear because the cancel STATE could not be read. The reader already turns a returned error
+       * into null; this catch covers the read throwing, which is a different failure and the one that would otherwise reach the 503
+       * below and blank a working panel. Degrading to the renewing view costs a cancelling customer a sentence; a 503 costs every Pro
+       * their whole panel. */
+      try {
+        const state = await membershipStateForAccount(db, userId);
+        cancelAtPeriodEnd = state?.cancelAtPeriodEnd === true;
+        canceledAt = state?.canceledAt ?? null;
+      } catch (e) {
+        console.error('[subscription] cancel state:', e instanceof Error ? e.message : String(e));
+      }
     }
 
     return NextResponse.json({ role, lsStatus, currentPeriodEnd, hasSubscription, canCancel, provider, cancelAtPeriodEnd, canceledAt });
