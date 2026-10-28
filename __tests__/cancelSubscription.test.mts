@@ -108,11 +108,12 @@ const seed = (uid: string, over: Row = {}) => {
  * code by construction, and a rename would then pass silently. The import is asserted against the literal once, in W0. */
 const MEM_A = 'mem_TESTONLY_A';
 const seedWhop = (uid: string, over: Row = {}) => seed(uid, { billing_provider: 'whop', ls_subscription_id: null, ls_status: '', ...over });
-const seedMembership = (uid: string, state: { cancel_at_period_end?: boolean; canceled_at?: string | null; membershipId?: string } = {}) => {
+const seedMembership = (uid: string, state: { cancel_at_period_end?: boolean; canceled_at?: string | null; membershipId?: string; received_at?: string } = {}) => {
   world.whopRows.push({
     payload_hash: `hash-of-${state.membershipId ?? MEM_A}`,
     event: 'lhq.membership',
     resource_id: state.membershipId ?? MEM_A,
+    received_at: state.received_at ?? '2026-10-28T17:00:00.000Z',
     body: { account_id: uid, plan: 'monthly', cancel_at_period_end: state.cancel_at_period_end ?? false, canceled_at: state.canceled_at ?? null },
   });
 };
@@ -164,6 +165,17 @@ globalThis.fetch = (async (input: unknown, init: { method?: string; headers?: He
       if (wantAccount !== null && (r.body as { account_id?: unknown } | null)?.account_id !== wantAccount) return false;
       return true;
     });
+    /* THE SORT IS NOT DECORATION. The route picks one row with `limit(1)`, so a stand-in that ignored `order` would hand back
+       whatever was seeded first and W6 below would pass whether or not the query orders at all - a vacuous test on the exact
+       defect it exists to catch. Parsed as PostgREST writes it: `order=received_at.desc,payload_hash.desc`. */
+    for (const term of (url.searchParams.get('order') ?? '').split(',').filter(Boolean).reverse()) {
+      const [col, dir] = term.split('.');
+      const sign = dir === 'desc' ? -1 : 1;
+      matches.sort((a, b) => {
+        const x = String(a[col as string] ?? ''), y = String(b[col as string] ?? '');
+        return x < y ? -sign : x > y ? sign : 0;
+      });
+    }
     const limit = Number(url.searchParams.get('limit') ?? NaN);
     const page = Number.isFinite(limit) ? matches.slice(0, limit) : matches;
     const cols = (url.searchParams.get('select') ?? '*').split(',').map((c) => c.trim());
@@ -623,6 +635,59 @@ test('W4. a Whop Pro with NO link row (paid before Step 1, or a body with no mem
   assert.equal(r.status, 200);
   assert.equal(r.body.provider, 'whop');
   assert.equal(r.body.cancelAtPeriodEnd, false, 'no link row must not invent a cancel state');
+});
+
+/* W6/W7 — ONE ACCOUNT, TWO LINK ROWS. The rule dev named after QA found the defect: order by `received_at` descending with
+ * `payload_hash` as the tie-break, so the newest membership - the one that last paid - decides the panel.
+ *
+ * How two rows happen: the link row's key is a hash of the MEMBERSHIP id, so a customer who cancels and later buys again gets a
+ * SECOND row rather than an update, and `uncancelled` only ever clears the row its own event names. The first membership's row
+ * therefore keeps `cancel_at_period_end: true` for good.
+ *
+ * WHY THIS IS ASSERTED AT ALL, since the code is now correct: without it, nothing stops the ordering being dropped by somebody
+ * tidying the query, and the symptom would be a renewing, paying customer told their access is ending - the same lie this PR
+ * exists to remove. The rows below are seeded OLDEST FIRST on purpose, so an unordered query returns the cancelled one. */
+test('W6. two link rows: the NEWEST membership decides, not whichever row the table hands back first', async () => {
+  reset();
+  seedWhop(UID_A);
+  seedMembership(UID_A, { membershipId: 'mem_OLD', received_at: '2026-10-28T10:00:00.000Z', cancel_at_period_end: true, canceled_at: '2026-10-28T10:00:00.000Z' });
+  seedMembership(UID_A, { membershipId: 'mem_NEW', received_at: '2026-10-28T18:00:00.000Z', cancel_at_period_end: false });
+  const r = await subRoute(TOKEN_A);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.cancelAtPeriodEnd, false, 'a resubscribed customer is being told their access is ending');
+  assert.equal(r.body.canceledAt, null, 'the old membership\'s cancel date leaked into the panel');
+});
+
+test('W7. the same two rows the other way round, and a tie is deterministic', async () => {
+  // Seeded newest-first this time: a query that happens to work by seed order must not be what W6 measured.
+  reset();
+  seedWhop(UID_A);
+  seedMembership(UID_A, { membershipId: 'mem_NEW', received_at: '2026-10-28T18:00:00.000Z', cancel_at_period_end: false });
+  seedMembership(UID_A, { membershipId: 'mem_OLD', received_at: '2026-10-28T10:00:00.000Z', cancel_at_period_end: true });
+  assert.equal((await subRoute(TOKEN_A)).body.cancelAtPeriodEnd, false);
+
+  /* The newest row CANCELLED must still read as cancelled - the rule is "newest wins", not "renewing wins". Without this, a fix
+   * that just preferred an uncancelled row would pass W6 and hide a real cancellation. */
+  reset();
+  seedWhop(UID_A);
+  seedMembership(UID_A, { membershipId: 'mem_OLD', received_at: '2026-10-28T10:00:00.000Z', cancel_at_period_end: false });
+  seedMembership(UID_A, { membershipId: 'mem_NEW', received_at: '2026-10-28T18:00:00.000Z', cancel_at_period_end: true });
+  assert.equal((await subRoute(TOKEN_A)).body.cancelAtPeriodEnd, true, 'the newest membership is cancelled and the panel says otherwise');
+
+  /* Same timestamp, different keys: the tie-break makes the answer STABLE. Which of the two wins is dev's choice and not
+   * asserted here - determinism is the property that was missing, and two identical calls proving equal is what pins it.
+   *
+   * AND THE LIMIT OF THAT, MEASURED RATHER THAN GUESSED: removing the `payload_hash` tie-break from the query leaves this
+   * assertion GREEN, because the stand-in's sort is stable and hands back the same row either way. So this pins "the route
+   * answers the same thing twice", NOT "the query has a tie-break". Only a real Postgres with two rows at the same timestamp
+   * can show the difference. Stated here so nobody reads it as coverage it does not have. */
+  reset();
+  seedWhop(UID_A);
+  seedMembership(UID_A, { membershipId: 'mem_TIE_A', received_at: '2026-10-28T12:00:00.000Z', cancel_at_period_end: true });
+  seedMembership(UID_A, { membershipId: 'mem_TIE_B', received_at: '2026-10-28T12:00:00.000Z', cancel_at_period_end: false });
+  const first = (await subRoute(TOKEN_A)).body.cancelAtPeriodEnd;
+  const second = (await subRoute(TOKEN_A)).body.cancelAtPeriodEnd;
+  assert.equal(first, second, 'two identical reads disagreed: the tie-break is not deterministic');
 });
 
 test('W5. the second read happens ONLY for a live Whop Pro - never for a free row, a Lemon Squeezy row, or a lapsed Pro', async () => {
