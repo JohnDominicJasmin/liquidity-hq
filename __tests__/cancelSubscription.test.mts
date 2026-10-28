@@ -69,6 +69,11 @@ const lsSuccess = (attrs: Record<string, unknown> = { status: 'cancelled', cance
 const world = {
   tokens: new Map<string, string>(),
   rows: new Map<string, Row>(),
+  /* #1630 Step 1: the `lhq.membership` link rows, in the SAME table as every other Whop row. Held as a list rather than a map
+     because the key is a hash of the membership id and the route looks them up by `body->>account_id`, not by key. */
+  whopRows: [] as Row[],
+  /* The cancel-state read THROWING, which is a different failure from it returning an error and is the one that reached the 503. */
+  whopThrows: false,
   dbError: false,
   lsThrows: false,
   lsHangs: false,
@@ -80,6 +85,8 @@ function reset(over: { key?: string | undefined } = { key: LS_KEY }) {
   calls.length = 0;
   world.tokens = new Map([[TOKEN_A, UID_A], [TOKEN_B, UID_B]]);
   world.rows = new Map();
+  world.whopRows = [];
+  world.whopThrows = false;
   world.dbError = false;
   world.lsThrows = false;
   world.lsHangs = false;
@@ -93,6 +100,20 @@ const seed = (uid: string, over: Row = {}) => {
   world.rows.set(uid, {
     user_id: uid, role: 'pro', ls_status: 'active', ls_subscription_id: uid === UID_A ? 'SUB_A' : 'SUB_B',
     ls_customer_id: uid === UID_A ? 'CUST_A' : 'CUST_B', current_period_end: '2099-09-25T00:00:00.000Z', ...over,
+  });
+};
+
+/* A Whop customer: the row says which processor it is on, and a `lhq.membership` link row carries the cancel state.
+ * The event name is written as a LITERAL here on purpose - taking it from the import would make the fixture agree with the
+ * code by construction, and a rename would then pass silently. The import is asserted against the literal once, in W0. */
+const MEM_A = 'mem_TESTONLY_A';
+const seedWhop = (uid: string, over: Row = {}) => seed(uid, { billing_provider: 'whop', ls_subscription_id: null, ls_status: '', ...over });
+const seedMembership = (uid: string, state: { cancel_at_period_end?: boolean; canceled_at?: string | null; membershipId?: string } = {}) => {
+  world.whopRows.push({
+    payload_hash: `hash-of-${state.membershipId ?? MEM_A}`,
+    event: 'lhq.membership',
+    resource_id: state.membershipId ?? MEM_A,
+    body: { account_id: uid, plan: 'monthly', cancel_at_period_end: state.cancel_at_period_end ?? false, canceled_at: state.canceled_at ?? null },
   });
 };
 
@@ -126,6 +147,27 @@ globalThis.fetch = (async (input: unknown, init: { method?: string; headers?: He
     if (!row) return json([]);
     const cols = (url.searchParams.get('select') ?? '*').split(',').map((c) => c.trim());
     return json([cols[0] === '*' ? row : Object.fromEntries(cols.map((c) => [c, row[c]]))]);
+  }
+  /* #1630 Step 1. Before this existed, any request here threw, the route's outer catch turned that into a 503, and a test that
+     seeded a Whop row got `{error:'Failed to load'}` instead of a panel - which is how the degrade below came to be written. */
+  if (url.pathname.endsWith('_whop_webhook_events')) {
+    if (world.whopThrows) throw new TypeError('stand-in: the cancel-state read threw');
+    if (method !== 'GET') return new Response(null, { status: 201 });
+    const eq = (p: string) => {
+      const v = url.searchParams.get(p);
+      return v === null ? null : v.replace(/^eq\./, '');
+    };
+    const wantEvent = eq('event'), wantKey = eq('payload_hash'), wantAccount = eq('body->>account_id');
+    const matches = world.whopRows.filter((r) => {
+      if (wantEvent !== null && r.event !== wantEvent) return false;
+      if (wantKey !== null && r.payload_hash !== wantKey) return false;
+      if (wantAccount !== null && (r.body as { account_id?: unknown } | null)?.account_id !== wantAccount) return false;
+      return true;
+    });
+    const limit = Number(url.searchParams.get('limit') ?? NaN);
+    const page = Number.isFinite(limit) ? matches.slice(0, limit) : matches;
+    const cols = (url.searchParams.get('select') ?? '*').split(',').map((c) => c.trim());
+    return json(page.map((r) => (cols[0] === '*' ? r : Object.fromEntries(cols.map((c) => [c, r[c]])))));
   }
   throw new Error(`stand-in got an unexpected request: ${method} ${url}`);
 }) as typeof fetch;
@@ -492,32 +534,119 @@ for (const c of CAN_CANCEL) {
   });
 }
 
-/* G3 PINS AN ALLOW LIST, NOT AN EXACT SET, AND THAT IS A SEQUENCING DECISION RATHER THAN A WEAKER TEST.
- * CONTRIBUTING.md fixes the order as: dev pushes the implementation, THEN QA commits the test onto that branch -
- * because `.githooks/pre-push` runs the whole suite on every push, so a test pinning fields that do not exist yet
- * cannot be pushed by anyone. The cancel-state work adds `cancelAtPeriodEnd`, `canceledAt` and `provider`.
- *
- * So REQUIRED is what the route answers today and ALLOWED is the full eight. A ninth field still fails, a REMOVAL
- * still fails, and the three new fields get pinned as required on dev's branch once it is pushed - which is the
- * narrow window CONTRIBUTING.md names, closed before the merge rather than after it. */
-const REQUIRED_SUB_FIELDS = ['canCancel', 'currentPeriodEnd', 'hasSubscription', 'lsStatus', 'role'];
-const ALLOWED_SUB_FIELDS = [...REQUIRED_SUB_FIELDS, 'cancelAtPeriodEnd', 'canceledAt', 'provider'];
+/* G3 IS NOW THE EXACT SET AGAIN - the eight fields #1630 Step 1 documents. It was briefly a required-set-plus-allow-list,
+ * which is what let dev push the implementation at all (CONTRIBUTING.md step 0: a pin that blocks dev's push is loosened to a
+ * both-trees-green form first, then tightened on dev's pushed branch BEFORE the merge). This is that tightening: the three new
+ * fields are required here, so dev omitting one now fails rather than passing quietly. */
+const SUB_FIELDS = ['role', 'lsStatus', 'currentPeriodEnd', 'hasSubscription', 'canCancel', 'provider', 'cancelAtPeriodEnd', 'canceledAt'];
 
-test('G3. the response carries every documented field, nothing outside the allow list, and never the subscription, customer or membership id', async () => {
+test('G3. the response carries exactly the eight documented fields, and never the subscription, customer or membership id', async () => {
   reset();
   /* Seeded so the leak checks below have something to find. The membership id is deliberately server-side only:
    * the route neither selects nor returns it, and the stand-in REST layer returns only the selected columns, so
    * this can fail only if the route starts selecting `*` or spreading the row - exactly the regression it is for. */
-  seed(UID_A, { whop_membership_id: 'mem_TESTONLY', billing_provider: 'whop' });
+  seedWhop(UID_A, { whop_membership_id: 'mem_TESTONLY' });
+  seedMembership(UID_A);
   const r = await subRoute(TOKEN_A);
-  const keys = Object.keys(r.body).sort();
-  for (const f of REQUIRED_SUB_FIELDS) assert.ok(keys.includes(f), `the response dropped ${f}`);
-  const extra = keys.filter((k) => !ALLOWED_SUB_FIELDS.includes(k));
-  assert.deepEqual(extra, [], `the response carries fields outside the allow list: ${extra.join(', ')}`);
+  // Sorted by the same call on both sides: hand-sorting this list is how a reviewer's own ordering mistake becomes a failing test.
+  assert.deepEqual(Object.keys(r.body).sort(), [...SUB_FIELDS].sort());
   const text = JSON.stringify(r.body);
   for (const secret of ['SUB_A', 'CUST_A', UID_A, 'mem_TESTONLY']) assert.equal(text.includes(secret), false, `${secret} is in the response`);
   assert.doesNotMatch(text, /\bmem_[A-Za-z0-9]/, 'a Whop membership id is in the response');
   assert.equal('whop_membership_id' in r.body, false, 'whop_membership_id is in the response');
+});
+
+/* ══ W — #1630 Step 1: the cancel STATE on GET /api/subscription ═══════════════════════════════════════════════════
+ *
+ * The second read this adds is the first thing in this file to touch a table other than `_user_subscriptions`, and the
+ * stand-in used to throw for it. That throw became a 503 through the route's outer catch, which is the fault W3 pins. */
+
+/* IMPORTED DYNAMICALLY, AND NOT BY PREFERENCE. A static `import … from '../lib/whopGrant.ts'` at the top of this file breaks
+ * SIX unrelated tests, because static imports are evaluated BEFORE the module body - so `@sentry/nextjs` would be resolved and
+ * loaded by the real resolver before the `register()` hook above installs the stub, and `apiError` then dies with
+ * "Sentry.captureException is not a function" in every P-layer test that logs. Anything in this file that reaches app code must
+ * be imported inside a test, the way `cancelRoute` and `subRoute` already do it. */
+test('W0. the link row\'s event name is the string this file\'s fixtures use', async () => {
+  const { WHOP_MEMBERSHIP_EVENT } = await import('../lib/whopGrant.ts');
+  assert.equal(WHOP_MEMBERSHIP_EVENT, 'lhq.membership');
+});
+
+test('W1. a Whop Pro that is renewing: provider whop, not cancelled, no cancel date', async () => {
+  reset();
+  seedWhop(UID_A);
+  seedMembership(UID_A);
+  const r = await subRoute(TOKEN_A);
+  assert.equal(r.status, 200);
+  assert.deepEqual({ role: r.body.role, provider: r.body.provider, cancelAtPeriodEnd: r.body.cancelAtPeriodEnd, canceledAt: r.body.canceledAt },
+    { role: 'pro', provider: 'whop', cancelAtPeriodEnd: false, canceledAt: null });
+});
+
+test('W2. a Whop Pro that has cancelled: the recorded state comes back, with the cancel date', async () => {
+  reset();
+  seedWhop(UID_A);
+  seedMembership(UID_A, { cancel_at_period_end: true, canceled_at: '2026-10-28T17:00:00.000Z' });
+  const r = await subRoute(TOKEN_A);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.cancelAtPeriodEnd, true);
+  assert.equal(r.body.canceledAt, '2026-10-28T17:00:00.000Z');
+  assert.equal(r.body.role, 'pro', 'a cancelled membership inside its paid period is still Pro');
+});
+
+test('W3. A FAILED CANCEL-STATE READ MUST NOT BLANK THE PANEL: 200 with the whole row, degraded to not cancelled', async (t) => {
+  /* A second table is a second thing that can be down: degrading costs a cancelling customer one sentence, a 503 costs every
+   * Pro their whole panel.
+   *
+   * WHAT THIS COVERS, STATED EXACTLY, BECAUSE IT IS NOT WHAT IT LOOKS LIKE. The stand-in below rejects, but `fetch` here is an
+   * async function, so a rejection is what supabase-js receives - and it converts that into a RETURNED error rather than
+   * propagating it. So this exercises `membershipStateForAccount`'s `if (error || !data) return null`, NOT the route's
+   * try/catch. MEASURED, not assumed: with the catch's body replaced by `throw e`, this test still passes, which is how the
+   * difference came to light. The catch is a second guard for a genuine synchronous throw, and nothing in this harness can
+   * induce one - see the mutation controls, where making the reader itself throw shows the catch absorbing it. */
+  t.mock.method(console, 'error', () => {});
+  reset();
+  seedWhop(UID_A);
+  seedMembership(UID_A, { cancel_at_period_end: true });
+  world.whopThrows = true;
+  const r = await subRoute(TOKEN_A);
+  assert.equal(r.status, 200, 'the cancel-state read threw and the panel was lost');
+  assert.deepEqual({ role: r.body.role, provider: r.body.provider, hasSubscription: r.body.hasSubscription },
+    { role: 'pro', provider: 'whop', hasSubscription: false }, 'the rest of the panel must survive the throw');
+  assert.equal(r.body.cancelAtPeriodEnd, false, 'it must degrade TOWARD access: unreadable is not cancelled');
+  assert.equal(r.body.canceledAt, null);
+  assert.equal('error' in r.body, false, 'the throw reached the outer catch and became a 503');
+});
+
+test('W4. a Whop Pro with NO link row (paid before Step 1, or a body with no membership id) reads as not cancelled', async () => {
+  reset();
+  seedWhop(UID_A);
+  const r = await subRoute(TOKEN_A);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.provider, 'whop');
+  assert.equal(r.body.cancelAtPeriodEnd, false, 'no link row must not invent a cancel state');
+});
+
+test('W5. the second read happens ONLY for a live Whop Pro - never for a free row, a Lemon Squeezy row, or a lapsed Pro', async () => {
+  const whopReads = () => calls.filter((c) => c.url.includes('_whop_webhook_events'));
+  for (const c of [
+    { name: 'a Lemon Squeezy Pro', row: {} as Row },
+    { name: 'a free row', row: { role: 'free' } as Row },
+    { name: 'a lapsed Whop Pro', row: { billing_provider: 'whop', current_period_end: '2020-01-01T00:00:00.000Z' } as Row },
+  ]) {
+    reset();
+    seed(UID_A, c.row);
+    seedMembership(UID_A, { cancel_at_period_end: true });
+    const r = await subRoute(TOKEN_A);
+    assert.equal(r.status, 200, c.name);
+    assert.equal(whopReads().length, 0, `${c.name}: the cancel-state read ran when it should not have`);
+    assert.equal(r.body.cancelAtPeriodEnd, false, `${c.name}: a cancel state was reported without being read`);
+  }
+  // And the positive control: with a live Whop Pro it DOES run, so the three zeros above are not just a broken counter.
+  reset();
+  seedWhop(UID_A);
+  seedMembership(UID_A, { cancel_at_period_end: true });
+  const r = await subRoute(TOKEN_A);
+  assert.equal(whopReads().length, 1, 'a live Whop Pro must read the cancel state exactly once');
+  assert.equal(r.body.cancelAtPeriodEnd, true);
 });
 
 test('G4. user isolation: each token sees only its own row', async () => {
@@ -715,6 +844,50 @@ test('S6. a FREE user whose cancelled subscription has already ended is shown no
 test('S7. a PRO user who cancelled and is still in grace keeps the cancelled view (the role check moved first, not the cancelled branch away)', () => {
   const v = subscriptionPanelView(panel({ role: 'pro', lsStatus: 'cancelled', currentPeriodEnd: FUTURE, canCancel: false }), NOW);
   assert.deepEqual(v, { kind: 'cancelled', untilDate: FUTURE });
+});
+
+/* ── #1630 Step 1: the PROVIDER path, which is the better guard than the response field list ──────────────────
+ *
+ * THE BUG, live on production the day payments opened: a Whop subscriber has no `ls_subscription_id` - Lemon Squeezy is
+ * a rejected gateway - so `hasSubscription` was false and this function fell through to `managed`, "Managed by support".
+ * That is what somebody who had just paid $490 saw in their own Settings.
+ *
+ * S8 asserts the PATH rather than the fields, which is why it is the stronger pin: if `provider` is ever dropped from the
+ * response or stops reaching this function, S8 fails as "a paying Whop customer renders as managed" - the original symptom,
+ * named - instead of as "a key is missing". */
+test('S8. a renewing Whop Pro gets providerManaged, NOT managed - the $490 bug, pinned by its symptom', () => {
+  const v = subscriptionPanelView(panel({ role: 'pro', lsStatus: '', currentPeriodEnd: FUTURE, canCancel: false, hasSubscription: false, provider: 'whop' }), NOW);
+  assert.deepEqual(v, { kind: 'providerManaged', untilDate: FUTURE });
+  assert.notEqual(v.kind, 'managed', 'a paying Whop customer is being shown "Managed by support"');
+});
+
+test('S9. a cancelled Whop Pro gets the access-until view, and the date is its period end', () => {
+  const v = subscriptionPanelView(panel({ role: 'pro', lsStatus: '', currentPeriodEnd: FUTURE, canCancel: false, hasSubscription: false, provider: 'whop', cancelAtPeriodEnd: true }), NOW);
+  assert.deepEqual(v, { kind: 'cancelled', untilDate: FUTURE });
+});
+
+test('S10. the provider branch is checked BEFORE the Lemon Squeezy ones, so null LS columns cannot decide the view by default', () => {
+  /* A Whop row carries no LS id and no LS status. If the LS branches ran first, this would be `managed`; if the row ALSO
+   * somehow carried an LS status, intent must still win over the leftover column. */
+  assert.equal(subscriptionPanelView(panel({ role: 'pro', lsStatus: null, currentPeriodEnd: FUTURE, canCancel: false, hasSubscription: false, provider: 'whop' }), NOW).kind, 'providerManaged');
+  assert.equal(subscriptionPanelView(panel({ role: 'pro', lsStatus: 'active', currentPeriodEnd: FUTURE, canCancel: true, provider: 'whop' }), NOW).kind, 'providerManaged', 'a stale LS status must not outrank the provider');
+});
+
+test('S11. the provider path never shows a paid view to a FREE row, and an unknown provider falls back to the old behaviour', () => {
+  assert.equal(subscriptionPanelView(panel({ role: 'free', lsStatus: '', currentPeriodEnd: FUTURE, canCancel: false, hasSubscription: false, provider: 'whop' }), NOW).kind, 'hidden', 'the role check must stay first');
+  assert.equal(subscriptionPanelView(panel({ role: 'free', lsStatus: '', currentPeriodEnd: FUTURE, canCancel: false, hasSubscription: false, provider: 'whop', cancelAtPeriodEnd: true }), NOW).kind, 'hidden');
+  /* An absent or unrecognised provider is every row that existed before payments opened, and must behave EXACTLY as before -
+   * `provider` is optional precisely so those callers are untouched. Note `hasSubscription: false` is what produces `managed`;
+   * with an LS subscription present the same row is `active`, and asserting both is what distinguishes "the whop branch was
+   * skipped" from "the whop branch was skipped and something else changed". */
+  assert.equal(subscriptionPanelView(panel({ role: 'pro', lsStatus: '', currentPeriodEnd: FUTURE, canCancel: false, hasSubscription: false }), NOW).kind, 'managed', 'no provider, no LS id: the old managed view');
+  assert.equal(subscriptionPanelView(panel({ role: 'pro', lsStatus: '', currentPeriodEnd: FUTURE, canCancel: false }), NOW).kind, 'active', 'no provider, LS-backed, no key: the old active view');
+  assert.equal(subscriptionPanelView(panel({ role: 'pro', lsStatus: '', currentPeriodEnd: FUTURE, canCancel: false, hasSubscription: false, provider: 'lemonsqueezy' }), NOW).kind, 'managed', 'an unknown provider must not take the whop branch');
+});
+
+test('S12. a cancelled Whop Pro whose period end has already passed is shown no date rather than a past one', () => {
+  const v = subscriptionPanelView(panel({ role: 'pro', lsStatus: '', currentPeriodEnd: '2020-01-01T00:00:00.000Z', canCancel: false, hasSubscription: false, provider: 'whop', cancelAtPeriodEnd: true }), NOW);
+  assert.deepEqual(v, { kind: 'cancelled', untilDate: null });
 });
 
 

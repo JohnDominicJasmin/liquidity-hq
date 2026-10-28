@@ -75,6 +75,43 @@ test('K10. without an explicit now it uses the clock: a period ending next year 
   assert.equal(planKindOfRow(pro(iso(Date.now() - 365 * 24 * H))), 'free');
 });
 
+/* ══ #1630 Step 1: NO 48 h GRACE ONCE CANCELLED (PM's ruling 2026-10-28) ════════════════════════════════════════
+ *
+ * The matrix is the CROSS of the cancel flag and the period end, four cases, because a two-sided test passes on the
+ * regression that matters most. K12 is that case: the grace must survive untouched for everyone who has NOT cancelled.
+ * Losing it silently would demote every account whose renewal is a few hours late - a far larger failure than the
+ * two days of unpaid Pro this rule exists to remove. */
+const cancelled = (end: string | null | undefined) => ({ ...pro(end), cancel_at_period_end: true });
+
+test('K11. cancelled with the period end in the FUTURE is still pro: cancelling never takes away time already paid for', () => {
+  assert.equal(planKindOfRow(cancelled(iso(NOW + 10 * 24 * H)), NOW), 'pro');
+  assert.equal(planKindOfRow(cancelled(iso(NOW + 60_000)), NOW), 'pro', 'one minute of paid time left is still paid time');
+});
+
+test('K12. NOT cancelled, past the end by under 48 h, is still pro - the grace is untouched for everyone else', () => {
+  assert.equal(planKindOfRow(pro(iso(NOW - H)), NOW), 'pro', 'one hour past, no cancel flag');
+  assert.equal(planKindOfRow({ ...pro(iso(NOW - H)), cancel_at_period_end: false }, NOW), 'pro', 'an explicit false is not a cancellation');
+  assert.equal(planKindOfRow({ ...pro(iso(NOW - H)), cancel_at_period_end: null }, NOW), 'pro', 'null is not a cancellation');
+});
+
+test('K13. cancelled and past the end is free IMMEDIATELY: 1 ms past, not 48 h past', () => {
+  assert.equal(planKindOfRow(cancelled(iso(NOW)), NOW), 'pro', 'the end itself is not yet past');
+  assert.equal(planKindOfRow(cancelled(iso(NOW - 1)), NOW), 'free', '1 ms past the end, cancelled');
+  assert.equal(planKindOfRow(cancelled(iso(NOW - H)), NOW), 'free', 'one hour past, cancelled');
+  assert.equal(planKindOfRow(cancelled(iso(NOW - 47 * H)), NOW), 'free', 'inside what would have been the grace');
+});
+
+test('K14. the column is ABSENT in production until the migration is applied, and absent must read exactly like not cancelled', () => {
+  /* The cancel-state column ships unapplied (a migration is a write to the shared database), so `undefined` is the live case
+   * and the branch below is the one every real row takes today. A test that only exercised the column-present case would be
+   * green on a build where every user is mis-read. */
+  const absent = pro(iso(NOW - H));
+  assert.equal('cancel_at_period_end' in absent, false, 'the fixture must not carry the column at all');
+  assert.equal(planKindOfRow(absent, NOW), 'pro', 'absent must keep the grace');
+  assert.equal(planKindOfRow(absent, NOW), planKindOfRow({ ...absent, cancel_at_period_end: false }, NOW), 'absent and false must agree');
+  assert.equal(planKindOfRow(cancelled(iso(NOW - H)), NOW), 'free', 'and the flag must still be able to change the answer');
+});
+
 test('S1. AuthProvider reads the period end and sets the role from planKindOfRow, not from the stored role alone', () => {
   const src = stripTsComments(read('components/AuthProvider.tsx'));
   assert.ok(/from\(T\.user_subscriptions\)\s*\.select\('role, trial_ends_at, current_period_end'\)/.test(src), 'the subscription read does not select current_period_end');
