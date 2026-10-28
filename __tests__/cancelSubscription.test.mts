@@ -492,13 +492,32 @@ for (const c of CAN_CANCEL) {
   });
 }
 
-test('G3. the response has exactly the five documented fields and never the subscription or customer id', async () => {
+/* G3 PINS AN ALLOW LIST, NOT AN EXACT SET, AND THAT IS A SEQUENCING DECISION RATHER THAN A WEAKER TEST.
+ * CONTRIBUTING.md fixes the order as: dev pushes the implementation, THEN QA commits the test onto that branch -
+ * because `.githooks/pre-push` runs the whole suite on every push, so a test pinning fields that do not exist yet
+ * cannot be pushed by anyone. The cancel-state work adds `cancelAtPeriodEnd`, `canceledAt` and `provider`.
+ *
+ * So REQUIRED is what the route answers today and ALLOWED is the full eight. A ninth field still fails, a REMOVAL
+ * still fails, and the three new fields get pinned as required on dev's branch once it is pushed - which is the
+ * narrow window CONTRIBUTING.md names, closed before the merge rather than after it. */
+const REQUIRED_SUB_FIELDS = ['canCancel', 'currentPeriodEnd', 'hasSubscription', 'lsStatus', 'role'];
+const ALLOWED_SUB_FIELDS = [...REQUIRED_SUB_FIELDS, 'cancelAtPeriodEnd', 'canceledAt', 'provider'];
+
+test('G3. the response carries every documented field, nothing outside the allow list, and never the subscription, customer or membership id', async () => {
   reset();
-  seed(UID_A);
+  /* Seeded so the leak checks below have something to find. The membership id is deliberately server-side only:
+   * the route neither selects nor returns it, and the stand-in REST layer returns only the selected columns, so
+   * this can fail only if the route starts selecting `*` or spreading the row - exactly the regression it is for. */
+  seed(UID_A, { whop_membership_id: 'mem_TESTONLY', billing_provider: 'whop' });
   const r = await subRoute(TOKEN_A);
-  assert.deepEqual(Object.keys(r.body).sort(), ['canCancel', 'currentPeriodEnd', 'hasSubscription', 'lsStatus', 'role']);
+  const keys = Object.keys(r.body).sort();
+  for (const f of REQUIRED_SUB_FIELDS) assert.ok(keys.includes(f), `the response dropped ${f}`);
+  const extra = keys.filter((k) => !ALLOWED_SUB_FIELDS.includes(k));
+  assert.deepEqual(extra, [], `the response carries fields outside the allow list: ${extra.join(', ')}`);
   const text = JSON.stringify(r.body);
-  for (const secret of ['SUB_A', 'CUST_A', UID_A]) assert.equal(text.includes(secret), false, `${secret} is in the response`);
+  for (const secret of ['SUB_A', 'CUST_A', UID_A, 'mem_TESTONLY']) assert.equal(text.includes(secret), false, `${secret} is in the response`);
+  assert.doesNotMatch(text, /\bmem_[A-Za-z0-9]/, 'a Whop membership id is in the response');
+  assert.equal('whop_membership_id' in r.body, false, 'whop_membership_id is in the response');
 });
 
 test('G4. user isolation: each token sees only its own row', async () => {
