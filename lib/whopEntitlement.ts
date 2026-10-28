@@ -94,10 +94,15 @@ export interface WhopPayment {
   payerEmail: string | null;
   /** The company/business id the event belongs to, if the body carries one. */
   companyId: string | null;
+  /** The membership this payment belongs to (`mem_...`), from `data.membership.id` - documented as "The membership attached to this
+   *  payment" (https://docs.whop.com/api-reference/payments/retrieve-payment.md). NOT used by any access decision. It is recorded at
+   *  grant time because it is the ONLY id a later cancellation can be matched on: `membership.updated` carries the membership, not the
+   *  payment and not our account. Null when the body does not carry it, which costs nothing but the ability to show a cancel state. */
+  membershipId: string | null;
 }
 
 export type WhopDecision =
-  | { kind: 'grant'; plan: WhopPlan; add: { months?: number; days?: number }; paymentId: string; payerEmail: string; planId: string }
+  | { kind: 'grant'; plan: WhopPlan; add: { months?: number; days?: number }; paymentId: string; payerEmail: string; planId: string; membershipId: string | null }
   | { kind: 'ignore'; reason: string }
   | { kind: 'review'; reason: string };
 
@@ -129,6 +134,7 @@ export function readWhopPayment(event: Record<string, unknown>): WhopPayment | n
     const user = obj(data?.user);
     const plan = obj(data?.plan);
     const company = obj(data?.company);
+    const membership = obj(data?.membership);
 
     // The amount: usd_total is documented as the total in USD, so it needs no currency question. Otherwise total counts only when the
     // payment's own currency is usd. Dollars vs cents is not documented, and nothing here depends on it (only "above zero" is asked).
@@ -154,6 +160,7 @@ export function readWhopPayment(event: Record<string, unknown>): WhopPayment | n
       paid,
       payerEmail: str(user?.email),
       companyId: str(company?.id) ?? str(event.account_id) ?? str(event.company_id),
+      membershipId: str(membership?.id),
     };
   } catch {
     return null;
@@ -184,7 +191,7 @@ export function decideWhopPayment(p: WhopPayment, env: Record<string, string | u
   const email = (p.payerEmail ?? '').trim().toLowerCase();
   if (!email || !EMAIL.test(email)) return { kind: 'review', reason: 'no_payer_email' };
 
-  return { kind: 'grant', plan: row.plan, add: row.add, paymentId: p.paymentId, payerEmail: email, planId: p.planId };
+  return { kind: 'grant', plan: row.plan, add: row.add, paymentId: p.paymentId, payerEmail: email, planId: p.planId, membershipId: p.membershipId };
 }
 
 /** The whole decision for a verified body. A body the reader cannot read is review, so an unmapped reader can never grant. */
@@ -204,4 +211,104 @@ export function whopCompanyMatches(payment: Pick<WhopPayment, 'companyId'>, expe
   const want = (expected ?? '').trim();
   if (!want) return true;
   return payment.companyId !== null && payment.companyId.trim() === want;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * MEMBERSHIP STATE (#1630, the cancel flow). SEPARATE FROM ACCESS, ON PURPOSE.
+ *
+ * `decideWhopPayment` still answers `membership_event_never_grants_or_revokes` for every `membership.*` event and that does not change.
+ * What follows reads the SAME events for one thing only: whether the customer has told Whop to stop renewing. It writes no role, moves no
+ * period end and grants nothing. The access decision stays exactly where it has always been - `current_period_end` and
+ * lib/paidPeriod.ts.
+ *
+ * WHY THE DISTINCTION IS NOT A TECHNICALITY. #1422 was an event moving access directly. The recorded cancel flag IS an input to a
+ * demotion (no 48 h grace once cancelled, PM's ruling 2026-10-29), so a wrong `membership.updated` would demote a paying customer at
+ * their period end rather than 48 h later - a quieter #1422, as QA put it. Three things bound that:
+ *   - a cancelled membership whose period end is in the FUTURE is still Pro, so a wrong flag costs nobody access today;
+ *   - the flag is CLEARED by the same path that sets it (see 'uncancelled' below), so it is not a one-way door;
+ *   - the event is matched to an account by MEMBERSHIP ID and never by email, so a wrong flag cannot land on a stranger's row.
+ *
+ * THE FIELD PATHS ARE AGAIN FROM DOCUMENTATION, NOT FROM A RECORDED BODY. docs.whop.com documents that `membership.updated` fires when
+ * `cancel_at_period_end` flips and that `previous_attributes` carries what changed; it publishes no example body and no membership
+ * schema. So this reader is as defensive as readWhopPayment: every field type-checked, anything unexpected null, null means "no cancel
+ * state in this event" and that means DO NOTHING. The first real cancellation on the Whop sandbox is the check on it.
+ */
+
+export interface WhopMembershipState {
+  eventName: string | null;
+  /** `mem_...`. The only id this path matches on. */
+  membershipId: string | null;
+  /** True = will not renew, access runs to the period end. False = renewing again. **Null = this event says nothing about cancellation**
+   *  (`membership.activated`, a metadata change), which is not the same as false and must never be written as one. */
+  cancelAtPeriodEnd: boolean | null;
+  /** When the customer cancelled, as an ISO string, if the body carries it. Display only. */
+  canceledAt: string | null;
+  companyId: string | null;
+}
+
+/** A timestamp field that may be an ISO string or a unix number, normalised to ISO - or null. Whop documents neither the field nor its
+ *  type here, so both are accepted and anything else is null. A number below 1e12 is read as SECONDS (1e12 ms is 2001, 1e12 s is the
+ *  year 33658: no real timestamp is ambiguous between the two this century). */
+function tsString(v: unknown): string | null {
+  if (typeof v === 'string') {
+    const t = Date.parse(v);
+    return Number.isFinite(t) ? new Date(t).toISOString() : null;
+  }
+  if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
+    const ms = v < 1e12 ? v * 1000 : v;
+    const d = new Date(ms);
+    return Number.isFinite(d.getTime()) ? d.toISOString() : null;
+  }
+  return null;
+}
+
+/** Lifts the cancel state out of a verified `membership.*` body. NEVER THROWS; returns null only when the body has no event type. */
+export function readWhopMembership(event: Record<string, unknown>): WhopMembershipState | null {
+  try {
+    const type = str(event.type);
+    if (!type) return null;
+    const data = obj(event.data);
+    const company = obj(data?.company);
+    // Documented as a boolean. Anything else (absent, a string, a number) is "this event carries no cancel state" rather than a guess.
+    const flag = data?.cancel_at_period_end;
+    return {
+      eventName: type,
+      membershipId: str(data?.id),
+      cancelAtPeriodEnd: typeof flag === 'boolean' ? flag : null,
+      canceledAt: tsString(data?.canceled_at),
+      companyId: str(company?.id) ?? str(event.account_id) ?? str(event.company_id),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export type WhopMembershipDecision =
+  /** Record "will not renew" against this membership. Access is NOT touched. */
+  | { kind: 'cancelled'; membershipId: string; canceledAt: string | null }
+  /** Record "renewing again" - the customer un-cancelled, or Whop retracted it. **The clearing path**: without this the first
+   *  cancellation would be permanent, and the period bought by their next payment would end with no grace. */
+  | { kind: 'uncancelled'; membershipId: string }
+  | { kind: 'ignore'; reason: string }
+  | { kind: 'review'; reason: string };
+
+/** What a verified `membership.*` event means for the cancel state, and nothing else. */
+export function decideWhopMembership(
+  event: Record<string, unknown>,
+  read: (e: Record<string, unknown>) => WhopMembershipState | null = readWhopMembership,
+): WhopMembershipDecision {
+  const m = read(event);
+  if (!m) return { kind: 'ignore', reason: 'not_a_membership_event' };
+  if (!m.eventName || !m.eventName.startsWith('membership.')) return { kind: 'ignore', reason: 'not_a_membership_event' };
+  /* No cancel state in the body: membership.activated, trial_ending_soon, a metadata edit. Recorded by the route, acted on by nobody.
+   * The reason string is deliberately the SAME one decideWhopPayment has always answered for membership events - it is the literal
+   * truth for this event, it is what the webhook's callers and tests read, and inventing a second string for "nothing happened" would
+   * change a published contract to say something it already said. */
+  if (m.cancelAtPeriodEnd === null) return { kind: 'ignore', reason: 'membership_event_never_grants_or_revokes' };
+  // A cancel state we cannot attach to a membership is worth a person's attention: it is the one case where the customer HAS acted and
+  // the product will not show it.
+  if (!m.membershipId) return { kind: 'review', reason: 'membership_has_no_id' };
+  return m.cancelAtPeriodEnd
+    ? { kind: 'cancelled', membershipId: m.membershipId, canceledAt: m.canceledAt }
+    : { kind: 'uncancelled', membershipId: m.membershipId };
 }

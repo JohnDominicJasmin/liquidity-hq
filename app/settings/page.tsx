@@ -17,6 +17,7 @@ import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
 import { updatePassword } from '@/lib/authSession';
 import { subscriptionPanelView, futureDateOrNull, type SubPanelView } from '@/lib/subscriptionPanel';
+import { WHOP_MANAGE_URL } from '@/lib/checkout';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
 import { Lock } from '@/components/icons';
@@ -117,7 +118,8 @@ export default function SettingsPage() {
   const [signingOut,   setSigningOut]   = useState(false);
 
   // ── Subscription / cancel-a-plan (#1396) ──
-  type SubState = { role: string; lsStatus: string | null; currentPeriodEnd: string | null; hasSubscription: boolean; canCancel: boolean };
+  // `provider` and `cancelAtPeriodEnd` are #1630 Step 1: which processor the row is on, and whether it is set to stop renewing.
+  type SubState = { role: string; lsStatus: string | null; currentPeriodEnd: string | null; hasSubscription: boolean; canCancel: boolean; provider?: string | null; cancelAtPeriodEnd?: boolean };
   const [sub, setSub] = useState<SubState | 'error' | null>(null);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -509,6 +511,23 @@ export default function SettingsPage() {
                     {cancelError && <div className="login-error" data-testid="login-error">{t('SETTINGS_SUB_CANCEL_FAILED')}</div>}
                   </div>
                 )}
+              </>
+            ) : subView.kind === 'providerManaged' ? (
+              /* A Whop subscriber: status, the real renewal date, and where to cancel. Before this they were shown "Managed by
+                 support" - the admin-grant branch - because they have no Lemon Squeezy id and never will. The cancel itself is on
+                 Whop's own Orders page, which keeps paid time to the period end exactly as the Terms say; an in-product button needs
+                 a Whop API key the product does not have (#1630 Step 2). */
+              <>
+                <div className="st-field-value">{t('SETTINGS_SUB_ACTIVE')}</div>
+                {subView.untilDate && (
+                  <div className="st-desc" style={{ marginTop: 4 }}>
+                    {t('SETTINGS_SUB_RENEWS_ON', { date: new Date(subView.untilDate).toLocaleDateString() })}
+                  </div>
+                )}
+                <a className="st-signout-btn" href={WHOP_MANAGE_URL} target="_blank" rel="noopener noreferrer" style={{ marginTop: 8, display: 'inline-block' }}>
+                  {t('SETTINGS_SUB_MANAGE_ON_WHOP')}
+                </a>
+                <div className="st-desc" style={{ marginTop: 6 }}>{t('SETTINGS_SUB_CANCEL_KEEPS_ACCESS')}</div>
               </>
             ) : subView.kind === 'managed' ? (
               <div className="st-field-value">{t('SETTINGS_SUB_MANAGED')}</div>
