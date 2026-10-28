@@ -173,8 +173,14 @@ each with a path, a note and sometimes an interaction. **A seventh label is simp
 the run goes green without it.** The spec lives in `qa/`, so the entry is QA's to write: a label
 change with layout risk now has a QA handoff in front of it, deliberately.
 
-**WHEN IT APPLIES: any key that has no `TARGETS` entry yet.** First change to a key costs an entry;
-every later change to it is just a run. **No length comparison, no container inspection, no
+**WHEN IT APPLIES: a key with no `TARGETS` entry, OR a `PRODUCTION_VALUES` entry that does not match
+the string being written.**
+
+**The second clause is not optional and the first is not sufficient without it.** `PRODUCTION_VALUES`
+is a hardcoded map, injected wholesale over `/api/labels`, and each cell measures the value from that
+map — not the value you are shipping. **So for an already-registered key you could change the label,
+run the spec exactly as instructed, and watch it go green on the OLD string.** Both clauses are
+mechanical: *is the key in this list* and *is this exact string in this list*. No judgement returns. **No length comparison, no container inspection, no
 judgement** — and cheaper than a per-change test, because the cost is one-time per key.
 
 **Two triggers were tried first and both were wrong, recorded so they are not re-proposed.**
