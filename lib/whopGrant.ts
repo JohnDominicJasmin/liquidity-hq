@@ -138,13 +138,26 @@ export async function applyWhopMembershipEvent(
 }
 
 /** The cancel state for one ACCOUNT, for the Settings panel. Null when this account has no linked Whop membership, which is every
- *  account that paid before Step 1 shipped - the panel then shows the provider-managed view rather than inventing a state. */
+ *  account that paid before Step 1 shipped - the panel then shows the provider-managed view rather than inventing a state.
+ *
+ *  THE NEWEST LINK WINS, AND THE ORDERING IS THE WHOLE CORRECTNESS OF THIS FUNCTION. One account can hold SEVERAL link rows: the key
+ *  is a hash of the MEMBERSHIP id, so somebody who cancels and later buys again has one row per membership. The clearing path only
+ *  touches the row its own event names, so the old membership's row keeps `cancel_at_period_end: true` for ever - correctly, it was
+ *  cancelled. Without an order this read could return that row and tell a RENEWING, PAYING customer that their access ends on a date.
+ *  Their access would be fine (that comes from `current_period_end`); the product would simply be lying to them, which is the same
+ *  class of defect as the "Managed by support" panel this work exists to replace.
+ *
+ *  `received_at` is written at GRANT time, so the newest link row is the membership that paid most recently - the best available
+ *  signal for "the live one", since no membership carries its own period here. `payload_hash` breaks a tie deterministically, the
+ *  same pair applyWhopDelivery uses to pick the earliest delivery for a payment. */
 export async function membershipStateForAccount(sb: Admin, accountId: string): Promise<{ cancelAtPeriodEnd: boolean; canceledAt: string | null } | null> {
   const { data, error } = await sb
     .from(T.whop_webhook_events)
     .select('body')
     .eq('event', WHOP_MEMBERSHIP_EVENT)
     .eq('body->>account_id', accountId)
+    .order('received_at', { ascending: false })
+    .order('payload_hash', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error || !data || typeof data.body !== 'object' || data.body === null) return null;
