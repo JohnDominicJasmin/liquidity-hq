@@ -1,20 +1,29 @@
 import type { Metadata } from 'next';
 
-/** `noindex, nofollow` for the EIGHT application pages that have nothing to offer a stranger (#1740 item 1).
+/** `noindex, nofollow` for the nine application pages that serve a stranger nothing worth indexing (#1740 item 1).
  *
- * `/dashboard`, `/settings`, `/alerts`, `/briefing`, `/journal`, `/research`, `/live-tracking`, `/backtest`.
+ * `/dashboard`, `/settings`, `/alerts`, `/arena`, `/briefing`, `/journal`, `/research`, `/live-tracking`, `/backtest`.
  *
- * **`/arena` IS NOT ON THAT LIST AND MUST NOT BE ADDED WITHOUT THE OWNER.** It was, in the first version of this file, on the
- * reasoning that these pages sit behind a sign-in wall. **There is no sign-in wall - this repo has no `middleware.ts` at all** - and
- * `/arena` serves anonymous visitors deliberately: `signalPlanFor({ signedIn: !!user, ... })`, a confirmed-signed-out state, and
- * sign-in prompts offered to people who are not signed in. QA counted nine signed-out UI markers there against zero on the other
- * eight. Whether the Arena should be removed from search is an **acquisition decision** - the per-coin AI output is thin and
- * near-duplicate, which is a real argument for it - and that is the owner's call, not a side effect of a metadata PR. `index: false`
- * is not something anyone notices later.
+ * NOT "BEHIND A SIGN-IN WALL", WHICH IS WHAT THIS COMMENT SAID FIRST AND IS FALSE. **This repo has no `middleware.ts` at all**, and
+ * `/arena` renders a deliberate signed-out state. The true reason is thinner and is what the rule actually rests on: **these pages
+ * serve a thin signed-out shell, so their links lead to more of the same.** Measured against production as Googlebot, body words
+ * only: `/learn` 1605, `/dashboard` 336, `/settings` 68, **`/arena` 67** - the thinnest of the nine, because the Arena's value is
+ * client-rendered. `/live-tracking` and `/backtest` answer 307 to `/dashboard`, so those two lines are a no-op. None of the nine is
+ * in `sitemap.xml` (19 entries), so nothing reaches them except an external link.
  *
- * ONE DEFINITION RATHER THAN EIGHT COPIES, for the reason lib/checkout.ts records about `isProBuyable`: a rule written out by hand
- * in eight files is eight places that have to agree and nothing that makes them. It also gives the assertion something to grep for,
- * and gives the Arena exclusion above one place to be stated where the next person adding a route will read it.
+ * **THAT IS TRUE OF TODAY'S RENDERING, AND THIS LINE WILL SILENTLY DEFEAT THE DAY IT STOPS BEING TRUE.** Server-rendering the
+ * Arena's content for search is a reasonable thing to want, and whoever does it will not remember this file exists. **If you are
+ * here because you just made one of these pages worth indexing: take it off the list in the same change.** Reversing it is deleting
+ * one line; noticing that it needs reversing is the hard part, which is why it is written here rather than in a commit message.
+ *
+ * Two measurements got walked back on the way to this list, both recorded because the method is the reusable part: a greedy
+ * script-strip that reported `/arena` at 0 words, and a signed-out-marker count that undercounted the other eight to zero. **The
+ * markers were measuring signed-out HANDLING, not signed-out VALUE** - `/settings` has ten of them and 68 words, which is a sign-in
+ * prompt, not a usable page.
+ *
+ * ONE DEFINITION RATHER THAN NINE COPIES, for the reason lib/checkout.ts records about `isProBuyable`: a rule written out by hand
+ * in nine files is nine places that have to agree and nothing that makes them. It also gives the assertion something to grep for,
+ * and gives the warning above one place to be read by the next person adding a route.
  *
  * WHAT WAS ACTUALLY WRONG. These routes carried no `name="robots"` tag at all - measured absent on production 2026-10-28 - so
  * there is nothing here to correct, only something to add. `app/robots.ts` disallows `/api/`, `/auth/` and `/ops` and nothing else,
