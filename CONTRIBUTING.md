@@ -1044,7 +1044,30 @@ gap, not left implied — a required set plus an allow list will not catch dev
 omitting one of the new fields, and that is the price of unblocking. **And the
 tightened pin goes on dev's pushed branch, not inside dev's own PR:** a test and
 the code it pins, written as one unit by one session, is exactly what this
-handoff exists to prevent. A test cannot be pushed before the code it tests exists
+handoff exists to prevent.
+
+**THIRD CONDITION, and step 0 fails without it: "green on both trees" is only
+measurable on ONE of them.** QA can mutate the old tree to resemble the new one,
+but that tests the shape QA *imagined*, not dev's. **So QA states which half was
+measured and which was inferred, and dev confirms the loosened test against their
+own tree before relying on it** — the only tree where the other half can be
+checked. Reading the diff is enough.
+
+**It happened on the very commit that created this rule.** QA's six mutations
+edited the **response construction** — the output end of the route. The fixture
+field added to G3 was an **input**, and on dev's tree it triggered a second read
+that did not exist on QA's: `membershipStateForAccount` against
+`_whop_webhook_events`. The test file's stand-in throws on any unknown path, the
+route's outer catch turned that into a 503, and **G3 would have been RED on dev's
+tree — refusing the very push the commit existed to unblock.** Dev caught it by
+reading the diff rather than by spending a gate on it.
+
+**A control that edits the last line of a route cannot tell you what a new
+fixture does to a data path that is not there yet.** Without this condition, step
+0 reads as self-verifying, which is the failure it would then produce on
+schedule.
+
+A test cannot be pushed before the code it tests exists
 somewhere pushable, because the hook runs `npm test` on **every** push regardless
 of whose branch it is. **The implementation being on the remote is what makes
 QA's test green rather than red.**
