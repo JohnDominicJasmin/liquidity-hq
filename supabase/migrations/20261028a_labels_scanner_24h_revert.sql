@@ -26,19 +26,29 @@
 -- The shipped default is corrected in the same commit as this file. QA's own fixture
 -- (qa/fixtures/proxy/labels.json) already held `24h`, so the default was the outlier of the three.
 --
--- ── TWO LOCALES, NOT ONE ───────────────────────────────────────────────────────────────────────
+-- ── ONE LOCALE. `ru` IS NOT DRIFT, AND I FILED IT AS DRIFT FIRST ─────────────────────────────
 --
--- Reported as an `en` problem, and `ru` is the same shape. Measured live, all five:
+-- Live `ru` is `24ч` while 20261022d says `24 часа`, and I read that as a second unrecorded
+-- revert. It is not. **20261022d IS HELD AND WAS NEVER APPLIED** - its first line says so:
+--   "HELD: DO NOT APPLY until a speaker of each language has read these strings."
 --
---   en   live "24h"        20261022b says "24 hours"    <- differs
---   ru   live "24ч"        20261022d says "24 часа"     <- differs
---   ar   live "24 ساعة"     matches
---   ko   live "24시간"       matches
---   zh   live "24小时"       matches
+-- The owner decided on 2026-10-22, told the four translations were machine-made with no native
+-- review: ship English now (20261022b), the rest later. So live `ru` is the ORIGINAL JULY SEED,
+-- untouched, exactly as that header predicts - "until it runs, ar/ko/ru/zh keep the wording they
+-- have today". Nothing drifted and nothing is unrecorded.
 --
--- The detector that found this reads `lib/labelDefaults.en.json`, which is English only, so it
--- cannot see a non-English row that drifted. `ru` was reverted alongside `en` and recorded nowhere.
--- An instrument scoped to one locale reporting on all of them is the thing to watch here.
+-- THIS FILE CARRIED A `ru` TUPLE AND IT HAD TO COME OUT, because the error was not only in the
+-- description. Applied AFTER 20261022d is eventually cleared, `('ARENA_SCANNER_COL_24H','ru','24ч')`
+-- would have reverted the reviewed translation back to the seed - silently undoing the work the
+-- owner is holding a native reviewer for. A migration written to record one change would have
+-- quietly reversed another.
+--
+-- HOW I GOT IT WRONG, since the method is the reusable part: I compared live values against a
+-- migration WITHOUT CHECKING WHETHER THAT MIGRATION HAD BEEN APPLIED. Every file in this directory
+-- that is held says so at the top, including two I wrote. A diff against an unapplied migration
+-- measures the gap between what someone INTENDED and what is live, and reports it as drift.
+--
+-- Only `en` is affected. 20261022b WAS applied, says `24 hours`, and production holds `24h`.
 --
 -- ── NOT A JUDGEMENT ON THE COPY ────────────────────────────────────────────────────────────────
 --
@@ -49,13 +59,11 @@
 -- cell goes red and the long form can be revisited.
 
 insert into lhq_labels (key, locale, value) values
-('ARENA_SCANNER_COL_24H','en','24h'),
-('ARENA_SCANNER_COL_24H','ru','24ч')
+('ARENA_SCANNER_COL_24H','en','24h')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- DEV: the same rows against lhq_dev_labels.
 --
 -- insert into lhq_dev_labels (key, locale, value) values
--- ('ARENA_SCANNER_COL_24H','en','24h'),
--- ('ARENA_SCANNER_COL_24H','ru','24ч')
+-- ('ARENA_SCANNER_COL_24H','en','24h')
 -- on conflict (key, locale) do update set value = excluded.value, updated_at = now();
