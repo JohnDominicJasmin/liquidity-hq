@@ -156,13 +156,26 @@ No line may mention a feature or setup we do not have. No "cancel anytime" befor
 
 > owner, 2026-10-28
 
-**Label text is stored in the database, not in the code. A wording change therefore reaches the
-live site with NO build, NO tests and NO staging — it passes none of the three gates every code
-change passes.**
+**Label copy lives in TWO places and only one of them is ungated.** The shipped defaults in
+`lib/labelDefaults.en.json` ARE gated — 23 unit tests read that file, and
+`__tests__/wordingBatch2Corrections.test.mts` asserts the defaults match the latest migration row.
+That gate is real and it fires: it **refused a push** on 2026-10-27 when #1766 changed the defaults
+alone, which is why that PR carries a migration at all.
 
-**So: run QA's phone-width measurement against any changed label BEFORE applying it.** That spec
-exists (#1768, #1771). It catches clipping, wrapping and uppercase expansion in fixed-width
-containers.
+**The DATABASE row is the ungated half.** A row in `lhq_labels` silently wins over the shipped
+default (`lib/labelOverrides.ts`), and writing one reaches the live site with **no build, no tests
+and no staging.** So the risk is not "copy is ungated" — it is that the half which WINS has no gate
+in front of it.
+
+**So: before writing a label row, ADD A TARGETS ENTRY to QA's phone-width spec and run it.**
+Running the spec alone is not compliance — `TARGETS` is a hardcoded list, currently six entries,
+each with a path, a note and sometimes an interaction. **A seventh label is simply not measured, and
+the run goes green without it.** The spec lives in `qa/`, so the entry is QA's to write: a label
+change with layout risk now has a QA handoff in front of it, deliberately.
+
+**WHEN IT APPLIES, so the cost stays proportionate:** when the new value is **longer than the old**,
+or lands in a **fixed-width container**. A change that shortens a string cannot clip. The trigger is
+mechanical on purpose — the judgement call is what failed last time.
 
 **What prompted it:** an approved wording change — `24h` to `24 hours` — went into a **40px fixed
 grid track**, uppercased and letter-spaced by the panel's own style. It wrapped to three lines and
