@@ -1024,7 +1024,27 @@ window above.
 | 3 | **Dev** | reviews the whole thing and merges | green |
 
 **Step 1 pushing FIRST is not a detail — it is the thing that makes step 2
-possible at all.** A test cannot be pushed before the code it tests exists
+possible at all.**
+
+**THE TABLE ABOVE ASSUMES THE BLOCKER IS A NEW TEST. It is not always.** When an
+**existing** assertion pins a contract dev is changing, **step 1 is impossible** —
+dev's own gate refuses the push, so there is no branch for QA to commit onto.
+Found 2026-10-28: `planKindOfRow` S4 pinned a select as an exact string and
+`cancelSubscription` G3 pinned a response at five keys; the cancel-flow change
+legitimately widened both. The exits were `--no-verify` (forbidden), QA writing
+the implementation (forbidden), or deadlock.
+
+**So there is a step 0: QA loosens the existing pin to a form that is green on
+BOTH trees — the old one and dev's — as its own QA branch, pushed first.** Dev
+can then push, and the pin tightens to the new exact contract on dev's branch
+before the merge.
+
+**Two things that keep step 0 honest.** The loosened form must be stated as a
+gap, not left implied — a required set plus an allow list will not catch dev
+omitting one of the new fields, and that is the price of unblocking. **And the
+tightened pin goes on dev's pushed branch, not inside dev's own PR:** a test and
+the code it pins, written as one unit by one session, is exactly what this
+handoff exists to prevent. A test cannot be pushed before the code it tests exists
 somewhere pushable, because the hook runs `npm test` on **every** push regardless
 of whose branch it is. **The implementation being on the remote is what makes
 QA's test green rather than red.**
