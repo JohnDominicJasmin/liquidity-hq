@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
+import { NOINDEX_APP_PAGE } from '@/lib/seo';
 
-export const metadata: Metadata = { title: 'Settings' };
+export const metadata: Metadata = { title: 'Settings', robots: NOINDEX_APP_PAGE };
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
