@@ -25,8 +25,20 @@
  * split as `lib/econCoverage.ts`. No `@playwright/test` either: a unit test in the gate imports this, and
  * `__tests__/labelCandidates.test.mts` is what enforces the rule on every push.
  *
- * WHEN TO ADD AN ENTRY, from §7: when the new value is LONGER than the old, or lands in a fixed-width
- * container. A change that shortens a string cannot clip. */
+ * WHEN TO ADD AN ENTRY, from §7 as it stands on 2026-10-28: when the key has no entry here, OR when its
+ * `now` does not match the string actually being written. Both are mechanical - *is the key in this list*,
+ * *is this exact string in this list* - and the first is unrepresentable by construction, because this list
+ * IS the registration: being in it is the compliance.
+ *
+ * TWO EARLIER TRIGGERS ARE RECORDED IN §7 AS TRIED AND WRONG, and this file enforced both of them for one
+ * commit. "The new value is LONGER than the old" substitutes character count for pixels - these labels
+ * render in a proportional font, uppercased and letter-spaced, so a SHORTER string of wide glyphs can be
+ * wider than a longer string of narrow ones. "It lands in a fixed-width container" is sound but not
+ * mechanical: knowing the container means finding the render site and reading the CSS, which is the
+ * inspection the rule exists because nobody did.
+ *
+ * They are named here rather than quietly dropped. A gate that enforces a rejected rule teaches it to the
+ * next reader with the authority of code, which is worse than prose getting it wrong. */
 import type { LabelKey } from '../lib/labelKeys.ts';
 
 /** How to reveal a label that is not on the page at rest. A NAME, not a function, so this module needs no
@@ -46,15 +58,10 @@ export interface LabelCandidate {
   note: string;
   /** Set when the label is behind an interaction. */
   opener?: OpenerName;
-  /** §7's SECOND trigger: "longer than the old, OR lands in a fixed-width container".
-   *
-   *  The enforcement test otherwise requires `now` to be longer, because a shortening change cannot clip and
-   *  a swapped pair would silently measure the old string. But that rejects the other half of the rule - a
-   *  label of the same length, or shorter, moving into a 40px track still needs measuring. Without this flag
-   *  the check would BLOCK such a candidate, and the author's cheapest way out would be to drop the
-   *  candidate rather than argue with the test. A guard whose false alarm removes a protection is worse than
-   *  no guard, so the second trigger gets an explicit opt-in rather than a silent exception. */
-  coversFixedWidth?: boolean;
+  /* NO LENGTH OR CONTAINER FIELD, DELIBERATELY. An earlier version carried `coversFixedWidth` to opt out of
+     a "must be longer" check. Both are §7's rejected triggers and neither has any work to do here: a
+     shortening candidate is simply measured, which costs one cell, and a cell that passes easily is not a
+     problem while a candidate wrongly rejected is. */
   /** A candidate EXPECTED not to fit, pinning a constraint that caused a revert. Its cell goes red if
    *  someone widens the track, drops the tracking or shortens the string - all of which would mean the long
    *  form had become viable and the revert could be revisited. */
@@ -123,10 +130,6 @@ export const CANDIDATES: LabelCandidate[] = [
     path: '/arena',
     note: 'flyout column header, 40px fixed track at <=480px, uppercase + .07em tracking',
     opener: 'scannerFlyout',
-    /* The worked example of §7's second trigger, and the reason the flag is not theoretical: this one is
-       both longer AND in a fixed track, so it would qualify either way - but it is the case the rule was
-       written from, so it is the one that should carry the flag. */
-    coversFixedWidth: true,
     expectOverflow: true,
   },
 ];
