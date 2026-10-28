@@ -98,7 +98,15 @@ test('S3. the macro-alert cron uses the same rule', () => {
 
 test('S4. /api/subscription reports the role the account is on now (a lapsed Pro reports free, so Cancel and the Settings panel follow)', () => {
   const src = stripTsComments(read('app/api/subscription/route.ts'));
-  assert.ok(/\.select\('role, trial_ends_at, ls_status, ls_subscription_id, current_period_end'\)/.test(src), 'the read does not select the columns the rule needs');
+  /* EACH required column must appear in the select, rather than the whole literal matching. The cancel-state work
+   * appends billing_provider so the panel knows which processor the row is on, and a test whose job is catching a
+   * REMOVAL must not fail on an ADDITION. A dropped column still fails, which is what S4 is for. */
+  const sel = /from\(T\.user_subscriptions\)\s*\.select\('([^']+)'\)/.exec(src);
+  if (!sel) assert.fail('the subscription read does not select from T.user_subscriptions');
+  const cols = (sel[1] ?? '').split(',').map((c) => c.trim());
+  for (const col of ['role', 'trial_ends_at', 'ls_status', 'ls_subscription_id', 'current_period_end']) {
+    assert.ok(cols.includes(col), `the read does not select ${col}, which the rule needs`);
+  }
   assert.ok(/const role = planKindOfRow\(data, Date\.now\(\)\) === 'pro' \? 'pro' : 'free';/.test(src), 'the reported role is not from planKindOfRow');
 });
 
