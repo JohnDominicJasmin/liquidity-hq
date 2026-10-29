@@ -100,11 +100,29 @@ That means test suites, builds, `npm ci`, browser runs, dev servers, page sweeps
 
 Known cloud limits, so nobody is surprised: Bybit and Binance geo-block cloud IPs (app-served data is fine, direct venue reads are not); CoinGecko rate-limits the egress; signed-in work needs secrets he provisions directly.
 
-**The structural trap:** the four gates run in a **pre-push hook**, so they execute where the commits are. Moving "jobs" to the
-cloud does not move that one. The cloud runner must author and push its own work. Tracked on #1413.
+**THE EXPENSIVE HALF OF THE TRAP IS GONE AS OF 2026-10-29. THE TRAP ITSELF IS NOT.** **This first said "SOLVED" and that was an overclaim** — the pre-push hook still executes on his machine, a cloud session still cannot author and push, and **#1413 is still open**. What changed is that the ~3.5-minute, ~1 GB unit-test run left it.
 
-**So what do you do when the only way to push a local commit is a gate on his laptop?** Ask him, and say what it costs. Do not
-push without the gate - `--no-verify` is rule 11 - and do not run an eight-minute gate on his machine on your own judgement.
+The trap was real: the gates run in a **pre-push hook**, so they execute where the commits are, and moving "jobs" to the cloud
+does not move that one. **But the reason there was no cloud alternative is that CI had been dead for 39 days** - the owner's
+GitHub account was locked from **2026-10-05** by a failed card authorisation (**corrected: first written as 2026-09-20, wrong by 15 days — that was the last SUCCESS, not the last RUN; 55 runs executed red in between**) (not an unpaid balance; $0.18 of metered usage).
+**724 Actions runs were refused over those 24 days and nothing said so — every single one a `startup_failure`, so not one of them began.** (Measured 2026-10-29 over a 1,000-run listing reaching back to 2026-09-07, so the window is fully covered rather than truncated at the limit. First written as 732.) Every gate ran on his laptop in that window because
+the cloud one was refusing to start. **Full forensics live in `docs/INFRASTRUCTURE.md` — do not restate the numbers here, because the same figures in three files is how a correction misses one.**
+
+**He re-verified the card on 2026-10-29 and CI is live again.** **But the honest premise is narrower than the first version of this paragraph claimed:** for most of that span `ci.yml` was **switched off by his own 2026-09-06 decision**, not broken — reversible at any time. **The billing lock is 24 days, 2026-10-05 to 2026-10-29.** The hook change below is right because CI runs now, **not** because the cloud had been impossible. So the cloud now runs lint, typecheck, test and build on every
+push to `dev`, `staging` and `main`, and on every PR into `dev`, `qa`, `staging` and `main`.
+
+**Which makes the local `npm test` in the hook a duplicate of a check that now runs anyway.** The decision (PM, 2026-10-29):
+**the pre-push hook keeps lint and typecheck — measured at 66 seconds end to end, not the 5-8 minutes it was — and gives the ~3.5-minute, ~1 GB unit-test run to CI.**
+Breakage reaches `dev` for the few minutes before CI flags it; it can never reach `main`, because the PR check stands between.
+**That trade is the right one** - `dev` is the integration branch and it is what it is for, and the alternative was a rule that
+resolved to "run a heavy job on the machine he has told us four times not to touch."
+
+Tracked on #1413.
+
+**So what do you do when the only way to push a local commit is a gate on his laptop? The question is now mostly historical**,
+and is kept because the reasoning still applies to anything CI does not cover (the browser suite on a branch CI does not watch,
+`npm ci`, a local build). For those: ask him, and say what it costs. Do not push without the gate - `--no-verify` is rule 11 -
+and do not run an eight-minute gate on his machine on your own judgement.
 **He granted exactly that once, on 2026-10-23, for eleven commits that had nowhere else to go, and called it a one-time
 exception.** Before starting one he has allowed: read free memory, refuse below ~2.5 GB, and report the reading before and
 after. A gate that dies at minute six leaves an orphan on his machine, which is worse than not starting.
