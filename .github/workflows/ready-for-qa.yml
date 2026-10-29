@@ -93,11 +93,92 @@ jobs:
           grep -vE '^Merge (pull request |PR )?#[0-9]+' /tmp/merges.txt > /tmp/unmatched.txt || true
           echo "unmatched=$(wc -l < /tmp/unmatched.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
+      # ── WHAT qa IS ACTUALLY SERVING, read before anyone deploys this promotion ──
+      #
+      # `qa` does not auto-deploy, so the branch moving and the site changing are two separate
+      # events. This records the gap at the moment of the announcement: if the commit below is
+      # BEHIND the range this issue describes, the previous promotion was never deployed and QA
+      # is about to test a build that does not contain it. That happened three times in one day
+      # on 2026-08-09, and the only symptom was the site serving old code while every commit
+      # said the fix had shipped.
+      #
+      # ── UNFAILABLE BY CONSTRUCTION, WHICH IS THE DESIGN CONSTRAINT, NOT A NICETY ────────
+      #
+      # This rides on the announcement. If it can fail it can cost QA the handoff it is
+      # decorating - and `announce-failed` below would then open an issue saying the promotion
+      # was not announced, which would be true and entirely this step's fault. So:
+      #
+      #   * no `set -e` - every command may fail on its own terms
+      #   * `continue-on-error: true` as a second, independent layer
+      #   * the variables START at UNREACHABLE and are only overwritten by a value that
+      #     actually parsed, so a blank is not reachable from here
+      #
+      # THE FALLBACK MUST NOT BE ABLE TO SPEAK AS A MEASUREMENT. A `|| echo 0` on a check that
+      # had errored has printed a reassuring "0 occurrences - good" in this project before, so
+      # the failure value is a WORD: nobody reads UNREACHABLE as a commit, and nobody reads
+      # NOT_IN_HISTORY as "up to date".
+      #
+      # 90s AND NOT 25s, because A SLEEPING SERVICE IS NOT AN UNREACHABLE ONE. qa is on the
+      # free plan and sleeps when idle; `playwright.config.ts` already carries 90s as this
+      # project's measured cold-start allowance. A short timeout would print UNREACHABLE for a
+      # service that was merely asleep and perfectly healthy - a WRONG reading rather than a
+      # missing one, which is the worse of the two and the one that gets quoted.
+      - name: Snapshot what qa is serving
+        id: deployed
+        if: steps.pending.outputs.commits != '0'
+        continue-on-error: true
+        run: |
+          COMMIT=UNREACHABLE
+          BRANCH=UNREACHABLE
+          BEHIND=UNREACHABLE
+
+          BODY=$(curl -fsS --max-time 90 --retry 1 --retry-delay 5 \
+            https://liquidity-hq-qa.onrender.com/api/version 2>/dev/null) || BODY=''
+
+          if [ -n "$BODY" ]; then
+            C=$(printf '%s' "$BODY" | jq -r '.commit // empty' 2>/dev/null) || C=''
+            B=$(printf '%s' "$BODY" | jq -r '.branch // empty' 2>/dev/null) || B=''
+            [ -n "$C" ] && COMMIT=$C
+            [ -n "$B" ] && BRANCH=$B
+
+            # How far the SERVED commit is behind the branch - the number that says whether a
+            # deploy was skipped.
+            #
+            # NESTED, NOT `&&`-CHAINED, and a test caught the difference. Flattened as
+            # `if [ "$COMMIT" != UNREACHABLE ] && git cat-file -e ...`, a 200 carrying
+            # unparseable JSON fell into the else and reported NOT_IN_HISTORY - a claim about
+            # the history of a commit that had never been read. BEHIND must stay UNREACHABLE
+            # whenever COMMIT is UNREACHABLE: "I could not read it" and "I read it and it is
+            # not in the history" are different findings and only one of them is about git.
+            if [ "$COMMIT" != UNREACHABLE ]; then
+              if git cat-file -e "${COMMIT}^{commit}" 2>/dev/null; then
+                N=$(git rev-list --count "${COMMIT}..origin/qa" 2>/dev/null) || N=''
+                [ -n "$N" ] && BEHIND=$N
+              else
+                # A force-push, or a build from a branch since deleted.
+                BEHIND=NOT_IN_HISTORY
+              fi
+            fi
+          fi
+
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          echo "qa is serving commit=$COMMIT branch=$BRANCH behind=$BEHIND"
+
       - name: Build the issue body
         if: steps.pending.outputs.commits != '0'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          # THE SECOND HALF OF "no blanks". The step above cannot emit an empty value, but a
+          # step that was SKIPPED or that `continue-on-error` swallowed has no outputs at all,
+          # and an unset output renders as an empty string. These fallbacks mean the issue says
+          # UNREACHABLE in that case too, rather than showing an empty line where a commit
+          # should be - which is the one outcome that reads as "fine".
+          SERVED_COMMIT: ${{ steps.deployed.outputs.commit || 'UNREACHABLE' }}
+          SERVED_BRANCH: ${{ steps.deployed.outputs.branch || 'UNREACHABLE' }}
+          SERVED_BEHIND: ${{ steps.deployed.outputs.behind || 'UNREACHABLE' }}
         run: |
           set -euo pipefail
           {
@@ -169,6 +250,48 @@ jobs:
             echo "Computed from the branch range rather than the push event, so it stays"
             echo "correct across force-pushes, re-runs and several promotions in a row."
           } >> /tmp/body.md
+
+          # WHAT THE SITE IS SERVING, which is a different question from what the branch says.
+          # Quoted rather than summarised: `/api/version` reports the RUNNING build, and this
+          # project's standing rule is to quote it rather than the branch.
+          {
+            echo
+            echo "**What \`liquidity-hq-qa\` is serving right now:** \`$SERVED_COMMIT\`"
+            echo "on branch \`$SERVED_BRANCH\`."
+          } >> /tmp/body.md
+
+          # Three outcomes, and each gets its own sentence, because "0" and "could not tell"
+          # must never read the same way.
+          if [ "$SERVED_BEHIND" = UNREACHABLE ]; then
+            {
+              echo
+              echo "> The deployed commit could **not be read** - no answer from \`/api/version\`"
+              echo "> within 90s. This is a MISSING MEASUREMENT, not a sign that anything is wrong:"
+              echo "> the service is on the free plan and may have been asleep. **Check it yourself"
+              echo "> before deploying** rather than treating this line as a result."
+            } >> /tmp/body.md
+          elif [ "$SERVED_BEHIND" = NOT_IN_HISTORY ]; then
+            {
+              echo
+              echo "> The deployed commit is **not in this clone's history of \`origin/qa\`**, so how"
+              echo "> far behind it is cannot be stated. That happens after a force-push, or when the"
+              echo "> running build came from a branch since deleted. Worth a look before you deploy."
+            } >> /tmp/body.md
+          elif [ "$SERVED_BEHIND" = "0" ]; then
+            {
+              echo
+              echo "> Already serving the tip of \`qa\`, so **this promotion is deployed** and the"
+              echo "> list above is live on the site."
+            } >> /tmp/body.md
+          else
+            {
+              echo
+              echo "> **This promotion is NOT deployed yet** - the site is **$SERVED_BEHIND commit(s)"
+              echo "> behind \`qa\`**. Deploy \`liquidity-hq-qa\` before testing, or you will be testing"
+              echo "> a build that does not contain the work listed above. If that number is larger"
+              echo "> than this promotion, an EARLIER one was never deployed either."
+            } >> /tmp/body.md
+          fi
 
       - name: Open or update the Ready-for-QA issue
         if: steps.pending.outputs.commits != '0'
