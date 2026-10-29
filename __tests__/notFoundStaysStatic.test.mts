@@ -18,13 +18,22 @@
  * - add it here when it is found.
  *
  * `dynamicParams = false` itself is already pinned in localeOffering.test.mts. */
+/* ── WHY EVERY app/ PATH HERE IS RESOLVED RATHER THAN WRITTEN ───────────────────────
+ *
+ * #1740 moves these files under route groups: `app/not-found.tsx` becomes
+ * `app/(main)/not-found.tsx`, and `app/layout.tsx` becomes `app/(main)/layout.tsx`.
+ * A parenthesised segment is invisible in the URL, so those are the SAME route - this
+ * test does not care where on disk they sit, only what renders with every page.
+ *
+ * Hard-coding either spelling is red on one side of that merge and green on the other,
+ * in both directions, so `appPath` resolves at run time instead. All four assertions
+ * below failed as `ENOENT` stale lookups on the merge of this branch with dev; the
+ * #1434 invariant they guard was never in question. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { appPath, appFiles, isGroupSegment, ROOT } from './_appPath.mts';
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8').replace(/^﻿/, '').split(/\r?\n/).join('\n');
 const code = (rel: string) => read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
@@ -45,37 +54,78 @@ function localImports(rel: string): string[] {
   return out;
 }
 
-test('N1. app/not-found.tsx reads nothing about the request and sets no route config - it renders inside EVERY page', () => {
-  const src = code('app/not-found.tsx');
-  assert.equal(REQUEST_TIME.test(src), false, 'app/not-found.tsx reads the request again (headers/cookies/...). Next renders this file with every page, so the whole site goes dynamic and unknown URLs answer 200 - #1434');
-  assert.equal(ROUTE_CONFIG.test(src), false, 'app/not-found.tsx exports dynamic/revalidate/fetchCache');
+/** Wherever route groups put it. Resolved once; every message below names the real path. */
+const NOT_FOUND = appPath('app/not-found.tsx');
+
+test('N1. the not-found file reads nothing about the request and sets no route config - it renders inside EVERY page', () => {
+  const src = code(NOT_FOUND);
+  assert.equal(REQUEST_TIME.test(src), false, `${NOT_FOUND} reads the request again (headers/cookies/...). Next renders this file with every page, so the whole site goes dynamic and unknown URLs answer 200 - #1434`);
+  assert.equal(ROUTE_CONFIG.test(src), false, `${NOT_FOUND} exports dynamic/revalidate/fetchCache`);
   assert.match(src, /export default function NotFound\(\)/, 'the not-found component is no longer a plain synchronous function - an async one is how a request-time read gets in');
-  assert.equal(/\bawait\b|\bconsole\./.test(src), false, 'app/not-found.tsx awaits something or logs - both were part of the #1251 change that caused #1434');
+  assert.equal(/\bawait\b|\bconsole\./.test(src), false, `${NOT_FOUND} awaits something or logs - both were part of the #1251 change that caused #1434`);
 });
 
-test('N2. nothing app/not-found.tsx imports reads the request either - moving the call one file down would do the same damage', () => {
+test('N2. nothing the not-found file imports reads the request either - moving the call one file down would do the same damage', () => {
   const seen = new Set<string>();
-  const queue = localImports('app/not-found.tsx');
-  assert.ok(queue.length > 0, 'CONTROL: app/not-found.tsx imports no local file - re-derive this test');
+  const queue = localImports(NOT_FOUND);
+  assert.ok(queue.length > 0, `CONTROL: ${NOT_FOUND} imports no local file - re-derive this test`);
   while (queue.length) {
     const f = queue.shift()!;
     if (seen.has(f)) continue;
     seen.add(f);
     const src = code(f);
-    assert.equal(REQUEST_TIME.test(src), false, `${f}, reached from app/not-found.tsx, reads the request`);
+    assert.equal(REQUEST_TIME.test(src), false, `${f}, reached from ${NOT_FOUND}, reads the request`);
     // A client component cannot read the request on the server; stop there.
     if (!/^\s*['"]use client['"]/.test(read(f))) queue.push(...localImports(f));
     assert.ok(seen.size < 200, 'the import walk did not terminate');
   }
 });
 
-test('N3. the root layout, loading and error files - also rendered with every page - read nothing about the request', () => {
-  for (const f of ['app/layout.tsx', 'app/loading.tsx', 'app/global-error.tsx']) {
-    assert.ok(existsSync(path.join(ROOT, f)), `${f} is gone - re-derive this list`);
+/**
+ * EVERY root layout, DISCOVERED rather than listed - a `layout.tsx` with no other layout in a
+ * strict ancestor directory.
+ *
+ * #1740 turns one root layout into TWO: `app/(main)/layout.tsx` for the app, and
+ * `app/(intl)/[locale]/layout.tsx` so /ko and /zh can declare their own `<html lang>`. A
+ * hard-coded list covers the first and SILENTLY SKIPS the second, which is the worst failure
+ * available here - a `headers()` call in the intl root would make every translated page dynamic
+ * and this file would still have been green. Discovery adapts to both sides of the merge and
+ * cannot under-count.
+ */
+function rootLayouts(files: readonly string[]): string[] {
+  const layouts = files.filter((f) => /\/layout\.tsx$/.test(f));
+  return layouts
+    .filter((f) => {
+      const dir = path.posix.dirname(f);
+      return !layouts.some((o) => o !== f && dir.startsWith(`${path.posix.dirname(o)}/`));
+    })
+    .sort();
+}
+
+test('N3. every root layout, plus loading and global-error - all rendered with every page - read nothing about the request', () => {
+  const roots = rootLayouts(appFiles());
+
+  /* CONTROL, and it holds on both sides of #1740: whatever serves the logical root layout must
+     be one of the discovered roots. If discovery breaks, this fails rather than passing on an
+     empty list - the vacuous-pass shape that makes a sweep worthless. */
+  assert.ok(roots.length > 0, 'no root layout found at all - discovery is broken, not the app');
+  assert.ok(
+    roots.includes(appPath('app/layout.tsx')),
+    `the resolved root layout ${appPath('app/layout.tsx')} is not among the discovered roots [${roots.join(', ')}]`,
+  );
+
+  for (const f of [...roots, appPath('app/loading.tsx'), appPath('app/global-error.tsx')]) {
     const src = code(f);
     assert.equal(REQUEST_TIME.test(src), false, `${f} reads the request - it renders with every page, so every page goes dynamic`);
     assert.equal(/export\s+const\s+dynamic\s*=\s*['"]force-dynamic['"]/.test(src), false, `${f} forces dynamic rendering for the whole app`);
   }
+
+  /* `await params` is NOT a request-time read and must not be mistaken for one. The Next glossary
+     lists exactly cookies(), headers(), searchParams and draftMode(); `params` is absent, and the
+     intl root layout awaits it deliberately so /ko and /zh stay prerendered under
+     generateStaticParams + `dynamicParams = false`. REQUEST_TIME does not match it - asserted
+     here so a future tightening of that pattern cannot quietly make this test wrong. */
+  assert.equal(REQUEST_TIME.test('const { locale } = await params;'), false, 'REQUEST_TIME now matches `await params`, which is not a dynamic API');
 });
 
 test('N4. proxy.ts runs only for the two blocked paths and rewrites no request header', () => {
@@ -103,9 +153,16 @@ test('N5. SWEEP: outside /api, exactly one file reads the request - a new one is
     }
   };
   for (const d of ['app', 'components', 'lib']) walk(d);
-  assert.ok(files.length > 150 && files.includes('app/not-found.tsx') && files.includes('app/arena/page.tsx'), `the walk is not seeing the tree (${files.length} files)`);
+  /* The walk itself needs no change - it recurses, so it descends into `(main)` and `(intl)`
+     without knowing they exist. Only these CONTROL literals had to stop being literals, and a
+     control that quietly stops matching is exactly how a sweep starts covering nothing. */
+  const ADMIN = appPath('app/admin/page.tsx');
+  assert.ok(
+    files.length > 150 && files.includes(NOT_FOUND) && files.includes(appPath('app/arena/page.tsx')),
+    `the walk is not seeing the tree (${files.length} files)`,
+  );
   const NEXT_HEADERS = /from ['"]next\/headers['"]/;
   const hits = files.filter((f) => NEXT_HEADERS.test(code(f))).sort();
-  assert.ok(hits.includes('app/admin/page.tsx'), 'CONTROL: the pattern does not match the one file known to import next/headers');
-  assert.deepEqual(hits, ['app/admin/page.tsx'], `a file outside /api imports next/headers: ${hits.join(', ')}. If it renders with every page (layout, not-found, a shared provider) this is #1434 again; if it is a single page, add it here with the reason`);
+  assert.ok(hits.includes(ADMIN), `CONTROL: the pattern does not match ${ADMIN}, the one file known to import next/headers`);
+  assert.deepEqual(hits, [ADMIN], `a file outside /api imports next/headers: ${hits.join(', ')}. If it renders with every page (layout, not-found, a shared provider) this is #1434 again; if it is a single page, add it here with the reason`);
 });
