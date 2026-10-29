@@ -25,6 +25,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import ts from 'typescript';
+import { appPath } from './_appPath.mts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DIRS = ['app', 'components', 'lib'];
@@ -62,7 +63,7 @@ test('D1. CONTROL: the scan covers every directory, and stripping removes commen
   for (const d of DIRS) assert.ok(FILES.some((f) => f.startsWith(`${d}/`)), `no source files found under ${d}/ - the walk is broken`);
   assert.ok(FILES.length >= 300, `only ${FILES.length} files scanned (measured ~380) - the walk lost files`);
   // dashboard/page.tsx's header comment still says "branch on useDesignMode()": prose the strip must remove.
-  assert.match(read('app/dashboard/page.tsx'), /useDesignMode\(\)/, 'CONTROL premise: the known comment mention is gone - pick another');
+  assert.match(read(appPath('app/dashboard/page.tsx')), /useDesignMode\(\)/, 'CONTROL premise: the known comment mention is gone - pick another');
   assert.doesNotMatch(CODE.get('app/dashboard/page.tsx')!, /useDesignMode/, 'comment stripping left a comment in');
   assert.match(CODE.get('app/layout.tsx')!, /data-design="terminal"/, 'comment stripping removed code');
 });

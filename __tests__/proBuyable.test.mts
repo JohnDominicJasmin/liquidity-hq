@@ -31,6 +31,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { isProBuyable, isCryptoCheckoutConfigured } from '../lib/checkout.ts';
 import { configuredFlags } from '../lib/configured.ts';
+import { appPath } from './_appPath.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).join('\n');
@@ -155,12 +156,12 @@ test('S1. UpgradeGateModal and FullPageUpgradeGate read no payment setting and a
 });
 
 test('S2. /upgrade and the trial-ending email both ask isProBuyable() (Whop); the BoomFi grant asks BoomFi\'s own link', () => {
-  assert.match(stripComments(read('app/upgrade/page.tsx')), /const CHECKOUT_CONFIGURED = isProBuyable\(\);/);
+  assert.match(stripComments(read(appPath('app/upgrade/page.tsx'))), /const CHECKOUT_CONFIGURED = isProBuyable\(\);/);
   const email = stripComments(read('lib/email.ts'));
   assert.match(email, /const checkoutLive = isProBuyable\(\);/, 'the email no longer follows the same switch as /upgrade (#1630 GO-LIVE 5)');
   assert.equal(/isCryptoCheckoutConfigured/.test(email), false, 'the email reads BoomFi\'s parked link again - it would say "not on sale" while /upgrade sells through Whop');
   assert.equal(/isCheckoutConfigured|NEXT_PUBLIC_LEMONSQUEEZY/.test(email), false, 'the email reads the Lemon Squeezy link again');
-  assert.equal(/isProBuyable/.test(stripComments(read('app/api/boomfi/webhook/route.ts'))), false, 'the BoomFi grant gate follows the Whop switch again');
+  assert.equal(/isProBuyable/.test(stripComments(read(appPath('app/api/boomfi/webhook/route.ts')))), false, 'the BoomFi grant gate follows the Whop switch again');
 });
 
 test('S3. SWEEP: no file under app/, components/ or lib/ reads a Lemon Squeezy checkout link, except lib/checkout.ts and lib/configured.ts', () => {
