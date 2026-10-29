@@ -1370,6 +1370,27 @@ on `dev`, and the whole `dev` → `qa` → `staging` → `main` model stops mean
 After a release lands on `main`, `qa` keeps whatever it had; the next promotion
 fast-forwards it again from `dev`. Nothing needs resetting.
 
+**SINCE 2026-10-29 THE UNIT TESTS DEPEND ON THIS RULE, so it is load-bearing in
+a way it was not before.** `.githooks/pre-push` gives the unit tests to CI, and
+CI runs them on every pull request into `dev`, `qa`, `staging` and `main` and on
+every push to `dev`, `staging` and `main`.
+
+**`qa` is on neither list.** That is deliberate and `.github/workflows/ci.yml`
+says so: a fast-forward promotion puts a commit on `qa` that is bit-identical to
+one already tested on `dev`, so running the suite again proves nothing new.
+
+**The coverage comes from the fast-forward, not from the branch.** Force-push
+into `qa`, or merge anything into it that is not a fast-forward from `dev`, and
+the commits now on `qa` have been tested by nothing — not the hook, which no
+longer runs tests, and not CI, which is not watching that branch. **Nothing
+reports this.** There is no failing check and no red cross; the suite simply
+never ran, and `qa` looks exactly as it does on a good day.
+
+So the paragraph above is not only about keeping the branch model honest any
+more. Written here rather than only in `ci.yml` because the rule and the thing
+depending on it were in two files, and the one that would be read first did not
+mention the other.
+
 ### Delete the branch when it merges
 
 Once a feature branch is merged, delete it locally and on the remote. A branch
