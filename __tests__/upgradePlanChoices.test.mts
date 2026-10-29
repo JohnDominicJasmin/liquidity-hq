@@ -16,10 +16,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const UPGRADE = code(read('app/upgrade/page.tsx'));
+const UPGRADE = code(read(appPath('app/upgrade/page.tsx')));
 const defaults = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, string>;
 
 test('UP1. "Upgrade to Pro" is rendered only where checkout is configured, so the launching-soon state still has no button', () => {

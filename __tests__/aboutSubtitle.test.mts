@@ -17,6 +17,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -114,7 +115,7 @@ test('A6. 20261001e is the LAST migration writing the English subtitle, so nothi
 /* ══ The page ════════════════════════════════════════════════════════════════════════════════════════ */
 
 test('A7. the About page renders the subtitle through t(\'ABOUT_PAGE_SUBTITLE\'), not a hard-coded string - otherwise the label and the migration change nothing on screen and no locale but English could ever show', () => {
-  const page = stripComments(read('app/about/page.tsx'));
+  const page = stripComments(read(appPath('app/about/page.tsx')));
   anchorOnce(page, `{t('${KEY}')}`, 'the subtitle render');
   assert.doesNotMatch(page, /Liquidity Hunter HQ/, 'the page hard-codes the product name line');
   assert.doesNotMatch(page, /market analytics|trading intelligence/i, 'the page hard-codes subtitle wording');

@@ -23,10 +23,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compositeOver, contrastRatio, parseCssColor } from '../lib/readableOn.ts';
 import { CONTEXTS, resolve } from './_cssContexts.mts';
+import { appPath } from './_appPath.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PAGE = readFileSync(path.join(ROOT, 'app', 'econ-calendar', 'page.tsx'), 'utf8');
-const API = readFileSync(path.join(ROOT, 'app', 'api', 'econ-calendar', 'route.ts'), 'utf8');
+const PAGE = readFileSync(path.join(ROOT, appPath('app', 'econ-calendar', 'page.tsx')), 'utf8');
+const API = readFileSync(path.join(ROOT, appPath('app', 'api', 'econ-calendar', 'route.ts')), 'utf8');
 
 const TEXT_MIN = 4.5;
 const ratio = (a: string, b: string) => contrastRatio(parseCssColor(a)!.rgb, parseCssColor(b)!.rgb);

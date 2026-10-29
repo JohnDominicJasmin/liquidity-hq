@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { SUPPORTED_LOCALES, isSupportedLocale, dirForLocale, getDictionary } from '../lib/i18n/dictionaries.ts';
+import { appPath } from './_appPath.mts';
 
 /* #138. Arabic shipped in the picker with RTL unimplemented: /ar served
  * `<html lang="en">` with no `dir`, and `dirForLocale` reached one div inside
@@ -38,7 +39,7 @@ test('Arabic is not offered', async (t) => {
   /* generateStaticParams now derives from SUPPORTED_LOCALES. A literal list is
      what let the two disagree in the first place. */
   await t.test('no Arabic route is prerendered', () => {
-    const src = read('app/[locale]/page.tsx');
+    const src = read(appPath('app/[locale]/page.tsx'));
     assert.doesNotMatch(src, /locale:\s*'ar'/, 'a literal ar entry is back in generateStaticParams');
     assert.match(src, /SUPPORTED_LOCALES/, 'generateStaticParams no longer derives from SUPPORTED_LOCALES');
   });
@@ -103,7 +104,7 @@ test('the Arabic work is preserved, not deleted', async (t) => {
  * and left reachable here.
  */
 test('an unknown locale is refused at routing, not while rendering', async (t) => {
-  const src = read('app/[locale]/page.tsx');
+  const src = read(appPath('app/[locale]/page.tsx'));
 
   await t.test('dynamicParams is disabled', () => {
     assert.match(src, /export\s+const\s+dynamicParams\s*=\s*false/,

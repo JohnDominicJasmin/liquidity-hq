@@ -16,6 +16,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { appPath } from './_appPath.mts';
+
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p: string[]) => readFileSync(path.join(ROOT, ...p), 'utf8');
 
@@ -120,8 +122,8 @@ test('Arena mounts it headless and /liq does not', () => {
      collapsed to a wrapper around LiqTerminal, which is where the real
      mount lives now). Arena has not collapsed this way, so its read is
      unaffected either way. */
-  const arena = stripComments(read('app', 'arena', 'page.tsx'));
-  const liq   = routeComposedSource('app', 'liq', 'page.tsx');
+  const arena = stripComments(read(appPath('app', 'arena', 'page.tsx')));
+  const liq   = routeComposedSource(appPath('app', 'liq', 'page.tsx'));
 
   const arenaTag = arena.match(/<LiqFeed[^>]*\/>/);
   assert.ok(arenaTag, 'Arena no longer mounts LiqFeed - the chart loses its cluster lines');

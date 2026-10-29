@@ -1,11 +1,50 @@
 #!/bin/sh
 #
-# Runs three of the four gates before every push.
+# Runs two of the four gates before every push. The unit tests used to be here
+# and are now in CI.
 #
-# HOW MUCH THIS PROTECTS DEPENDS ON WHETHER CI IS RUNNING, AND THIS FILE CANNOT
-# SEE THAT. Check, do not assume: `gh workflow list`. When CI is off - which is
-# the usual state, because Actions minutes are billed to the owner personally -
-# this is the only automated thing between a mistake and `dev`.
+# THE TESTS MOVED TO CI ON 2026-10-29, AND THIS IS A RELOCATION OF THE GATE
+# RATHER THAN A REMOVAL OF IT. .github/workflows/ci.yml runs lint, typecheck,
+# test and build on every pull request into dev, qa, staging and main, and on
+# every push to dev, staging and main. The check still happens; it happens a
+# few minutes later, on hardware the owner is not sitting in front of.
+#
+# WHY IT MOVED. `node --test` was measured at 206 seconds and about a gigabyte,
+# on the owner's laptop, for every push every session made. He asked four times
+# for heavy work to stop running there. Until 2026-10-29 the honest answer was
+# that the cloud had no gate to offer: CI had been refusing every run since
+# 2026-09-20 on a failed card authorization - 732 refused, zero successes - and
+# nobody had noticed, so this hook really was the only check that existed. The
+# card was re-verified and CI started running again, and that is what turned
+# the move from desirable into possible.
+#
+# WHAT THIS GIVES UP, STATED RATHER THAN BURIED: a broken commit can sit on
+# `dev` for the few minutes before CI flags it. `dev` is the integration branch
+# and that is what it is for. It cannot reach `main`, because the PR check
+# stands in between, and it cannot reach production, which needs QA's sign-off
+# and the owner's word regardless.
+#
+# WHAT WOULD MAKE THAT A BAD TRADE, so you can check it instead of trusting it:
+# CI being off again. THIS FILE CANNOT SEE THAT. Run
+#
+#     gh api repos/:owner/:repo/actions/workflows --jq '.workflows[] | .state + "  " + .name'
+#
+# and it should print `active  CI`. If it does not, the unit tests are running
+# NOWHERE - not here, not there - and this hook is two thirds of a gate. Put
+# `npm test` back below until CI is fixed, and say so where the team reads.
+#
+# THE SECOND THING THAT WOULD MAKE IT A BAD TRADE IS `qa` DIVERGING. CI watches
+# pushes to dev, staging and main - NOT qa - because promotions into qa are
+# fast-forward only, so the commit landing there is bit-identical to one already
+# tested on dev. The coverage comes from the fast-forward, not from the branch.
+# Force-push into qa, or merge into it from anywhere but dev, and those commits
+# have been tested by nothing: not here, and not by CI, which is not watching.
+# Nothing reports it - no red cross, the suite just never ran. CONTRIBUTING
+# section 6 carries this next to the fast-forward rule itself.
+#
+# --no-verify IS STILL OFF THE TABLE, and lightening the hook is exactly why.
+# A gate that is bypassed as well as lightened leaves nothing checking anything
+# until the pull request.
 #
 # This header used to assert "ALL CI IS DISABLED (owner instruction, 2026-08-10)".
 # That was true when written, FALSE for most of 2026-09-05 while CI gated the
@@ -39,8 +78,11 @@
 # nothing. Build stays manual before opening a PR - CONTRIBUTING.md - and it is
 # the one that catches the keyless-env class of defect.
 #
-# `eslint .` currently reports 0 errors and 140 warnings, and exits 0 on
-# warnings. Do NOT add --max-warnings 0 without clearing those 140 first, or
+# `eslint .` reported 0 errors and 199 WARNINGS when measured 2026-10-29, and
+# exits 0 on warnings. It said 140 from whenever that was until today, which is
+# the same stale-number trap this file warns about twice elsewhere. Do NOT add
+# --max-warnings 0 without clearing those 199 first, or this becomes unusable on
+# day one and gets bypassed by reflex.
 # this becomes unusable on day one and gets bypassed by reflex.
 #
 # Bypass with `git push --no-verify` when you genuinely need to - and say so in
@@ -58,16 +100,18 @@ set -e
 # the whole gate ONCE PER BRANCH to prove nothing about refs that carry no
 # content.
 #
-# HOW LONG THE GATE TAKES, MEASURED 2026-10-23 - do not re-estimate from
-# memory: the `node --test` step ALONE reported duration_ms 206298 for 2078
-# tests (3 min 26 s), and eslint over the whole repo plus `tsc --noEmit` sit on
-# top, so budget FIVE TO EIGHT MINUTES. This line used to say "722 unit tests -
-# about 25 seconds each" and it stayed there while the suite tripled; on
-# 2026-10-22 a reader sized a push window on it, on a machine that had already
-# reaped three jobs for low memory. A stale number in a comment outlives every
-# stale number in code, because nothing ever runs a comment. If you change the
-# suite's size, re-measure this or DELETE it - a missing number sends the next
-# reader to measure, a wrong one sends them to a reaped job.
+# HOW LONG THE GATE TAKES, RE-MEASURED 2026-10-29 ON THE DAY THE TESTS LEFT -
+# do not re-estimate from memory: `npm run lint` 56 s, `npx tsc --noEmit` 10 s,
+# SIXTY-SIX SECONDS in total, on a warm checkout. Budget two minutes cold.
+#
+# It said FIVE TO EIGHT MINUTES until today, which was honest - `node --test`
+# alone reported duration_ms 206298 for 2078 tests. Before that it said "722
+# unit tests - about 25 seconds each" and stayed there while the suite tripled,
+# and on 2026-10-22 a reader sized a push window on that number, on a machine
+# that had already reaped three jobs for low memory. A stale number in a comment
+# outlives every stale number in code, because nothing ever runs a comment. If
+# you change what runs below, re-measure this or DELETE it - a missing number
+# sends the next reader to measure, a wrong one sends them to a reaped job.
 #
 # The cost is not the time. A gate that fires where it cannot possibly help is
 # how people learn to type `--no-verify` by reflex, and this file's own header
@@ -97,7 +141,4 @@ npm run lint
 printf '[pre-push] typecheck\n'
 npx tsc --noEmit
 
-printf '[pre-push] unit tests\n'
-npm test
-
-printf '[pre-push] lint, typecheck and unit tests passed. BUILD NOT RUN - run `npm run verify` before opening a PR.\n'
+printf '[pre-push] lint and typecheck passed. UNIT TESTS AND BUILD NOT RUN HERE - the tests run in CI on the pull request, the build is `npm run verify` by hand.\n'
