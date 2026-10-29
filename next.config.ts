@@ -101,6 +101,32 @@ const securityHeaders = [
 const release = process.env.RENDER_GIT_COMMIT ?? '';
 
 const nextConfig: NextConfig = {
+  /* EXPERIMENTAL, and the only thing it enables is app/global-not-found.tsx (#1740 item 2).
+   *
+   * This app has two root layouts, so there is no single layout left to compose a global 404 from
+   * and app/not-found.tsx cannot be reached for an unmatched URL - see app/global-not-found.tsx.
+   * `globalNotFound` is the documented hook for exactly that case and it is the only route to a
+   * branded 404 here.
+   *
+   * IF A FUTURE NEXT DROPS OR RENAMES THIS FLAG the build FAILS, exit 1 - measured by planting a
+   * bogus key here and building. The mechanism is the TYPE CHECK, not Next's own config validation:
+   * Next only WARNS ("Unrecognized key(s) in object ... at experimental"), while tsc errors with
+   * TS2353 "does not exist in type 'ExperimentalConfig'" and the build reports "Failed to type
+   * check". `npx tsc --noEmit` catches it independently, since tsconfig's TypeScript glob covers
+   * this file. So the loud failure depends on this config staying TypeScript and on the gate not
+   * being muted - do NOT add `typescript: { ignoreBuildErrors: true }`, and do not rename this file
+   * to .js, or a future rename of the flag degrades to a warning nobody reads and the 404 silently
+   * reverts to Next's built-in page. The fix, when it happens, is deleting these two lines.
+   *
+   * ONE MEASURED ODDITY, recorded so nobody relies on it: in Next 16.3.8 app/global-not-found.tsx
+   * is honoured even with this flag ABSENT. Flag on and flag off produce a byte-identical 404;
+   * removing the FILE is what brings Next's built-in page back. The flag is kept anyway, precisely
+   * because the flagless path is undocumented - if a later version starts enforcing the gate, the
+   * flag is what turns that into a build failure instead of a silent downgrade. */
+  experimental: {
+    globalNotFound: true,
+  },
+
   // Remove X-Powered-By: Next.js header (don't leak stack info)
   poweredByHeader: false,
 
