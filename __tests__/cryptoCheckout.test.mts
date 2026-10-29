@@ -35,11 +35,12 @@ import {
 } from '../lib/checkout.ts';
 import { configuredFlags } from '../lib/configured.ts';
 import { LABEL_KEYS } from '../lib/labelKeys.ts';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const CHECKOUT = stripComments(read('lib/checkout.ts'));
-const UPGRADE = stripComments(read('app/upgrade/page.tsx'));
+const UPGRADE = stripComments(read(appPath('app/upgrade/page.tsx')));
 const labelDefaults = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, string>;
 
 // Fixtures, not the live links: nothing here may point a test at a real payment page.

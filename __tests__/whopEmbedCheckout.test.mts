@@ -16,6 +16,7 @@ import test from 'node:test';
 import { register } from 'node:module';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -104,7 +105,7 @@ test('C2. the CSP allows no wallet, bank or card host (those are Whop\'s own fra
 });
 
 test('S1. source: nothing is unlocked from the browser (no onComplete), the element locks the email, and the email passed is the account email', () => {
-  const embed = stripTsComments(read('components/WhopCheckoutEmbed.tsx')); const page = stripTsComments(read('app/upgrade/page.tsx'));
+  const embed = stripTsComments(read('components/WhopCheckoutEmbed.tsx')); const page = stripTsComments(read(appPath('app/upgrade/page.tsx')));
   assert.ok(!/onComplete/.test(embed) && !/onComplete/.test(page), 'a client-side completion handler exists');
   assert.ok(/<CheckoutElement[^>]*\blockBuyerEmail\b/.test(embed), 'the element is not told to lock the email');
   assert.ok(/buyerEmail=\{email\}/.test(embed));
@@ -113,7 +114,7 @@ test('S1. source: nothing is unlocked from the browser (no onComplete), the elem
 });
 
 test('S2. source: the return reads only succeeded, failed and canceled from ?status, says nothing about Pro being on, and does not call history.replaceState', () => {
-  const page = stripTsComments(read('app/upgrade/page.tsx'));
+  const page = stripTsComments(read(appPath('app/upgrade/page.tsx')));
   const m = page.match(/get\('status'\);\s*if\s*\(([^)]*)\)\s*setReturnStatus/); assert.ok(m, 'the status reader moved: re-derive this pin');
   assert.deepEqual([...m![1].matchAll(/'(\w+)'/g)].map((x) => x[1]).sort(), ['canceled', 'failed', 'succeeded']);
   assert.ok(!/history\.replaceState/.test(page), 'history.replaceState resets the page state and loses the banner');

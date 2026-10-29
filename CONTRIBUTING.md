@@ -1024,10 +1024,96 @@ window above.
 | 3 | **Dev** | reviews the whole thing and merges | green |
 
 **Step 1 pushing FIRST is not a detail — it is the thing that makes step 2
-possible at all.** A test cannot be pushed before the code it tests exists
-somewhere pushable, because the hook runs `npm test` on **every** push regardless
-of whose branch it is. **The implementation being on the remote is what makes
-QA's test green rather than red.**
+possible at all.**
+
+**THE TABLE ABOVE ASSUMES THE BLOCKER IS A NEW TEST. It is not always.** When an
+**existing** assertion pins a contract dev is changing, **step 1 is impossible** —
+dev's own gate refuses the push, so there is no branch for QA to commit onto.
+Found 2026-10-28: `planKindOfRow` S4 pinned a select as an exact string and
+`cancelSubscription` G3 pinned a response at five keys; the cancel-flow change
+legitimately widened both. The exits were `--no-verify` (forbidden), QA writing
+the implementation (forbidden), or deadlock.
+
+**So there is a step 0: QA loosens the existing pin to a form that is green on
+BOTH trees — the old one and dev's — as its own QA branch, pushed first.** Dev
+can then push, and the pin tightens to the new exact contract on dev's branch
+before the merge.
+
+**Two things that keep step 0 honest.** The loosened form must be stated as a
+gap, not left implied — a required set plus an allow list will not catch dev
+omitting one of the new fields, and that is the price of unblocking. **And the
+tightened pin goes on dev's pushed branch, not inside dev's own PR:** a test and
+the code it pins, written as one unit by one session, is exactly what this
+handoff exists to prevent.
+
+**THIRD CONDITION, and step 0 fails without it: "green on both trees" is only
+measurable on ONE of them.** QA can mutate the old tree to resemble the new one,
+but that tests the shape QA *imagined*, not dev's. **So QA states which half was
+measured and which was inferred, and dev confirms the loosened test against their
+own tree before relying on it** — the only tree where the other half can be
+checked. Reading the diff is enough.
+
+**It happened on the very commit that created this rule, and the way it happened
+is the argument.** QA's six mutations edited the **response construction** - the
+output end of the route. The fixture field added to G3 was an **input**, and dev
+reasoned that on dev's tree it would trigger a second read that did not exist on
+QA's: `membershipStateForAccount` against `_whop_webhook_events`. The stand-in
+throws on an unknown path, so dev **predicted** the route's outer catch would
+turn that into a 503 and G3 would go red - refusing the very push the commit
+existed to unblock.
+
+**That prediction was wrong, and only a measurement showed it.** QA ran it: the
+stand-in is `async`, so the rejection reaches supabase-js as a *returned* error
+the reader already handles. G3 passed, and it still passed with the catch body
+replaced by `throw e`. There was no 503.
+
+**Which is a better case for this condition than a real failure would have
+been - and the reason is not the one this paragraph gave first.** The first
+correction said neither session could have settled it alone, because the
+behaviour only appeared on dev's tree. QA pointed out that this is two questions
+wearing one answer:
+
+- **Does the second read exist on dev's tree?** Genuinely tree-specific. QA could
+  not check it. **This was never the part in dispute.**
+- **Does the stand-in's throw become a 503?** **Not tree-specific at all.** It is
+  a property of the stand-in being `async` and of how supabase-js handles a
+  rejected fetch, it holds on either tree, and QA measured it in a minute without
+  dev's tree.
+
+**So the failure was reasoning where measuring was available, not a gap between
+two trees.** "Neither session could settle it alone" is the kinder story and the
+weaker lesson: it invites the next reader to conclude that cross-tree questions
+are just hard. The truth is that the disputed half was the cheap half, and
+nobody ran it.
+
+**That is what the third condition is for** - say which half was measured,
+because **the half nobody measured is usually the one that was easiest to
+measure.** Reasoning is what you do about the part that genuinely cannot be
+reached from your tree, and that part is smaller than it looks from inside the
+argument.
+
+**The first version of this paragraph recorded the 503 as observed**, because the
+PR body it was written from did. It was a prediction written in the past tense,
+and it is corrected here rather than deleted because the failure mode is worth
+more than the rule: **nothing about a false recorded failure looks uncertain.**
+The next reader inherits it as evidence, and the reasonable response to "a 503
+was observed and we do not know why" is an investigation into a live fault that
+does not exist. Before writing any failure down, ask whether you watched it or
+concluded it - and if you concluded it, write "would", not "did".
+
+**A control that edits the last line of a route cannot tell you what a new
+fixture does to a data path that is not there yet.** Without this condition, step
+0 reads as self-verifying, which is the failure it would then produce on
+schedule.
+
+A test cannot be pushed before the code it tests exists somewhere pushable.
+**The gate that enforces this moved on 2026-10-29 and the rule survived the
+move**: `.githooks/pre-push` used to run `npm test` on every push, so a test
+whose implementation was not yet on the remote went red on the author's own
+machine. The hook now runs lint and `tsc` only - the suite moved to CI - so the
+refusal arrives on the pull request instead of at push time. **Later, and still
+before anything merges.** The implementation being reachable is what makes QA's
+test green rather than red; only the moment you find out has changed.
 
 **Be honest about what this does and does not buy.** It guarantees **no merge
 without coverage**. It does **not** give you test-first TDD — a genuinely
@@ -1369,6 +1455,27 @@ on `dev`, and the whole `dev` → `qa` → `staging` → `main` model stops mean
 
 After a release lands on `main`, `qa` keeps whatever it had; the next promotion
 fast-forwards it again from `dev`. Nothing needs resetting.
+
+**SINCE 2026-10-29 THE UNIT TESTS DEPEND ON THIS RULE, so it is load-bearing in
+a way it was not before.** `.githooks/pre-push` gives the unit tests to CI, and
+CI runs them on every pull request into `dev`, `qa`, `staging` and `main` and on
+every push to `dev`, `staging` and `main`.
+
+**`qa` is on neither list.** That is deliberate and `.github/workflows/ci.yml`
+says so: a fast-forward promotion puts a commit on `qa` that is bit-identical to
+one already tested on `dev`, so running the suite again proves nothing new.
+
+**The coverage comes from the fast-forward, not from the branch.** Force-push
+into `qa`, or merge anything into it that is not a fast-forward from `dev`, and
+the commits now on `qa` have been tested by nothing — not the hook, which no
+longer runs tests, and not CI, which is not watching that branch. **Nothing
+reports this.** There is no failing check and no red cross; the suite simply
+never ran, and `qa` looks exactly as it does on a good day.
+
+So the paragraph above is not only about keeping the branch model honest any
+more. Written here rather than only in `ci.yml` because the rule and the thing
+depending on it were in two files, and the one that would be read first did not
+mention the other.
 
 ### Delete the branch when it merges
 

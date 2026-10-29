@@ -3,6 +3,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { apiError } from '@/lib/apiError';
 import { recordApiHealth } from '@/lib/apiHealth';
+import { formatFieldCoverage } from '@/lib/econCoverage';
 import { runHealthAlert } from '@/lib/healthAlert';
 import { T } from '@/lib/tables';
 import type { CalEvent } from '../route';
@@ -11,6 +12,18 @@ import { retryRefusedWhopDeliveries, type RetrySummary } from '@/lib/whopGrant';
 // Writes the economic calendar into a snapshot row so clients can subscribe to
 // it instead of each polling /api/econ-calendar on their own hour timer.
 // Scheduled hourly from cron-job.org - see docs/INFRASTRUCTURE.md §2.
+//
+// THAT JOB POSTS TO PRODUCTION ONLY (https://liquidity-hq.com). There is no qa, staging or dev
+// equivalent, and there deliberately will not be: the job authenticates with `x-cron-secret`, and a
+// production secret must never be copied to a non-production service (the same reasoning is recorded
+// against the market-ingest job, 2026-09-26; this route's row simply has no non-prod counterpart).
+//
+// SO NOTHING HERE EVER RUNS ON qa, AND WAITING FOR IT TO IS WAITING FOR SOMETHING THAT CANNOT HAPPEN.
+// This is written down because the opposite reading cost a verification on 2026-10-27: the field
+// coverage line below was merged to `qa`, seven days of qa service logs were searched for
+// `[econ-calendar/ingest]`, nothing was found, and the natural conclusion - "it has not fired yet" -
+// sends the next reader back to wait. The code and the scheduler were simply on different hosts.
+// Anything logged or written here becomes observable one hour after it reaches PRODUCTION.
 //
 // Calls this app's own /api/econ-calendar rather than importing its internals:
 // that route builds the calendar from the agencies' published schedules
@@ -74,11 +87,31 @@ export async function POST(req: Request) {
     // answers 200 with `{events: [], source: 'none'}` when it cannot produce a
     // calendar (the schedule table has expired), so status alone would report
     // that as healthy.
+
+    /* ...and the count is not the VALUES either (#1651). The table draws eight columns; PREVIOUS, CONSENSUS
+       and ACTUAL are three of them, and on production 001d0c1 all three read `-` on all twenty rows while
+       this route reported a healthy twenty events. A count-based check cannot see that, for the same reason
+       the status-based one above could not see an empty calendar: it measures the wrong thing one level up.
+
+       This LOGS the gap rather than closing it, and a zero here is not a failure - `previous` and
+       `estimate` have no producer anywhere, and `actual` is only ever filled for events already past.
+       Why, measured rather than inferred, and why Finnhub is not involved at any point: lib/econCoverage.ts.
+
+       The counting lives there rather than here because the bug it guards against is unreachable from
+       outside. All three fields are absent from every event today, so a test driven through this route
+       answers the same on a correct counter and a broken one; only a test that PLANTS a value tells them
+       apart, and that means calling the function directly. A closure here could not be called at all. */
+    const total = events?.length ?? 0;
+    const fieldCoverage = formatFieldCoverage(events);
+    if (total > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`[econ-calendar/ingest] ${total} events via ${source ?? 'unknown'} | ${fieldCoverage}`);
+    }
     await recordApiHealth([{
       source: 'econ-calendar',
       category: 'macro',
       ok: (events?.length ?? 0) > 0,
-      detail: events?.length ? `${events.length} events via ${source ?? 'unknown'}` : 'no events - the release schedule table has expired or could not be read',
+      detail: events?.length ? `${events.length} events via ${source ?? 'unknown'} | ${fieldCoverage}` : 'no events - the release schedule table has expired or could not be read',
       items: events?.length ?? 0,
     }]);
 

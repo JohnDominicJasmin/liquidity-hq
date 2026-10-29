@@ -3,6 +3,9 @@ import localFont from 'next/font/local';
 import Script from 'next/script';
 import './globals.css';
 import AppShell from '@/components/AppShell';
+import StructuredData from '@/components/StructuredData';
+import { organizationGraph } from '@/lib/structuredData';
+import { OG_IMAGES } from '@/lib/seo';
 
 // Self-hosted, previously next/font/google.
 //
@@ -68,7 +71,10 @@ export const metadata: Metadata = {
   // canonical entry URLs.
   metadataBase: new URL('https://liquidity-hq.com'),
   title: {
-    default: 'LiquidityHQ',
+    /* #1740 item 3: was the bare 'LiquidityHQ' - 11 characters on the one page with the most to say
+       for itself. This is the DEFAULT, so it titles '/' only; every other route sets its own and gets
+       the template below. Kept under ~60 so a search result does not truncate it. */
+    default: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
     template: '%s - LiquidityHQ',
   },
   description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
@@ -76,15 +82,22 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'LiquidityHQ',
-    title: 'LiquidityHQ - Crypto Market Analytics',
+    /* #1740: the same string as the <title> default above. These three disagreed - <title> said
+       'LiquidityHQ', openGraph said 'Crypto Market Analytics', twitter said 'LiquidityHQ' - so
+       one page carried three names depending on who asked. appleWebApp.title stays the bare
+       'LiquidityHQ' on purpose: that is the installed PWA's name on a home screen, not a page
+       title, and it has a much shorter budget. */
+    title: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
     // #1633: this pointed at /icons/icon-512.jpg, which does not exist (404), so every shared link showed no picture. The file is a .png.
     // A real 1200x630 share image is a separate, owner-approved piece of work.
-    images: [{ url: '/icons/icon-512.png', width: 512, height: 512, alt: 'LiquidityHQ' }],
+    // #1740 item 3: one constant, shared with /learn and /[locale], which each had to repeat it because a local openGraph object
+    // replaces this one rather than merging - and which, not repeating it, had no share image at all.
+    images: OG_IMAGES,
   },
   twitter: {
     card: 'summary',
-    title: 'LiquidityHQ',
+    title: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
     images: ['/icons/icon-512.png'],
   },
@@ -148,6 +161,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           is one level deep, so this silences <body>'s own attributes and nothing
           inside it. A genuine mismatch in the tree still reports. */}
       <body className="consent-pending" suppressHydrationWarning>
+        {/* #1740 item 4: the publisher, on every page, so a crawler can tie the whole site to one
+            entity. Page-specific graphs (FAQPage, Product, BreadcrumbList) are added by the layout
+            of the page they describe, not here. */}
+        <StructuredData graph={organizationGraph()} />
         {/* beforeInteractive - injected into the initial server HTML and
             runs before hydration, so data-theme is correct before first
             paint (no flash of the wrong theme). Mirrors lib/theme.ts's
@@ -189,6 +206,64 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             failure being guarded against is React not running. The normal path
             still wins - CookieConsent removes it within a frame or two - and
             this only ever fires when that did not happen. */}
+        {/* A SIGNED-IN VISITOR LEAVES THE LANDING PAGE BEFORE HYDRATION, NOT ~13s AFTER IT (#1309 item 12 follow-up).
+            Measured on production d01f366: `responseEnd` 677ms, `domContentLoaded` 733ms, `loadEventEnd` 746ms -
+            and the signed-in visitor was STILL READING MARKETING COPY at 13,350ms. A second sample: 6,933ms. Both
+            ended on /arena, so the redirect works; it is just late by more than an order of magnitude.
+
+            THE DOCUMENT IS FINISHED IN THREE QUARTERS OF A SECOND. Everything after that is ours. The redirect
+            lives in a useEffect in components/LandingContent.tsx and cannot run until React hydrates, and the
+            `user` it waits on cannot resolve until AuthProvider's getSession settles after that.
+
+            This is the SAME FIX AND THE SAME REASONING as the consent-pending script directly below, which exists
+            because the Ask AI FAB waited ~2s on hydration for a class that a returning visitor's localStorage
+            could have decided immediately. A useEffect cannot run before hydration; this can.
+
+            WHY IT IS SAFE TO DECIDE HERE, rather than a heuristic that races the real auth:
+
+              * The 90-SECOND MARGIN IS SUPABASE'S OWN. auth-js 2.106.2 treats a session as expired when
+                `expires_at * 1000 - Date.now() < EXPIRY_MARGIN_MS`, and that constant is
+                AUTO_REFRESH_TICK_THRESHOLD (3) x AUTO_REFRESH_TICK_DURATION_MS (30s) = 90,000. Using the same
+                test means this never redirects on a token the SDK would itself refuse and refresh - the
+                disagreement case is the only one that could send someone to /arena wrongly.
+              * THE STORED VALUE IS PLAIN JSON. `setItemAsync` is `storage.setItem(key, JSON.stringify(data))` -
+                no base64 wrapper on localStorage - so `expires_at` (unix SECONDS) is readable without the SDK.
+                Checked in node_modules rather than assumed; if it were encoded this script would parse nothing,
+                catch, and silently do nothing, which is indistinguishable from working.
+              * NO REDIRECT LOOP IS POSSIBLE. /arena does not bounce signed-out visitors back - it renders with
+                features locked and only sends to /login on an explicit action (app/arena/page.tsx:1750). So the
+                worst case of a false positive is a visitor landing on /arena signed-out, not a cycle.
+              * CRAWLERS ARE UNAFFECTED, which protects #1740. No localStorage token means no redirect, so the
+                marketing copy is still what a crawler is served - the whole point of #1740, and the thing this
+                script could most easily have broken without any timing measurement noticing.
+
+                NO WORD COUNT HERE ON PURPOSE, and the reason is not that the page is hard to measure.
+
+                This line quoted "1,013 words" with no method attached. Three sessions measured the same
+                production page on 2026-10-27 and the results group cleanly ONCE THE METHOD IS NAMED:
+
+                   A  alpha words only, script+style bodies stripped    835 / 855
+                   B  all whitespace tokens, same stripping           1,060 / 1,059 / 1,059
+                   C  script bodies counted                           1,614 / 1,613 / 1,613
+
+                B agrees to within ONE TOKEN across three independent instruments, so the page is not
+                ambiguous - only the reporting was. The withdrawn 1,013 sits in the B family on an earlier
+                build; 1,013 -> 1,059 is an ordinary copy change, not a contradiction.
+
+                The number is still gone, because a bare figure in a comment is unverifiable WHATEVER it is
+                and whether or not it reconciles: nothing here can fail when it drifts. So this asserts the
+                PROPERTY - a crawler is served the copy - and the figure belongs in a check that states its
+                own method and can go red.
+
+                STILL UNMEASURED, and it is a real axis rather than a caveat: all three methods above are
+                regex over raw HTML. A browser's innerText excludes hidden and offscreen text that a regex
+                counts, so it would differ - and it would differ MOST on /calc and /hours, which carry
+                sr-only headings. Nobody should compare a browser-measured page against these numbers.
+
+            ONLY THE THREE LANDING ROUTES. /about, /faq and the rest have no such redirect and must not gain one. */}
+        <Script id="landing-signed-in-redirect" strategy="beforeInteractive">
+          {`(function(){try{var p=location.pathname.replace(/\\/+$/,'')||'/';if(p!=='/'&&p!=='/ko'&&p!=='/zh')return;var ls=window.localStorage;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(!k||k.slice(0,3)!=='sb-'||k.indexOf('-auth-token')<0)continue;var s=JSON.parse(ls.getItem(k)||'null');var e=s&&s.expires_at;if(typeof e==='number'&&e*1000-Date.now()>90000){location.replace('/arena');return;}}}catch(e){}})();`}
+        </Script>
         <Script id="consent-pending-failsafe" strategy="beforeInteractive">
           {`(function(){var b=document.body;function go(){try{var v=localStorage.getItem('lhq_analytics_consent_v1');if(v==='granted'||v==='denied'){b.classList.remove('consent-pending');}}catch(e){}try{setTimeout(function(){try{b.classList.remove('consent-pending');}catch(e){}},3000);}catch(e){}}try{go();}catch(e){}})();`}
         </Script>

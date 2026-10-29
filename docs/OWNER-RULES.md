@@ -140,8 +140,11 @@ after. A gate that dies at minute six leaves an orphan on his machine, which is 
 
 - **The vendor name leaks where no label is rendered. Six exits found on 2026-10-23, by five different instruments:** label values (fixed), label KEY names (the payload serves keys too), `OPS_*` strings in the anonymous `/api/labels` payload (fixed, #1732), the same strings in the **public JS bundle** (open — `grok-4.3` and the margin formula, downloaded by every anonymous visitor), `data-testid` attributes in server-rendered HTML, and **`/api/grok` as a URL the browser requests**. **The class was named correctly on day one; every instrument since was narrower than it.** So: *"the product UI never names the vendor"* is not satisfied by checking what the product UI **displays**. Check what it **downloads**.
 - **A UI sweep is not enough, and this is CURRENTLY LEAKING.** `GET /api/version`
-  returns `"grok": true` **unauthenticated on production right now** - verified
-  2026-10-23 on `8f4b23b` (prod) and `8158adf` (dev). **An API response is rendered
+  returns `"grok": true` **unauthenticated on production right now** - first verified
+  2026-10-23 on `8f4b23b`, **re-verified 2026-10-24 on `9a7fed1`, so it SURVIVED a
+  release**. The SHA is updated rather than left: a reader who checks the old one finds
+  a commit that is no longer deployed and can reasonably dismiss a live finding as
+  history. **An API response is rendered
   surface too.** Tracked as #1632 item 12; note there that **`grok` is the KEY name**,
   so "genericise the values" does not fix it.
 
@@ -166,6 +169,74 @@ after. A gate that dies at minute six leaves an orphan on his machine, which is 
 No line may mention a feature or setup we do not have. No "cancel anytime" before cancelling works. No "no API key needed" if one is needed.
 
 **Cancelling never forfeits paid time** — access runs to `ends_at`, then Free. Go-live criterion.
+
+### Copy that lives in the DATABASE skips every gate — check the render BEFORE writing it
+
+> owner, 2026-10-28
+
+**Label copy lives in TWO places and only one of them is ungated.** The shipped defaults in
+`lib/labelDefaults.en.json` ARE gated — 23 unit tests read that file, and
+`__tests__/wordingBatch2Corrections.test.mts` asserts the defaults match the latest migration row.
+That gate is real and it fires: it **refused a push** on 2026-10-27 when #1766 changed the defaults
+alone, which is why that PR carries a migration at all.
+
+**The DATABASE row is the ungated half.** A row in `lhq_labels` silently wins over the shipped
+default (`lib/labelOverrides.ts`), and writing one reaches the live site with **no build, no tests
+and no staging.** So the risk is not "copy is ungated" — it is that the half which WINS has no gate
+in front of it.
+
+**So: before writing a label row, ADD A TARGETS ENTRY to QA's phone-width spec and run it.**
+Running the spec alone is not compliance — `TARGETS` is a hardcoded list, currently six entries,
+each with a path, a note and sometimes an interaction. **A seventh label is simply not measured, and
+the run goes green without it.** The spec lives in `qa/`, so the entry is QA's to write: a label
+change with layout risk now has a QA handoff in front of it, deliberately.
+
+**WHEN IT APPLIES: a key with no `TARGETS` entry, OR a `PRODUCTION_VALUES` entry that does not match
+the string being written.**
+
+**The second clause is not optional and the first is not sufficient without it.** `PRODUCTION_VALUES`
+is a hardcoded map, injected wholesale over `/api/labels`, and each cell measures the value from that
+map — not the value you are shipping. **So for an already-registered key you could change the label,
+run the spec exactly as instructed, and watch it go green on the OLD string.** Both clauses are
+mechanical — *is the key in this list*, *is this exact string in this list* — so no length
+comparison, no container inspection and no judgement returns. **The cost is one entry per key, then
+one `PRODUCTION_VALUES` line per new value.**
+
+**THIS SECTION IS WRITTEN TO BE DELETED.** It has been revised four times in one day and **each
+revision introduced the next error** — length versus pixels, then container inspection not being
+mechanical, then a registered key not being sufficient, then a stale cost claim left standing four
+lines below its own correction. Every one was caught by a reader rather than its author, which is
+the system working **and** the signal that prose is the wrong medium for this rule.
+
+**When the spec FAILS on an unregistered key or an unmatched value, delete everything below the
+first paragraph and replace it with one line: run the command.** A rule a command enforces does not
+need four paragraphs on when to remember it. **Do not revise this a fifth time; remove it.**
+
+**Two triggers were tried first and both were wrong, recorded so they are not re-proposed.**
+*"The new value is longer than the old"* substitutes **character count for pixels**: these labels
+render in a proportional font, uppercased and letter-spaced, so a **shorter string of wide glyphs
+can be wider** than a longer string of narrow ones. *"It lands in a fixed-width container"* is
+sound but **not mechanical** — knowing the container means finding the render site and reading the
+CSS, which is exactly the inspection the rule exists because nobody did. Whoever writes a row
+usually has a key and a string; the 40px track was not visible from where the `24h` change was made.
+
+**So: the easy test was unsound and the sound test needed the work the rule routes around.** The
+key-without-an-entry trigger keeps both properties and needs neither.
+
+**It also composes with the spec itself.** Once the spec takes a candidate key and **fails loudly
+when that key has no registered target**, the trigger stops being something to remember: **run it,
+and it tells you whether an entry is owed.** An omission that fails is a different risk from an
+omission that passes.
+
+**What prompted it:** an approved wording change — `24h` to `24 hours` — went into a **40px fixed
+grid track**, uppercased and letter-spaced by the panel's own style. It wrapped to three lines and
+still overflowed by 2px. Live for an hour, caught by a teammate measuring at 390px, reverted.
+
+**Why automatic rather than careful:** a standing rule to check `text-transform` before approving a
+label with units already existed, and was not followed. **A second rule that relies on remembering
+would have been worth nothing.** The owner chose the automated option over eyeballing it.
+
+**The approval he gives is for the TEXT. The render is ours to verify.**
 
 ---
 

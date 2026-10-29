@@ -16,6 +16,13 @@ export interface SubPanelInput {
   /** Server-computed (GET /api/subscription): pro && has id && not cancelled &&
    *  the server can actually call LS. */
   canCancel: boolean;
+  /** `billing_provider` from the row: 'whop' for every customer since payments
+   *  went live on 2026-10-28. Optional, so a caller that does not pass it gets
+   *  exactly the behaviour this file had before #1630 Step 1. */
+  provider?: string | null;
+  /** Whether the provider says the subscription will not renew. Recorded by
+   *  `membership.updated`; never inferred. */
+  cancelAtPeriodEnd?: boolean;
 }
 
 export type SubPanelView =
@@ -23,6 +30,7 @@ export type SubPanelView =
   | { kind: 'cancellable'; untilDate: string | null } // pro, active, LS-backed: offer Cancel; untilDate for the confirm copy
   | { kind: 'cancelled'; untilDate: string | null } // cancelled: access until untilDate (null if past/unknown)
   | { kind: 'managed' }                            // pro with no LS subscription (admin/pre-column grant)
+  | { kind: 'providerManaged'; untilDate: string | null } // pro via Whop, renewing: status, renewal date, and where to cancel
   | { kind: 'active' };                            // pro, LS-backed, but not cancellable (e.g. no API key)
 
 /** A date string only when it is parseable AND in the future - never a past
@@ -41,6 +49,18 @@ export function subscriptionPanelView(sub: SubPanelInput, nowMs: number = Date.n
   // ends". A pro-cancelled-in-grace user is still role 'pro' (Fix A), so they pass
   // this and reach the cancelled branch below.
   if (sub.role !== 'pro') return { kind: 'hidden' };
+  /* A PROVIDER-BACKED Pro, which since 2026-10-28 means every paying customer there is (#1630 Step 1).
+   *
+   * THE BUG THIS FIXES, and it was live on production the day payments opened. A Whop subscriber has no `ls_subscription_id` - Lemon
+   * Squeezy is a rejected gateway and nobody will ever have one again - so `hasSubscription` was false and this function fell through
+   * to `managed`, which renders "Managed by support". That is what somebody who had just paid $490 saw when they opened Settings to
+   * look at their own subscription. It is checked BEFORE the LS branches because the LS columns are null on these rows and would
+   * otherwise decide the view by default rather than by intent. */
+  if (sub.provider === 'whop') {
+    return sub.cancelAtPeriodEnd
+      ? { kind: 'cancelled', untilDate: futureDateOrNull(sub.currentPeriodEnd, nowMs) }
+      : { kind: 'providerManaged', untilDate: futureDateOrNull(sub.currentPeriodEnd, nowMs) };
+  }
   // Cancelled but still in grace (role is pro) -> access-until.
   if (sub.lsStatus === 'cancelled') {
     return { kind: 'cancelled', untilDate: futureDateOrNull(sub.currentPeriodEnd, nowMs) };

@@ -19,10 +19,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { INDICATORS, LIMITS, isOverlayId, overlayStates, slottedIds, indicatorLimit } from '../lib/strategyRegistry.ts';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const PAGE = code(read('app/arena/page.tsx'));
+const PAGE = code(read(appPath('app/arena/page.tsx')));
 const CHART = code(read('components/KLineProChart.tsx'));
 const PANEL = code(read('components/StrategyPanel.tsx'));
 const anchorOnce = (src: string, needle: string, label: string) => {

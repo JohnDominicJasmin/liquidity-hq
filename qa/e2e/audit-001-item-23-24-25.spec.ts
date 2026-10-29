@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON } from './_auth';
 import { gotoGuarded } from './_shared';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* Antislop audit 001 (#1309), items 23/24/25 (AS-F). Written and confirmed
  * RED against `dev` BEFORE Dev's fix lands, per PM/DevOps's request - each
@@ -156,6 +157,7 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
     // added. Same class of false-signal risk the klines mock comment above
     // already calls out for a different endpoint - filtering to the method
     // that matters removes the variable instead of reasoning around it.
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     await page.route('**/api/grok', async route => {
       if (route.request().method() !== 'POST') {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ usage: null }) });

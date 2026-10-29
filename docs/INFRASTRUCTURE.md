@@ -122,6 +122,20 @@ So when a hostname and a service name disagree, **the hostname is the older fact
 
 Account: `console.cron-job.org` (external, separate login — not in this repo, not in Render, not discoverable by reading code). Login is the user's own; an AI assistant working on this repo has no visibility into this dashboard unless explicitly given the URL and asked to check it.
 
+**Every job in this table that carries the `x-cron-secret` header targets `liquidity-hq.com`, and
+no non-production service has a secret-bearing job — by decision, 2026-09-26: a production secret
+must never be copied to `dev`, `qa` or `staging`.** That decision is minuted on the
+**market-ingest** row below, and it applies to every secret-bearing row; for the others it is
+otherwise inferable only from the hostname, which has now been re-derived twice.
+
+**The practical consequence, because it has produced a false conclusion:** a `CRON_SECRET`-gated
+route **cannot** be observed firing on `qa` or `staging` — not "has not fired yet", but *is never
+called there*. On 2026-10-27 a seven-day search of `qa` logs for an ingest log line found nothing
+and was read as a pending observation; the line can only ever appear in **production** logs. The two
+rows below that do point at non-production hosts (`n8nreq`, `dev liquidity hq environment`) are
+both **Inactive** and were unauthenticated keep-alive pings, so they are not exceptions to the rule
+— they carried no secret to leak.
+
 | Job name | Target | Schedule | Status | Auth | Purpose |
 |---|---|---|---|---|---|
 | `liquidity hq` | `https://liquidity-hq.com/` | every 5 min | **Active**, succeeding | none | Keep-alive and **uptime alert** for prod root (id 7680800). Since 2026-10-21 09:43 UTC it notifies the owner on 2 failures in a row, on recovery, before auto-disable, and on TLS expiry within 7 days (#1594). |

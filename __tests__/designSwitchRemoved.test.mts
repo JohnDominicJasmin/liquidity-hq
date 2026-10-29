@@ -25,10 +25,32 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import ts from 'typescript';
+import { appPath } from './_appPath.mts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DIRS = ['app', 'components', 'lib'];
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
+
+/**
+ * THE DOCUMENT SHELL: the one file that renders `<html>`, `<body>` and `AppShell`.
+ *
+ * It is the root layout today and `components/RootDocument.tsx` once #1740's route groups
+ * land - two root layouts cannot each own `<html>`, so both import a shared shell. The three
+ * assertions below are about that shell and were written when it could only be the layout.
+ *
+ * TWO EXPLICIT CASES, NOT A HEURISTIC. A content-based locator - "the file containing
+ * `<html`" - would be wrong: five files match that on today's tree and eight on the route-
+ * group branch, because `app/global-error.tsx` renders its own document by Next's design and
+ * others mention the tag in comments. Checking for the shared shell by name and falling back
+ * to the layout is a premise someone can read and check, which a heuristic is not.
+ *
+ * If the shell is ever renamed, this falls back to the layout and the assertions fail saying
+ * `data-design="terminal"` is missing. That is loud and in the right file, which is the
+ * failure mode to prefer over a locator that silently finds nothing.
+ */
+const SHELL = existsSync(path.join(ROOT, 'components/RootDocument.tsx'))
+  ? 'components/RootDocument.tsx'
+  : appPath('app/layout.tsx');
 
 function walk(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap((e) => {
@@ -62,9 +84,16 @@ test('D1. CONTROL: the scan covers every directory, and stripping removes commen
   for (const d of DIRS) assert.ok(FILES.some((f) => f.startsWith(`${d}/`)), `no source files found under ${d}/ - the walk is broken`);
   assert.ok(FILES.length >= 300, `only ${FILES.length} files scanned (measured ~380) - the walk lost files`);
   // dashboard/page.tsx's header comment still says "branch on useDesignMode()": prose the strip must remove.
-  assert.match(read('app/dashboard/page.tsx'), /useDesignMode\(\)/, 'CONTROL premise: the known comment mention is gone - pick another');
-  assert.doesNotMatch(CODE.get('app/dashboard/page.tsx')!, /useDesignMode/, 'comment stripping left a comment in');
-  assert.match(CODE.get('app/layout.tsx')!, /data-design="terminal"/, 'comment stripping removed code');
+  assert.match(read(appPath('app/dashboard/page.tsx')), /useDesignMode\(\)/, 'CONTROL premise: the known comment mention is gone - pick another');
+  /* CODE is keyed by what the WALK produced, so the key carries any route-group segment -
+     `app/(main)/layout.tsx` on #1740's tree. The walk itself is fine; the lookup KEY is what
+     had to change. Same for `includes(...)` against walk output further down. */
+  assert.doesNotMatch(CODE.get(appPath('app/dashboard/page.tsx'))!, /useDesignMode/, 'comment stripping left a comment in');
+  /* A CANARY FOR THE STRIPPER, not a claim about the layout: it looks for a known piece of
+     real code to prove comment-stripping did not eat it. When the shell moved, this failed
+     saying "comment stripping removed code" while the stripper was fine - the canary had
+     changed file. Pointed at SHELL so it keeps testing the stripper. */
+  assert.match(CODE.get(SHELL)!, /data-design="terminal"/, 'comment stripping removed code');
 });
 
 test('D2. CONTROL: the param-read pattern finds real reads of OTHER params (locale, acc) in stripped code - so its finding nothing for `design` means something', () => {
@@ -72,7 +101,7 @@ test('D2. CONTROL: the param-read pattern finds real reads of OTHER params (loca
   assert.ok(hits(paramRead('locale'), "'locale'").includes('app/api/labels/route.ts'), 'the pattern misses searchParams.get(\'locale\') in app/api/labels/route.ts');
   assert.ok(hits(paramRead('acc'), "'acc'").includes('components/PositionSizer.tsx'), 'the pattern misses searchParams.get(\'acc\') in components/PositionSizer.tsx');
   const designFiles = FILES.filter((f) => RAW.get(f)!.toLowerCase().includes('design'));
-  assert.ok(designFiles.length > 0 && designFiles.includes('app/layout.tsx'), 'CONTROL: the raw-text prefilter for "design" selects no files, or not the layout - every absence test would be vacuous');
+  assert.ok(designFiles.length > 0 && designFiles.includes(SHELL), `CONTROL: the raw-text prefilter for "design" selects no files, or not ${SHELL} - every absence test would be vacuous`);
 });
 
 test('D3. nothing in app/, components/ or lib/ reads a `design` search param - ?design=current and ?design=terminal are inert', () => {
@@ -98,8 +127,8 @@ test('D6. no code branches on a "current" design, and nothing sets or removes da
   assert.deepEqual(hits(/dataset\.design\s*=(?!=)/), [], 'code writes dataset.design');
 });
 
-test('D7. app/layout.tsx renders <html data-design="terminal"> as a static attribute and AppShell with no design provider around it - terminal is the one path', () => {
-  const layout = CODE.get('app/layout.tsx')!;
+test('D7. the document shell renders <html data-design="terminal"> as a static attribute and AppShell with no design provider around it - terminal is the one path', () => {
+  const layout = CODE.get(SHELL)!;
   const html = layout.match(/<html\b[^>]*>/g) ?? [];
   assert.equal(html.length, 1, `expected one <html> element, found ${html.length}`);
   assert.match(html[0], /\bdata-design="terminal"/, '<html> does not carry a literal data-design="terminal"');

@@ -10,6 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -24,10 +25,12 @@ function anchorOnce(src: string, needle: string, label: string): number {
    playbook) - settings is separate below, it is NOT in this list. ══ */
 
 const SIMPLE_PAGES = [
-  { file: 'app/news/page.tsx', wrap: 'news-term-wrap', pageKey: 'news', titleKey: 'NEWS_HINT_TITLE', bodyKey: 'NEWS_HINT_BODY' },
-  { file: 'app/alerts/page.tsx', wrap: 'alerts-term-wrap', pageKey: 'alerts', titleKey: 'ALERTS_HINT_TITLE', bodyKey: 'ALERTS_HINT_BODY' },
-  { file: 'app/hours/page.tsx', wrap: 'hours-term-wrap', pageKey: 'hours', titleKey: 'HOURS_HINT_TITLE', bodyKey: 'HOURS_HINT_BODY' },
-  { file: 'app/playbook/page.tsx', wrap: 'playbook-term-wrap', pageKey: 'playbook', titleKey: 'PLAYBOOK_HINT_TITLE', bodyKey: 'PLAYBOOK_HINT_BODY' },
+  /* `file` is resolved at declaration rather than at each use: it is read AND reported in
+     failure messages, so one resolution keeps both pointing at the real file. */
+  { file: appPath('app/news/page.tsx'), wrap: 'news-term-wrap', pageKey: 'news', titleKey: 'NEWS_HINT_TITLE', bodyKey: 'NEWS_HINT_BODY' },
+  { file: appPath('app/alerts/page.tsx'), wrap: 'alerts-term-wrap', pageKey: 'alerts', titleKey: 'ALERTS_HINT_TITLE', bodyKey: 'ALERTS_HINT_BODY' },
+  { file: appPath('app/hours/page.tsx'), wrap: 'hours-term-wrap', pageKey: 'hours', titleKey: 'HOURS_HINT_TITLE', bodyKey: 'HOURS_HINT_BODY' },
+  { file: appPath('app/playbook/page.tsx'), wrap: 'playbook-term-wrap', pageKey: 'playbook', titleKey: 'PLAYBOOK_HINT_TITLE', bodyKey: 'PLAYBOOK_HINT_BODY' },
   { file: 'components/DashboardTerminal.tsx', wrap: 'dashboard-grid', pageKey: 'dashboard', titleKey: 'DASHBOARD_HINT_TITLE', bodyKey: 'DASHBOARD_HINT_BODY' },
 ];
 
@@ -45,7 +48,7 @@ for (const p of SIMPLE_PAGES) {
 /* ══ calc: PageHint replaces the old subtitle entirely ══ */
 
 test('S2. calc: PageHint is present with the right key/copy, and the old CALC_PAGE_SUBTITLE div is gone - not just unused, actually removed from the render', () => {
-  const source = stripComments(read('app/calc/page.tsx'));
+  const source = stripComments(read(appPath('app/calc/page.tsx')));
   anchorOnce(source, "<PageHint pageKey=\"calc\" title={t('CALC_HINT_TITLE')} body={t('CALC_HINT_BODY')} />", 'calc\'s PageHint tag');
   assert.doesNotMatch(source, /CALC_PAGE_SUBTITLE/, 'the old subtitle text is still referenced in calc/page.tsx');
 });
@@ -56,7 +59,7 @@ test('S2. calc: PageHint is present with the right key/copy, and the old CALC_PA
  * visible - and gives the page a heading only screen readers and search engines get. So the title key may appear
  * once, inside an sr-only h1, and nowhere a visitor can see it. */
 test('S2b. calc: no VISIBLE title above the hint (owner\'s h1-drop, d4bf1cdf) - CALC_PAGE_TITLE appears only in the screen-reader heading', () => {
-  const source = stripComments(read('app/calc/page.tsx'));
+  const source = stripComments(read(appPath('app/calc/page.tsx')));
   const uses = source.split('CALC_PAGE_TITLE').length - 1;
   assert.equal(uses, 1, `CALC_PAGE_TITLE is referenced ${uses} time(s) in calc/page.tsx - expected exactly once, in the sr-only h1`);
   anchorOnce(source, `<h1 className="sr-only">{t('CALC_PAGE_TITLE')}</h1>`, 'calc\'s screen-reader heading');
@@ -65,7 +68,7 @@ test('S2b. calc: no VISIBLE title above the hint (owner\'s h1-drop, d4bf1cdf) - 
 });
 
 test('S2c. calc: the screen-reader heading is really invisible - `.sr-only` is the visually-hidden pattern, defined once', () => {
-  const css = read('app/globals.css');
+  const css = read(appPath('app/globals.css'));
   const rules = css.match(/(^|\n)\s*\.sr-only\s*\{[^}]*\}/g) ?? [];
   assert.equal(rules.length, 1, `.sr-only is defined ${rules.length} time(s) in app/globals.css - a second rule could make the calc heading visible`);
   const r = rules[0].replace(/\s+/g, ' ');
@@ -79,7 +82,7 @@ test('S2c. calc: the screen-reader heading is really invisible - `.sr-only` is t
 /* ══ econ-calendar: PageHint replaces the subtitle, but the standalone source credit survives ══ */
 
 test('S3. econ-calendar: PageHint is present, ECON_CALENDAR_SUBTITLE is gone, but the data-source credit (e.g. "forexfactory+fed+computed") still renders on its own, not deleted along with the subtitle', () => {
-  const source = stripComments(read('app/econ-calendar/page.tsx'));
+  const source = stripComments(read(appPath('app/econ-calendar/page.tsx')));
   anchorOnce(source, "<PageHint pageKey=\"econ-calendar\" title={t('ECON_CALENDAR_HINT_TITLE')} body={t('ECON_CALENDAR_HINT_BODY')} />", 'econ-calendar\'s PageHint tag');
   assert.doesNotMatch(source, /ECON_CALENDAR_SUBTITLE/, 'the old subtitle text is still referenced');
   // d4bf1cdf: the owner's h1-drop restructured this line - it moved up and picked up the header's own
@@ -89,7 +92,7 @@ test('S3. econ-calendar: PageHint is present, ECON_CALENDAR_SUBTITLE is gone, bu
 });
 
 test('S3b. econ-calendar: the old h1 (ECON_CALENDAR_TITLE) is dropped too, per the owner\'s final h1-drop (d4bf1cdf) - PageHint is the sole intro, not a duplicate title above it', () => {
-  const source = stripComments(read('app/econ-calendar/page.tsx'));
+  const source = stripComments(read(appPath('app/econ-calendar/page.tsx')));
   assert.doesNotMatch(source, /ECON_CALENDAR_TITLE/, 'ECON_CALENDAR_TITLE (the old h1) is still referenced in app/econ-calendar/page.tsx - it should have been dropped alongside the subtitle');
 });
 
@@ -100,7 +103,7 @@ test('S3b. econ-calendar: the old h1 (ECON_CALENDAR_TITLE) is dropped too, per t
    now, no longer `todo`. ══ */
 
 test('S-SETTINGS. the settings hint is on the SIGNED-IN settings page only, not the signed-out limited view - 079d59cb, was a todo on 0ff6e71e', () => {
-  const source = stripComments(read('app/settings/page.tsx'));
+  const source = stripComments(read(appPath('app/settings/page.tsx')));
   const hintAt = anchorOnce(source, "<PageHint pageKey=\"settings\" title={t('SETTINGS_HINT_TITLE')} body={t('SETTINGS_HINT_BODY')} />", 'the settings PageHint tag');
   const signedOutWrapperAt = anchorOnce(source, '<div className="st-page settings-term-wrap" data-testid="settings-page">', 'the signed-out limited-view wrapper');
   const signedInWrapperAt = anchorOnce(source, '<div className="st-page" data-testid="settings-page">', 'the signed-in full-view wrapper');

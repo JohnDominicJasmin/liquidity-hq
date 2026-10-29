@@ -2,6 +2,7 @@
 import type { Metadata } from 'next';
 import LandingContent from '@/components/LandingContent';
 import { getDictionary, dirForLocale, isSupportedLocale, SUPPORTED_LOCALES } from '@/lib/i18n/dictionaries';
+import { OG_IMAGES } from '@/lib/seo';
 
 interface Params { locale: string }
 
@@ -42,7 +43,47 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return {
     title: 'LiquidityHQ',
     description: dict.hero.sub,
-    openGraph: { title: 'LiquidityHQ', description: dict.hero.sub },
+    /* #1740 item 3: `images` was missing here for the same reason it was missing on /learn - a local openGraph object REPLACES the
+       root layout's rather than merging with it, so naming a title and description dropped the root's picture. The Korean and
+       Chinese landing pages are the two most likely to be shared into a chat app, and they were the two with no preview image. */
+    openGraph: { title: 'LiquidityHQ', description: dict.hero.sub, images: OG_IMAGES },
+    /* #1740: SELF-referencing - `/ko` canonicalises to `/ko`, not to `/`.
+     *
+     * Pointing a translation at the English page is the obvious-looking move and it is the wrong one: a
+     * canonical is a request to index the OTHER url instead, so `/ko -> /` asks Google to drop the Korean
+     * page. These are translations of the same content, not duplicates of it, and the mechanism for saying
+     * so is `hreflang`, not `canonical`.
+     *
+     * The `hreflang` set below is what says they are translations. It lists only the three that exist, so it
+     * is correct whatever the owner decides about `ar` and `ru` - adding a locale later means adding a
+     * dictionary and a list entry, not revisiting this.
+     *
+     * STILL OPEN AND NOT FIXED HERE: `<html lang>` is hardcoded `en` in app/layout.tsx, so `/ko` and `/zh`
+     * declare the wrong language in their server HTML. Three client components correct it after mount, which
+     * is too late for a crawler that runs no JavaScript. Only the ROOT layout renders `<html>` and it cannot
+     * see this route's `[locale]` segment, so fixing it needs middleware or a route restructure - bigger than
+     * a metadata change and deliberately not smuggled into one. */
+    alternates: {
+      canonical: `/${locale}`,
+      /* #1740: hreflang for the three landing locales that ACTUALLY EXIST. Reciprocal on all three, with
+         x-default on the English one, so they stop competing with each other for the same queries.
+
+         `ar` and `ru` are NOT listed, and that is the point rather than an omission. They 404:
+         SUPPORTED_LOCALES in lib/i18n/dictionaries.ts is ['ko','zh'] and generateStaticParams with
+         dynamicParams=false rejects everything else before it renders. Prod lhq_labels holds 2,679 rows
+         each for ar and ru, but ZERO landing strings - the landing copy lives only in dictionaries.ts and
+         LandingContent takes it as a prop, not from the label table. So adding them is a translation job,
+         not a list change, and listing an hreflang that 404s is worse than omitting it.
+
+         ONLY THE LANDING CARRIES THIS. /about, /faq and the rest have no translations, so claiming
+         alternates for them would point a crawler at pages that do not exist in that language. */
+      languages: {
+        en: '/',
+        ko: '/ko',
+        zh: '/zh',
+        'x-default': '/',
+      },
+    },
   };
 }
 

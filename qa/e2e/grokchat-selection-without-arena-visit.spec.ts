@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1348 items 3 and 18 (from #1347's audit) - the same underlying gap seen
  * from two angles:
@@ -75,6 +76,7 @@ test.describe('LiquidityAI must know a real saved selection even without an Aren
       await resetStrategySelection(page, ['SMA']);
 
       let grokChatBody: any = null;
+      await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
       await page.route('**/api/grok-chat', route => {
         grokChatBody = route.request().postDataJSON();
         return route.fulfill({

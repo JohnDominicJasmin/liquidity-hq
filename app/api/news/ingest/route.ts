@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { judgeTs, notableOf, MAX_AGE_SEC, MAX_FUTURE_SEC, type TsVerdict } from '@/lib/newsTs';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { apiError } from '@/lib/apiError';
@@ -14,11 +15,8 @@ import { T } from '@/lib/tables';
 // have no push mechanism, so the polling still has to happen - it just happens
 // once here now, and clients receive the result over Supabase Realtime.
 //
-// Scheduled from cron-job.org, not in this repo - see docs/INFRASTRUCTURE.md §2.
-
-// Anything older than this can't be "breaking" and is already past the client's
-// own 6h display cutoff, so ingesting it would only produce dead rows.
-const MAX_AGE_SEC = 6 * 3600;
+/* judgeTs, MAX_FUTURE_SEC, MAX_AGE_SEC and TsVerdict moved to lib/newsTs.ts - pure, importable by a
+   test without this file's framework imports, and the only way notableOf could be exported at all. */
 
 type Row = {
   dedup_key: string;
@@ -44,7 +42,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    const cutoff = Math.floor(Date.now() / 1000) - MAX_AGE_SEC;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cutoff = nowSec - MAX_AGE_SEC;
+
+    /* Rejections are counted per verdict AND per feed. The +24h stamp could not be attributed to
+       one of the three feeds after the fact, so the next occurrence names its own source rather
+       than needing archaeology. */
+    const rejected: Record<string, number> = {};
+    const note = (v: TsVerdict, source: string) => { rejected[`${v}:${source}`] = (rejected[`${v}:${source}`] ?? 0) + 1; };
     const [feeds, fhCrypto, fhGeneral] = await Promise.all([
       fetchAllFeeds(),
       fetchFinnhubCategory('crypto'),
@@ -99,7 +104,8 @@ export async function POST(req: Request) {
     };
 
     for (const item of rss) {
-      if (item.pubDate < cutoff) continue;
+      const v = judgeTs(item.pubDate, nowSec);
+      if (v !== 'ok') { note(v, `rss:${item.source}`); continue; }
       // Crypto-category items are newsworthy even when no keyword fires, which
       // is why they fall back to 'purple' rather than being dropped.
       const severity = classifyNews(item.title) ?? (item.cat === 'crypto' ? 'purple' : null);
@@ -119,8 +125,9 @@ export async function POST(req: Request) {
     for (const a of fhCrypto.slice(0, 40)) {
       const headline = a.headline ?? '';
       if (!headline) continue;
-      const ts = a.datetime ?? Math.floor(Date.now() / 1000);
-      if (ts < cutoff) continue;
+      const ts = a.datetime ?? nowSec;
+      const v = judgeTs(ts, nowSec);
+      if (v !== 'ok') { note(v, `finnhub:crypto:${a.source ?? 'unknown'}`); continue; }
       add({
         dedup_key: dedupKey(headline),
         headline,
@@ -140,8 +147,9 @@ export async function POST(req: Request) {
     for (const a of fhGeneral.slice(0, 30)) {
       const headline = a.headline ?? '';
       if (!headline) continue;
-      const ts = a.datetime ?? Math.floor(Date.now() / 1000);
-      if (ts < cutoff) continue;
+      const ts = a.datetime ?? nowSec;
+      const v = judgeTs(ts, nowSec);
+      if (v !== 'ok') { note(v, `finnhub:general:${a.source ?? 'unknown'}`); continue; }
       const severity = classifyNews(headline);
       if (!severity && !matchesGeo(`${headline} ${a.summary ?? ''}`)) continue;
       add({
@@ -202,7 +210,35 @@ export async function POST(req: Request) {
       .delete()
       .lt('published_at', new Date((cutoff - MAX_AGE_SEC) * 1000).toISOString());
 
-    return NextResponse.json({ ok: true, scanned: rows.length, inserted });
+    /* ALREADY-STORED FUTURE ROWS ARE COUNTED AND REPORTED, NEVER DELETED, AND THAT IS DELIBERATE.
+
+       There is a sticky variant of this bug: the prune above is `.lt('published_at', ...)`, so a row
+       stamped far enough ahead is never below that bound and can never be swept. The +24h case
+       self-cleared when the clock caught up; a feed glitch stamping a year ahead would sit at the top
+       of the feed permanently. Mechanism, not a sighting - it has not been observed.
+
+       The obvious fix is to delete anything beyond the tolerance. It is the wrong one. The prune
+       already deletes on the basis of OUR clock, which is safe only because deleting STALE content
+       when our clock is wrong is mild. Deleting FUTURE-stamped content on a wrong clock means a
+       server running slow erases current news - a guard whose failure mode is destroying live data
+       is worse than the bug it fixes. So this reports and a human decides. */
+    const { count: futureHeld } = await sb
+      .from(T.news)
+      .select('dedup_key', { count: 'exact', head: true })
+      .gt('published_at', new Date((nowSec + MAX_FUTURE_SEC) * 1000).toISOString());
+
+    const rejectedTotal = Object.values(rejected).reduce((a, b) => a + b, 0);
+    /* #1737 (QA): the warn fires on the UNEXPECTED verdicts only. `too_old` is the normal state of a
+       feed - measured on the real ones, 123 of 147 items - so counting it here made this line print on
+       every single run, and the `too_new` it exists to surface would arrive looking like the three
+       hundred that did not matter. A log line that always fires is not a signal. too_old stays in the
+       RETURNED counts, where a caller can read it deliberately. */
+    const notable = notableOf(rejected);
+    if (notable.length > 0 || (futureHeld ?? 0) > 0) {
+      console.warn(`[news/ingest] notable=${JSON.stringify(Object.fromEntries(notable))} rejected_total=${rejectedTotal} future_rows_held=${futureHeld ?? 0}`);
+    }
+
+    return NextResponse.json({ ok: true, scanned: rows.length, inserted, rejected, futureHeld: futureHeld ?? 0 });
   } catch (e) {
     return apiError('news/ingest', e, 500, 'News ingest failed');
   }
