@@ -178,7 +178,7 @@ test('S3. SWEEP: no file under app/, components/ or lib/ reads a Lemon Squeezy c
   const hits = files.filter((f) => NEEDLE.test(stripComments(read(f)))).sort();
   // Positive controls first: a sweep that scanned nothing, or whose pattern matches nothing, would "pass".
   assert.ok(files.length > 150, `only ${files.length} files were scanned - the walk is not seeing the tree`);
-  assert.ok(files.includes('app/arena/page.tsx') && files.includes('components/UpgradeGateModal.tsx'), 'expected files are missing from the walk');
+  assert.ok(files.includes(appPath('app/arena/page.tsx')) && files.includes('components/UpgradeGateModal.tsx'), 'expected files are missing from the walk');
   assert.ok(hits.includes('lib/checkout.ts'), 'CONTROL: the pattern does not even match the file that defines these readers');
   assert.deepEqual(hits, ['lib/checkout.ts', 'lib/configured.ts'], `a Lemon Squeezy checkout link is read outside the two allowed files: ${hits.join(', ')}`);
 });
