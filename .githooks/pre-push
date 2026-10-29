@@ -69,8 +69,11 @@
 # nothing. Build stays manual before opening a PR - CONTRIBUTING.md - and it is
 # the one that catches the keyless-env class of defect.
 #
-# `eslint .` currently reports 0 errors and 140 warnings, and exits 0 on
-# warnings. Do NOT add --max-warnings 0 without clearing those 140 first, or
+# `eslint .` reported 0 errors and 199 WARNINGS when measured 2026-10-29, and
+# exits 0 on warnings. It said 140 from whenever that was until today, which is
+# the same stale-number trap this file warns about twice elsewhere. Do NOT add
+# --max-warnings 0 without clearing those 199 first, or this becomes unusable on
+# day one and gets bypassed by reflex.
 # this becomes unusable on day one and gets bypassed by reflex.
 #
 # Bypass with `git push --no-verify` when you genuinely need to - and say so in
