@@ -25,6 +25,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { appPath } from './_appPath.mts';
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://stand-in.invalid';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon_stand_in_key';
@@ -104,7 +105,7 @@ test('G3. only a 403 with that error is mapped: other statuses and other 403 err
 
 /* ══ app/arena/page.tsx: the page (SOURCE PINS) ═══════════════════════════════════════════════════════ */
 
-const ARENA = 'app/arena/page.tsx';
+const ARENA = appPath('app/arena/page.tsx');
 const arena = stripComments(read(ARENA));
 
 test('P1. on code PRO_REQUIRED the read handler sets the labelled line and the locked flag and returns, BEFORE the generic message path', () => {

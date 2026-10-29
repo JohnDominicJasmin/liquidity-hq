@@ -69,7 +69,11 @@ test('N1. NewsProvider - mounted on every page - asks for no permission at all',
 
 test('N2. every permission request in the app sits in one of the two known click handlers, and none in an effect', () => {
   const found = calls();
-  assert.deepEqual(found.map((c) => `${c.file}#${c.fn}`).sort(), ['app/arena/page.tsx#enableNotifications', 'app/settings/page.tsx#handlePushToggle'],
+  assert.deepEqual(found.map((c) => `${c.file}#${c.fn}`).sort(),     /* THE EXPECTATION encodes a path, and no amount of resolving on the ACTUAL side fixes
+       that - `c.file` comes from the walk and carries the route-group segment, so the
+       expectation has to be built from the resolver too. Composed rather than compared on a
+       group-stripped form, so the failure message names the real file on disk. */
+    [`${appPath('app/arena/page.tsx')}#enableNotifications`, `${appPath('app/settings/page.tsx')}#handlePushToggle`],
     `permission is requested from somewhere new: ${found.map((c) => `${c.file}#${c.fn}`).join(', ')}. A new call site needs a click behind it and an entry here`);
   for (const c of found) assert.equal(c.inEffect, false, `${c.file}#${c.fn}: the request sits inside a useEffect - that runs without a click`);
 });

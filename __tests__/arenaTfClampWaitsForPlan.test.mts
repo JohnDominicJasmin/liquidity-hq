@@ -26,12 +26,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GATED_TFS, FREE_FALLBACK_TF, isGatedTf } from '../lib/limits.ts';
+import { appPath } from './_appPath.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8').replace(/^﻿/, '').split(/\r?\n/).join('\n');
 const code = (rel: string) => read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
-const ARENA = 'app/arena/page.tsx';
+const ARENA = appPath('app/arena/page.tsx');
 const AUTH = 'components/AuthProvider.tsx';
 
 /** `a || b || c` -> ['a', 'b', 'c'], whitespace-normalised. */

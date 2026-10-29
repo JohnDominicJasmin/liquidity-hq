@@ -25,10 +25,12 @@ function anchorOnce(src: string, needle: string, label: string): number {
    playbook) - settings is separate below, it is NOT in this list. ══ */
 
 const SIMPLE_PAGES = [
-  { file: 'app/news/page.tsx', wrap: 'news-term-wrap', pageKey: 'news', titleKey: 'NEWS_HINT_TITLE', bodyKey: 'NEWS_HINT_BODY' },
-  { file: 'app/alerts/page.tsx', wrap: 'alerts-term-wrap', pageKey: 'alerts', titleKey: 'ALERTS_HINT_TITLE', bodyKey: 'ALERTS_HINT_BODY' },
-  { file: 'app/hours/page.tsx', wrap: 'hours-term-wrap', pageKey: 'hours', titleKey: 'HOURS_HINT_TITLE', bodyKey: 'HOURS_HINT_BODY' },
-  { file: 'app/playbook/page.tsx', wrap: 'playbook-term-wrap', pageKey: 'playbook', titleKey: 'PLAYBOOK_HINT_TITLE', bodyKey: 'PLAYBOOK_HINT_BODY' },
+  /* `file` is resolved at declaration rather than at each use: it is read AND reported in
+     failure messages, so one resolution keeps both pointing at the real file. */
+  { file: appPath('app/news/page.tsx'), wrap: 'news-term-wrap', pageKey: 'news', titleKey: 'NEWS_HINT_TITLE', bodyKey: 'NEWS_HINT_BODY' },
+  { file: appPath('app/alerts/page.tsx'), wrap: 'alerts-term-wrap', pageKey: 'alerts', titleKey: 'ALERTS_HINT_TITLE', bodyKey: 'ALERTS_HINT_BODY' },
+  { file: appPath('app/hours/page.tsx'), wrap: 'hours-term-wrap', pageKey: 'hours', titleKey: 'HOURS_HINT_TITLE', bodyKey: 'HOURS_HINT_BODY' },
+  { file: appPath('app/playbook/page.tsx'), wrap: 'playbook-term-wrap', pageKey: 'playbook', titleKey: 'PLAYBOOK_HINT_TITLE', bodyKey: 'PLAYBOOK_HINT_BODY' },
   { file: 'components/DashboardTerminal.tsx', wrap: 'dashboard-grid', pageKey: 'dashboard', titleKey: 'DASHBOARD_HINT_TITLE', bodyKey: 'DASHBOARD_HINT_BODY' },
 ];
 

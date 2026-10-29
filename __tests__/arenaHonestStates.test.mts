@@ -45,8 +45,11 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { retryWithBackoff } from '../lib/retryWithBackoff.ts';
 import type KLineProChart from '../components/KLineProChart.tsx';
+import { appPath } from './_appPath.mts';
 
-const ARENA = 'app/arena/page.tsx';
+/* Resolved, not named: #1740 moves this under `app/(main)/`. `ROUTE` below is an API
+   handler and those do NOT move - all 84 stay at `app/api/` - so it stays a literal. */
+const ARENA = appPath('app/arena/page.tsx');
 const PROVIDER = 'components/SettingsProvider.tsx';
 const CHART = 'components/KLineProChart.tsx';
 const ROUTE = 'app/api/settings/route.ts';
