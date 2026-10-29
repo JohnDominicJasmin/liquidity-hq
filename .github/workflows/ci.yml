@@ -346,6 +346,14 @@ on:
       # process, so the exchanges are NOT stubbed and the deployed app talks to
       # Binance and Bybit for real. A remote run therefore measures something
       # different, not merely something faster. Say which kind a result came from.
+      #
+      # THAT IS NOT A GEO-BLOCK PROBLEM, though, and the distinction is worth
+      # keeping straight (PM/DevOps's point): what gets blocked from a cloud IP is
+      # a DIRECT venue read - Bybit answers 403 and every Binance host 451 from a
+      # GitHub runner, which is why the #1259 stub exists for the local-build gate.
+      # On a remote run the venue calls are made by the DEPLOYED APP from Render,
+      # which is a path real users already exercise. So live-not-stubbed here means
+      # the run measures real upstream behaviour, not that it will fail on access.
       base_url:
         description: 'Test a DEPLOYED url instead of building locally, e.g. https://liquidity-hq-qa.onrender.com. Empty = local build (the release gate default).'
         type: string
