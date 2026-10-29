@@ -320,6 +320,37 @@ on:
         type: boolean
         default: false
 
+      # ── `base_url` ───────────────────────────────────────────────────────
+      #
+      # WHY: on 2026-10-29 the browser suite ran 12:34 to 14:34 and was CANCELLED
+      # at the 120-minute cap having produced NO test output. `E2E_BASE_URL` was
+      # set nowhere in this file, so playwright.config.ts took its documented
+      # fallback and the job ran `npm run build && npm start` INSIDE the runner -
+      # building and booting the app before testing it, while
+      # liquidity-hq-qa.onrender.com sat there already built and already serving.
+      #
+      # Setting this suppresses the webServer entirely (nothing is built or
+      # booted) and widens the expect timeout to 30 s, which is the right shape
+      # for a remote target. PM/DevOps found it; the fix is QA's.
+      #
+      # DEFAULTS TO EMPTY, AND THAT IS NOT LAZINESS. On a `pull_request` the
+      # `inputs` context is empty, so this resolves to '' and the release gate
+      # behaves exactly as before - a LOCAL build of the candidate's own commit.
+      # That matters: a deployed URL serves whatever is deployed there, which on
+      # a release PR is NOT the commit being gated. Pointing the gate at a
+      # deployed host would quietly stop it gating its own code.
+      #
+      # ⚠️ A REMOTE RUN IS NOT EQUIVALENT TO THE GATE RUN, and the difference is
+      # easy to miss: the `QA_INTERCEPT_UPSTREAM` stub below is a NODE PRELOAD on
+      # locally spawned processes. Against a deployed host there is no local app
+      # process, so the exchanges are NOT stubbed and the deployed app talks to
+      # Binance and Bybit for real. A remote run therefore measures something
+      # different, not merely something faster. Say which kind a result came from.
+      base_url:
+        description: 'Test a DEPLOYED url instead of building locally, e.g. https://liquidity-hq-qa.onrender.com. Empty = local build (the release gate default).'
+        type: string
+        default: ''
+
       #
       # DISPATCH-ONLY, and off by default. This changes what the run measures,
       # so it must never be the thing that happens on an ordinary push.
@@ -568,6 +599,13 @@ jobs:
         run: npm run test:e2e
         env:
           CI: true
+
+          # Empty on every automatic event, because the `inputs` context is empty
+          # outside a dispatch - so the release gate keeps building the candidate's
+          # own commit locally. Set it on a dispatch to test a deployed host and
+          # skip the build entirely. See the input's own comment for why a remote
+          # run is NOT the same measurement as the gate run.
+          E2E_BASE_URL: ${{ inputs.base_url }}
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
