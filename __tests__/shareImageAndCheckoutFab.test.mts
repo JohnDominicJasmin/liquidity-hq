@@ -27,8 +27,36 @@ test('I1. every preview image in the root metadata is a real file under public/,
   assert.ok(!/icon-512\.jpg/.test(src), 'the 404 image /icons/icon-512.jpg is back in the metadata');
 });
 
+/* The one file that renders `<html>`/`<body>`: the root layout today, and
+   `components/RootDocument.tsx` once #1740's route groups land, because two root layouts
+   cannot each own the document. Named rather than sniffed - see designSwitchRemoved for why
+   a "file containing <html>" locator picks the wrong file. */
+const SHELL = existsSync(new URL('../components/RootDocument.tsx', import.meta.url))
+  ? 'components/RootDocument.tsx'
+  : appPath('app/layout.tsx');
+
 test('I2. metadataBase is the production origin, so the relative preview paths resolve to absolute URLs', () => {
-  assert.ok(/metadataBase:\s*new URL\('https:\/\/liquidity-hq\.com'\)/.test(stripTsComments(read(appPath('app/layout.tsx')))));
+  const ORIGIN = /new URL\('https:\/\/liquidity-hq\.com'\)/;
+  const layout = stripTsComments(read(appPath('app/layout.tsx')));
+
+  const m = /metadataBase:\s*([^,\n}]+)/.exec(layout);
+  assert.ok(m, 'metadataBase is not set in the root metadata - relative preview paths would resolve against the request host');
+  const value = m[1].trim();
+
+  /* SET INLINE - the shape on a single-root tree. */
+  if (ORIGIN.test(value)) return;
+
+  /* SET VIA A CONSTANT - the shape once the document moves into a shared shell, where the
+     layout reads `metadataBase: ROOT_METADATA_BASE`. Asserting only the literal would have
+     read as "metadataBase is wrong" when it is correct and indirect, so follow the
+     indirection instead of matching one spelling of it. */
+  assert.match(value, /^[A-Za-z_$][\w$]*$/, `metadataBase is neither the literal origin nor a plain identifier: ${value}`);
+  const shell = stripTsComments(read(SHELL));
+  assert.match(
+    shell,
+    new RegExp(`\\b(?:const|let|var)\\s+${value}\\s*=\\s*new URL\\('https://liquidity-hq\\.com'\\)`),
+    `metadataBase is \`${value}\`, but ${SHELL} does not define it as new URL('https://liquidity-hq.com')`,
+  );
 });
 
 test('F1. /upgrade hides the Ask AI button inside the embedded-checkout branch only (it goes when the embed closes or falls back)', () => {
