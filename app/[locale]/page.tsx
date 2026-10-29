@@ -2,6 +2,7 @@
 import type { Metadata } from 'next';
 import LandingContent from '@/components/LandingContent';
 import { getDictionary, dirForLocale, isSupportedLocale, SUPPORTED_LOCALES } from '@/lib/i18n/dictionaries';
+import { OG_IMAGES } from '@/lib/seo';
 
 interface Params { locale: string }
 
@@ -42,7 +43,10 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return {
     title: 'LiquidityHQ',
     description: dict.hero.sub,
-    openGraph: { title: 'LiquidityHQ', description: dict.hero.sub },
+    /* #1740 item 3: `images` was missing here for the same reason it was missing on /learn - a local openGraph object REPLACES the
+       root layout's rather than merging with it, so naming a title and description dropped the root's picture. The Korean and
+       Chinese landing pages are the two most likely to be shared into a chat app, and they were the two with no preview image. */
+    openGraph: { title: 'LiquidityHQ', description: dict.hero.sub, images: OG_IMAGES },
     /* #1740: SELF-referencing - `/ko` canonicalises to `/ko`, not to `/`.
      *
      * Pointing a translation at the English page is the obvious-looking move and it is the wrong one: a

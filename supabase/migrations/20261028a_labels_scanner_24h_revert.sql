@@ -1,0 +1,69 @@
+-- #675 INVERTED: the shipped default was the CLIPPING value and only a database row was holding the line.
+--
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ALREADY APPLIED to both databases, by PM/DevOps, ~12:00Z on 2026-10-27, as part of the revert.
+-- This file RECORDS a change that has already happened. Verified against the live production
+-- /api/labels payload on 2026-10-28 before writing it, all five locales.
+--
+-- It is here because 20261022b and 20261022d still say `24 hours`, so a fresh seed - or anyone
+-- replaying the migrations - reintroduces the value that clips. Same reason 20261023c and
+-- 20261023d exist: a live state no migration explains is how the next reader concludes the
+-- opposite of what is true.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- ── WHAT WAS WRONG, AND WHICH HALF ─────────────────────────────────────────────────────────────
+--
+-- `24h` -> `24 hours` was approved copy. It landed in the scanner flyout's THIRD grid track, which
+-- is 40px at <=480px (app/globals.css, `.scanner-flyout-grid: 1fr 65px 40px 60px 28px`), uppercased
+-- and letter-spaced by the header's own style (app/arena/page.tsx:2014). Measured at 390px: box
+-- 40x33, scrollWidth 42 against clientWidth 40 - wrapped to three lines and still 2px over.
+--
+-- The DATABASE row was reverted. `lib/labelDefaults.en.json` WAS NOT, and nor was the migration
+-- history. Since a DB row silently wins over the shipped default (lib/labelOverrides.ts), the only
+-- thing standing between production and the clipping render was one row that no migration
+-- recorded. Delete or reset it and the clip returns, with nothing in the repository explaining why.
+--
+-- The shipped default is corrected in the same commit as this file. QA's own fixture
+-- (qa/fixtures/proxy/labels.json) already held `24h`, so the default was the outlier of the three.
+--
+-- ── ONE LOCALE. `ru` IS NOT DRIFT, AND I FILED IT AS DRIFT FIRST ─────────────────────────────
+--
+-- Live `ru` is `24ч` while 20261022d says `24 часа`, and I read that as a second unrecorded
+-- revert. It is not. **20261022d IS HELD AND WAS NEVER APPLIED** - its first line says so:
+--   "HELD: DO NOT APPLY until a speaker of each language has read these strings."
+--
+-- The owner decided on 2026-10-22, told the four translations were machine-made with no native
+-- review: ship English now (20261022b), the rest later. So live `ru` is the ORIGINAL JULY SEED,
+-- untouched, exactly as that header predicts - "until it runs, ar/ko/ru/zh keep the wording they
+-- have today". Nothing drifted and nothing is unrecorded.
+--
+-- THIS FILE CARRIED A `ru` TUPLE AND IT HAD TO COME OUT, because the error was not only in the
+-- description. Applied AFTER 20261022d is eventually cleared, `('ARENA_SCANNER_COL_24H','ru','24ч')`
+-- would have reverted the reviewed translation back to the seed - silently undoing the work the
+-- owner is holding a native reviewer for. A migration written to record one change would have
+-- quietly reversed another.
+--
+-- HOW I GOT IT WRONG, since the method is the reusable part: I compared live values against a
+-- migration WITHOUT CHECKING WHETHER THAT MIGRATION HAD BEEN APPLIED. Every file in this directory
+-- that is held says so at the top, including two I wrote. A diff against an unapplied migration
+-- measures the gap between what someone INTENDED and what is live, and reports it as drift.
+--
+-- Only `en` is affected. 20261022b WAS applied, says `24 hours`, and production holds `24h`.
+--
+-- ── NOT A JUDGEMENT ON THE COPY ────────────────────────────────────────────────────────────────
+--
+-- The owner approved the plain-language wording and that approval stands; what failed was the
+-- render, in one container, at one breakpoint. The constraint is kept executable rather than
+-- forgotten: `qa/labelCandidates.ts` still carries `24 hours` for this key with `expectOverflow`,
+-- so the spec asserts it does NOT fit. If the track is ever widened or the tracking dropped, that
+-- cell goes red and the long form can be revisited.
+
+insert into lhq_labels (key, locale, value) values
+('ARENA_SCANNER_COL_24H','en','24h')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();
+
+-- DEV: the same rows against lhq_dev_labels.
+--
+-- insert into lhq_dev_labels (key, locale, value) values
+-- ('ARENA_SCANNER_COL_24H','en','24h')
+-- on conflict (key, locale) do update set value = excluded.value, updated_at = now();

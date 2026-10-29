@@ -7,6 +7,20 @@ const SECTIONS = [
   { titleKey: 'TERMS_SECTION_ELIGIBILITY_TITLE', bodyKey: 'TERMS_SECTION_ELIGIBILITY_BODY' },
   { titleKey: 'TERMS_SECTION_NATURE_OF_SERVICE_TITLE', bodyKey: 'TERMS_SECTION_NATURE_OF_SERVICE_BODY' },
   { titleKey: 'TERMS_SECTION_USER_ACCOUNTS_TITLE', bodyKey: 'TERMS_SECTION_USER_ACCOUNTS_BODY' },
+  /* #1630: what you pay and how you stop paying, between "your account" and "what you may not do".
+     Until these existed, /refund redirected to /terms and the live Terms contained zero hits for
+     subscri, billing, renew, cancel or refund - a customer clicking "Refund policy" landed on a page
+     with no refund policy, measured on production 2026-10-23.
+
+     THESE FOUR MUST NOT REACH PRODUCTION BEFORE THE CANCEL FLOW DOES. §Cancellation promises
+     cancelling never forfeits paid time, and §Refunds rests its whole stance on that same promise -
+     "because cancelling always preserves the paid time you have already bought". Shipping either
+     ahead of a working cancel flow publishes a promise the product does not keep (rule 7). They are
+     coupled: holding §Cancellation alone would not help, because §Refunds restates it. */
+  { titleKey: 'TERMS_SECTION_SUBSCRIPTIONS_TITLE', bodyKey: 'TERMS_SECTION_SUBSCRIPTIONS_BODY' },
+  { titleKey: 'TERMS_SECTION_BILLING_TITLE', bodyKey: 'TERMS_SECTION_BILLING_BODY' },
+  { titleKey: 'TERMS_SECTION_CANCELLATION_TITLE', bodyKey: 'TERMS_SECTION_CANCELLATION_BODY' },
+  { titleKey: 'TERMS_SECTION_REFUNDS_TITLE', bodyKey: 'TERMS_SECTION_REFUNDS_BODY' },
   { titleKey: 'TERMS_SECTION_PROHIBITED_USES_TITLE', bodyKey: 'TERMS_SECTION_PROHIBITED_USES_BODY' },
   { titleKey: 'TERMS_SECTION_IP_TITLE', bodyKey: 'TERMS_SECTION_IP_BODY' },
   { titleKey: 'TERMS_SECTION_THIRD_PARTY_DATA_TITLE', bodyKey: 'TERMS_SECTION_THIRD_PARTY_DATA_BODY' },
