@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { appRel } from './_appPath.mts';
 
 /* #1167 (tracker #1173): app/alerts/page.tsx's mute-preferences load treated
  * "getAuthToken() returned nothing" as "signed out, nothing to load". Since #1165
@@ -73,7 +74,7 @@ test('CONTROL: when getSession answers, getAuthToken returns the real token, and
 
 /* ── Structure of the page ─────────────────────────────────────────────────── */
 
-const pageSrc = readFileSync(new URL('../app/alerts/page.tsx', import.meta.url), 'utf8');
+const pageSrc = readFileSync(new URL(appRel('app/alerts/page.tsx'), import.meta.url), 'utf8');
 
 /** Returns a list of what is wrong; empty means the mapping is right. */
 function muteLoadProblems(src: string): string[] {

@@ -21,10 +21,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { NextRequest } from 'next/server';
 import { utcStamp, ageText } from '../lib/promptTime.ts';
+import { appPath, appRel } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const ARENA = stripTsComments(read('app/arena/page.tsx'));
+const ARENA = stripTsComments(read(appPath('app/arena/page.tsx')));
 const once = (re: RegExp, label: string) => {
   const all = [...ARENA.matchAll(new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g'))];
   assert.equal(all.length, 1, `${label}: found ${all.length} times, not once - re-read the current app/arena/page.tsx`);
@@ -115,7 +116,7 @@ const standInFetch = globalThis.fetch;
  * runs were green and only the integrated run caught it. A green run elsewhere is not evidence this file is sound.
  *
  * With the await first, every test() call registers synchronously after it, so the runner cannot see an empty queue mid-file. */
-const { GET } = await import('../app/api/proxy/route.ts');
+const { GET } = await import(appRel('app/api/proxy/route.ts'));
 
 /* THE CLOCK IS RESTORED; THE FETCH STAND-IN IS DELIBERATELY NOT. Each test file runs in its own process, so restoring `fetch` at
  * teardown protects nothing - and it actively lets a late write ESCAPE TO THE REAL NETWORK. The route's `reportHealth`

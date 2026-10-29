@@ -33,6 +33,7 @@ import { en, ko, zh, ar, type LandingDict } from '../lib/i18n/dictionaries.ts';
 import { interpolate } from '../lib/labels.ts';
 import { AI_LIMITS } from '../lib/limits.ts';
 import { LABEL_KEYS } from '../lib/labelKeys.ts';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -154,7 +155,7 @@ test('P0b. \'telegram\' exists as an id in BOTH plans with opposite included fla
    the entire point of #1152 is that a parallel hardcoded array can't quietly reappear in either file. ══ */
 
 test('P6. app/upgrade/page.tsx renders FREE_PLAN_FEATURES and PRO_PLAN_FEATURES (imported), not local re-hardcoded lists', () => {
-  const source = stripComments(read('app/upgrade/page.tsx'));
+  const source = stripComments(read(appPath('app/upgrade/page.tsx')));
   assert.match(source, /import\s*\{[^}]*\bFREE_PLAN_FEATURES\b[^}]*\bPRO_PLAN_FEATURES\b[^}]*\}\s*from\s*['"]@\/lib\/planFeatures['"]/, 'FREE_PLAN_FEATURES and PRO_PLAN_FEATURES are not both imported from @/lib/planFeatures');
   assert.match(source, /FREE_PLAN_FEATURES\.map\(/, 'FREE_PLAN_FEATURES is not mapped over in the render');
   assert.match(source, /PRO_PLAN_FEATURES\.map\(/, 'PRO_PLAN_FEATURES is not mapped over in the render');

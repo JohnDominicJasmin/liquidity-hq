@@ -98,8 +98,32 @@ export function appFiles(): string[] {
  * Use this INSTEAD of a literal in any assertion about app source:
  *     const src = code(appPath('app/not-found.tsx'));
  */
-export function appPath(logical: string): string {
-  return resolveIn(appFiles(), logical);
+export function appPath(...logical: string[]): string {
+  return resolveIn(appFiles(), logical.join('/'));
+}
+
+/**
+ * The same path, prefixed `../` for use from a file in `__tests__/`.
+ *
+ *     readFileSync(new URL(appRel('app/alerts/page.tsx'), import.meta.url), 'utf8')
+ *
+ * THE SUITE READS APP SOURCE IN THREE FORMS and only two of them are affected by route
+ * groups. Measured over all of `__tests__/*.mts` (counts span the whole suite and overlap,
+ * so they are NOT subsets of the 35 failing files):
+ *
+ *   A. segmented arguments - `join(ROOT, 'app', 'upgrade', 'page.tsx')`, or a varargs
+ *      helper `read('app', 'arena', 'page.tsx')`. 15 files. No `app/` substring exists
+ *      anywhere, which is why a literal grep cannot see them. Use the varargs `appPath`.
+ *   B. `'../app/...'` inside `new URL(...)`. 25 files. Use `appRel`.
+ *   C. a module specifier - `await import('../app/api/.../route.ts')`. 14 files, and
+ *      **NONE of them need anything.** Every Form C target is an API route, and all 84
+ *      API handlers stayed at `app/api/...` with zero under a group on the #1740 branch -
+ *      verified by resolving all 14 against that tree's file list, 0 moved. A dynamic
+ *      import also wants a specifier rather than a path, so if an app PAGE is ever
+ *      imported this way it needs its own helper; today none is.
+ */
+export function appRel(...logical: string[]): string {
+  return `../${appPath(...logical)}`;
 }
 
 /** Like `appPath`, but `null` when nothing serves it - for "does this route exist?" checks. */

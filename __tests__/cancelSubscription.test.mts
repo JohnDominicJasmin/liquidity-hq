@@ -32,6 +32,7 @@ import { readFileSync } from 'node:fs';
 import { cancelSubscription, isLsApiConfigured } from '../lib/lemonsqueezyApi.ts';
 import { configuredFlags } from '../lib/configured.ts';
 import { subscriptionPanelView, futureDateOrNull, type SubPanelInput } from '../lib/subscriptionPanel.ts';
+import { appRel } from './_appPath.mts';
 
 const LS_BASE = 'https://api.lemonsqueezy.com/v1';
 const LS_KEY = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.stand-in-payload-not-a-real-key.stand-in-signature';
@@ -189,14 +190,14 @@ const dbWrites = () => calls.filter((c) => c.url.includes('/rest/v1/') && c.meth
 const dbReads = () => calls.filter((c) => c.url.includes('/rest/v1/'));
 
 async function cancelRoute(token: string | null, opts: { body?: string; query?: string; extraHeaders?: Record<string, string> } = {}) {
-  const { POST } = await import('../app/api/lemonsqueezy/cancel/route.ts');
+  const { POST } = await import(appRel('app/api/lemonsqueezy/cancel/route.ts'));
   const headers: Record<string, string> = { ...(opts.extraHeaders ?? {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await POST(new Request(`http://x/api/lemonsqueezy/cancel${opts.query ?? ''}`, { method: 'POST', headers, body: opts.body }) as never);
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 async function subRoute(token: string | null) {
-  const { GET } = await import('../app/api/subscription/route.ts');
+  const { GET } = await import(appRel('app/api/subscription/route.ts'));
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await GET(new Request('http://x/api/subscription', { method: 'GET', headers }) as never);
@@ -895,7 +896,7 @@ test('S4. the panel function does not touch its input', () => {
 });
 
 test('S5. WIRING: the settings page asks the pure function and no longer decides by hand', () => {
-  const page = readFileSync(new URL('../app/settings/page.tsx', import.meta.url), 'utf8');
+  const page = readFileSync(new URL(appRel('app/settings/page.tsx'), import.meta.url), 'utf8');
   assert.match(page, /subscriptionPanelView\(sub\)/, 'the page does not call subscriptionPanelView');
   assert.equal(/sub\.role === 'pro' \|\| sub\.hasSubscription/.test(page), false,
     'the old visibility rule (the one that showed a free user "Active") is back in the page');

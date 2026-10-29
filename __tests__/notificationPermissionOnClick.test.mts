@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appPath } from './_appPath.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8').replace(/^﻿/, '').split(/\r?\n/).join('\n');
@@ -74,12 +75,12 @@ test('N2. every permission request in the app sits in one of the two known click
 });
 
 test('N3. both handlers are called from a click, not from a render or an effect', () => {
-  const arena = code('app/arena/page.tsx');
+  const arena = code(appPath('app/arena/page.tsx'));
   assert.match(arena, /onClick=\{e => \{ e\.stopPropagation\(\); enableNotifications\(\); \}\}/, 'the Arena bell no longer calls enableNotifications on click');
   const arenaCalls = [...arena.matchAll(/\benableNotifications\(\)/g)].length;
   assert.equal(arenaCalls, 2, `enableNotifications() is called ${arenaCalls} times - expected the bell's click and its Enter/Space key handler only`);
   assert.match(arena, /onKeyDown=\{e => \{ if \(e\.key === 'Enter' \|\| e\.key === ' '\) \{ e\.stopPropagation\(\); enableNotifications\(\); \} \}\}/, 'the keyboard path to the bell changed');
-  const settings = code('app/settings/page.tsx');
+  const settings = code(appPath('app/settings/page.tsx'));
   assert.match(settings, /onClick=\{handlePushToggle\}/, 'Settings\' push toggle no longer calls handlePushToggle on click');
   assert.equal([...settings.matchAll(/\bhandlePushToggle\b/g)].length, 2, 'handlePushToggle is referenced somewhere other than its declaration and the toggle\'s onClick');
 });
