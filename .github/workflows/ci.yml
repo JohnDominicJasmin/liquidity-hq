@@ -576,7 +576,11 @@ jobs:
     # `[mobile]` lines, confirmed against a positive control for the pattern.
     # The mobile project is not excluded here - no `--project` flag is passed
     # and the banner plans all 1274 - it was QUEUED AND STARVED for two hours.
-    # Desktop alone only reached 513 of its ~637.
+    # Desktop alone only reached 513 of its 637. The split is exact and measured,
+    # not assumed - `playwright test --list` reports "Total: 1274 tests in 92
+    # files", 637 desktop + 637 mobile. Worth knowing WHY it stays even though 35
+    # of the 92 specs gate on project or device: those skip at RUN time, not at
+    # collection time, which is also where the run's 143 skips come from.
     #
     # So this job has never once executed the mobile project, and it fails in a
     # way that reads as "slow suite" instead of "half the matrix never started".
@@ -590,10 +594,16 @@ jobs:
     # nothing at the data plane, `select 1` times out while the same query on
     # prod returns in under a second - and they cost 70.3s each, 73% of all
     # worker time for 28% of the tests. Had they passed at the 15.8s mean:
-    # desktop's measured portion ~97 worker-min, its unreached remainder ~23,
-    # and mobile at desktop's rate ~121 more. About 242 worker-minutes, so
-    # ~121 minutes of wall clock at 2 workers WITH NOTHING WRONG ANYWHERE.
-    # The cap is 120. Mobile is also the slower half, so treat 121 as a floor.
+    # the 513 reported lines are 97.4 green worker-minutes, which is 11.4s per
+    # reported line WITH THE SKIPS COUNTED IN. Extrapolated to the planned 1274:
+    # about 242 worker-minutes, so ~121 minutes of wall clock at 2 workers WITH
+    # NOTHING WRONG ANYWHERE. The cap is 120.
+    #
+    # Derived per reported line rather than per project on purpose - it then
+    # needs no assumption about how 1274 divides. Treat 121 as a FLOOR: it
+    # assumes the 761 unreported lines carry the same skip ratio and cost as the
+    # 513 observed, and every one of those 513 is desktop while the mobile
+    # project is the slower half.
     #
     # DO NOT SIMPLY RAISE THE NUMBER AGAIN. A cap near 200 bills one 3.3-hour
     # job, makes a genuinely stuck run take 3.3 hours to admit it, and does not
