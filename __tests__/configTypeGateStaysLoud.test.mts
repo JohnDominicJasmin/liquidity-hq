@@ -63,40 +63,108 @@ test('G1. the Next config is TypeScript, and nothing shadows it in JavaScript', 
   }
 });
 
-/** Is either build gate muted in this source? Returns the keys found muted. */
-function mutedGates(src: string): string[] {
-  const found: string[] = [];
-  /* Matched on source text rather than a parsed object because PRESENCE is the defect here,
-     and a parse that returned undefined for a mis-nested key would read as absent. `true`
-     specifically: an explicit `false` is fine and should not fire. */
-  if (/ignoreBuildErrors\s*:\s*true/.test(src)) found.push('typescript.ignoreBuildErrors');
-  if (/ignoreDuringBuilds\s*:\s*true/.test(src)) found.push('eslint.ignoreDuringBuilds');
-  return found;
+/** The object literal assigned to `nextConfig`, or undefined. */
+function configObject(sf: ts.SourceFile): ts.ObjectLiteralExpression | undefined {
+  let obj: ts.ObjectLiteralExpression | undefined;
+  const visit = (n: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === 'nextConfig' &&
+      n.initializer && ts.isObjectLiteralExpression(n.initializer)
+    ) obj = n.initializer;
+    ts.forEachChild(n, visit);
+  };
+  ts.forEachChild(sf, visit);
+  return obj;
 }
 
-test('G2. the type and lint gates are not muted for the build', () => {
-  /* DETECTOR FIRST, both directions and on synthetic input, so the real check below cannot
-     pass because the pattern is broken. Done in memory deliberately: proving this by editing
-     the real `next.config.ts` would mean mutating a shared checkout other sessions are
-     building from, and a control is not worth that. */
-  assert.deepEqual(
-    mutedGates('typescript: { ignoreBuildErrors: true },'), ['typescript.ignoreBuildErrors'],
-    'the detector misses a muted type gate',
+const propNamed = (o: ts.ObjectLiteralExpression, name: string): ts.PropertyAssignment | undefined =>
+  o.properties.find(
+    (p): p is ts.PropertyAssignment =>
+      ts.isPropertyAssignment(p) &&
+      (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === name,
   );
-  assert.deepEqual(
-    mutedGates('eslint: { ignoreDuringBuilds : true },'), ['eslint.ignoreDuringBuilds'],
-    'the detector misses a muted lint gate, or is whitespace-sensitive',
+
+/**
+ * Anything that is NOT provably unmuted, described.
+ *
+ * ⚠️ INVERTED ON PURPOSE, and this is the point. The first version matched
+ * `/ignoreBuildErrors\s*:\s*true/` - a SPELLING of "muted" - and so this passed while
+ * muting the gate:
+ *
+ *     typescript: { ignoreBuildErrors: process.env.SKIP_TYPES === '1' }
+ *
+ * An env-gated mute is how this normally arrives ("just for CI"), it is the one-line change
+ * the guard exists to catch, and G2 is the condition PM's acceptance of the flag actually
+ * rests on - so it was the worst of the four to have the weakest detector behind. Dev Team
+ * found it in review.
+ *
+ * So the question is no longer "does it say true". Each flag must be **absent** or the
+ * **literal `false`**; every other initializer fails, including an expression whose value
+ * nobody can know by reading. A missing config object fails too, rather than reporting
+ * nothing and reading as clean.
+ */
+function notProvablyUnmuted(src: string): string[] {
+  const sf = ts.createSourceFile('next.config.ts', src, ts.ScriptTarget.Latest, true);
+  const obj = configObject(sf);
+  if (!obj) return ['no object literal is assigned to `nextConfig` - this check cannot see the gates'];
+
+  const bad: string[] = [];
+  for (const [outer, flag] of [['typescript', 'ignoreBuildErrors'], ['eslint', 'ignoreDuringBuilds']] as const) {
+    const section = propNamed(obj, outer);
+    if (!section) continue; // absent section: nothing to mute
+    if (!ts.isObjectLiteralExpression(section.initializer)) {
+      bad.push(`\`${outer}\` is not an object literal (${section.initializer.getText(sf)}) - its flags cannot be read`);
+      continue;
+    }
+    const f = propNamed(section.initializer, flag);
+    if (!f) continue; // absent flag: not muted
+    if (f.initializer.kind !== ts.SyntaxKind.FalseKeyword) {
+      bad.push(`${outer}.${flag} = ${f.initializer.getText(sf)} (only an absent key or a literal \`false\` is safe)`);
+    }
+  }
+  return bad;
+}
+
+test('G2. the type and lint gates are provably not muted for the build', () => {
+  /* DETECTOR FIRST, every direction, on synthetic input, so the real check below cannot pass
+     because the detector is broken. In memory deliberately: proving any of this by editing
+     the real `next.config.ts` would mutate a checkout other sessions are building from, and
+     a control is not worth that. */
+  const wrap = (body: string) => `const nextConfig: NextConfig = { ${body} };\nexport default nextConfig;`;
+
+  assert.equal(
+    notProvablyUnmuted(wrap('typescript: { ignoreBuildErrors: true }')).length, 1,
+    'the detector misses a literally muted type gate',
   );
-  assert.deepEqual(
-    mutedGates('typescript: { ignoreBuildErrors: false },'), [],
-    'the detector fires on an explicit false, which is not a mute',
+  assert.equal(
+    notProvablyUnmuted(wrap('eslint: { ignoreDuringBuilds: true }')).length, 1,
+    'the detector misses a literally muted lint gate',
+  );
+
+  /* THE CASE THE REGEX VERSION LET THROUGH. This mutes the gate and says `true` nowhere. */
+  assert.equal(
+    notProvablyUnmuted(wrap("typescript: { ignoreBuildErrors: process.env.SKIP_TYPES === '1' }")).length, 1,
+    'an env-gated mute is not detected - this is the exact case the regex form passed',
+  );
+
+  /* MUST NOT FIRE: the two safe shapes. */
+  assert.deepEqual(notProvablyUnmuted(wrap('typescript: { ignoreBuildErrors: false }')), [],
+    'the detector fires on a literal false, which is not a mute');
+  assert.deepEqual(notProvablyUnmuted(wrap('reactStrictMode: true')), [],
+    'the detector fires on a config with no typescript/eslint section at all');
+
+  /* AND it must notice when it can no longer see the gates, rather than reporting clean. */
+  assert.equal(
+    notProvablyUnmuted('export default {};').length, 1,
+    'a config this check cannot read reports clean - the worst possible answer',
   );
 
   assert.deepEqual(
-    mutedGates(configSrc()), [],
-    'a build gate is muted. ignoreBuildErrors is the mechanism that makes an unknown experimental ' +
-      'key loud, so muting it removes the condition the flag was accepted on. ignoreDuringBuilds is ' +
-      'not the type gate but is the same class of mute, and belongs here so both are found together.',
+    notProvablyUnmuted(configSrc()), [],
+    'a build gate is not provably unmuted. ignoreBuildErrors is the mechanism that makes an unknown ' +
+      'experimental key loud, so muting it - or making it depend on an expression - removes the ' +
+      'condition the flag was accepted on. ignoreDuringBuilds is not the type gate but is the same ' +
+      'class of mute, and belongs here so both are found together.',
   );
 });
 
