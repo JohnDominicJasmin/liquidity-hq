@@ -4,6 +4,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { CANDIDATES, candidateValues } from '@/qa/labelCandidates';
 import { LABEL_KEYS } from '@/lib/labelKeys';
+import { appRoutes } from './_appPath.mts';
 
 /* OWNER-RULES §7 (owner, 2026-10-28), ENFORCED IN THE GATE INSTEAD OF REMEMBERED.
  *
@@ -41,29 +42,27 @@ const changesTheText = (c: { now: string; was: string }) => c.now !== c.was;
    here, because CANDIDATES IS the registration and membership is the compliance - and "the entry's value
    does not match the string being written", which is L6. A shortening candidate is simply measured. */
 const hasNote = (c: { note: string }) => typeof c.note === 'string' && c.note.trim().length > 10;
-const routeExists = (c: { path: string }) => {
-  if (!c.path.startsWith('/')) return false;
-  const seg = c.path.replace(/^\//, '');
-  const base = process.cwd();
-  /* `/` is app/page.tsx; `/x` is app/x/page.tsx. Both extensions, because the repo mixes them. */
-  const direct = seg === ''
-    ? ['app/page.tsx', 'app/page.jsx']
-    : [`app/${seg}/page.tsx`, `app/${seg}/page.jsx`];
-  if (direct.some((p) => existsSync(join(base, p)))) return true;
-
-  /* ROUTE GROUPS. `app/(marketing)/x/page.tsx` serves `/x` - the parenthesised segment is not part of the
-     URL. Without this, a candidate on a grouped route would fail saying "no page file for /x" while the
-     page exists, which sends the reader to the candidate instead of to the directory layout. Dev raised it;
-     no candidate needs it today, which is exactly when a wrong failure message is cheapest to prevent. */
-  if (seg === '') return false;
-  let groups: string[];
-  try {
-    groups = readdirSync(join(base, 'app'), { withFileTypes: true })
-      .filter((e) => e.isDirectory() && /^\(.+\)$/.test(e.name)).map((e) => e.name);
-  } catch { return false; }
-  return groups.some((g) => [`app/${g}/${seg}/page.tsx`, `app/${g}/${seg}/page.jsx`]
-    .some((p) => existsSync(join(base, p))));
-};
+/* ROUTE GROUPS, and this was group-aware for every route EXCEPT `/`.
+ *
+ * The previous version tried a direct path first (`app/x/page.tsx`) and then looked through
+ * `app/(group)/x/page.tsx`. The group branch opened with `if (seg === '') return false` - a
+ * guard against building `app/(main)//page.tsx` with a doubled slash. Correct in itself, and
+ * it meant the landing route `/` never reached the group search at all. On a tree with no
+ * groups the direct branch found `app/page.tsx` and it passed; on #1740's tree that file is
+ * `app/(main)/page.tsx`, the direct branch misses, and the group branch gave up before
+ * building anything - failing with "the landing route is app/page.tsx, not app//page.tsx".
+ *
+ * So the bug was never the group handling; it was ONE route the group handling excluded.
+ *
+ * Replaced with a membership test against `appRoutes('page')`, which derives every URL from
+ * the files and strips parenthesised segments - so `/` is handled by the same code path as
+ * every other route rather than by a special case that had to be remembered twice. It also
+ * covers `page.jsx` and `page.ts` (the repo mixes extensions, which the old two-element
+ * arrays had to spell out) and drops a `process.cwd()` dependency: this now resolves from
+ * the module's own location, so it no longer passes or fails on where the runner was
+ * invoked from. */
+const ROUTES = new Set(appRoutes('page'));
+const routeExists = (c: { path: string }) => c.path.startsWith('/') && ROUTES.has(c.path);
 const KNOWN_OPENERS = ['scannerFlyout'];
 const openerKnown = (c: { opener?: string }) => c.opener === undefined || KNOWN_OPENERS.includes(c.opener);
 

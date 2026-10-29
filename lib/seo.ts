@@ -39,7 +39,7 @@ import type { Metadata } from 'next';
  * without a fetch, the crawler never sees a noindex tag either. A meta tag is the instruction that actually removes a page, and it
  * requires the page to remain fetchable. So these stay out of robots.txt on purpose.
  *
- * `follow: false` as well as `index: false`: every link on these eight goes to another page on this list, or to one that is already
+ * `follow: false` as well as `index: false`: every link on these nine goes to another page on this list, or to one that is already
  * indexed from somewhere a crawler can actually reach.
  *
  * NOT APPLIED to anything a visitor is meant to find: `/`, `/learn`, `/about`, `/faq`, `/ko`, `/zh` and the rest of the public pages

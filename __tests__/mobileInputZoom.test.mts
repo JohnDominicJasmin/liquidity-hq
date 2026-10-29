@@ -33,7 +33,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { appPath } from './_appPath.mts';
 
+/* `app/globals.css` is NOT resolved through appPath, and that is checked rather than
+   assumed: #1740 leaves it at `app/globals.css`: only pages and layouts move under
+   `(main)`/`(intl)`. The layout below DOES move, so that one is resolved. */
 const RAW = readFileSync('app/globals.css', 'utf8');
 
 /* COMMENTS STRIPPED FIRST, and this is not tidiness.
@@ -109,7 +113,7 @@ test('pinch-zoom is NOT disabled to dodge this', () => {
   // The shorter fix is maximum-scale=1 / user-scalable=no. It works by taking
   // pinch-zoom from every user, which breaks WCAG 1.4.4. Asserted because it is
   // the one-liner someone reaches for the next time this resurfaces.
-  const layout = readFileSync('app/layout.tsx', 'utf8');
+  const layout = readFileSync(appPath('app/layout.tsx'), 'utf8');
   const viewport = layout.slice(
     layout.indexOf('export const viewport'), layout.indexOf('export default'));
   assert.doesNotMatch(viewport, /maximumScale/, 'maximumScale blocks pinch-zoom');

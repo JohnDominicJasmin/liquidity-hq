@@ -8,6 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { appPath } from './_appPath.mts';
 
 (globalThis as { window?: EventTarget }).window = new EventTarget();
 const { announcePageCoin, currentPageCoin, PAGE_COIN_EVENT } = await import('../lib/pageCoin.ts');
@@ -54,7 +55,7 @@ test('H3. GrokChat reads the kept coin where it attaches its listener, and check
 });
 
 test('H4. Arena announces through lib/pageCoin (so the coin is always kept), on each change and with null on leaving', () => {
-  const arena = stripTsComments(read('app/arena/page.tsx'));
+  const arena = stripTsComments(read(appPath('app/arena/page.tsx')));
   anchorOnce(arena, 'useEffect(() => { announcePageCoin(selectedCoin); }, [selectedCoin]);', 'Arena announcing its coin');
   anchorOnce(arena, 'useEffect(() => () => { announcePageCoin(null); }, []);', 'Arena clearing it on leaving');
   assert.doesNotMatch(arena, /new CustomEvent\('page-coin'/, 'Arena dispatches the event directly again: the coin would not be kept for a late listener');

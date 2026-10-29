@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appPath } from './_appPath.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8').replace(/^﻿/, '').split(/\r?\n/).join('\n');
@@ -68,18 +69,22 @@ test('N1. NewsProvider - mounted on every page - asks for no permission at all',
 
 test('N2. every permission request in the app sits in one of the two known click handlers, and none in an effect', () => {
   const found = calls();
-  assert.deepEqual(found.map((c) => `${c.file}#${c.fn}`).sort(), ['app/arena/page.tsx#enableNotifications', 'app/settings/page.tsx#handlePushToggle'],
+  assert.deepEqual(found.map((c) => `${c.file}#${c.fn}`).sort(),     /* THE EXPECTATION encodes a path, and no amount of resolving on the ACTUAL side fixes
+       that - `c.file` comes from the walk and carries the route-group segment, so the
+       expectation has to be built from the resolver too. Composed rather than compared on a
+       group-stripped form, so the failure message names the real file on disk. */
+    [`${appPath('app/arena/page.tsx')}#enableNotifications`, `${appPath('app/settings/page.tsx')}#handlePushToggle`],
     `permission is requested from somewhere new: ${found.map((c) => `${c.file}#${c.fn}`).join(', ')}. A new call site needs a click behind it and an entry here`);
   for (const c of found) assert.equal(c.inEffect, false, `${c.file}#${c.fn}: the request sits inside a useEffect - that runs without a click`);
 });
 
 test('N3. both handlers are called from a click, not from a render or an effect', () => {
-  const arena = code('app/arena/page.tsx');
+  const arena = code(appPath('app/arena/page.tsx'));
   assert.match(arena, /onClick=\{e => \{ e\.stopPropagation\(\); enableNotifications\(\); \}\}/, 'the Arena bell no longer calls enableNotifications on click');
   const arenaCalls = [...arena.matchAll(/\benableNotifications\(\)/g)].length;
   assert.equal(arenaCalls, 2, `enableNotifications() is called ${arenaCalls} times - expected the bell's click and its Enter/Space key handler only`);
   assert.match(arena, /onKeyDown=\{e => \{ if \(e\.key === 'Enter' \|\| e\.key === ' '\) \{ e\.stopPropagation\(\); enableNotifications\(\); \} \}\}/, 'the keyboard path to the bell changed');
-  const settings = code('app/settings/page.tsx');
+  const settings = code(appPath('app/settings/page.tsx'));
   assert.match(settings, /onClick=\{handlePushToggle\}/, 'Settings\' push toggle no longer calls handlePushToggle on click');
   assert.equal([...settings.matchAll(/\bhandlePushToggle\b/g)].length, 2, 'handlePushToggle is referenced somewhere other than its declaration and the toggle\'s onClick');
 });

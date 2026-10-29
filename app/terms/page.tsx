@@ -12,11 +12,14 @@ const SECTIONS = [
      subscri, billing, renew, cancel or refund - a customer clicking "Refund policy" landed on a page
      with no refund policy, measured on production 2026-10-23.
 
-     THESE FOUR MUST NOT REACH PRODUCTION BEFORE THE CANCEL FLOW DOES. §Cancellation promises
-     cancelling never forfeits paid time, and §Refunds rests its whole stance on that same promise -
-     "because cancelling always preserves the paid time you have already bought". Shipping either
-     ahead of a working cancel flow publishes a promise the product does not keep (rule 7). They are
-     coupled: holding §Cancellation alone would not help, because §Refunds restates it. */
+     THE FOUR AND THE CANCEL FLOW SHIPPED TOGETHER, in v2026.10.29, which is what this block used to
+     hold them for. §Cancellation promises cancelling never forfeits paid time, §Refunds rests its
+     whole stance on that same promise - "because cancelling always preserves the paid time you have
+     already bought" - and the Whop cancel panel in /settings is the thing that keeps it.
+
+     THE DEPENDENCY RUNS THE OTHER WAY NOW, and that is the part worth leaving behind: if that panel
+     is ever removed or broken, these two sections become a promise the product does not keep (rule
+     7), and they have to come out in the same change. */
   { titleKey: 'TERMS_SECTION_SUBSCRIPTIONS_TITLE', bodyKey: 'TERMS_SECTION_SUBSCRIPTIONS_BODY' },
   { titleKey: 'TERMS_SECTION_BILLING_TITLE', bodyKey: 'TERMS_SECTION_BILLING_BODY' },
   { titleKey: 'TERMS_SECTION_CANCELLATION_TITLE', bodyKey: 'TERMS_SECTION_CANCELLATION_BODY' },

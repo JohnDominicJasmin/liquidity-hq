@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gateSignal, type SignalPlan } from '../lib/signalCoinGate.ts';
 import type { StrategySignal } from '../lib/useEMAStrategy.ts';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -58,5 +59,5 @@ test('W3. source: the chart hides the setup chip for exactly "signalLock free or
   assert.equal(guard![1].replace(/\s+/g, ' ').trim(), "emaSignal?.signalLock === 'free' || emaSignal?.planPending === true");
   assert.ok(/if \(setupChipHidden\) return null;/.test(src), 'the guard is not applied to the chip');
   // only the Arena renders the chart, so the chip cannot show elsewhere with an ungated signal
-  for (const f of ['app/arena/page.tsx']) assert.ok(/<KLineProChart[^>]*emaSignal=\{emaSignal\}/.test(read(f)), `${f}: the chart is not given the gated signal`);
+  for (const f of [appPath('app/arena/page.tsx')]) assert.ok(/<KLineProChart[^>]*emaSignal=\{emaSignal\}/.test(read(f)), `${f}: the chart is not given the gated signal`);
 });

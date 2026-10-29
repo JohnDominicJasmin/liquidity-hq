@@ -21,10 +21,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { interpolate } from '../lib/labels.ts';
 import { subscriptionPanelView } from '../lib/subscriptionPanel.ts';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
-const page = read('app/settings/page.tsx');
-const rawCss = read('app/globals.css');
+const page = read(appPath('app/settings/page.tsx'));
+const rawCss = read(appPath('app/globals.css'));
 const css = rawCss.replace(/\/\*[\s\S]*?\*\//g, '');
 
 /* ── a small CSS reader: innermost rules only (so rules inside @media are included), in source order ── */
