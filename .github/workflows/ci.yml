@@ -441,8 +441,54 @@ jobs:
         run: npm run build
 
   e2e:
-    name: E2E (Playwright)
+    name: E2E (Playwright) - ${{ matrix.project }}
     runs-on: ubuntu-latest
+    # ── ONE JOB PER PLAYWRIGHT PROJECT. Added 2026-10-29 ──────────────────────
+    #
+    # Not a speed tweak - it fixes a job that had never run half of what it
+    # planned. Measured on run 40907544388 and recorded in full where the cap is
+    # justified below: 654 `[desktop]` log lines and ZERO `[mobile]`. The mobile
+    # project was not excluded, it was QUEUED BEHIND DESKTOP AND STARVED for the
+    # whole two hours, so 375px - a primary target, per playwright.config.ts -
+    # had never been exercised in CI, and the job failed looking like a slow
+    # suite rather than like half the matrix never starting.
+    #
+    # Sized from that run rather than estimated. Each project is 637 of the 1274
+    # (`playwright test --list`: "Total: 1274 tests in 92 files"), and a green
+    # test costs 11.4s averaged over reported lines with skips counted in, so
+    # 637 x 11.4s = ~121 worker-minutes, about 60 minutes of wall clock at
+    # `workers: 2`. Both legs fit the existing cap with real headroom, which is
+    # why the cap below did NOT move. Expect mobile above 60: it is the slower
+    # half, and the headroom is there for that.
+    #
+    # Close to cost-neutral, which is the reason to prefer this over a bigger
+    # cap. Setup is cached at ~54s, and billing is per job-minute: one job
+    # spending 120 minutes without finishing, versus two spending ~60 and ~70
+    # that both do.
+    #
+    # `workers: 2` is UNCHANGED and deliberately so. Each leg is its own runner
+    # with its own IP, so per-IP exposure to the exchange rate limiter is
+    # identical to a single job - this buys parallelism without touching the
+    # thing #114 is blocked on, and without the memory ceiling that made four
+    # concurrent browsers on one runner time out.
+    #
+    # `fail-fast: false` IS LOAD-BEARING. The default would cancel mobile the
+    # moment desktop failed, which is precisely how the mobile project stayed
+    # unmeasured - a cancelled leg uploads no report, because `failure()`
+    # excludes cancellation.
+    #
+    # Both artifact names carry `matrix.project` for the same reason, and that is
+    # not cosmetic: actions/upload-artifact@v4 FAILS on a duplicate name, so two
+    # legs uploading `playwright-report-<attempt>` would have broken the upload
+    # rather than merged it.
+    #
+    # The `gate` job needs no change. `needs.e2e.result` aggregates a matrix -
+    # success only if every leg succeeded - which is the semantics it already
+    # asserts.
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, mobile]
     # Only after lint/typecheck/unit/build are green. A broken build would
     # produce 216 browser failures that all say "the build is broken", which
     # buries the one line that actually explains it.
@@ -608,10 +654,16 @@ jobs:
     # DO NOT SIMPLY RAISE THE NUMBER AGAIN. A cap near 200 bills one 3.3-hour
     # job, makes a genuinely stuck run take 3.3 hours to admit it, and does not
     # change the ordering that starves mobile - it only starves it for longer.
-    # The fix that addresses both is sharding across jobs, which gets each shard
-    # its own runner IP and its own memory budget and so needs neither of the
-    # two things that block `workers` going above 2. It requires three changes
-    # this file does not have yet:
+    #
+    # WHAT WAS DONE INSTEAD, and why this cap is still 120: the job was split
+    # one-per-project (see `strategy` at the top of this job). Each leg is ~637
+    # tests, ~60 minutes, on its own runner with its own IP, so it fits this cap
+    # with headroom and needs neither of the two things that block `workers`
+    # going above 2. Mobile now runs at all, which was the actual defect.
+    #
+    # IF A SINGLE PROJECT STILL OVERRUNS, shard within it - and only then. Three
+    # changes this file does not have yet, none of which the project split
+    # needed:
     #
     #   1. `--shard=i/N` splits on `group.tests.length`
     #      (node_modules/playwright/lib/runner/index.js:2426) and is therefore
@@ -626,7 +678,15 @@ jobs:
     #      mis-triage it was written to prevent. It must move to the merge step.
     #
     # Sizing those shards needs one run that is not 73% environmental failure,
-    # so the work is blocked on dev Supabase answering, not on a decision.
+    # so that work is blocked on dev Supabase answering, not on a decision.
+    #
+    # THE SPLIT ABOVE IS LIKEWISE UNVERIFIED, and that is stated here rather
+    # than left for someone to discover. It is sized from measurement and the
+    # YAML parses, but no run has executed it: at the time of writing dev
+    # Supabase answers nothing at the data plane, so a run would reproduce ~85
+    # sign-in failures at 70s each and measure the outage instead of the split.
+    # The first green-ish run is what confirms the ~60-minute legs and produces
+    # the first mobile numbers this project has ever had.
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -684,7 +744,9 @@ jobs:
       # key only - never the service-role key. The anon key is public by design
       # and the dev project holds no real user data.
       - name: Run E2E
-        run: npm run test:e2e
+        # `--project` is what makes a leg a leg. Without it each one would run
+        # the whole 1274 and the split would double the bill for nothing.
+        run: npm run test:e2e -- --project=${{ matrix.project }}
         env:
           CI: true
 
@@ -958,7 +1020,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: playwright-report-${{ github.run_attempt }}
+          # `matrix.project` is REQUIRED, not decorative: upload-artifact@v4
+          # errors on a duplicate name, so without it the second leg to fail
+          # would fail on the upload instead of on its tests.
+          name: playwright-report-${{ matrix.project }}-${{ github.run_attempt }}
           path: qa/e2e-report/
           retention-days: 14
 
@@ -974,7 +1039,10 @@ jobs:
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.count_egress }}
         uses: actions/upload-artifact@v4
         with:
-          name: egress-tally-${{ github.run_attempt }}
+          # Per project, same duplicate-name reason as the report above - and
+          # the two legs are separate measurements anyway: a per-IP tally from
+          # the desktop runner says nothing about the mobile one.
+          name: egress-tally-${{ matrix.project }}-${{ github.run_attempt }}
           # A GLOB. Every node process in the tree loads the preload and writes
           # its own pid-suffixed file - the npm wrapper, the build, the Next
           # server, each Playwright worker. A single shared path made them
