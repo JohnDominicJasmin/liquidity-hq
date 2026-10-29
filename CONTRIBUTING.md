@@ -1053,24 +1053,49 @@ measured and which was inferred, and dev confirms the loosened test against thei
 own tree before relying on it** — the only tree where the other half can be
 checked. Reading the diff is enough.
 
-**It happened on the very commit that created this rule.** QA's six mutations
-edited the **response construction** — the output end of the route. The fixture
-field added to G3 was an **input**, and on dev's tree it triggered a second read
-that did not exist on QA's: `membershipStateForAccount` against
-`_whop_webhook_events`. The test file's stand-in throws on any unknown path, the
-route's outer catch turned that into a 503, and **G3 would have been RED on dev's
-tree — refusing the very push the commit existed to unblock.** Dev caught it by
-reading the diff rather than by spending a gate on it.
+**It happened on the very commit that created this rule, and the way it happened
+is the argument.** QA's six mutations edited the **response construction** - the
+output end of the route. The fixture field added to G3 was an **input**, and dev
+reasoned that on dev's tree it would trigger a second read that did not exist on
+QA's: `membershipStateForAccount` against `_whop_webhook_events`. The stand-in
+throws on an unknown path, so dev **predicted** the route's outer catch would
+turn that into a 503 and G3 would go red - refusing the very push the commit
+existed to unblock.
+
+**That prediction was wrong, and only a measurement showed it.** QA ran it: the
+stand-in is `async`, so the rejection reaches supabase-js as a *returned* error
+the reader already handles. G3 passed, and it still passed with the catch body
+replaced by `throw e`. There was no 503.
+
+**Which is a better case for this condition than a real failure would have
+been.** Dev inferred something about dev's own tree, from reading QA's code, and
+was wrong; QA could not have checked it either, because the behaviour only
+appears on the tree dev holds. Neither session could settle it alone and neither
+should have tried. **That is the whole of the third condition** - say which half
+was measured, and measure the other half rather than reasoning across the gap.
+
+**The first version of this paragraph recorded the 503 as observed**, because the
+PR body it was written from did. It was a prediction written in the past tense,
+and it is corrected here rather than deleted because the failure mode is worth
+more than the rule: **nothing about a false recorded failure looks uncertain.**
+The next reader inherits it as evidence, and the reasonable response to "a 503
+was observed and we do not know why" is an investigation into a live fault that
+does not exist. Before writing any failure down, ask whether you watched it or
+concluded it - and if you concluded it, write "would", not "did".
 
 **A control that edits the last line of a route cannot tell you what a new
 fixture does to a data path that is not there yet.** Without this condition, step
 0 reads as self-verifying, which is the failure it would then produce on
 schedule.
 
-A test cannot be pushed before the code it tests exists
-somewhere pushable, because the hook runs `npm test` on **every** push regardless
-of whose branch it is. **The implementation being on the remote is what makes
-QA's test green rather than red.**
+A test cannot be pushed before the code it tests exists somewhere pushable.
+**The gate that enforces this moved on 2026-10-29 and the rule survived the
+move**: `.githooks/pre-push` used to run `npm test` on every push, so a test
+whose implementation was not yet on the remote went red on the author's own
+machine. The hook now runs lint and `tsc` only - the suite moved to CI - so the
+refusal arrives on the pull request instead of at push time. **Later, and still
+before anything merges.** The implementation being reachable is what makes QA's
+test green rather than red; only the moment you find out has changed.
 
 **Be honest about what this does and does not buy.** It guarantees **no merge
 without coverage**. It does **not** give you test-first TDD — a genuinely
