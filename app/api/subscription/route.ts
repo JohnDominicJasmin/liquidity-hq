@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { isLsApiConfigured } from '@/lib/lemonsqueezyApi';
 import { planKindOfRow } from '@/lib/paidPeriod';
+import { membershipStateForAccount } from '@/lib/whopGrant';
 import { getUserCompat } from '@/lib/authUser';
 
 export const dynamic = 'force-dynamic';
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
     const db = getSupabaseAdmin();
     const { data, error } = await db
       .from(T.user_subscriptions)
-      .select('role, trial_ends_at, ls_status, ls_subscription_id, current_period_end')
+      .select('role, trial_ends_at, ls_status, ls_subscription_id, current_period_end, billing_provider')
       .eq('user_id', userId)
       .maybeSingle();
     // Fail closed: an unknown state must not render a Cancel button that would
@@ -50,7 +51,30 @@ export async function GET(req: NextRequest) {
     // subscription, and only where the server can actually call LS.
     const canCancel = role === 'pro' && hasSubscription && lsStatus !== 'cancelled' && isLsApiConfigured();
 
-    return NextResponse.json({ role, lsStatus, currentPeriodEnd, hasSubscription, canCancel });
+    /* #1630 Step 1: which processor the row is on, and whether it is set to stop renewing.
+     *
+     * The cancel state is read only for a live Whop Pro - one lookup keyed on this account, skipped for everybody else, which is
+     * nearly every caller. Null (no linked membership: paid before Step 1, or a payment body that carried no membership id) reads as
+     * "not cancelled", so the panel shows the renewing view and the link out to Whop rather than inventing a state. */
+    const provider = (data?.billing_provider as string) ?? null;
+    let cancelAtPeriodEnd = false;
+    let canceledAt: string | null = null;
+    if (role === 'pro' && provider === 'whop') {
+      /* FAILS TO "NOT CANCELLED", NEVER TO A FAILED PANEL. This is a second table, so it is a second thing that can be down - and the
+       * subscription panel must not disappear because the cancel STATE could not be read. The reader already turns a returned error
+       * into null; this catch covers the read throwing, which is a different failure and the one that would otherwise reach the 503
+       * below and blank a working panel. Degrading to the renewing view costs a cancelling customer a sentence; a 503 costs every Pro
+       * their whole panel. */
+      try {
+        const state = await membershipStateForAccount(db, userId);
+        cancelAtPeriodEnd = state?.cancelAtPeriodEnd === true;
+        canceledAt = state?.canceledAt ?? null;
+      } catch (e) {
+        console.error('[subscription] cancel state:', e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    return NextResponse.json({ role, lsStatus, currentPeriodEnd, hasSubscription, canCancel, provider, cancelAtPeriodEnd, canceledAt });
   } catch (e) {
     console.error('[subscription] GET exception:', e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: 'Failed to load' }, { status: 503 });

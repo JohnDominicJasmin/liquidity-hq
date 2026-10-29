@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { verifyWhopWebhook } from '@/lib/whop';
 import { readWhopPayment } from '@/lib/whopEntitlement';
-import { applyWhopDelivery, isSettingsRefusal, recordRetry } from '@/lib/whopGrant';
+import { applyWhopDelivery, applyWhopMembershipEvent, isSettingsRefusal, recordRetry } from '@/lib/whopGrant';
 
 /* Whop webhook (#1567). Phase 1 was a recording shell; Phase 3 (below the record) turns a verified, PAID payment for one of OUR plans
  * into Pro for the account whose email paid. The rules live in lib/whopEntitlement.ts (pure, tested there); this file is the wiring.
@@ -105,6 +105,19 @@ export async function POST(req: NextRequest) {
   // A duplicate key is the expected "already recorded" path, not a failure.
   if (recordErr && recordErr.code !== '23505') return apiError('whop/webhook', recordErr);
   if (!firstSeen) return NextResponse.json({ received: true, ignored: 'replay' });
+
+  /* ── MEMBERSHIP EVENTS: the cancel STATE, and never access (#1630 Step 1) ──
+   * A cancellation arrives as `membership.updated` - Whop publishes no cancel-specific event - and is recorded against the membership
+   * link row. This path writes no role, no period end and no plan: `decideWhopPayment` still answers
+   * `membership_event_never_grants_or_revokes` for the access question and that is unchanged. It is answered 200 either way; there is
+   * nothing a Whop retry could improve. */
+  if (eventName && eventName.startsWith('membership.')) {
+    const m = await applyWhopMembershipEvent(sb, { event }, process.env);
+    if (m.kind === 'error') return failAndForget(sb, payloadHash, m.what, m.err);
+    if (m.kind === 'review') return reviewResponse(eventName, m.membershipId, m.reason);
+    if (m.kind === 'ignored') return NextResponse.json({ received: true, recorded: true, ignored: m.reason });
+    return NextResponse.json({ received: true, recorded: true, membership: m.membershipId, cancel_at_period_end: m.cancelAtPeriodEnd });
+  }
 
   // ── The decision and the grant (lib/whopGrant.ts applyWhopDelivery; rules in lib/whopEntitlement.ts) ──
   // Every refusal is REPORTED (GlitchTip) and answered 200 with the reason, never dropped and never guessed at: a payment that will never

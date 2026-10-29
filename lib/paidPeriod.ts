@@ -60,11 +60,18 @@ export function paidPeriodLapsed(
   role: PaidRole,
   currentPeriodEnd: string | null | undefined,
   nowMs: number = Date.now(),
+  cancelAtPeriodEnd: boolean = false,
 ): boolean {
   if (role !== 'pro' || !currentPeriodEnd) return false;
   const end = new Date(currentPeriodEnd).getTime();
   if (!Number.isFinite(end)) return false;
-  return end + PAID_GRACE_MS < nowMs;
+  // NO GRACE ONCE CANCELLED (#1630, PM's ruling 2026-10-29). The grace above exists for a LATE RENEWAL; a cancelled membership has no
+  // renewal coming, so the 48 hours would be two days of Pro that nobody decided to give - and it would make the Terms' "at the end of
+  // that period your account returns to the free tier" false by two days. Nothing else about the backstop changes: a cancelled account
+  // whose period end is in the FUTURE is untouched, which is the whole promise ("cancelling never takes away time you have paid for").
+  // The default is `false`, so every caller that does not know the cancel state keeps today's behaviour exactly.
+  const grace = cancelAtPeriodEnd ? 0 : PAID_GRACE_MS;
+  return end + grace < nowMs;
 }
 
 /* THE ONE "WHAT PLAN IS THIS ROW ON, NOW" CHECK (#1630 GO-LIVE 1).
@@ -81,11 +88,16 @@ export function paidPeriodLapsed(
  * A lapsed paid account whose trial window is somehow still open reads as trial, the same order lib/entitlements.ts has always used. */
 export type PlanKind = 'pro' | 'trial' | 'free';
 
-export interface PlanRow { role?: string | null; trial_ends_at?: string | null; current_period_end?: string | null }
+/* `cancel_at_period_end` is OPTIONAL and absent on every row today: the column ships unapplied with #1630 Step 1 (a migration is a
+ * write to the shared database). Absent reads as `undefined`, which is not `true`, so the grace applies exactly as it does now - the
+ * state every reader is in until that migration lands AND the selects are widened to ask for the column. Asking for a column that does
+ * not exist makes PostgREST fail the whole read, which would cost every user their Pro, so widening the selects is deliberately a
+ * separate commit AFTER the migration is applied, not part of this one. */
+export interface PlanRow { role?: string | null; trial_ends_at?: string | null; current_period_end?: string | null; cancel_at_period_end?: boolean | null }
 
 export function planKindOfRow(row: PlanRow | null | undefined, nowMs: number = Date.now()): PlanKind {
   if (!row) return 'free';
-  const paid = row.role === 'pro' && !paidPeriodLapsed('pro', row.current_period_end, nowMs);
+  const paid = row.role === 'pro' && !paidPeriodLapsed('pro', row.current_period_end, nowMs, row.cancel_at_period_end === true);
   if (paid) return 'pro';
   const trialEnd = row.trial_ends_at ? new Date(row.trial_ends_at).getTime() : 0;
   return trialEnd > nowMs ? 'trial' : 'free';
