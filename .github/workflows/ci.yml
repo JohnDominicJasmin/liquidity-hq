@@ -747,6 +747,37 @@ jobs:
         # `--project` is what makes a leg a leg. Without it each one would run
         # the whole 1274 and the split would double the bill for nothing.
         run: npm run test:e2e -- --project=${{ matrix.project }}
+        # ── MOBILE IS NON-BLOCKING FOR ITS FIRST RUN. REVERT AFTER v2026.10.29c ──────
+        #
+        # ⚠️ TEMPORARY. Remove this line once the mobile leg has one completed run on
+        # record. Tracked as a checkbox on the release PR and on #1413.
+        #
+        # THIS IS NOT A WEAKENING OF THE GATE, and reading it as one gets the history
+        # backwards. The mobile project has NEVER executed in CI - not in this release
+        # and not in any previous one. It was queued behind desktop and starved at the
+        # 120-minute cap every time, which is the defect the matrix above fixes. So
+        # every release this project has ever shipped had desktop-only browser
+        # coverage; this preserves exactly that and ADDS a measurement.
+        #
+        # The unusual move would be the other one: putting 637 never-executed tests in
+        # front of a release as a blocking check on their first run.
+        #
+        # THE PRINCIPLE, worth keeping after this line goes: a test's first-ever run
+        # cannot be a blocking gate, because a red result is not interpretable. With no
+        # baseline there is no way to tell "found a real defect" from "the test is
+        # wrong" from "the environment is down" - and a gate that cannot distinguish
+        # those is not a signal, it is a stop.
+        #
+        # WHY STEP-LEVEL AND NOT JOB-LEVEL. The documented effect of this key is
+        # "Prevents a job from failing when a step fails", so the job's own conclusion
+        # becomes success and `needs.e2e.result` - which the `gate` job asserts must be
+        # `success` for a PR into main - is satisfied without depending on how a
+        # job-level `continue-on-error` is reported to the `needs` context. One less
+        # unverified assumption on a release path.
+        #
+        # DESKTOP IS UNAFFECTED: the expression is false for it, so a desktop failure
+        # still fails its leg, still fails the aggregate, and still blocks the release.
+        continue-on-error: ${{ matrix.project == 'mobile' }}
         env:
           CI: true
 
@@ -1017,8 +1048,26 @@ jobs:
       # failure() only. This used to upload on every green run too - ~15s and
       # storage for a report nobody opens. failure() still excludes
       # cancellations, so a concurrency-cancelled run uploads nothing.
+      #
+      # ── PLUS MOBILE, ALWAYS, WHILE ITS LEG IS NON-BLOCKING. REVERT TOGETHER ──────
+      #
+      # The `continue-on-error` above makes the mobile job SUCCEED when its tests fail,
+      # which means `failure()` is false and this step would not have fired - so a
+      # non-blocking leg would have produced no report at all. That is the whole shape
+      # of the `/api/signal-accuracy` entry found on 2026-10-29: a job we paid for,
+      # green forever, measuring air.
+      #
+      # So mobile uploads on PASS as well as fail, deliberately. Its result has to be
+      # readable either way, because the only reason to run a non-blocking leg is to
+      # read it - and on its debut the passing report is the baseline that lets the
+      # NEXT red one mean something.
+      #
+      # `matrix.project == 'mobile'` rather than a `steps.<id>.outcome` check, because
+      # `outcome` versus `conclusion` under continue-on-error is one more semantic this
+      # release path does not need to depend on. This condition contains `failure()`,
+      # so it is evaluated as written rather than having an implicit `success()` added.
       - uses: actions/upload-artifact@v4
-        if: ${{ failure() }}
+        if: ${{ failure() || matrix.project == 'mobile' }}
         with:
           # `matrix.project` is REQUIRED, not decorative: upload-artifact@v4
           # errors on a duplicate name, so without it the second leg to fail
