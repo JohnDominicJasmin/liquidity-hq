@@ -287,7 +287,8 @@ on:
     # QA's first count was 7 of 21 and included `.github/` and `qa/` changes;
     # filtering to true documentation left one in thirty-one. It is worth doing
     # because it is correct and free, not because it moves the number. The item
-    # that moves the number is `workers: 1` - issue #114.
+    # that moves the number is `workers` - issue #114. (At 2 since 2026-08-09;
+    # above 2 is blocked on a per-IP egress measurement, not on theory.)
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -319,6 +320,45 @@ on:
         description: 'Also run the browser suite (~38 min). Off = the cheap jobs only.'
         type: boolean
         default: false
+
+      # ── `base_url` ───────────────────────────────────────────────────────
+      #
+      # WHY: on 2026-10-29 the browser suite ran 12:34 to 14:34 and was CANCELLED
+      # at the 120-minute cap having produced NO test output. `E2E_BASE_URL` was
+      # set nowhere in this file, so playwright.config.ts took its documented
+      # fallback and the job ran `npm run build && npm start` INSIDE the runner -
+      # building and booting the app before testing it, while
+      # liquidity-hq-qa.onrender.com sat there already built and already serving.
+      #
+      # Setting this suppresses the webServer entirely (nothing is built or
+      # booted) and widens the expect timeout to 30 s, which is the right shape
+      # for a remote target. PM/DevOps found it; the fix is QA's.
+      #
+      # DEFAULTS TO EMPTY, AND THAT IS NOT LAZINESS. On a `pull_request` the
+      # `inputs` context is empty, so this resolves to '' and the release gate
+      # behaves exactly as before - a LOCAL build of the candidate's own commit.
+      # That matters: a deployed URL serves whatever is deployed there, which on
+      # a release PR is NOT the commit being gated. Pointing the gate at a
+      # deployed host would quietly stop it gating its own code.
+      #
+      # ⚠️ A REMOTE RUN IS NOT EQUIVALENT TO THE GATE RUN, and the difference is
+      # easy to miss: the `QA_INTERCEPT_UPSTREAM` stub below is a NODE PRELOAD on
+      # locally spawned processes. Against a deployed host there is no local app
+      # process, so the exchanges are NOT stubbed and the deployed app talks to
+      # Binance and Bybit for real. A remote run therefore measures something
+      # different, not merely something faster. Say which kind a result came from.
+      #
+      # THAT IS NOT A GEO-BLOCK PROBLEM, though, and the distinction is worth
+      # keeping straight (PM/DevOps's point): what gets blocked from a cloud IP is
+      # a DIRECT venue read - Bybit answers 403 and every Binance host 451 from a
+      # GitHub runner, which is why the #1259 stub exists for the local-build gate.
+      # On a remote run the venue calls are made by the DEPLOYED APP from Render,
+      # which is a path real users already exercise. So live-not-stubbed here means
+      # the run measures real upstream behaviour, not that it will fail on access.
+      base_url:
+        description: 'Test a DEPLOYED url instead of building locally, e.g. https://liquidity-hq-qa.onrender.com. Empty = local build (the release gate default).'
+        type: string
+        default: ''
 
       #
       # DISPATCH-ONLY, and off by default. This changes what the run measures,
@@ -401,8 +441,54 @@ jobs:
         run: npm run build
 
   e2e:
-    name: E2E (Playwright)
+    name: E2E (Playwright) - ${{ matrix.project }}
     runs-on: ubuntu-latest
+    # ── ONE JOB PER PLAYWRIGHT PROJECT. Added 2026-10-29 ──────────────────────
+    #
+    # Not a speed tweak - it fixes a job that had never run half of what it
+    # planned. Measured on run 40907544388 and recorded in full where the cap is
+    # justified below: 654 `[desktop]` log lines and ZERO `[mobile]`. The mobile
+    # project was not excluded, it was QUEUED BEHIND DESKTOP AND STARVED for the
+    # whole two hours, so 375px - a primary target, per playwright.config.ts -
+    # had never been exercised in CI, and the job failed looking like a slow
+    # suite rather than like half the matrix never starting.
+    #
+    # Sized from that run rather than estimated. Each project is 637 of the 1274
+    # (`playwright test --list`: "Total: 1274 tests in 92 files"), and a green
+    # test costs 11.4s averaged over reported lines with skips counted in, so
+    # 637 x 11.4s = ~121 worker-minutes, about 60 minutes of wall clock at
+    # `workers: 2`. Both legs fit the existing cap with real headroom, which is
+    # why the cap below did NOT move. Expect mobile above 60: it is the slower
+    # half, and the headroom is there for that.
+    #
+    # Close to cost-neutral, which is the reason to prefer this over a bigger
+    # cap. Setup is cached at ~54s, and billing is per job-minute: one job
+    # spending 120 minutes without finishing, versus two spending ~60 and ~70
+    # that both do.
+    #
+    # `workers: 2` is UNCHANGED and deliberately so. Each leg is its own runner
+    # with its own IP, so per-IP exposure to the exchange rate limiter is
+    # identical to a single job - this buys parallelism without touching the
+    # thing #114 is blocked on, and without the memory ceiling that made four
+    # concurrent browsers on one runner time out.
+    #
+    # `fail-fast: false` IS LOAD-BEARING. The default would cancel mobile the
+    # moment desktop failed, which is precisely how the mobile project stayed
+    # unmeasured - a cancelled leg uploads no report, because `failure()`
+    # excludes cancellation.
+    #
+    # Both artifact names carry `matrix.project` for the same reason, and that is
+    # not cosmetic: actions/upload-artifact@v4 FAILS on a duplicate name, so two
+    # legs uploading `playwright-report-<attempt>` would have broken the upload
+    # rather than merged it.
+    #
+    # The `gate` job needs no change. `needs.e2e.result` aggregates a matrix -
+    # success only if every leg succeeded - which is the semantics it already
+    # asserts.
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, mobile]
     # Only after lint/typecheck/unit/build are green. A broken build would
     # produce 216 browser failures that all say "the build is broken", which
     # buries the one line that actually explains it.
@@ -476,11 +562,19 @@ jobs:
     # 45.3 minutes, which read as a release failure when it was the cap being
     # too small for the suite it now guards.
     #
-    # Raised rather than made faster, because the obvious speed-up is not
-    # available: playwright.config.ts pins `workers: 1` on purpose, since
-    # parallel specs multiply Binance/Bybit traffic and trip the app's own
-    # per-IP rate limiter into 429s that look like product bugs. Parallelising
-    # the contrast file was tried and changed nothing for exactly that reason.
+    # Raised rather than made faster, because the obvious speed-up was not
+    # available AT THE TIME: the config then pinned `workers: 1`, since parallel
+    # specs multiply Binance/Bybit traffic and trip the app's own per-IP rate
+    # limiter into 429s that look like product bugs. Parallelising the contrast
+    # file was tried and changed nothing for exactly that reason.
+    #
+    # ⚠ THAT PIN IS GONE, AND THIS PARAGRAPH OUTLIVED IT. playwright.config.ts:192
+    # has read `workers: 2` since 2026-08-09, so the cap was being justified by a
+    # config value that had already changed - a reader here would conclude
+    # parallelism is unavailable when the live question is 2 -> 4. The
+    # rate-limiter reasoning itself still stands and is still what blocks going
+    # above 2: the limit is PER IP and the only measurement anyone has is from
+    # one developer machine (see the `count_egress` input). Corrected 2026-10-29.
     #
     # 90 -> 120, same day, because 90 was set from LOCAL timings and CI is much
     # slower. Measured from the cancelled run's own log rather than estimated:
@@ -508,6 +602,91 @@ jobs:
     #
     # If the suite grows again, move this WITH the change that grows it, and
     # size it from a CI measurement rather than a local one.
+    #
+    # ── THE SUITE GREW AND THIS DID NOT MOVE. MEASURED 2026-10-29 ──────────────
+    #
+    # Dispatch run 40907544388 (spec commit 677cf44 on dev, host commit 6e30003
+    # read from /api/version afterwards rather than assumed) was cancelled at
+    # exactly 2h00m15s. Parsed from that run's own log, not estimated:
+    #
+    #   Running 1274 tests using 2 workers
+    #   513 result lines      228 pass / 142 fail / 143 skip
+    #   passing    60.0 min across 228 tests   (mean 15.8s)
+    #   failing   166.4 min across 142 tests   (mean 70.3s)
+    #
+    # 226.4 of the 240 worker-minutes the cap allows were consumed, so the job
+    # was saturated rather than idle, and the #1021 zero-spec-line stuck
+    # signature is ABSENT. This was slow, not hung.
+    #
+    # THE PART THAT IS NOT A SPEED PROBLEM: 654 `[desktop]` lines and ZERO
+    # `[mobile]` lines, confirmed against a positive control for the pattern.
+    # The mobile project is not excluded here - no `--project` flag is passed
+    # and the banner plans all 1274 - it was QUEUED AND STARVED for two hours.
+    # Desktop alone only reached 513 of its 637. The split is exact and measured,
+    # not assumed - `playwright test --list` reports "Total: 1274 tests in 92
+    # files", 637 desktop + 637 mobile. Worth knowing WHY it stays even though 35
+    # of the 92 specs gate on project or device: those skip at RUN time, not at
+    # collection time, which is also where the run's 143 skips come from.
+    #
+    # So this job has never once executed the mobile project, and it fails in a
+    # way that reads as "slow suite" instead of "half the matrix never started".
+    # 375px is a primary target, not an edge case (playwright.config.ts says so
+    # where it pins the iPhone device), which makes this a COVERAGE HOLE wearing
+    # a timeout's clothes. Same shape as the #1354 run recorded above at
+    # ~685/964; the suite has since grown to 1274 and the cap never followed.
+    #
+    # A GREEN RUN DOES NOT FIT EITHER, and that is the load-bearing number. The
+    # 142 failures are environmental - dev Supabase wdtjhrilakoitfcezxpx answers
+    # nothing at the data plane, `select 1` times out while the same query on
+    # prod returns in under a second - and they cost 70.3s each, 73% of all
+    # worker time for 28% of the tests. Had they passed at the 15.8s mean:
+    # the 513 reported lines are 97.4 green worker-minutes, which is 11.4s per
+    # reported line WITH THE SKIPS COUNTED IN. Extrapolated to the planned 1274:
+    # about 242 worker-minutes, so ~121 minutes of wall clock at 2 workers WITH
+    # NOTHING WRONG ANYWHERE. The cap is 120.
+    #
+    # Derived per reported line rather than per project on purpose - it then
+    # needs no assumption about how 1274 divides. Treat 121 as a FLOOR: it
+    # assumes the 761 unreported lines carry the same skip ratio and cost as the
+    # 513 observed, and every one of those 513 is desktop while the mobile
+    # project is the slower half.
+    #
+    # DO NOT SIMPLY RAISE THE NUMBER AGAIN. A cap near 200 bills one 3.3-hour
+    # job, makes a genuinely stuck run take 3.3 hours to admit it, and does not
+    # change the ordering that starves mobile - it only starves it for longer.
+    #
+    # WHAT WAS DONE INSTEAD, and why this cap is still 120: the job was split
+    # one-per-project (see `strategy` at the top of this job). Each leg is ~637
+    # tests, ~60 minutes, on its own runner with its own IP, so it fits this cap
+    # with headroom and needs neither of the two things that block `workers`
+    # going above 2. Mobile now runs at all, which was the actual defect.
+    #
+    # IF A SINGLE PROJECT STILL OVERRUNS, shard within it - and only then. Three
+    # changes this file does not have yet, none of which the project split
+    # needed:
+    #
+    #   1. `--shard=i/N` splits on `group.tests.length`
+    #      (node_modules/playwright/lib/runner/index.js:2426) and is therefore
+    #      BLIND TO DURATION - contrast.spec.ts is 3 tests and 7 minutes here,
+    #      18.6 in the run above. Split by project first, then weight with
+    #      PWTEST_SHARD_WEIGHTS from measured per-file time, never test counts.
+    #   2. the reporter array has to become `blob` per shard plus a
+    #      `merge-reports` step; both exist in the pinned Playwright 1.62.1.
+    #      Without it every shard writes the same `qa/e2e-report`.
+    #   3. ./qa/triage-reporter.mjs tallies distinct CAUSES per process, so
+    #      under sharding it prints per-shard counts - reintroducing exactly the
+    #      mis-triage it was written to prevent. It must move to the merge step.
+    #
+    # Sizing those shards needs one run that is not 73% environmental failure,
+    # so that work is blocked on dev Supabase answering, not on a decision.
+    #
+    # THE SPLIT ABOVE IS LIKEWISE UNVERIFIED, and that is stated here rather
+    # than left for someone to discover. It is sized from measurement and the
+    # YAML parses, but no run has executed it: at the time of writing dev
+    # Supabase answers nothing at the data plane, so a run would reproduce ~85
+    # sign-in failures at 70s each and measure the outage instead of the split.
+    # The first green-ish run is what confirms the ~60-minute legs and produces
+    # the first mobile numbers this project has ever had.
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -565,9 +744,49 @@ jobs:
       # key only - never the service-role key. The anon key is public by design
       # and the dev project holds no real user data.
       - name: Run E2E
-        run: npm run test:e2e
+        # `--project` is what makes a leg a leg. Without it each one would run
+        # the whole 1274 and the split would double the bill for nothing.
+        run: npm run test:e2e -- --project=${{ matrix.project }}
+        # ── MOBILE IS NON-BLOCKING FOR ITS FIRST RUN. REVERT AFTER v2026.10.29c ──────
+        #
+        # ⚠️ TEMPORARY. Remove this line once the mobile leg has one completed run on
+        # record. Tracked as a checkbox on the release PR and on #1413.
+        #
+        # THIS IS NOT A WEAKENING OF THE GATE, and reading it as one gets the history
+        # backwards. The mobile project has NEVER executed in CI - not in this release
+        # and not in any previous one. It was queued behind desktop and starved at the
+        # 120-minute cap every time, which is the defect the matrix above fixes. So
+        # every release this project has ever shipped had desktop-only browser
+        # coverage; this preserves exactly that and ADDS a measurement.
+        #
+        # The unusual move would be the other one: putting 637 never-executed tests in
+        # front of a release as a blocking check on their first run.
+        #
+        # THE PRINCIPLE, worth keeping after this line goes: a test's first-ever run
+        # cannot be a blocking gate, because a red result is not interpretable. With no
+        # baseline there is no way to tell "found a real defect" from "the test is
+        # wrong" from "the environment is down" - and a gate that cannot distinguish
+        # those is not a signal, it is a stop.
+        #
+        # WHY STEP-LEVEL AND NOT JOB-LEVEL. The documented effect of this key is
+        # "Prevents a job from failing when a step fails", so the job's own conclusion
+        # becomes success and `needs.e2e.result` - which the `gate` job asserts must be
+        # `success` for a PR into main - is satisfied without depending on how a
+        # job-level `continue-on-error` is reported to the `needs` context. One less
+        # unverified assumption on a release path.
+        #
+        # DESKTOP IS UNAFFECTED: the expression is false for it, so a desktop failure
+        # still fails its leg, still fails the aggregate, and still blocks the release.
+        continue-on-error: ${{ matrix.project == 'mobile' }}
         env:
           CI: true
+
+          # Empty on every automatic event, because the `inputs` context is empty
+          # outside a dispatch - so the release gate keeps building the candidate's
+          # own commit locally. Set it on a dispatch to test a deployed host and
+          # skip the build entirely. See the input's own comment for why a remote
+          # run is NOT the same measurement as the gate run.
+          E2E_BASE_URL: ${{ inputs.base_url }}
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
@@ -829,10 +1048,31 @@ jobs:
       # failure() only. This used to upload on every green run too - ~15s and
       # storage for a report nobody opens. failure() still excludes
       # cancellations, so a concurrency-cancelled run uploads nothing.
+      #
+      # ── PLUS MOBILE, ALWAYS, WHILE ITS LEG IS NON-BLOCKING. REVERT TOGETHER ──────
+      #
+      # The `continue-on-error` above makes the mobile job SUCCEED when its tests fail,
+      # which means `failure()` is false and this step would not have fired - so a
+      # non-blocking leg would have produced no report at all. That is the whole shape
+      # of the `/api/signal-accuracy` entry found on 2026-10-29: a job we paid for,
+      # green forever, measuring air.
+      #
+      # So mobile uploads on PASS as well as fail, deliberately. Its result has to be
+      # readable either way, because the only reason to run a non-blocking leg is to
+      # read it - and on its debut the passing report is the baseline that lets the
+      # NEXT red one mean something.
+      #
+      # `matrix.project == 'mobile'` rather than a `steps.<id>.outcome` check, because
+      # `outcome` versus `conclusion` under continue-on-error is one more semantic this
+      # release path does not need to depend on. This condition contains `failure()`,
+      # so it is evaluated as written rather than having an implicit `success()` added.
       - uses: actions/upload-artifact@v4
-        if: ${{ failure() }}
+        if: ${{ failure() || matrix.project == 'mobile' }}
         with:
-          name: playwright-report-${{ github.run_attempt }}
+          # `matrix.project` is REQUIRED, not decorative: upload-artifact@v4
+          # errors on a duplicate name, so without it the second leg to fail
+          # would fail on the upload instead of on its tests.
+          name: playwright-report-${{ matrix.project }}-${{ github.run_attempt }}
           path: qa/e2e-report/
           retention-days: 14
 
@@ -848,7 +1088,10 @@ jobs:
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.count_egress }}
         uses: actions/upload-artifact@v4
         with:
-          name: egress-tally-${{ github.run_attempt }}
+          # Per project, same duplicate-name reason as the report above - and
+          # the two legs are separate measurements anyway: a per-IP tally from
+          # the desktop runner says nothing about the mobile one.
+          name: egress-tally-${{ matrix.project }}-${{ github.run_attempt }}
           # A GLOB. Every node process in the tree loads the preload and writes
           # its own pid-suffixed file - the npm wrapper, the build, the Next
           # server, each Playwright worker. A single shared path made them

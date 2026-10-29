@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { isProductionTarget, assertProductionRunAllowed, PROD_READONLY_TEST_MATCH } from './qa/prod-readonly';
+import { resolveBaseUrl } from './qa/baseUrl';
 
 // E2E config for the QA suite in qa/e2e.
 //
@@ -40,7 +41,10 @@ const PORT = Number(process.env.E2E_PORT ?? 3100);
 // Both Render non-prod services are on the free plan and sleep when idle, so
 // the first request after a quiet period can take ~50s. That is why the
 // navigation timeout is raised rather than the suite being called flaky.
-const BASE_URL = process.env.E2E_BASE_URL?.replace(/\/$/, '');
+// Unset, empty and whitespace-only all mean "build locally" - see qa/baseUrl.ts for
+// why that needs a function. A `workflow_dispatch` input with `default: ''` arrives as
+// an empty string, which `?.` and `??` do NOT treat as absent.
+const BASE_URL = resolveBaseUrl(process.env.E2E_BASE_URL);
 const IS_REMOTE = Boolean(BASE_URL);
 
 // ── THE PRODUCTION GUARD (#1364, #1259) ───────────────────────────────────────

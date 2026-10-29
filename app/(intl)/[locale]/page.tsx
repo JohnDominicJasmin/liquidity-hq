@@ -58,11 +58,12 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
      * is correct whatever the owner decides about `ar` and `ru` - adding a locale later means adding a
      * dictionary and a list entry, not revisiting this.
      *
-     * STILL OPEN AND NOT FIXED HERE: `<html lang>` is hardcoded `en` in app/layout.tsx, so `/ko` and `/zh`
-     * declare the wrong language in their server HTML. Three client components correct it after mount, which
-     * is too late for a crawler that runs no JavaScript. Only the ROOT layout renders `<html>` and it cannot
-     * see this route's `[locale]` segment, so fixing it needs middleware or a route restructure - bigger than
-     * a metadata change and deliberately not smuggled into one. */
+     * FIXED, #1740 item 2: `<html lang>` was hardcoded `en` in app/layout.tsx, so `/ko` and `/zh` declared
+     * the wrong language in their server HTML and only three client components corrected it after mount -
+     * too late for a crawler that runs no JavaScript. The route restructure predicted here is what landed:
+     * this route moved under the (intl) route group and `app/(intl)/[locale]/layout.tsx` is now a second
+     * ROOT layout, which is what lets it read this segment's `locale` and render `<html lang={locale}>`.
+     * Not middleware, and no dynamic API in a root layout - both were rejected, see that file. */
     alternates: {
       canonical: `/${locale}`,
       /* #1740: hreflang for the three landing locales that ACTUALLY EXIST. Reciprocal on all three, with
@@ -76,7 +77,14 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
          not a list change, and listing an hreflang that 404s is worse than omitting it.
 
          ONLY THE LANDING CARRIES THIS. /about, /faq and the rest have no translations, so claiming
-         alternates for them would point a crawler at pages that do not exist in that language. */
+         alternates for them would point a crawler at pages that do not exist in that language.
+
+         THIS MAP AND `<html lang>` COME FROM DIFFERENT SOURCES, and a reader will assume otherwise.
+         The keys below are hardcoded here; `lang` is derived from this route's `[locale]` segment in
+         app/(intl)/[locale]/layout.tsx. So a change to one does NOT move the other, and a test that
+         checks only one cannot detect them disagreeing. They agree today - `ko`/`zh` both ways, both
+         lowercase - and keeping them in step is a manual obligation of editing either. If this map
+         ever grows a locale, SUPPORTED_LOCALES has to grow it too or the hreflang points at a 404. */
       languages: {
         en: '/',
         ko: '/ko',

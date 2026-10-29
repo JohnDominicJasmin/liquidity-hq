@@ -18,9 +18,28 @@ const read = (name: string) => readFileSync(new URL(`${name}.spec.ts`, specDir),
 
 test('production hosts are recognised, deployed non-production hosts and localhost are not', () => {
   for (const u of ['https://liquidity-hq.com', 'https://liquidity-hq.com/', 'https://www.liquidity-hq.com', 'HTTPS://LIQUIDITY-HQ.COM',
+    /* MEASURED 2026-10-29, and this row is the one that was missing. `liquidity-hq.onrender.com`
+       serves production direct from Render, bypassing Cloudflare - `/api/version` there returns
+       commit 7f44439, branch main, appEnv prod. The guard listed `liquidity-hq-prod.onrender.com`
+       instead, named after the Render SERVICE, and that host answers `Not Found`.
+
+       It is not a cosmetic miss: a false from isProductionTarget means PROD_READONLY_TEST_MATCH
+       is never applied, so the whole suite runs - including every PROD_EXCLUDED spec that writes
+       on purpose - against a database with no backups. Reachable from a dispatch since #1802
+       added the `base_url` input. */
+    'https://liquidity-hq.onrender.com',
+    'https://liquidity-hq.onrender.com/',
+    'HTTPS://LIQUIDITY-HQ.ONRENDER.COM',
     'https://liquidity-hq-prod.onrender.com', 'https://app.liquidity-hq.com']) {
     assert.equal(isProductionTarget(u), true, `${u} must be production`);
   }
+
+  /* CONTROL, so the row above cannot pass by this function having become "everything is
+     production". The sibling Render hosts must still be allowed, and they are asserted in the
+     loop below too - this states the pairing explicitly because it is the distinction that
+     was broken: one onrender host is production and three are not. */
+  assert.equal(isProductionTarget('https://liquidity-hq-qa.onrender.com'), false,
+    'the qa Render host must NOT be production - if this fails, the fix above over-matched');
   for (const u of ['https://liquidity-hq-qa.onrender.com', 'https://liquidity-hq-staging.onrender.com', 'https://liquidity-hq-dev.onrender.com',
     'http://localhost:3100', 'http://127.0.0.1:3100', undefined, '']) {
     assert.equal(isProductionTarget(u), false, `${String(u)} must NOT be production`);

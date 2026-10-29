@@ -137,7 +137,7 @@ test('Arena mounts it headless and /liq does not', () => {
 });
 
 test('Arena still passes onClusters, which is why it mounts this at all', () => {
-  const arena = stripComments(read('app', 'arena', 'page.tsx'));
+  const arena = stripComments(read(appPath('app', 'arena', 'page.tsx')));
   const tag = arena.match(/<LiqFeed[^>]*\/>/)![0];
   assert.match(tag, /onClusters=/,
     'a headless LiqFeed with no onClusters is a websocket connection that feeds nothing');
