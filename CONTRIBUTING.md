@@ -1068,11 +1068,29 @@ the reader already handles. G3 passed, and it still passed with the catch body
 replaced by `throw e`. There was no 503.
 
 **Which is a better case for this condition than a real failure would have
-been.** Dev inferred something about dev's own tree, from reading QA's code, and
-was wrong; QA could not have checked it either, because the behaviour only
-appears on the tree dev holds. Neither session could settle it alone and neither
-should have tried. **That is the whole of the third condition** - say which half
-was measured, and measure the other half rather than reasoning across the gap.
+been - and the reason is not the one this paragraph gave first.** The first
+correction said neither session could have settled it alone, because the
+behaviour only appeared on dev's tree. QA pointed out that this is two questions
+wearing one answer:
+
+- **Does the second read exist on dev's tree?** Genuinely tree-specific. QA could
+  not check it. **This was never the part in dispute.**
+- **Does the stand-in's throw become a 503?** **Not tree-specific at all.** It is
+  a property of the stand-in being `async` and of how supabase-js handles a
+  rejected fetch, it holds on either tree, and QA measured it in a minute without
+  dev's tree.
+
+**So the failure was reasoning where measuring was available, not a gap between
+two trees.** "Neither session could settle it alone" is the kinder story and the
+weaker lesson: it invites the next reader to conclude that cross-tree questions
+are just hard. The truth is that the disputed half was the cheap half, and
+nobody ran it.
+
+**That is what the third condition is for** - say which half was measured,
+because **the half nobody measured is usually the one that was easiest to
+measure.** Reasoning is what you do about the part that genuinely cannot be
+reached from your tree, and that part is smaller than it looks from inside the
+argument.
 
 **The first version of this paragraph recorded the 503 as observed**, because the
 PR body it was written from did. It was a prediction written in the past tense,
