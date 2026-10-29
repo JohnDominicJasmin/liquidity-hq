@@ -115,6 +115,16 @@ push to `dev`, `staging` and `main`, and on every PR into `dev`, `qa`, `staging`
 **the pre-push hook keeps lint and typecheck — measured at 66 seconds end to end, not the 5-8 minutes it was — and gives the ~3.5-minute, ~1 GB unit-test run to CI.**
 Breakage reaches `dev` for the few minutes before CI flags it; it can never reach `main`, because the PR check stands between.
 **That trade is the right one** - `dev` is the integration branch and it is what it is for, and the alternative was a rule that
+
+**THE 66 SECONDS IS A PROPERTY OF THE BRANCH, NOT OF THE PROJECT — and this bit me within minutes of writing the line above.**
+`core.hooksPath` points at `.githooks` **inside the working tree**, so the hook that runs is the one on the branch being pushed.
+**A branch cut before the change still carries the old hook and still runs the heavy gate.** Pushing a docs branch based on
+`ddb22c7c` printed `[pre-push] lint, typecheck and unit tests passed` — the full ~3.5-minute, ~1 GB run, on his laptop, from a
+session that had just recorded the gate as costing 66 seconds.
+
+**So before pushing any branch that is not current: merge `dev` in first, or read `.githooks/pre-push` on the branch you are
+actually pushing.** Reading this rule instead of that file is precisely how the heavy gate lands on his machine again. The same
+merge also brings the executable bit (#1805), so it is one step that fixes both.
 resolved to "run a heavy job on the machine he has told us four times not to touch."
 
 Tracked on #1413.
