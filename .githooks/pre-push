@@ -33,6 +33,15 @@
 # NOWHERE - not here, not there - and this hook is two thirds of a gate. Put
 # `npm test` back below until CI is fixed, and say so where the team reads.
 #
+# THE SECOND THING THAT WOULD MAKE IT A BAD TRADE IS `qa` DIVERGING. CI watches
+# pushes to dev, staging and main - NOT qa - because promotions into qa are
+# fast-forward only, so the commit landing there is bit-identical to one already
+# tested on dev. The coverage comes from the fast-forward, not from the branch.
+# Force-push into qa, or merge into it from anywhere but dev, and those commits
+# have been tested by nothing: not here, and not by CI, which is not watching.
+# Nothing reports it - no red cross, the suite just never ran. CONTRIBUTING
+# section 6 carries this next to the fast-forward rule itself.
+#
 # --no-verify IS STILL OFF THE TABLE, and lightening the hook is exactly why.
 # A gate that is bypassed as well as lightened leaves nothing checking anything
 # until the pull request.
