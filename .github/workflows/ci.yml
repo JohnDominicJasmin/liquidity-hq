@@ -287,7 +287,8 @@ on:
     # QA's first count was 7 of 21 and included `.github/` and `qa/` changes;
     # filtering to true documentation left one in thirty-one. It is worth doing
     # because it is correct and free, not because it moves the number. The item
-    # that moves the number is `workers: 1` - issue #114.
+    # that moves the number is `workers` - issue #114. (At 2 since 2026-08-09;
+    # above 2 is blocked on a per-IP egress measurement, not on theory.)
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -515,11 +516,19 @@ jobs:
     # 45.3 minutes, which read as a release failure when it was the cap being
     # too small for the suite it now guards.
     #
-    # Raised rather than made faster, because the obvious speed-up is not
-    # available: playwright.config.ts pins `workers: 1` on purpose, since
-    # parallel specs multiply Binance/Bybit traffic and trip the app's own
-    # per-IP rate limiter into 429s that look like product bugs. Parallelising
-    # the contrast file was tried and changed nothing for exactly that reason.
+    # Raised rather than made faster, because the obvious speed-up was not
+    # available AT THE TIME: the config then pinned `workers: 1`, since parallel
+    # specs multiply Binance/Bybit traffic and trip the app's own per-IP rate
+    # limiter into 429s that look like product bugs. Parallelising the contrast
+    # file was tried and changed nothing for exactly that reason.
+    #
+    # ⚠ THAT PIN IS GONE, AND THIS PARAGRAPH OUTLIVED IT. playwright.config.ts:192
+    # has read `workers: 2` since 2026-08-09, so the cap was being justified by a
+    # config value that had already changed - a reader here would conclude
+    # parallelism is unavailable when the live question is 2 -> 4. The
+    # rate-limiter reasoning itself still stands and is still what blocks going
+    # above 2: the limit is PER IP and the only measurement anyone has is from
+    # one developer machine (see the `count_egress` input). Corrected 2026-10-29.
     #
     # 90 -> 120, same day, because 90 was set from LOCAL timings and CI is much
     # slower. Measured from the cancelled run's own log rather than estimated:
@@ -547,6 +556,77 @@ jobs:
     #
     # If the suite grows again, move this WITH the change that grows it, and
     # size it from a CI measurement rather than a local one.
+    #
+    # ── THE SUITE GREW AND THIS DID NOT MOVE. MEASURED 2026-10-29 ──────────────
+    #
+    # Dispatch run 40907544388 (spec commit 677cf44 on dev, host commit 6e30003
+    # read from /api/version afterwards rather than assumed) was cancelled at
+    # exactly 2h00m15s. Parsed from that run's own log, not estimated:
+    #
+    #   Running 1274 tests using 2 workers
+    #   513 result lines      228 pass / 142 fail / 143 skip
+    #   passing    60.0 min across 228 tests   (mean 15.8s)
+    #   failing   166.4 min across 142 tests   (mean 70.3s)
+    #
+    # 226.4 of the 240 worker-minutes the cap allows were consumed, so the job
+    # was saturated rather than idle, and the #1021 zero-spec-line stuck
+    # signature is ABSENT. This was slow, not hung.
+    #
+    # THE PART THAT IS NOT A SPEED PROBLEM: 654 `[desktop]` lines and ZERO
+    # `[mobile]` lines, confirmed against a positive control for the pattern.
+    # The mobile project is not excluded here - no `--project` flag is passed
+    # and the banner plans all 1274 - it was QUEUED AND STARVED for two hours.
+    # Desktop alone only reached 513 of its 637. The split is exact and measured,
+    # not assumed - `playwright test --list` reports "Total: 1274 tests in 92
+    # files", 637 desktop + 637 mobile. Worth knowing WHY it stays even though 35
+    # of the 92 specs gate on project or device: those skip at RUN time, not at
+    # collection time, which is also where the run's 143 skips come from.
+    #
+    # So this job has never once executed the mobile project, and it fails in a
+    # way that reads as "slow suite" instead of "half the matrix never started".
+    # 375px is a primary target, not an edge case (playwright.config.ts says so
+    # where it pins the iPhone device), which makes this a COVERAGE HOLE wearing
+    # a timeout's clothes. Same shape as the #1354 run recorded above at
+    # ~685/964; the suite has since grown to 1274 and the cap never followed.
+    #
+    # A GREEN RUN DOES NOT FIT EITHER, and that is the load-bearing number. The
+    # 142 failures are environmental - dev Supabase wdtjhrilakoitfcezxpx answers
+    # nothing at the data plane, `select 1` times out while the same query on
+    # prod returns in under a second - and they cost 70.3s each, 73% of all
+    # worker time for 28% of the tests. Had they passed at the 15.8s mean:
+    # the 513 reported lines are 97.4 green worker-minutes, which is 11.4s per
+    # reported line WITH THE SKIPS COUNTED IN. Extrapolated to the planned 1274:
+    # about 242 worker-minutes, so ~121 minutes of wall clock at 2 workers WITH
+    # NOTHING WRONG ANYWHERE. The cap is 120.
+    #
+    # Derived per reported line rather than per project on purpose - it then
+    # needs no assumption about how 1274 divides. Treat 121 as a FLOOR: it
+    # assumes the 761 unreported lines carry the same skip ratio and cost as the
+    # 513 observed, and every one of those 513 is desktop while the mobile
+    # project is the slower half.
+    #
+    # DO NOT SIMPLY RAISE THE NUMBER AGAIN. A cap near 200 bills one 3.3-hour
+    # job, makes a genuinely stuck run take 3.3 hours to admit it, and does not
+    # change the ordering that starves mobile - it only starves it for longer.
+    # The fix that addresses both is sharding across jobs, which gets each shard
+    # its own runner IP and its own memory budget and so needs neither of the
+    # two things that block `workers` going above 2. It requires three changes
+    # this file does not have yet:
+    #
+    #   1. `--shard=i/N` splits on `group.tests.length`
+    #      (node_modules/playwright/lib/runner/index.js:2426) and is therefore
+    #      BLIND TO DURATION - contrast.spec.ts is 3 tests and 7 minutes here,
+    #      18.6 in the run above. Split by project first, then weight with
+    #      PWTEST_SHARD_WEIGHTS from measured per-file time, never test counts.
+    #   2. the reporter array has to become `blob` per shard plus a
+    #      `merge-reports` step; both exist in the pinned Playwright 1.62.1.
+    #      Without it every shard writes the same `qa/e2e-report`.
+    #   3. ./qa/triage-reporter.mjs tallies distinct CAUSES per process, so
+    #      under sharding it prints per-shard counts - reintroducing exactly the
+    #      mis-triage it was written to prevent. It must move to the merge step.
+    #
+    # Sizing those shards needs one run that is not 73% environmental failure,
+    # so the work is blocked on dev Supabase answering, not on a decision.
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
