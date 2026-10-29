@@ -32,10 +32,37 @@ import { getGuarded } from './_shared';
  * cannot rot.
  */
 
-/** Routes with a policy today. Asserted exactly - a change here is a regression. */
-const SHIPPED: Array<{ path: string; expect: RegExp; note: string }> = [
+/**
+ * Routes with a policy today. Asserted exactly - a change here is a regression.
+ *
+ * `perCaller` INVERTS THE SHARED-CACHE ASSERTION for a route whose body depends on WHO IS
+ * ASKING. For those, `s-maxage` is not the goal - it is the defect - so the usual
+ * "must cache at the shared edge" expectation would be asking for a cross-user leak. See
+ * `/api/market/rsi` below.
+ */
+const SHIPPED: Array<{
+  path: string;
+  expect: RegExp;
+  note: string;
+  perCaller?: { vary: string; why: string };
+}> = [
   { path: '/api/market/snapshot', expect: /s-maxage=60\b/,   note: 'Binance + CMC' },
-  { path: '/api/market/rsi',      expect: /s-maxage=60\b/,   note: 'Binance' },
+  /* NOT A SHARED-CACHE ROUTE SINCE #1263, and this entry must never be "fixed" back.
+   *
+   * It asserted /s-maxage=60/ for 29 days after the route stopped sending it. The route is
+   * RIGHT and the assertion was stale: the body now merges per caller, so
+   * `app/api/market/rsi/route.ts` serves `private, max-age=60` with `Vary: Authorization`.
+   * `s-maxage` explicitly permits a shared cache to store the response to an authorized
+   * request, which is how a Pro body gets served to a free caller - so making this green by
+   * restoring `s-maxage` would put the leak back, in a file whose whole subject is cache
+   * policy. The sibling control `/api/market/snapshot` still asserts `s-maxage` with no
+   * `Vary`, so the instrument can tell the two policies apart and only this route diverged. */
+  {
+    path: '/api/market/rsi',
+    expect: /private,\s*max-age=60\b/,
+    note: 'per-caller merge since #1263 - private, NOT shared',
+    perCaller: { vary: 'Authorization', why: 'the body merges Pro and free fields per caller (#1263)' },
+  },
   { path: '/api/macro',           expect: /s-maxage=300\b/,  note: 'Yahoo, er-api' },
   { path: '/api/econ-calendar',   expect: /s-maxage=3600\b/, note: 'ForexFactory, Fed' },
   { path: '/api/ath',             expect: /s-maxage=3600\b/, note: 'CoinGecko' },
@@ -64,7 +91,10 @@ const SHIPPED: Array<{ path: string; expect: RegExp; note: string }> = [
    * actually served, and this one must not be mistaken for it again. */
   { path: '/api/funding',         expect: /s-maxage=60\b/,   note: 'Binance + Bybit, #198' },
   { path: '/api/cycle',           expect: /s-maxage=300\b/,  note: 'slow signal, #198' },
-  { path: '/api/signal-accuracy', expect: /s-maxage=3600\b/, note: 'historical stats, #198' },
+  /* `/api/signal-accuracy` WAS HERE AND ASSERTED NOTHING. Moved to GATED below - it answers
+   * 404 on every environment because `SHOW_PERFORMANCE_STATS` is off, so it hit the skip
+   * guard on every run while this file reported green. Found 2026-10-29 while verifying the
+   * rsi entry: 404 in 0.19s on qa, which is the 4xx case the guard calls permanent. */
   /* THE QUERY PARAMETER IS LOAD-BEARING. Do not "tidy" it away.
    *
    * Both routes dispatch on `?type=` and return 400 to a bare request BY
@@ -97,13 +127,35 @@ const SHIPPED: Array<{ path: string; expect: RegExp; note: string }> = [
  *  asserted here, so the next batch has somewhere to go. */
 const PROPOSED: Array<{ path: string; proposed: string; why: string }> = [];
 
+/**
+ * Routes whose cache policy CANNOT BE READ in any environment we test, because a feature flag
+ * turns the route off. Unreadable, not wrong - and the distinction matters because the two
+ * look identical in a green run.
+ *
+ * WHY THIS LIST EXISTS. `/api/signal-accuracy` sat in SHIPPED asserting `s-maxage=3600` while
+ * answering **404 in 0.19s** on qa: `app/api/signal-accuracy/route.ts:191` returns
+ * `{ error: 'Not found' }` when `SHOW_PERFORMANCE_STATS` is off. The skip guard below reads a
+ * 4xx as "this spec asked wrong" and skips - correctly - so the entry was pinned by nothing on
+ * every run on every service, and the file still reported ten green tests. That is the same
+ * shape as the `/briefing` exemption removed in #196 and as the two bare-`?type=` paths caught
+ * on review of #203: invisible in a green run, reads as covered, asserts nothing.
+ *
+ * SO THE SKIP IS REPLACED BY AN ASSERTION. This is not "ignore the route" - it pins the REASON
+ * it cannot be measured, and goes RED the day the flag flips, which is the day its cache policy
+ * becomes readable and it belongs back in SHIPPED. A permanent silent skip becomes a loud
+ * prompt, at the cost of one assertion.
+ */
+const GATED: Array<{ path: string; flag: string; shipped: string }> = [
+  { path: '/api/signal-accuracy', flag: 'SHOW_PERFORMANCE_STATS', shipped: 's-maxage=3600' },
+];
+
 test.describe('API cache policy', () => {
   // HTTP-level; the mobile project would fetch identical headers.
   test.beforeEach(({}, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'response headers are viewport-independent');
   });
 
-  for (const { path, expect: pattern, note } of SHIPPED) {
+  for (const { path, expect: pattern, note, perCaller } of SHIPPED) {
     test(`${path} still caches at the edge (${note})`, async ({ request }) => {
       const res = await getGuarded(request, path);
 
@@ -178,8 +230,63 @@ test.describe('API cache policy', () => {
 
       /* `s-maxage` and not `max-age`: max-age caches in the USER'S browser and
        * does nothing for the second visitor. /api/forex/jpy has that mistake
-       * today and it is why this assertion is separate. */
-      expect(cc, `${path} must cache at the shared edge, not only in one browser`).toContain('s-maxage');
+       * today and it is why this assertion is separate.
+       *
+       * INVERTED for a per-caller route, and the inversion is the point. When the body
+       * depends on WHO IS ASKING, `s-maxage` is the defect rather than the goal - it
+       * explicitly permits a shared cache to store the response to an authorized request,
+       * which is how one caller's body reaches another. So the same file that demands a
+       * shared cache for 10 routes must FORBID it for this one, and a reviewer who "fixes"
+       * the red assertion by restoring `s-maxage` would be reintroducing a cross-user leak.
+       *
+       * This is also why `Vary` is asserted rather than assumed: `private` alone stops a
+       * CDN, but `Vary: Authorization` is what stops any intermediary keying one entry
+       * across both an authorized and an anonymous request. */
+      if (perCaller) {
+        expect(cc,
+          `${path} sends "${cc}", which contains s-maxage. That route's body merges per caller - ` +
+          `${perCaller.why} - so a shared cache storing one caller's response can serve it to ` +
+          `another. If this assertion is red, the ROUTE regressed; do not satisfy it by changing ` +
+          `this expectation back. See app/api/market/rsi/route.ts and #1263.`,
+        ).not.toContain('s-maxage');
+
+        /* `headersArray()` AND NOT `headers()`, measured: this route really sends THREE
+         * separate `vary` headers - Next's own `rsc, next-router-state-tree, ...`, then
+         * `Authorization`, then `Accept-Encoding`. `headers()` collapses duplicates into one
+         * value, and exactly how it does that is not something this assertion should depend
+         * on; if it ever surfaced only the first, `Authorization` would be absent and this
+         * would fail on a correct route. The array form is unambiguous. */
+        const vary = res.headersArray()
+          .filter((h) => h.name.toLowerCase() === 'vary')
+          .map((h) => h.value)
+          .join(', ');
+
+        expect(vary,
+          `${path} is \`private\` but does not Vary on ${perCaller.vary} (vary: "${vary}"). Without ` +
+          `it an intermediary may key one cache entry across an authorized and an anonymous ` +
+          `request, which is the same leak \`private\` was added to close.`,
+        ).toContain(perCaller.vary);
+      } else {
+        expect(cc, `${path} must cache at the shared edge, not only in one browser`).toContain('s-maxage');
+      }
+    });
+  }
+
+  /* GATED OFF, and written to fail when the flag flips. No skip: a skip here was permanent
+     and silent, which is what put this list in the file. */
+  for (const { path, flag, shipped } of GATED) {
+    test(`KNOWN: ${path} is gated off, so its cache policy cannot be read here`, async ({ request }) => {
+      const res = await getGuarded(request, path);
+
+      expect(res.status(),
+        `${path} now answers ${res.status()} instead of 404, so \`${flag}\` is ON here and its ` +
+        `cache policy is readable for the first time. That is the good outcome and this test is ` +
+        `obsolete: move the route back into SHIPPED with its actual header - it was ` +
+        `"${shipped}" before the flag turned off - and delete this entry.\n\n` +
+        `It was moved out of SHIPPED because a 404 made the skip guard fire on every run on ` +
+        `every environment, so the assertion was pinned by nothing while this file reported ` +
+        `green. See app/api/signal-accuracy/route.ts:191.`,
+      ).toBe(404);
     });
   }
 
