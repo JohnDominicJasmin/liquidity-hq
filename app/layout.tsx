@@ -5,6 +5,7 @@ import './globals.css';
 import AppShell from '@/components/AppShell';
 import StructuredData from '@/components/StructuredData';
 import { organizationGraph } from '@/lib/structuredData';
+import { OG_IMAGES } from '@/lib/seo';
 
 // Self-hosted, previously next/font/google.
 //
@@ -90,7 +91,9 @@ export const metadata: Metadata = {
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
     // #1633: this pointed at /icons/icon-512.jpg, which does not exist (404), so every shared link showed no picture. The file is a .png.
     // A real 1200x630 share image is a separate, owner-approved piece of work.
-    images: [{ url: '/icons/icon-512.png', width: 512, height: 512, alt: 'LiquidityHQ' }],
+    // #1740 item 3: one constant, shared with /learn and /[locale], which each had to repeat it because a local openGraph object
+    // replaces this one rather than merging - and which, not repeating it, had no share image at all.
+    images: OG_IMAGES,
   },
   twitter: {
     card: 'summary',

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import LearnContent from '@/components/LearnContent';
+import { OG_IMAGES } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Crypto Trading Glossary - RSI, Funding Rate, Squeeze Score & More',
@@ -11,6 +12,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Crypto Trading Glossary - LiquidityHQ',
     description: 'Plain-English definitions for the terms crypto traders use every day.',
+    /* #1740 item 3: a local openGraph object REPLACES the root layout's, it does not merge with it - so defining title and
+       description here silently dropped the root's `images`, and this page has had no share picture since it shipped. The constant
+       keeps the three definitions from drifting; the url has already been wrong once (#1633). */
+    images: OG_IMAGES,
   },
 };
 

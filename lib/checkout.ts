@@ -303,3 +303,14 @@ export function getCryptoCheckoutUrl(plan: CheckoutPlan, user: { id: string } | 
     return base;
   }
 }
+
+/** Where a Whop customer cancels or manages their own subscription (#1630 Step 1).
+ *
+ *  Whop's documented self-serve path: sign in at whop.com, Profile -> Orders, pick the subscription, "Cancel membership"
+ *  (https://docs.whop.com/memberships-and-access/cancellations-and-refunds/cancel-a-subscription.md). Whop's own wording for what
+ *  happens next is "After you cancel, you'll still have access until the period you already paid for ends", which is exactly what
+ *  the Terms promise - so linking out keeps the promise without a Whop API key, which the product does not have.
+ *
+ *  A constant rather than a label row: it is a URL, not copy, and a mistyped one is a dead end for somebody trying to stop paying.
+ *  NOT the sandbox equivalent on qa - a test purchase there is managed from the same real account page. */
+export const WHOP_MANAGE_URL = 'https://whop.com/@me/settings/orders/';

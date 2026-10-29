@@ -20,9 +20,10 @@ import {
   readableOn, parseCssColor, compositeOver, contrastRatio, relativeLuminance,
   BLACK, WHITE, type Rgb,
 } from '../lib/readableOn.ts';
+import { appPath } from './_appPath.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PAGE = readFileSync(path.join(ROOT, 'app', 'hours', 'page.tsx'), 'utf8');
+const PAGE = readFileSync(path.join(ROOT, appPath('app', 'hours', 'page.tsx')), 'utf8');
 
 const BAR = 4.5;
 

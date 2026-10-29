@@ -18,9 +18,12 @@
     "postinstall": "node scripts/check-deps.mjs",
     "labels:regen": "node scripts/regen-label-defaults.mjs"
   },
+  "overrides": {
+    "dompurify": "3.4.17"
+  },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.5.3",
-    "@sentry/nextjs": "^10.67.0",
+    "@sentry/nextjs": "^10.75.2",
     "@supabase/supabase-js": "^2.106.2",
     "@whop/elements": "1.9.0",
     "@whop/elements-react": "1.9.0",
@@ -28,7 +31,7 @@
     "import-in-the-middle": "^3.0.0",
     "klinecharts": "^10.0.0-beta3",
     "motion": "^12.42.2",
-    "next": "16.3.8",
+    "next": "16.4.1",
     "posthog-js": "^1.404.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",

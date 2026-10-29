@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt, LIQ_CLUSTER_LINES } from '../lib/liqClusters.ts';
+import { appPath } from './_appPath.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -195,7 +196,7 @@ test('the prompt header names the coin and says REALIZED', () => {
 });
 
 test('the prompt is fed from LiqFeed, not from the dead Coinglass array', () => {
-  const arena = readFileSync(path.join(ROOT, 'app', 'arena', 'page.tsx'), 'utf8');
+  const arena = readFileSync(path.join(ROOT, appPath('app', 'arena', 'page.tsx')), 'utf8');
   const line = arena.match(/const liqLevels = [^;]+;/);
   assert.ok(line, 'the liqLevels prompt field is gone');
   assert.match(line[0], /formatClustersForPrompt\(liqClusters, selectedCoin\)/);

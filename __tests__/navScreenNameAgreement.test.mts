@@ -22,6 +22,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { appPath, appRoutes } from './_appPath.mts';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -36,20 +37,19 @@ const LABELS = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, s
 const t = (k: string) => `<${k}>`;
 const NOT_FOUND = '/_not-found';
 
-/** Every page route in app/, from the files. Dynamic segments are kept as `[x]`. */
-function pageRoutes(): string[] {
-  const out: string[] = [];
-  const walk = (dir: string) => {
-    for (const e of readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
-      const rel = `${dir}/${e.name}`;
-      if (e.isDirectory()) { if (rel !== 'app/api') walk(rel); }
-      else if (e.name === 'page.tsx') out.push(dir.replace(/^app/, '') || '/');
-    }
-  };
-  walk('app');
-  return out.sort();
-}
-const ROUTES = pageRoutes();
+/** Every page route in app/, from the files. Dynamic segments are kept as `[x]`.
+ *
+ *  DELEGATED to `appRoutes` rather than walked here, and the reason is specific: this
+ *  derived the URL as `dir.replace(/^app/, '')`, which leaves a route-group segment IN
+ *  the route. #1740 turns `app/arena/page.tsx` into `app/(main)/arena/page.tsx`, and
+ *  that mapping then produced `/(main)/arena` - a route no router will ever serve.
+ *
+ *  The WALK was never the problem. It is recursive, so it descended into the groups on
+ *  its own and kept finding files; the mapping is what broke. `appRoutes` strips every
+ *  parenthesised segment and is correct on both trees. The old `rel !== 'app/api'`
+ *  exclusion is not lost - `appRoutes('page')` selects on a `page.*` leaf, and an API
+ *  directory holds `route.ts`, so it is excluded by construction rather than by name. */
+const ROUTES = appRoutes('page');
 const STATIC_ROUTES = ROUTES.filter((r) => !r.includes('['));
 
 /** Where AppShell draws no terminal nav at all, read from AppShell itself. */
@@ -122,5 +122,5 @@ test('N5. every nav link points at a page that exists - a nav link to a missing 
   const links = [...TERMINAL_TABS.map((i) => i.href), ...[...PRIMARY, ...SCANNERS, ...TOOLS, ...TAIL].map((i) => i.path)];
   const missing = links.filter((l) => !ROUTES.includes(l));
   assert.deepEqual(missing, [], `nav links with no page: ${missing.join(', ')}`);
-  assert.ok(existsSync(path.join(ROOT, 'app/not-found.tsx')), 'CONTROL: app/not-found.tsx is gone');
+  assert.ok(existsSync(path.join(ROOT, appPath('app/not-found.tsx'))), 'CONTROL: app/not-found.tsx is gone');
 });

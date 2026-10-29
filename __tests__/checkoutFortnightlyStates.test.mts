@@ -21,10 +21,11 @@ import {
   isCheckoutConfigured, isCheckoutConfiguredAnnual, isCheckoutConfiguredFortnightly,
 } from '../lib/checkout.ts';
 import { configuredFlags } from '../lib/configured.ts';
+import { appPath } from './_appPath.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CHECKOUT = readFileSync(path.join(ROOT, 'lib', 'checkout.ts'), 'utf8');
-const UPGRADE = readFileSync(path.join(ROOT, 'app', 'upgrade', 'page.tsx'), 'utf8');
+const UPGRADE = readFileSync(path.join(ROOT, appPath('app', 'upgrade', 'page.tsx')), 'utf8');
 
 const MONTHLY = 'https://store.lemonsqueezy.com/checkout/buy/monthly-uuid';
 const ANNUAL = 'https://store.lemonsqueezy.com/checkout/buy/annual-uuid';

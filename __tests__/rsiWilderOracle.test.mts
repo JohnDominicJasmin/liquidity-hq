@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { wilderRsiSeries, wilderRsi, computeRSI14, formatRsi } from '../lib/rsi.ts';
 import { computeKlineMetrics, METRIC_WINDOW } from '../lib/klineMetrics.ts';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -50,7 +51,7 @@ test('O4. display: one decimal, "-" for nothing; 29.6 is not shown as "30"; 29.9
 });
 
 test('S1. the RSI route keeps CLOSED candles only and fetches 120 of them', () => {
-  const src = stripTsComments(read('app/api/market/rsi/route.ts'));
+  const src = stripTsComments(read(appPath('app/api/market/rsi/route.ts')));
   assert.ok(/const RSI_HISTORY = 120;/.test(src));
   assert.ok(/return \[\.\.\.list\]\.slice\(1\)\.reverse\(\)\.map\(/.test(src), 'the Bybit forming row is not dropped');
   assert.ok(/body\.filter\(\(k: \(string \| number\)\[\]\) => Number\(k\[6\]\) < now\)/.test(src), 'Binance rows are not filtered by their close time');
@@ -94,7 +95,7 @@ test('S2. one RSI: the Wilder formula appears in lib/rsi.ts only, and the four n
 });
 
 test('S3. both RSI badges compare the unrounded value; only the text is rounded', () => {
-  const arena = read('app/arena/page.tsx');
+  const arena = read(appPath('app/arena/page.tsx'));
   assert.ok(/const rsi\s*=\s*coin\?\.rsi14 \?\? null;[\s\S]{0,300}?if \(rsi != null && rsi >= 70\)[^\n]*OVERBOUGHT[\s\S]{0,120}?if \(rsi != null && rsi <= 30\)[^\n]*OVERSOLD/.test(arena), 'Arena scanner: the badge does not compare the raw rsi14');
   const setup = read('components/SetupScanner.tsx');
   assert.ok(/const v = formatRsi\(rsi\);\s*if \(rsi >= 70\)[\s\S]{0,200}?if \(rsi <= 30\)/.test(setup), 'Setup Scanner: the badge compares something other than the value');

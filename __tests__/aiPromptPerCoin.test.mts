@@ -16,6 +16,7 @@ import { buildPrompt, buildCombinedPrompt, buildQuickPrompt } from '../lib/grok.
 import type { GrokContext, ChartData } from '../lib/grok.ts';
 import { priceDigits, priceText, signedUsd, signOf } from '../lib/numberFormat.ts';
 import { formatClustersForPrompt } from '../lib/liqClusters.ts';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -115,7 +116,7 @@ test('P4b. the EMA stop and target keep a small coin\'s decimals: PEPE reads SL 
 });
 
 test('P4c. Arena\'s candle rows and the absorption levels print through the shared formatter, never fixed decimals (STRUCTURE ONLY: both sit inside components)', () => {
-  const arena = stripTsComments(read('app/arena/page.tsx'));
+  const arena = stripTsComments(read(appPath('app/arena/page.tsx')));
   assert.match(arena, /const recent20 = vis\.slice\(-15\)\.map\(c => `O:\$\{priceDigits\(c\.o\)\} H:\$\{priceDigits\(c\.h\)\} L:\$\{priceDigits\(c\.l\)\} C:\$\{priceDigits\(c\.c\)\}/,
     'the candle rows no longer print o/h/l/c through priceDigits (PEPE read O:0.0000 before)');
   assert.doesNotMatch(arena, /toFixed\(pDec\)/);
@@ -139,7 +140,7 @@ test('P5. with no cluster data the prompt orders RAID_SETUP: NONE; with clusters
 test('P6. "Last 15 candles" is what Arena sends: the label says 15 and Arena slices 15', () => {
   const p = buildCombinedPrompt(ctx({ coin: 'XRP/USDT' }), XRP_CHART);
   assert.match(p, /^Last 15 candles \(OHLC\): flat$/m); assert.doesNotMatch(p, /Last 20 candles/);
-  assert.match(stripTsComments(read('app/arena/page.tsx')), /const recent20 = vis\.slice\(-15\)/, 'Arena no longer slices 15 candles: the label and the data disagree');
+  assert.match(stripTsComments(read(appPath('app/arena/page.tsx'))), /const recent20 = vis\.slice\(-15\)/, 'Arena no longer slices 15 candles: the label and the data disagree');
 });
 
 test('P7. the macro block names both 10-year yields, and rule 14 never calls a shrinking or unknown supply dry powder', () => {

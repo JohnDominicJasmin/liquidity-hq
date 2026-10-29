@@ -12,6 +12,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { paidByProvider } from '../lib/paidPeriod.ts';
+import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
@@ -31,7 +32,7 @@ test('P2. a hand-set Pro (no provider, no LS id, no period end) is "not paid", t
 });
 
 test('O1. the ops user route has no grant_pro action; revoke_pro refuses a non-Pro (400) and a paid account (409) before writing role only', () => {
-  const src = stripTsComments(read('app/api/ops/users/[id]/route.ts'));
+  const src = stripTsComments(read(appPath('app/api/ops/users/[id]/route.ts')));
   assert.ok(!/grant_pro/.test(src), 'grant_pro is back in the ops route');
   assert.ok(/const VALID_ACTIONS: UserAction\[\] = \['revoke_pro', 'ban', 'unban', 'reset_ai_limit'\];/.test(src), 'the action list changed');
   const i400 = src.search(/if \(row\?\.role !== 'pro'\) return NextResponse\.json\(\{ error: 'This account is not on Pro\.' \}, \{ status: 400 \}\);/);
@@ -44,19 +45,19 @@ test('O1. the ops user route has no grant_pro action; revoke_pro refuses a non-P
 });
 
 test('O2. overview, users list and user detail take the role from planKindOfRow; detail reports manualGrant = Pro with no payment', () => {
-  const overview = stripTsComments(read('app/api/ops/overview/route.ts'));
+  const overview = stripTsComments(read(appPath('app/api/ops/overview/route.ts')));
   assert.ok(/const proNow = \(proRows \?\? \[\]\)\.filter\(r => planKindOfRow\(r, now\) === 'pro'\);/.test(overview), 'the Pro count is not planKindOfRow');
   assert.ok(/const activePaying = proNow\.filter\(r => paidByProvider\(r\)\.paid\)\.length;/.test(overview), 'the paying count is not Pro-now plus a provider');
   assert.ok(!/count: 'exact', head: true \}\)\s*\.eq\('role', 'pro'\)/.test(overview), 'a stored-role head count is back');
-  const list = stripTsComments(read('app/api/ops/users/route.ts'));
+  const list = stripTsComments(read(appPath('app/api/ops/users/route.ts')));
   assert.ok(/role: planKindOfRow\(s, now\) === 'pro' \? 'pro' : 'free'/.test(list), 'the users list badges the stored role');
-  const detail = stripTsComments(read('app/api/ops/users/[id]/route.ts'));
+  const detail = stripTsComments(read(appPath('app/api/ops/users/[id]/route.ts')));
   assert.ok(/const role = planKindOfRow\(sub\.data, Date\.now\(\)\) === 'pro' \? 'pro' : 'free';/.test(detail));
   assert.ok(/manualGrant: role === 'pro' && !paid\.paid,/.test(detail));
 });
 
 test('O3. the ops user page shows Revoke Pro only for a hand-set Pro and has no Grant Pro button', () => {
-  const page = stripTsComments(read('app/ops/users/[id]/page.tsx'));
+  const page = stripTsComments(read(appPath('app/ops/users/[id]/page.tsx')));
   assert.ok(/\{data\.subscription\.role === 'pro' && data\.subscription\.manualGrant && \(/.test(page), 'Revoke is not limited to a hand-set Pro');
   assert.ok(!/doAction\('grant_pro'\)|OPS_USER_DETAIL_GRANT_PRO/.test(page), 'a Grant Pro button is back on the page');
 });
