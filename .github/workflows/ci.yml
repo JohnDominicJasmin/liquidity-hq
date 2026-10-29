@@ -75,25 +75,53 @@ name: CI
 #
 #   a PR into `main` - the release, immediately before a production deploy
 #
-# ⚠️ THERE IS NOW NO WAY TO RUN THE SUITE ON DEMAND. The `workflow_dispatch`
-# input that did it was removed on 2026-09-06 with the trigger below. If you
-# need the suite against a branch, the only route is opening a `staging` ->
-# `main` PR. That is a real constraint and it is the owner's decision - the
-# dispatch was how #207's coverage gap got worked around by hand, and that route
-# is closed too.
+# ⚠️ THE SUITE CAN BE RUN ON DEMAND AGAIN, AS OF 2026-10-29, BUT ONLY IF YOU
+# ASK FOR IT: dispatch this workflow with `e2e` ticked. A dispatch without it
+# still runs the cheap jobs only.
 #
-# ── BUT THE DISPATCH TRIGGER ITSELF IS STILL HERE, AND IT LOOKS LIKE IT WORKS ─
+# This paragraph read "THERE IS NOW NO WAY TO RUN THE SUITE ON DEMAND" from
+# 2026-09-06 until 2026-10-29, and that was correct for those seven weeks. The
+# reversal is recorded beside the original decision rather than replacing it,
+# because a condition that contradicts a recorded owner decision is something
+# the next reader will "fix" back.
 #
-# What was removed is the `e2e` INPUT, not the trigger. `workflow_dispatch:` is
-# still in the `on:` block, further down than most people read. A dispatch
-# starts `build` and `CI Gate (advisory)` and SILENTLY SKIPS `e2e`, because the
-# e2e job is gated on `github.base_ref == 'main'` and a dispatch carries no
-# `base_ref` at all.
+# THE ORIGINAL DECISION WAS RIGHT WHEN IT WAS MADE. Manual runs were removed to
+# stop the suite burning money, and August's bill is the evidence: 4,223 billed
+# minutes, 1,223 of them overage, and CI hard-stopped mid-release when the
+# spending limit hit. See the cost table further down - it is not a hypothetical.
 #
-# So a dispatch is not refused and does not warn. It comes back green without
-# having opened a browser, which is the worst of the three possible behaviours.
-# The last dispatch that genuinely ran the suite is 2026-09-05T00:09:46Z, the
-# day before the input was removed, and it failed.
+# WHAT CHANGED IS THE COST, NOT THE ARGUMENT. CI now carries a $12/month
+# included allowance against $0.18 of usage, so the constraint that decision was
+# protecting against is gone. Reversed on the owner's authorisation of
+# 2026-10-29, relayed by PM/DevOps - who asked for it opt-in specifically so the
+# capability comes back without the cost control going with it.
+#
+# WHY IT WAS WORTH ASKING FOR: the suite had not run in 39 days and nobody knew
+# whether it still worked. The release PR is the only other trigger, so the
+# alternative was finding out during a release - the worst possible moment. If
+# it comes back broken, that is the most valuable thing found this week.
+#
+# `#207`'s coverage gap was worked around by hand through this same dispatch
+# before it was removed, so that route is open again too.
+#
+# ── A DISPATCH WITHOUT `e2e` STILL SKIPS THE SUITE, AND STILL COMES BACK GREEN ─
+#
+# The trigger and the skip are separate things, and conflating them has already
+# cost this project one round trip. `workflow_dispatch:` has been in the `on:`
+# block all along, further down than most people read. What was missing between
+# 2026-09-06 and 2026-10-29 was the `e2e` input and the condition that reads it.
+#
+# So: dispatch WITHOUT `e2e` runs `build` and `CI Gate (advisory)` and skips the
+# browser suite, exactly as it did for those seven weeks. It is not refused and
+# does not warn - it returns green having opened no browser. That is still the
+# default, on purpose, because the cheap jobs are worth running on demand and
+# the 38-minute one should never be an accident.
+#
+# MEASURED, not inferred. Run 40867832435 on `main`, 2026-10-29, before the
+# input was restored: `build` success, `CI Gate (advisory)` success,
+# `E2E (Playwright)` SKIPPED. Read the jobs list rather than the run conclusion
+# when you check this - `CI Gate (advisory)` is green either way and says
+# nothing about whether a browser opened.
 #
 # THIS WARNING IS AT THE TOP RATHER THAN BESIDE THE TRIGGER BECAUSE OF HOW IT
 # WAS FOUND. On 2026-10-29 PM/DevOps read the first 25 lines of the `on:` block,
@@ -272,11 +300,26 @@ on:
   # proving a fix without opening a release PR first.
   workflow_dispatch:
     inputs:
-      # `e2e` REMOVED 2026-09-06 with the trigger it drove. A boolean that no
-      # condition reads is worse than no boolean: it renders as a checkbox
-      # promising to run the browser suite and does nothing. The dispatch
-      # itself stays, because `count_egress` below still needs it and the
-      # 2-minute job is cheap to run on demand.
+      # `e2e` RESTORED 2026-10-29, on the owner's authorisation relayed by
+      # PM/DevOps. It was removed on 2026-09-06 together with the condition that
+      # read it, and the reasoning then was sound and still is: a boolean no
+      # condition reads is worse than no boolean, because it renders as a
+      # checkbox promising to run the browser suite and does nothing.
+      #
+      # SO THE TWO MOVE TOGETHER. If you ever remove the dispatch clause from
+      # the e2e job's `if:` below, delete this input in the same commit. If you
+      # delete this input, that clause stops being reachable and should go with
+      # it. One without the other is the failure this comment already records.
+      #
+      # OFF BY DEFAULT, and that is the design rather than an oversight. The
+      # capability is back; the cost control is not reversed with it. A plain
+      # dispatch stays cheap and behaves exactly as it has since 2026-09-06 -
+      # only an explicit tick spends the 38 minutes.
+      e2e:
+        description: 'Also run the browser suite (~38 min). Off = the cheap jobs only.'
+        type: boolean
+        default: false
+
       #
       # DISPATCH-ONLY, and off by default. This changes what the run measures,
       # so it must never be the thing that happens on an ordinary push.
@@ -404,11 +447,24 @@ jobs:
     # the intended flow it cannot happen. It is accepted rather than guarded
     # because the guard would have to ask GitHub whether a PR exists, and a
     # gate that can be disabled by an API hiccup is worse than a rare duplicate.
-    # ONE CLAUSE, on the owner's decision of 2026-09-06. A `staging` -> `main`
-    # PR is the only thing that runs this, and only while the workflow is
-    # switched on - which is only at deploy time. There is no manual override
-    # any more; see the header for what that closes off.
-    if: github.base_ref == 'main'
+    # TWO CLAUSES as of 2026-10-29, and it was ONE from 2026-09-06 until then.
+    #
+    # Clause 1, the release gate: a `staging` -> `main` PR, which is the only
+    # thing that runs this automatically. `base_ref`, not `ref_name`, for the
+    # reason given above.
+    #
+    # Clause 2, the manual override, RESTORED on the owner's authorisation of
+    # 2026-10-29 relayed by PM/DevOps. The 2026-09-06 decision that removed it
+    # was right for its circumstances - August billed 4,223 minutes and CI
+    # hard-stopped mid-release - and what changed is the cost, not the argument:
+    # a $12/month included allowance against $0.18 of usage. The restriction is
+    # lifted; the cost control is not, because the input defaults to false.
+    #
+    # `inputs.e2e` ONLY EXISTS ON A DISPATCH, which is why the `event_name`
+    # check is not redundant: on a `pull_request` or `push` the `inputs` context
+    # is empty, and leaning on `inputs.e2e` alone would make the clause depend
+    # on an unset value evaluating falsey. State the event you mean.
+    if: github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.e2e)
     # Without a cap, a genuinely hung run burns to GitHub's 6-hour default, and
     # a stuck run looks identical to a slow one - which happened while this
     # suite was being brought up. So the cap stays; the number moved.
@@ -515,18 +571,40 @@ jobs:
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
-          # This job only ever runs as the release gate (`if: github.base_ref
-          # == 'main'` above, on the staging->main pull_request). The two lines
-          # below used to read:
+          # ⚠️ THIS BLOCK'S PREMISE CHANGED ON 2026-10-29. It said "this job only
+          # ever runs as the release gate", and that stopped being true when the
+          # e2e job's `if:` gained its dispatch clause. Read the next three
+          # paragraphs before trusting anything below them.
+          #
+          # The two lines below used to read:
           #
           #   NODE_OPTIONS: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && '--import ./qa/server-intercept.mjs' || '' }}
           #   QA_INTERCEPT_UPSTREAM: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && 'count' || '' }}
           #
           # which checked `github.event_name == 'workflow_dispatch'` - an event
-          # this job can never see, since `workflow_dispatch` never carries a
-          # `base_ref` and the job condition above requires one. So this step
-          # has run with the preload OFF on every release gate to date; the two
-          # lines only looked live.
+          # this job COULD NOT SEE at the time, since `workflow_dispatch` never
+          # carries a `base_ref` and the job condition then required one. So the
+          # step ran with the preload OFF on every release gate up to that date;
+          # the two lines only looked live. That diagnosis was correct.
+          #
+          # WHAT IS DIFFERENT NOW: this job CAN see a `workflow_dispatch`, so
+          # that event check would work if it came back. Two consequences, both
+          # recorded here rather than left to be discovered:
+          #
+          #   1. The hardcoded STUB MODE below now applies to dispatch runs too,
+          #      not only release gates. A dispatch with `e2e` ticked gets both
+          #      exchanges stubbed - which is what you want for a check of the
+          #      app, and is NOT what you want if you are deliberately testing
+          #      live upstream behaviour. There is no input for that today.
+          #   2. `count_egress` and its two upload steps become REACHABLE FOR
+          #      THE FIRST TIME. They were gated on an event this job could not
+          #      see, so they have never run. That is the measurement #114 has
+          #      been stuck on since it was filed, now available on any dispatch
+          #      at no extra cost - but note that STUB mode and `count` mode are
+          #      different values of `QA_INTERCEPT_UPSTREAM`, so counting real
+          #      egress means the hardcoded `'1'` below has to give way first.
+          #      Ticking `count_egress` alone will not do it, and a tally of
+          #      stubbed calls is not a measurement of egress.
           #
           # #1259: the #1354 gate run was killed at 120 minutes, ~685/964 tests
           # in, against ~92,925 blocked-exchange requests (Binance 451, Bybit
