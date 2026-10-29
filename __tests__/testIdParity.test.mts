@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { appPath } from './_appPath.mts';
 
 /* #52 — QA's a11y specs select by CSS class, which nobody owes them stability
  * on. These `data-testid` attributes are the stable hook.
@@ -61,7 +62,9 @@ const PAIRS: Array<{ cls: string; testId: string }> = [
  * directly. */
 const SEMANTIC_ONLY: Array<{ testId: string; count: number; absentFrom?: string }> = [
   { testId: 'login-email',     count: 3, absentFrom: 'components/PasswordField.tsx' },
-  { testId: 'settings-toggle', count: 1, absentFrom: 'app/alerts/page.tsx' },
+  /* Resolved at declaration, because `absentFrom` is read via `'../' + absentFrom` and
+     may also hold a non-app path (above), which appPath would refuse. */
+  { testId: 'settings-toggle', count: 1, absentFrom: appPath('app/alerts/page.tsx') },
 ];
 
 /** Every .tsx under app/ and components/ - not a fixed file list, so a NEW file
