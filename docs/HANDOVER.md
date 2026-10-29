@@ -11,59 +11,70 @@ file.**
 
 ---
 
-> ### State on 2026-10-24 (PM/DevOps)
+> ### State on 2026-10-29, 18:30Z (PM/DevOps)
 >
 > The only dated status in this file. Check it against the live sources in the table further down.
 >
-> - **`qa` is `fb6419e` and verified.** 42 commits ahead of what production serves. Carries the SEO
->   work and the crawler fix: **`/` went from 48 words to 851 for a crawler that does not run
->   JavaScript, `/upgrade` from 63 to 187**, and both now serve an `h1`. Sitemap 9 → 19 pages.
->   JSON-LD for Organization, Product with three Offers, FAQPage and BreadcrumbList.
-> - **An SEO audit on 2026-10-24 scored 48/100** and is tracked on **#1740**. Nothing was broken;
->   almost all of it was absent. The two findings that mattered: the sitemap listed 9 of 33 public
->   pages, and the landing and pricing pages served **no content at all** to a non-JS crawler because
->   both sat behind an auth-loading gate.
-> - **#675 is REOPENED**, and it is the one to read first if you touch copy. **30 product labels
->   differ between the shipped `labelDefaults.en.json` and production's live rows, and the row
->   wins.** The file carries the owner's plain-language pass — `RSI (1-hour chart)`, `24 hours`,
->   `3 days` — and production serves the abbreviations he rejected on 2026-10-22. **That work shipped
->   and has never rendered.** Also measured: 83 labels in the file with no row, 7 served with no
->   default. **With the owner as a production write.**
-> - **Owner decisions, 2026-10-24:** ship the 4,038 ms marketing flash and reduce it later; option A
->   for the crawler fix (not split-by-visitor, which is cloaking); SEO items 1-4 approved.
+> - **Production: `7f44439`, tag `v2026.10.29b`, and it is healthy — measured, not assumed.**
+>   `/api/version`, `/api/labels?locale=en` and `/api/health` all 200, labels in 1.4 s, and prod
+>   Supabase answers `select 1` in under a second. **All eleven `whop*` flags read `true`**,
+>   including the three `whopPlanMatchesLink*` checks. The `false` entries are the dead Lemon
+>   Squeezy and the paused BoomFi routes, which is correct.
+> - **CI IS ALIVE. The previous version of this block said "CI IS DOWN and this is the biggest
+>   standing gap", and that was true for 24 days.** The cause was a **failed card authorisation**,
+>   not an unpaid balance and not a spend limit — $0.18 metered against a $12/month allowance.
+>   The owner re-verified the card on 2026-10-29 and runs started immediately. **The "39 days from
+>   2026-09-20" figure previously reported was wrong**: it came from `gh run list --status success`,
+>   which reports the last *success*, not the last *run*. The real lock was **2026-10-05 to
+>   2026-10-29**. Three separate causes had been collapsed into one.
+> - **THE DEV SUPABASE DATABASE IS DOWN, and `dev`, `qa` and `staging` are down with it.**
+>   `wdtjhrilakoitfcezxpx` went dark at **~16:25Z**. `select 1` times out; the identical query on
+>   prod answers in under a second, so the instrument is sound.
+>   **`get_project` reports `ACTIVE_HEALTHY` — do not trust it.** The gateway is alive with
+>   nothing behind it, which is why qa `/api/version` answers in 0.36 s while `/api/labels`
+>   returns **nothing in 35 s**, and why the symptom is HTTP 522/504 rather than connection
+>   refused. Supabase reports **no incident** and 100% Postgres uptime for ap-northeast-1, so it
+>   is this project rather than the region. The instance had been throwing `statement timeout`
+>   **all day** before it died, at higher rates than during the test run — **"our suite killed
+>   it" was checked against the day's distribution and refused.** Deliberately not paused,
+>   restored or restarted: nothing on the critical path needs it, and a bad restore on a free
+>   project is a dev environment nobody can reach.
+> - **The committed browser suite: SLOW, not stuck, and the job is mis-shaped.** Run
+>   `40907544388` produced **513 reported lines**, so the zero-spec-line signature of #1021 is
+>   absent. **The finding that matters is QA's: zero `[mobile]` lines in the whole log — 375 px,
+>   which `playwright.config.ts` names a primary target, has never been exercised in CI.** It was
+>   starved behind desktop for two hours, not excluded, and it presents as a slow suite rather
+>   than as half the matrix never starting. A green run lands at **~115-121 min against a 120-min
+>   cap**, so the decision is **to split the job per project** (sized, controlled, and written),
+>   not to raise the cap. Everything is on **#1413**.
+> - **Do not make `qa/e2e/cache-policy.spec.ts:107` green.** It expects `s-maxage=60` on
+>   `/api/market/rsi`, which deliberately serves `private, max-age=60` with `Vary: Authorization`
+>   since #1263 because the body is caller-dependent. Verified on live production headers with
+>   `/api/market/snapshot` as a control, which still carries `s-maxage` and no `Vary`. **The code
+>   is right and the test is 29 days stale — satisfying it reintroduces a cross-user cache leak.**
+> - **`.githooks/pre-push` is committed mode `100644`.** `core.fileMode=false` on both Windows
+>   clones, so git runs it via the shebang and the 66-second gate there is real. **But it has
+>   never gated a Linux clone, including the cloud runner.** `git update-index --chmod=+x` fixes
+>   it at no cost to Windows.
+> - **The gate is 66 seconds, down from 5-8 minutes.** `npm test` came out of the pre-push hook;
+>   lint and `tsc` stayed. This removes the expensive half of the laptop trap — **it does not
+>   remove the trap**, because the hook still runs on the pushing machine, so no cloud
+>   arrangement moves it.
+> - **Four seats:** PM/DevOps (sequencing; `main` and production with the owner's approval each
+>   release), Dev (application code), QA (every test, the `qa` and `staging` deploys, sign-off),
+>   Marketing (Claude Cowork, folder `Documents\LiquidityHQ-Marketing`; PM keeps its `FACTS.md`).
+>   Who merges and deploys: `CLAUDE.md`.
+> - **Payments are LIVE on production and have been since 2026-10-28 16:47Z.** The blocker was
+>   never the code — it was four things in the owner's own Whop account, including a waitlist left
+>   on and a webhook named "Production" that pointed at QA for nine days.
 > - **BoomFi is PAUSED** (owner, 2026-10-23). Whop is the route.
->
-> - **Production:** `9a7fed19`, tag `v2026.10.23`, live 13:42:43Z. Verified independently by PM before the owner's
->   go-ahead and by QA after: the admin console's copy is no longer in the anonymous `/api/labels` payload
->   (195 `OPS_*` keys → 0, including the model name and the margin formula), the four legal disclosures are intact,
->   anonymous `DELETE` and `UPDATE` are revoked on `lhq_liq_events`, and an unreadable AI answer is refused rather
->   than shown as a confident `FLAT`.
-> - **Liquidation retention is server-side now.** `/api/liq-events/purge`, driven by cron-job.org daily 04:00. Proved
->   by a run rather than a schedule: 633 rows → 301, the predicted 332 deletions exactly, nothing older than the
->   cutoff surviving. The browser no longer needs `DELETE`.
-> - **CI IS DOWN and this is the biggest standing gap.** Every workflow run has failed at startup since
->   2026-10-22 09:59Z — the owner's GitHub bill is unpaid. The committed 600-test browser suite **has not completed
->   anywhere since 2026-09-18**: CI cannot run it and it does not fit on the owner's laptop (it reached test 600 of
->   600 and was killed for memory). **Nobody can currently claim "the committed suite passes".** Tracked on #1413.
-> - **Four gaps were named in QA's production sign-off** rather than left implied: the suite above; the bundle half
->   of the admin-copy leak (4 chunks still carry 195 `OPS_*` key names, `grok-4.3` and both vendor-named routes);
->   `payments-write-path` has no password for test account C; and `/arena` overflows 31 px at 390 px width — shipped
->   knowingly, pre-existing, the owner was told.
-> - **Four seats:** PM/DevOps (sequencing; `main` and production with the owner's approval each release), Dev
->   (application code), QA (every test, the `qa` and `staging` deploys, sign-off), Marketing (Claude Cowork, folder
->   `Documents\LiquidityHQ-Marketing`; PM keeps its `FACTS.md`). Who merges and deploys: `CLAUDE.md`.
-> - **Payments: Whop only, and it is now waiting on the OWNER, not on code.** Dev audited the existing route on
->   2026-10-23 — **62 tests, 62 pass**: the plan is recorded on grant, paid time is never shortened, cancel/refund/
->   dispute never revoke, replays are handled, an unknown plan id goes to review rather than being rounded. Every
->   payment flag reads `false` on production because **the environment variables are not set**, not because anything
->   is missing. Eight to set, and **three are `NEXT_PUBLIC_*` so they need a redeploy to take effect** — set them
->   without rebuilding and nothing changes while the dashboard shows them saved. The owner then fires one test
->   delivery from Whop: that is the only way to prove Whop signs the way its documentation says, and if it does not,
->   buyers pay and get nothing.
-> - **BoomFi is PAUSED** (owner, 2026-10-23). Three real links remain at the superseded $35/$350 prices; the amount
->   table holds 49/490/20/10, so a $35 payment matches no plan, and `boomfiWebhook` is `false` on production.
+> - **What is NOT verified, stated here rather than left implied:** nobody has viewed the Whop
+>   cancel panel rendered; no real `membership.updated` body has been seen by anyone, so every
+>   field path in the cancel reader is documentation-derived; and **no complete run of the
+>   committed suite exists anywhere**, so "the committed suite passes" is still not a claim
+>   anyone can make.
 > - **Read next:** `docs/PRODUCT-FACTS.md` (audience, prices, payments state, support email),
->   `docs/OWNER-BACKLOG.md` (the owner's list, the 2026-10-21 decisions, what waits on the owner, the order of work)
+>   `docs/OWNER-BACKLOG.md` (the owner's list, what waits on him, the order of work)
 >   and `docs/WORK-QUEUE.md` (the lanes).
 
 > ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-27.

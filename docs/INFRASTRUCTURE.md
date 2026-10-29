@@ -55,7 +55,19 @@ Production is the exception that keeps the gate meaningful: PM/DevOps merges and
 deploys it only with the owner's approval for that release, and only after QA's
 sign-off. Dev deploys nothing, even if asked through GitHub.
 
-**A promotion into `qa` or `staging` fires no CI at all**, and that is deliberate — `.github/workflows/ci.yml` lists `push` branches as `[dev, main]` only. Both promotions are fast-forward, so the commit landing is bit-identical to one already tested on `dev`, and re-running would bill a second full suite for the same tree. Do not read a quiet Actions tab after a promotion as a failure to run.
+**CI WAS REFUSED FROM 2026-10-05 TO 2026-10-29 — 24 DAYS — AND NOTHING SAID SO. Restored 2026-10-29.** **CORRECTED 2026-10-29: this first said 39 days from 2026-09-20 and that was wrong by 15 days.** The 2026-09-20 date came from `gh run list --status success`, which reports the last SUCCESS, not the last RUN. **Measured from the Actions API: 2026-09-20..2026-10-04 is 55 runs with ZERO startup_failures — 46 `failure`, 8 `skipped`, 1 `success`.** Those 55 ran; they were red, not refused, and **nobody triaged 46 failing runs for a fortnight**, which is a separate finding. The earliest `startup_failure` is **2026-10-05T03:15:32Z**.
+
+**THREE DIFFERENT CAUSES WERE BEING REPORTED AS ONE, AND THE FIRST VERSION OF THIS SECTION DID THAT.** Separated:
+
+| period | what was true | cause |
+|---|---|---|
+| **2026-09-06 → 2026-10-29** | `ci.yml` did not run. **Its last run of any kind is 2026-09-19T01:03Z.** | **The owner switched it off** — `disabled_manually`, his decision of 2026-09-06, *"leave it off until its deployment time again"*. **Not** a failure, and reversible at any time by anyone who read the header. |
+| **2026-09-20 → 2026-10-04** | Other workflows ran and went **red**: **46 failures — 26 `Ready for QA`, 20 `Release signals`**. **Zero CI runs among them.** | Ordinary job failures. **Nobody triaged them for a fortnight.** 26 failed `Ready for QA` runs means promotions were not announcing themselves to QA. |
+| **2026-10-05 → 2026-10-29** | **Everything** refused at startup, 0 jobs, blank workflow name. | The billing lock. **This, and only this, is the 24-day outage.** |
+
+**Why the distinction is load-bearing and not pedantry:** the hook change of 2026-10-29 was justified on *"there was no cloud alternative because CI had been dead for 39 days"*. **For most of that span there WAS a cloud alternative and it was switched off by a decision, not broken by a fault.** The hook change is still right — but it is right because CI now runs, not because the cloud had been impossible. A reader who checks the original premise finds it false and has grounds to revert a sound change. The owner's GitHub account was locked by a **failed card authorisation** — not an unpaid balance; metered usage was **$0.18** against a **$12/month included allowance**. Symptom: every run `startup_failure`, 0 jobs, no workflow name, dead seconds after creation. **732 refused runs in total.** Do NOT read that as "nothing ran since September" — see the correction above. The scheduled `prod-drift` runs of 2026-10-02, -03 and -04 are `failure` with real jobs, **not** `startup_failure`: **the drift check went red before it went silent**, and conflating the two sends the next silent-drift incident chasing billing instead of a failing job. `actions/permissions` reported `enabled: true` throughout, so an enabled-looking Actions tab proved nothing. The fix was re-verifying the card on the Payment information page; the banner goes red ("Update your payment method to re-enable your account") then blue ("verification in progress") then clears. **UNVERIFIED, community reports only (GitHub community discussions #208297, #188932, #176249, read 2026-10-29): this lock is reported to block public repositories too.** No official GitHub documentation found. Treat as a reason not to *rely* on going public as a workaround, not as a settled fact.
+
+**A promotion into `qa` fires no CI at all**, and that is deliberate — `.github/workflows/ci.yml` lists `push` branches as `[dev, staging, main]` (this line said `[dev, main]` until 2026-10-29; `staging` was added 2026-08-10 for the browser suite and the doc was never updated). Both promotions are fast-forward, so the commit landing is bit-identical to one already tested on `dev`, and re-running would bill a second full suite for the same tree. Do not read a quiet Actions tab after a promotion as a failure to run.
 
 ### Credentials with an expiry date
 
@@ -685,3 +697,95 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
   the scheduler lives in a tool this repo cannot see. Anything wired outside the
   repo has to be written down by the person who wired it, in the same sitting, or
   it is not recorded at all.
+
+---
+
+## 9. Diagnosing "is Supabase up?" — four instruments, three of which stay green through an outage
+
+**Written 2026-10-29, during an outage of the dev project that lasted hours.** This section
+exists because the obvious check said everything was fine.
+
+**The four instruments, weakest first:**
+
+| Instrument | What it physically observes | Stayed green during the outage? |
+|---|---|---|
+| `status.supabase.com` | Supabase's own regional aggregate | **Yes** — no incident, 100% Postgres uptime for `ap-northeast-1` |
+| `get_project` (MCP) | the control plane's record of the project | **Yes** — `ACTIVE_HEALTHY` |
+| `/api/version` on the app | a build-time constant | **Yes** — 200 in 0.36 s |
+| **`select 1` against the project** | an actual query reaching an actual database | **No** — `Connection terminated due to connection timeout` |
+
+**Only the last one can answer the question.** A regional status page aggregates across
+thousands of projects and will not move for one. `get_project` reads a record, not a socket.
+`/api/version` serves a constant compiled into the bundle and never touches the database — which
+is exactly what makes it a good drift check and a useless health check.
+
+**Always pair the query with a positive control.** The identical `select 1` against prod
+(`qdpwhnvmhqgzijuwopso`) answered in under a second. Without that, a timeout is ambiguous
+between "the project is down" and "my tooling is broken".
+
+### The log-timestamp test, which is the cheapest way to see the shape
+
+`select source, max(timestamp) ... group by source` over the unified log stream separates the
+layers immediately. During this outage:
+
+```
+realtime_logs      18:12:02   <- flowing
+edge_logs          18:10:56   <- flowing
+postgrest_logs     16:27:08   <- stopped
+postgres_logs      16:24:56   <- stopped
+auth_logs          16:24:56   <- stopped
+auth_audit_logs    16:22:45   <- stopped
+```
+
+Everything that needs the database stopped inside one five-minute span; the gateway and realtime
+layers never stopped. **That split is also why the user-visible symptom is HTTP 522 and 504
+rather than connection refused** — there is a healthy proxy in front of a dead origin. In the
+browser suite it produced 76 `sign-in failed for ***: HTTP 522`, 9 HTTP 504, 16
+`Unexpected token '<'` (an HTML error page parsed as JSON), and a 30-second timeout on
+`/api/labels`.
+
+### What this costs, and who it reaches
+
+**`dev`, `qa` and `staging` all share `wdtjhrilakoitfcezxpx`**, because Supabase's free plan caps
+the account at two active projects and dev plus prod take both. So a single project outage takes
+**all three** non-production environments down for anything database-backed, while leaving every
+one of them answering `/api/version` happily. Production is on the other project and is
+unaffected — but confirm that by querying it rather than by reasoning about it.
+
+### Do not reach for pause-and-restore first
+
+It is the obvious lever and it has a failure mode worse than the outage: a free-tier project
+that does not come back promptly is a dev environment nobody can reach, and there is no backup
+behind it. Wait it out unless something on the critical path genuinely needs the database, and
+when it is taken, QA holds the window — QA owns that environment.
+
+### The cause hypothesis that was wrong, recorded because the method is the point
+
+The test run started at 16:09 and the database died at 16:25, so "two browser workers hammering
+a free-tier instance killed it" wrote itself. Bucketing `statement timeout` by fifteen minutes
+across the whole day refuses it: **11 at 13:00, 9 at 13:45, 11 at 14:00, 2 at 15:15, 7 at
+16:15** — the test window was the *quietest* of the five. The instance had been unhealthy all
+day independently of anything we ran. **Checking a suspicious window against the rest of the day
+costs one query; a confident wrong cause in a durable document costs whatever gets built on it.**
+
+---
+
+## 10. `.githooks/pre-push` is committed mode `100644`, so it has never gated a Linux clone
+
+**Found 2026-10-29.** Both hooks are tracked without the executable bit. The consequences differ
+by platform, and the first version of this finding generalised from one of them:
+
+- **On the Windows clones** (dev folder and QA folder), `core.fileMode` is `false`. Git reads the
+  mode from the index and runs the hook via its shebang regardless, so the gate is live — it was
+  measured at **66 seconds** on real pushes from the laptop the same day.
+- **On any Linux clone, including the cloud runner**, git refuses to execute a non-executable
+  hook. The gate has never run there.
+
+**So the team's gate has not been bypassed, but the cloud runner has never been subject to it** —
+which matters in proportion to how much work gets sent there. `git update-index --chmod=+x` on
+both files closes it with no behavioural change on Windows.
+
+**Why this is in the infrastructure document rather than a commit message:** the symptom is
+invisible from the platform where everyone works, and it only shows up on the platform nobody
+reads hook output from. A reader on Windows who checks whether the hook runs will correctly
+conclude that it does.
