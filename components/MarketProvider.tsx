@@ -376,7 +376,16 @@ export default function MarketProvider(
       for (const t of (d.result?.list ?? [])) {
         const id = UNIVERSE_SYM_TO_COIN[t.symbol];
         if (!id || id in BYBIT_SYMS) continue;   // the 50 above already have the full patch
-        const price = parseFloat(t.lastPrice || '0');
+        /* THE 1000x DENOMINATION APPLIES OUT HERE TOO, and twelve universe coins need it - ten
+           of them outside the rendered 50, where nothing else in the app would have caught it.
+           Bybit quotes 1000PEPEUSDT, 10000SATSUSDT and 1000000MOGUSDT, so a raw read is up to
+           a MILLION times the per-token price. This is the exact bug that put PEPE and BONK
+           alert outcomes at +/-100,000% and dragged the Track Record average to -126%; the
+           factor existed then too and one call site did not apply it.
+           Price, high and low are prices and take the factor. `change` is a percentage and
+           `vol24` is USD turnover - neither is denominated in the token, so neither does. */
+        const f = bybitPriceFactor(id);
+        const price = parseFloat(t.lastPrice || '0') * f;
         if (!Number.isFinite(price) || price <= 0) continue;
         const pct = parseFloat(t.price24hPcnt ?? '');
         extra[id] = {
@@ -385,8 +394,8 @@ export default function MarketProvider(
           /* Absent or unparseable is UNKNOWN, not zero - the key is left out so the coin stays
              null rather than reading as "flat". Same rule as fundingRate above (#1613). */
           ...(Number.isFinite(pct) ? { change: pct * 100 } : {}),
-          high:  parseFloat(t.highPrice24h || '0'),
-          low:   parseFloat(t.lowPrice24h  || '0'),
+          high:  parseFloat(t.highPrice24h || '0') * f,
+          low:   parseFloat(t.lowPrice24h  || '0') * f,
           vol24: parseFloat(t.turnover24h  || '0'),
         };
       }
