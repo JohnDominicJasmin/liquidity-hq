@@ -699,3 +699,135 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
   the scheduler lives in a tool this repo cannot see. Anything wired outside the
   repo has to be written down by the person who wired it, in the same sitting, or
   it is not recorded at all.
+
+---
+
+## 9. Four instrument traps found on 2026-10-30, each of which returns a confident wrong answer
+
+None of these fails loudly. Each produces a result that looks like data. **§9e is the rule they all
+collapse to; read that one if you read nothing else.**
+
+### 9a. `grep -i` COMBINED WITH `-F` **CRASHES** HERE (SIGABRT, exit 134)
+
+**It does not fail to match. The process dies.** Verified independently by two sessions, 3 for 3:
+
+```
+grep -cF   LiquidityHQ file   ->  exit 0      correct   (control)
+grep -ci   LiquidityHQ file   ->  exit 0      correct   (control)
+grep -oF / -oi                ->  correct
+grep -ciF  LiquidityHQ file   ->  exit 134    SIGABRT, also under LC_ALL=C
+grep -oiF  LiquidityHQ file   ->  exit 134    SIGABRT
+```
+
+**grep prints NOTHING to its own stderr.** The familiar `Aborted` line comes from the interactive
+shell's job control, so inside a subshell, a command substitution or a script there is **no
+diagnostic at all** — an empty result and an exit code nobody reads.
+
+Because the process dies before printing, **`-ciF` yields an empty string, not `0`.**
+
+**Three consequences, and the third is the dangerous one:**
+
+1. **`set -e` scripts DIE at exit 134.** A `set -e` script running `grep -ciF` never reaches the
+   next line. This is the one loud case and the only good news here.
+2. **A command substitution leaves the variable EMPTY**, so an `-gt` test fails with *integer
+   expression expected* and exit 2 rather than evaluating false. Inside an `if`, or behind
+   `2>/dev/null`, that error is swallowed and the branch simply is not taken.
+3. **A `|| echo 0` fallback CONVERTS THE CRASH INTO A FABRICATED ZERO**, and it is the most natural
+   way anyone writes this. Verified against a file that *does* contain the string: the variable
+   comes back `0` while the string is present.
+
+   **The defensive idiom that exists to stop a non-match aborting a script is exactly what turns
+   this crash into clean, plausible, wrong data.**
+
+**Use `-F` or `-i`, never both.** And pair every absence check with a string that MUST be present.
+
+**How it was found, and why that matters more than the bug:** a positive control came back `0` on a
+file the string was plainly visible in. The run before it had reported eight markers absent across
+production and dev — coherent, plausible, entirely fabricated. In the output the failures printed
+as **blank cells rather than zeros**, and that was first read as a formatting quirk.
+
+**Both sweeps are clean AND both were controlled.** Dev: a repo-wide search for any grep combining
+`-i` and `-F`, excluding `node_modules`, zero hits, pattern shown to fire on a planted `grep -oiF`.
+QA: `qa/`, `__tests__/`, `scripts/`, `.github/`, `.githooks/` — 14 invocations, none using `-i`.
+**QA's sweep needed TWO patterns:** against a planted file holding `grep -ciF`, `grep -i -F` and
+`grep --ignore-case --fixed-strings`, the combined-letter regex missed the separated form and the
+separated one missed `-ciF`. A single-pattern sweep returns clean for the wrong reason.
+
+### 9b. A DEPENDENCY BEING DOWN READS AS "FINE"
+
+Three instances in one day, each looking like a pass and each a missing measurement:
+
+| What read as fine | What was actually happening |
+|---|---|
+| A sign-in failure naming a database schema bug | The body was not JSON at all — the hint printed unconditionally and its condition was false |
+| `/api/labels` resolving, so labels "work" | File defaults were serving; the database behind them was unreachable |
+| `/upgrade` showing no unconfirmed-placeholder string | The entire purchase block fails to mount against the degraded database — the defect is real and in the code, and the environment hides it |
+
+**The third is the dangerous one.** A spec asserting the placeholder is ABSENT would have passed
+there, confidently green, certifying a fix that had not happened.
+
+> **An absence assertion needs a positive control proving the CONTAINER rendered**, because "the bad
+> string is gone" and "the section is missing" are indistinguishable without one.
+
+**Markup alone could not discriminate.** Those strings are absent from **production's** HTML too,
+because the block is client-rendered on both hosts — so "absent server-side on dev" was true and
+proved nothing. The control that settled it was the same probe against production, post-hydration:
+
+```
+                      prod              dev (degraded db)
+purchase controls     3                 0
+prices visible        yes               no
+rendered words        587               301
+footer links          11                16
+```
+
+Where a defect is "wrong content present", prefer asserting on **source** — a source-reading check
+cannot be fooled by the environment. But see §9d for how it can be fooled instead.
+
+### 9c. `execFileSync('npx', ...)` CANNOT RUN ON WINDOWS WITHOUT `shell: true`
+
+`npx` is `npx.cmd` here, and `execFileSync` does not resolve `.cmd` without a shell. The call
+throws, so **every invocation looks like the command failed.**
+
+Found while mutation-testing a gate: `tsc` never ran once, every mutation reported "tsc failed",
+and **the mutation expected to PASS produced a false confirmation** — the gate looked like it was
+catching something it had never been given.
+
+**The tell was a non-zero exit with zero `error TS` lines.** A compiler that rejects your code says
+why; one that never started cannot.
+
+### 9d. A SOURCE-READING GATE THAT MATCHES RAW TEXT CANNOT TELL CODE FROM PROSE
+
+The first version of the legal-name gate (#1825) tested whether the file text contained
+`LEGAL_NAME_CONFIRMED` — over the whole file, **including comments**. So a planted mutation that
+removed the import *and* the guard, while leaving the explanatory comment behind, **compiled clean
+and kept the gate green.**
+
+**The comment that defeated the gate was a correct, useful comment** written in the fix it was
+guarding (#1824). Good documentation acting as a false positive for a checker that cannot parse.
+
+This is the repository's own grep-matches-comment-prose trap, promoted into a gate. **The fix is to
+ask the AST whether the name appears as an identifier**, which excludes comments *by construction*.
+Stripping comments first is a second instrument with its own failure modes — it has to decide where
+a comment ends, including `//` inside a string literal — guarding the first.
+
+### 9e. THE RULE ALL OF §9 COLLAPSES TO
+
+> **A control must be shown to FIRE before its silence means anything.**
+
+Narrower and more useful than "add controls". Five instances in one day, in five different tools:
+
+| Instrument | Looked like | Actually |
+|---|---|---|
+| `grep -iF` | eight markers absent on two hosts | the process aborted; it can never match |
+| `git show` under MSYS path mangling | `continue-on-error` already removed from `dev` | the command never ran; the piped `grep -c` printed `0` |
+| `execFileSync('npx', ...)` | every mutation caught by the gate | `tsc` never started |
+| A spec asserting a string is ABSENT | the placeholder fix verified | the whole section failed to mount |
+| A range-scoped `sed` read of this file | the abort correction was never written | it was written further down, outside the range |
+
+The last row is this document being read with an instrument scoped narrower than the question, and
+it was caught by checking the whole file before claiming an absence — which is §9a's own advice
+applied to §9a.
+
+**Every one of them returns a clean, plausible, confidently wrong answer, and none of them looks
+wrong on the page.**
