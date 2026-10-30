@@ -28,7 +28,14 @@ export async function xaiFetch(url: string, init: RequestInit): Promise<Response
   try {
     /* #1631 item 1: the guardrail goes in HERE rather than at the 14 call sites, because this is the one place every xAI request
        passes through and the fifteenth route will not remember. Non-chat bodies and unparsable ones are returned untouched. */
-    const res = await fetch(url, { ...init, body: withGuardrail(init.body) });
+    const res = await fetch(url, {
+      /* A caller-supplied signal wins; this is only the floor for the 18 call sites that set
+         none. Generous on purpose - a deep-research call legitimately runs minutes - but finite,
+         because an xAI request that never settles holds the worker until the platform kills it. */
+      signal: AbortSignal.timeout(180_000),
+      ...init,
+      body: withGuardrail(init.body),
+    });
     reportHealth(XAI_SOURCE, 'ai', res.ok, res.ok ? 'ok' : `HTTP ${res.status}`);
     return res;
   } catch (e) {

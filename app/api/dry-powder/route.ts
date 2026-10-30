@@ -30,6 +30,7 @@ interface LlamaEntry {
 async function fetchStablecoinSeries(): Promise<number[]> {
   const res = await fetch('https://stablecoins.llama.fi/stablecoincharts/all', {
     headers: { 'User-Agent': 'LiquidityHQ/1.0' },
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`DeFi Llama ${res.status}`);
   const data = (await res.json()) as LlamaEntry[];
