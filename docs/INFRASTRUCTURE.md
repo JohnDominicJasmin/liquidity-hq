@@ -883,6 +883,42 @@ appears exactly once across `app/`, `lib/` and `components/`, inside a JSX `{/* 
 a string literal, not JSX text, so the AST gate above does not see it. **Both halves verified rather
 than assumed**, which is what makes it safe to keep prose that quotes a forbidden string.
 
+#### A THIRD DIRECTION, and it is about WHICH FILES get read
+
+**Asked whether the AST remedy had a failure direction of its own, QA measured instead of reasoning
+and found one — in their own gate, not in the remedy.** The scan covered `.ts/.tsx/.mts/.js`, so it
+**skipped `lib/labelDefaults.en.json` entirely — which is where the user-facing sentences actually
+live.** The TypeScript constants were only the values interpolated into them.
+
+> **A revival delivered through a label would have passed in silence while rendering on the page.**
+
+**That is not a flaw in reading the AST. It is a flaw in which surfaces the reader was pointed at**,
+and the AST fix was still right for both prose directions. The two are independent: getting the
+parser right does nothing about a file the walk never opens.
+
+**The obvious repair was also wrong, and in the familiar way.** "No label may contain `{name}`" is
+the nearest-helper rule, and `{name}` appears in **five** labels of which only two are operator
+identity — the other three are market-session labels where `{name}` is a trading session, not a
+person:
+
+```
+SECURITY_SECTION_OPERATOR_BODY   "...operated by {name}, an individual based in {country}..."   operator
+UPGRADE_SELLER_IDENTITY_NOTE     "Sold by {name}, {country}..."                                 operator
+HOURS_WINDOW_ACTIVE_NOW          "{name} - Active now"                                          session
+HOURS_WINDOW_ACTIVE_RIGHT_NOW    "{name} is active RIGHT NOW"                                   session
+SESSION_COUNTDOWN_HOLIDAY_ITEM   "{region} closed - {name}"                                     session
+```
+
+**So the gate is scoped BY KEY, never by value, and the three session labels are held as a control:**
+a future broadening that takes their `{name}` away turns that cell red and names them. The
+planted-wrong-repair shape (§9g, #1837) — **except this time the wrong repair was the one the gate's
+own author was about to write**, and running it against the real tree is what stopped it.
+
+**The general form, which is worth more than the instance:** when a check and the thing it protects
+live in different file types, **the check's file filter is a silent scope limit.** It produces a
+clean pass over the half it can see. Ask what the gate does NOT open before asking whether its
+predicate is right.
+
 ### 9e. THE RULE ALL OF §9 COLLAPSES TO
 
 > **A control must be shown to FIRE before its silence means anything.**
