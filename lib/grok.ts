@@ -2,6 +2,7 @@ import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 import { wilderRsiSeries } from './rsi.ts';
 import { priceText } from './numberFormat.ts';
+import { describeSelection } from './strategyRegistry.ts';
 
 export interface GrokUsageInfo {
   deep_used:     number; deep_limit:     number;
@@ -23,14 +24,24 @@ export interface GrokUsageInfo {
  *  buttons, and the caller's own `finally` (which resets the loading spinner) never runs
  *  until this call settles - an unbounded getSession() here hung the button forever on a
  *  degraded auth backend, on the single most-used action in the app. */
+/**
+ * Ask the server for a read.
+ *
+ * THIS SENDS DATA, NOT A PROMPT (#1631 item 5). It used to post the finished text with `coin` and `tf`
+ * beside it as labels, which was the whole defect: the server's coin and timeframe gates could only check
+ * the labels, so a hand-made request could declare one coin and ask about another. The server now builds
+ * the prompt from `ctx` and `chart`, and reads the gated values out of the same objects - `coin` and
+ * `session` from the context, `tf` from the chart - so there is no second place for a request to disagree
+ * with itself.
+ *
+ * `selection` travels as indicator IDENTIFIERS. The sentences that tell the model to weigh them live on
+ * the server, because they are instructions rather than data and this call is caller-controlled.
+ */
 export async function callGrokViaProxy(
-  prompt: string,
-  tf: string,
-  session: string,
+  ctx: GrokContext,
+  chart: ChartData,
   type: 'quick' | 'deep',
-  /** The coin the read is about (a coin id, e.g. 'xrp'). The server refuses Quick and Deep on a coin outside BTC/ETH/SOL for an account that
-   *  has not paid (#1596); it cannot read the coin out of the prompt, so it is sent beside it. */
-  coin?: string
+  selection: readonly string[] = [],
 ): Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }> {
   const token = await getAuthToken();
 
@@ -40,7 +51,7 @@ export async function callGrokViaProxy(
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ prompt, tf, session, type, coin }),
+    body: JSON.stringify({ context: ctx, chart, type, selection }),
   });
 
   if (!res.ok) {
@@ -54,6 +65,12 @@ export async function callGrokViaProxy(
     // #1596: refused because the coin is Pro-only for this account. Passed on as a code so the page shows its labelled line, not raw text.
     if (res.status === 403 && err.code === 'COIN_LOCKED') {
       throw Object.assign(new Error('COIN_LOCKED'), { code: 'COIN_LOCKED', usage: err.usage });
+    }
+    /* #1631 item 5: this tab is running JS from before the route stopped accepting a browser-built prompt. The generic branch below
+       would pass the code through anyway, but it would show the server's English sentence - and this is the one refusal a PAYING user
+       can hit by doing nothing wrong, on the button they pay for. It gets a translated line telling them to reload, not a failure. */
+    if (err.code === 'STALE_CLIENT') {
+      throw Object.assign(new Error('STALE_CLIENT'), { code: 'STALE_CLIENT', usage: err.usage });
     }
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
@@ -69,7 +86,7 @@ export async function callGrokViaProxy(
   let body: unknown;
   try { body = await res.json(); } catch { body = null; }
   const b = (typeof body === 'object' && body !== null ? body : {}) as { result?: unknown; usage?: unknown };
-  const result = normalizeCombinedResult(b.result, tf, session);
+  const result = normalizeCombinedResult(b.result, chart.tf, ctx.session);
   if (!result) throw Object.assign(new Error(GROK_EMPTY_ANSWER_MESSAGE), { code: 'BAD_ANSWER' });
   return { result, usage: normalizeGrokUsage(b.usage) };
 }
@@ -1093,6 +1110,36 @@ export function buildQuickPrompt(ctx: GrokContext, chart: ChartData): string {
   const e = full.indexOf('\n=== YOUR ANALYSIS TASK ===');
   if (s !== -1 && e !== -1) return full.slice(0, s) + full.slice(e);
   return full;
+}
+
+/* ── The whole Arena prompt, in one place (#1631 item 5) ──────────────────────
+ *
+ * This assembly used to live in app/(main)/arena/page.tsx, which meant the finished text was built in the
+ * BROWSER and posted to /api/grok, and the route's coin and timeframe gates could only check the labels
+ * sent beside it. Now the route calls this, so the gated values and the prompt come from one validated
+ * object. app/api/grok/route.ts is the only caller that matters; the page no longer builds a prompt.
+ *
+ * THE SELECTION SENTENCES ARE PROMPT TEXT AND THEY LIVE HERE ON PURPOSE. They are instructions - weight
+ * these, say so if they disagree - not data. Taking them from the client would have left an injection
+ * point inside a route that otherwise looks like it builds its own prompt, which is worse than the
+ * original hole for being harder to notice. `describeSelection` maps ids to labels from the registry, so
+ * the only thing the caller controls is WHICH known indicators are named. */
+export function buildArenaPrompt(
+  ctx: GrokContext,
+  chart: ChartData,
+  type: 'quick' | 'deep',
+  selection: readonly string[] = [],
+): string {
+  const base = type === 'quick' ? buildQuickPrompt(ctx, chart) : buildCombinedPrompt(ctx, chart);
+  const watching = describeSelection(selection);
+  if (!watching) return base;
+  return [
+    base,
+    '',
+    'The trader has chosen to weigh these indicators: ' + watching + '.',
+    'Give them more weight in the read, and say plainly if they disagree',
+    'with what the rest of the data shows.',
+  ].join('\n');
 }
 
 /* callGrokQuick / callGrokCombined / callGrok and their parseResponse helper
