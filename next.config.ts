@@ -163,8 +163,14 @@ const nextConfig: NextConfig = {
       // It read: "The Refund Policy is withdrawn until payments go live (owner, 2026-10-08) ... A payment processor expects a
       // refund policy BEFORE real charges, so this MUST be undone before payments go live." The withdrawal named its own end
       // condition and the condition fired: payments went live 2026-10-28, and this entry was still here on 2026-10-31, so
-      // production took real money for three days while /refund answered 307 to /terms - with "Refund Policy" links rendering
-      // on /upgrade above the checkout buttons and on /security the whole time.
+      // production took real money for three days while /refund answered 307 to /terms.
+      //
+      // WHAT THIS ENTRY WOULD HAVE DONE IF IT HAD SHIPPED WITH THE CURRENT BATCH, which is the sharper reason it goes now.
+      // This release adds a "Refund Policy" link to /upgrade directly above the checkout buttons, and a new /security page
+      // carrying another. NEITHER IS ON PRODUCTION TODAY - both are new here; measured against origin/qa, which is what
+      // production serves, with origin/dev as the control that proves the check can match. So keeping the redirect would not
+      // have continued an old exposure, it would have CREATED a worse one: two visible links promising a policy and landing
+      // on Terms, which is worse than no link because the buyer believes they have read it.
       //
       // Lifting it executes the owner's instruction rather than overriding it. The 307 was deliberate so nothing cached it as
       // permanent, which is what makes removal clean.
