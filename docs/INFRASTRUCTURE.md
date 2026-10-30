@@ -930,24 +930,96 @@ disagreeing with itself about a single branch.
 known-clean push as the control. **The practice below does not depend on the hypothesis being right**,
 which is the reason the practice is the part to follow.
 
-### THE REMEDY, tested twice rather than reasoned
+### LAG IS NOT STALENESS — and this is where the first remedy claim fell over
 
-**One clean push to the branch resyncs the view.** The hypothesis predicted it and it worked both
-times it was tried:
+**First this subsection claimed "tested twice rather than reasoned". It was not. It was measured
+twice within a second of a push, which measures something else.**
 
-- **#1835**, already matching, took a second commit on a push accepted first time - view matched the
-  ref immediately. A third clean data point.
+**Immediately after the push that added this very subsection, #1835's own view read `1868e1cb`
+while the ref read `e9d53634` — a MISMATCH. Re-measured after some elapsed time: both
+`e9d53634`.** It had simply not propagated yet.
+
+> **A view read within seconds of a push is measuring ordinary lag. The defect is a mismatch that
+> PERSISTS — across minutes and across repeated checks.**
+
+That distinction is the whole entry, and the first draft of this subsection did not have it. Both
+"clean data points" above were instant reads: one of them would have resolved on its own, and the
+other was never given the chance to.
+
+**So what survives, stated at the strength the evidence supports:**
+
+- **The persistent cases are real.** #1831 was checked six times over several minutes. #1829 held a
+  stale view long enough for GitHub to refuse its own merge for *"Head branch is out of date"* and
+  then fail `update-branch` on *"head sha didn't match the current head ref"*. Neither was lag.
+- **That a push fixes a persistent one is ONE observation.** #1829 matched immediately after a
+  single commit. **With no control for elapsed time**, "the push fixed it" and "it caught up anyway"
+  are not distinguishable from that one run. It is worth trying because it is one commit, not
+  because it is established.
+- **The retry hypothesis is untouched by this.** It is about which branches go stale, not about how
+  to measure them, and the table's MISMATCH rows were persistent ones.
+
+**How to measure it properly, which is the part to actually follow:** read the view and the ref
+**twice, with time between**, before concluding anything. One disagreement is lag. The same
+disagreement minutes later, or after a refresh, is the defect.
+
+### WHAT ACTUALLY REBUILDS THE VIEW — no push needed
+
+**#1831 was fixed by `gh pr close` followed by `gh pr reopen`. No new commit, no write to the
+branch at all.** Its ref had sat at `0b8387fd` for over an hour and never moved; view and ref agreed
+afterwards, verified three times after a fetch, with all three files listed including the binding
+suite. Found by QA.
+
+**So "it takes one clean push" was wrong in a way that costs something.** A reader following it
+would manufacture a commit they do not need, and **an empty commit on an already-reviewed pull
+request is its own small harm** — it re-opens review state and adds a commit that explains nothing.
+
+> **Any mutation of the pull-request object rebuilds the view. Prefer the one that touches no code:
+> close, then reopen.**
+
+**And it narrows the mechanism without supplying a cause: the stale record was DERIVED, not waiting
+on anything from the branch side.** A close/reopen changed no commit and still produced a correct
+view. That is a property of the remedy and it must not be allowed to grow into an explanation of
+what GitHub was doing — see the evidence caveat above.
+
+**One ordering detail that belongs next to the remedy rather than in a footnote:** `gh pr close` was
+tried on #1831 **during** the write-failure window and failed with a GraphQL error. **The remedy
+existed and was unavailable.** So: **retry the remedy once the write path is healthy**, and do not
+read one failed attempt at it as the remedy not working.
+
+**This does not touch the retry hypothesis.** #1831 was already in the stale set, so it adds no data
+point to the question of *which* branches go stale. What it does is separate the **remedy** from the
+**marker**, which had been travelling together in the first draft and did not belong together.
+
+### What the earlier claim was, kept rather than deleted
+
+**One clean push to the branch resyncs the view.** The hypothesis predicted it and it appeared to
+work both times it was tried — and the second of those two is the observation that undid it:
+
+- **#1835**, already matching, took a second commit on a push accepted first time - and its view
+  read the PREVIOUS head for a moment before catching up on its own. **This is the row that
+  falsified the subsection above it**, and it only did so because it was re-measured instead of
+  being recorded once.
 - **#1829**, stale at `view=5dc385a2` / `remote=dfea5924`, with its own merge refused for
   *"Head branch is out of date"* and `update-branch` failing on *"head sha didn't match the current head
   ref"*, took one commit: **view and ref both `be63dd12` immediately afterwards.**
 
-So the fix costs one commit, and **a prediction that produced a working remedy is worth more than the
-diagnosis that produced it.** It is still not a rule - see the evidence caveat above - but it is the
-thing to try first, and it is cheap enough that trying it beats waiting for the view to catch up.
+**That claim is SUPERSEDED and is kept only as a record of how it failed. Do not follow it.**
+#1831 was fixed with no push at all, so the commit was never the active ingredient — and the
+instruction would have had readers manufacturing empty commits on reviewed pull requests. Follow
+*WHAT ACTUALLY REBUILDS THE VIEW* above instead.
 
-**What would falsify this:** a clean push that leaves the view stale, or a branch whose push was
-accepted first time and whose view is stale anyway. Either one, and this subsection is wrong and
-should be struck rather than hedged.
+**Both of its failure modes arrived within the hour, and they are different in kind:**
+
+- **Measurement:** #1835's "clean data point" was an instant read that resolved on its own. The
+  claim was built on a measurement that could not tell lag from staleness.
+- **Mechanism:** #1831's close/reopen fixed a stale view without touching the branch, so the push
+  was never doing the work the claim credited it with.
+
+**It is kept rather than deleted because a wrong remedy that was briefly recommended by this file is
+worth more as a worked example than as a gap.** It was written confidently, with two observations
+and a hypothesis that had just predicted something correctly — which is precisely the state in
+which this section's own failures get written. The thing that undid it was re-measuring and someone
+else trying a different remedy, not more care at the time of writing.
 
 **Two caveats about the table itself.** The #1835 row is the state of this entry's own pull request at
 the commit BEFORE the one that added the table, so it reports a past head rather than a current one -
@@ -957,7 +1029,9 @@ accepted first time should leave #1835 matching.
 
 ### What to do, stated as practice rather than principle
 
-1. **Before merging anything whose contents matter, compare `git ls-remote` against the PR's
+1. **Before merging anything whose contents matter, read the view and the ref TWICE, with time
+   between.** One disagreement is propagation lag; the same disagreement minutes later is the
+   defect. Compare `git ls-remote` against the PR's
    `headRefOid`.** They should be the same object. **A green PR is not evidence that the view holds
    what you pushed**, and neither is a passing CI run — both describe whatever the view has.
 2. **Check the artifact before retrying any failed write.** Every failure that day genuinely had not
