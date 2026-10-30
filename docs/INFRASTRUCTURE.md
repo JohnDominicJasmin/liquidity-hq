@@ -759,3 +759,63 @@ Markup alone could not tell them apart — those strings are absent from **produ
 because the block is client-rendered on both hosts. **Server-side absence was true and did not
 discriminate.** Where a defect is "wrong content present", prefer asserting on SOURCE: a
 source-reading check cannot be fooled by the environment.
+
+### 9a-2. The worse half of 9a: `-ciF` returns EMPTY, not `0`
+
+Confirmed independently by QA on GNU grep 3.0 here, needle `sold by` against a file containing
+`SOLD BY`:
+
+```
+-ci   1          -cF   0          -ciF  (empty)
+-oi   SOLD BY    -oF   (empty)    -oiF  (empty)
+```
+
+`-cF` and `-oF` finding nothing is CORRECT — a case-sensitive fixed match of `sold by` against
+`SOLD BY` should miss. The defect is the `-i` pair, and the sharp edge is that **`-ciF` returns an
+empty string rather than `0`**.
+
+So this:
+
+```sh
+N=$(grep -ciF "$needle" "$file")
+if [ "$N" -gt 0 ]; then ...
+```
+
+leaves `N` **unset**, and the test does not evaluate false — it errors, or evaluates as nothing,
+depending on the shell. **A count that returns no value at all is worse than a wrong count**,
+because the arithmetic downstream never reports that it had nothing to work with. In the run that
+exposed this, a formatted table printed blank cells rather than zeros, which read as a layout quirk.
+
+**Sweeping for this needs TWO patterns, not one.** QA swept `qa/`, `__tests__/`, `scripts/`,
+`.github/` and `.githooks/` — 14 invocations, none using `-i`, so none affected. The control was a
+planted file containing `grep -ciF`, `grep -i -F` and `grep --ignore-case --fixed-strings`:
+**neither pattern alone caught all three.** A combined-letter regex misses `-i -F`; a separated one
+misses `-ciF`. A single-pattern sweep returns clean for the wrong reason.
+
+### 9c. `execFileSync('npx', ...)` CANNOT RUN ON WINDOWS WITHOUT `shell: true`
+
+`npx` is `npx.cmd` here, and `execFileSync` does not resolve `.cmd` without a shell. The call
+throws, so **every invocation looks like the command failed**.
+
+QA hit this while mutation-testing a gate: `tsc` never ran once, every mutation reported
+"tsc failed", and **the mutation expected to PASS produced a false confirmation** — the gate looked
+like it was catching something it had never actually been given.
+
+**The tell was a non-zero exit with zero `error TS` lines.** A compiler that rejects your code says
+why; one that never started cannot.
+
+### 9d. The rule all of §9 collapses to
+
+> **A control must be shown to FIRE before its silence means anything.**
+
+Narrower and more useful than "add controls". Four instances in one day, in four different tools:
+
+| Instrument | Looked like | Actually |
+|---|---|---|
+| `grep -iF` | eight markers absent on two hosts | could never match anything |
+| `git show` under MSYS path mangling | `continue-on-error` already removed | the command never ran; `grep -c` printed `0` |
+| `execFileSync('npx', ...)` | every mutation caught by the gate | `tsc` never started |
+| A spec asserting a string is ABSENT | the placeholder fix verified | the whole section failed to mount |
+
+Every one of them returns a clean, plausible, confidently wrong answer, and none of them looks
+wrong on the page.
