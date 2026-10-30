@@ -137,10 +137,24 @@ controls** - to anything you touch.
   a file-scoped `eslint <file>` (~150 MB) is the lightest step. **Do not read "floor" as
   consumption:** a first version of this note said a push "is a 2.5 GB job", which misread those
   figures. One run (3.15 GB start, 0.49 GB low) shows what happens when something else is also
-  running, and its cause was never attributed. **The pre-push hook runs lint, `tsc` and the unit
-  tests, so a `git push` is itself a gate run - start it with >= 3.5 GB free.** File-scoped
-  lint is enough for a test-only PR whose base tree already lints clean; say in the PR that it
-  was narrowed.
+  running, and its cause was never attributed.
+
+  **CORRECTED 2026-10-30: a `git push` is NO LONGER a full gate run, and the figure this note
+  carried was two moves out of date.** It said the hook runs lint, `tsc` and the unit tests, so
+  start a push with >= 3.5 GB free. **The hook runs `npx tsc --noEmit` and nothing else.**
+  `node --test` moved to CI on 2026-10-29 and `eslint .` moved to CI on 2026-10-30; both moves
+  are recorded in `.githooks/pre-push`, whose own header carries the measurement:
+  **`npx tsc --noEmit`, NINE SECONDS, free 2,895 -> 1,484 MB, biggest process 428 MB** — against
+  `npm run lint` at 46 seconds and free 3,622 -> 1,044 MB, which was essentially the entire cost.
+  **So the launch bar for a push is ~2.5 GB free, not 3.5 GB.** Read the hook, not this file, if
+  the two ever disagree again: the hook is the thing that actually runs.
+
+  **Why this was wrong in a way worth recording:** the 3.5 GB figure was measured correctly on
+  2026-09-24 and was never re-read after the hook was narrowed twice in two days — including once
+  on the same day this correction is being written. A measured number with no re-read date behaves
+  exactly like a config that was never true: it keeps being quoted, and it makes the team defer
+  pushes that would now fit. File-scoped lint is still enough for a test-only PR whose base tree
+  already lints clean; say in the PR that it was narrowed.
 - **Foreground commands are not subject to the idle reaper; background shells are.** Run a
   quick push-and-merge in the foreground.
 - **A killed `next build` leaves `.next` partial**, so `tsc` afterwards reads a broken
