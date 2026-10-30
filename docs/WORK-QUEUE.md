@@ -257,6 +257,10 @@ gh run list --branch <branch> --limit 6 --json headSha,status,conclusion   # is 
 git diff --name-only <newest-built-sha> origin/<branch>                    # if not, what is uncovered?
 ```
 
+**A run that exists but has not finished is the same answer as no run.** Found on
+this guardrail's first real use, 2026-10-30: `df1abe97` was pending at promotion
+time. Wait for it to complete green, then re-read it at the moment of promoting.
+
 **Code in that diff means wait for a run on the real head.** Docs-only means
 proceed and say so. **Do not resolve it by reading `ci.yml`** — the path filter
 tells you what CI *would* skip, not what it *did*.
