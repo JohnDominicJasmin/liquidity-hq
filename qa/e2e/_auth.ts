@@ -1,5 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  defaultStorePath, dropSession, getSession, putSession, sessionKey, type StoredSession,
+} from './_sessionStore';
 /* The only runtime import from Playwright in this file, and it is here so an environment outage can be
    reported as a SKIP rather than 67 failures - see the outage block above mintSession. Safe because every
    importer of this module is a spec or a spec helper, checked 2026-10-30. */
@@ -233,6 +236,51 @@ const sessionCache = new Map<string, Promise<CachedSession>>();
 // fresh one up front.
 const EXPIRY_SAFETY_MARGIN_SECONDS = 120;
 
+/* ── TIER 2: THE SAME CACHE, ON DISK (2026-10-31) ─────────────────────────────
+ *
+ * The Map above is per worker PROCESS, so it dies with the worker and a suite
+ * pays a real password grant per account per worker, every run. On 2026-10-30
+ * five E2E jobs spent 605 minutes and produced nothing: each was cancelled at
+ * the cap while ~85 sign-ins failed at ~70s against a GoTrue that was
+ * answering nothing.
+ *
+ * So the resolved session is also written to disk, and the order of preference
+ * is: memory, then disk, then a REFRESH grant, then the password grant. A run
+ * with a usable stored session makes no auth request at all.
+ *
+ * BE PRECISE ABOUT WHAT THIS BUYS. It reduces exposure to an auth outage; it
+ * does not let the suite start while auth is down. There is no route to a
+ * session that avoids GoTrue - see `_sessionStore.ts`'s header for the three
+ * that were measured and rejected.
+ *
+ * THE FILE IS A CREDENTIAL, so it lives under `node_modules/.cache` (gitignored
+ * and wiped by `npm ci`), is never logged, and is deliberately NOT shared
+ * through the Actions cache, which any workflow run in the repo can read.
+ * Trading an availability problem for a credential problem is not a trade worth
+ * making.
+ *
+ * OFF WITH `QA_SESSION_PERSIST=0`, which must stay a one-variable escape: if a
+ * stored session ever makes a spec behave oddly, the first diagnostic step is
+ * to take this out of the picture entirely. */
+const PERSIST_SESSIONS = process.env.QA_SESSION_PERSIST !== '0';
+
+/* A wall-clock cap on reuse, INDEPENDENT of what the token claims about itself.
+ *
+ * `signIn`'s comment below says a stale token across CI RUNS is the failure
+ * mode to avoid - the opposite of what persistence does by default - and that
+ * warning is about state the token cannot express: a fixture whose plan,
+ * profile or entitlement changed since it was minted. The token is still
+ * cryptographically valid; it is the world that moved. Thirty minutes bounds
+ * that without giving up the win. */
+const SESSION_MAX_REUSE_SECONDS = Number(process.env.QA_SESSION_MAX_AGE_SECONDS ?? 1800);
+
+const REUSE_POLICY = {
+  marginSeconds: EXPIRY_SAFETY_MARGIN_SECONDS,
+  maxAgeSeconds: SESSION_MAX_REUSE_SECONDS,
+};
+
+const SESSION_STORE_FILE = process.env.QA_SESSION_STORE || defaultStorePath(process.cwd());
+
 /* ── AN OUTAGE IS NOT A TEST FAILURE, BUT IT MUST NOT BE A GREEN GATE EITHER ────────────────────────────────
    `AUTH_READY` above asks only whether the credentials are SET. On 2026-10-29 all ten were set and the dev
    Supabase edge was answering 522 - 64 of those plus 3x 504 - so 67 specs failed hard, the gate burned its
@@ -389,6 +437,53 @@ function mintSession(email: string, password: string): Promise<CachedSession> {
   })();
 }
 
+/**
+ * Exchange a stored refresh token for a new session, WITHOUT the password.
+ *
+ * Same host and same path as the password grant - `auth/v1/token` - so this is
+ * not a way round an auth outage and is not offered as one. What it buys is
+ * narrower and real: it needs no password in the environment and it costs
+ * GoTrue no bcrypt verification, so after the first sign-in a long sequence of
+ * runs never re-submits a credential.
+ *
+ * Returns null rather than throwing. Every failure here has a working fallback
+ * one line down, and a refresh token is EXPECTED to stop working eventually -
+ * treating that as an error would turn an ordinary expiry into a red suite.
+ */
+async function refreshSession(refreshToken: string): Promise<CachedSession | null> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return null;
+    const body = await res.json().catch(() => ({}));
+    if (!body.access_token || !body.refresh_token) return null;
+    return {
+      access_token: body.access_token as string,
+      refresh_token: body.refresh_token as string,
+      expires_in: body.expires_in as number,
+      user: body.user,
+      mintedAtMs: Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * THREE TIERS, cheapest first: this process's memory, then the disk store, then
+ * the network.
+ *
+ * The disk hit is the one that changes a run's cost. It is shared across worker
+ * PROCESSES and across runs, so a suite that would have paid one password grant
+ * per account per worker pays none while a stored session is inside both bounds.
+ *
+ * A STORED SESSION IS NEVER TRUSTED PAST ITS BOUNDS - `getSession` applies the
+ * token's own expiry (with the safety margin) AND the wall-clock cap, and a
+ * clock that moved backwards fails the check rather than passing every bound.
+ */
 async function getOrMintSession(email: string, password: string): Promise<CachedSession> {
   const cached = sessionCache.get(email);
   if (cached) {
@@ -396,8 +491,48 @@ async function getOrMintSession(email: string, password: string): Promise<Cached
     const ageSeconds = (Date.now() - session.mintedAtMs) / 1000;
     if (ageSeconds < session.expires_in - EXPIRY_SAFETY_MARGIN_SECONDS) return session;
   }
-  const fresh = mintSession(email, password);
+
+  const key = sessionKey(SUPABASE_URL, email);
+
+  if (PERSIST_SESSIONS) {
+    const stored = getSession(SESSION_STORE_FILE, key, Date.now(), REUSE_POLICY);
+    if (stored) {
+      /* Into the in-memory tier too, so the rest of this worker's calls do not
+         re-read the file for every spec. */
+      const promise = Promise.resolve(stored as CachedSession);
+      sessionCache.set(email, promise);
+      return promise;
+    }
+  }
+
+  /* A session that is PAST its bounds may still hold a usable refresh token -
+     refresh tokens outlive access tokens - so the expired entry is read
+     separately from the reusable one, by Infinity bounds, before falling
+     through to the password. */
+  const fresh = (async (): Promise<CachedSession> => {
+    if (PERSIST_SESSIONS) {
+      const expired = getSession(SESSION_STORE_FILE, key, Date.now(),
+        { marginSeconds: -Infinity, maxAgeSeconds: Infinity });
+      if (expired?.refresh_token) {
+        const refreshed = await refreshSession(expired.refresh_token);
+        if (refreshed) {
+          putSession(SESSION_STORE_FILE, key, refreshed as StoredSession);
+          return refreshed;
+        }
+        /* The stored entry is dead. Drop it so the next run does not spend a
+           request discovering the same thing. */
+        dropSession(SESSION_STORE_FILE, key);
+      }
+    }
+    const minted = await mintSession(email, password);
+    if (PERSIST_SESSIONS) putSession(SESSION_STORE_FILE, key, minted as StoredSession);
+    return minted;
+  })();
+
   sessionCache.set(email, fresh);
+  /* The failed-mint cleanup in `mintSession` deletes the cache entry by email;
+     a rejected promise left in the Map would poison every later call, which is
+     the behaviour that comment already protects. Nothing to add here. */
   return fresh;
 }
 
