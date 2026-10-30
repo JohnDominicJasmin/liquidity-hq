@@ -914,10 +914,49 @@ a future broadening that takes their `{name}` away turns that cell red and names
 planted-wrong-repair shape (§9g, #1837) — **except this time the wrong repair was the one the gate's
 own author was about to write**, and running it against the real tree is what stopped it.
 
-**The general form, which is worth more than the instance:** when a check and the thing it protects
-live in different file types, **the check's file filter is a silent scope limit.** It produces a
-clean pass over the half it can see. Ask what the gate does NOT open before asking whether its
-predicate is right.
+**The general form — and the first version of it under-reached, which QA demonstrated using the same
+gate.** It said "different file types". **The variable is SCOPE, and that gate had TWO scope limits
+of different kinds:**
+
+| Filter | What it skipped | Found by |
+|---|---|---|
+| Extension list — `.ts/.tsx/.mts/.js` | `lib/labelDefaults.en.json`, where the sentences live | the question "does the remedy have its own direction?" |
+| Directory list — `app`, `components`, `lib` | `supabase/migrations/`, **130 files that insert into `lhq_labels`** | enumerating what the gate opens |
+
+The second matters because `lib/labelOverrides.ts:4` says it plainly: **a row in `lhq_labels`
+silently wins over the shipped default in `lib/labelDefaults.en.json`.** So a migration seeding an
+operator label would override the very JSON the new check reads, and **neither filter would see it.**
+
+> **When a check and the thing it protects can live in different places, the check's file filter is a
+> silent scope limit — by extension AND by directory.** It produces a clean pass over the half it can
+> see. **Ask what the gate does not open before asking whether its predicate is right** — then ask
+> where the protected thing can live, because the answer is usually more places than the gate opens.
+
+#### Some scope limits cannot be closed by a test, and those get NAMED
+
+QA closed the migration half. **The other half cannot be closed from this repository at all: a row
+written directly to `lhq_labels`, outside any migration, is invisible to every test here.** There is
+no file to read.
+
+**So it is stated as a limit in the gate's own header**, with the measurement and its date — zero
+rows for all three retired keys on production on 2026-10-30, against a 198-row `NAV_%` control that
+shows the query can find rows.
+
+> **A gate that silently does not cover something is worse than one that says so.**
+
+#### The mechanical test, which is cheaper than the insight
+
+**Enumerate what the gate opens. List where the protected thing can live. Compare the two lists.**
+
+That would have found both scope limits in about a minute, and it needs no judgement — which is why
+it is the part to keep. The author of that gate had not done it for their own gate until the
+question was asked directly.
+
+**And the fix for the file-filter lesson needed the file-filter lesson applied to itself.** The new
+migration scan carries its own positive control: a key that genuinely appears in migrations, taken
+from the tree. **Without it the migration cell passes if the glob misses, if the reads come back
+empty, or if the needle is simply never present anywhere — three distinct ways to be green over
+nothing**, and none of them distinguishable from a real pass.
 
 ### 9e. THE RULE ALL OF §9 COLLAPSES TO
 
