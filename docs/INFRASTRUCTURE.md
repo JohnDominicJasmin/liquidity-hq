@@ -1083,8 +1083,18 @@ have to deliberately run as the restricted tier, because the unrestricted one ca
 
 **What this costs when it escapes:** not an error. Free and trial users would simply find the
 product's advertised coins unavailable, with a correct-looking "not on your plan" refusal. **A
-defect that presents as the product working as designed does not generate a report** — it
-generates a cancellation.
+defect that presents as the product working as designed does not generate a report.** Today that
+means it would have produced no signal at all — not a complaint, not a support message, nothing to
+notice it by. Once there are paying users it means the same silence, with churn behind it that
+nobody can attribute.
+
+**The first version of that sentence ended "it generates a cancellation", and QA sent it back.** It
+was wrong twice: there are no paying users to cancel — payments went live 2026-10-28 with both Whop
+tables at zero rows — and **the affected tiers have nothing to cancel anyway.** A free user leaves
+and a trial lapses; the one tier that could cancel is Pro, which is exactly the tier the bug cannot
+touch. **`docs/OWNER-RULES.md` carries "do not argue urgency from user harm" as a standing rule,
+because the bugs are real and the users are not yet** — and that sentence was this file breaking it.
+The silence is the cost, and it is the cost today as well as later.
 
 ### What to do
 
@@ -1099,3 +1109,8 @@ generates a cancellation.
    the producer reaches the next reader, a note in this file does not.
 4. **Short-circuits deserve a second look wherever they exist.** Any `if (isPro) return true` is a
    place where the most-tested path is the least-informative one.
+5. **The early return is VISIBLE IN THE SOURCE, so look for it on purpose.** `aiCoinAllowed`
+   short-circuits on `pro` before it reads the coin, which makes the blindness **structural rather
+   than incidental** — and structural means greppable. A gate whose highest tier returns early is a
+   gate where a privileged test account is an instrument, and that can be found deliberately instead
+   of by a near-miss. QA's addition, and it is the one item here that turns the trap into a search.
