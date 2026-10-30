@@ -1,8 +1,24 @@
 # Proposal: AI chart structures — deep research draws on the chart
 
-**Status: PROPOSED. Not scheduled, not started, nobody is building it.** Documented on the owner's
-instruction, 2026-10-30: *"document it and make sure it's achievable. We're not working on it right
-now."*
+**Status: PHASE 0 SCHEDULED AND ASSIGNED, 2026-10-30 13:26 UTC. Tracked on `#1818`.**
+
+**Both owner instructions, in order, because this document's status line stopped being true within
+ten hours of being written:**
+
+1. 2026-10-30 ~03:00 UTC — *"document it and make sure it's achievable. We're not working on it
+   right now."* So §1–§9 below were written as a feasibility study, not a build plan.
+2. 2026-10-30 13:19 UTC — **"start it."** Having asked what had become of the proposal, the owner
+   read the verdict and ordered the work started.
+
+**What that changes, and what it does not.** Phase 0 (`lib/chartStructures.ts` — pivots, line fit,
+fit quality; pure functions, no UI, no AI, no network) is assigned to Dev, with QA owning the
+fixture tests. **Phases 1–4 are sequenced, not started.** Nothing in §2 is relaxed by the work
+starting — the geometry stays in code, and Phase 0 is deliberately the half that cannot
+hallucinate. §4a is a hard constraint on Phase 2, not advice.
+
+**It does not displace the `priority: high` reliability work** (`#1631`, `#1649`, `#1651`). The
+owner's standing order of work — data reliability first, then payments and users, then polish — is
+unchanged; this is a new `priority: medium` lane item that runs alongside it.
 
 **Owner's description, in his words:** when the user hits deep research, it generates a technical
 analysis **on the chart** — "either a parallel line channel or this descending action line, you
@@ -211,11 +227,17 @@ already a feature competitors charge for, and it is the part that can never hall
 
 ## 8. Open questions for the owner — not blocking, answer when convenient
 
-1. **Auto-draw or offer?** Should the structures appear on the chart immediately, or as a short list
-   the user taps to draw? *Recommendation: list, then draw on tap* — the chart is the user's
-   workspace and taking it over uninvited is the complaint we would get.
-2. **Pro-only?** Deep research is Pro-gated today. *Recommendation: keep it Pro* — it is a headline
-   reason to pay.
+1. **Auto-draw or offer? — ANSWERED BY THE OWNER, 2026-10-30, and this one was never ours.**
+   **A list; nothing is drawn until the user taps it.** He was shown three options with mock-ups
+   (list-then-tap; draw everything at once; draw the strongest and list the rest) and chose
+   list-then-tap, which was also the recommendation. **This is a Phase 1 requirement now, not a
+   preference:** the chart stays untouched until a tap, and a structure that is never tapped is
+   never drawn. It was put to him rather than decided here because it is visual, and this project
+   built the Arena redesign three times on sessions deciding for themselves what he would accept.
+2. **Pro-only? — DECIDED, not asked: Pro.** Deep research is already Pro-gated server-side in
+   `app/api/strategy-research/route.ts`, so keeping it there is the existing behaviour rather than
+   a new choice, and it is not a visual decision. Asking him would have been asking him to confirm
+   what the code already does.
 3. **Phase 0+1 alone, early?** The deterministic half with no AI could ship well before the rest.
    *Recommendation: yes, once paying users exist and the queue clears.*
 

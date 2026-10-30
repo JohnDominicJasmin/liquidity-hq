@@ -75,13 +75,21 @@ means*). **Every issue carries exactly one `priority:` label.**
 
 | # | Item | Notes |
 |---|---|---|
-| D1 | **#1631 - AI correctness** (high) | Owner-approved 2026-10-21 09:10 UTC. E+B+C with the nominal 10-year yield: committed, PR next (heavy slot after QA's staging sign-off). Then A+D (Deep citations, our own dated data), stacked. |
+| D1 | **#1631 - AI correctness** (high) | Owner-approved 2026-10-21 09:10 UTC. **CORRECTED 2026-10-30: E+B+C and A+D both SHIPPED nine days ago** - #1665 merged 2026-10-21T15:59:58Z, #1668 at 19:55:11Z. This row said "committed, PR next (heavy slot after QA's staging sign-off)", which was true for about four hours, and **PM assigned work from it on 2026-10-30 as though it were current.** Also further along than the issue text: item 3's refund is on `dev` AND `main`, and `lib/grok.ts:851`'s `?? 'FLAT'` trapdoor is no longer reachable from product code (`parseCombinedRead` refuses instead) - deleting the pair was blocked on QA moving two test imports - **PR #1832 (2026-10-30, tests only) took the last importer off `parseCombinedResponse`, so the deletion is now Dev's to write as app code.** Read QA's half-fix proof first: with the trapdoor gone but the `parseVerdict` gate ALSO removed, a verdictless answer throws, and a throw inside the route's `try` becomes a 503 - a different lie, not a fix. Proved red, not asserted. **What is genuinely open:** item 4 (forwarded size, output caps, cost - measured 2026-10-30, three real gaps, PR #1833); item 5's second half (the browser still supplies the prompt body, and the gates check *declared* coin/timeframe rather than what the prompt asks for); and a daily Deep Research check asserting a *parseable verdict* rather than HTTP 200, which is QA's. The item-4 text itself carries four claims that are no longer true - read #1631's 2026-10-30 comment, not the item. |
 | D2 | **#1649 - exchange data never blocked** (high) | Phase 1 merged (#1659: shared breaker, budgets, klines range limit). Phase 2: server Bybit WebSocket. Phase 3: OKX + our own 5-minute snapshots (a table, so a migration: owner's word first). Phase 4: Hyperliquid as third source + funding-comparison inputs (owner, 2026-10-21 ~14:00 UTC). The first PR that calls OKX or Hyperliquid logs host + HTTP status once per process; PM reads the qa logs. |
 | D3 | **#1662 - real liquidation levels from Hyperliquid positions** (medium) | Estimate only, at a natural break: days, memory, DB, request budget, what a first version cuts. No build before D1 and D2. |
 | D4 | **#1651 - data guardrails** (high) | Owner order 2026-10-21. Reading type with ok/stale/unknown, freshness budgets, one formatter, AI input and answer checks. The PR template's data checklist (#1652) applies to every PR that adds or changes a number. |
 | D5 | **#1600 - all coins** (owner, 2026-10-21 08:58 UTC) | After the server fixes; more coins may not mean more upstream calls per minute (#1649 item 5). |
 | D6 | **#1632 - security items left** (high) | Includes the Next.js dependency bump (Dependabot), the liquidation page's 5,000-row download, and the AI prompts moved server-side (#1263). |
 | D7 | **Fails from QA's 2026-10-21 regression** (#1640) | R1 Arena 11 px too wide at 390; R2 `/api/ath` 502 when CoinGecko answers 429; R3 `/alerts` signed-out 401s; R4 `bot-info` 500; R9 `/about` still names Finnhub; R13 econ 429 shown as "No upcoming events" (PR #1637 open). R6-R8 are visual: the owner's look first. |
+| D8 | **#1818 — chart structures, Phase 0** (medium) | **The owner ordered this started on 2026-10-30 13:19 UTC — *"start it."*** Deliverable: `lib/chartStructures.ts` — swing-pivot detection with configurable left/right strength, least-squares line fit, and fit quality (R², touch count, first and last touch timestamp). **Pure functions. No UI, no AI, no network, no new dependency.** Spec: `docs/proposals/ai-chart-structures.md`, §2 and §7. **The load-bearing decision is §2: geometry is computed in code and the AI never returns a coordinate** — a model-placed line misses the candles and the user's own eyes are the test instrument. QA owns the fixtures, so the PR says what to assert and why. **Do not start Phase 1 (overlays) in this PR.** §4a binds Phase 2 and is a constraint, not advice: each rung of the timeframe ladder is a fixed-limit request, never a range, because `canFailoverForRequest(isRange)` returns `!isRange` and a range request therefore has no Bybit fallback. |
+
+**D8 sits at the bottom of that table and is nevertheless Dev's CURRENT item.** The owner ordered
+it started on 2026-10-30 at 13:19 UTC and the rows above it are not cancelled — they resume the
+moment Phase 0 lands. It is written out rather than left to position because this table is read
+top-down as the order of work, so a row added at the bottom reads as "later" by default, which is
+the opposite of the instruction. Phase 0 is small on purpose (one file of pure functions), so the
+high-priority reliability lane pauses for one item, not for a feature.
 
 **UI polish and accessibility audit work: last, not parked.** The owner parked it on
 2026-09-19 and on 2026-09-30 said to work "all items, issues, PRs and backlogs". So it is
@@ -129,10 +137,31 @@ controls** - to anything you touch.
   a file-scoped `eslint <file>` (~150 MB) is the lightest step. **Do not read "floor" as
   consumption:** a first version of this note said a push "is a 2.5 GB job", which misread those
   figures. One run (3.15 GB start, 0.49 GB low) shows what happens when something else is also
-  running, and its cause was never attributed. **The pre-push hook runs lint, `tsc` and the unit
-  tests, so a `git push` is itself a gate run - start it with >= 3.5 GB free.** File-scoped
-  lint is enough for a test-only PR whose base tree already lints clean; say in the PR that it
-  was narrowed.
+  running, and its cause was never attributed.
+
+  **CORRECTED 2026-10-30: a `git push` is NO LONGER a full gate run, and the figure this note
+  carried was two moves out of date.** It said the hook runs lint, `tsc` and the unit tests, so
+  start a push with >= 3.5 GB free. **The hook runs `npx tsc --noEmit` and nothing else.**
+  `node --test` moved to CI on 2026-10-29 and `eslint .` moved to CI on 2026-10-30; both moves
+  are recorded in `.githooks/pre-push`, whose own header carries the measurement:
+  **`npx tsc --noEmit`, NINE SECONDS, free 2,895 -> 1,484 MB, biggest process 428 MB** — against
+  `npm run lint` at 46 seconds and free 3,622 -> 1,044 MB, which was essentially the entire cost.
+  **This note gives NO replacement launch bar, deliberately, and QA was right to send the first
+  version back for giving one.** That version said "~2.5 GB free", which is the figure the
+  paragraph four lines above calls a misreading, and it is contradicted by a successful foreground
+  push of this very branch **at 512 MB free** — a factor of five. It is also not derivable from the
+  numbers beside it: a biggest-process of 428 MB and a system-wide drop of 1,411 MB measured on a
+  different day, with unattributed other load, do not combine into a bar. **Replacing a stale
+  number with a confident fresh one is the same error wearing clean clothes.** Whoever wants a bar
+  measures it: launch, watch MIN_FREE, write down the date. Until then: read `.githooks/pre-push`,
+  which is the thing that actually runs, rather than this file's copy of what it used to do.
+
+  **Why this was wrong in a way worth recording:** the 3.5 GB figure was measured correctly on
+  2026-09-24 and was never re-read after the hook was narrowed twice in two days — including once
+  on the same day this correction is being written. A measured number with no re-read date behaves
+  exactly like a config that was never true: it keeps being quoted, and it makes the team defer
+  pushes that would now fit. File-scoped lint is still enough for a test-only PR whose base tree
+  already lints clean; say in the PR that it was narrowed.
 - **Foreground commands are not subject to the idle reaper; background shells are.** Run a
   quick push-and-merge in the foreground.
 - **A killed `next build` leaves `.next` partial**, so `tsc` afterwards reads a broken
@@ -152,6 +181,7 @@ controls** - to anything you touch.
 | Q6 | **Language scan of the ~29 pages not covered on 2026-10-21** | Chromium crashed for memory at 12:36 UTC; the 7 key pages and the release's wordings were checked. English found so far is all tracked on #1475. |
 | Q7 | **Cross-browser harness (#1410)** | Owner backlog item 15: Firefox and WebKit. A browser run is a heavy job: one at a time, measure first. |
 | Q8 | **Older items still open** | #1259 (make a red E2E run mean something); `TEST_GAPS.md` §1 and §6; load testing beyond one address needs many source IPs, a paid tool, so the owner's cost decision. |
+| Q9 | **Fixtures for #1818 Phase 0** | QA owns every test (owner ruling, 2026-09-07). Fixture candle series plus exact expected pivots, slopes, R² and touch counts for `lib/chartStructures.ts`. **No AI call and no network — that is the whole point of Phase 0** (`docs/proposals/ai-chart-structures.md` §2), so these are the cheapest tests in the repo and they can be exact rather than approximate. **Include a negative fixture:** a series with no clean structure must return none, because "nothing clean on this timeframe" is the shippable answer — and an absence assertion needs a positive control beside it, or it passes while measuring nothing (`docs/INFRASTRUCTURE.md` §9b). Dev's PR says what to assert; whether it is covered is yours. |
 
 ## PM/DevOps lane
 
@@ -193,6 +223,115 @@ failing verdict with `**QA: not ready**`. Before sending a PR back to Dev, the P
 `node scripts/qa-rounds.mjs <PR>`, which exits 3 once a PR has had 3 failed rounds. When
 it does: say on the PR that it's frozen, add it to `docs/OWNER-BLOCKERS.md`, and move Dev
 and QA to their next items. **Nobody stops.** The "never idle" rule outranks any single PR.
+
+**3. Before promoting, check that CI has actually built the head you are promoting —
+and when there is no run for it, DIFF THE TWO HEADS rather than explaining the
+absence.**
+
+Found by Dev on 2026-10-30, before a 58-commit promotion. `dev`'s head
+`92f27f9b` had **no CI run at all**; the newest was on `842ed35f` and still in
+progress. Verified independently by PM: `git diff --name-only 842ed35f origin/dev`
+returns **`CONTRIBUTING.md` and nothing else**, so the uncovered commit was
+docs-only and the code being promoted *was* covered. The absence was correct.
+
+**The reason this is a guardrail and not a note is the shape of the trap, not the
+instance.** A true fact about this repository stood ready to explain the missing
+run: `ci.yml`'s `push` trigger really does carry `paths-ignore` for `**.md` and
+`docs/**`, and its own comment says that is deliberate and deliberately not on
+`pull_request`. **Citing it would have produced the right answer for the wrong
+reason** — and the same explanation would have been equally available, and wrong,
+if the uncovered commits had been application code.
+
+> **A missing CI run on a release branch is indistinguishable from a correctly
+> skipped one until you diff the two heads.**
+
+**What it costs when the guess goes the other way:** QA receives a promotion whose
+final state nothing has built, **with every PR in it green** — because each PR was
+built at its own head, and nothing builds the result of merging them in order.
+That is a gap no individual PR's status can show.
+
+**So, two commands, every promotion:**
+
+```sh
+gh run list --branch <branch> --limit 6 --json headSha,status,conclusion   # is there a run for the head?
+git diff --name-only <newest-built-sha> origin/<branch>                    # if not, what is uncovered?
+```
+
+**Code in that diff means wait for a run on the real head.** Docs-only means
+proceed and say so. **Do not resolve it by reading `ci.yml`** — the path filter
+tells you what CI *would* skip, not what it *did*.
+
+### AMENDED 2026-10-30: `dev` no longer builds on push, so "no run" is now the DEFAULT answer
+
+The owner removed the per-merge recheck (36 of 129 runs in two days). **`dev` is
+gone from `ci.yml`'s `push` trigger**, so the first command below will normally
+report **no run for a `dev` head** — and that is now the designed state rather
+than the signal it used to be.
+
+**So for `dev` → `qa` the guardrail changes shape: you create the run instead of
+looking for one.**
+
+```sh
+gh workflow run ci.yml --ref dev          # leave `e2e` UNCHECKED: build-only
+gh run list --workflow=ci.yml --branch dev --limit 3 \
+  --json headSha,status,conclusion        # wait for conclusion=success on the head you are promoting
+```
+
+**The diff-the-two-heads step loses its meaning here**, because there is no
+"newest built sha" on `dev` to diff against any more. It still applies to
+`staging` and `main`, which remain on the `push` trigger.
+
+**And the two promotions are not the same check, which the original text did not
+distinguish:**
+
+- **`dev` → `qa` is fast-forward**, so the commit landing on `qa` is bit-identical
+  to the one on `dev` — `ci.yml`'s own comment is why `qa` is absent from the
+  trigger. **Dispatch, wait for green, then promote.**
+- **`qa` → `staging` is a MERGE COMMIT.** The resulting tree has never existed
+  anywhere, so no run for it can possibly exist before the push. **There the
+  check happens AFTER the push and before sign-off** — the new head's own run,
+  not a diff.
+
+**What this gives up, and it is the owner's choice made with the cost in front of
+him:** between merges, `dev` is unchecked. `.githooks/pre-push` runs `tsc` and
+nothing else, so lint, unit tests and build are unverified on `dev` until someone
+dispatches. **This guardrail stops being a good habit and becomes the only thing
+standing between a broken merge and `qa`.**
+
+**THE TWO HOPS ARE NOT THE SAME CHECK, and the first version of this guardrail
+could not be executed on one of them.** QA caught it against the promotion they
+own:
+
+> **`dev` → `qa` is fast-forward, so dev's run IS the coverage and this check
+> happens BEFORE promoting. `qa` → `staging` is a merge commit that has never
+> been built anywhere, so there the check happens AFTER the push and before
+> sign-off — the new head's own run, not a diff.**
+
+A merge commit's tree has never existed in any branch, so **no run for it can
+possibly exist before the push.** "Check CI built the head you are promoting" is
+not a check that can pass or fail there; it is structurally unavailable. `staging`
+is in the `push` trigger, so the run does happen — what this guardrail asks for on
+that hop is that **sign-off waits for it.**
+
+### A coupling that is load-bearing and lives nowhere a promoter reads
+
+**The browser suite reaches `staging`'s content only because the release PR is
+opened BY HAND.** `ci.yml` records that `staging` joined the `push` trigger on
+2026-08-10 because the fast-forward argument *"turned out not to cover the browser
+suite"*, and that the 38-minute e2e job *"was reaching `staging` through a release
+PR that has since stopped being opened"* (#207).
+
+That is still the situation: `RELEASE_PR_PAUSED=1` since **2026-08-09**, and
+PM/DevOps opens the `staging` → `main` PR manually. **That PR has base `main`,
+which the `pull_request` trigger covers — so the hand-opened PR is what pulls the
+browser suite over staging's content.**
+
+> **If the release PR is ever skipped as a convenience, staging's browser coverage
+> goes with it, and nothing announces that.**
+
+Recorded here rather than left in a `ci.yml` comment referencing an issue, because
+this is the page a promoter actually reads. Found by QA while reviewing the
+guardrail above.
 
 **Not adopted from that doc, and why:**
 - A drift check that needs a local Supabase stack (there isn't one on this machine) and

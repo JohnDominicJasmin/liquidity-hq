@@ -2,11 +2,6 @@
 import Link from 'next/link';
 import { useLabels } from '@/lib/labels';
 import EmailLinked from '@/components/EmailLinked';
-import {
-  LEGAL_NAME_CONFIRMED,
-  TRADER_COUNTRY,
-  TRADER_LEGAL_NAME,
-} from '@/lib/traderIdentity';
 
 /* #1810 items 4, 6 and 9 on one page: the trust page, the trader identity a
    buyer is entitled to see before paying, and where customer data is kept.
@@ -71,20 +66,25 @@ export default function SecurityPage() {
           {t('SECURITY_SECTION_OPERATOR_TITLE')}
         </h2>
         <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.75 }}>
-          <EmailLinked text={t('SECURITY_SECTION_OPERATOR_BODY', { name: TRADER_LEGAL_NAME, country: TRADER_COUNTRY })} />
+          {/* NO NAME AND NO COUNTRY. Owner, 2026-10-31: "don't reveal anything about me",
+              choosing "an independent developer, no country" from three options whose exact
+              wording he was shown.
+
+              This replaced a line naming him and his country, and the amber placeholder box
+              that used to sit under it is gone too - not because the name was confirmed, but
+              because there is no longer a name to confirm. lib/traderIdentity.ts and the
+              LEGAL_NAME_CONFIRMED switch are both deleted: the whole module existed for the
+              2026-10-29 disclosure decision that this reverses.
+
+              THE COUNTRY IS STILL ON THIS PAGE, two sections down, and that is deliberate
+              rather than an oversight. SECURITY_SECTION_WHERE_BODY says the service is
+              operated from the Philippines so the data can be reached from there - that is a
+              data-TRANSFER disclosure, not a fact about who he is, and Seoul has an EU
+              adequacy decision where the Philippines does not. Removing it would make a legal
+              page incomplete rather than private. The owner was told this before it shipped
+              and can overrule it. */}
+          <EmailLinked text={t('SECURITY_SECTION_OPERATOR_BODY')} />
         </div>
-        {/* Visible on purpose while the name is unconfirmed. A placeholder that
-            looks like a name is how a wrong legal name ships; one that announces
-            itself cannot be approved by accident. Goes away when
-            LEGAL_NAME_CONFIRMED flips - see lib/traderIdentity.ts. */}
-        {!LEGAL_NAME_CONFIRMED && (
-          <p style={{
-            fontSize: 'var(--fs-caption)', color: 'var(--amber)', lineHeight: 1.7,
-            margin: '10px 0 0', border: '0.5px solid var(--bdr)', borderRadius: 8, padding: '10px 14px',
-          }}>
-            {t('SECURITY_NAME_PENDING_NOTE')}
-          </p>
-        )}
       </div>
 
       <div style={{
@@ -99,7 +99,10 @@ export default function SecurityPage() {
               {t(s.titleKey)}
             </h2>
             <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.75 }}>
-              <EmailLinked text={t(s.bodyKey, { country: TRADER_COUNTRY })} />
+              {/* The country that used to be interpolated here is now literal in
+                  SECURITY_SECTION_WHERE_BODY. It is copy, so it belongs with the copy -
+                  and it was the last reason lib/traderIdentity.ts existed. */}
+              <EmailLinked text={t(s.bodyKey)} />
             </div>
           </div>
         ))}

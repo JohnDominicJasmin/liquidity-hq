@@ -158,11 +158,30 @@ const nextConfig: NextConfig = {
       // same price + change columns plus grade/volume/signal, so it was cut
       // as a redundant duplicate page. Old links/bookmarks land on Markets.
       { source: "/prices", destination: "/markets", permanent: true },
-      // The Refund Policy is withdrawn until payments go live (owner, 2026-10-08): /refund sends to Terms with a TEMPORARY (307)
-      // redirect, so nothing is cached as permanent. The page, its REFUND_* labels and the footer/sitemap links were all taken out
-      // in the same change. TO BRING IT BACK: delete this entry and revert that change. A payment processor expects a refund
-      // policy BEFORE real charges, so this MUST be undone before payments go live.
-      { source: "/refund", destination: "/terms", permanent: false },
+      // THE /refund REDIRECT WAS REMOVED HERE ON 2026-10-30Z, and this note replaces it rather than leaving a gap.
+      //
+      // It read: "The Refund Policy is withdrawn until payments go live (owner, 2026-10-08) ... A payment processor expects a
+      // refund policy BEFORE real charges, so this MUST be undone before payments go live." The withdrawal named its own end
+      // condition and the condition fired: checkout opened 2026-10-28 and this entry was still here on 2026-10-30Z, so for
+      // three days a buyer could reach checkout while /refund answered 307 to /terms.
+      //
+      // NOT "production took real money for three days" - an earlier version of this note said that and it was wrong.
+      // Measured on prod: lhq_whop_webhook_events 0 rows, lhq_user_subscriptions 5 rows with 0 active or trialing. No sale
+      // is recorded. The exposure was a buyable checkout with an unreachable policy, which is a real obligation and not a
+      // completed one, and overstating it would have put a false claim about his revenue into the source.
+      //
+      // WHAT THIS ENTRY WOULD HAVE DONE IF IT HAD SHIPPED WITH THE CURRENT BATCH, which is the sharper reason it goes now.
+      // This release adds a "Refund Policy" link to /upgrade directly above the checkout buttons, and a new /security page
+      // carrying another. NEITHER IS ON PRODUCTION TODAY - both are new here; measured against origin/qa, which is what
+      // production serves, with origin/dev as the control that proves the check can match. So keeping the redirect would not
+      // have continued an old exposure, it would have CREATED a worse one: two visible links promising a policy and landing
+      // on Terms, which is worse than no link because the buyer believes they have read it.
+      //
+      // Lifting it executes the owner's instruction rather than overriding it. The 307 was deliberate so nothing cached it as
+      // permanent, which is what makes removal clean.
+      //
+      // WHAT WAS ACTUALLY LEFT TO UNDO, because the old note overstated it: the page, its REFUND_* labels and the
+      // lib/navRoutes.ts entry were all back already. Only this redirect, the footer link and the sitemap entry remained.
     ];
   },
 };

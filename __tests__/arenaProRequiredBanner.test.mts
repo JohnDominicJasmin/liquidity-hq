@@ -46,11 +46,65 @@ const COPY = 'Fast timeframes (1m, 5m, 15m) are part of Pro.';
 
 /* ══ lib/grok.ts: the behaviour ═══════════════════════════════════════════════════════════════════════ */
 
+/* ══ STEP 0 (#1631 item 5): A CALL SITE THAT COMPILES UNDER BOTH SIGNATURES ══════════════════════════
+ *
+ * WHY THIS LOOKS WRONG AND IS NOT. Dev's change to `lib/grok.ts` turns `callGrokViaProxy` from
+ * `(prompt, tf, session, type, coin?)` into `(ctx, chart, type, selection)`. These two calls pinned
+ * the old arity, so they were a `tsc` ERROR on Dev's tree, and the pre-push gate is
+ * `npx tsc --noEmit` - their branch could not leave their machine. The exits were `--no-verify`
+ * (forbidden), dev editing a QA test (forbidden), or deadlock, so `CONTRIBUTING.md` -> *When QA
+ * writes code* step 0 says QA loosens the pin to a form green on BOTH trees and pushes FIRST.
+ *
+ * HERE THE PIN IS A TYPE, NOT AN ASSERTION, so what is loosened is the call's TYPE and not one
+ * expectation. Every assertion below is untouched.
+ *
+ * THE ARGUMENTS ARE THE NEW SHAPE'S, deliberately: `(ctx, chart, type, selection)`. They are
+ * runtime-correct on the CURRENT tree too, because `callGrokViaProxy` packs its arguments into the
+ * POST body with `JSON.stringify` and does not read a field off any of them before `fetch` - and
+ * these tests stub `fetch` to answer a fixed status and body regardless of what was sent. So the
+ * values cannot reach an assertion from either direction.
+ *
+ * THE GAP, STATED RATHER THAN IMPLIED: while this cast is here, these cells DO NOT CHECK THE CALL
+ * SHAPE. If Dev's signature ends up taking a fifth field, or renames one, this compiles anyway and
+ * says nothing about it. That is the price of unblocking the push, and it is temporary: the pin is
+ * tightened to the new contract on Dev's pushed branch (step 2) and this comment goes with it.
+ *
+ * `chart` CARRIES `tf` BECAUSE THE IMPLEMENTATION READS IT - and that was found by Dev measuring,
+ * after a simulation of mine said otherwise. The dereference is `normalizeCombinedResult(b.result,
+ * chart.tf, ctx.session)`, which runs AFTER the response, so:
+ *
+ *   - the three 403 cells throw before reaching it and pass with `chart` as anything, including null;
+ *   - the 200 CONTROL is the only cell that gets to the far side of the response, and it failed with
+ *     `TypeError: Cannot read properties of null (reading 'tf')`.
+ *
+ * NINE CELLS SAID THE LOOSENED FORM WORKED; THE ONE CELL THAT COULD REACH THAT LINE SAID IT DID NOT.
+ * Without that control this file would have shipped a step-0 form that compiles, passes, and breaks
+ * the moment a real 200 comes back.
+ *
+ * WHY MY OWN SIMULATION MISSED IT, because it is the more useful half. I measured the loosened form
+ * against a new signature I wrote myself - and I wrote the implementation's USE of it too, patching
+ * that line to `ctx.tf`. So the simulated implementation read the field my arguments happened to
+ * supply. **A simulation whose both halves I author is a mirror, not a measurement:** it cannot
+ * disagree with me, and it reported green for the one shape I had already assumed. The inference was
+ * right about the mechanism (nothing is dereferenced before `fetch`) and wrong about the location
+ * (the dereference is after the response), and only the tree that actually holds the code could say so.
+ *
+ * WHAT WAS MEASURED AND WHAT WAS NOT:
+ *   - MEASURED here on current `dev`: `tsc --noEmit` clean, 10 of 10 green.
+ *   - MEASURED by Dev on their tree: `tsc --noEmit` clean, and 10 of 10 with this fixture.
+ *   - STILL A GAP while the cast is here: a `chart` stub carrying only `tf` will not catch a field
+ *     being added that something else dereferences later, exactly as the cast will not catch the
+ *     call SHAPE changing. Both go when the pin is tightened at step 2.
+ */
+const LOOSENED_CALL = [
+  { coin: 'btc', tf: '5m', session: 'london' }, { tf: '5m' }, 'quick', null,
+] as unknown as Parameters<typeof callGrokViaProxy>;
+
 const realFetch = globalThis.fetch;
 async function proxyAnswers(status: number, body: unknown) {
   globalThis.fetch = (async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })) as typeof fetch;
   try {
-    await callGrokViaProxy('prompt', '5m', 'london', 'quick');
+    await callGrokViaProxy(...LOOSENED_CALL);
     return null;
   } catch (e) {
     return e as Error & { code?: string; usage?: unknown };
@@ -64,7 +118,7 @@ test('CONTROL. a 200 from the proxy resolves with the body, so a throw below is 
   const result = { signal: 'FLAT', confidence: 40, levels: [], chartAnalysis: '', patterns: [], reasoning: '', catalysts: [], waitFor: null, bias: null, raidSetup: null, raidTarget: null, raidTrigger: null, analyzedAt: 1, tf: '1h', session: 'london' };
   globalThis.fetch = (async () => Response.json({ result, usage: null })) as typeof fetch;
   try {
-    const out = await callGrokViaProxy('prompt', '1h', 'london', 'quick');
+    const out = await callGrokViaProxy(...LOOSENED_CALL);
     assert.deepEqual(out, { result, usage: null });
   } finally { globalThis.fetch = realFetch; }
 });

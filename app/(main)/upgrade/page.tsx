@@ -9,7 +9,6 @@ import { EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import { useLabels } from '@/lib/labels';
 import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
 import EmailLinked from '@/components/EmailLinked';
-import { LEGAL_NAME_CONFIRMED, TRADER_COUNTRY, TRADER_LEGAL_NAME } from '@/lib/traderIdentity';
 
 /* #1606: the embedded Whop checkout. Loaded only when a plan is picked (client only), so the Whop SDK is not part of this page's first load. */
 const WhopCheckoutEmbed = lazy(() => import('@/components/WhopCheckoutEmbed'));
@@ -340,24 +339,30 @@ export default function UpgradePage() {
     <div style={{ maxWidth: 520, textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.7 }}>
       <p style={{ margin: 0 }}>{t('UPGRADE_PURCHASE_TERMS_NOTE')}</p>
       <p style={{ margin: '8px 0 0' }}>
-        <EmailLinked text={t('UPGRADE_SELLER_IDENTITY_NOTE', { name: TRADER_LEGAL_NAME, country: TRADER_COUNTRY })} />
+        {/* NO NAME AND NO COUNTRY, by the owner's decision of 2026-10-31: "don't reveal
+            anything about me". He was shown the exact wording of three options and chose
+            this one knowing the Privacy Policy states the country.
+
+            This line used to interpolate TRADER_LEGAL_NAME and TRADER_COUNTRY, and the
+            placeholder-warning block that stood under it is gone with them - not because
+            the name was confirmed, but because there is no longer a name to confirm.
+            lib/traderIdentity.ts is deleted; the disclosure it was built for in #1810 was
+            reversed.
+
+            WHAT THAT BLOCK WAS FOR, kept because the defect it records is the reason this
+            line ever got special treatment (#1824, found by QA). /security showed the
+            unconfirmed-name warning and this page did not, so the one line whose entire
+            job is to say who is selling read "Sold by PLACEHOLDER - LEGAL NAME NOT YET
+            CONFIRMED" directly above the checkout buttons, with nothing marking it. The
+            design was never in dispute - it had been applied to one of the two surfaces.
+            It was deliberately NOT solved by dropping the seller line while the name was
+            unconfirmed: its absence is the exact thing the disclosure rule is about, so a
+            silent omission would have traded a visible wrong name for an invisible missing
+            one. None of that mechanism exists now, and the history is here rather than
+            only in the git log because the next person to touch this line will want to
+            know why it was ever load-bearing. */}
+        <EmailLinked text={t('UPGRADE_SELLER_IDENTITY_NOTE')} />
       </p>
-      {/* THE SAME TREATMENT /security GIVES IT, and it was missing here.
-          lib/traderIdentity.ts says the switch makes the gap visible on EVERY
-          surface that prints the name; this page imported the name without the
-          switch, so the one line whose entire job is to say who is selling read
-          "Sold by PLACEHOLDER - LEGAL NAME NOT YET CONFIRMED" directly above
-          the checkout buttons, with nothing marking it. The design was not in
-          dispute - it was applied to one of the two surfaces. Found by QA.
-          Deliberately NOT solved by dropping the seller line while unconfirmed:
-          its absence is the exact thing the disclosure rule is about, so a
-          silent omission would trade a visible wrong name for an invisible
-          missing one. Goes away when LEGAL_NAME_CONFIRMED flips. */}
-      {!LEGAL_NAME_CONFIRMED && (
-        <p style={{ margin: '8px 0 0', color: 'var(--amber)' }}>
-          {t('SECURITY_NAME_PENDING_NOTE')}
-        </p>
-      )}
       {/* inline-flex + minHeight 24: standalone links, so WCAG 2.2 SC 2.5.8's
           inline-in-a-sentence exception does not cover them. */}
       <p style={{ margin: '8px 0 0', display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
