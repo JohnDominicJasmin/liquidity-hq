@@ -899,6 +899,43 @@ the issue would have been ticked on a passing merge.
 **It was caught because the author checked a ref against the view six times over several minutes
 rather than accepting one refresh as lag.** That is the only reason.
 
+### Which pull requests are affected — a control, and a hypothesis that is NOT recency
+
+The first reading was "the two most recently pushed branches". **That is checkable and it is wrong.**
+Measured across every open pull request within the hour, with the matching rows as the control that
+makes the mismatching ones mean anything:
+
+| PR | view `headRefOid` | `git ls-remote` | |
+|---|---|---|---|
+| #1829 | `5dc385a2` | `dfea5924` | **MISMATCH** |
+| #1831 | `e29ec943` | `0b8387fd` | **MISMATCH** |
+| #1834 | `11bd7686` | `11bd7686` | MATCH |
+| #1835 | `30efa234` | `30efa234` | MATCH |
+
+**#1835 was pushed AFTER #1829 and its view is correct**, so recency does not discriminate. What the
+two mismatching branches share is their push history: **both had a `git push` rejected with
+`Internal Server Error` and succeeded only on a retry.** #1835's push was accepted first time.
+
+> **Hypothesis, labelled as one because n is small: a push that fails and then succeeds on retry can
+> leave the pull request's view pointing at the PRE-FAILURE head while the ref advances.** The failed
+> write is the marker, not the clock.
+
+**If it holds, it is better than the recency reading in the one way that matters — it tells you WHICH
+pull requests to distrust.** The one you retried. It is also consistent with the rest of that day's
+weather: GitHub refused its own merge of #1829 with *"Head branch is out of date"*, and
+`update-branch` then failed with *"head sha didn't match the current head ref"* — the service
+disagreeing with itself about a single branch.
+
+**Do not promote this to a rule on this evidence:** four pull requests, two mismatching, one
+known-clean push as the control. **The practice below does not depend on the hypothesis being right**,
+which is the reason the practice is the part to follow.
+
+**Two caveats about the table itself.** The #1835 row is the state of this entry's own pull request at
+the commit BEFORE the one that added the table, so it reports a past head rather than a current one -
+every row here is an observation with a timestamp, including the row describing the file you are
+reading. And the push that carried this table was itself a further test: on the hypothesis, a push
+accepted first time should leave #1835 matching.
+
 ### What to do, stated as practice rather than principle
 
 1. **Before merging anything whose contents matter, compare `git ls-remote` against the PR's
