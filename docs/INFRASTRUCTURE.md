@@ -826,14 +826,20 @@ Narrower and more useful than "add controls". Six instances in one day, in six d
 | A range-scoped `sed` read of this file | the abort correction was never written | it was written further down, outside the range |
 | `gh pr checks <n>` | "no checks reported on the branch" | a run was PENDING on the same head the whole time |
 
-The last row is this document being read with an instrument scoped narrower than the question, and
+**The `sed` row is this document being read with an instrument scoped narrower than the question**, and
 it was caught by checking the whole file before claiming an absence — which is §9a's own advice
 applied to §9a.
 
 **Every one of them returns a clean, plausible, confidently wrong answer, and none of them looks
 wrong on the page.**
 
-**The last row carries the nastiest variant of the whole family, and it is worth stating on its
+**A note on maintaining this table, learned by breaking it twice.** Both sentences below it once
+read "the last row", and appending a row silently repointed one of them at the wrong entry —
+correct new material invalidating something above it that nobody re-read. **Prose that indexes a
+table BY POSITION is the hazard itself.** Name the row, as these two now do, and the next row
+appended breaks nothing.
+
+**The `gh pr checks` row carries the nastiest variant of the whole family, and it is worth stating on its
 own.** `gh pr checks` reported no checks while `gh run list` showed a run pending on the same
 commit. What made that dangerous was not the stale instrument - it was that **a TRUE fact about
 this repository stood ready to justify the wrong reading.** `ci.yml` really does carry a docs path
