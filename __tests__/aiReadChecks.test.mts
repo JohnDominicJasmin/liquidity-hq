@@ -322,6 +322,7 @@ beforeEach(() => {
     'the fetch stand-in is not installed: this run would reach the real network, so it measures nothing about the code under test - see #1683');
 });
 
+const { grokBody, contextFor, SERVER_BUILDS_PROMPT } = await import('./_grokBody.mts');
 const { POST } = await import('../app/api/grok/route.ts');
 const { _resetApiHealthQueue } = await import('../lib/apiHealth.ts');
 beforeEach(() => { net.xai = []; net.stray = []; });
@@ -329,7 +330,24 @@ afterEach(() => _resetApiHealthQueue());
 const read = async (type: 'quick' | 'deep') => {
   const r = await POST(new NextRequest('http://localhost/api/grok', {
     method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${TOK}` },
-    body: JSON.stringify({ prompt: `analyse XRP\n${NO_CLUSTERS}`, tf: '1h', session: 'NY', type, coin: 'xrp' }),
+    /* #1631 item 5: the server builds the prompt now, so the cluster text moves from the
+       client-built `prompt` into the `clusters` CONTEXT FIELD it was always describing. The old
+       shape is still sent on a tree that has not changed - `_grokBody.mts` reads the tree and
+       picks. Both carry the same two facts: the coin is XRP and no clusters are available, which
+       is what keeps R1 and R2's raid-rule assertions about the ANSWER rather than about the body. */
+    body: JSON.stringify(grokBody({
+      type, coin: 'xrp', tf: '1h',
+      prompt: `analyse XRP\n${NO_CLUSTERS}`,
+      ...(SERVER_BUILDS_PROMPT
+        /* THE SECTION HEADER STAYS OUT, and the validator is right to insist. `NO_CLUSTERS` is
+           `=== REALIZED LIQUIDATION CLUSTERS (XRP/USDT, last 24h) ===\nNot available\n` - the
+           `===` is a PROMPT SECTION MARKER, and the new route refuses any context field that
+           carries one, because that is how a client would inject a section the server did not
+           write. So the field gets the FACT and the server writes the header: posting the old
+           string verbatim comes back `400 Invalid request.`, which is how I found this. */
+        ? { override: { context: { ...contextFor('XRP/USDT'), clusters: 'Not available' } } }
+        : {}),
+    })),
   }));
   return { status: r.status, body: await r.json() as { result?: CombinedResult } };
 };
