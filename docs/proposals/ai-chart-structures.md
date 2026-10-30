@@ -1,8 +1,24 @@
 # Proposal: AI chart structures — deep research draws on the chart
 
-**Status: PROPOSED. Not scheduled, not started, nobody is building it.** Documented on the owner's
-instruction, 2026-10-30: *"document it and make sure it's achievable. We're not working on it right
-now."*
+**Status: PHASE 0 SCHEDULED AND ASSIGNED, 2026-10-30 13:26 UTC. Tracked on `#1818`.**
+
+**Both owner instructions, in order, because this document's status line stopped being true within
+ten hours of being written:**
+
+1. 2026-10-30 ~03:00 UTC — *"document it and make sure it's achievable. We're not working on it
+   right now."* So §1–§9 below were written as a feasibility study, not a build plan.
+2. 2026-10-30 13:19 UTC — **"start it."** Having asked what had become of the proposal, the owner
+   read the verdict and ordered the work started.
+
+**What that changes, and what it does not.** Phase 0 (`lib/chartStructures.ts` — pivots, line fit,
+fit quality; pure functions, no UI, no AI, no network) is assigned to Dev, with QA owning the
+fixture tests. **Phases 1–4 are sequenced, not started.** Nothing in §2 is relaxed by the work
+starting — the geometry stays in code, and Phase 0 is deliberately the half that cannot
+hallucinate. §4a is a hard constraint on Phase 2, not advice.
+
+**It does not displace the `priority: high` reliability work** (`#1631`, `#1649`, `#1651`). The
+owner's standing order of work — data reliability first, then payments and users, then polish — is
+unchanged; this is a new `priority: medium` lane item that runs alongside it.
 
 **Owner's description, in his words:** when the user hits deep research, it generates a technical
 analysis **on the chart** — "either a parallel line channel or this descending action line, you

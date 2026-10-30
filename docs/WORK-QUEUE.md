@@ -82,6 +82,14 @@ means*). **Every issue carries exactly one `priority:` label.**
 | D5 | **#1600 - all coins** (owner, 2026-10-21 08:58 UTC) | After the server fixes; more coins may not mean more upstream calls per minute (#1649 item 5). |
 | D6 | **#1632 - security items left** (high) | Includes the Next.js dependency bump (Dependabot), the liquidation page's 5,000-row download, and the AI prompts moved server-side (#1263). |
 | D7 | **Fails from QA's 2026-10-21 regression** (#1640) | R1 Arena 11 px too wide at 390; R2 `/api/ath` 502 when CoinGecko answers 429; R3 `/alerts` signed-out 401s; R4 `bot-info` 500; R9 `/about` still names Finnhub; R13 econ 429 shown as "No upcoming events" (PR #1637 open). R6-R8 are visual: the owner's look first. |
+| D8 | **#1818 — chart structures, Phase 0** (medium) | **The owner ordered this started on 2026-10-30 13:19 UTC — *"start it."*** Deliverable: `lib/chartStructures.ts` — swing-pivot detection with configurable left/right strength, least-squares line fit, and fit quality (R², touch count, first and last touch timestamp). **Pure functions. No UI, no AI, no network, no new dependency.** Spec: `docs/proposals/ai-chart-structures.md`, §2 and §7. **The load-bearing decision is §2: geometry is computed in code and the AI never returns a coordinate** — a model-placed line misses the candles and the user's own eyes are the test instrument. QA owns the fixtures, so the PR says what to assert and why. **Do not start Phase 1 (overlays) in this PR.** §4a binds Phase 2 and is a constraint, not advice: each rung of the timeframe ladder is a fixed-limit request, never a range, because `canFailoverForRequest(isRange)` returns `!isRange` and a range request therefore has no Bybit fallback. **The push goes in a heavy window PM opens** (see P5). |
+
+**D8 sits at the bottom of that table and is nevertheless Dev's CURRENT item.** The owner ordered
+it started on 2026-10-30 at 13:19 UTC and the rows above it are not cancelled — they resume the
+moment Phase 0 lands. It is written out rather than left to position because this table is read
+top-down as the order of work, so a row added at the bottom reads as "later" by default, which is
+the opposite of the instruction. Phase 0 is small on purpose (one file of pure functions), so the
+high-priority reliability lane pauses for one item, not for a feature.
 
 **UI polish and accessibility audit work: last, not parked.** The owner parked it on
 2026-09-19 and on 2026-09-30 said to work "all items, issues, PRs and backlogs". So it is
@@ -152,6 +160,7 @@ controls** - to anything you touch.
 | Q6 | **Language scan of the ~29 pages not covered on 2026-10-21** | Chromium crashed for memory at 12:36 UTC; the 7 key pages and the release's wordings were checked. English found so far is all tracked on #1475. |
 | Q7 | **Cross-browser harness (#1410)** | Owner backlog item 15: Firefox and WebKit. A browser run is a heavy job: one at a time, measure first. |
 | Q8 | **Older items still open** | #1259 (make a red E2E run mean something); `TEST_GAPS.md` §1 and §6; load testing beyond one address needs many source IPs, a paid tool, so the owner's cost decision. |
+| Q9 | **Fixtures for #1818 Phase 0** | QA owns every test (owner ruling, 2026-09-07). Fixture candle series plus exact expected pivots, slopes, R² and touch counts for `lib/chartStructures.ts`. **No AI call and no network — that is the whole point of Phase 0** (`docs/proposals/ai-chart-structures.md` §2), so these are the cheapest tests in the repo and they can be exact rather than approximate. **Include a negative fixture:** a series with no clean structure must return none, because "nothing clean on this timeframe" is the shippable answer — and an absence assertion needs a positive control beside it, or it passes while measuring nothing (`docs/INFRASTRUCTURE.md` §9b). Dev's PR says what to assert; whether it is covered is yours. |
 
 ## PM/DevOps lane
 
