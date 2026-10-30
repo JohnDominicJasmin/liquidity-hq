@@ -115,13 +115,60 @@ export function isSingleVenue(coin: string): boolean {
   return BY_ID.get(coin)?.oneVenue ?? false;
 }
 
+/* THESE TWO MAPS COVER WHAT THE APP RENDERS, NOT THE WHOLE UNIVERSE, and that is load-bearing
+ * rather than tidy.
+ *
+ * 29 call sites iterate them wholesale - `Object.values(BINANCE_SYMS)`, `Object.keys(BYBIT_SYMS)`,
+ * `Object.entries(...)` - and every one of them is a fan-out. Built over all 463 they became:
+ *
+ *   MarketProvider        one WebSocket subscription per symbol, 462 streams instead of 50
+ *                         a 7,828-character GET for the 24h poll, up from about 860 - close
+ *                         enough to the usual 8 KB request-line cap to fail in some proxy paths
+ *                         462 concurrent requests in the open-interest fan-out
+ *   telegram/alert        runBatched over BYBIT_SYMS at 300 klines per coin, TWICE
+ *   bybitFanout, LiqFeed  the same multiplication again
+ *
+ * `SCANNED_COINS` was supposed to be what held the cron's cost down, and it does not reach any of
+ * this: those loops never mention COINS. **A bound that the hot paths do not go through is not a
+ * bound.** Keeping the maps at the rendered list is what actually holds it, because the fan-outs
+ * read the map.
+ *
+ * The universe is still reachable per-coin through `coinRow(id)`, which is how an opt-in surface
+ * gets a symbol for an instrument outside the rendered 50 - one id at a time, deliberately,
+ * rather than by iterating a map that something else also iterates. */
+/* FOUR COINS THE GENERATOR FOUND ON BINANCE ARE HELD BACK, each for a reason that has to be
+ * closed before the failover is worth having. The hand table excluded all four and was right to,
+ * even though its stated reason covered only two of them.
+ *
+ *   pepe, bonk  Binance lists them as 1000PEPEUSDT / 1000BONKUSDT, so every price read from
+ *               Binance is 1000x the per-token price the rest of the app uses. The row carries
+ *               `binanceMult` for exactly this and `binancePriceFactor` exists to apply it -
+ *               and it has ZERO call sites. Adding the symbols before the factor is applied is
+ *               the Bybit bug again: silent, two coins, and it put PEPE and BONK alert outcomes
+ *               at +/-100,000% last time, dragging the Track Record average to -126%.
+ *
+ *   spx         A TICKER COLLISION, NOT A MULTIPLIER. Bybit's SPXUSDT is the index synthetic
+ *               this app treats it as; Binance also lists SPXUSDT, and the two are not
+ *               necessarily the same instrument - SPX6900 is a token trading under that ticker.
+ *               Failing over between two different assets would print one as the other with
+ *               nothing to notice it. Needs someone to confirm the identity, not reason about it.
+ *
+ *   hype        Same question, lower stakes, held with spx rather than split from it.
+ *
+ * This is the one place a generated list is overridden by hand, so it names each coin and what
+ * would remove it from the list rather than being a bare exclusion set. */
+const BINANCE_HOLD = new Set(['pepe', 'bonk', 'spx', 'hype']);
+
 export const BINANCE_SYMS: Record<string, string> = Object.fromEntries(
-  COIN_UNIVERSE.filter(r => r.binance).map(r => [r.id, r.binance as string]),
+  RENDERED_IDS
+    .filter(id => !BINANCE_HOLD.has(id))
+    .map(id => [id, BY_ID.get(id)?.binance])
+    .filter(([, s]) => s) as [string, string][],
 );
 
 // Bybit linear perp symbols - includes the 1000x meme listings and the synthetics.
 export const BYBIT_SYMS: Record<string, string> = Object.fromEntries(
-  COIN_UNIVERSE.filter(r => r.bybit).map(r => [r.id, r.bybit as string]),
+  RENDERED_IDS.map(id => [id, BY_ID.get(id)?.bybit]).filter(([, s]) => s) as [string, string][],
 );
 
 /* Reverse of BINANCE_SYMS - given a Binance symbol, which coin it is. Shared across every
