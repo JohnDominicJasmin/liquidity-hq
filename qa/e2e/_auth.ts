@@ -1,5 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+/* The only runtime import from Playwright in this file, and it is here so an environment outage can be
+   reported as a SKIP rather than 67 failures - see the outage block above mintSession. Safe because every
+   importer of this module is a spec or a spec helper, checked 2026-10-30. */
+import { test } from '@playwright/test';
 import { gotoGuarded } from './_shared';
 
 /**
@@ -229,23 +233,93 @@ const sessionCache = new Map<string, Promise<CachedSession>>();
 // fresh one up front.
 const EXPIRY_SAFETY_MARGIN_SECONDS = 120;
 
+/* ── AN OUTAGE IS NOT A TEST FAILURE, AND THIS FILE COULD NOT TELL THE DIFFERENCE UNTIL 2026-10-30 ──────────
+   `AUTH_READY` above asks only whether the credentials are SET. On 2026-10-29 all ten were set and the dev
+   Supabase edge was answering 522, so 67 specs failed hard, the gate burned its full 120 minutes, and a
+   release shipped with the browser suite unrun. "The gate is red" and "the environment is dark" have to be
+   separable from the summary, not from a two-hour log.
+
+   The discrimination below is deliberately NARROW, because a skip that swallows a real auth regression is
+   worse than a red one:
+
+     fetch rejects outright, or the body is not JSON   the edge answered, not GoTrue   OUTAGE -> skip
+     502 503 504 520 521 522 523 524                   gateway statuses                OUTAGE -> skip
+     500 WITH a JSON body                              GoTrue itself answered          FAILURE -> throw
+     any 4xx, bad credentials included                 the product refused us          FAILURE -> throw
+
+   So the NULL-token-columns bug this file has always warned about still fails loudly. Only the gateway
+   skips. */
+const GATEWAY_STATUSES = new Set([502, 503, 504, 520, 521, 522, 523, 524]);
+
+/* Sticky on purpose: the first outage-shaped answer makes every later call skip at once instead of
+   re-probing a dead endpoint 67 times. That is the difference between a two-minute run and 2026-10-29's two
+   hours. The cost is that one transient blip skips the remainder of the run, which is why the reason travels
+   into every skip description rather than being logged once - A RUN WHOSE AUTH SKIPPED IS NOT A VERIFIED
+   RUN, and the report has to say so where it is read. */
+let outageReason: string | null = null;
+
+function skipForOutage(reason: string): never {
+  outageReason = reason;
+  try {
+    test.info();                    // throws when there is no test running
+  } catch {
+    throw new Error(reason);        // tools and global setup still fail loudly rather than vanish
+  }
+  test.skip(true, reason);          // Playwright does not run the test past this call
+  throw new Error(reason);          // unreachable; keeps the `never` return honest
+}
+
 function mintSession(email: string, password: string): Promise<CachedSession> {
   return (async () => {
+    if (outageReason) {
+      sessionCache.delete(email);
+      skipForOutage(outageReason);
+    }
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
+    }).catch((cause: unknown) => {
+      sessionCache.delete(email);
+      return skipForOutage(
+        `the Supabase auth endpoint did not answer at all: ${String(cause)}. ` +
+        `${SUPABASE_URL} is unreachable from this runner, so this is the environment and not the product. ` +
+        `Everything needing a signed-in session is skipped from here.`,
+      );
     });
-    const body = await res.json().catch(() => ({}));
+    let bodyWasNotJson = false;
+    const body = await res.json().catch(() => { bodyWasNotJson = true; return {}; });
     if (!res.ok || !body.access_token) {
       // Remove the failed attempt so a transient failure doesn't poison every
       // later call for this email with a permanently-rejected cache entry.
       sessionCache.delete(email);
+      const detail = bodyWasNotJson
+        ? `HTTP ${res.status}, and the body was not JSON`
+        : `HTTP ${res.status} ${JSON.stringify(body).slice(0, 200)}`;
+
+      if (bodyWasNotJson || GATEWAY_STATUSES.has(res.status)) {
+        skipForOutage(
+          `the Supabase auth edge is down - this is the environment, not the product: ` +
+          `sign-in for ${email} got ${detail}. A gateway status or a non-JSON body means the request never ` +
+          `reached GoTrue, so no product code is in the path. Everything needing a signed-in session is ` +
+          `skipped from here.`,
+        );
+      }
+
+      /* THE HINT IS NOW GATED ON ITS OWN CONDITION, which is the whole point. It used to read "If this is
+         500 ..." and print on every sign-in failure, so a teammate reading 67 of them out of a CI log
+         reported the schema bug as the cause - while the `{}` in the very same line disproved it, because
+         an empty body means res.json() threw and GoTrue never answered. Advice that prints when its
+         condition is false is indistinguishable from a diagnosis. */
+      const looksLikeSchemaBug =
+        res.status === 500 && /Database error querying schema/i.test(JSON.stringify(body));
+
       throw new Error(
-        `sign-in failed for ${email}: HTTP ${res.status} ${JSON.stringify(body).slice(0, 200)}. ` +
-        `If this is 500 "Database error querying schema", the auth.users row has NULL ` +
-        `token columns - GoTrue scans them into non-nullable Go strings. See the ` +
-        `seeded-accounts issue for the coalesce fix.`,
+        `sign-in failed for ${email}: ${detail}.` +
+        (looksLikeSchemaBug
+          ? ` The auth.users row has NULL token columns - GoTrue scans them into non-nullable Go strings.` +
+            ` See the seeded-accounts issue for the coalesce fix.`
+          : ''),
       );
     }
     return {
