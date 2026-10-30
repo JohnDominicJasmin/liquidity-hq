@@ -44,10 +44,28 @@ const j = async (url) => {
   return r.json();
 };
 
-/** `1000PEPE` -> { id: 'pepe', mult: 0.001 }. The multiplier converts an exchange price to the
- *  per-token price the rest of the app uses. */
+/**
+ * `1000PEPE` -> { id: 'pepe', mult: 0.001 }. The multiplier converts that venue's quote to the
+ * per-token price the app uses.
+ *
+ * ONLY THE PREFIXES A VENUE ACTUALLY QUOTES IN. The first version took any leading digits, and
+ * **a leading digit in a quantity and a leading digit in a NAME are not distinguishable by
+ * `/^(\d+)(.+)$/`.** Three real instruments are named with one:
+ *
+ *   0G    -> mult = 1/0 = Infinity   every price for that coin becomes Infinity
+ *   2Z    -> mult = 0.5              every price halved
+ *   1INCH -> id 'inch'               renders as INCH, charts as INCH/USDT
+ *
+ * `0G` also slipped the `dec !== null` filter, because `-log10(Infinity)` clamps to 0 instead of
+ * producing NaN - so it shipped as a selectable coin with an infinite price. Found by QA's step-0
+ * fixtures. It is the exact trap this file's header warns about, one function away from the
+ * warning, which is the second time that has happened in this generator.
+ *
+ * Checked against all 463 rows: pepe, bonk, floki, mog, sats, rats, xec, cat, lunc, toshi, tag
+ * and turbo are unchanged by the narrowing.
+ */
 function normaliseBase(base) {
-  const m = /^(\d+)(.+)$/.exec(base);
+  const m = /^(1000000|10000|1000)(.+)$/.exec(base);
   if (!m) return { id: base.toLowerCase(), mult: 1 };
   return { id: m[2].toLowerCase(), mult: 1 / Number(m[1]) };
 }
@@ -111,13 +129,22 @@ const rows = [...ids].map(id => {
   /* Rank on the THINNER venue: a coin is only as tradable as its weaker side, and that is the
      side a failover read lands on. A single-venue instrument ranks on the venue it has. */
   const liq = oneVenue ? (b?.turnover ?? n?.volume ?? 0) : Math.min(b.turnover, n.volume);
+  /* ONE MULTIPLIER PER VENUE, because the two venues do not always agree.
+     `sats` is quoted as 10000SATS on Bybit and 1000SATS on Binance, so a single `mult` describes
+     one of them and is out by 10x on the other. A failover read - the entire reason both venues
+     are required - would then return a wrong price at exactly the moment the primary fails.
+     `toshi`, `tag` and `turbo` differ the same way and were safe only because of which direction
+     the conversion happens to run in. That is luck, not design, and a price wrong by 10x to
+     1000x is wrong data rather than sparse data. */
   return {
     id,
     bybit: b?.symbol ?? null,
     binance: n?.symbol ?? null,
-    /* Bybit is the price source, so its multiplier is the one that matters. */
-    mult: b?.mult ?? n?.mult ?? 1,
-    dec: decimalsFromTick(b?.tick || n?.tick, b?.mult ?? n?.mult ?? 1),
+    bybitMult: b?.mult ?? 1,
+    binanceMult: n?.mult ?? 1,
+    /* Decimals follow Bybit, the default price source, falling back to Binance when that is the
+       only venue. */
+    dec: b ? decimalsFromTick(b.tick, b.mult) : decimalsFromTick(n.tick, n.mult),
     oneVenue,
     liq,
   };
@@ -142,13 +169,16 @@ export interface CoinRow {
   readonly id: string;
   readonly bybit: string | null;
   readonly binance: string | null;
-  readonly mult: number;
+  /** Converts a BYBIT quote to the per-token price. */
+  readonly bybitMult: number;
+  /** Converts a BINANCE quote to the per-token price. The two differ on sats, toshi, tag, turbo. */
+  readonly binanceMult: number;
   readonly dec: number;
   readonly oneVenue: boolean;
 }
 
 export const COIN_UNIVERSE: readonly CoinRow[] = [
-${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'}, binance: ${r.binance ? `'${r.binance}'` : 'null'}, mult: ${r.mult}, dec: ${r.dec}, oneVenue: ${r.oneVenue} },`).join('\n')}
+${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'}, binance: ${r.binance ? `'${r.binance}'` : 'null'}, bybitMult: ${r.bybitMult}, binanceMult: ${r.binanceMult}, dec: ${r.dec}, oneVenue: ${r.oneVenue} },`).join('\n')}
 ];
 `;
 

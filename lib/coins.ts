@@ -123,8 +123,23 @@ export const COIN_LABELS: Record<string, string> = Object.fromEntries(
    silent and only shows up on the 1000x coins. */
 export function bybitPriceFactor(coin: string): number {
   const row = BY_ID.get(coin);
-  if (row) return row.mult;
+  if (row) return row.bybitMult;
   return BYBIT_SYMS[coin]?.startsWith('1000') ? 0.001 : 1;
+}
+
+/* THE SAME CONVERSION FOR BINANCE, AND IT IS NOT ALWAYS THE SAME NUMBER.
+ *
+ * Four instruments are quoted in different units by the two venues - `sats` is 10000SATS on
+ * Bybit and 1000SATS on Binance, and toshi, tag and turbo are 1000x on Bybit and 1x on Binance.
+ * A single factor describes one venue and is out by 10x to 1000x on the other.
+ *
+ * That matters precisely because of the failover: both venues are required so that a Bybit
+ * outage has a second source, so a coin converted with the wrong venue's factor becomes wrong at
+ * exactly the moment the fallback is used. Three of the four were safe only because of which
+ * direction the conversion ran in, which is luck rather than design. Found by QA's step-0
+ * fixtures; the per-venue split is the fix that closes the class rather than the instance. */
+export function binancePriceFactor(coin: string): number {
+  return BY_ID.get(coin)?.binanceMult ?? 1;
 }
 
 /** Same conversion when only the symbol is in hand, not the coin id. */
