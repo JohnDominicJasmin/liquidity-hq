@@ -328,18 +328,34 @@ function mintSession(email: string, password: string): Promise<CachedSession> {
         ? `HTTP ${res.status}, and the body was not JSON`
         : `HTTP ${res.status} ${JSON.stringify(body).slice(0, 200)}`;
 
-      if (bodyWasNotJson || GATEWAY_STATUSES.has(res.status)) {
-        failAndMaybeLatch(
-          `the Supabase auth edge is down - the environment, not the product: sign-in for ${email} got ` +
-          `${detail}. A gateway status or a non-JSON body means the request never reached GoTrue, so no ` +
-          `product code is in the path.`,
-        );
-      }
+      /* STATUS IS CLASSIFIED BEFORE BODY SHAPE, AND THE WORDING KEYS OFF THE BODY RATHER THAN THE STATUS.
+         Both corrections come from PM/DevOps reading this file rather than my summary of it, and both were
+         mislabels rather than defects - the two-failure rule reddens the gate either way:
 
+           - a 429 served as an HTML rate-limit page used to match `bodyWasNotJson` first and report
+             "refused", losing the exact distinction 429 was given its own path for;
+           - a GoTrue-issued 503 WITH a real JSON body used to report "the edge is down", which inverts the
+             500-with-a-body carve-out. Something plainly answered, so the edge was not down.
+
+         Throttling is therefore tested first, and the outage message now states whether anything spoke JSON
+         instead of asserting where in the chain the failure was. Classifying on a status alone cannot tell
+         an absent service from an unavailable one; the body can. */
       if (THROTTLE_STATUSES.has(res.status)) {
         failAndMaybeLatch(
           `the auth endpoint is rate limiting us rather than refusing our credentials: sign-in for ${email} ` +
           `got ${detail}. This suite mints a session per spec, so read this as throughput and not as a defect.`,
+        );
+      }
+
+      if (GATEWAY_STATUSES.has(res.status) || bodyWasNotJson) {
+        failAndMaybeLatch(
+          bodyWasNotJson
+            ? `nothing in front of GoTrue spoke JSON - the environment, not the product: sign-in for ` +
+              `${email} got ${detail}, so the request did not reach the auth service and no product code is ` +
+              `in the path.`
+            : `the auth service reports itself unavailable - the environment, not the product: sign-in for ` +
+              `${email} got ${detail}. It answered with a body, so this is unavailability rather than a ` +
+              `refusal of our credentials.`,
         );
       }
 
