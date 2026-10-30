@@ -274,10 +274,26 @@ for (const path of ['/', '/upgrade'] as const) {
              It is deliberately NOT set near the post-fix figure, because that figure has not been measured
              yet: the branch is not deployed anywhere. The log line above prints the real number on the first
              qa run, and the threshold can be tightened then with the figure in hand. A bound I invented and
-             a bound I measured are different things and this comment is which one this is. */
-          expect(m.words, `${path} served ${m.words} words to a JS-less client (before #1742: 48 on / and 63 on /upgrade)`)
-            .toBeGreaterThan(100);
+             a bound I measured are different things and this comment is which one this is.
+
+             FIRST FIGURES, 2026-10-29, run 40948910258 - NOT yet usable, recorded so nobody re-derives them:
+             `/` returned 42 at both widths and both themes; `/upgrade` returned 48 at 390px and 50 at 1280px.
+             Every cell reproduced exactly on a second attempt, so the metric is stable and width-dependent
+             rather than noisy. They still cannot tighten this threshold: the run booted the app locally
+             against a dev database that was timing out, so the server render may have been an error state,
+             and the before-figures came from a PLAIN FETCH rather than this innerText count. A stable number
+             on the wrong scale is not a baseline. Re-measure with THIS instrument on deployed qa and on
+             production before touching the 100. */
+
+          /* ORDER MATTERS, AND IT WAS WRONG HERE UNTIL 2026-10-30. The spinner assertion is the certain one -
+             it is the actual #1742 defect. The word count is the invented bound two paragraphs up. With the
+             guess first, it failed in all 8 cells on 2026-10-29 and Playwright never reached the certain
+             assertion, so a two-hour run proved nothing in either direction while reading as coverage.
+             Certain assertions go first: an uncalibrated bound must never be able to cancel the measurement
+             it was added to protect. */
           expect(m.spinner, `${path} still served the full-page loading container to a JS-less client`).toBe(false);
+          expect(m.words, `${path} served ${m.words} words to a JS-less client (before #1742: 48 on / and 63 on /upgrade - measured with a plain fetch, which is a DIFFERENT instrument from this innerText count, so a smaller number here is not a regression)`)
+            .toBeGreaterThan(100);
         } finally {
           await ctx.close();
         }
