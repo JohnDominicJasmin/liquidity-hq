@@ -706,7 +706,7 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
 
 Neither of these fails loudly. Both produce a result that looks like data.
 
-### 9a. `grep -i` COMBINED WITH `-F` RETURNS NOTHING IN THIS ENVIRONMENT
+### 9a. `grep -i` COMBINED WITH `-F` **CRASHES** IN THIS ENVIRONMENT (SIGABRT, exit 134)
 
 Measured on the Git Bash grep here, against a file containing the string:
 
@@ -715,8 +715,8 @@ grep -oF   LiquidityHQ file   ->  LiquidityHQ      correct
 grep -oi   LiquidityHQ file   ->  LiquidityHQ      correct
 grep -cF   LiquidityHQ file   ->  1                correct
 grep -ci   LiquidityHQ file   ->  1                correct
-grep -oiF  LiquidityHQ file   ->  (nothing)        WRONG
-grep -ciF  LiquidityHQ file   ->  (nothing)        WRONG, also under LC_ALL=C
+grep -oiF  LiquidityHQ file   ->  ABORTS           SIGABRT, exit 134
+grep -ciF  LiquidityHQ file   ->  ABORTS           SIGABRT, exit 134, also under LC_ALL=C
 ```
 
 **So any check built on `grep -iF` can never find anything, and reports that as a clean zero.**
@@ -819,3 +819,44 @@ Narrower and more useful than "add controls". Four instances in one day, in four
 
 Every one of them returns a clean, plausible, confidently wrong answer, and none of them looks
 wrong on the page.
+
+### 9a-3. CORRECTION: it does not return nothing, IT ABORTS — and that changes the advice
+
+Dev reproduced 9a and found the mechanism. **`grep -iF` does not fail to match. The process dies.**
+Verified here independently, 3 for 3:
+
+```
+grep -cF  LiquidityHQ file   ->  exit 0      correct
+grep -ci  LiquidityHQ file   ->  exit 0      correct
+grep -ciF LiquidityHQ file   ->  exit 134    SIGABRT
+grep -oiF LiquidityHQ file   ->  exit 134    SIGABRT
+```
+
+**grep prints NOTHING to its own stderr.** The familiar `Aborted` line comes from the interactive
+shell's job control, so in a subshell, a command substitution or a script there is **no diagnostic
+at all** — an empty result and an exit code nobody reads.
+
+That is also the mechanism behind 9a-2: `-ciF` gives empty rather than `0` because the process dies
+before it can print the count.
+
+**Three consequences that "returns nothing" does not predict:**
+
+1. **`set -e` scripts DIE at exit 134.** Verified: `bash -c 'set -e; grep -ciF ...; echo SURVIVED'`
+   never reaches the echo. This is the one loud case, and the only good news here.
+2. **`N=$(grep -ciF ...)` leaves `N` empty**, so `[ "$N" -gt 0 ]` fails with *integer expression
+   expected* and exit 2 rather than evaluating false. Inside an `if`, or behind `2>/dev/null`, that
+   error is swallowed and the branch simply is not taken.
+3. **`|| echo 0` CONVERTS THE CRASH INTO A FABRICATED ZERO** — and it is the most natural way to
+   write it. Verified against a file that *does* contain the string:
+
+   ```sh
+   N=$(grep -ciF LiquidityHQ file 2>/dev/null || echo 0)   # N=0. The string is present.
+   ```
+
+   The defensive idiom that exists to stop a non-match aborting a script is precisely what turns
+   this crash into clean, plausible, wrong data.
+
+**Both sweeps are clean and both were controlled.** Dev: `git grep -nE` for any grep combining `-i`
+and `-F` across the repo excluding `node_modules`, zero hits, pattern fires on a planted
+`grep -oiF`. QA: `qa/`, `__tests__/`, `scripts/`, `.github/`, `.githooks/`, 14 invocations, none
+using `-i`, two patterns against a planted file holding all three spellings.
