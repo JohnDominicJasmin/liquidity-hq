@@ -23,6 +23,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
 import { ROOT } from './_appPath.mts';
 import { LEGAL_NAME_CONFIRMED, TRADER_LEGAL_NAME } from '../lib/traderIdentity.ts';
 
@@ -34,35 +35,107 @@ const DEFINER = 'lib/traderIdentity.ts';
 /* ══ THE PURE CORE, so the red path is proved here and not by editing app code ═══════════════════ */
 
 /**
- * Files that read the legal name without also reading the confirmed switch.
+ * Identifier names that appear in CODE, via the AST.
+ *
+ * THE FIRST VERSION OF THIS GATE USED `src.includes(SWITCH)` AND DID NOT HOLD. Dev Team planted the
+ * realistic refactor in the real tree - import removed, `{!LEGAL_NAME_CONFIRMED && ...}` block
+ * removed, and the COMMENT explaining the guard left behind. `tsc --noEmit` was clean, the page
+ * printed the unmarked placeholder, and the gate passed, because the comment still contained the
+ * word. My header said the rule was "every printer IMPORTS the switch" and my code tested "the file
+ * MENTIONS the switch somewhere"; those differ exactly where it matters, since **the comment
+ * explaining a guard is the most likely thing to outlive the guard** - and the comment that defeated
+ * it was written in the very PR that added the guard.
+ *
+ * Comments are not AST nodes, so reading identifiers excludes them BY CONSTRUCTION rather than by a
+ * regex that has to guess where a comment ends and a `https://` in a string begins. String literals
+ * and JSX text are excluded for free too: a file that merely talks about the name is not a printer.
+ */
+function codeIdentifiers(rel: string, src: string): Set<string> {
+  const kind = /\.(tsx|jsx)$/.test(rel) ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const sf = ts.createSourceFile(rel, src, ts.ScriptTarget.ES2022, true, kind);
+  const names = new Set<string>();
+  const walk = (node: ts.Node): void => {
+    if (ts.isIdentifier(node)) names.add(node.text);
+    node.forEachChild(walk);
+  };
+  sf.forEachChild(walk);
+  return names;
+}
+
+/** Files whose CODE reads the legal name. Comment-only and string-only mentions do not count. */
+export function printers(sources: ReadonlyMap<string, string>): string[] {
+  const out: string[] = [];
+  for (const [rel, src] of sources) {
+    if (rel.replace(/\\/g, '/') === DEFINER) continue;
+    if (!src.includes(NAME)) continue;                       // cheap pre-filter before parsing
+    if (codeIdentifiers(rel, src).has(NAME)) out.push(rel);
+  }
+  return out;
+}
+
+/**
+ * Files that read the legal name in code without also reading the confirmed switch in code.
  * A Map rather than the filesystem so it can be driven with fixtures.
  */
 export function printersMissingGuard(sources: ReadonlyMap<string, string>): string[] {
   const missing: string[] = [];
-  for (const [rel, src] of sources) {
-    if (rel.replace(/\\/g, '/') === DEFINER) continue;
-    if (!src.includes(NAME)) continue;
-    if (!src.includes(SWITCH)) missing.push(rel);
+  for (const rel of printers(sources)) {
+    if (!codeIdentifiers(rel, sources.get(rel)!).has(SWITCH)) missing.push(rel);
   }
   return missing;
 }
 
-test('N1. CONTROL: the rule itself catches a missing guard and passes a present one', () => {
+test('N1. CONTROL: the rule catches a missing guard and passes a present one', () => {
   const good = new Map([
-    ['app/x/page.tsx', `import { LEGAL_NAME_CONFIRMED, TRADER_LEGAL_NAME } from '@/lib/traderIdentity';`],
+    ['app/x/page.tsx', `import { LEGAL_NAME_CONFIRMED, TRADER_LEGAL_NAME } from '@/lib/traderIdentity';
+      export const P = () => <p>{!LEGAL_NAME_CONFIRMED && 'pending'}{TRADER_LEGAL_NAME}</p>;`],
   ]);
   const bad = new Map([
-    ['app/y/page.tsx', `import { TRADER_COUNTRY, TRADER_LEGAL_NAME } from '@/lib/traderIdentity';`],
+    ['app/y/page.tsx', `import { TRADER_COUNTRY, TRADER_LEGAL_NAME } from '@/lib/traderIdentity';
+      export const P = () => <p>{TRADER_LEGAL_NAME}{TRADER_COUNTRY}</p>;`],
   ]);
   const unrelated = new Map([['app/z/page.tsx', `const greeting = 'hello';`]]);
 
-  assert.deepEqual(printersMissingGuard(good), [], 'a file importing both must pass');
+  assert.deepEqual(printersMissingGuard(good), [], 'a file importing and using both must pass');
   assert.deepEqual(printersMissingGuard(bad), ['app/y/page.tsx'],
-    'a file importing the name without the switch must be reported - this is the exact shape of the ' +
+    'a file reading the name without the switch must be reported - this is the exact shape of the ' +
     '/upgrade defect, and if this assertion ever passes trivially the gate is measuring nothing');
   assert.deepEqual(printersMissingGuard(unrelated), [], 'a file mentioning neither must not be reported');
   assert.deepEqual(printersMissingGuard(new Map([[DEFINER, `export const ${NAME} = 'x';`]])), [],
     'the defining module is exempt');
+});
+
+test('N1b. CONTROL: a COMMENT mentioning the switch does not satisfy the guard', () => {
+  /* The planted refactor, exactly as Dev Team wrote it into the real tree: the import gone, the
+     conditional gone, and only the comment that explained the guard left behind. `tsc` is clean and
+     the page prints the unmarked placeholder, so the gate MUST report this file. The substring
+     version of this predicate passed it. */
+  const plantedRefactor = new Map([
+    ['app/(main)/upgrade/page.tsx', `import { TRADER_COUNTRY, TRADER_LEGAL_NAME } from '@/lib/traderIdentity';
+      export default function Page() {
+        return (
+          <p>
+            {/* Goes away when LEGAL_NAME_CONFIRMED flips - see lib/traderIdentity.ts. */}
+            {TRADER_LEGAL_NAME}, {TRADER_COUNTRY}
+          </p>
+        );
+      }`],
+  ]);
+  assert.deepEqual(
+    printersMissingGuard(plantedRefactor), ['app/(main)/upgrade/page.tsx'],
+    'a file whose only trace of the switch is a COMMENT must still be reported. The comment ' +
+    'explaining a guard is the single most likely thing to outlive the guard, which is why this ' +
+    'reads identifiers from the AST rather than searching the text.',
+  );
+
+  /* The mirror of the same bug: a file that only TALKS about the name, in a comment or a string, is
+     not a printer and must not be reported or counted as one. */
+  const talksAboutIt = new Map([
+    ['docs/x.ts', `/* TRADER_LEGAL_NAME is defined in lib/traderIdentity.ts */
+      const note = 'set TRADER_LEGAL_NAME before launch';`],
+  ]);
+  assert.deepEqual(printers(talksAboutIt), [], 'a comment or string mention is not a use');
+  assert.deepEqual(printersMissingGuard(talksAboutIt), [], 'and it must not be reported as unguarded');
 });
 
 /* ══ THE REAL TREE ══════════════════════════════════════════════════════════════════════════════ */
@@ -91,12 +164,14 @@ test('N2. CONTROL: the scan found the tree and the surfaces that print the name'
     `only ${SOURCES.size} source files found under ${SCAN_DIRS.join(', ')} - the walk is not reaching ` +
     'the tree, so every result below would be a false pass');
 
-  const printers = [...SOURCES].filter(([rel, src]) => rel !== DEFINER && src.includes(NAME)).map(([rel]) => rel);
-  assert.ok(printers.length >= 2,
-    `expected at least two surfaces printing ${NAME}, found ${printers.length} (${printers.join(', ') || 'none'}). ` +
-    'Both /security and /upgrade print it. A zero or one here means the scan is broken or the pages ' +
-    'were refactored - either way this gate is no longer watching what it was written for, and ' +
-    '"no matches" is not evidence.');
+  /* Counted from the AST, not from the text, for the same reason N3 is: two files MENTIONING the
+     name in comments would otherwise satisfy this control while nothing rendered it. */
+  const found = printers(SOURCES);
+  assert.ok(found.length >= 2,
+    `expected at least two surfaces reading ${NAME} in code, found ${found.length} ` +
+    `(${found.join(', ') || 'none'}). Both /security and /upgrade read it. A zero or one here means ` +
+    'the scan is broken or the pages were refactored - either way this gate is no longer watching ' +
+    'what it was written for, and "no matches" is not evidence.');
 });
 
 test('N3. every surface that prints the legal name can also see whether it is confirmed', () => {
