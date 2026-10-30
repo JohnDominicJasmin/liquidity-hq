@@ -2822,10 +2822,9 @@
   "SECURITY_LAST_UPDATED": "Last updated: October 2026",
   "SECURITY_CALLOUT_BODY": "Who operates LiquidityHQ, where your data is kept, who else handles it, and how to report a problem.",
   "SECURITY_SECTION_OPERATOR_TITLE": "Who you are buying from",
-  "SECURITY_SECTION_OPERATOR_BODY": "LiquidityHQ is operated by {name}, an individual based in {country}. The way to reach us is support@liquidity-hq.com, and it is read by the person who runs the service.",
-  "SECURITY_NAME_PENDING_NOTE": "The name above is a placeholder. The legal name has not been confirmed yet, and this note goes away when it is.",
+  "SECURITY_SECTION_OPERATOR_BODY": "LiquidityHQ is built and run by an independent developer. The way to reach us is support@liquidity-hq.com, and it is read by the person who runs the service.",
   "SECURITY_SECTION_WHERE_TITLE": "Where your data is stored",
-  "SECURITY_SECTION_WHERE_BODY": "Your account and your saved data are held in a managed Postgres database run by Supabase, in their ap-northeast-2 region - Seoul, South Korea. LiquidityHQ itself is operated from {country}, so the data can be reached from there too. The Privacy Policy covers that transfer.",
+  "SECURITY_SECTION_WHERE_BODY": "Your account and your saved data are held in a managed Postgres database run by Supabase, in their ap-northeast-2 region - Seoul, South Korea. LiquidityHQ itself is operated from the Philippines, so the data can be reached from there too. The Privacy Policy covers that transfer.",
   "SECURITY_SECTION_PROTECTION_TITLE": "How it is protected",
   "SECURITY_SECTION_PROTECTION_BODY": "Traffic between your browser and the platform is encrypted with TLS, and the database provider encrypts data at rest. Passwords are stored as a hash by the authentication provider, so nobody here can read yours. No system is perfectly secure and we do not claim otherwise.",
   "SECURITY_SECTION_PROCESSORS_TITLE": "Who else handles your data",
@@ -2856,5 +2855,5 @@
   "REFUND_SECTION_EU_WITHDRAWAL_BODY": "Consumers in the European Union normally have 14 days to withdraw from an online purchase without giving a reason. Digital services are treated differently: once you have asked for the service to start and it has been supplied, that right ends. Subscribing to LiquidityHQ gives you access to it, so for the period you are already in, the 14-day right will usually no longer apply. If you subscribed within the last 14 days and you believe the right still applies to you, write to support@liquidity-hq.com with your purchase details and we will deal with your case individually. Nothing in this policy removes a right that the law in your country gives you. This is our own plain-English summary of the rule, and it has not yet been reviewed by a lawyer.",
 
   "UPGRADE_PURCHASE_TERMS_NOTE": "Your subscription starts once your payment is recorded and runs for the period you chose. Payments are final - the Refund Policy covers cancellation and the EU right of withdrawal.",
-  "UPGRADE_SELLER_IDENTITY_NOTE": "Sold by {name}, {country}. Questions before you buy: support@liquidity-hq.com."
+  "UPGRADE_SELLER_IDENTITY_NOTE": "Sold by LiquidityHQ, built and run by an independent developer. Questions before you buy: support@liquidity-hq.com."
 }
