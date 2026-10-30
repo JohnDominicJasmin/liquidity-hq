@@ -72,6 +72,13 @@ export async function callGrokViaProxy(
     if (err.code === 'STALE_CLIENT') {
       throw Object.assign(new Error('STALE_CLIENT'), { code: 'STALE_CLIENT', usage: err.usage });
     }
+    /* #1263: the coin selector offers every instrument both venues trade, and the AI read covers the
+       tracked list only. Passed on as a code so the page says which coins can be read, in the user's
+       language, instead of the server's "Invalid request." - a sentence that blames them for picking
+       an entry we rendered. */
+    if (err.code === 'COIN_NOT_TRACKED') {
+      throw Object.assign(new Error('COIN_NOT_TRACKED'), { code: 'COIN_NOT_TRACKED', usage: err.usage });
+    }
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
       : err.error ?? 'Grok proxy error';

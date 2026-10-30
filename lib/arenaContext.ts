@@ -119,6 +119,19 @@ void _keysMatchGrokContext;
 export type ArenaParseFailure = { ok: false; reason: string };
 export type ArenaParseResult<T> = { ok: true; value: T } | ArenaParseFailure;
 
+/* THE ONE REFUSAL REASON THE CALLER IS TOLD, and why it is the only one.
+ *
+ * Every other parse failure is about the SHAPE of the body, and naming the field that failed
+ * hands a prober a map of it - so those stay one flat "Invalid request." The untracked coin is
+ * different in kind: it is about a value the USER picked, the tracked list already ships in the
+ * client bundle, and a prober learns nothing from it they cannot read in the JavaScript.
+ *
+ * It needs a name because of what the Arena can now offer. The coin selector lists every
+ * instrument both venues trade (#1263), and most of those have no AI read - so without a code
+ * the page shows the server's untranslated "Invalid request." for a coin WE put in front of
+ * them, which reads as the user having done something wrong. */
+export const COIN_NOT_TRACKED = 'context.coin is not a tracked coin pair';
+
 /**
  * The market context for one read.
  *
@@ -159,7 +172,7 @@ export function parseArenaContext(raw: unknown): ArenaParseResult<GrokContext> {
   const m = /^([A-Za-z0-9]{1,15})\/USDT$/.exec(out.coin.trim());
   const id = m ? m[1].toLowerCase() : null;
   if (!id || !(COINS as readonly string[]).includes(id)) {
-    return { ok: false, reason: 'context.coin is not a tracked coin pair' };
+    return { ok: false, reason: COIN_NOT_TRACKED };
   }
   out.coin = `${id.toUpperCase()}/USDT`;
 

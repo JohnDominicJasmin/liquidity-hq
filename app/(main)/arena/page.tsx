@@ -113,12 +113,25 @@ function ReasoningText({ text }: { text: string }) {
   );
 }
 
-/* THE COINS WITH FULL TELEMETRY. Everything outside this set has price and 24h change and
- * nothing else - no funding, no open interest, no RSI - because those come from per-coin
- * fan-outs and widening them to 463 is a ninefold cost nobody chose. The scanner prints an
- * explicit unknown for those rows rather than a squeeze score of 0, which would be
- * indistinguishable from a real neutral on screen. */
+/* TWO QUESTIONS THAT SHARE A SET TODAY AND ARE NOT THE SAME QUESTION.
+ *
+ * Both derive from `COINS`, so they are equal right now. They are kept apart on purpose: a
+ * convenient boolean used for two purposes is how a badge starts lying, and the day one of these
+ * changes without the other, a single flag would report the wrong one with no sign on screen.
+ *
+ * SIGNAL_COINS  - "do we have funding, open interest and RSI for this coin?" Everything outside
+ *                 it has price and 24h change and nothing else, because the rest comes from
+ *                 per-coin fan-outs and widening those to 463 is a ninefold cost nobody chose.
+ *                 Drives the `n/a` in the Status and Score columns - a squeeze score of 0 built
+ *                 from no funding is indistinguishable from a real neutral on screen.
+ *
+ * READABLE_COINS - "will /api/grok accept an AI read for this coin?" `parseArenaContext` checks
+ *                 membership of `COINS`, so an untracked coin is refused before any plan read,
+ *                 for every tier including Pro. Drives the selector's note and the error line.
+ *
+ * If these ever diverge, the comment above each is what says which badge was wrong. */
 const SIGNAL_COINS = new Set<string>(COINS);
+const READABLE_COINS = new Set<string>(COINS);
 
 const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', readonly CoinId[]> = {
   /* Every instrument both venues trade, not the rendered 50 - this is the one surface the
@@ -1671,6 +1684,15 @@ function ArenaContent() {
       }
       /* #1596: the server refuses Quick/Deep on a coin outside BTC/ETH/SOL for an account that has not paid (403 COIN_LOCKED). Reachable
          when the plan was unknown to the page at click time. Same labelled line and Upgrade link as the lock above the chart. */
+      /* #1263: the selector offers every instrument both venues trade and the AI read covers the
+         tracked list only. The server's own sentence is "Invalid request.", in English, which blames
+         the user for picking a row WE rendered - so this gets a translated line naming what is
+         readable. The `n/a` marks in the selector are the same fact, said before they click. */
+      if ((e as { code?: string }).code === 'COIN_NOT_TRACKED') {
+        setReadError(t('ARENA_READ_COIN_NOT_TRACKED', { coin: selectedCoin.toUpperCase() }));
+        setReadProLocked(false);
+        return;
+      }
       if ((e as { code?: string }).code === 'COIN_LOCKED') {
         setReadError(t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }));
         setReadProLocked(true);
@@ -1786,9 +1808,10 @@ function ArenaContent() {
       if (vsBtc != null && vsBtc >= 2)  badges.push({ key: 'ARENA_SCANNER_BADGE_BEATS_BTC', tone: 'good' });
       if (vsBtc != null && vsBtc <= -2) badges.push({ key: 'ARENA_SCANNER_BADGE_LAGS_BTC', tone: 'bad' });
       return {
-        /* Whether this row's signal columns mean anything. Carried per row rather than checked
-           at render, so there is one place that decides and the cells cannot disagree. */
+        /* Carried per row rather than checked at render, so one place decides and the cells
+           cannot disagree. Two flags, not one - see the comment on the two sets. */
         hasSignals: SIGNAL_COINS.has(c),
+        canRead: READABLE_COINS.has(c),
         c, badges, vsBtc,
         sq:     computeSqueezeScore(coin),
         price:  coin?.price  ?? null,
@@ -2044,7 +2067,7 @@ function ArenaContent() {
             <div style={{ maxHeight: 380, overflowY: 'auto' }}>
             {visibleScannerRows.length === 0 ? (
               <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>{t('ARENA_SCANNER_NO_MATCH', { search: scannerSearch })}</div>
-            ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges, hasSignals }) => {
+            ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges, hasSignals, canRead }) => {
               const isSelected  = c === selectedCoin;
               /* A row with no funding and no OI can never be active - and must not read as a
                  calm market either. `isActive` stays false and the two signal cells below print
@@ -2099,7 +2122,12 @@ function ArenaContent() {
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1 }}>{t('ARENA_SCANNER_USDT_PERP')}</div>
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1 }}>
+                          {/* Said before the click, not after. A row with no AI read is still worth
+                              selecting - the chart and the price work - so this is a note, not a
+                              disabled control. */}
+                          {canRead ? t('ARENA_SCANNER_USDT_PERP') : t('ARENA_SCANNER_NO_AI_READ')}
+                        </div>
                       )}
                     </div>
                   </div>

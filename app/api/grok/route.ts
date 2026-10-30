@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, type ChartData, type GrokContext } from '@/lib/grok';
-import { arenaContextCoinId, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
+import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
@@ -145,11 +145,16 @@ export async function POST(req: NextRequest) {
   const parsedSelection = parseSelection(body.selection);
 
   /* The reason names a field, which is exactly what a 400 must not hand to someone probing the shape, so
-     it is logged and the caller gets one flat message. */
+     it is logged and the caller gets one flat message - with ONE exception, documented on
+     COIN_NOT_TRACKED: a coin the user chose is not a shape detail, the tracked list already ships in
+     the client bundle, and without a name the page shows this untranslated to someone who picked a
+     coin out of our own selector. */
   for (const p of [parsedCtx, parsedChart, parsedSelection]) {
     if (!p.ok) {
       console.warn(`[grok] refused request body: ${p.reason}`);
-      return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
+      return p.reason === COIN_NOT_TRACKED
+        ? NextResponse.json({ error: 'Invalid request.', code: 'COIN_NOT_TRACKED' }, { status: 400 })
+        : NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
     }
   }
   const ctx       = (parsedCtx as { ok: true; value: GrokContext }).value;
