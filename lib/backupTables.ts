@@ -16,10 +16,23 @@
  */
 import { T } from './tables.ts';
 
-/** A table in the backup, with the reason it is in it. */
+/** A table in the backup, with the reason it is in it and the column that makes paging stable. */
 export interface BackupTable {
   readonly table: string;
   readonly why: string;
+  /**
+   * THE COLUMN PAGING ORDERS BY, and it is not optional for a reason.
+   *
+   * `.range(from, to)` without an `ORDER BY` has no defined row order in Postgres. Two pages can
+   * overlap and skip rows at the same time, and the total can still come to the expected count -
+   * so the "rows fetched equals rows counted" check passes over a dump holding duplicates and
+   * missing records. **The integrity check was defeatable until this existed**, which is worse
+   * than having no check, because the file reports itself sound.
+   *
+   * Required rather than defaulted: a wrong guess here is silent, and `mode=count` verifies every
+   * one of these against the live schema before any export can run.
+   */
+  readonly orderBy: string;
 }
 
 /**
@@ -30,22 +43,22 @@ export interface BackupTable {
  * migrations alone would silently revert copy the owner approved.
  */
 export const BACKUP_TABLES: readonly BackupTable[] = [
-  { table: T.user_subscriptions,    why: 'who has paid and what plan - the payment record' },
-  { table: T.whop_webhook_events,   why: 'payment audit trail from the live processor' },
-  { table: T.ls_webhook_events,     why: 'payment audit trail, Lemon Squeezy era' },
-  { table: T.boomfi_webhook_events, why: 'payment audit trail, BoomFi era' },
-  { table: T.user_settings,         why: 'per-user configuration, including telegram_chat_id' },
-  { table: T.muted_alerts,          why: 'what each user has chosen NOT to be told about' },
-  { table: T.user_onboarding,       why: 'where each user got to' },
-  { table: T.user_status,           why: 'account state' },
-  { table: T.price_alerts,          why: 'alerts the user created by hand' },
-  { table: T.push_subscriptions,    why: 'browser push endpoints - cannot be re-derived' },
-  { table: T.hypotheses,            why: 'user-written research' },
-  { table: T.hypothesis_evidence,   why: 'user-written research' },
-  { table: T.labels,                why: 'live copy; rows exist that no migration inserted' },
-  { table: T.app_config,            why: 'feature flags and kill switches as actually set' },
-  { table: T.admin_users,           why: 'who can reach /ops' },
-  { table: T.admin_audit_log,       why: 'what was done there - an audit trail is worthless if it can vanish' },
+  { table: T.user_subscriptions,    why: 'who has paid and what plan - the payment record', orderBy: 'id' },
+  { table: T.whop_webhook_events,   why: 'payment audit trail from the live processor', orderBy: 'id' },
+  { table: T.ls_webhook_events,     why: 'payment audit trail, Lemon Squeezy era', orderBy: 'id' },
+  { table: T.boomfi_webhook_events, why: 'payment audit trail, BoomFi era', orderBy: 'id' },
+  { table: T.user_settings,         why: 'per-user configuration, including telegram_chat_id', orderBy: 'user_id' },
+  { table: T.muted_alerts,          why: 'what each user has chosen NOT to be told about', orderBy: 'id' },
+  { table: T.user_onboarding,       why: 'where each user got to', orderBy: 'user_id' },
+  { table: T.user_status,           why: 'account state', orderBy: 'user_id' },
+  { table: T.price_alerts,          why: 'alerts the user created by hand', orderBy: 'id' },
+  { table: T.push_subscriptions,    why: 'browser push endpoints - cannot be re-derived', orderBy: 'id' },
+  { table: T.hypotheses,            why: 'user-written research', orderBy: 'id' },
+  { table: T.hypothesis_evidence,   why: 'user-written research', orderBy: 'id' },
+  { table: T.labels,                why: 'live copy; rows exist that no migration inserted', orderBy: 'key' },
+  { table: T.app_config,            why: 'feature flags and kill switches as actually set', orderBy: 'key' },
+  { table: T.admin_users,           why: 'who can reach /ops', orderBy: 'id' },
+  { table: T.admin_audit_log,       why: 'what was done there - an audit trail is worthless if it can vanish', orderBy: 'id' },
 ];
 
 /**
@@ -56,21 +69,21 @@ export const BACKUP_TABLES: readonly BackupTable[] = [
  * history we are separately planning to purge.
  */
 export const EXCLUDED_TABLES: readonly BackupTable[] = [
-  { table: T.signals,         why: 'regenerates - derived from market data' },
-  { table: T.trades,          why: 'regenerates' },
-  { table: T.clusters,        why: 'regenerates from exchange feeds' },
-  { table: T.liq_events,      why: 'regenerates from the WebSocket feeds; already has retention' },
-  { table: T.alert_fires,     why: 'the largest table (13 MB); history, and separately being given retention' },
-  { table: T.live_signals,    why: 'regenerates from market data' },
-  { table: T.news,            why: 'regenerates from the feeds' },
-  { table: T.econ_snapshot,   why: 'regenerates from the calendar upstream' },
-  { table: T.market_snapshot, why: 'regenerates from the exchanges' },
-  { table: T.api_health,      why: 'observability, reproduces itself within minutes' },
-  { table: T.ai_call_log,     why: 'cost telemetry; large, and not needed to restore service' },
-  { table: T.alert_grok_log,  why: 'telemetry' },
-  { table: T.grok_usage,      why: 'daily quota counters - reset is harmless and self-corrects' },
-  { table: T.global_ai_usage, why: 'daily spend counters - same' },
-  { table: T.telegram_link_codes, why: 'short-lived single-use codes; a stale one is worse than none' },
+  { table: T.signals,         why: 'regenerates - derived from market data', orderBy: '-' },
+  { table: T.trades,          why: 'regenerates', orderBy: '-' },
+  { table: T.clusters,        why: 'regenerates from exchange feeds', orderBy: '-' },
+  { table: T.liq_events,      why: 'regenerates from the WebSocket feeds; already has retention', orderBy: '-' },
+  { table: T.alert_fires,     why: 'the largest table (13 MB); history, and separately being given retention', orderBy: '-' },
+  { table: T.live_signals,    why: 'regenerates from market data', orderBy: '-' },
+  { table: T.news,            why: 'regenerates from the feeds', orderBy: '-' },
+  { table: T.econ_snapshot,   why: 'regenerates from the calendar upstream', orderBy: '-' },
+  { table: T.market_snapshot, why: 'regenerates from the exchanges', orderBy: '-' },
+  { table: T.api_health,      why: 'observability, reproduces itself within minutes', orderBy: '-' },
+  { table: T.ai_call_log,     why: 'cost telemetry; large, and not needed to restore service', orderBy: '-' },
+  { table: T.alert_grok_log,  why: 'telemetry', orderBy: '-' },
+  { table: T.grok_usage,      why: 'daily quota counters - reset is harmless and self-corrects', orderBy: '-' },
+  { table: T.global_ai_usage, why: 'daily spend counters - same', orderBy: '-' },
+  { table: T.telegram_link_codes, why: 'short-lived single-use codes; a stale one is worse than none', orderBy: '-' },
 ];
 
 /** Every table the registry knows, so a new one cannot be silently in neither list. */

@@ -82,7 +82,7 @@ export async function GET(req: Request) {
   const results: TableResult[] = [];
   const dump: Record<string, unknown[]> = {};
 
-  for (const { table } of BACKUP_TABLES) {
+  for (const { table, orderBy } of BACKUP_TABLES) {
     const { count, error: countErr } = await admin.from(table).select('*', { count: 'exact', head: true });
     if (countErr) {
       results.push({ table, rows: 0, expected: null, ok: false, note: `count failed: ${countErr.message}` });
@@ -90,15 +90,29 @@ export async function GET(req: Request) {
     }
     const expected = count ?? 0;
 
+    /* VERIFY THE ORDER KEY EXISTS, in both modes. A wrong `orderBy` is silent in the worst way -
+       PostgREST rejects an unknown column, but only on a request that actually orders, so an
+       export would be the first thing to discover it. `mode=count` therefore does one ordered
+       single-row read per table, which makes the cheap mode the one that validates the config. */
+    const { error: orderErr } = await admin.from(table).select('*').order(orderBy).range(0, 0);
+    if (orderErr) {
+      results.push({ table, rows: 0, expected, ok: false, note: `orderBy '${orderBy}' rejected: ${orderErr.message}` });
+      continue;
+    }
+
     if (mode === 'count') {
       results.push({ table, rows: expected, expected, ok: true });
       continue;
     }
 
-    /* Paginate. The cap is the reason this is a loop and not a single select. */
+    /* Paginate, ORDERED. The 1000-row cap is why this is a loop; the `.order()` is why the loop
+       is correct. Without a deterministic order Postgres may return the same row on two pages
+       and omit another, and the totals still add up - so the count check below would pass over a
+       dump holding duplicates and missing records. That is worse than an unchecked backup,
+       because the file reports itself sound. Found by the automated security review. */
     const rows: unknown[] = [];
     for (let from = 0; ; from += PAGE) {
-      const { data, error } = await admin.from(table).select('*').range(from, from + PAGE - 1);
+      const { data, error } = await admin.from(table).select('*').order(orderBy).range(from, from + PAGE - 1);
       if (error) {
         results.push({ table, rows: rows.length, expected, ok: false, note: `read failed at ${from}: ${error.message}` });
         break;
@@ -107,12 +121,18 @@ export async function GET(req: Request) {
       if (!data || data.length < PAGE) break;
     }
 
-    /* THE CHECK THAT MAKES THIS A BACKUP RATHER THAN A FILE. A short read is the silent failure
-       mode, so the count and the fetch must agree or the run is not ok. */
-    const ok = rows.length === expected;
+    /* TWO CHECKS, because the count alone is the one that was defeatable. The second asserts the
+       order key is actually unique across what we fetched - if it is not, paging on it can still
+       drift, and a duplicate key is the symptom. */
+    const keys = rows.map(r => JSON.stringify((r as Record<string, unknown>)[orderBy]));
+    const distinct = new Set(keys).size;
+    const countOk = rows.length === expected;
+    const uniqueOk = distinct === rows.length;
+    const ok = countOk && uniqueOk;
     results.push({
       table, rows: rows.length, expected, ok,
-      ...(ok ? {} : { note: `SHORT READ - fetched ${rows.length} of ${expected}` }),
+      ...(countOk ? {} : { note: `SHORT READ - fetched ${rows.length} of ${expected}` }),
+      ...(countOk && !uniqueOk ? { note: `DUPLICATE KEYS - ${rows.length} rows, ${distinct} distinct ${orderBy}` } : {}),
     });
     dump[table] = rows;
   }
@@ -149,6 +169,19 @@ export async function GET(req: Request) {
     return NextResponse.json({ ...body, written: false, reason: 'BACKUP_BUCKET not set', bytes, sha256 });
   }
 
+  /* FAIL CLOSED IF THE BUCKET IS PUBLIC. Everything in this payload is customer or payment data,
+     and `push_subscriptions` carries `auth` and `p256dh`, which are credentials. A bucket created
+     public by accident would publish all of it at a guessable URL, and nothing downstream would
+     notice. Checked on every run rather than assumed at setup, because a bucket's visibility can
+     be changed later by someone who is not looking at this file. */
+  const { data: bucketInfo, error: bucketErr } = await admin.storage.getBucket(bucket);
+  if (bucketErr || !bucketInfo) {
+    return NextResponse.json({ ...body, written: false, reason: `bucket unreadable: ${bucketErr?.message ?? 'not found'}`, bytes, sha256 }, { status: 502 });
+  }
+  if (bucketInfo.public) {
+    return NextResponse.json({ ...body, written: false, reason: 'REFUSED - bucket is public', bytes, sha256 }, { status: 500 });
+  }
+
   const name = `backup-${startedAt.replace(/[:.]/g, '-')}.json`;
   const { error: upErr } = await admin.storage.from(bucket).upload(name, payload, {
     contentType: 'application/json', upsert: false,
@@ -157,17 +190,35 @@ export async function GET(req: Request) {
     return NextResponse.json({ ...body, written: false, reason: `upload failed: ${upErr.message}`, bytes, sha256 }, { status: 502 });
   }
 
-  /* Retention on the backups themselves, so this does not grow without bound. Keep the newest
-     KEEP files and remove the rest - listed newest-first and sliced, rather than by age, so a
-     gap in the schedule can never leave zero backups. */
+  /* RETENTION, BY AGE **AND** COUNT - and count alone was a way to destroy every backup.
+   *
+   * The first version kept the newest 14 and deleted the rest. If this route ran 15 times in an
+   * hour - a retry loop, a misconfigured schedule, someone curling it - the fifteenth run would
+   * delete every genuine nightly copy and leave fourteen made in the same hour. **A retention
+   * rule that counts files assumes the files are spread over time, and nothing was enforcing
+   * that.** Flagged by the automated security review.
+   *
+   * So a file must be BOTH outside the newest KEEP and older than MIN_AGE_DAYS to be removed.
+   * The two conditions fail in opposite directions, which is the point: a burst of exports
+   * cannot age anything out, and a long quiet period cannot leave zero. */
   const KEEP = 14;
+  const MIN_AGE_DAYS = 7;
+  const minAgeMs = MIN_AGE_DAYS * 86_400_000;
   let pruned = 0;
   const { data: listed } = await admin.storage.from(bucket).list('', { limit: 100, sortBy: { column: 'name', order: 'desc' } });
-  const stale = (listed ?? []).filter(f => f.name.startsWith('backup-')).slice(KEEP).map(f => f.name);
+  const backups = (listed ?? []).filter(f => f.name.startsWith('backup-'));
+  const stale = backups
+    .slice(KEEP)
+    .filter(f => {
+      const created = Date.parse(f.created_at ?? '');
+      /* Unparseable timestamp means we cannot show it is old enough, so it stays. */
+      return Number.isFinite(created) && Date.now() - created > minAgeMs;
+    })
+    .map(f => f.name);
   if (stale.length) {
     const { error: delErr } = await admin.storage.from(bucket).remove(stale);
     if (!delErr) pruned = stale.length;
   }
 
-  return NextResponse.json({ ...body, written: true, file: name, bytes, sha256, keep: KEEP, pruned });
+  return NextResponse.json({ ...body, written: true, file: name, bytes, sha256, keep: KEEP, minAgeDays: MIN_AGE_DAYS, pruned });
 }
