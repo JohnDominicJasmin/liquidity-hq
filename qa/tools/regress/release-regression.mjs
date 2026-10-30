@@ -33,20 +33,51 @@ const AXE_SRC = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
 const BASE = process.env.QA_BASE_URL || 'https://liquidity-hq-qa.onrender.com';
 const EXPECT_COMMIT = process.env.EXPECT_COMMIT || '';
 
+/* `mobile` IS `isMobile` + `hasTouch`, AND IT COST THE TABLET PASS ITS MEASUREMENT.
+ *
+ * The first run reported `sw=1387` for all 16 tablet rows and flagged no overflow. Under
+ * `isMobile` Chromium honours the meta viewport and WIDENS the layout viewport to fit the
+ * content instead of overflowing it - so the 768 CSS viewport did not hold, and the metric
+ * (scrollWidth - innerWidth) could not have expressed a non-fit even if there was one. A
+ * constant 1387 across every page is the signature: that is a shared layout element, not
+ * per-page content.
+ *
+ * 768 is the width these pages had never been loaded at, which was the whole reason it is in
+ * this list. So tablet is now a DESKTOP-style viewport at 768 - the layout question - and phone
+ * keeps `isMobile`, because 390 is a phone and honouring the meta viewport is correct there.
+ * Both halves are also now reported per row (`iw=`), so a repeat of this is visible rather
+ * than inferable. */
 const WIDTHS = [
   { name: 'phone', w: 390, h: 844, mobile: true },
-  { name: 'tablet', w: 768, h: 1024, mobile: true },
+  { name: 'tablet', w: 768, h: 1024, mobile: false },
   { name: 'desktop', w: 1440, h: 900, mobile: false },
 ];
 const PAGES = [
   { path: '/refund', expect: ['EU customers', 'right of withdrawal'], absent: ['PLACEHOLDER', 'reviewed by a lawyer'] },
   { path: '/security', expect: ['the Philippines', 'independent developer'], absent: ['PLACEHOLDER'] },
-  { path: '/upgrade', expect: ['Sold by LiquidityHQ'], absent: ['PLACEHOLDER'] },
+  /* `Sold by LiquidityHQ` WAS A STALE EXPECTATION OF MINE, not a missing string on the page.
+     The first run reported it MISSING on all six /upgrade rows; the phrase does not exist
+     anywhere in the repository (grep over the whole tree, with `Whop` as the positive control
+     for the search), because #1843 and #1824 rewrote that block in this very promotion.
+     A test whose expected string is older than the page it checks reports a product defect
+     that is really its own.
+
+     The replacement comes from the page's own governing comment (`app/upgrade/page.tsx:211`,
+     owner's decisions #861 / #1567): under the pay button, say WHERE payment happens and that
+     sales are final - and claim nothing about cancelling, refunds, cards or crypto. Those two
+     facts are what the copy must carry, so those are what this asserts. */
+  { path: '/upgrade', expect: ['Whop', 'All sales are final'], absent: ['PLACEHOLDER'] },
   { path: '/status', expect: [], absent: ['PLACEHOLDER'] },
   { path: '/help', expect: [], absent: ['PLACEHOLDER'] },
   { path: '/accessibility', expect: [], absent: ['PLACEHOLDER'] },
   { path: '/changelog', expect: [], absent: ['PLACEHOLDER'] },
   { path: '/about', expect: [], absent: ['PLACEHOLDER'], control: true },
+  /* THE NINTH PAGE, MISSING FROM THE FIRST RUN. The dispatch and the commit message both said
+     nine pages with `/about` and `/` as the controls; this array held eight, so the run
+     measured 48 rows and reported 48 - complete, but not what was promised. The landing page
+     is the second control: it is the one page in this list that this promotion did not touch
+     at all, so a finding that appears on it is pre-existing by construction. */
+  { path: '/', expect: [], absent: ['PLACEHOLDER'], control: true },
 ];
 const log = (s) => process.stdout.write(s + '\n');
 
@@ -92,10 +123,27 @@ if (!String(ver.commit).startsWith(EXPECT_COMMIT)) {
  */
 const APP_ORIGIN = new URL(BASE).origin;
 
+/* THE HANDLER COUNTS WHAT IT SEES, which is what makes an empty blocked-set readable.
+ *
+ * The first run refused ZERO hosts and the report could only say so as an either/or: the
+ * handler never installed, or there was nothing to block. Those have opposite consequences and
+ * the output could not tell them apart - so the whole run had to be held.
+ *
+ * It was the second. `components/MarketProvider.tsx` makes every market request SAME-ORIGIN -
+ * `/api/proxy?type=bybit-tickers`, `/api/market/snapshot`, `/api/market/rsi` and the rest - and
+ * the venue calls are made SERVER-SIDE from Render. So the browser on these pages never reaches
+ * for Bybit or Binance, and `AppShell.tsx:152` wrapping them in `MarketProvider` does not imply
+ * that it does. **That premise was mine and it was wrong**; it is corrected here rather than
+ * deleted, because it is the reason the first run could not be read.
+ *
+ * ONE REAL LIMIT REMAINS: `ctx.route` does not intercept WebSockets. A page that opens
+ * `wss://fstream.binance.com` is not blocked by this and never was - it does not apply to the
+ * prose pages here, but it would to /arena or /dashboard. */
 async function installAllowlist(ctx, blockedHosts) {
   await ctx.route('**/*', (route) => {
+    SEEN.count += 1;
     const url = route.request().url();
-    if (url.startsWith(APP_ORIGIN) || /^(data|blob|about):/.test(url)) return route.continue();
+    if (url.startsWith(APP_ORIGIN) || /^(data|blob|about):/.test(url)) { SEEN.sameOrigin += 1; return route.continue(); }
     try { blockedHosts.add(new URL(url).host); } catch { blockedHosts.add('(unparseable)'); }
     return route.abort();
   });
@@ -114,7 +162,12 @@ const PROBE = `(async () => {
   return {
     themeAttr: d.getAttribute('data-theme'),
     scrollWidth: Math.max(d.scrollWidth, b.scrollWidth),
-    overflowPx: Math.max(d.scrollWidth, b.scrollWidth) - window.innerWidth,
+    /* REPORTED, NOT USED AS THE BASELINE. Subtracting innerWidth from scrollWidth is what hid
+       the tablet problem: the browser had already widened the layout viewport, so content that
+       does not fit 768 still 'fits' the viewport it was given. The caller subtracts the
+       REQUESTED width instead, and this value is printed so the two can be seen to disagree.
+       NO BACKTICKS IN THIS BLOCK - it lives inside a template literal. */
+    innerWidth: window.innerWidth,
     violations: ax.violations.map((v) => v.id + '[' + v.impact + ']x' + v.nodes.length),
     violationNodes: ax.violations.reduce((a, v) => a + v.nodes.length, 0),
     incompleteNodes: ax.incomplete.reduce((a, v) => a + v.nodes.length, 0),
@@ -127,8 +180,11 @@ const PROBE = `(async () => {
 
 const browser = await chromium.launch();
 const rows = [];
-/** Every third-party host the allowlist refused, across the whole run. Empty is a FINDING. */
+/** Every third-party host the allowlist refused, across the whole run. */
 const BLOCKED = new Set();
+/** Requests the route handler actually saw. `count === 0` is the only reading of an empty
+ *  BLOCKED set that invalidates the run - it means the handler never installed. */
+const SEEN = { count: 0, sameOrigin: 0 };
 
 for (const vp of WIDTHS) {
   for (const theme of ['dark', 'light']) {
@@ -150,6 +206,11 @@ for (const vp of WIDTHS) {
         if (row.urlMatches) {
           await page.addScriptTag({ content: AXE_SRC });
           Object.assign(row, await page.evaluate(PROBE));
+          /* Against the width this row ASKED FOR. A page that needs 1387px is not fitting a
+             768px tablet just because the browser chose to hand it 1387. */
+          row.requestedW = vp.w;
+          row.overflowPx = row.scrollWidth - vp.w;
+          row.viewportHeld = row.innerWidth === vp.w;
           const txt = await page.evaluate(() => document.body.innerText || '');
           row.missing = p.expect.filter((s) => !txt.includes(s));
           row.present = p.absent.filter((s) => txt.includes(s));
@@ -197,7 +258,9 @@ for (const vp of WIDTHS) {
   log(`  aria-expanded after:  ${JSON.stringify(afterState.expanded.slice(0, 6))}`);
   log(`  text ${before.buttons ? '' : ''}after open = ${afterState.textLen} chars`);
   log(`  buttons with an accessible name (chevron stripped): ${afterState.namedButtons}/${afterState.totalButtons}`);
-  log(`  OPENED STATE: overflow=${after.overflowPx} AA=${after.violationNodes} [${after.violations.join(' ') || 'none'}] incomplete=${after.incompleteNodes} smallTargets=${after.smallCount} ${after.smallTargets.join(' ')}`);
+  /* Against the requested 390, for the same reason the row loop is: the probe stopped returning a
+     pre-computed overflow when `innerWidth` turned out to be the wrong baseline. */
+  log(`  OPENED STATE: overflow=${after.scrollWidth - 390} (sw=${after.scrollWidth} iw=${after.innerWidth}) AA=${after.violationNodes} [${after.violations.join(' ') || 'none'}] incomplete=${after.incompleteNodes} smallTargets=${after.smallCount} ${after.smallTargets.join(' ')}`);
   await page.close(); await ctx.close();
 }
 
@@ -257,24 +320,39 @@ for (const r of rows) {
   if (r.present?.length) p.push(`MUST NOT APPEAR ${JSON.stringify(r.present)}`);
   if (r.smallCount > 0) p.push(`SC2.5.8 ${r.smallCount} under 24px: ${r.smallTargets.join(' ')}`);
   if (p.length) fails++;
-  log(`${tag} sw=${String(r.scrollWidth).padEnd(5)} ${p.length ? 'FAIL  ' + p.join(' | ') : 'ok'}`);
+  const held = r.viewportHeld ? '' : ` [VIEWPORT NOT HELD: asked ${r.requestedW}, got ${r.innerWidth}]`;
+  log(`${tag} sw=${String(r.scrollWidth).padEnd(5)} iw=${String(r.innerWidth).padEnd(5)}${held} ${p.length ? 'FAIL  ' + p.join(' | ') : 'ok'}`);
 }
 log(`\n${rows.length} page measurements, ${fails} with findings.`);
-const ctl = rows.filter((r) => r.control && !r.error && r.urlMatches);
-log(`CONTROL /about across all widths: ${ctl.every((c) => c.overflowPx <= 0 && c.violationNodes === 0) ? 'clean' : 'ALSO FAILING - findings above may not be specific to this release'}`);
+/* THE CONTROL LINE SAYS WHAT IT MEASURES, because the first run's did not and was misquotable.
+   It read `CONTROL /about across all widths: clean` while /about was failing SC 2.5.8 on all six
+   of its rows - the expression only covered overflow and axe. Naming the two dimensions in the
+   line itself is the fix; a reader cannot take `clean` for `passed` if the line says which
+   question it answered. */
+for (const c of rows.filter((r) => r.control && !r.error && r.urlMatches).reduce((m, r) => m.set(r.path, [...(m.get(r.path) ?? []), r]), new Map())) {
+  const [path, got] = c;
+  const overflowAndAxe = got.every((r) => r.overflowPx <= 0 && r.violationNodes === 0);
+  const targets = got.every((r) => r.smallCount === 0);
+  log(`CONTROL ${path} (${got.length} rows): overflow+axe ${overflowAndAxe ? 'clean' : 'FAILING'}, SC 2.5.8 ${targets ? 'clean' : 'FAILING'}`);
+}
+log('  A control that fails is not a release regression - it is pre-existing on a page this promotion did not change.');
 
 /* THE BLOCKING MUST BE SHOWN TO HAVE FIRED. An allowlist that refused nothing is indistinguishable
    from one that was never installed - and in that case every number above was taken with the market
    feeds LIVE, which is the opposite of what this run claims about itself. */
 log(`\n--- third parties refused by the allowlist (app origin ${APP_ORIGIN}) ---`);
-if (BLOCKED.size === 0) {
-  log('  NOTHING WAS BLOCKED. Either the route handler never installed, or these pages made no');
-  log('  third-party request at all. Both are findings: the first means every measurement above was');
-  log('  taken with live feeds, the second contradicts AppShell.tsx:152 wrapping them in');
-  log('  MarketProvider. DO NOT report this run as "measured with market data absent" until resolved.');
+log(`  the handler saw ${SEEN.count} request(s), ${SEEN.sameOrigin} of them same-origin.`);
+if (SEEN.count === 0) {
+  log('  THE HANDLER NEVER FIRED, so it never installed. Nothing above was measured behind it and');
+  log('  the interception claim does not hold. This invalidates the run rather than the pages.');
+} else if (BLOCKED.size === 0) {
+  log('  Nothing was refused, and the handler demonstrably ran - so these pages made NO third-party');
+  log('  request. That is the expected result here: MarketProvider fetches /api/proxy and');
+  log('  /api/market/* on the APP ORIGIN and the venue calls happen server-side.');
+  log('  NOTE: ctx.route does not intercept WebSockets, so a wss:// feed would not appear here.');
 } else {
   log(`  ${BLOCKED.size} distinct host(s): ${[...BLOCKED].sort().join(', ')}`);
-  log('  So the pages DID reach for third parties and were prevented - the market-data-absent claim holds.');
+  log('  So the pages DID reach for third parties and were prevented.');
 }
 
 
