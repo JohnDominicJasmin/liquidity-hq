@@ -94,6 +94,12 @@ export default function PlatformFooter() {
           <Link href="/accessibility" className="pf-footer-link">Accessibility</Link>
           <Link href="/terms" className="pf-footer-link">Terms of Use</Link>
           <Link href="/privacy" className="pf-footer-link">Privacy Policy</Link>
+          {/* Restored 2026-10-31. The link was pulled when /refund was withdrawn until payments
+              went live (owner, 2026-10-08); payments went live 2026-10-28, so the condition the
+              withdrawal named has fired. Placed in the legal run beside Terms and Privacy rather
+              than at its former position, which is not recoverable from the history - the earlier
+              markup differed, so there is nothing to restore it to. */}
+          <Link href="/refund" className="pf-footer-link">Refund Policy</Link>
           <Link href="/disclaimer" className="pf-footer-link">Full Disclaimer</Link>
           <Link href="/contact" className="pf-footer-link">Contact</Link>
           {/* The support address itself, as a working link, on every page (owner, 2026-10-07). */}

@@ -15,6 +15,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/upgrade`, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${BASE}/terms`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${BASE}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
+    /* Restored 2026-10-31, with the footer link and the next.config redirect removal: the page was
+       withdrawn until payments went live and they went live 2026-10-28. Same frequency and priority
+       as the other legal pages. */
+    { url: `${BASE}/refund`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${BASE}/disclaimer`, changeFrequency: 'yearly', priority: 0.2 },
 
     /* #1810: the five new pages. All public, all 200, none behind sign-in and
