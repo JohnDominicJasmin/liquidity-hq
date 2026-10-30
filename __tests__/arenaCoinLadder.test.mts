@@ -65,7 +65,21 @@ test('P2. the lists: Free and trial see exactly BTC, ETH, SOL; signed out exactl
 });
 
 test('P3. the server\'s question: only paid Pro may name any coin; everyone else only the three, spelled however; no coin is never allowed for them', () => {
-  for (const c of ['xrp', 'XRP', ' Xrp ', 'hype', 'notacoin', '', '   ', undefined, null, 5, {}, ['btc']]) {
+  /* PAIR SYMBOLS ARE REFUSED, AND THAT IS THE PINNED EXPECTATION RATHER THAN A GAP (#1631 item 5).
+     Dev nearly shipped a caller that passed `ctx.coin` here, which is `BTC/USDT` and not a coin id:
+     normalizeCoinId lowercases it to `btc/usdt`, which is not on the Free list, so EVERY Free and
+     trial account would have been locked out of BTC, ETH and SOL - while a Pro account saw nothing
+     wrong, because aiCoinAllowed returns true for pro BEFORE it looks at the coin at all.
+
+     A TEST ACCOUNT WITH ENTITLEMENTS CANNOT SEE AN ENTITLEMENT BUG. That is why these cases sit
+     beside the free/trial rows below and not only the pro row.
+
+     The fix belongs in the CALLER - it must pass a coin id. Teaching this function to accept pair
+     symbols would be the wrong repair: `XRP/USDT` would then need handling too, and the Free list
+     would stop meaning what it says. So refusal is asserted deliberately, and a future change that
+     makes a pair symbol ALLOWED here should fail this cell and be argued for rather than slipped in. */
+  for (const c of ['xrp', 'XRP', ' Xrp ', 'hype', 'notacoin', '', '   ', undefined, null, 5, {}, ['btc'],
+    'BTC/USDT', 'btc/usdt', ' BTC/USDT ', 'BTCUSDT', 'ETH/USDT', 'SOL-USD']) {
     assert.equal(aiCoinAllowed('free', c), false, `free ${JSON.stringify(c)}`); assert.equal(aiCoinAllowed('trial', c), false, `trial ${JSON.stringify(c)}`);
   }
   for (const c of ['btc', 'BTC', ' Eth ', 'sol', '\tSOL\n']) { assert.equal(aiCoinAllowed('free', c), true, c); assert.equal(aiCoinAllowed('trial', c), true, c); }
