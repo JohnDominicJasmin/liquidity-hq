@@ -815,7 +815,7 @@ a comment ends, including `//` inside a string literal — guarding the first.
 
 > **A control must be shown to FIRE before its silence means anything.**
 
-Narrower and more useful than "add controls". Five instances in one day, in five different tools:
+Narrower and more useful than "add controls". Six instances in one day, in six different tools:
 
 | Instrument | Looked like | Actually |
 |---|---|---|
@@ -824,6 +824,7 @@ Narrower and more useful than "add controls". Five instances in one day, in five
 | `execFileSync('npx', ...)` | every mutation caught by the gate | `tsc` never started |
 | A spec asserting a string is ABSENT | the placeholder fix verified | the whole section failed to mount |
 | A range-scoped `sed` read of this file | the abort correction was never written | it was written further down, outside the range |
+| `gh pr checks <n>` | "no checks reported on the branch" | a run was PENDING on the same head the whole time |
 
 The last row is this document being read with an instrument scoped narrower than the question, and
 it was caught by checking the whole file before claiming an absence — which is §9a's own advice
@@ -831,3 +832,15 @@ applied to §9a.
 
 **Every one of them returns a clean, plausible, confidently wrong answer, and none of them looks
 wrong on the page.**
+
+**The last row carries the nastiest variant of the whole family, and it is worth stating on its
+own.** `gh pr checks` reported no checks while `gh run list` showed a run pending on the same
+commit. What made that dangerous was not the stale instrument - it was that **a TRUE fact about
+this repository stood ready to justify the wrong reading.** `ci.yml` really does carry a docs path
+filter, so "docs-only, no checks needed" is plausible and the file can be cited for it. The filter
+is on `push` and deliberately NOT on `pull_request`.
+
+A wrong fact gets checked. **A correct fact that happens to explain a stale reading does not**, and
+it supplies the confidence to stop looking. When two channels disagree about whether something ran,
+wait for both rather than picking the one a known fact can explain - and prefer **watching the run**
+over polling the checks API, which is the practical form of this.
