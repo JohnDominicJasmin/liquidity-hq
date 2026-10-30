@@ -272,6 +272,12 @@ for (const vp of WIDTHS) {
     { name: 'exchange degraded', body: { ok: true, checked_at: new Date().toISOString(), db_age_ms: 10, exchanges: { binance: { degraded: true }, bybit: { degraded: false } } } },
     { name: 'malformed (ok as a string)', body: { ok: 'true', checked_at: 'not-a-date' } },
     { name: 'route fails (500)', status: 500, body: { error: 'boom' } },
+    /* THE STATE #1821 ITEM 3 ACTUALLY DESCRIBES, and it was missing. Its wording is "with
+       /api/health BLOCKED ENTIRELY ... every row should go to Unknown" - a blocked request is a
+       rejected fetch, not a 500 with a JSON body. The page handles the two differently on
+       purpose (`.catch(() => setReading(UNREACHABLE))` versus `read(body)`), so testing one and
+       quoting the criterion for the other is how a pass and a failure get swapped. */
+    { name: 'blocked entirely (fetch fails)', abort: true },
   ];
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'dark' });
   await installAllowlist(ctx, BLOCKED);
@@ -281,19 +287,76 @@ for (const vp of WIDTHS) {
   log(`\n--- /status states (dark, 390), /api/health intercepted ---`);
   for (const s of STATES) {
     const page = await ctx.newPage();
-    await page.route('**/api/health*', (route) => route.fulfill({
-      status: s.status ?? 200, contentType: 'application/json', body: JSON.stringify(s.body),
-    }));
+    await page.route('**/api/health*', (route) => (s.abort
+      ? route.abort('failed')
+      : route.fulfill({ status: s.status ?? 200, contentType: 'application/json', body: JSON.stringify(s.body) })));
     try {
       await page.goto(`${BASE}/status`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
       await page.waitForLoadState('load', { timeout: 20_000 }).catch(() => {});
       await page.waitForTimeout(1600);
+      /* A PER-ROW MAP, BECAUSE A LIST OF WORDS CANNOT ANSWER THE QUESTION THAT MATTERS.
+         The first run reported `route fails (500) -> Operational, Unknown` and that is as far as
+         it could go: it collected the distinct state words on the page with no idea which row
+         each belonged to. #1821 item 3 is a per-row criterion - "every row should go to
+         Unknown" - so a bag of words can neither confirm nor refute it, and PM could not ship
+         on "candidate failure, not scored".
+
+         The rows are read structurally rather than by text matching: each is a flex row inside
+         the aria-live block, label on the left and state on the right. That is read from
+         app/(main)/status/page.tsx's markup, not guessed, and the row count is asserted - if the
+         markup changes shape this reports a parse failure instead of an empty pass. */
       const r = await page.evaluate(() => {
+        const live = document.querySelector('[aria-live]');
+        /* SPAN + SPAN, not "two children". The last block inside the aria-live region is also a
+           two-child flex row - the last-checked time plus the Check again BUTTON - so a count
+           alone picks it up as a fifth row whose label is a timestamp and whose state reads
+           "Check again". Both halves of a real row are spans; the button is what tells them
+           apart. */
+        const rows = live ? [...live.children].filter((e) => e.children.length === 2
+          && e.children[0].tagName === 'SPAN' && e.children[1].tagName === 'SPAN') : [];
+        const map = rows.map((e) => [
+          (e.children[0].textContent || '').trim(),
+          (e.children[1].textContent || '').trim(),
+        ]);
         const txt = (document.body.innerText || '');
-        const words = ['Operational', 'Degraded', 'Unknown', 'Unreachable', 'Down', 'Offline'];
-        return { shown: words.filter((w) => new RegExp(w, 'i').test(txt)), textLen: txt.trim().length };
+        const words = ['Operational', 'Degraded', 'Unknown', 'Unreachable', 'Down', 'Offline', 'Slow', 'Checking'];
+        return {
+          map,
+          rowCount: rows.length,
+          foundLive: Boolean(live),
+          shown: words.filter((w) => new RegExp(w, 'i').test(txt)),
+          textLen: txt.trim().length,
+        };
       });
-      log(`  ${s.name.padEnd(28)} -> ${r.shown.join(', ') || '(no state word found)'}`);
+      if (!r.foundLive || r.rowCount === 0) {
+        log(`  ${s.name.padEnd(28)} -> PARSE FAILED (aria-live block ${r.foundLive ? 'found' : 'MISSING'}, ${r.rowCount} rows). NOT MEASURED.`);
+      } else {
+        log(`  ${s.name.padEnd(28)} -> ${r.map.map(([k, v]) => `${k}=${v}`).join('  ')}`);
+        /* The judgement, stated per state rather than left to the reader. The site row is
+           ALLOWED to stay Operational when the endpoint answers at all - the page's own comment
+           argues that a served request IS the website being up - but it must NOT when the fetch
+           itself failed, which is the blocked case. */
+        /* THE SITE ROW IS THE FIRST ONE, BY POSITION, AND ITS LABEL IS NOT "Site".
+           Measured against the deployed page rather than assumed: the four labels are `Website`,
+           `Accounts and saved data`, `Bybit market data`, `Binance market data` - they are label
+           keys, so they are editable copy and a name match would break the moment one is reworded.
+           `rows[]` in app/(main)/status/page.tsx is declared SITE, DATABASE, BYBIT, BINANCE in that
+           order, so index 0 is the site row. The label is printed so a reader can check the
+           assumption instead of taking it. */
+        const siteRow = r.map[0];
+        const live = r.map.slice(1);
+        const liveOperational = live.filter(([, v]) => /operational/i.test(v)).map(([k]) => k);
+        if (s.abort) {
+          const anyOperational = r.map.filter(([, v]) => /operational/i.test(v)).map(([k]) => k);
+          log(`     #1821 item 3: ${anyOperational.length === 0
+            ? 'every row is non-Operational - PASSES'
+            : `BLOCKER - these rows still read Operational while the fetch FAILED: ${anyOperational.join(', ')}`}`);
+        } else if ((s.status ?? 200) >= 500 || s.name.startsWith('malformed')) {
+          log(`     health answered but is unusable: ${liveOperational.length === 0
+            ? `no live-check row reads Operational (site row "${siteRow?.[0]}"=${siteRow?.[1]} may, by design)`
+            : `CANDIDATE BLOCKER - live-check rows reading Operational: ${liveOperational.join(', ')}`}`);
+        }
+      }
     } catch (e) {
       log(`  ${s.name.padEnd(28)} -> ERROR ${e instanceof Error ? e.message.split('\n')[0] : e}`);
     }
