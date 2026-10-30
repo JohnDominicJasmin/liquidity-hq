@@ -105,6 +105,20 @@ export const COINS: CoinId[] = [...RENDERED_IDS];
 export const SCAN_LIMIT = 50;
 export const SCANNED_COINS: CoinId[] = COINS;
 
+/* BYBIT SYMBOL -> COIN ID, FOR THE WHOLE UNIVERSE. Read this map; never iterate it.
+ *
+ * It exists so one bulk response can be indexed. `/api/proxy?type=bybit-tickers` returns every
+ * instrument in a single call, so walking THAT list and asking "is this one of ours" costs
+ * nothing extra and gives price and 24h change for all 463. Walking OUR list and asking the
+ * exchange per coin is the 462-request fan-out this file spent a commit removing.
+ *
+ * The distinction is the whole reason this is a reverse map rather than a second symbol table:
+ * the loop is bounded by the response, not by us, so no new call site can turn it into work.
+ * If you find yourself writing `Object.keys(UNIVERSE_SYM_TO_COIN)` as a work list, use COINS. */
+export const UNIVERSE_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
+  COIN_UNIVERSE.filter(r => r.bybit).map(r => [r.bybit as string, r.id]),
+);
+
 /** The row behind a coin, or undefined for an id this build does not serve. */
 export function coinRow(coin: string): CoinRow | undefined {
   return BY_ID.get(coin);

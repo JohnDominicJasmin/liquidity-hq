@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'rea
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
 import { useSearchParams } from 'next/navigation';
-import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
@@ -113,8 +113,18 @@ function ReasoningText({ text }: { text: string }) {
   );
 }
 
+/* THE COINS WITH FULL TELEMETRY. Everything outside this set has price and 24h change and
+ * nothing else - no funding, no open interest, no RSI - because those come from per-coin
+ * fan-outs and widening them to 463 is a ninefold cost nobody chose. The scanner prints an
+ * explicit unknown for those rows rather than a squeeze score of 0, which would be
+ * indistinguishable from a real neutral on screen. */
+const SIGNAL_COINS = new Set<string>(COINS);
+
 const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', readonly CoinId[]> = {
-  all:    COINS,
+  /* Every instrument both venues trade, not the rendered 50 - this is the one surface the
+     owner asked to cover the whole market, and the search box and category tabs it already
+     has are what make 463 entries navigable without a new control. */
+  all:    UNIVERSE_COINS,
   majors: ['btc', 'eth', 'sol', 'xrp', 'bnb', 'ltc', 'bch', 'ada'],
   alts:   ['near', 'sui', 'avax', 'link', 'dot', 'atom', 'arb', 'op', 'apt', 'sei', 'inj', 'tia', 'trx', 'xlm', 'etc', 'fil', 'stx'],
   defi:   ['hype', 'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv', 'jup', 'wld', 'render', 'tao', 'fet', 'ondo', 'pyth', 'ena', 'dydx', 'xau', 'spx'],
@@ -1757,7 +1767,7 @@ function ArenaContent() {
 
   /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
-  const scannerRows = COINS
+  const scannerRows = UNIVERSE_COINS
     .filter(c => coinCat === 'all' || (CAT_FILTER_COINS[coinCat] as readonly CoinId[]).includes(c))
     .map(c => {
       const coin   = store.coins[c];
@@ -1772,6 +1782,9 @@ function ArenaContent() {
       if (vsBtc != null && vsBtc >= 2)  badges.push({ key: 'ARENA_SCANNER_BADGE_BEATS_BTC', tone: 'good' });
       if (vsBtc != null && vsBtc <= -2) badges.push({ key: 'ARENA_SCANNER_BADGE_LAGS_BTC', tone: 'bad' });
       return {
+        /* Whether this row's signal columns mean anything. Carried per row rather than checked
+           at render, so there is one place that decides and the cells cannot disagree. */
+        hasSignals: SIGNAL_COINS.has(c),
         c, badges, vsBtc,
         sq:     computeSqueezeScore(coin),
         price:  coin?.price  ?? null,
@@ -2027,9 +2040,12 @@ function ArenaContent() {
             <div style={{ maxHeight: 380, overflowY: 'auto' }}>
             {visibleScannerRows.length === 0 ? (
               <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>{t('ARENA_SCANNER_NO_MATCH', { search: scannerSearch })}</div>
-            ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }) => {
+            ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges, hasSignals }) => {
               const isSelected  = c === selectedCoin;
-              const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
+              /* A row with no funding and no OI can never be active - and must not read as a
+                 calm market either. `isActive` stays false and the two signal cells below print
+                 an explicit unknown instead of 0 and a neutral dot. */
+              const isActive    = hasSignals && rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
               const statusLabel = rowSq.dir === 'SHORT_SQ' ? t('ARENA_SCANNER_STATUS_SQUEEZE') : rowSq.dir === 'LONG_LIQ' ? t('ARENA_SCANNER_STATUS_FLUSH') : t('ARENA_SCANNER_STATUS_NEUTRAL');
               const vsBtcColor  = vsBtc == null ? 'var(--txt3)' : vsBtc >= 2 ? 'var(--green-2)' : vsBtc <= -2 ? 'var(--red)' : 'var(--txt3)';
@@ -2107,12 +2123,20 @@ function ArenaContent() {
                         {icon} {statusLabel}
                       </span>
                     ) : (
-                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_SCANNER_NEUTRAL_DOT')}</span>
+                      <span
+                        style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}
+                        title={hasSignals ? undefined : t('ARENA_SCANNER_NO_SIGNALS_TITLE')}
+                      >
+                        {hasSignals ? t('ARENA_SCANNER_NEUTRAL_DOT') : t('ARENA_SCANNER_NO_SIGNALS')}
+                      </span>
                     )}
                   </div>
                   {/* Score */}
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {rowSq.score}
+                  <span
+                    style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}
+                    title={hasSignals ? undefined : t('ARENA_SCANNER_NO_SIGNALS_TITLE')}
+                  >
+                    {hasSignals ? rowSq.score : t('ARENA_SCANNER_NO_SIGNALS')}
                   </span>
                 </button>
               );

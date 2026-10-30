@@ -675,6 +675,8 @@
   "ARENA_SCANNER_BADGE_LAGS_BTC": "Lags BTC",
   "ARENA_SCANNER_USDT_PERP": "USDT Perp",
   "ARENA_SCANNER_NEUTRAL_DOT": "· Neutral",
+  "ARENA_SCANNER_NO_SIGNALS": "n/a",
+  "ARENA_SCANNER_NO_SIGNALS_TITLE": "Price and 24h change only. Funding, open interest and RSI are tracked for the main list, so this coin has no squeeze reading - not a calm one.",
   "ARENA_SCANNER_STATUS_SQUEEZE": "Squeeze",
   "ARENA_SCANNER_STATUS_FLUSH": "Flush",
   "ARENA_SCANNER_STATUS_NEUTRAL": "Neutral",

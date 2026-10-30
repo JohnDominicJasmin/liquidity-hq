@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
-  BINANCE_SYMS, BYBIT_SYMS,
+  BINANCE_SYMS, BYBIT_SYMS, UNIVERSE_SYM_TO_COIN,
 } from '@/lib/marketStore';
 import { bybitPriceFactor } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
@@ -163,6 +163,20 @@ export default function MarketProvider(
       ...s,
       coins: { ...s.coins, [id]: { ...s.coins[id], ...patch } as MarketStore['coins'][CoinId] },
     }));
+  }, []);
+
+  /* MANY COINS, ONE setState. `updateCoin` per id is fine for 50 and is 413 renders for the
+     universe pass below, which is the kind of cost that only shows up as a janky page. */
+  const updateCoins = useCallback((patches: Record<string, Partial<MarketStore['coins'][CoinId]>>) => {
+    const ids = Object.keys(patches);
+    if (!ids.length) return;
+    setStore(s => {
+      const coins = { ...s.coins };
+      for (const id of ids) {
+        coins[id as CoinId] = { ...coins[id as CoinId], ...patches[id] } as MarketStore['coins'][CoinId];
+      }
+      return { ...s, coins };
+    });
   }, []);
 
   const selectCoin = useCallback((c: CoinId) => {
@@ -342,8 +356,43 @@ export default function MarketProvider(
         }
         updateCoin(coin as CoinId, patch);
       }
+
+      /* ── THE REST OF THE UNIVERSE: PRICE AND 24H CHANGE ONLY ──────────────────────────────
+       *
+       * The response above already contains every instrument Bybit lists, so the other ~413
+       * coins cost NO extra request - only the work of reading rows we were throwing away.
+       * That is the entire reason this is cheap enough to do and why it walks the RESPONSE
+       * rather than a list of ours.
+       *
+       * WHAT THESE COINS DELIBERATELY DO NOT GET: funding, open interest, OI trend, RSI, the
+       * next-funding estimate - everything the squeeze score is built from. Those come from
+       * per-coin fan-outs and widening THOSE is the ninefold cost that was just removed.
+       *
+       * So a surface showing these coins has to say so. A squeeze score of 0 computed from no
+       * funding and no OI renders identically to a real neutral, and that is the failure this
+       * comment exists to prevent - see the scanner's `hasSignals` branch, which prints an
+       * explicit unknown rather than a zero. */
+      const extra: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
+      for (const t of (d.result?.list ?? [])) {
+        const id = UNIVERSE_SYM_TO_COIN[t.symbol];
+        if (!id || id in BYBIT_SYMS) continue;   // the 50 above already have the full patch
+        const price = parseFloat(t.lastPrice || '0');
+        if (!Number.isFinite(price) || price <= 0) continue;
+        const pct = parseFloat(t.price24hPcnt ?? '');
+        extra[id] = {
+          price,
+          perpPrice: price,
+          /* Absent or unparseable is UNKNOWN, not zero - the key is left out so the coin stays
+             null rather than reading as "flat". Same rule as fundingRate above (#1613). */
+          ...(Number.isFinite(pct) ? { change: pct * 100 } : {}),
+          high:  parseFloat(t.highPrice24h || '0'),
+          low:   parseFloat(t.lowPrice24h  || '0'),
+          vol24: parseFloat(t.turnover24h  || '0'),
+        };
+      }
+      updateCoins(extra);
     } catch { /* */ }
-  }, [updateCoin]);
+  }, [updateCoin, updateCoins]);
 
   /* ── Bybit + Binance LSR ── */
   const fetchLSR = useCallback(async () => {
