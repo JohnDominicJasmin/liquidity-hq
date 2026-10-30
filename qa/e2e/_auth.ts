@@ -233,33 +233,52 @@ const sessionCache = new Map<string, Promise<CachedSession>>();
 // fresh one up front.
 const EXPIRY_SAFETY_MARGIN_SECONDS = 120;
 
-/* ── AN OUTAGE IS NOT A TEST FAILURE, AND THIS FILE COULD NOT TELL THE DIFFERENCE UNTIL 2026-10-30 ──────────
+/* ── AN OUTAGE IS NOT A TEST FAILURE, BUT IT MUST NOT BE A GREEN GATE EITHER ────────────────────────────────
    `AUTH_READY` above asks only whether the credentials are SET. On 2026-10-29 all ten were set and the dev
-   Supabase edge was answering 522, so 67 specs failed hard, the gate burned its full 120 minutes, and a
-   release shipped with the browser suite unrun. "The gate is red" and "the environment is dark" have to be
-   separable from the summary, not from a two-hour log.
+   Supabase edge was answering 522 - 64 of those plus 3x 504 - so 67 specs failed hard, the gate burned its
+   full 120 minutes, and a release shipped with the browser suite unrun.
 
-   The discrimination below is deliberately NARROW, because a skip that swallows a real auth regression is
-   worse than a red one:
+   WHY THIS DOES NOT SIMPLY SKIP, which is what I wrote first and had to be corrected on: a Playwright run
+   whose specs SKIP exits 0, there is no --forbid-skip, and `ci.yml` asserts `needs.e2e.result == success`
+   over an aggregate that is "success only if every leg succeeded" - its own words, line 485. An all-skip run
+   would therefore PASS the release gate having never exercised authentication once, which is strictly worse
+   than 2026-10-29's 67 reds. Those were ugly and they were TRUE. It compounds with #1812's
+   `continue-on-error: ${{ matrix.project == 'mobile' }}` at line 780: a mobile leg could skip everything and
+   be excused as well. Caught by PM/DevOps on review.
 
-     fetch rejects outright, or the body is not JSON   the edge answered, not GoTrue   OUTAGE -> skip
-     502 503 504 520 521 522 523 524                   gateway statuses                OUTAGE -> skip
-     500 WITH a JSON body                              GoTrue itself answered          FAILURE -> throw
-     any 4xx, bad credentials included                 the product refused us          FAILURE -> throw
+   SO THE FIRST FEW OUTAGE-SHAPED ANSWERS FAIL, AND ONLY THEN DO THE REST SKIP. The gate still goes red, the
+   log stops repeating itself 67 times, and the run stops re-probing a dead endpoint.
 
-   So the NULL-token-columns bug this file has always warned about still fails loudly. Only the gateway
-   skips. */
+   The discrimination is deliberately NARROW, because a skip that swallows a real auth regression is worse
+   than a red one:
+
+     fetch rejects outright, or the body is not JSON   the edge answered, not GoTrue    count as OUTAGE
+     502 503 504 520 521 522 523 524                   gateway statuses                 count as OUTAGE
+     408 429                                           throttled, not refused           count as THROTTLE
+     500 WITH a JSON body                              GoTrue itself answered           always a FAILURE
+     any other 4xx, wrong password included            the product refused us           always a FAILURE
+
+   408 and 429 are 4xx, but neither is a credentials regression: this suite mints a session per spec, so a
+   rate limit floods precisely the uninformative red this block exists to remove. They carry their own
+   wording so they stay distinguishable from a gateway outage AND from a real defect. The 500-with-a-body
+   case stays a hard failure on purpose - the NULL-token-columns bug is a real defect in our own data and
+   skipping past it would hide something we should fix. */
 const GATEWAY_STATUSES = new Set([502, 503, 504, 520, 521, 522, 523, 524]);
+const THROTTLE_STATUSES = new Set([408, 429]);
 
-/* Sticky on purpose: the first outage-shaped answer makes every later call skip at once instead of
-   re-probing a dead endpoint 67 times. That is the difference between a two-minute run and 2026-10-29's two
-   hours. The cost is that one transient blip skips the remainder of the run, which is why the reason travels
-   into every skip description rather than being logged once - A RUN WHOSE AUTH SKIPPED IS NOT A VERIFIED
-   RUN, and the report has to say so where it is read. */
-let outageReason: string | null = null;
+/* TWO CONSECUTIVE BEFORE LATCHING, NOT ONE. A single transient blip on whichever spec happens to run first
+   would otherwise turn a would-be-green run into a non-run, and under the rule above into a red release. A
+   successful mint or a genuine product failure resets the count, so "consecutive" means consecutive.
 
-function skipForOutage(reason: string): never {
-  outageReason = reason;
+   THE LATCH IS PER WORKER, NOT PER RUN, and that is stated rather than left implied: module state does not
+   cross Playwright's worker processes, so each worker latches on its own evidence. With W workers a dark
+   environment shows up to 2xW failures before the skips begin - 4 at the configured 2 workers, against 67.
+   Each worker needing its own evidence is the safer side of that trade. */
+const OUTAGE_FAILURES_BEFORE_LATCHING = 2;
+let consecutiveOutages = 0;
+let latchedReason: string | null = null;
+
+function skipBecauseLatched(reason: string): never {
   try {
     test.info();                    // throws when there is no test running
   } catch {
@@ -269,11 +288,24 @@ function skipForOutage(reason: string): never {
   throw new Error(reason);          // unreachable; keeps the `never` return honest
 }
 
+/* Counts the outage, latches on the second consecutive one, and ALWAYS throws. The throw is what keeps the
+   release gate honest; the latch is only what keeps the log and the clock short. */
+function failAndMaybeLatch(reason: string): never {
+  consecutiveOutages += 1;
+  if (consecutiveOutages >= OUTAGE_FAILURES_BEFORE_LATCHING) latchedReason = reason;
+  throw new Error(
+    `${reason} [occurrence ${consecutiveOutages} in this worker - ` +
+    (latchedReason
+      ? 'everything needing a signed-in session is SKIPPED from here, and a run whose auth skipped is NOT a verified run]'
+      : 'one more consecutive answer like this and the remainder will be skipped]'),
+  );
+}
+
 function mintSession(email: string, password: string): Promise<CachedSession> {
   return (async () => {
-    if (outageReason) {
+    if (latchedReason) {
       sessionCache.delete(email);
-      skipForOutage(outageReason);
+      skipBecauseLatched(latchedReason);
     }
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
@@ -281,10 +313,9 @@ function mintSession(email: string, password: string): Promise<CachedSession> {
       body: JSON.stringify({ email, password }),
     }).catch((cause: unknown) => {
       sessionCache.delete(email);
-      return skipForOutage(
+      return failAndMaybeLatch(
         `the Supabase auth endpoint did not answer at all: ${String(cause)}. ` +
-        `${SUPABASE_URL} is unreachable from this runner, so this is the environment and not the product. ` +
-        `Everything needing a signed-in session is skipped from here.`,
+        `${SUPABASE_URL} is unreachable from this runner, so this is the environment and not the product.`,
       );
     });
     let bodyWasNotJson = false;
@@ -298,13 +329,22 @@ function mintSession(email: string, password: string): Promise<CachedSession> {
         : `HTTP ${res.status} ${JSON.stringify(body).slice(0, 200)}`;
 
       if (bodyWasNotJson || GATEWAY_STATUSES.has(res.status)) {
-        skipForOutage(
-          `the Supabase auth edge is down - this is the environment, not the product: ` +
-          `sign-in for ${email} got ${detail}. A gateway status or a non-JSON body means the request never ` +
-          `reached GoTrue, so no product code is in the path. Everything needing a signed-in session is ` +
-          `skipped from here.`,
+        failAndMaybeLatch(
+          `the Supabase auth edge is down - the environment, not the product: sign-in for ${email} got ` +
+          `${detail}. A gateway status or a non-JSON body means the request never reached GoTrue, so no ` +
+          `product code is in the path.`,
         );
       }
+
+      if (THROTTLE_STATUSES.has(res.status)) {
+        failAndMaybeLatch(
+          `the auth endpoint is rate limiting us rather than refusing our credentials: sign-in for ${email} ` +
+          `got ${detail}. This suite mints a session per spec, so read this as throughput and not as a defect.`,
+        );
+      }
+
+      // A genuine product failure breaks the run of outage-shaped answers.
+      consecutiveOutages = 0;
 
       /* THE HINT IS NOW GATED ON ITS OWN CONDITION, which is the whole point. It used to read "If this is
          500 ..." and print on every sign-in failure, so a teammate reading 67 of them out of a CI log
@@ -322,6 +362,7 @@ function mintSession(email: string, password: string): Promise<CachedSession> {
           : ''),
       );
     }
+    consecutiveOutages = 0;         // a session minted is the run of outages broken
     return {
       access_token: body.access_token as string,
       refresh_token: body.refresh_token as string,
