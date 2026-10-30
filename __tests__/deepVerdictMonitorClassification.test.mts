@@ -34,6 +34,25 @@ import { classifyOutcome, CANNOT_RUN_CODES } from '../qa/tools/regress/deep-verd
 
 const KNOWN_CODES = [...Object.keys(CANNOT_RUN_CODES), 'BAD_ANSWER'];
 
+/**
+ * CODES THE CLASSIFIER KNOWS BEFORE THE ROUTE RETURNS THEM, with the reason each one is here.
+ *
+ * This is the escape D5's own failure message already offers - *"Remove it, or say in the file why
+ * it is still expected"* - made explicit rather than left as prose in a commit.
+ *
+ * WHY IT HAS TO EXIST. `CONTRIBUTING.md` → *When QA writes code* has QA loosen a pin FIRST so dev
+ * is not blocked, then tighten after. Teaching the classifier a code dev has not shipped yet is
+ * exactly that, and without this list the orphan half of D5 goes red on `dev` the moment I do -
+ * which would block dev with a red suite in the act of unblocking them.
+ *
+ * IT IS NOT A WAIVER AND IT MUST NOT BECOME ONE. An entry here says "a specific change is in
+ * flight", so it is removed in the commit that tightens, and the cap below keeps it from quietly
+ * turning into a list of codes nobody can account for.
+ */
+const ARRIVING_WITH: Readonly<Record<string, string>> = {
+  STALE_CLIENT: '#1631 item 5 - dev\'s branch makes /api/grok build the prompt server-side and refuse the old client-built shape. Remove this entry in the commit that tightens, once the route returns it.',
+};
+
 test('D1. a parseable verdict is the only exit 0, whatever the status says', () => {
   for (const status of [200, 201, 502]) {
     const got = classifyOutcome({ status, parseable: true });
@@ -138,10 +157,25 @@ test('D5. CONTROL: every typed code the route can return is one this classifier 
 
   /* The mirror: a code this classifier handles that the route no longer returns is dead weight, and
      dead weight in a classifier is how a stale rule outlives the thing it described. */
-  const orphaned = KNOWN_CODES.filter((c) => !found.includes(c));
+  const orphaned = KNOWN_CODES.filter((c) => !found.includes(c) && !(c in ARRIVING_WITH));
   assert.deepEqual(
     orphaned, [],
     `deep-verdict-classify.mjs handles ${orphaned.join(', ')}, which app/api/grok/route.ts no longer ` +
-    'returns. Remove it, or say in the file why it is still expected.',
+    'returns. Remove it, or add it to ARRIVING_WITH with the change it is waiting for.',
+  );
+
+  /* THE LIST OF EXEMPTIONS IS ITSELF CHECKED, because an exemption list nobody audits is how a
+     temporary allowance becomes permanent. Two rules: it stays small, and an entry whose code HAS
+     arrived is dead weight that must be removed in the tightening commit - so the cell fails once
+     the change lands, which is the reminder. */
+  assert.ok(
+    Object.keys(ARRIVING_WITH).length <= 2,
+    `${Object.keys(ARRIVING_WITH).length} codes are exempted as "arriving". That is a backlog, not a handoff.`,
+  );
+  const landed = Object.keys(ARRIVING_WITH).filter((c) => found.includes(c));
+  assert.deepEqual(
+    landed, [],
+    `${landed.join(', ')} is in ARRIVING_WITH but app/api/grok/route.ts now returns it. The change ` +
+    'landed - remove the entry. This is the tightening step, and this assertion is what asks for it.',
   );
 });
