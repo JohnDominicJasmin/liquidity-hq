@@ -55,18 +55,23 @@ const WIDTHS = [
 const PAGES = [
   { path: '/refund', expect: ['EU customers', 'right of withdrawal'], absent: ['PLACEHOLDER', 'reviewed by a lawyer'] },
   { path: '/security', expect: ['the Philippines', 'independent developer'], absent: ['PLACEHOLDER'] },
-  /* `Sold by LiquidityHQ` WAS A STALE EXPECTATION OF MINE, not a missing string on the page.
-     The first run reported it MISSING on all six /upgrade rows; the phrase does not exist
-     anywhere in the repository (grep over the whole tree, with `Whop` as the positive control
-     for the search), because #1843 and #1824 rewrote that block in this very promotion.
-     A test whose expected string is older than the page it checks reports a product defect
-     that is really its own.
+  /* /upgrade CARRIES NO PAGE-LEVEL COPY EXPECTATION, AND IT TOOK ME THREE TRIES TO GET HERE.
+     Both earlier versions were wrong, in the same way, and both are recorded because the
+     mistake is more instructive than the fix:
 
-     The replacement comes from the page's own governing comment (`app/upgrade/page.tsx:211`,
-     owner's decisions #861 / #1567): under the pay button, say WHERE payment happens and that
-     sales are final - and claim nothing about cancelling, refunds, cards or crypto. Those two
-     facts are what the copy must carry, so those are what this asserts. */
-  { path: '/upgrade', expect: ['Whop', 'All sales are final'], absent: ['PLACEHOLDER'] },
+       1. `Sold by LiquidityHQ` - a string that exists nowhere in the repository. #1843 and
+          #1824 rewrote that block inside this very promotion, so the expectation was older
+          than the page. Reported MISSING on six rows and read as a lost legal attribution.
+       2. `Whop` + `All sales are final` - the right FACTS, read from the page's own governing
+          comment, asserted in the WRONG PLACE. Also reported MISSING on all six rows, and
+          that is correct: `methodPanel` renders only when `selectedPlan` is set, which is TWO
+          clicks from a cold load - reveal the plans, then pick one.
+
+     **Both failures looked like a payments-copy defect on a release whose point is that
+     payments are live.** That is the most expensive kind of false finding available here, so
+     the measurement moved to where the copy actually is: the purchase-path block below.
+     Nothing is asserted about the initial page beyond what every other row asserts. */
+  { path: '/upgrade', expect: [], absent: ['PLACEHOLDER'] },
   { path: '/status', expect: [], absent: ['PLACEHOLDER'] },
   { path: '/help', expect: [], absent: ['PLACEHOLDER'] },
   { path: '/accessibility', expect: [], absent: ['PLACEHOLDER'] },
@@ -261,6 +266,128 @@ for (const vp of WIDTHS) {
   /* Against the requested 390, for the same reason the row loop is: the probe stopped returning a
      pre-computed overflow when `innerWidth` turned out to be the wrong baseline. */
   log(`  OPENED STATE: overflow=${after.scrollWidth - 390} (sw=${after.scrollWidth} iw=${after.innerWidth}) AA=${after.violationNodes} [${after.violations.join(' ') || 'none'}] incomplete=${after.incompleteNodes} smallTargets=${after.smallCount} ${after.smallTargets.join(' ')}`);
+  await page.close(); await ctx.close();
+}
+
+/* ── /upgrade's PURCHASE PATH, two clicks deep ───────────────────────────────────────────────────
+ *
+ * WHY THIS BLOCK EXISTS. The payments copy and the Whop control are not on the page a cold load
+ * returns. `app/(main)/upgrade/page.tsx` gates them twice: `upgrade-reveal-plans` sets
+ * `plansOpen` (disabled until `purchaseReady`, which for a signed-out visitor settles true), and
+ * only choosing a plan sets `selectedPlan`, which is what renders `methodPanel` with the
+ * 'Pay with Whop' control and the note that says where payment happens and that sales are final.
+ *
+ * **So the one surface this release is for has never been measured by anything.** Every previous
+ * pass, mine included, measured the page as it loads and reported the gated copy as missing.
+ *
+ * THE FINAL CONTROL IS NEVER CLICKED. `checkout-method-whop` is a real checkout; this asserts it
+ * EXISTS and stops. The allowlist refuses every non-app origin anyway, so a stray navigation
+ * would be aborted rather than followed - but not clicking it is the actual guarantee, and the
+ * URL is re-asserted after the clicks to prove nothing navigated.
+ *
+ * Both widths and both themes, because this is a layout surface as well as a copy one: a panel
+ * that overflows a phone is the same defect class as a page that does.
+ */
+for (const [vpName, w, h, theme] of [['phone', 390, 844, 'light'], ['desktop', 1440, 900, 'dark']]) {
+  const ctx = await browser.newContext({
+    viewport: { width: w, height: h }, isMobile: vpName === 'phone', hasTouch: vpName === 'phone', colorScheme: theme,
+  });
+  await installAllowlist(ctx, BLOCKED);
+  await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch {} }, theme);
+  const page = await ctx.newPage();
+  log(`\n--- /upgrade purchase path (${theme}, ${w}) ---`);
+  try {
+    await page.goto(`${BASE}/upgrade`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.waitForLoadState('load', { timeout: 20_000 }).catch(() => {});
+    await page.waitForTimeout(1500);
+
+    const before = await page.evaluate(() => {
+      const b = document.querySelector('[data-testid="upgrade-reveal-plans"]');
+      return {
+        revealFound: Boolean(b),
+        revealDisabled: b ? b.disabled === true : null,
+        revealExpanded: b ? b.getAttribute('aria-expanded') : null,
+        panelPresent: Boolean(document.querySelector('[data-testid="checkout-method-panel"]')),
+      };
+    });
+    log(`  cold load: reveal button ${before.revealFound ? 'present' : 'MISSING'}, disabled=${before.revealDisabled}, aria-expanded=${before.revealExpanded}, panel=${before.panelPresent}`);
+
+    if (!before.revealFound) {
+      /* NOT a silent skip. If the control is absent the purchase path cannot be exercised at all,
+         and that is a bigger finding than anything below it. */
+      log('  NOT MEASURED: [data-testid="upgrade-reveal-plans"] is absent, so the purchase path cannot be opened.');
+      log('  Either the page did not render its controls (purchaseReady false) or the test id changed.');
+    } else if (before.revealDisabled) {
+      log('  NOT MEASURED: the reveal control is DISABLED. purchaseReady is false for this visitor,');
+      log('  which for a signed-out load is itself a finding - it settles true once auth resolves.');
+    } else {
+      await page.click('[data-testid="upgrade-reveal-plans"]');
+      await page.waitForTimeout(600);
+      const revealed = await page.evaluate(() => ({
+        expanded: document.querySelector('[data-testid="upgrade-reveal-plans"]')?.getAttribute('aria-expanded'),
+        plans: ['monthly', 'annual', 'fortnightly']
+          .filter((k) => document.querySelector(`[data-testid="checkout-cta-${k}"]`)),
+      }));
+      log(`  after reveal: aria-expanded=${revealed.expanded}, plan controls=[${revealed.plans.join(' ') || 'NONE'}]`);
+
+      if (revealed.plans.length === 0) {
+        log('  NOT MEASURED: no plan control appeared, so the method panel cannot be reached.');
+      } else {
+        const chosen = revealed.plans[0];
+        const urlBefore = page.url();
+        await page.click(`[data-testid="checkout-cta-${chosen}"]`);
+        await page.waitForTimeout(900);
+
+        /* THE PURCHASE PATH IS BEHIND SIGN-IN, AND THIS BRANCH EXISTS SO THAT READS AS A GATE
+           RATHER THAN AS MISSING COPY.
+           Measured against the deployed page: choosing a plan while signed out navigates to
+           `/login?signup=1&next=/upgrade`. No method panel, no Whop control, no note - so a
+           signed-out sweep CANNOT reach the payments copy at all, and every "MISSING [Whop, All
+           sales are final]" this tool has reported was that gate, not a defect.
+           **Reported as NOT MEASURED, with the reason, because the alternative is a false finding
+           on the one surface this release is for.** */
+        if (new URL(page.url()).pathname !== new URL(urlBefore).pathname) {
+          log(`  NOT MEASURED: choosing '${chosen}' navigated to ${new URL(page.url()).pathname}${new URL(page.url()).search}`);
+          log('  The method panel is behind SIGN-IN. The payments copy and the Whop control cannot be');
+          log('  reached by a signed-out run, so this release\'s payment surface is verified by nothing');
+          log('  here. It needs a credentialed check - the same gap as the /api/briefing bound.');
+          await page.close(); await ctx.close();
+          continue;
+        }
+
+        await page.addScriptTag({ content: AXE_SRC });
+        const opened = await page.evaluate(PROBE);
+        const panel = await page.evaluate(() => {
+          const el = document.querySelector('[data-testid="checkout-method-panel"]');
+          const txt = (document.body.innerText || '');
+          const cta = document.querySelector('[data-testid="checkout-method-whop"]');
+          return {
+            panelPresent: Boolean(el),
+            ctaPresent: Boolean(cta),
+            ctaTag: cta ? cta.tagName.toLowerCase() : null,
+            ctaText: cta ? (cta.textContent || '').trim().slice(0, 40) : null,
+            notePresent: Boolean(document.querySelector('[data-testid="checkout-method-whop-checkout-note"]')),
+            closePresent: Boolean(document.querySelector('[data-testid="checkout-method-close"]')),
+            /* THE TWO FACTS THE COPY MUST CARRY, from the page's own governing comment
+               (owner's #861 / #1567): where payment happens, and that sales are final. */
+            missingFacts: ['Whop', 'All sales are final'].filter((t) => !txt.includes(t)),
+            /* And the three it must NOT make - the same comment forbids a cancel, refund, card or
+               crypto claim, because none of those is offered today. */
+            forbidden: ['cancel any time', 'cancel anytime', 'money-back', 'refund within'].filter((t) => new RegExp(t, 'i').test(txt)),
+          };
+        });
+        log(`  chose '${chosen}': panel=${panel.panelPresent} whopCta=${panel.ctaPresent} (${panel.ctaTag} "${panel.ctaText}") note=${panel.notePresent} close=${panel.closePresent}`);
+        log(`  the two required facts: ${panel.missingFacts.length === 0 ? 'both present' : `MISSING ${JSON.stringify(panel.missingFacts)}`}`);
+        if (panel.forbidden.length) log(`  FORBIDDEN CLAIM ON SCREEN: ${JSON.stringify(panel.forbidden)}`);
+        log(`  OPENED PANEL: overflow=${opened.scrollWidth - w} (sw=${opened.scrollWidth} iw=${opened.innerWidth}) AA=${opened.violationNodes} [${opened.violations.join(' ') || 'none'}] incomplete=${opened.incompleteNodes} smallTargets=${opened.smallCount} ${opened.smallTargets.join(' ')}`);
+        /* Nothing may have navigated. The checkout control is deliberately NOT clicked, and this
+           is the assertion that says so rather than the intention. */
+        log(`  still on the same page: ${page.url() === urlBefore ? 'yes' : `NO - moved to ${page.url()}`}`);
+      }
+    }
+  } catch (e) {
+    log(`  ERROR ${e instanceof Error ? `${e.name}: ${e.message.split('\n')[0]}` : e}`);
+  }
   await page.close(); await ctx.close();
 }
 
