@@ -261,6 +261,41 @@ git diff --name-only <newest-built-sha> origin/<branch>                    # if 
 proceed and say so. **Do not resolve it by reading `ci.yml`** — the path filter
 tells you what CI *would* skip, not what it *did*.
 
+**THE TWO HOPS ARE NOT THE SAME CHECK, and the first version of this guardrail
+could not be executed on one of them.** QA caught it against the promotion they
+own:
+
+> **`dev` → `qa` is fast-forward, so dev's run IS the coverage and this check
+> happens BEFORE promoting. `qa` → `staging` is a merge commit that has never
+> been built anywhere, so there the check happens AFTER the push and before
+> sign-off — the new head's own run, not a diff.**
+
+A merge commit's tree has never existed in any branch, so **no run for it can
+possibly exist before the push.** "Check CI built the head you are promoting" is
+not a check that can pass or fail there; it is structurally unavailable. `staging`
+is in the `push` trigger, so the run does happen — what this guardrail asks for on
+that hop is that **sign-off waits for it.**
+
+### A coupling that is load-bearing and lives nowhere a promoter reads
+
+**The browser suite reaches `staging`'s content only because the release PR is
+opened BY HAND.** `ci.yml` records that `staging` joined the `push` trigger on
+2026-08-10 because the fast-forward argument *"turned out not to cover the browser
+suite"*, and that the 38-minute e2e job *"was reaching `staging` through a release
+PR that has since stopped being opened"* (#207).
+
+That is still the situation: `RELEASE_PR_PAUSED=1` since **2026-08-09**, and
+PM/DevOps opens the `staging` → `main` PR manually. **That PR has base `main`,
+which the `pull_request` trigger covers — so the hand-opened PR is what pulls the
+browser suite over staging's content.**
+
+> **If the release PR is ever skipped as a convenience, staging's browser coverage
+> goes with it, and nothing announces that.**
+
+Recorded here rather than left in a `ci.yml` comment referencing an issue, because
+this is the page a promoter actually reads. Found by QA while reviewing the
+guardrail above.
+
 **Not adopted from that doc, and why:**
 - A drift check that needs a local Supabase stack (there isn't one on this machine) and
   generates migrations itself. A generated diff can contain DROPs.
