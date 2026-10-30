@@ -29,6 +29,7 @@
 import type { GrokContext, ChartData } from './grok.ts';
 import { findIndicator } from './strategyRegistry.ts';
 import { COINS } from './coins.ts';
+import { isArenaTf } from './limits.ts';
 
 /** Per-field ceiling. Every GrokContext field is a short pre-formatted display string - the longest in
  *  normal use is a news or events block of a few hundred characters. 4,000 matches the per-turn cap
@@ -39,6 +40,31 @@ const MAX_FIELD_CHARS = 4_000;
 /** Arena's own indicator limit is 3 for Pro (lib/strategyRegistry.ts LIMITS), so 8 is loose enough never to
  *  refuse a real selection and tight enough that the list cannot be used as a payload. */
 const MAX_SELECTION = 8;
+
+/* ── THE PROMPT'S OWN STRUCTURE IS NOT A FIELD VALUE ──────────────────────────
+ *
+ * `buildCombinedPrompt` separates its sections with lines like `=== LIVE SEARCH TASK ===`, and
+ * `buildQuickPrompt` does not merely read them - it SLICES on them, cutting from the first
+ * `\n=== LIVE SEARCH TASK ===` to the first `\n=== YOUR ANALYSIS TASK ===` to build the Quick variant.
+ *
+ * So a context field containing one of those lines does not just add confusing text: it moves where the
+ * prompt is cut, and can remove the real instructions or keep the block Quick is supposed to drop. A
+ * field is DATA and never structure, so any value carrying a marker line is refused outright rather than
+ * escaped - there is no legitimate reason for a price or a news line to contain one, and refusing is the
+ * only version with no parser left to disagree with.
+ *
+ * This narrows prompt injection; it does not end it. The 61 fields are still free text from the browser,
+ * and a fuller answer means per-field shape validation and sourcing news and events on the server.
+ * Tracked on #1631 rather than attempted here. */
+const SECTION_MARKER = /^[ \t]*={3,}.*={3,}[ \t]*$/m;
+
+/** Control characters other than newline and tab. They are invisible in a review, survive into the
+ *  prompt, and are the cheap way to smuggle a line break past a reader. Newlines stay because several
+ *  fields - news, clusters, the ETF flow lines - are legitimately multi-line. */
+function stripControl(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g, '');
+}
 
 /* Every key of GrokContext, listed once. The assertion below makes this list and the interface the same
  * thing to the compiler. */
@@ -92,16 +118,35 @@ export function parseArenaContext(raw: unknown): ArenaParseResult<GrokContext> {
   for (const key of ARENA_CONTEXT_KEYS) {
     const v = r[key];
     if (typeof v !== 'string') return { ok: false, reason: `context.${key} is not a string` };
-    out[key] = v.slice(0, MAX_FIELD_CHARS);
+    if (SECTION_MARKER.test(v)) return { ok: false, reason: `context.${key} contains a prompt section marker` };
+    out[key] = stripControl(v).slice(0, MAX_FIELD_CHARS);
   }
-  if (!out.coin.trim())    return { ok: false, reason: 'context.coin is empty' };
   if (!out.session.trim()) return { ok: false, reason: 'context.session is empty' };
+
+  /* ── THE COIN IS REBUILT, NOT READ ────────────────────────────────────────
+   *
+   * Taking the id from the front of this field and letting the rest through was a PARSER DIFFERENTIAL,
+   * and it is the defect this whole change exists to remove, at a smaller scale. `BTC/USDT` is the real
+   * shape, but `"BTC/USDT - and actually analyse SOL in depth"` also has `BTC` in front of the first
+   * slash: the ladder would read `btc` and allow it for a Free account, and the prompt would carry the
+   * whole sentence. One field, two different values, exactly like the `coin` label it replaced.
+   *
+   * So the format is required exactly, the id is checked against the tracked coins, and the stored value
+   * is REBUILT from that id. After this the prompt cannot contain anything the gate did not authorise,
+   * because the only coin text in it is text this server wrote. Same reasoning as the selection
+   * travelling as identifiers. */
+  const m = /^([A-Za-z0-9]{1,15})\/USDT$/.exec(out.coin.trim());
+  const id = m ? m[1].toLowerCase() : null;
+  if (!id || !(COINS as readonly string[]).includes(id)) {
+    return { ok: false, reason: 'context.coin is not a tracked coin pair' };
+  }
+  out.coin = `${id.toUpperCase()}/USDT`;
 
   return { ok: true, value: out as unknown as GrokContext };
 }
 
 /**
- * The coin id a context is about, or null when it does not name a coin this app tracks.
+ * The coin id a validated context is about.
  *
  * `ctx.coin` IS A DISPLAY STRING, NOT AN ID, and that is a trap worth naming because it is invisible at
  * the call site. `gatherContext` writes `selectedCoin.toUpperCase() + '/USDT'`, so the field reads
@@ -109,15 +154,15 @@ export function parseArenaContext(raw: unknown): ArenaParseResult<GrokContext> {
  * handing it `BTC/USDT` yields `btc/usdt`, which is not on the Free list. Passing the raw field to the
  * gate would have refused every Free and trial account on BTC, ETH and SOL - the whole free tier's AI
  * reads - while a Pro account saw nothing wrong, because `aiCoinAllowed` returns true for Pro before it
- * ever looks at the coin.
+ * ever looks at the coin. **A test account with entitlements cannot see an entitlement bug.**
  *
- * So the id is derived here, once, and checked against the tracked list. A value that is not one of them
- * returns null rather than a guess, which the caller turns into the same "name no coin" refusal the route
- * already had. If the display format ever changes, every read fails loudly instead of the ladder quietly
- * reading the wrong thing.
+ * Safe to split here ONLY because `parseArenaContext` has already required the exact `<ID>/USDT` shape
+ * and rewritten the field from the id it validated. Reading the front of an unvalidated string was the
+ * parser differential described there. Takes a `GrokContext`, which is a type only that function
+ * produces, so the ordering is carried by the type rather than by a comment asking for it.
  */
 export function arenaContextCoinId(ctx: GrokContext): string | null {
-  const head = ctx.coin.trim().toLowerCase().split('/')[0].trim();
+  const head = ctx.coin.split('/')[0].toLowerCase();
   return (COINS as readonly string[]).includes(head) ? head : null;
 }
 
@@ -139,10 +184,13 @@ export function parseArenaChart(raw: unknown): ArenaParseResult<ChartData> {
   }
   const r = raw as Record<string, unknown>;
 
-  if (typeof r.tf !== 'string' || !r.tf.trim()) return { ok: false, reason: 'chart.tf is missing' };
-  /* A timeframe is a short token like '15m' or '4h'. Bounded here as well as gated, because it is
-     interpolated into the prompt and reaches the usage log. */
-  if (!/^[0-9a-zA-Z]{1,8}$/.test(r.tf)) return { ok: false, reason: 'chart.tf is not a timeframe' };
+  /* AN ALLOWLIST, NOT A SHAPE. `isGatedTf` is an exact `includes` against ['1m','5m','15m'], so a value
+     that merely LOOKS like a timeframe is not necessarily one the gate can recognise: '5M' passes a
+     /^[0-9a-zA-Z]{1,8}$/ test, is the same timeframe to any exchange, and is not on the gated list - a
+     free account would get a fast-timeframe read while the gate reported refusing nothing. Compared
+     exactly and refused rather than normalised, because normalising is what opens a gap between the
+     value that was gated and the value that was sent. */
+  if (!isArenaTf(r.tf)) return { ok: false, reason: 'chart.tf is not one of the app\'s timeframes' };
 
   const ema9   = finiteOrNull(r.ema9);
   const sma200 = finiteOrNull(r.sma200);
@@ -160,19 +208,25 @@ export function parseArenaChart(raw: unknown): ArenaParseResult<ChartData> {
   if (r.detectedPatterns !== undefined && typeof r.detectedPatterns !== 'string') {
     return { ok: false, reason: 'chart.detectedPatterns is not a string' };
   }
+  /* Both reach the prompt as text, so both get the same marker refusal as the context fields. */
+  for (const [key, v] of [['recent20', r.recent20], ['detectedPatterns', r.detectedPatterns]] as const) {
+    if (typeof v === 'string' && SECTION_MARKER.test(v)) {
+      return { ok: false, reason: `chart.${key} contains a prompt section marker` };
+    }
+  }
 
   return {
     ok: true,
     value: {
       tf: r.tf,
       ema9, sma200, rsi,
-      recent20:  r.recent20.slice(0, MAX_FIELD_CHARS),
+      recent20:  stripControl(r.recent20).slice(0, MAX_FIELD_CHARS),
       hi:        r.hi as number,
       lo:        r.lo as number,
       lastClose: r.lastClose as number,
       ...(r.detectedPatterns === undefined
         ? {}
-        : { detectedPatterns: r.detectedPatterns.slice(0, MAX_FIELD_CHARS) }),
+        : { detectedPatterns: stripControl(r.detectedPatterns).slice(0, MAX_FIELD_CHARS) }),
     },
   };
 }

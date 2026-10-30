@@ -31,6 +31,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://stand-in.invalid';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon_stand_in_key';
 
 const { callGrokViaProxy } = await import('../lib/grok.ts');
+import type { ChartData, GrokContext } from '../lib/grok.ts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/^﻿/, '').split(/\r?\n/).join('\n');
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -50,7 +51,7 @@ const realFetch = globalThis.fetch;
 async function proxyAnswers(status: number, body: unknown) {
   globalThis.fetch = (async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })) as typeof fetch;
   try {
-    await callGrokViaProxy('prompt', '5m', 'london', 'quick');
+    await callGrokViaProxy({ session: 'london' } as GrokContext, { tf: '5m' } as ChartData, 'quick');
     return null;
   } catch (e) {
     return e as Error & { code?: string; usage?: unknown };
@@ -64,7 +65,7 @@ test('CONTROL. a 200 from the proxy resolves with the body, so a throw below is 
   const result = { signal: 'FLAT', confidence: 40, levels: [], chartAnalysis: '', patterns: [], reasoning: '', catalysts: [], waitFor: null, bias: null, raidSetup: null, raidTarget: null, raidTrigger: null, analyzedAt: 1, tf: '1h', session: 'london' };
   globalThis.fetch = (async () => Response.json({ result, usage: null })) as typeof fetch;
   try {
-    const out = await callGrokViaProxy('prompt', '1h', 'london', 'quick');
+    const out = await callGrokViaProxy({ session: 'london' } as GrokContext, { tf: '1h' } as ChartData, 'quick');
     assert.deepEqual(out, { result, usage: null });
   } finally { globalThis.fetch = realFetch; }
 });
