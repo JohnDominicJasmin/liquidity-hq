@@ -19,7 +19,7 @@ Three things this feature needs, all three already in the repository today:
 |---|---|---|
 | A chart that can be drawn on programmatically | **klinecharts `10.0.0-beta3`** exposes a full overlay API: `registerOverlay(template)`, `chart.createOverlay({ name, points, styles, lock, visible, groupId })`, `getOverlays(filter)`, `removeOverlay(filter)`. Points are `{ timestamp, value }` — price/time, not pixels, so an overlay stays correct through pan and zoom. | `node_modules/klinecharts/dist/index.d.ts` lines 831, 868–869, 895–896, 1200; chart host is `components/KLineProChart.tsx` |
 | A deep-research button with billing, entitlement and metering | `app/api/strategy-research/route.ts` — Pro-gated server-side (`hasProFeatures`), metered (`incrementToolUsage`, `recordAiCall`), rate-limited (`rateLimitMessage`) | existing route, 121 lines |
-| Candles at every timeframe, with a second source if the first fails | `app/api/market/klines/route.ts` + `lib/klinesFailover.ts` (Binance primary, Bybit failover on any non-2xx) | existing routes |
+| Candles at every timeframe, with a second source if the first fails — **with one exclusion that this feature walks straight into, see §4a** | `app/api/market/klines/route.ts` + `lib/klinesFailover.ts`. Bybit is the default source; a Binance request fails over to Bybit on any non-2xx — **but only for a fixed-limit request.** `canFailoverForRequest(isRange)` returns `!isRange`, so a RANGE request never fails over | existing routes |
 
 So this is **not** a new subsystem. It is a new computation plus a new render layer on a chart that
 already supports being drawn on.
@@ -110,6 +110,55 @@ The owner's point — higher timeframe carries more weight — is the design, no
 - When timeframes disagree (4H says descending channel, 1D says ascending support), **both are
   shown and the disagreement is stated.** Silently picking a winner is the product lying about its
   own confidence.
+
+---
+
+## 4a. THE LADDER MUST NOT BECOME A RANGE WALK — a hard constraint, found by Dev on review
+
+**This is the one place where this proposal's own design would reintroduce a dependency that §1
+claims it does not have, and it sits on the path the design most needs.** Recorded as a named
+constraint rather than a footnote, because a reader who skims §1 will take the failover as given.
+
+The §1 claim — that this feature does not depend on Binance — is true for a **live chart**, which
+asks for the most recent N candles. That is a fixed-limit request and it fails over to Bybit.
+
+**It is not true for a range request.** `lib/klinesFailover.ts:39`:
+
+```ts
+export function canFailoverForRequest(isRange: boolean): boolean {
+  return !isRange;
+}
+```
+
+`app/api/market/klines/route.ts:380-384` gates the Bybit fallback on it, so **a range request that
+fails on Binance returns a 502 and nothing else.** That is deliberate, and it is this project's own
+rule: never splice exchanges inside one candle series, because a series that is Binance for pages
+1–3 and Bybit for page 4 carries a seam invisible to any indicator computed over it.
+
+**A timeframe ladder reading history is exactly the shape that becomes a range walk.** Fitting a
+weekly trendline needs enough weekly candles to put a line through three or more pivots — the
+paginated-backfill pattern `lib/backtestEngine.ts` already uses, on the one path with no fallback.
+So the structure detector would be the first consumer to depend on a single exchange with no second
+source, and the deterministic half of the feature — which §2 argues is its main virtue *because* it
+cannot hallucinate — would inherit a single point of failure instead.
+
+### The constraint
+
+**Fetch each rung of the ladder as its own fixed-limit request, never as a range.** One request per
+timeframe for the most recent N candles of that timeframe, N being whatever the pivot detector
+needs. That keeps the Bybit failover on every rung **and** keeps the no-splicing rule, because each
+rung is one atomic request answered entirely by one exchange.
+
+**It also bounds the ladder's depth to what a fixed-limit request returns**, which is a real design
+limit and belongs in the Phase 2 estimate rather than being discovered mid-build. If a rung needs
+more history than one request can return, that rung needs an explicit decision about which exchange
+owns it — not a quiet range walk.
+
+**How this was missed, since the pattern matters more than the instance:** §1's table said "Bybit
+failover on any non-2xx". That was the behaviour I had checked for the live chart, generalised to
+every request shape without reading the gate that qualifies it. The same shape as reading one
+Supabase project's region and generalising to the account — on the same day, in the same document
+set. Caught by Dev reading the failover's gate rather than its summary.
 
 ---
 
