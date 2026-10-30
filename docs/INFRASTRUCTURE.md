@@ -702,10 +702,17 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
 
 ---
 
-## 9. Four instrument traps found on 2026-10-30, each of which returns a confident wrong answer
+## 9. Instrument traps found on 2026-10-30, each of which returns a confident wrong answer
 
 None of these fails loudly. Each produces a result that looks like data. **§9e is the rule they all
-collapse to; read that one if you read nothing else.**
+collapse to; read that one if you read nothing else.** §9f sits after it because it was found after
+it, and is two more instances of it rather than a new trap. **§9g is a new trap and sits last for the
+same reason: found later.** Lettering records when something was found, not how important it is.
+
+**This heading counted the traps - "Four instrument traps" - and appending §9f made the number
+wrong in the title of the section about figures that rot. The count is gone rather than corrected: a
+heading that does not count cannot go stale. §9e carries the same lesson about its own table, which
+it learned by breaking twice - so this is the third time one section has caught itself.**
 
 ### 9a. `grep -i` COMBINED WITH `-F` **CRASHES** HERE (SIGABRT, exit 134)
 
@@ -815,7 +822,8 @@ a comment ends, including `//` inside a string literal — guarding the first.
 
 > **A control must be shown to FIRE before its silence means anything.**
 
-Narrower and more useful than "add controls". Six instances in one day, in six different tools:
+Narrower and more useful than "add controls". Eight instances in one day, in eight different
+instruments — and **the last two are instruments nobody here built**, which is why §9f exists:
 
 | Instrument | Looked like | Actually |
 |---|---|---|
@@ -825,6 +833,8 @@ Narrower and more useful than "add controls". Six instances in one day, in six d
 | A spec asserting a string is ABSENT | the placeholder fix verified | the whole section failed to mount |
 | A range-scoped `sed` read of this file | the abort correction was never written | it was written further down, outside the range |
 | `gh pr checks <n>` | "no checks reported on the branch" | a run was PENDING on the same head the whole time |
+| A pull request's own API view | a 2-commit, 2-file branch ready to merge | `git ls-remote` had a THIRD commit — the suite that gated the work — and a merge would have taken the view |
+| githubstatus.com | "all systems operational", no incidents | six write failures across three sessions in ~40 minutes |
 
 **The `sed` row is this document being read with an instrument scoped narrower than the question**, and
 it was caught by checking the whole file before claiming an absence — which is §9a's own advice
@@ -850,3 +860,271 @@ A wrong fact gets checked. **A correct fact that happens to explain a stale read
 it supplies the confidence to stop looking. When two channels disagree about whether something ran,
 wait for both rather than picking the one a known fact can explain - and prefer **watching the run**
 over polling the checks API, which is the practical form of this.
+
+### 9f. A VENDOR'S OWN STATUS PAGE IS A CONTROL THAT HAS NOT FIRED
+
+**§9e's seventh and eighth instances, and the only two from instruments this project did not build.**
+Placed after the rule rather than before it because that is when they were found; §9e's table is read
+by row name, not by position, so adding them above would have been the hazard that section already
+documents.
+
+**2026-10-30. Six GitHub write failures across three sessions in about forty minutes:** a `git push`
+rejected with `Internal Server Error` (twice in one session, once in another), a `502` on
+`gh pr create`, a GraphQL error on `gh pr edit`, a GraphQL error on `gh pr close`, and a branch
+delete that only went through over REST. **githubstatus.com, fetched directly during the window,
+reported every component operational — Git Operations, API Requests, Actions, Pull Requests — with
+no active or recent incidents.**
+
+> **"The status page is green" is not a measurement. It is a detector that has not fired, and
+> somebody else owns the detector.**
+
+A status page is a *downstream* instrument: it reports what the vendor has decided to declare, after
+they have noticed and decided to say so. **Our own six failures were the measurement.** They
+outranked the page, and they were available the whole time.
+
+### The expensive instance, and it is not the failed writes
+
+The failed writes were loud. **The dangerous one was silent: a pull request's own view disagreed with
+the branch it claimed to show.**
+
+```
+gh pr view 1831 --json headRefOid              ->  e29ec943   (2 commits, 2 files)
+git ls-remote origin test/chart-structure-fixtures ->  0b8387fd
+```
+
+The missing third commit was the binding test suite — **the half that gated the feature it was
+written for.** Nothing looked wrong. The PR was green, the branch was correct, and **a merge would
+have taken what the view held**: the work would have landed, the gate would have been absent, and
+the issue would have been ticked on a passing merge.
+
+**It was caught because the author checked a ref against the view six times over several minutes
+rather than accepting one refresh as lag.** That is the only reason.
+
+**And the author's own account of why they kept going is worth more than the catch, so it is recorded
+in their words rather than cleaned up:** *"my six checks were luck in the sense that I only kept
+going because the first three agreed with each other; I had no principle saying to."* **A catch that
+depended on a hunch is not a procedure.** That is precisely why practice item 1 below had to become
+a rule — the next person will not have the hunch.
+
+### Which pull requests are affected — a control, and a hypothesis that is NOT recency
+
+The first reading was "the two most recently pushed branches". **That is checkable and it is wrong.**
+Measured across every open pull request within the hour, with the matching rows as the control that
+makes the mismatching ones mean anything:
+
+| PR | view `headRefOid` | `git ls-remote` | |
+|---|---|---|---|
+| #1829 | `5dc385a2` | `dfea5924` | **MISMATCH** |
+| #1831 | `e29ec943` | `0b8387fd` | **MISMATCH** |
+| #1834 | `11bd7686` | `11bd7686` | MATCH |
+| #1835 | `30efa234` | `30efa234` | MATCH |
+
+**#1835 was pushed AFTER #1829 and its view is correct**, so recency does not discriminate. What the
+two mismatching branches share is their push history: **both had a `git push` rejected with
+`Internal Server Error` and succeeded only on a retry.** #1835's push was accepted first time.
+
+> **Hypothesis, labelled as one because n is small: a push that fails and then succeeds on retry can
+> leave the pull request's view pointing at the PRE-FAILURE head while the ref advances.** The failed
+> write is the marker, not the clock.
+
+**NARROWED, and it was first stated too broadly as "a failed write".** Two of that day's failures were
+not pushes at all — a 502 on `gh pr create` and a GraphQL error on `gh pr edit`. **#1833 was created
+on a retry after that 502 and its view MATCHED**, which is the row that discriminates: a retried
+pull-request-object write did not produce a stale view. On the evidence the marker is specifically
+**a failed PUSH**.
+
+**That fits the remedy rather than fighting it.** PR-object writes are what *rebuilds* a stale view
+(below), so it would be odd if they were also what caused one. Two findings from two sessions,
+arrived at separately, pointing the same way.
+
+**If it holds, it is better than the recency reading in the one way that matters — it tells you WHICH
+pull requests to distrust.** The one you retried. It is also consistent with the rest of that day's
+weather: GitHub refused its own merge of #1829 with *"Head branch is out of date"*, and
+`update-branch` then failed with *"head sha didn't match the current head ref"* — the service
+disagreeing with itself about a single branch.
+
+**Do not promote this to a rule on this evidence:** four pull requests, two mismatching, one
+known-clean push as the control. **The practice below does not depend on the hypothesis being right**,
+which is the reason the practice is the part to follow.
+
+### LAG IS NOT STALENESS — and this is where the first remedy claim fell over
+
+**First this subsection claimed "tested twice rather than reasoned". It was not. It was measured
+twice within a second of a push, which measures something else.**
+
+**Immediately after the push that added this very subsection, #1835's own view read `1868e1cb`
+while the ref read `e9d53634` — a MISMATCH. Re-measured after some elapsed time: both
+`e9d53634`.** It had simply not propagated yet.
+
+> **A view read within seconds of a push is measuring ordinary lag. The defect is a mismatch that
+> PERSISTS — across minutes and across repeated checks.**
+
+That distinction is the whole entry, and the first draft of this subsection did not have it. Both
+"clean data points" above were instant reads: one of them would have resolved on its own, and the
+other was never given the chance to.
+
+**So what survives, stated at the strength the evidence supports:**
+
+- **The persistent cases are real.** #1831 was checked six times over several minutes. #1829 held a
+  stale view long enough for GitHub to refuse its own merge for *"Head branch is out of date"* and
+  then fail `update-branch` on *"head sha didn't match the current head ref"*. Neither was lag.
+- **That a push fixes a persistent one is ONE observation.** #1829 matched immediately after a
+  single commit. **With no control for elapsed time**, "the push fixed it" and "it caught up anyway"
+  are not distinguishable from that one run. It is worth trying because it is one commit, not
+  because it is established.
+- **The retry hypothesis is untouched by this.** It is about which branches go stale, not about how
+  to measure them, and the table's MISMATCH rows were persistent ones.
+
+**How to measure it properly, which is the part to actually follow:** read the view and the ref
+**twice, with time between**, before concluding anything. One disagreement is lag. The same
+disagreement minutes later, or after a refresh, is the defect.
+
+### WHAT ACTUALLY REBUILDS THE VIEW — no push needed
+
+**#1831 was fixed by `gh pr close` followed by `gh pr reopen`. No new commit, no write to the
+branch at all.** Its ref had sat at `0b8387fd` for over an hour and never moved; view and ref agreed
+afterwards, verified three times after a fetch, with all three files listed including the binding
+suite. Found by QA.
+
+**So "it takes one clean push" was wrong in a way that costs something.** A reader following it
+would manufacture a commit they do not need, and **an empty commit on an already-reviewed pull
+request is its own small harm** — it re-opens review state and adds a commit that explains nothing.
+
+> **Any mutation of the pull-request object rebuilds the view. Prefer the one that touches no code:
+> close, then reopen.**
+
+**And it narrows the mechanism without supplying a cause: the stale record was DERIVED, not waiting
+on anything from the branch side.** A close/reopen changed no commit and still produced a correct
+view. That is a property of the remedy and it must not be allowed to grow into an explanation of
+what GitHub was doing — see the evidence caveat above.
+
+**One ordering detail that belongs next to the remedy rather than in a footnote:** `gh pr close` was
+tried on #1831 **during** the write-failure window and failed with a GraphQL error. **The remedy
+existed and was unavailable.** So: **retry the remedy once the write path is healthy**, and do not
+read one failed attempt at it as the remedy not working.
+
+**This does not touch the retry hypothesis.** #1831 was already in the stale set, so it adds no data
+point to the question of *which* branches go stale. What it does is separate the **remedy** from the
+**marker**, which had been travelling together in the first draft and did not belong together.
+
+### What the earlier claim was, kept rather than deleted
+
+**One clean push to the branch resyncs the view.** The hypothesis predicted it and it appeared to
+work both times it was tried — and the second of those two is the observation that undid it:
+
+- **#1835**, already matching, took a second commit on a push accepted first time - and its view
+  read the PREVIOUS head for a moment before catching up on its own. **This is the row that
+  falsified the subsection above it**, and it only did so because it was re-measured instead of
+  being recorded once.
+- **#1829**, stale at `view=5dc385a2` / `remote=dfea5924`, with its own merge refused for
+  *"Head branch is out of date"* and `update-branch` failing on *"head sha didn't match the current head
+  ref"*, took one commit: **view and ref both `be63dd12` immediately afterwards.**
+
+**That claim is SUPERSEDED and is kept only as a record of how it failed. Do not follow it.**
+#1831 was fixed with no push at all, so the commit was never the active ingredient — and the
+instruction would have had readers manufacturing empty commits on reviewed pull requests. Follow
+*WHAT ACTUALLY REBUILDS THE VIEW* above instead.
+
+**Both of its failure modes arrived within the hour, and they are different in kind:**
+
+- **Measurement:** #1835's "clean data point" was an instant read that resolved on its own. The
+  claim was built on a measurement that could not tell lag from staleness.
+- **Mechanism:** #1831's close/reopen fixed a stale view without touching the branch, so the push
+  was never doing the work the claim credited it with.
+
+**It is kept rather than deleted because a wrong remedy that was briefly recommended by this file is
+worth more as a worked example than as a gap.** It was written confidently, with two observations
+and a hypothesis that had just predicted something correctly — which is precisely the state in
+which this section's own failures get written. The thing that undid it was re-measuring and someone
+else trying a different remedy, not more care at the time of writing.
+
+**Two caveats about the table itself.** The #1835 row is the state of this entry's own pull request at
+the commit BEFORE the one that added the table, so it reports a past head rather than a current one -
+every row here is an observation with a timestamp, including the row describing the file you are
+reading. And the push that carried this table was itself a further test: on the hypothesis, a push
+accepted first time should leave #1835 matching.
+
+### What to do, stated as practice rather than principle
+
+1. **Before merging anything whose contents matter, read the view and the ref TWICE, with time
+   between.** One disagreement is propagation lag; the same disagreement minutes later is the
+   defect. Compare `git ls-remote` against the PR's
+   `headRefOid`.** They should be the same object. **A green PR is not evidence that the view holds
+   what you pushed**, and neither is a passing CI run — both describe whatever the view has.
+2. **Check the artifact before retrying any failed write.** Every failure that day genuinely had not
+   landed, so no duplicates were created — but a write that both errors and lands turns a blind
+   retry into a duplicate PR, a double comment, or a second branch.
+3. **Never close out an incident on a status page.** It can confirm a vendor's own account of
+   something you already measured. It cannot tell you nothing happened.
+4. **Two channels disagreeing is a measurement, not noise.** This is §9e's `gh pr checks` row in a
+   second tool, and the response is the same: wait for both, prefer watching the thing itself, and
+   do not pick the channel that a known true fact can explain.
+
+### 9g. A TEST ACCOUNT WITH ENTITLEMENTS CANNOT SEE AN ENTITLEMENT BUG
+
+**Found 2026-10-30 by Dev, before commit, on #1631 item 5. Nothing shipped — and it would have
+passed every green run on the account the team actually tests with.**
+
+The change moved prompt assembly server-side so the coin and timeframe gates read the values the
+prompt is built from. The gate was given `ctx.coin`. **`ctx.coin` is not a coin id:**
+`gatherContext` writes `selectedCoin.toUpperCase() + '/USDT'`, so it holds `BTC/USDT`, and
+`normalizeCoinId` only trims and lowercases — producing `btc/usdt`, which is not on the Free list.
+
+**Consequence: every Free and trial account locked out of BTC, ETH and SOL** — the three coins that
+tier is *for* — **while a Pro account saw nothing at all**, because `aiCoinAllowed` returns true for
+Pro before it ever looks at the coin.
+
+> **The entitlement check short-circuits for the highest tier, so the highest tier is blind to every
+> bug in it.**
+
+**This is §9e's rule with the ACCOUNT as the instrument.** A green run proves the gate allowed
+*this* account; it says nothing about the gate. And the control is not available by accident: you
+have to deliberately run as the restricted tier, because the unrestricted one cannot fail.
+
+**What this costs when it escapes:** not an error. Free and trial users would simply find the
+product's advertised coins unavailable, with a correct-looking "not on your plan" refusal. **A
+defect that presents as the product working as designed does not generate a report.** Today that
+means it would have produced no signal at all — not a complaint, not a support message, nothing to
+notice it by. Once there are paying users it means the same silence, with churn behind it that
+nobody can attribute.
+
+**The first version of that sentence ended "it generates a cancellation", and QA sent it back.** It
+was wrong twice: there are no paying users to cancel — payments went live 2026-10-28, and on prod
+today `lhq_whop_webhook_events` is empty while `lhq_user_subscriptions` holds no row with an active or
+trialing status — and **the affected tiers have nothing to cancel anyway.** A free user leaves
+and a trial lapses; the one tier that could cancel is Pro, which is exactly the tier the bug cannot
+touch. **`docs/OWNER-RULES.md` carries "do not argue urgency from user harm" as a standing rule,
+because the bugs are real and the users are not yet** — and that sentence was this file breaking it.
+The silence is the cost, and it is the cost today as well as later.
+
+**And the first version of the CORRECTION carried a rotted figure, inside the entry about figures that
+rot.** It said "both Whop tables at zero rows". Re-read on production 2026-10-30:
+`lhq_whop_webhook_events` is 0, but **`lhq_user_subscriptions` holds 5 rows** - every one with a NULL
+status, last touched 2026-10-02, so they pre-date payments going live. `active_or_trial` is 0, so the
+conclusion never moved; **the stated measurement was simply wrong, and a reader who checked that table
+would have found this file wrong on its own subject.**
+
+**The load-bearing fact was a STATUS and what was reported was a ROW COUNT** - the cheaper measurement
+answering a near-enough question, which is §9e one more time, this time inside a sentence correcting a
+§9g claim about instruments. The replacement above is also harder to falsify by accident: a row
+appearing does not break it, because the claim is about status. Caught by QA re-reading a figure they
+had supplied themselves.
+
+### What to do
+
+1. **Every gate check runs as the RESTRICTED tier, and as each tier that differs.** Free, trial and
+   Pro are three instruments here, not one feature with three skins. A Pro-only pass on anything
+   touching entitlement is a pass on nothing.
+2. **Assert the negative, with a control.** A cell that fails if a Free account is ever *allowed* a
+   non-Free coin, and a control proving that cell can fail — otherwise it is an absence assertion
+   with no evidence it is wired up (§9b).
+3. **Suspect every value whose NAME reads like an id.** `ctx.coin` sounds like `btc`. It holds a
+   display pair. The trap is written at the function now, which is the right place: a comment at
+   the producer reaches the next reader, a note in this file does not.
+4. **Short-circuits deserve a second look wherever they exist.** Any `if (isPro) return true` is a
+   place where the most-tested path is the least-informative one.
+5. **The early return is VISIBLE IN THE SOURCE, so look for it on purpose.** `aiCoinAllowed`
+   short-circuits on `pro` before it reads the coin, which makes the blindness **structural rather
+   than incidental** — and structural means greppable. A gate whose highest tier returns early is a
+   gate where a privileged test account is an instrument, and that can be found deliberately instead
+   of by a near-miss. QA's addition, and it is the one item here that turns the trap into a search.
