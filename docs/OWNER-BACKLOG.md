@@ -127,7 +127,9 @@ functions, so it does not stop the reliability work.
 | **Start the deep-research chart-drawing feature.** Phase 0 only; phases 1-4 stay sequenced. | *"start it"* (13:19 UTC), after asking *"what happened to my proposal about deep research thing?"* | `#1818` moved from `priority: low` / not-scheduled to `priority: medium` / Phase 0 assigned. Dev writes `lib/chartStructures.ts` (pure functions, no UI, no AI, no network); QA writes the fixtures. Spec `docs/proposals/ai-chart-structures.md`. The `priority: high` reliability work (#1631, #1649, #1651) is NOT cancelled. |
 | **NOT AN OWNER DECISION - PM recommendation only: no Google AdSense for now.** | He asked *"can we have adsense also for our website?"* and has not ruled on the answer. His silence is not a decision. | Nothing built. PM's reasoning, with the traffic figure UNMEASURED - real page views were never read, so "single-digit dollars" is an estimate: at our traffic the revenue is single-digit dollars a month against $49/mo subscriptions, ads leak visitors off the pricing page, we would not control which exchange or token ads appear beside our own signals, Google treats trading-signal sites as restricted, and EU/UK consent work would be required. **Where it could return:** a separate free content arm (glossary, education) that never touches the app or the checkout — traffic first. |
 
-**Only the first row is his decision.** The second is written down so the reasoning is not lost, and
+| **Run CI only where it is needed.** | *"Keep only the real code, test, change, and release... The changes to documents and rechecking after each merge, skip it... run once before release."* | Docs-only PRs skip the full checks. `dev` merges stop re-running them; the merged head is built once before promotion. Rule: `docs/OWNER-RULES.md` section 12. |
+
+**The AdSense row is the only one that is not his decision.** It is written down so the reasoning is not lost, and
 it stays open until he rules on it.
 
 ## Not on this list, and that is deliberate
