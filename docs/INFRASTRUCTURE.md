@@ -699,3 +699,63 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
   the scheduler lives in a tool this repo cannot see. Anything wired outside the
   repo has to be written down by the person who wired it, in the same sitting, or
   it is not recorded at all.
+
+---
+
+## 9. Two instrument traps found on 2026-10-30, both of which return a confident wrong answer
+
+Neither of these fails loudly. Both produce a result that looks like data.
+
+### 9a. `grep -i` COMBINED WITH `-F` RETURNS NOTHING IN THIS ENVIRONMENT
+
+Measured on the Git Bash grep here, against a file containing the string:
+
+```
+grep -oF   LiquidityHQ file   ->  LiquidityHQ      correct
+grep -oi   LiquidityHQ file   ->  LiquidityHQ      correct
+grep -cF   LiquidityHQ file   ->  1                correct
+grep -ci   LiquidityHQ file   ->  1                correct
+grep -oiF  LiquidityHQ file   ->  (nothing)        WRONG
+grep -ciF  LiquidityHQ file   ->  (nothing)        WRONG, also under LC_ALL=C
+```
+
+**So any check built on `grep -iF` can never find anything, and reports that as a clean zero.**
+
+It was found because a positive control came back `0` on a file the string was visible in. The run
+before that reported "marker absent on both production and dev" for eight markers — a coherent,
+plausible, entirely fabricated result. **A control of zero is not a control.**
+
+**This is a silent false-negative generator for absence checks specifically,** which is the shape
+this project writes a lot of: *is the placeholder gone, is the leaked key absent, did the bad string
+stop rendering.* All of those pass unconditionally if written with `-iF`. Use `-F` or `-i`, not
+both, and always pair an absence check with a string that MUST be present.
+
+### 9b. A DEPENDENCY BEING DOWN READS AS "FINE" — three instances in one day
+
+All three looked like a pass and were a missing measurement:
+
+| What read as fine | What was actually happening |
+|---|---|
+| A sign-in failure naming a database schema bug | The body was not JSON at all — the hint printed unconditionally and the condition was false |
+| `/api/labels` resolving, so labels "work" | File defaults were serving; the database behind them was unreachable |
+| `/upgrade` showing no unconfirmed-placeholder string | The entire purchase block fails to mount against the degraded database — the defect is real and in the code, and the environment hides it |
+
+**The third is the dangerous one.** A spec asserting the placeholder is ABSENT would have passed on
+that environment, confidently green, certifying a fix that had not happened. **An absence assertion
+needs a positive control proving the CONTAINER rendered**, because "the bad string is gone" and
+"the section is missing" are indistinguishable without one.
+
+The control that settled it was the same probe against production, post-hydration:
+
+```
+                      prod              dev (degraded db)
+purchase controls     3                 0
+prices visible        yes               no
+rendered words        587               301
+footer links          11                16
+```
+
+Markup alone could not tell them apart — those strings are absent from **production's** HTML too,
+because the block is client-rendered on both hosts. **Server-side absence was true and did not
+discriminate.** Where a defect is "wrong content present", prefer asserting on SOURCE: a
+source-reading check cannot be fooled by the environment.
