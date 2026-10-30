@@ -33,6 +33,14 @@ export const CANNOT_RUN_CODES = {
      having answered badly when the model was never called, which is the one conclusion a monitor
      must not reach on its own obsolescence. */
   STALE_CLIENT: 'this tool sent the old request shape - the route builds the prompt itself now, so THIS TOOL is out of date',
+  /* #1855. The coin selector offers 463 instruments; the AI read is tracked for about 50 of them,
+     and validation refuses the rest before the plan is read.
+
+     A CANNOT-RUN, FOR A DIFFERENT REASON FROM THE ONES ABOVE. Nothing was spent, no model was
+     called, and - unlike every other code here - A RETRY WILL NEVER HELP: the coin is not going to
+     become tracked by asking again. A monitor that buckets this as a failed verdict reports the
+     model as having answered badly about a coin it was never asked about. */
+  COIN_NOT_TRACKED: 'this coin has no AI read - it is in the selector but not in the tracked set, so retrying cannot help',
 };
 
 /**
