@@ -9,7 +9,7 @@ import { EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import { useLabels } from '@/lib/labels';
 import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
 import EmailLinked from '@/components/EmailLinked';
-import { TRADER_COUNTRY, TRADER_LEGAL_NAME } from '@/lib/traderIdentity';
+import { LEGAL_NAME_CONFIRMED, TRADER_COUNTRY, TRADER_LEGAL_NAME } from '@/lib/traderIdentity';
 
 /* #1606: the embedded Whop checkout. Loaded only when a plan is picked (client only), so the Whop SDK is not part of this page's first load. */
 const WhopCheckoutEmbed = lazy(() => import('@/components/WhopCheckoutEmbed'));
@@ -342,6 +342,22 @@ export default function UpgradePage() {
       <p style={{ margin: '8px 0 0' }}>
         <EmailLinked text={t('UPGRADE_SELLER_IDENTITY_NOTE', { name: TRADER_LEGAL_NAME, country: TRADER_COUNTRY })} />
       </p>
+      {/* THE SAME TREATMENT /security GIVES IT, and it was missing here.
+          lib/traderIdentity.ts says the switch makes the gap visible on EVERY
+          surface that prints the name; this page imported the name without the
+          switch, so the one line whose entire job is to say who is selling read
+          "Sold by PLACEHOLDER - LEGAL NAME NOT YET CONFIRMED" directly above
+          the checkout buttons, with nothing marking it. The design was not in
+          dispute - it was applied to one of the two surfaces. Found by QA.
+          Deliberately NOT solved by dropping the seller line while unconfirmed:
+          its absence is the exact thing the disclosure rule is about, so a
+          silent omission would trade a visible wrong name for an invisible
+          missing one. Goes away when LEGAL_NAME_CONFIRMED flips. */}
+      {!LEGAL_NAME_CONFIRMED && (
+        <p style={{ margin: '8px 0 0', color: 'var(--amber)' }}>
+          {t('SECURITY_NAME_PENDING_NOTE')}
+        </p>
+      )}
       {/* inline-flex + minHeight 24: standalone links, so WCAG 2.2 SC 2.5.8's
           inline-in-a-sentence exception does not cover them. */}
       <p style={{ margin: '8px 0 0', display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
