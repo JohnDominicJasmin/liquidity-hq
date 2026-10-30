@@ -309,3 +309,37 @@ export function chartDisplaySymbol(coin: string): string {
   const prefix = BYBIT_SYMS[coin]?.startsWith('1000') ? '1000' : '';
   return `${prefix}${coin.toUpperCase()}/USDT`;
 }
+
+/* The helper arrived on `dev` in #1863 with a HAND-WRITTEN COIN_LABELS beside it; this branch
+   generates the map instead. Only the helper is taken across - it reads COIN_LABELS and does
+   not care how the map is built, which is the property that made the two mergeable at all.
+   The override above is this branch's version of the same fix: #1863 edited the literal entry,
+   and here the entry is derived, so the editorial value lives in LABEL_OVERRIDE. */
+/* THE ONE WAY TO RENDER A COIN'S NAME. Use this, never `id.toUpperCase()`.
+ *
+ * WHY A HELPER FOR A ONE-LINE LOOKUP. The label is EDITORIAL for at least one coin - `spx` is
+ * SPX6900, above - and a renderer that upper-cases the id silently ignores that. Measured
+ * tonight: 26 files in app/ and components/ upper-case a coin id and never import COIN_LABELS,
+ * 8 do. So the rename reached 8 surfaces and missed 26, including `components/LandingTicker.tsx`
+ * - the landing page. A visitor who knows what SPX means read a ticker claiming we track the
+ * S&P 500.
+ *
+ * **Shipping a rename on 8 of 34 surfaces is worse than not shipping it**, because it turns "we
+ * know this is wrong everywhere" into "we believe this is fixed", and that is where the next
+ * reader stops looking.
+ *
+ * THIRD TIME TONIGHT for the same shape: `binancePriceFactor` with zero call sites, the universe
+ * price pass missing the multiplier, and now a label override 26 renderers bypass. **A fix that
+ * exists and is not applied everywhere is indistinguishable from no fix.** One function is what
+ * makes the fourth instance impossible rather than merely unlikely.
+ *
+ * Falls back to the uppercased id, so an unknown or generated coin renders sensibly instead of
+ * `undefined` - the fallback is the reason this is safe to use at every call site, including the
+ * ones reading ids that are not in the curated map. */
+export function coinLabel(coin: string): string {
+  /* Widened on purpose: the parameter is `string` so EVERY call site can use this, including
+     the ones holding an id that is not in the curated union - a generated coin, a value off a
+     feed, a URL parameter. Narrowing it to CoinId would send those call sites back to
+     `.toUpperCase()`, which is the bypass this function exists to remove. */
+  return (COIN_LABELS as Record<string, string>)[coin] ?? coin.toUpperCase();
+}
