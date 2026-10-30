@@ -795,24 +795,47 @@ jobs:
       # and not the network:
       #   auth/v1/token -> 000  => UNHEALTHY, exit 1   (the refusal path)
       #   rest/v1/      -> 401  => HEALTHY,   exit 0   (the positive control)
-      - name: Preflight - the auth endpoint must answer
+      - name: Preflight - a REAL sign-in must succeed
         env:
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          E2E_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
         run: |
           set -uo pipefail
-          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${ANON_KEY:-}" ]; then
-            echo "::error::E2E_SUPABASE_URL or E2E_SUPABASE_ANON_KEY is unset - cannot preflight, and the suite would fail on sign-in anyway"
-            exit 1
-          fi
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
+          for v in SUPABASE_URL ANON_KEY E2E_EMAIL E2E_PASSWORD; do
+            eval "val=\$$v"
+            if [ -z "${val:-}" ]; then
+              echo "::error::$v is unset - cannot preflight, and the suite would fail on sign-in anyway"
+              exit 1
+            fi
+          done
+          # A REAL SIGN-IN, not a bad-credential probe.
+          #
+          # The first version of this step sent deliberately invalid credentials and
+          # treated ANY status as healthy, reasoning that a 401 proves the endpoint
+          # answers. It does - and that is not what the suite needs. The suite needs a
+          # CREDENTIALED SIGN-IN TO SUCCEED, and a 401 does not establish that. The
+          # weaker check could pass while all ~85 sign-ins then failed, which is the
+          # exact waste this step exists to prevent.
+          #
+          # Measured on 2026-10-30 rather than argued: bad credentials and the real
+          # ones were sent back to back, three pairs, during the outage, and BOTH timed
+          # out identically at 25s. So the two are not distinguishable by request shape
+          # while it is down - which killed the theory that the bad-credential probe is
+          # the cheaper signal. It does not rescue it as a SUFFICIENT one. Requiring a
+          # 200 costs the same single request and proves the thing that matters.
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 25 \
             -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
             -H "Content-Type: application/json" -H "apikey: $ANON_KEY" \
-            -d '{"email":"ci-preflight@invalid.test","password":"not-a-password"}' || true)
-          echo "auth/v1/token -> $code"
+            -d "{\"email\":\"$E2E_EMAIL\",\"password\":\"$E2E_PASSWORD\"}" || true)
+          echo "auth/v1/token (real sign-in) -> $code"
           case "$code" in
-            2??|400|401|403|422)
-              echo "healthy: the endpoint answered and refused bad credentials" ;;
+            200)
+              echo "healthy: a real sign-in succeeded, which is what the suite needs" ;;
+            400|401|403|422)
+              echo "::error::auth answered '$code' - the endpoint is UP but the suite credentials did not work. Check E2E_USER_A_EMAIL / E2E_USER_A_PASSWORD; every authenticated spec would fail."
+              exit 1 ;;
             429)
               echo "::error::auth is rate limiting (429). Alive, but ~85 sign-ins would fail - refusing to spend the cap."
               exit 1 ;;
