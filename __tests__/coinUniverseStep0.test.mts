@@ -23,7 +23,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   COINS, SCANNED_COINS, SCAN_LIMIT, BINANCE_SYMS, BYBIT_SYMS, BINANCE_SYM_TO_COIN,
-  COIN_DEC, COIN_LABELS, coinRow, isSingleVenue, bybitPriceFactor, bybitSymbolPriceFactor, chartDisplaySymbol,
+  COIN_DEC, COIN_LABELS, coinRow, isSingleVenue, bybitPriceFactor, binancePriceFactor,
+  bybitSymbolPriceFactor, chartDisplaySymbol,
 } from '../lib/coins.ts';
 import { COIN_UNIVERSE } from '../lib/coinUniverse.generated.ts';
 import {
@@ -229,6 +230,10 @@ test('S10. a malformed or unknown id returns SAFE DEFAULTS everywhere rather tha
  * anyone remembered. */
 
 test('S11. every multiplier is a real unit conversion - finite, positive, and one the venues actually quote', () => {
+  /* THE ROW SHAPE CHANGED UNDER THIS CELL AND THAT IS THE POINT OF IT. The first version of this
+   * file read a single `mult`. Dev's fix replaced it with `bybitMult` and `binanceMult` - one per
+   * venue - because S11c found that one number cannot describe two venues that quote in different
+   * units. So this cell now checks BOTH, against the symbol each one belongs to. */
   /* THE CELL THAT FOUND TWO DEFECTS, and the first version of it was wrong in an instructive way: it read ANY leading
    * digits as a quantity, exactly as the generator does, so it agreed with the generator about `0G` and `2Z` and
    * disagreed with it about `4USDT`. A test that re-implements the rule under test can only find where the two copies
@@ -241,18 +246,26 @@ test('S11. every multiplier is a real unit conversion - finite, positive, and on
   const offenders: string[] = [];
   let multiplied = 0;
   for (const r of COIN_UNIVERSE) {
-    const sym = r.bybit ?? r.binance ?? '';
-    const expected = 1 / unitPrefix(sym);
-    if (!Number.isFinite(r.mult) || r.mult <= 0) {
-      offenders.push(`${r.id} (${sym}): mult=${r.mult} - EVERY price for this coin becomes ${r.mult}`);
-    } else if (!allowed.includes(r.mult)) {
-      offenders.push(`${r.id} (${sym}): mult=${r.mult} is not a unit either venue quotes in`);
-    } else if (r.mult !== expected) {
-      offenders.push(`${r.id} (${sym}): mult=${r.mult}, its quoted unit is ${expected}`);
-    } else {
-      assert.equal(bybitPriceFactor(r.id), expected, `bybitPriceFactor('${r.id}')`);
-      if (expected !== 1) multiplied += 1;
+    /* A venue with no listing still carries a multiplier, and 1 is the only safe value for it: it
+     * is the identity, so a read that should never happen cannot scale a price if it does. */
+    for (const [venue, sym, mult] of [
+      ['bybit', r.bybit, r.bybitMult] as const,
+      ['binance', r.binance, r.binanceMult] as const,
+    ]) {
+      const expected = sym ? 1 / unitPrefix(sym) : 1;
+      const where = `${r.id} (${venue} ${sym ?? 'none'})`;
+      if (!Number.isFinite(mult) || mult <= 0) {
+        offenders.push(`${where}: mult=${mult} - EVERY ${venue} price for this coin becomes ${mult}`);
+      } else if (!allowed.includes(mult)) {
+        offenders.push(`${where}: mult=${mult} is not a unit either venue quotes in`);
+      } else if (mult !== expected) {
+        offenders.push(`${where}: mult=${mult}, its quoted unit is ${expected}`);
+      } else if (expected !== 1) {
+        multiplied += 1;
+      }
     }
+    assert.equal(bybitPriceFactor(r.id), r.bybitMult, `bybitPriceFactor('${r.id}') must return the row's bybitMult`);
+    assert.equal(binancePriceFactor(r.id), r.binanceMult, `binancePriceFactor('${r.id}') must return the row's binanceMult`);
   }
   assert.deepEqual(offenders, [], `multipliers that are not unit conversions:\n  ${offenders.join('\n  ')}`);
   /* The control for this cell: if the universe contained no 1000x listing at all, every assertion above would hold
@@ -261,6 +274,18 @@ test('S11. every multiplier is a real unit conversion - finite, positive, and on
   assert.equal(bybitPriceFactor('pepe'), 0.001);
   assert.equal(bybitPriceFactor('bonk'), 0.001);
   assert.equal(bybitPriceFactor('btc'), 1);
+  /* The four coins S11c found, pinned by name and by venue. These are the rows where one
+   * multiplier was wrong and two are right, so they are the ones a future regeneration would
+   * break first. `sats` is the pair that would have shown as a 10x on a failover read. */
+  assert.equal(bybitPriceFactor('sats'), 0.0001, 'sats on Bybit is 10000SATS');
+  assert.equal(binancePriceFactor('sats'), 0.001, 'sats on Binance is 1000SATS - a DIFFERENT unit');
+  for (const c of ['toshi', 'tag', 'turbo']) {
+    assert.equal(bybitPriceFactor(c), 0.001, `${c} on Bybit is a 1000x listing`);
+    assert.equal(binancePriceFactor(c), 1, `${c} on Binance is quoted per token`);
+  }
+  /* And a coin where the two agree, as the control for the three above: a cell that only looked at
+   * disagreeing coins could not tell a correct per-venue split from one that is wrong everywhere. */
+  assert.equal(bybitPriceFactor('pepe'), binancePriceFactor('pepe'));
   assert.equal(bybitSymbolPriceFactor('1000PEPEUSDT'), 0.001);
   assert.equal(bybitSymbolPriceFactor('BTCUSDT'), 1);
 });
@@ -287,23 +312,39 @@ test('S11b. the id is the ticker, not the ticker with its leading digits eaten',
   assert.deepEqual(wrong, [], `ids that are not their ticker:\n  ${wrong.join('\n  ')}`);
 });
 
-test('S11c. both venues quote a coin in the SAME unit, or one multiplier cannot describe both', () => {
-  /* `mult` is one number per row, taken from Bybit (`generate-coins.mjs`: "Bybit is the price source"). That is only
-   * safe while Binance quotes the same coin in the same unit. Where they differ, any read of the Binance symbol - or a
-   * failover that returns per-token data under a per-1000 symbol - is out by the ratio, silently, which is the
-   * ±100,000% class of defect this release set out to remove.
+test('S11c. where the two venues quote in DIFFERENT units, the row carries two different multipliers', () => {
+  /* THIS CELL IS THE ONE THAT CHANGED SHAPE, AND THE ORIGINAL IS WORTH KEEPING IN VIEW.
    *
-   * Measured today: `sats` is Bybit `10000SATS` against Binance `1000SATS`, a factor of 10 between the two. The three
-   * others that differ (`toshi`, `tag`, `turbo`) have no Binance prefix at all, so the Bybit multiplier happens to be
-   * the right conversion in the one direction `app/api/market/klines/route.ts:442` implements - they are not safe by
-   * design, only by luck of direction. The assertion covers both. */
-  const offenders: string[] = [];
+   * It first asserted that the two venues must agree on the unit, because the row carried a single
+   * `mult` taken from Bybit ("Bybit is the price source") - and four coins disagreed: `sats` is
+   * Bybit `10000SATS` against Binance `1000SATS`, a factor of 10, and `toshi`, `tag` and `turbo`
+   * are 1000x on Bybit and per-token on Binance. For those three the Bybit multiplier happened to
+   * be the right conversion in the one direction `app/api/market/klines/route.ts:442` implements -
+   * safe by luck of direction, not by design, and wrong exactly when the failover fires.
+   *
+   * The fix was not to drop those coins: the row now carries `bybitMult` AND `binanceMult`. So the
+   * venues are still allowed to disagree, and the property that matters is the opposite of what it
+   * was - **a disagreement must be REFLECTED rather than absent.** A regeneration that collapsed
+   * back to one shared multiplier would restore the original defect while looking tidier, and this
+   * is what catches that. */
+  const collapsed: string[] = [];
+  let disagreeing = 0;
   for (const r of COIN_UNIVERSE) {
     if (!r.bybit || !r.binance) continue;
     const a = unitPrefix(r.bybit), b = unitPrefix(r.binance);
-    if (a !== b) offenders.push(`${r.id}: bybit=${r.bybit} (per ${a}) vs binance=${r.binance} (per ${b}), row mult=${r.mult}`);
+    if (a === b) {
+      assert.equal(r.bybitMult, r.binanceMult, `${r.id}: both venues quote per ${a}, so the two multipliers must agree`);
+      continue;
+    }
+    disagreeing += 1;
+    if (r.bybitMult === r.binanceMult) {
+      collapsed.push(`${r.id}: bybit=${r.bybit} (per ${a}) vs binance=${r.binance} (per ${b}), but both multipliers are ${r.bybitMult}`);
+    }
   }
-  assert.deepEqual(offenders, [], `the two venues disagree on the unit for these coins, and the row carries only one multiplier:\n  ${offenders.join('\n  ')}`);
+  assert.deepEqual(collapsed, [], `a venue disagreement that the row does not express:\n  ${collapsed.join('\n  ')}`);
+  /* The control. If no coin disagreed, every assertion above would hold vacuously and this cell
+   * would prove nothing about the per-venue split - which is the state it was written to defend. */
+  assert.ok(disagreeing >= 4, `only ${disagreeing} coins have venue-specific units; the four known ones are sats, toshi, tag, turbo`);
 });
 
 test('S12. the chart label says 1000x when the series is 1000x, and does not when it is not', () => {
