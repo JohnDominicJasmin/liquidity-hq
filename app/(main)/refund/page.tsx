@@ -13,9 +13,24 @@ const SECTIONS = [
      other six jurisdictions the owner asked about do not each need a section.
      It sits on this page, next to the rest of the money wording, because the
      owner's cannot-versus-will-not question is still open and one page is one
-     edit. Shipping as our best effort with a LAWYER REVIEW STILL OUTSTANDING -
-     that caveat is part of the owner's decision and is written into the body
-     itself so it cannot be dropped by someone editing around it. */
+     edit.
+
+     THE LAWYER CAVEAT WAS REMOVED BY THE OWNER, 2026-10-30, FIRST-HAND. This
+     comment used to say the body shipped "with a LAWYER REVIEW STILL
+     OUTSTANDING - that caveat is part of the owner's decision and is written
+     into the body itself so it cannot be dropped by someone editing around
+     it." It was true when written and the protection worked: the clause
+     survived in the text until the person whose decision it was removed it.
+
+     He cut exactly ", and it has not yet been reviewed by a lawyer" and kept
+     the rest, so the body still says "This is our own plain-English summary of
+     the rule" - the honest part stays. What went is the clause that invites
+     doubt about every legal page on the site and that a payment provider
+     reads. A lawyer has still not reviewed this; that fact simply no longer
+     appears in the copy.
+
+     So DO NOT restore it believing it was lost in an edit. It was removed on
+     purpose, by the only person who could. */
   { titleKey: 'REFUND_SECTION_EU_WITHDRAWAL_TITLE', bodyKey: 'REFUND_SECTION_EU_WITHDRAWAL_BODY' },
   { titleKey: 'REFUND_SECTION_FREE_TRIAL_TITLE', bodyKey: 'REFUND_SECTION_FREE_TRIAL_BODY' },
   { titleKey: 'REFUND_SECTION_BILLING_ERRORS_TITLE', bodyKey: 'REFUND_SECTION_BILLING_ERRORS_BODY' },

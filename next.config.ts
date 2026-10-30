@@ -158,12 +158,17 @@ const nextConfig: NextConfig = {
       // same price + change columns plus grade/volume/signal, so it was cut
       // as a redundant duplicate page. Old links/bookmarks land on Markets.
       { source: "/prices", destination: "/markets", permanent: true },
-      // THE /refund REDIRECT WAS REMOVED HERE ON 2026-10-31, and this note replaces it rather than leaving a gap.
+      // THE /refund REDIRECT WAS REMOVED HERE ON 2026-10-30Z, and this note replaces it rather than leaving a gap.
       //
       // It read: "The Refund Policy is withdrawn until payments go live (owner, 2026-10-08) ... A payment processor expects a
       // refund policy BEFORE real charges, so this MUST be undone before payments go live." The withdrawal named its own end
-      // condition and the condition fired: payments went live 2026-10-28, and this entry was still here on 2026-10-31, so
-      // production took real money for three days while /refund answered 307 to /terms.
+      // condition and the condition fired: checkout opened 2026-10-28 and this entry was still here on 2026-10-30Z, so for
+      // three days a buyer could reach checkout while /refund answered 307 to /terms.
+      //
+      // NOT "production took real money for three days" - an earlier version of this note said that and it was wrong.
+      // Measured on prod: lhq_whop_webhook_events 0 rows, lhq_user_subscriptions 5 rows with 0 active or trialing. No sale
+      // is recorded. The exposure was a buyable checkout with an unreachable policy, which is a real obligation and not a
+      // completed one, and overstating it would have put a false claim about his revenue into the source.
       //
       // WHAT THIS ENTRY WOULD HAVE DONE IF IT HAD SHIPPED WITH THE CURRENT BATCH, which is the sharper reason it goes now.
       // This release adds a "Refund Policy" link to /upgrade directly above the checkout buttons, and a new /security page
