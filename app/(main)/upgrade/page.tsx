@@ -8,6 +8,8 @@ import LoadingState from '@/components/LoadingState';
 import { EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import { useLabels } from '@/lib/labels';
 import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from '@/lib/planFeatures';
+import EmailLinked from '@/components/EmailLinked';
+import { TRADER_COUNTRY, TRADER_LEGAL_NAME } from '@/lib/traderIdentity';
 
 /* #1606: the embedded Whop checkout. Loaded only when a plan is picked (client only), so the Whop SDK is not part of this page's first load. */
 const WhopCheckoutEmbed = lazy(() => import('@/components/WhopCheckoutEmbed'));
@@ -319,6 +321,40 @@ export default function UpgradePage() {
     </div>
   );
 
+  /* #1810 items 6 and 10: what a buyer must be able to see BEFORE paying - when
+     the subscription starts, that payments are final, where the cancellation
+     and EU withdrawal wording lives, and WHO THEY ARE BUYING FROM. EU and UK
+     distance-selling rules expect the trader's identity and a contact route to
+     be reachable before the purchase, not only inside Terms. Rendered in both
+     checkout states and deliberately NOT in the coming-soon state, where there
+     is nothing to buy and a seller disclosure would be noise.
+
+     IT DOES NOT SAY "ACCESS STARTS IMMEDIATELY", although the tracker's wording
+     for item 10 did. A Whop payment does not unlock the account by itself - the
+     unlock waits for a recorded payload (#1567), which is the whole reason the
+     owner had UPGRADE_TRUST_INSTANT_ACCESS taken out of TRUST_LABELS on
+     2026-09-30. Promising instant access here would reinstate the exact claim
+     he removed, one block further down the same page. "Once your payment is
+     recorded" is what actually happens. */
+  const purchaseTerms = (
+    <div style={{ maxWidth: 520, textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.7 }}>
+      <p style={{ margin: 0 }}>{t('UPGRADE_PURCHASE_TERMS_NOTE')}</p>
+      <p style={{ margin: '8px 0 0' }}>
+        <EmailLinked text={t('UPGRADE_SELLER_IDENTITY_NOTE', { name: TRADER_LEGAL_NAME, country: TRADER_COUNTRY })} />
+      </p>
+      {/* inline-flex + minHeight 24: standalone links, so WCAG 2.2 SC 2.5.8's
+          inline-in-a-sentence exception does not cover them. */}
+      <p style={{ margin: '8px 0 0', display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <Link href="/refund" style={{ color: 'var(--txt3)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
+          Refund Policy
+        </Link>
+        <Link href="/security" style={{ color: 'var(--txt3)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
+          Security &amp; data
+        </Link>
+      </p>
+    </div>
+  );
+
   /* #1309 item 12: this used to wait only for sign-in. `isPro` is false until the subscription read settles,
      so a Pro account saw the checkout buttons for as long as that took (payments are not live, so nobody
      could be charged twice today - fix before they open). A signed-in visitor now waits for the plan; if it
@@ -512,6 +548,7 @@ export default function UpgradePage() {
                   </span>
                 ))}
               </div>
+              {purchaseTerms}
             </>
           ) : CHECKOUT_CONFIGURED ? (
             /* State 2: monthly only — pixel-identical to today unless the two-weekly link is also set */
@@ -538,6 +575,7 @@ export default function UpgradePage() {
                   </span>
                 ))}
               </div>
+              {purchaseTerms}
             </>
           ) : (
             /* State 3: neither configured — existing coming-soon block */

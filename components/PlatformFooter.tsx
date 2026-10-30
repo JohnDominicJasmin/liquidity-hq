@@ -82,7 +82,16 @@ export default function PlatformFooter() {
         <nav className="pf-footer-nav">
           <Link href="/about" className="pf-footer-link">About</Link>
           <Link href="/faq" className="pf-footer-link">FAQ</Link>
+          <Link href="/help" className="pf-footer-link">Help</Link>
           <Link href="/learn" className="pf-footer-link">Glossary</Link>
+          {/* #1810. The footer is the only route to these five from anywhere on
+              the site, so leaving one out ships a page nothing links to. Ordered
+              product-first then legal, matching the existing run. The labels are
+              literals like every other entry here, not label keys. */}
+          <Link href="/changelog" className="pf-footer-link">Changelog</Link>
+          <Link href="/status" className="pf-footer-link">Status</Link>
+          <Link href="/security" className="pf-footer-link">Security</Link>
+          <Link href="/accessibility" className="pf-footer-link">Accessibility</Link>
           <Link href="/terms" className="pf-footer-link">Terms of Use</Link>
           <Link href="/privacy" className="pf-footer-link">Privacy Policy</Link>
           <Link href="/disclaimer" className="pf-footer-link">Full Disclaimer</Link>

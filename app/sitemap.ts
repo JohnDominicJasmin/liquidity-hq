@@ -17,6 +17,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${BASE}/disclaimer`, changeFrequency: 'yearly', priority: 0.2 },
 
+    /* #1810: the five new pages. All public, all 200, none behind sign-in and
+       none showing per-user data, so they meet the "stable content a stranger
+       can read" rule above rather than merely returning 200.
+       /status is the one judgement call: it changes on every request, but what
+       it changes is four state words, and the page itself is stable content, so
+       it is listed monthly rather than daily - a crawler has no reason to come
+       back for it hourly. */
+    { url: `${BASE}/changelog`,     changeFrequency: 'weekly',  priority: 0.6 },
+    { url: `${BASE}/help`,          changeFrequency: 'monthly', priority: 0.6 },
+    { url: `${BASE}/security`,      changeFrequency: 'yearly',  priority: 0.4 },
+    { url: `${BASE}/status`,        changeFrequency: 'monthly', priority: 0.3 },
+    { url: `${BASE}/accessibility`, changeFrequency: 'yearly',  priority: 0.2 },
+
     /* #1740 item 1: the content-bearing tool pages. All public, all 200, none carrying noindex, and all of them
        were missing - the sitemap listed 9 of the 33 public routes and none of the pages people would actually
        search for. Ordered by the word count measured on production 2026-10-24, which is also roughly the order
