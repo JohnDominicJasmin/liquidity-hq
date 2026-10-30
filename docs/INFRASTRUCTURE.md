@@ -805,6 +805,9 @@ why; one that never started cannot.
 
 ### 9d. A SOURCE-READING GATE THAT MATCHES RAW TEXT CANNOT TELL CODE FROM PROSE
 
+**Two directions, one defect. The second was found a day after the first and is the nastier of the
+two, because it arrives looking like the gate doing its job.**
+
 The first version of the legal-name gate (#1825) tested whether the file text contained
 `LEGAL_NAME_CONFIRMED` — over the whole file, **including comments**. So a planted mutation that
 removed the import *and* the guard, while leaving the explanatory comment behind, **compiled clean
@@ -817,6 +820,37 @@ This is the repository's own grep-matches-comment-prose trap, promoted into a ga
 ask the AST whether the name appears as an identifier**, which excludes comments *by construction*.
 Stripping comments first is a second instrument with its own failure modes — it has to decide where
 a comment ends, including `//` inside a string literal — guarding the first.
+
+#### The same defect with the sign flipped: the gate demands the deletion of good documentation
+
+**2026-10-31, found by QA while writing the replacement for the gate above — which is the same gate,
+one day later, failing the other way.** Worth recording because the first direction is the one
+everybody anticipates and this one arrives looking like the gate working.
+
+The replacement asserts that a retired mechanism has not come back. Its first version flagged the
+placeholder string **wherever it appeared, comments included** — while a sibling assertion in the
+same file held that *a comment recalling the retired mechanism is history, not a revival.* **Those
+two cannot both be true**, and the file that would have failed is `app/(main)/upgrade/page.tsx`,
+whose comment carries the clearest account anyone wrote of the #1824 defect: the one line whose
+entire job is to say who is selling had read `Sold by PLACEHOLDER - LEGAL NAME NOT YET CONFIRMED`
+directly above the checkout buttons.
+
+> **A text-matching gate does not only go green on prose. It also goes RED on prose — and the
+> obvious way to make it pass is to delete the documentation.**
+
+**That is the worse direction, because the first one fails silently and this one recruits you.** A
+red gate is believed. The cheapest fix is to remove the offending sentence, the suite goes green,
+and the loss never appears in a diff as a loss — it appears as a cleanup.
+
+**Same remedy, applied one level more precisely: read the AST for what the file would SHIP** — string
+literals, template text, JSX text — **and ignore comments.** A real string literal is still caught;
+prose about the thing is not. **Pin the distinction in both directions**, or it is one well-meaning
+edit away from being lost again.
+
+**And it was found by running the gate against the real tree rather than a fixture.** On a tree where
+the mechanism still existed it went red naming all eight genuine traces, which is a positive control
+taken from the code rather than written by the gate's own author — the difference between a control
+and a mirror (§9f).
 
 ### 9e. THE RULE ALL OF §9 COLLAPSES TO
 
