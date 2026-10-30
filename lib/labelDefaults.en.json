@@ -2800,8 +2800,6 @@
   "HELP_Q_TELEGRAM_A": "Telegram alerts are a Pro feature. Open the Alerts page and press Connect Telegram. You get a one-time code and two steps: open the bot, then send it the /start message shown on the page - there is a Copy button so you do not have to type it. The page updates itself the moment the bot receives it, and you never have to find a chat ID.",
   "HELP_Q_MUTE_Q": "How do I stop alerts I do not want?",
   "HELP_Q_MUTE_A": "On the Alerts page you can mute by coin, by direction, or by rule, so you are only pinged for what you care about.",
-  "HELP_Q_ALERT_HISTORY_Q": "How far back does my alert history go?",
-  "HELP_Q_ALERT_HISTORY_A": "Alert history is kept for 90 days. Anything older is removed, so if you want a longer record of how a setup played out, write it into the Journal at the time.",
   "HELP_Q_ARENA_WHAT_Q": "What does AI Arena do?",
   "HELP_Q_ARENA_WHAT_A": "It reads dozens of live signals for the coin and timeframe you pick and gives you a direct trade bias, with the reasoning behind it. It is a reading of the data on screen, not a recommendation - the decision is still yours.",
   "HELP_Q_AI_LIMIT_Q": "Why has AI analysis stopped for today?",

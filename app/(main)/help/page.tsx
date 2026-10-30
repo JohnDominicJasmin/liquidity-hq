@@ -46,12 +46,18 @@ const CATEGORIES: HelpCategory[] = [
       { id: 'set-alerts',    qKey: 'HELP_Q_SET_ALERTS_Q',    aKey: 'HELP_Q_SET_ALERTS_A' },
       { id: 'telegram',      qKey: 'HELP_Q_TELEGRAM_Q',      aKey: 'HELP_Q_TELEGRAM_A' },
       { id: 'mute',          qKey: 'HELP_Q_MUTE_Q',          aKey: 'HELP_Q_MUTE_A' },
-      /* The 90-day retention statement, and the ONLY place it is written.
-         Owner's decision 2026-10-29: the product must SAY the limit rather than
-         apply it silently, because a subscriber finding their history truncated
-         with no notice is a support problem we created. One place, so the
-         number is one edit if it changes. */
-      { id: 'alert-history', qKey: 'HELP_Q_ALERT_HISTORY_Q', aKey: 'HELP_Q_ALERT_HISTORY_A' },
+      /* THE 90-DAY ALERT RETENTION ANSWER BELONGS HERE AND IS DELIBERATELY ABSENT.
+         It was written, then removed before merge on PM's ruling of 2026-10-30.
+         The reasoning is worth keeping where the next person will look for it:
+         retention is a DELETION PROMISE, not a feature claim, so saying 90 days
+         and keeping longer is as wrong as saying 90 days and keeping less -
+         both are the page being inaccurate about how personal data is handled.
+         And it would have been false on the day it shipped: lhq_alert_fires has
+         no purge, and rows older than 90 days exist in it today.
+         It ships in the same release as the server-side purge, which is
+         sequenced behind the database outage and templated on
+         app/api/liq-events/purge/route.ts. The owner's instruction is not
+         dropped, it is waiting for the mechanism that makes it true. */
     ],
   },
   {
