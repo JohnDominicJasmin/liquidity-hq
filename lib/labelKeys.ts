@@ -1327,6 +1327,85 @@ export const LABEL_KEYS = [
   'AI_CAP_PRO_DAILY', 'AI_CAP_PRO_MONTHLY', 'AI_CAP_FREE_DAILY', 'AI_CAP_FUSE',
   // Chart setup chip tooltips (#1569): moved out of KLineProChart.tsx so the wording is a label, in every language.
   'CHART_SETUP_PRIME_LONG_TIP', 'CHART_SETUP_PRIME_SHORT_TIP',
+
+  /* ── #1810 SITE COMPLETENESS: five new pages, one keys change ───────────────
+     All five pages' keys land together rather than one PR each, because this
+     file is a LANDING HARD GATE file (see the header) and the gate is taken
+     per PR, not per key. The changelog ENTRIES are deliberately not here - they
+     are English data in lib/changelog.ts, same as lib/glossary.ts; that file's
+     header says why. Page chrome is here, like every other page. */
+
+  /* The terminal header name for each of the five, required by lib/navRoutes.ts
+     SCREEN_NAMES - a page inside the app shell with no entry there shows an
+     EMPTY header on phones. Found by QA's N3 in __tests__/navScreenNameAgreement,
+     which failed naming all five. */
+  'TNAV_CHANGELOG_LABEL', 'TNAV_STATUS_LABEL', 'TNAV_HELP_LABEL',
+  'TNAV_SECURITY_LABEL', 'TNAV_ACCESSIBILITY_LABEL',
+
+  // /changelog (item 1)
+  'CHANGELOG_EYEBROW', 'CHANGELOG_PAGE_TITLE', 'CHANGELOG_SUBTITLE', 'CHANGELOG_FIRST_ENTRY_NOTE',
+
+  /* /status (item 2). NO UPTIME FIGURE and no key for one: nothing has ever
+     measured uptime here, so a percentage would be invented. These keys cover
+     only what /api/health actually reports. */
+  'STATUS_EYEBROW', 'STATUS_PAGE_TITLE', 'STATUS_SUBTITLE',
+  'STATUS_COMPONENTS_LABEL', 'STATUS_COMPONENT_SITE', 'STATUS_COMPONENT_DATABASE',
+  'STATUS_COMPONENT_BYBIT', 'STATUS_COMPONENT_BINANCE',
+  'STATUS_STATE_OPERATIONAL', 'STATUS_STATE_DEGRADED', 'STATUS_STATE_SLOW',
+  'STATUS_STATE_DOWN', 'STATUS_STATE_UNKNOWN', 'STATUS_STATE_CHECKING',
+  'STATUS_LAST_CHECKED', 'STATUS_UNREACHABLE', 'STATUS_REFRESH',
+  'STATUS_REPORT_LABEL', 'STATUS_REPORT_BODY',
+
+  // /help (item 3)
+  'HELP_EYEBROW', 'HELP_PAGE_TITLE', 'HELP_INTRO',
+  'HELP_CAT_GETTING_STARTED', 'HELP_CAT_SIGNALS', 'HELP_CAT_ALERTS',
+  'HELP_CAT_ARENA', 'HELP_CAT_TOOLS', 'HELP_CAT_ACCOUNT',
+  'HELP_Q_START_Q', 'HELP_Q_START_A',
+  'HELP_Q_TRIAL_Q', 'HELP_Q_TRIAL_A',
+  'HELP_Q_FIRST_LOOK_Q', 'HELP_Q_FIRST_LOOK_A',
+  'HELP_Q_READ_MARKER_Q', 'HELP_Q_READ_MARKER_A',
+  'HELP_Q_CONFLUENCE_Q', 'HELP_Q_CONFLUENCE_A',
+  'HELP_Q_OWN_INDICATORS_Q', 'HELP_Q_OWN_INDICATORS_A',
+  'HELP_Q_SET_ALERTS_Q', 'HELP_Q_SET_ALERTS_A',
+  'HELP_Q_TELEGRAM_Q', 'HELP_Q_TELEGRAM_A',
+  'HELP_Q_MUTE_Q', 'HELP_Q_MUTE_A',
+  'HELP_Q_ARENA_WHAT_Q', 'HELP_Q_ARENA_WHAT_A',
+  'HELP_Q_AI_LIMIT_Q', 'HELP_Q_AI_LIMIT_A',
+  'HELP_Q_JOURNAL_Q', 'HELP_Q_JOURNAL_A',
+  'HELP_Q_SIZING_Q', 'HELP_Q_SIZING_A',
+  'HELP_Q_PASSWORD_Q', 'HELP_Q_PASSWORD_A',
+  'HELP_Q_LANGUAGE_Q', 'HELP_Q_LANGUAGE_A',
+  'HELP_Q_THEME_Q', 'HELP_Q_THEME_A',
+  'HELP_STUCK_LABEL', 'HELP_STUCK_BODY',
+
+  // /security (items 4, 6 and 9)
+  'SECURITY_EYEBROW', 'SECURITY_PAGE_TITLE', 'SECURITY_LAST_UPDATED', 'SECURITY_CALLOUT_BODY',
+  'SECURITY_SECTION_OPERATOR_TITLE', 'SECURITY_SECTION_OPERATOR_BODY',
+  'SECURITY_SECTION_WHERE_TITLE', 'SECURITY_SECTION_WHERE_BODY',
+  'SECURITY_SECTION_PROTECTION_TITLE', 'SECURITY_SECTION_PROTECTION_BODY',
+  'SECURITY_SECTION_PROCESSORS_TITLE', 'SECURITY_SECTION_PROCESSORS_BODY',
+  'SECURITY_SECTION_FUNDS_TITLE', 'SECURITY_SECTION_FUNDS_BODY',
+  'SECURITY_SECTION_ACCOUNT_TITLE', 'SECURITY_SECTION_ACCOUNT_BODY',
+  'SECURITY_SECTION_REPORT_TITLE', 'SECURITY_SECTION_REPORT_BODY',
+  'SECURITY_NAME_PENDING_NOTE',
+
+  // /accessibility (items 5 and 7)
+  'A11Y_EYEBROW', 'A11Y_PAGE_TITLE', 'A11Y_LAST_UPDATED', 'A11Y_CALLOUT_BODY',
+  'A11Y_SECTION_SCOPE_TITLE', 'A11Y_SECTION_SCOPE_BODY',
+  'A11Y_SECTION_AIM_TITLE', 'A11Y_SECTION_AIM_BODY',
+  'A11Y_SECTION_DONE_TITLE', 'A11Y_SECTION_DONE_BODY',
+  'A11Y_SECTION_LIMITS_TITLE', 'A11Y_SECTION_LIMITS_BODY',
+  'A11Y_SECTION_HELP_TITLE', 'A11Y_SECTION_HELP_BODY',
+
+  /* Item 8: the EU right of withdrawal, stated rather than deferred to "whatever
+     your local law says". Lives on /refund because that is where the money
+     wording already is, and keeping it to one page is what makes it cheap to
+     change - the owner's cannot/will-not wording question is still open. */
+  'REFUND_SECTION_EU_WITHDRAWAL_TITLE', 'REFUND_SECTION_EU_WITHDRAWAL_BODY',
+
+  /* Item 10: what a buyer is told BEFORE paying, on /upgrade - when the
+     subscription starts, that payments are final, and who they are buying from. */
+  'UPGRADE_PURCHASE_TERMS_NOTE', 'UPGRADE_SELLER_IDENTITY_NOTE',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];
