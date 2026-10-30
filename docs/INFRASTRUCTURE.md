@@ -706,7 +706,8 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
 
 None of these fails loudly. Each produces a result that looks like data. **§9e is the rule they all
 collapse to; read that one if you read nothing else.** §9f sits after it because it was found after
-it, and is two more instances of it rather than a new trap.
+it, and is two more instances of it rather than a new trap. **§9g is a new trap and sits last for the
+same reason: found later.** Lettering records when something was found, not how important it is.
 
 **This heading counted the traps - "Four instrument traps" - and appending §9f made the number
 wrong in the title of the section about figures that rot. The count is gone rather than corrected: a
@@ -1058,3 +1059,43 @@ accepted first time should leave #1835 matching.
 4. **Two channels disagreeing is a measurement, not noise.** This is §9e's `gh pr checks` row in a
    second tool, and the response is the same: wait for both, prefer watching the thing itself, and
    do not pick the channel that a known true fact can explain.
+
+### 9g. A TEST ACCOUNT WITH ENTITLEMENTS CANNOT SEE AN ENTITLEMENT BUG
+
+**Found 2026-10-30 by Dev, before commit, on #1631 item 5. Nothing shipped — and it would have
+passed every green run on the account the team actually tests with.**
+
+The change moved prompt assembly server-side so the coin and timeframe gates read the values the
+prompt is built from. The gate was given `ctx.coin`. **`ctx.coin` is not a coin id:**
+`gatherContext` writes `selectedCoin.toUpperCase() + '/USDT'`, so it holds `BTC/USDT`, and
+`normalizeCoinId` only trims and lowercases — producing `btc/usdt`, which is not on the Free list.
+
+**Consequence: every Free and trial account locked out of BTC, ETH and SOL** — the three coins that
+tier is *for* — **while a Pro account saw nothing at all**, because `aiCoinAllowed` returns true for
+Pro before it ever looks at the coin.
+
+> **The entitlement check short-circuits for the highest tier, so the highest tier is blind to every
+> bug in it.**
+
+**This is §9e's rule with the ACCOUNT as the instrument.** A green run proves the gate allowed
+*this* account; it says nothing about the gate. And the control is not available by accident: you
+have to deliberately run as the restricted tier, because the unrestricted one cannot fail.
+
+**What this costs when it escapes:** not an error. Free and trial users would simply find the
+product's advertised coins unavailable, with a correct-looking "not on your plan" refusal. **A
+defect that presents as the product working as designed does not generate a report** — it
+generates a cancellation.
+
+### What to do
+
+1. **Every gate check runs as the RESTRICTED tier, and as each tier that differs.** Free, trial and
+   Pro are three instruments here, not one feature with three skins. A Pro-only pass on anything
+   touching entitlement is a pass on nothing.
+2. **Assert the negative, with a control.** A cell that fails if a Free account is ever *allowed* a
+   non-Free coin, and a control proving that cell can fail — otherwise it is an absence assertion
+   with no evidence it is wired up (§9b).
+3. **Suspect every value whose NAME reads like an id.** `ctx.coin` sounds like `btc`. It holds a
+   display pair. The trap is written at the function now, which is the right place: a comment at
+   the producer reaches the next reader, a note in this file does not.
+4. **Short-circuits deserve a second look wherever they exist.** Any `if (isPro) return true` is a
+   place where the most-tested path is the least-informative one.
