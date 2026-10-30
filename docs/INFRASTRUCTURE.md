@@ -1089,12 +1089,26 @@ notice it by. Once there are paying users it means the same silence, with churn 
 nobody can attribute.
 
 **The first version of that sentence ended "it generates a cancellation", and QA sent it back.** It
-was wrong twice: there are no paying users to cancel — payments went live 2026-10-28 with both Whop
-tables at zero rows — and **the affected tiers have nothing to cancel anyway.** A free user leaves
+was wrong twice: there are no paying users to cancel — payments went live 2026-10-28, and on prod
+today `lhq_whop_webhook_events` is empty while `lhq_user_subscriptions` holds no row with an active or
+trialing status — and **the affected tiers have nothing to cancel anyway.** A free user leaves
 and a trial lapses; the one tier that could cancel is Pro, which is exactly the tier the bug cannot
 touch. **`docs/OWNER-RULES.md` carries "do not argue urgency from user harm" as a standing rule,
 because the bugs are real and the users are not yet** — and that sentence was this file breaking it.
 The silence is the cost, and it is the cost today as well as later.
+
+**And the first version of the CORRECTION carried a rotted figure, inside the entry about figures that
+rot.** It said "both Whop tables at zero rows". Re-read on production 2026-10-30:
+`lhq_whop_webhook_events` is 0, but **`lhq_user_subscriptions` holds 5 rows** - every one with a NULL
+status, last touched 2026-10-02, so they pre-date payments going live. `active_or_trial` is 0, so the
+conclusion never moved; **the stated measurement was simply wrong, and a reader who checked that table
+would have found this file wrong on its own subject.**
+
+**The load-bearing fact was a STATUS and what was reported was a ROW COUNT** - the cheaper measurement
+answering a near-enough question, which is §9e one more time, this time inside a sentence correcting a
+§9g claim about instruments. The replacement above is also harder to falsify by accident: a row
+appearing does not break it, because the claim is about status. Caught by QA re-reading a figure they
+had supplied themselves.
 
 ### What to do
 
