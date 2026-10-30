@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
   // Check current webhook first
-  const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+  const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`,
+    { signal: AbortSignal.timeout(10_000) });
   const info = await infoRes.json() as { ok: boolean; result?: { url?: string } };
   const currentUrl = info.result?.url ?? '';
 
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url: webhookUrl, ...(webhookSecret ? { secret_token: webhookSecret } : {}) }),
+    signal: AbortSignal.timeout(10_000),
   });
   const setData = await setRes.json();
 

@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
         `• Price level alerts & daily 7am (PHT) summary\n\n` +
         `<i>⏰ ${now} UTC</i>`,
     }),
+    signal: AbortSignal.timeout(10_000),
   });
 
   const data = await res.json();

@@ -23,6 +23,16 @@ export const CANNOT_RUN_CODES = {
   RATE_LIMIT: 'this account has spent its daily Deep reads, or the global cap is reached',
   COIN_LOCKED: 'the test account is not entitled to this coin',
   COIN_REQUIRED: 'the route rejected this body - THIS TOOL is out of date, not the product',
+  /* Added for #1631 item 5, and found the same way AUTH_REQUIRED was: by the control cell, not by
+     reading. `/api/grok` builds the prompt server-side now and refuses a body carrying the old
+     client-built `prompt` field with this code.
+
+     IT IS A CANNOT-RUN, NOT A FAILED VERDICT, and the distinction is the whole reason it belongs
+     here. The product's own remedy is "reload the page" - a stale browser tab, or in this tool's
+     case a request builder that has not caught up. Bucketing it as a FAIL would report the model as
+     having answered badly when the model was never called, which is the one conclusion a monitor
+     must not reach on its own obsolescence. */
+  STALE_CLIENT: 'this tool sent the old request shape - the route builds the prompt itself now, so THIS TOOL is out of date',
 };
 
 /**
