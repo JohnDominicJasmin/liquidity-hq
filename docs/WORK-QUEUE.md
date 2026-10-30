@@ -366,9 +366,19 @@ is included); **#1159** (leaked-password protection, deferred with the Supabase 
 **#372** (annual subscription - paused by the owner). **#1413:** GitHub Actions cannot start
 while the account is locked; nothing else depends on it.
 
-**Backups remain deferred to funding** (`docs/OWNER-BLOCKERS.md` row 1), with the rule that
-follows: **while there is no backup, no destructive migration touches production.** Additive
-only - `add column if not exists`, new tables, new policies.
+**CORRECTED 2026-10-30: backups were NEVER blocked by funding, and reading it that way cost
+seven weeks.** The sentence here said they were deferred until the owner paid for Supabase Pro.
+What Pro buys is *managed* backups. **It does not make a backup possible; it makes one convenient.**
+
+**The production database is 32 MB.** A nightly export is small, free, and runs on machinery that
+already exists - `app/api/liq-events/purge/route.ts` is cron-authed with `checkCronAuth`, driven
+by cron-job.org, and `CRON_SECRET` is already set on production. **A nightly backup route is being
+built on that pattern.** Owner raised it on 2026-10-30 and was right to ask why it had not moved.
+
+**The rule that follows is UNCHANGED while no backup exists: no destructive migration touches
+production.** Additive only - `add column if not exists`, new tables, new policies. **It stops
+applying only when a restore has been PROVEN**, not when a backup file first appears. A backup
+nobody has restored is not a backup.
 
 ---
 
