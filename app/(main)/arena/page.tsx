@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
-import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
+import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
@@ -1573,14 +1573,17 @@ function ArenaContent() {
 
       // Step 3 - ask Grok via server proxy (key hidden, rate-limited)
       setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
-      /* THE SELECTION REACHES THE READ (#930). Appended at the call site rather
-         than threaded through GrokContext: that type is shared with the other
-         prompt builders, and widening it would make every caller carry a field
-         only this one uses.
+      /* THE SELECTION REACHES THE READ (#930), now as IDENTIFIERS rather than as
+         a sentence. This used to assemble the whole prompt here and post the
+         text; #1631 item 5 moved that to the server, because a prompt built in
+         the browser is one the route's coin and timeframe gates cannot check -
+         they could only read the labels sent beside it. The sentences telling
+         the model to weigh these indicators are instructions, not data, so they
+         moved with the rest of the prompt (lib/grok.ts buildArenaPrompt).
 
-         describeSelection returns null for an empty selection, so the default
-         "let the read choose" state adds no sentence at all - which is the
-         behaviour, not an omission.
+         An empty selection still adds no sentence at all - that is the default
+         "let the read choose" behaviour, not an omission. It is decided by
+         describeSelection on the server now, for the same reason.
 
          #1347 item 1: `selection` is a PARAMETER, not the `strategySelection`
          closure. This callback's own dependency array (below) doesn't list
@@ -1590,18 +1593,11 @@ function ArenaContent() {
          gives for taking `selection` as an argument) and now forwards it
          here instead of letting this callback close over a value that could
          be one click behind a change. */
-      const base = mode === 'quick'
-        ? buildQuickPrompt(ctx, chartData)
-        : buildCombinedPrompt(ctx, chartData);
-      const watching = describeSelection(selection);
-      const prompt = watching
-        ? [base, '',
-            'The trader has chosen to weigh these indicators: ' + watching + '.',
-            'Give them more weight in the read, and say plainly if they disagree',
-            'with what the rest of the data shows.',
-          ].join('\n')
-        : base;
-      const { result: res, usage } = await callGrokViaProxy(prompt, readTf, ctx.session, mode, selectedCoin);
+      /* #1631 item 5: the prompt is no longer built here. The page sends the DATA and the server assembles
+         it, so the coin and timeframe its gates check are read out of the same objects the prompt is built
+         from. The indicator selection goes as identifiers; the sentences that tell the model to weigh them
+         are instructions and live on the server with the rest of the prompt. */
+      const { result: res, usage } = await callGrokViaProxy(ctx, chartData, mode, selection);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
 
@@ -1653,6 +1649,14 @@ function ArenaContent() {
       if ((e as { code?: string }).code === 'PRO_REQUIRED') {
         setReadError(t('ARENA_READ_FAST_TF_PRO_REQUIRED'));
         setReadProLocked(true);
+        return;
+      }
+      /* #1631 item 5: this tab is running JS from before the route stopped taking a browser-built prompt, so the request was refused
+         before it cost anything. Not a failure and not a lock - the page is simply out of date, and a reload fixes it. It gets its own
+         line because the alternative is a paying user pressing Deep research and being shown an unexplained error. No Upgrade link:
+         nothing here is about the plan. */
+      if ((e as { code?: string }).code === 'STALE_CLIENT') {
+        setReadError(t('ARENA_READ_STALE_CLIENT'));
         return;
       }
       /* #1596: the server refuses Quick/Deep on a coin outside BTC/ETH/SOL for an account that has not paid (403 COIN_LOCKED). Reachable
