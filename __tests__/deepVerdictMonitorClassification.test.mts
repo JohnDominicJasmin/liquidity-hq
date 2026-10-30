@@ -50,7 +50,17 @@ const KNOWN_CODES = [...Object.keys(CANNOT_RUN_CODES), 'BAD_ANSWER'];
  * turning into a list of codes nobody can account for.
  */
 const ARRIVING_WITH: Readonly<Record<string, string>> = {
-  STALE_CLIENT: '#1631 item 5 - dev\'s branch makes /api/grok build the prompt server-side and refuse the old client-built shape. Remove this entry in the commit that tightens, once the route returns it.',
+  /* EMPTY, AND THE EMPTY STATE IS THE POINT.
+   *
+   * This held `STALE_CLIENT` while #1854 was unmerged, and it did its job: D5 stayed green on `dev`
+   * while the classifier already knew a code the route did not yet return. The route returns it
+   * now, so the entry would be a lie about a change still being in flight - and D5's own
+   * `landed` assertion is what demanded this removal rather than anyone remembering it.
+   *
+   * THE LIST STAYS FOR THE DIRECTION IT SOLVES. A code the classifier knows before the route
+   * returns it is loosen-able. A code the ROUTE returns that the classifier does not know is not,
+   * because those are mutually exclusive states of the same list - which is why #1854 and the
+   * classifier PR could not both be green at once and were sequenced instead. */
 };
 
 test('D1. a parseable verdict is the only exit 0, whatever the status says', () => {
