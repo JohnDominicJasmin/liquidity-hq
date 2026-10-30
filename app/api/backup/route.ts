@@ -126,15 +126,26 @@ export async function GET(req: Request) {
        dump holding duplicates and missing records. That is worse than an unchecked backup,
        because the file reports itself sound. Found by the automated security review. */
     const rows: unknown[] = [];
+    /* A READ FAILURE ENDS THIS TABLE, it does not fall through to the checks below.
+     *
+     * It used to `break`, which left the inner loop and then ran the count and uniqueness block
+     * on the partial rows - pushing a SECOND entry for the same table. Both said the export
+     * failed, so no data was ever at risk, but the one a reader acts on ("SHORT READ - fetched
+     * 300 of 56941") is the symptom and the one that says why ("read failed at 300: ...") was
+     * buried above it. **The cause hidden under the symptom, in the output of the run that most
+     * needs reading.** Found by QA on review. */
+    let readFailed = false;
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await ordered(admin.from(table).select('*'), orderBy).range(from, from + PAGE - 1);
       if (error) {
         results.push({ table, rows: rows.length, expected, ok: false, note: `read failed at ${from}: ${error.message}` });
+        readFailed = true;
         break;
       }
       rows.push(...(data ?? []));
       if (!data || data.length < PAGE) break;
     }
+    if (readFailed) continue;
 
     /* TWO CHECKS, because the count alone is the one that was defeatable. The second asserts the
        order key is actually unique across what we fetched - if it is not, paging on it can still
@@ -226,7 +237,15 @@ export async function GET(req: Request) {
   /* Page the listing. `list` caps at 100 per call, and a cap that hides the OLDEST files is the
      one direction that matters here - those are exactly the ones retention is deciding about. */
   const backups: { name: string; created_at?: string | null }[] = [];
-  for (let page = 0; page < 20; page++) {
+  let listTruncated = false;
+  /* NO FIXED PAGE CAP. This read `page < 20`, which stopped at 2,000 objects - and because the
+     listing is name-descending, the files it hid were the OLDEST, which are exactly the ones
+     retention decides about. A cap in that direction means nothing past 2,000 is ever pruned
+     and nothing says so. The bound below is a runaway guard at 100,000 objects, an order of
+     magnitude past anything a nightly job can produce, and hitting it is REPORTED rather than
+     silently truncating the decision. Raised by QA on review. */
+  for (let page = 0; ; page++) {
+    if (page >= 1000) { listTruncated = true; break; }
     const { data } = await admin.storage.from(bucket).list('', {
       limit: 100, offset: page * 100, sortBy: { column: 'name', order: 'desc' },
     });
@@ -259,5 +278,6 @@ export async function GET(req: Request) {
     if (!delErr) pruned = stale.length;
   }
 
-  return NextResponse.json({ ...body, written: true, file: name, bytes, sha256, keepDays: KEEP_DAYS, kept: protectedNames.size, listed: backups.length, pruned });
+  return NextResponse.json({ ...body, written: true, file: name, bytes, sha256, keepDays: KEEP_DAYS, kept: protectedNames.size, listed: backups.length, pruned,
+    ...(listTruncated ? { listTruncated: true } : {}) });
 }
