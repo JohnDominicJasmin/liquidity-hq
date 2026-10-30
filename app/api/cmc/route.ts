@@ -124,6 +124,7 @@ export async function GET(req: NextRequest) {
           {
             headers: cmcHeaders(),
             next: { revalidate: 300 },  // cache 5 min - 90d data doesn't move fast
+            signal: AbortSignal.timeout(10_000),
           }
         );
         const body = await r.json();

@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
       text: sanitizeTelegramHtml(body.message),
       parse_mode: 'HTML',
     }),
+    signal: AbortSignal.timeout(10_000),
   });
 
   const data = await res.json();
