@@ -74,8 +74,22 @@ export interface FixtureFit {
    * these, any tolerance's count is derivable: `residualsAtPivots.filter(r => abs(r) <= tol)`.
    */
   residualsAtPivots: number[];
-  /** Touches at tolerance exactly 0. For F1 this is also the count at ANY tolerance, which is deliberate. */
+  /** Touches at tolerance exactly 0, AMONG THE PIVOTS ONLY. For F1 this is also the count at ANY tolerance. */
   touchesAtZeroTolerance: number;
+  /**
+   * Bars within tolerance of the line, counting the WHOLE candle array on the `low` side — which is
+   * a different number from the pivot-only count above, and the one `measureFit` reports.
+   *
+   * RECORDED BECAUSE THE TWO DIVERGE AND I GOT IT WRONG FIRST. The binding suite asserted the
+   * pivot-only count against `measureFit` and failed: F2's bar 11 has a low of 105.5 and the line
+   * at index 11 is 105.5, so a NON-PIVOT bar sits exactly on it. `lib/chartStructures.ts` scans the
+   * whole array on purpose and says why — the excess over the fitted points "is the evidence the
+   * line is real rather than an artefact of three points". F2's bar 11 is exactly that evidence.
+   *
+   * So a touch count is only meaningful with its population stated. Keyed by tolerance in price
+   * units.
+   */
+  touchCountsByTolerance: Record<string, number>;
 }
 
 export interface Fixture {
@@ -194,6 +208,9 @@ export const FIXTURES: Fixture[] = [
       lastTouchTs: 1_700_057_600_000,
       residualsAtPivots: [0, 0, 0],
       touchesAtZeroTolerance: 3,
+      /* The only fixture where the two populations agree at tolerance 0: no non-pivot bar reaches
+         this line, because every one of them sits ramp×distance above it. */
+      touchCountsByTolerance: { '0': 3, '0.5': 3, '1': 3, '1.5': 6, '5': 18 },
     },
   },
   {
@@ -232,6 +249,8 @@ export const FIXTURES: Fixture[] = [
          that choice costs. */
       residualsAtPivots: [0.5, -1.5, 1.5, -0.5],
       touchesAtZeroTolerance: 0,
+      /* ONE at tolerance 0, and not a pivot: bar 11's low is 105.5 and the line at 11 is 105.5. */
+      touchCountsByTolerance: { '0': 1, '0.5': 3, '1': 5, '1.5': 8, '5': 22 },
     },
   },
   {
@@ -268,6 +287,9 @@ export const FIXTURES: Fixture[] = [
          pivots a generous tolerance can be made to swallow. */
       residualsAtPivots: [4, -5, -2, 3],
       touchesAtZeroTolerance: 0,
+      /* The negative fixture's whole point, in one row: at a tolerance of 5 EIGHT bars count as
+         touching a line that fits at R² 0.0847. A touch count can be made to say anything. */
+      touchCountsByTolerance: { '0': 0, '0.5': 0, '1': 1, '1.5': 2, '5': 8 },
     },
   },
   {

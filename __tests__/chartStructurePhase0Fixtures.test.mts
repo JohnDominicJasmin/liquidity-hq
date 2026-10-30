@@ -302,6 +302,50 @@ test('C7. NEGATIVE: F3 finds pivots and still has no clean structure, with F1 an
   assert.equal(res.filter((r) => Math.abs(r) <= 1).length, 0, 'and a tight one swallows none');
 });
 
+test('C9. the whole-array touch counts, and the two populations that a count can mean', () => {
+  /* A TOUCH COUNT IS MEANINGLESS WITHOUT ITS POPULATION, and this cell exists because asserting the
+     wrong one failed against a correct implementation. `residualsAtPivots` counts the fitted points;
+     this counts every bar in the series. They differ wherever a non-pivot bar happens to reach the
+     line, which F2 does at bar 11 — and that excess is the evidence a line is real rather than an
+     artefact of three points, so it is a feature of the measurement and not noise in it. */
+  for (const f of FIXTURES) {
+    if (!f.fit) continue;
+    const src = fromCandles(f);
+    const fit = referenceFit(src.idx, src.prices);
+    const lineAt = (i: number) => fit.slope * i + fit.intercept;
+
+    for (const [tolText, expected] of Object.entries(f.fit.touchCountsByTolerance)) {
+      const tol = Number(tolText);
+      const got = f.candles.filter((c, i) => Math.abs(c.low - lineAt(i)) <= tol).length;
+      assert.equal(
+        got, expected,
+        `${f.id} at tolerance ${tol}: ${expected} bars should be within reach of the line, got ${got}`,
+      );
+    }
+
+    /* The pivot-only count at tolerance 0 must stay consistent with the residuals, and the
+       whole-array count must be at least as large - never smaller, which would mean a fitted point
+       was not in the array it was fitted from. */
+    assert.ok(
+      f.fit.touchCountsByTolerance['0'] >= f.fit.touchesAtZeroTolerance,
+      `${f.id}: the whole-array count cannot be below the pivot-only count`,
+    );
+  }
+
+  /* The one that makes the distinction visible rather than theoretical. */
+  const f2 = byId('F2');
+  assert.equal(f2.fit!.touchesAtZeroTolerance, 0, 'F2: no PIVOT lies on the line');
+  assert.equal(f2.fit!.touchCountsByTolerance['0'], 1, 'but one BAR does');
+  const s2 = fromCandles(f2);
+  const fit2 = referenceFit(s2.idx, s2.prices);
+  const exact = f2.candles
+    .map((c, i) => ({ i, off: c.low - (fit2.slope * i + fit2.intercept) }))
+    .filter((x) => x.off === 0)
+    .map((x) => x.i);
+  assert.deepEqual(exact, [11], 'and it is bar 11 - not a pivot');
+  assert.ok(!f2.pivotLowIndices.includes(11), 'confirmed: 11 is not in F2 pivot set');
+});
+
 test('C8. pivots and R² are unit-free; the SLOPE is not, and that is the conversion hazard', () => {
   /* A pre-registered guess of mine was that raw epoch-ms x values would cost the exactness of R² -
      1.7e12 squared overflows a double's exact integer range. MEASURED, IT DOES NOT: F1's R² is
