@@ -38,6 +38,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { appFiles } from './_appPath.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG = 'next.config.ts';
@@ -256,4 +257,59 @@ test('G4. the config object is still annotated - the one-token way to lose this'
       `nothing, so an unknown or renamed experimental key is accepted silently - G1, G2 and G3 all ` +
       `still pass while the guarantee is gone. Restore \`const nextConfig: NextConfig = {\`.`,
   );
+});
+
+/**
+ * G5 GUARDS THE OTHER HALF, and it is the half nothing was watching.
+ *
+ * G1-G4 all guard the same thing: that a RENAMED or UNKNOWN experimental key fails loudly,
+ * which is Next's or tsc's doing. None of them notice the key simply going AWAY. An absent
+ * `experimental` key is valid config - tsc is content, Next does not warn, the build is green -
+ * and `app/global-not-found.tsx` becomes dead code the moment it happens. 404s then fall back
+ * to Next's built-in page, which was measured before this file existed as `next-error-h1` with
+ * no `data-theme`, no app shell and no `<html lang>` at all.
+ *
+ * So the flag and the file are a PAIR, and either one alone is a silent defect:
+ *   flag without file -> `globalNotFound: true` points at nothing.
+ *   file without flag -> a branded 404 that is never served.
+ *
+ * ASSERTED AS AN EQUALITY RATHER THAN AS TWO PRESENCE CHECKS, deliberately. #1740 introduces
+ * both at once, so on `dev` neither exists and on the branch both do; an equality is green on
+ * both sides of that merge in either order and RED the moment they disagree. Two presence
+ * checks would have been red on `dev` and would have had to be written after the merge, which
+ * is how a pin never gets written at all.
+ */
+test('G5. the globalNotFound flag and the global-not-found file exist together, or neither does', () => {
+  const sf = ts.createSourceFile(CONFIG, configSrc(), ts.ScriptTarget.Latest, true);
+  const obj = configObject(sf);
+
+  /* POSITIVE CONTROL: if the parse found no config object, every lookup below would report
+     "flag absent" and the equality could pass by being wrong twice. G4 covers the annotation;
+     this covers the parse itself. */
+  assert.ok(obj, `${CONFIG}: no object literal assigned to \`nextConfig\` was found - the AST walk is broken, so "the flag is absent" below would be a parse failure wearing a result's clothes`);
+
+  const experimental = propNamed(obj, 'experimental');
+  const expObj = experimental && ts.isObjectLiteralExpression(experimental.initializer) ? experimental.initializer : undefined;
+  const flagProp = expObj ? propNamed(expObj, 'globalNotFound') : undefined;
+  const flagOn = !!flagProp && flagProp.initializer.kind === ts.SyntaxKind.TrueKeyword;
+
+  /* The docs are explicit that this file lives at the ROOT of `app/`: "create a file in the
+     root of the app directory". A route group cannot hold it, which is why this is a literal
+     path and not an `appPath` lookup - where it sits IS the invariant here. */
+  const AT_ROOT = 'app/global-not-found.tsx';
+  const fileAtRoot = existsSync(path.join(ROOT, AT_ROOT));
+
+  assert.equal(
+    flagOn, fileAtRoot,
+    flagOn
+      ? `\`experimental.globalNotFound: true\` is set but ${AT_ROOT} does not exist, so the flag points at nothing and unmatched URLs fall back to Next's unbranded built-in 404.`
+      : `${AT_ROOT} exists but \`experimental.globalNotFound\` is not set to true in ${CONFIG}. The file is dead code: Next never serves it, 404s revert to the built-in page with no theme and no \`<html lang>\`, and NOTHING ELSE FAILS - not tsc, not the build, not G1-G4.`,
+  );
+
+  /* A copy under a route group looks right and is never served. Only meaningful when the
+     feature is on, and the sweep is over the real tree rather than a guessed path list. */
+  if (flagOn) {
+    const strays = appFiles().filter((f) => /\/global-not-found\.(tsx|ts|jsx|js)$/.test(f) && f !== AT_ROOT);
+    assert.deepEqual(strays, [], `global-not-found files exist outside the app root: ${strays.join(', ')}. Next only reads the one at ${AT_ROOT}, so these are never served.`);
+  }
 });

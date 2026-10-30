@@ -28,9 +28,33 @@
  * Standalone on purpose - no imports - so both Playwright's config loader and
  * `node --test` can load it. */
 
+/* ⚠️ THE RENDER HOSTNAME WAS WRONG IN BOTH DIRECTIONS, measured 2026-10-29.
+ *
+ * This list carried `liquidity-hq-prod.onrender.com`, named after the Render SERVICE. That
+ * host does not exist - it answers `Not Found`. The host that actually serves production
+ * direct from Render, bypassing Cloudflare, is `liquidity-hq.onrender.com`, and it was
+ * ABSENT. Measured, not inferred:
+ *
+ *   liquidity-hq.onrender.com        {"commit":"7f44439","branch":"main","appEnv":"prod"}
+ *   liquidity-hq-prod.onrender.com   Not Found
+ *   liquidity-hq.com                 {"commit":"7f44439","branch":"main","appEnv":"prod"}
+ *
+ * WHY IT MATTERED MORE THAN A TYPO. `isProductionTarget` returning false does not merely
+ * skip a warning - it means `PROD_READONLY_TEST_MATCH` is never applied, so the FULL suite
+ * runs, including every spec in PROD_EXCLUDED that writes on purpose. A dispatch of the e2e
+ * workflow with `base_url=https://liquidity-hq.onrender.com` would have pointed the mutating
+ * suite at production with this guard silent, against a database that has no backups.
+ *
+ * Surfaced by an automated review of the `base_url` input added in #1802, which is what made
+ * that URL reachable from a dispatch in the first place.
+ *
+ * The dead entry is KEPT rather than deleted: it costs nothing, and if that service name is
+ * ever created it should already be covered. A host in this list that does not resolve is
+ * harmless; one that resolves and is missing is the bug above. */
 export const PRODUCTION_HOSTS = [
   'liquidity-hq.com',
   'www.liquidity-hq.com',
+  'liquidity-hq.onrender.com',
   'liquidity-hq-prod.onrender.com',
 ];
 
