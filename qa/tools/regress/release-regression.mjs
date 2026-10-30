@@ -207,6 +207,28 @@ function loadQaEnv() {
   return env;
 }
 
+/* ── WHERE A CREDENTIAL MAY BE SENT ─────────────────────────────────────────────────────────────
+ *
+ * `QA_BASE_URL` comes from a free-form `workflow_dispatch` input, and the credentialed sections
+ * mint a REAL user access token and then send it to that host. An arbitrary value would therefore
+ * hand a working bearer token to whoever chose it - repo-write only, but a credential leaving for
+ * an unvalidated host is not something to leave to the dispatcher's good intentions.
+ *
+ * So the token never leaves for a host that is not on this list. The PUBLIC page measurements are
+ * unaffected: pointing them at another deployment is a legitimate thing to do, and they carry no
+ * credential. Only the two credentialed sections are gated.
+ *
+ * Raised by an automated security review of the commit that added the env block, and correct. */
+const CREDENTIALED_ORIGINS = [
+  'https://liquidity-hq-qa.onrender.com',
+  'https://liquidity-hq-staging.onrender.com',
+  'https://liquidity-hq-dev.onrender.com',
+  'http://localhost:3000',
+  'http://localhost:3100',
+];
+const BASE_ORIGIN = (() => { try { return new URL(BASE).origin; } catch { return '(unparseable)'; } })();
+const CREDENTIALS_ALLOWED_HERE = CREDENTIALED_ORIGINS.includes(BASE_ORIGIN);
+
 const QA_ENV = loadQaEnv();
 const CREDS_NEEDED = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'E2E_USER_A_EMAIL', 'E2E_USER_A_PASSWORD'];
 const CREDS_MISSING = CREDS_NEEDED.filter((k) => !QA_ENV[k]);
@@ -218,6 +240,11 @@ let NOT_MEASURED = false;
 let SESSION = null;
 async function signInOnce() {
   if (SESSION !== null) return SESSION;
+  if (!CREDENTIALS_ALLOWED_HERE) {
+    /* Refused BEFORE the password grant, so nothing is minted for a host that may not have it. */
+    SESSION = { error: `${BASE_ORIGIN} is not an origin this tool will send a credential to` };
+    return SESSION;
+  }
   if (CREDS_MISSING.length) { SESSION = false; return SESSION; }
   try {
     const r = await fetch(`${QA_ENV.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -703,6 +730,12 @@ async function briefingBound() {
   const env = QA_ENV;
 
   log('\n--- #1833: /api/briefing input bound (nothing billed - the bound precedes the reservation) ---');
+  if (!CREDENTIALS_ALLOWED_HERE) {
+    log(`  REFUSED - ${BASE_ORIGIN} is not an origin this tool will send a user token to. NOT a pass.`);
+    log(`  Allowed: ${CREDENTIALED_ORIGINS.join(', ')}`);
+    NOT_MEASURED = true;
+    return;
+  }
   if (CREDS_MISSING.length) { log(`  SKIPPED - missing credentials: ${CREDS_MISSING.join(', ')}. NOT a pass.`); return; }
 
   const post = (body, token) => fetch(`${BASE}/api/briefing`, {
