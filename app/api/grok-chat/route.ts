@@ -155,7 +155,10 @@ export async function POST(req: NextRequest) {
       const r = await xaiFetch('https://api.x.ai/v1/responses', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-        body:    JSON.stringify({ model: MODEL, input: messages, tools: searchTools(xWindow) }),
+        /* max_output_tokens for the same reason the chat branch below clamps max_tokens, and it was missing
+           on the MORE expensive of the two: this is the branch that carries web and X search. Same figure as
+           app/api/grok/route.ts:258, the app's other /v1/responses call. */
+        body:    JSON.stringify({ model: MODEL, input: messages, tools: searchTools(xWindow), max_output_tokens: 2000 }),
       });
       data   = await r.json();
       status = r.status;
