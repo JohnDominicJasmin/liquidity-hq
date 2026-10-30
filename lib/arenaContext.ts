@@ -66,6 +66,26 @@ function stripControl(s: string): string {
   return s.replace(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g, '');
 }
 
+/**
+ * The exact string that will be stored, so the marker check can be run against it.
+ *
+ * VALIDATE WHAT YOU STORE, NOT WHAT YOU WERE SENT. Testing the raw value and then transforming it is a
+ * parser differential of its own, and both transforms here can manufacture a marker the raw value did
+ * not have:
+ *
+ *   - `stripControl` ASSEMBLES one. `=\u0000== YOUR ANALYSIS TASK ===` does not match - the leading run
+ *     is broken by the NUL - and stripping it yields a clean `=== YOUR ANALYSIS TASK ===`.
+ *   - the truncation assembles one too. `=== FOO ====extra` does not match, because the line has to END
+ *     in the second run; cut the tail at the ceiling and `=== FOO ====` does.
+ *
+ * Caught by the automated security review of the first version, which tested `v` and stored
+ * `stripControl(v).slice(...)`. The same shape as the `coin` differential one commit earlier: a check
+ * and a use looking at two different strings.
+ */
+function cleanField(s: string): string {
+  return stripControl(s).slice(0, MAX_FIELD_CHARS);
+}
+
 /* Every key of GrokContext, listed once. The assertion below makes this list and the interface the same
  * thing to the compiler. */
 export const ARENA_CONTEXT_KEYS = [
@@ -118,8 +138,9 @@ export function parseArenaContext(raw: unknown): ArenaParseResult<GrokContext> {
   for (const key of ARENA_CONTEXT_KEYS) {
     const v = r[key];
     if (typeof v !== 'string') return { ok: false, reason: `context.${key} is not a string` };
-    if (SECTION_MARKER.test(v)) return { ok: false, reason: `context.${key} contains a prompt section marker` };
-    out[key] = stripControl(v).slice(0, MAX_FIELD_CHARS);
+    const clean = cleanField(v);
+    if (SECTION_MARKER.test(clean)) return { ok: false, reason: `context.${key} contains a prompt section marker` };
+    out[key] = clean;
   }
   if (!out.session.trim()) return { ok: false, reason: 'context.session is empty' };
 
@@ -208,8 +229,11 @@ export function parseArenaChart(raw: unknown): ArenaParseResult<ChartData> {
   if (r.detectedPatterns !== undefined && typeof r.detectedPatterns !== 'string') {
     return { ok: false, reason: 'chart.detectedPatterns is not a string' };
   }
-  /* Both reach the prompt as text, so both get the same marker refusal as the context fields. */
-  for (const [key, v] of [['recent20', r.recent20], ['detectedPatterns', r.detectedPatterns]] as const) {
+  /* Both reach the prompt as text, so both get the same marker refusal as the context fields - and like
+     those, the check runs on the CLEANED value, which is the one that gets stored. See cleanField. */
+  const recent20 = cleanField(r.recent20);
+  const patterns = r.detectedPatterns === undefined ? undefined : cleanField(r.detectedPatterns);
+  for (const [key, v] of [['recent20', recent20], ['detectedPatterns', patterns]] as const) {
     if (typeof v === 'string' && SECTION_MARKER.test(v)) {
       return { ok: false, reason: `chart.${key} contains a prompt section marker` };
     }
@@ -220,13 +244,11 @@ export function parseArenaChart(raw: unknown): ArenaParseResult<ChartData> {
     value: {
       tf: r.tf,
       ema9, sma200, rsi,
-      recent20:  stripControl(r.recent20).slice(0, MAX_FIELD_CHARS),
+      recent20,
       hi:        r.hi as number,
       lo:        r.lo as number,
       lastClose: r.lastClose as number,
-      ...(r.detectedPatterns === undefined
-        ? {}
-        : { detectedPatterns: stripControl(r.detectedPatterns).slice(0, MAX_FIELD_CHARS) }),
+      ...(patterns === undefined ? {} : { detectedPatterns: patterns }),
     },
   };
 }
