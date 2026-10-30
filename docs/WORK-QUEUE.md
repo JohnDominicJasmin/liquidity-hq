@@ -75,14 +75,14 @@ means*). **Every issue carries exactly one `priority:` label.**
 
 | # | Item | Notes |
 |---|---|---|
-| D1 | **#1631 - AI correctness** (high) | Owner-approved 2026-10-21 09:10 UTC. E+B+C with the nominal 10-year yield: committed, PR next (heavy slot after QA's staging sign-off). Then A+D (Deep citations, our own dated data), stacked. |
+| D1 | **#1631 - AI correctness** (high) | Owner-approved 2026-10-21 09:10 UTC. **CORRECTED 2026-10-30: E+B+C and A+D both SHIPPED nine days ago** - #1665 merged 2026-10-21T15:59:58Z, #1668 at 19:55:11Z. This row said "committed, PR next (heavy slot after QA's staging sign-off)", which was true for about four hours, and **PM assigned work from it on 2026-10-30 as though it were current.** Also further along than the issue text: item 3's refund is on `dev` AND `main`, and `lib/grok.ts:851`'s `?? 'FLAT'` trapdoor is no longer reachable from product code (`parseCombinedRead` refuses instead) - deleting the pair is blocked on QA moving two test imports, since dev writing that move would be dev writing tests. **What is genuinely open:** item 4 (forwarded size, output caps, cost - measured 2026-10-30, three real gaps, PR #1833); item 5's second half (the browser still supplies the prompt body, and the gates check *declared* coin/timeframe rather than what the prompt asks for); and a daily Deep Research check asserting a *parseable verdict* rather than HTTP 200, which is QA's. The item-4 text itself carries four claims that are no longer true - read #1631's 2026-10-30 comment, not the item. |
 | D2 | **#1649 - exchange data never blocked** (high) | Phase 1 merged (#1659: shared breaker, budgets, klines range limit). Phase 2: server Bybit WebSocket. Phase 3: OKX + our own 5-minute snapshots (a table, so a migration: owner's word first). Phase 4: Hyperliquid as third source + funding-comparison inputs (owner, 2026-10-21 ~14:00 UTC). The first PR that calls OKX or Hyperliquid logs host + HTTP status once per process; PM reads the qa logs. |
 | D3 | **#1662 - real liquidation levels from Hyperliquid positions** (medium) | Estimate only, at a natural break: days, memory, DB, request budget, what a first version cuts. No build before D1 and D2. |
 | D4 | **#1651 - data guardrails** (high) | Owner order 2026-10-21. Reading type with ok/stale/unknown, freshness budgets, one formatter, AI input and answer checks. The PR template's data checklist (#1652) applies to every PR that adds or changes a number. |
 | D5 | **#1600 - all coins** (owner, 2026-10-21 08:58 UTC) | After the server fixes; more coins may not mean more upstream calls per minute (#1649 item 5). |
 | D6 | **#1632 - security items left** (high) | Includes the Next.js dependency bump (Dependabot), the liquidation page's 5,000-row download, and the AI prompts moved server-side (#1263). |
 | D7 | **Fails from QA's 2026-10-21 regression** (#1640) | R1 Arena 11 px too wide at 390; R2 `/api/ath` 502 when CoinGecko answers 429; R3 `/alerts` signed-out 401s; R4 `bot-info` 500; R9 `/about` still names Finnhub; R13 econ 429 shown as "No upcoming events" (PR #1637 open). R6-R8 are visual: the owner's look first. |
-| D8 | **#1818 — chart structures, Phase 0** (medium) | **The owner ordered this started on 2026-10-30 13:19 UTC — *"start it."*** Deliverable: `lib/chartStructures.ts` — swing-pivot detection with configurable left/right strength, least-squares line fit, and fit quality (R², touch count, first and last touch timestamp). **Pure functions. No UI, no AI, no network, no new dependency.** Spec: `docs/proposals/ai-chart-structures.md`, §2 and §7. **The load-bearing decision is §2: geometry is computed in code and the AI never returns a coordinate** — a model-placed line misses the candles and the user's own eyes are the test instrument. QA owns the fixtures, so the PR says what to assert and why. **Do not start Phase 1 (overlays) in this PR.** §4a binds Phase 2 and is a constraint, not advice: each rung of the timeframe ladder is a fixed-limit request, never a range, because `canFailoverForRequest(isRange)` returns `!isRange` and a range request therefore has no Bybit fallback. **The push goes in a heavy window PM opens** (see P5). |
+| D8 | **#1818 — chart structures, Phase 0** (medium) | **The owner ordered this started on 2026-10-30 13:19 UTC — *"start it."*** Deliverable: `lib/chartStructures.ts` — swing-pivot detection with configurable left/right strength, least-squares line fit, and fit quality (R², touch count, first and last touch timestamp). **Pure functions. No UI, no AI, no network, no new dependency.** Spec: `docs/proposals/ai-chart-structures.md`, §2 and §7. **The load-bearing decision is §2: geometry is computed in code and the AI never returns a coordinate** — a model-placed line misses the candles and the user's own eyes are the test instrument. QA owns the fixtures, so the PR says what to assert and why. **Do not start Phase 1 (overlays) in this PR.** §4a binds Phase 2 and is a constraint, not advice: each rung of the timeframe ladder is a fixed-limit request, never a range, because `canFailoverForRequest(isRange)` returns `!isRange` and a range request therefore has no Bybit fallback. |
 
 **D8 sits at the bottom of that table and is nevertheless Dev's CURRENT item.** The owner ordered
 it started on 2026-10-30 at 13:19 UTC and the rows above it are not cancelled — they resume the
@@ -146,8 +146,15 @@ controls** - to anything you touch.
   are recorded in `.githooks/pre-push`, whose own header carries the measurement:
   **`npx tsc --noEmit`, NINE SECONDS, free 2,895 -> 1,484 MB, biggest process 428 MB** — against
   `npm run lint` at 46 seconds and free 3,622 -> 1,044 MB, which was essentially the entire cost.
-  **So the launch bar for a push is ~2.5 GB free, not 3.5 GB.** Read the hook, not this file, if
-  the two ever disagree again: the hook is the thing that actually runs.
+  **This note gives NO replacement launch bar, deliberately, and QA was right to send the first
+  version back for giving one.** That version said "~2.5 GB free", which is the figure the
+  paragraph four lines above calls a misreading, and it is contradicted by a successful foreground
+  push of this very branch **at 512 MB free** — a factor of five. It is also not derivable from the
+  numbers beside it: a biggest-process of 428 MB and a system-wide drop of 1,411 MB measured on a
+  different day, with unattributed other load, do not combine into a bar. **Replacing a stale
+  number with a confident fresh one is the same error wearing clean clothes.** Whoever wants a bar
+  measures it: launch, watch MIN_FREE, write down the date. Until then: read `.githooks/pre-push`,
+  which is the thing that actually runs, rather than this file's copy of what it used to do.
 
   **Why this was wrong in a way worth recording:** the 3.5 GB figure was measured correctly on
   2026-09-24 and was never re-read after the hook was narrowed twice in two days — including once

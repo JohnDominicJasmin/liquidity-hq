@@ -227,11 +227,17 @@ already a feature competitors charge for, and it is the part that can never hall
 
 ## 8. Open questions for the owner — not blocking, answer when convenient
 
-1. **Auto-draw or offer?** Should the structures appear on the chart immediately, or as a short list
-   the user taps to draw? *Recommendation: list, then draw on tap* — the chart is the user's
-   workspace and taking it over uninvited is the complaint we would get.
-2. **Pro-only?** Deep research is Pro-gated today. *Recommendation: keep it Pro* — it is a headline
-   reason to pay.
+1. **Auto-draw or offer? — ANSWERED BY THE OWNER, 2026-10-30, and this one was never ours.**
+   **A list; nothing is drawn until the user taps it.** He was shown three options with mock-ups
+   (list-then-tap; draw everything at once; draw the strongest and list the rest) and chose
+   list-then-tap, which was also the recommendation. **This is a Phase 1 requirement now, not a
+   preference:** the chart stays untouched until a tap, and a structure that is never tapped is
+   never drawn. It was put to him rather than decided here because it is visual, and this project
+   built the Arena redesign three times on sessions deciding for themselves what he would accept.
+2. **Pro-only? — DECIDED, not asked: Pro.** Deep research is already Pro-gated server-side in
+   `app/api/strategy-research/route.ts`, so keeping it there is the existing behaviour rather than
+   a new choice, and it is not a visual decision. Asking him would have been asking him to confirm
+   what the code already does.
 3. **Phase 0+1 alone, early?** The deterministic half with no AI could ship well before the rest.
    *Recommendation: yes, once paying users exist and the queue clears.*
 
