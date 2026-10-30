@@ -702,50 +702,76 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
 
 ---
 
-## 9. Two instrument traps found on 2026-10-30, both of which return a confident wrong answer
+## 9. Four instrument traps found on 2026-10-30, each of which returns a confident wrong answer
 
-Neither of these fails loudly. Both produce a result that looks like data.
+None of these fails loudly. Each produces a result that looks like data. **§9e is the rule they all
+collapse to; read that one if you read nothing else.**
 
-### 9a. `grep -i` COMBINED WITH `-F` **CRASHES** IN THIS ENVIRONMENT (SIGABRT, exit 134)
+### 9a. `grep -i` COMBINED WITH `-F` **CRASHES** HERE (SIGABRT, exit 134)
 
-Measured on the Git Bash grep here, against a file containing the string:
+**It does not fail to match. The process dies.** Verified independently by two sessions, 3 for 3:
 
 ```
-grep -oF   LiquidityHQ file   ->  LiquidityHQ      correct
-grep -oi   LiquidityHQ file   ->  LiquidityHQ      correct
-grep -cF   LiquidityHQ file   ->  1                correct
-grep -ci   LiquidityHQ file   ->  1                correct
-grep -oiF  LiquidityHQ file   ->  ABORTS           SIGABRT, exit 134
-grep -ciF  LiquidityHQ file   ->  ABORTS           SIGABRT, exit 134, also under LC_ALL=C
+grep -cF   LiquidityHQ file   ->  exit 0      correct   (control)
+grep -ci   LiquidityHQ file   ->  exit 0      correct   (control)
+grep -oF / -oi                ->  correct
+grep -ciF  LiquidityHQ file   ->  exit 134    SIGABRT, also under LC_ALL=C
+grep -oiF  LiquidityHQ file   ->  exit 134    SIGABRT
 ```
 
-**So any check built on `grep -iF` can never find anything, and reports that as a clean zero.**
+**grep prints NOTHING to its own stderr.** The familiar `Aborted` line comes from the interactive
+shell's job control, so inside a subshell, a command substitution or a script there is **no
+diagnostic at all** — an empty result and an exit code nobody reads.
 
-It was found because a positive control came back `0` on a file the string was visible in. The run
-before that reported "marker absent on both production and dev" for eight markers — a coherent,
-plausible, entirely fabricated result. **A control of zero is not a control.**
+Because the process dies before printing, **`-ciF` yields an empty string, not `0`.**
 
-**This is a silent false-negative generator for absence checks specifically,** which is the shape
-this project writes a lot of: *is the placeholder gone, is the leaked key absent, did the bad string
-stop rendering.* All of those pass unconditionally if written with `-iF`. Use `-F` or `-i`, not
-both, and always pair an absence check with a string that MUST be present.
+**Three consequences, and the third is the dangerous one:**
 
-### 9b. A DEPENDENCY BEING DOWN READS AS "FINE" — three instances in one day
+1. **`set -e` scripts DIE at exit 134.** A `set -e` script running `grep -ciF` never reaches the
+   next line. This is the one loud case and the only good news here.
+2. **A command substitution leaves the variable EMPTY**, so an `-gt` test fails with *integer
+   expression expected* and exit 2 rather than evaluating false. Inside an `if`, or behind
+   `2>/dev/null`, that error is swallowed and the branch simply is not taken.
+3. **A `|| echo 0` fallback CONVERTS THE CRASH INTO A FABRICATED ZERO**, and it is the most natural
+   way anyone writes this. Verified against a file that *does* contain the string: the variable
+   comes back `0` while the string is present.
 
-All three looked like a pass and were a missing measurement:
+   **The defensive idiom that exists to stop a non-match aborting a script is exactly what turns
+   this crash into clean, plausible, wrong data.**
+
+**Use `-F` or `-i`, never both.** And pair every absence check with a string that MUST be present.
+
+**How it was found, and why that matters more than the bug:** a positive control came back `0` on a
+file the string was plainly visible in. The run before it had reported eight markers absent across
+production and dev — coherent, plausible, entirely fabricated. In the output the failures printed
+as **blank cells rather than zeros**, and that was first read as a formatting quirk.
+
+**Both sweeps are clean AND both were controlled.** Dev: a repo-wide search for any grep combining
+`-i` and `-F`, excluding `node_modules`, zero hits, pattern shown to fire on a planted `grep -oiF`.
+QA: `qa/`, `__tests__/`, `scripts/`, `.github/`, `.githooks/` — 14 invocations, none using `-i`.
+**QA's sweep needed TWO patterns:** against a planted file holding `grep -ciF`, `grep -i -F` and
+`grep --ignore-case --fixed-strings`, the combined-letter regex missed the separated form and the
+separated one missed `-ciF`. A single-pattern sweep returns clean for the wrong reason.
+
+### 9b. A DEPENDENCY BEING DOWN READS AS "FINE"
+
+Three instances in one day, each looking like a pass and each a missing measurement:
 
 | What read as fine | What was actually happening |
 |---|---|
-| A sign-in failure naming a database schema bug | The body was not JSON at all — the hint printed unconditionally and the condition was false |
+| A sign-in failure naming a database schema bug | The body was not JSON at all — the hint printed unconditionally and its condition was false |
 | `/api/labels` resolving, so labels "work" | File defaults were serving; the database behind them was unreachable |
 | `/upgrade` showing no unconfirmed-placeholder string | The entire purchase block fails to mount against the degraded database — the defect is real and in the code, and the environment hides it |
 
-**The third is the dangerous one.** A spec asserting the placeholder is ABSENT would have passed on
-that environment, confidently green, certifying a fix that had not happened. **An absence assertion
-needs a positive control proving the CONTAINER rendered**, because "the bad string is gone" and
-"the section is missing" are indistinguishable without one.
+**The third is the dangerous one.** A spec asserting the placeholder is ABSENT would have passed
+there, confidently green, certifying a fix that had not happened.
 
-The control that settled it was the same probe against production, post-hydration:
+> **An absence assertion needs a positive control proving the CONTAINER rendered**, because "the bad
+> string is gone" and "the section is missing" are indistinguishable without one.
+
+**Markup alone could not discriminate.** Those strings are absent from **production's** HTML too,
+because the block is client-rendered on both hosts — so "absent server-side on dev" was true and
+proved nothing. The control that settled it was the same probe against production, post-hydration:
 
 ```
                       prod              dev (degraded db)
@@ -755,108 +781,53 @@ rendered words        587               301
 footer links          11                16
 ```
 
-Markup alone could not tell them apart — those strings are absent from **production's** HTML too,
-because the block is client-rendered on both hosts. **Server-side absence was true and did not
-discriminate.** Where a defect is "wrong content present", prefer asserting on SOURCE: a
-source-reading check cannot be fooled by the environment.
-
-### 9a-2. The worse half of 9a: `-ciF` returns EMPTY, not `0`
-
-Confirmed independently by QA on GNU grep 3.0 here, needle `sold by` against a file containing
-`SOLD BY`:
-
-```
--ci   1          -cF   0          -ciF  (empty)
--oi   SOLD BY    -oF   (empty)    -oiF  (empty)
-```
-
-`-cF` and `-oF` finding nothing is CORRECT — a case-sensitive fixed match of `sold by` against
-`SOLD BY` should miss. The defect is the `-i` pair, and the sharp edge is that **`-ciF` returns an
-empty string rather than `0`**.
-
-So this:
-
-```sh
-N=$(grep -ciF "$needle" "$file")
-if [ "$N" -gt 0 ]; then ...
-```
-
-leaves `N` **unset**, and the test does not evaluate false — it errors, or evaluates as nothing,
-depending on the shell. **A count that returns no value at all is worse than a wrong count**,
-because the arithmetic downstream never reports that it had nothing to work with. In the run that
-exposed this, a formatted table printed blank cells rather than zeros, which read as a layout quirk.
-
-**Sweeping for this needs TWO patterns, not one.** QA swept `qa/`, `__tests__/`, `scripts/`,
-`.github/` and `.githooks/` — 14 invocations, none using `-i`, so none affected. The control was a
-planted file containing `grep -ciF`, `grep -i -F` and `grep --ignore-case --fixed-strings`:
-**neither pattern alone caught all three.** A combined-letter regex misses `-i -F`; a separated one
-misses `-ciF`. A single-pattern sweep returns clean for the wrong reason.
+Where a defect is "wrong content present", prefer asserting on **source** — a source-reading check
+cannot be fooled by the environment. But see §9d for how it can be fooled instead.
 
 ### 9c. `execFileSync('npx', ...)` CANNOT RUN ON WINDOWS WITHOUT `shell: true`
 
 `npx` is `npx.cmd` here, and `execFileSync` does not resolve `.cmd` without a shell. The call
-throws, so **every invocation looks like the command failed**.
+throws, so **every invocation looks like the command failed.**
 
-QA hit this while mutation-testing a gate: `tsc` never ran once, every mutation reported
-"tsc failed", and **the mutation expected to PASS produced a false confirmation** — the gate looked
-like it was catching something it had never actually been given.
+Found while mutation-testing a gate: `tsc` never ran once, every mutation reported "tsc failed",
+and **the mutation expected to PASS produced a false confirmation** — the gate looked like it was
+catching something it had never been given.
 
 **The tell was a non-zero exit with zero `error TS` lines.** A compiler that rejects your code says
 why; one that never started cannot.
 
-### 9d. The rule all of §9 collapses to
+### 9d. A SOURCE-READING GATE THAT MATCHES RAW TEXT CANNOT TELL CODE FROM PROSE
+
+The first version of the legal-name gate (#1825) tested whether the file text contained
+`LEGAL_NAME_CONFIRMED` — over the whole file, **including comments**. So a planted mutation that
+removed the import *and* the guard, while leaving the explanatory comment behind, **compiled clean
+and kept the gate green.**
+
+**The comment that defeated the gate was a correct, useful comment** written in the fix it was
+guarding (#1824). Good documentation acting as a false positive for a checker that cannot parse.
+
+This is the repository's own grep-matches-comment-prose trap, promoted into a gate. **The fix is to
+ask the AST whether the name appears as an identifier**, which excludes comments *by construction*.
+Stripping comments first is a second instrument with its own failure modes — it has to decide where
+a comment ends, including `//` inside a string literal — guarding the first.
+
+### 9e. THE RULE ALL OF §9 COLLAPSES TO
 
 > **A control must be shown to FIRE before its silence means anything.**
 
-Narrower and more useful than "add controls". Four instances in one day, in four different tools:
+Narrower and more useful than "add controls". Five instances in one day, in five different tools:
 
 | Instrument | Looked like | Actually |
 |---|---|---|
-| `grep -iF` | eight markers absent on two hosts | could never match anything |
-| `git show` under MSYS path mangling | `continue-on-error` already removed | the command never ran; `grep -c` printed `0` |
+| `grep -iF` | eight markers absent on two hosts | the process aborted; it can never match |
+| `git show` under MSYS path mangling | `continue-on-error` already removed from `dev` | the command never ran; the piped `grep -c` printed `0` |
 | `execFileSync('npx', ...)` | every mutation caught by the gate | `tsc` never started |
 | A spec asserting a string is ABSENT | the placeholder fix verified | the whole section failed to mount |
+| A range-scoped `sed` read of this file | the abort correction was never written | it was written further down, outside the range |
 
-Every one of them returns a clean, plausible, confidently wrong answer, and none of them looks
-wrong on the page.
+The last row is this document being read with an instrument scoped narrower than the question, and
+it was caught by checking the whole file before claiming an absence — which is §9a's own advice
+applied to §9a.
 
-### 9a-3. CORRECTION: it does not return nothing, IT ABORTS — and that changes the advice
-
-Dev reproduced 9a and found the mechanism. **`grep -iF` does not fail to match. The process dies.**
-Verified here independently, 3 for 3:
-
-```
-grep -cF  LiquidityHQ file   ->  exit 0      correct
-grep -ci  LiquidityHQ file   ->  exit 0      correct
-grep -ciF LiquidityHQ file   ->  exit 134    SIGABRT
-grep -oiF LiquidityHQ file   ->  exit 134    SIGABRT
-```
-
-**grep prints NOTHING to its own stderr.** The familiar `Aborted` line comes from the interactive
-shell's job control, so in a subshell, a command substitution or a script there is **no diagnostic
-at all** — an empty result and an exit code nobody reads.
-
-That is also the mechanism behind 9a-2: `-ciF` gives empty rather than `0` because the process dies
-before it can print the count.
-
-**Three consequences that "returns nothing" does not predict:**
-
-1. **`set -e` scripts DIE at exit 134.** Verified: `bash -c 'set -e; grep -ciF ...; echo SURVIVED'`
-   never reaches the echo. This is the one loud case, and the only good news here.
-2. **`N=$(grep -ciF ...)` leaves `N` empty**, so `[ "$N" -gt 0 ]` fails with *integer expression
-   expected* and exit 2 rather than evaluating false. Inside an `if`, or behind `2>/dev/null`, that
-   error is swallowed and the branch simply is not taken.
-3. **`|| echo 0` CONVERTS THE CRASH INTO A FABRICATED ZERO** — and it is the most natural way to
-   write it. Verified against a file that *does* contain the string:
-
-   ```sh
-   N=$(grep -ciF LiquidityHQ file 2>/dev/null || echo 0)   # N=0. The string is present.
-   ```
-
-   The defensive idiom that exists to stop a non-match aborting a script is precisely what turns
-   this crash into clean, plausible, wrong data.
-
-**Both sweeps are clean and both were controlled.** Dev: `git grep -nE` for any grep combining `-i`
-and `-F` across the repo excluding `node_modules`, zero hits, pattern fires on a planted
-`grep -oiF`. QA: `qa/`, `__tests__/`, `scripts/`, `.github/`, `.githooks/`, 14 invocations, none
-using `-i`, two patterns against a planted file holding all three spellings.
+**Every one of them returns a clean, plausible, confidently wrong answer, and none of them looks
+wrong on the page.**
