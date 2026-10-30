@@ -147,17 +147,20 @@ export function isSingleVenue(coin: string): boolean {
  *               the Bybit bug again: silent, two coins, and it put PEPE and BONK alert outcomes
  *               at +/-100,000% last time, dragging the Track Record average to -126%.
  *
- *   spx         A TICKER COLLISION, NOT A MULTIPLIER. Bybit's SPXUSDT is the index synthetic
- *               this app treats it as; Binance also lists SPXUSDT, and the two are not
- *               necessarily the same instrument - SPX6900 is a token trading under that ticker.
- *               Failing over between two different assets would print one as the other with
- *               nothing to notice it. Needs someone to confirm the identity, not reason about it.
+ * `spx` and `hype` WERE held here on a suspected ticker collision and are now released, because
+ * the identities were checked against both venues' instrument metadata rather than reasoned
+ * about, and both venues agree:
  *
- *   hype        Same question, lower stakes, held with spx rather than split from it.
+ *     SPXUSDT   bybit baseCoin=SPX  $0.3622    binance baseAsset=SPX  $0.3628    0.17% apart
+ *     HYPEUSDT  bybit baseCoin=HYPE $90.059    binance baseAsset=HYPE $90.131    0.08% apart
+ *
+ * So the failover is safe for both, and those two coins gain a second source they have never
+ * had. **SPX turned out to be a different problem entirely** - it is SPX6900, a memecoin, and
+ * the app was calling it the S&P 500. That is fixed at the label and in the classifier, not here.
  *
  * This is the one place a generated list is overridden by hand, so it names each coin and what
  * would remove it from the list rather than being a bare exclusion set. */
-const BINANCE_HOLD = new Set(['pepe', 'bonk', 'spx', 'hype']);
+const BINANCE_HOLD = new Set(['pepe', 'bonk']);
 
 export const BINANCE_SYMS: Record<string, string> = Object.fromEntries(
   RENDERED_IDS
@@ -182,22 +185,51 @@ export const BINANCE_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
 
 /* Decimal places for display, from each exchange's own tick size rather than a hand table.
  *
- * 44 of the previous 50 hand-written values come out identical. Six differ because the
+ * 45 of the previous 50 hand-written values are kept. Five differ because the
  * exchange disagrees with what was typed, and the exchange is the authority on its own tick:
  *
- *     btc  2 -> 1     sol  3 -> 2     near 4 -> 3
- *     dot  3 -> 4     dydx 4 -> 5     gmt  5 -> 6
+ *     sol  3 -> 2     near 4 -> 3     dot  3 -> 4
+ *     dydx 4 -> 5     gmt  5 -> 6
  *
- * Three of those show MORE precision than before and three show less. The three that show
- * less are cases where the hand table displayed a digit the venue does not quote. */
+ * Two of those show MORE precision than before and three show less. The three that show
+ * less are cases where the hand table displayed a digit the venue does not quote.
+ *
+ * btc would have been a sixth (2 -> 1) and is pinned below instead. */
+/* BTC IS PINNED AT TWO DECIMALS AND THE OTHER FIVE FOLLOW THE VENUE. PM's call, and the reason
+ * is about reading rather than about correctness: Bybit quotes BTC to a 0.1 tick, so one decimal
+ * is what the exchange says - but a BTC price that suddenly shows one decimal place reads as
+ * BROKEN, not as precise, on a product whose whole claim is accurate numbers. The other five
+ * move: more precision cannot make a number wrong, and dropping a digit the venue does not quote
+ * is a correction.
+ *
+ * This is the only hand override of generated data outside BINANCE_HOLD, and it is a display
+ * choice, not a data claim - the price itself is untouched. Remove the line to adopt the tick. */
+const DEC_PIN: Record<string, number> = { btc: 2 };
+
 export const COIN_DEC: Record<string, number> = Object.fromEntries(
-  COIN_UNIVERSE.map(r => [r.id, r.dec]),
+  COIN_UNIVERSE.map(r => [r.id, DEC_PIN[r.id] ?? r.dec]),
 );
+
+/* ONE LABEL IS OVERRIDDEN, BECAUSE THE TICKER LIES.
+ *
+ * `SPXUSDT` is SPX6900, a memecoin. Checked against both venues' instrument metadata rather
+ * than assumed: Bybit baseCoin=SPX at $0.3622, Binance baseAsset=SPX at $0.3628, 0.17% apart,
+ * same asset. **The S&P 500 is around 6,800.** The control that makes this readable is XAUUSDT
+ * on the same venue at $3,886 - real gold - so Bybit does list genuine synthetics and $0.36 is
+ * not an artefact of how these are quoted.
+ *
+ * Rendering it as `SPX` beside `XAU` asserts "this is the S&P 500" to anyone reading the two
+ * together, and this app separately carries the REAL index as `store.macro.spx` from Yahoo
+ * ^GSPC, labelled SPX in the macro strip. One product, one name, two different things, nothing
+ * on screen telling them apart - and the alert cron fires on the memecoin.
+ *
+ * So the coin is labelled SPX6900 and the macro strip keeps SPX, which is correct for it. */
+const LABEL_OVERRIDE: Record<string, string> = { spx: 'SPX6900' };
 
 /** Display label. The ticker is the label for every instrument, so this is derived rather
  *  than listed - a generated coin cannot arrive without one. */
 export const COIN_LABELS: Record<string, string> = Object.fromEntries(
-  COIN_UNIVERSE.map(r => [r.id, r.id.toUpperCase()]),
+  COIN_UNIVERSE.map(r => [r.id, LABEL_OVERRIDE[r.id] ?? r.id.toUpperCase()]),
 );
 
 /* Bybit quotes the low-unit-price meme perps per 1000 tokens - 1000PEPEUSDT, 1000BONKUSDT -

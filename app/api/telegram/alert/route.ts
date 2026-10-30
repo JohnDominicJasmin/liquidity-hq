@@ -259,7 +259,10 @@ const WHALE_THRESHOLD: Record<string, number> = {
   stx: 250_000,   jup: 250_000,   wld: 250_000,  render: 250_000, tao: 500_000, fet: 250_000,
   ondo: 250_000,  pyth: 250_000,  ena: 250_000,  dydx: 250_000,
   sand: 250_000,  mana: 250_000,  gmt: 250_000,
-  // xau/spx excluded - synthetic perps with non-standard trade sizing
+  // xau excluded - a synthetic perp with non-standard trade sizing. spx is excluded for a
+  // different reason and the two were wrongly grouped here: SPXUSDT is SPX6900, a memecoin at
+  // about $0.36, not an index - checked against both venues' instrument metadata, with XAUUSDT
+  // at $3,886 as the control that the venue's real synthetics price as you would expect.
 };
 
 /* ── In-memory state ──
