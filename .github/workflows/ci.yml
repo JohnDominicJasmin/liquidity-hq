@@ -378,6 +378,27 @@ on:
         type: boolean
         default: false
 
+      # ── `regression` + `expect_commit`. Added 2026-10-31 ─────────────────
+      #
+      # ONE MECHANISM IN TWO INPUTS, and they move together exactly as `e2e`
+      # and the clause that reads it do: `regression` selects the job below,
+      # `expect_commit` is what makes its result attributable to a release.
+      # Either one alone is a checkbox that measures nothing.
+      regression:
+        description: 'Run the release regression against a DEPLOYED url (~8 min). Needs expect_commit.'
+        type: boolean
+        default: false
+
+      # The SHORT commit as `/api/version` reports it, e.g. cf46388. The script
+      # compares it against the RUNNING service and exits 2 - NOT MEASURED -
+      # rather than measuring a host that is serving something else. Six
+      # committed QA tools filed `/terms` results under "Refunds" for three
+      # weeks because nothing checked what the browser was actually looking at.
+      expect_commit:
+        description: 'The commit /api/version must report, e.g. cf46388. Empty = the run refuses with exit 2.'
+        type: string
+        default: ''
+
 # Without this, every push to a PR stacked another run and the superseded one
 # carried on to completion. Nothing was ever cancelled. Costs no coverage.
 #
@@ -1184,6 +1205,113 @@ jobs:
   # red - harmless, because cancellation only happens when a newer SHA arrives
   # and checks are evaluated per-SHA.
   # ───────────────────────────────────────────────────────────────────────────
+
+  regression:
+    name: Release regression (deployed, dispatch only)
+    # ── DISPATCH ONLY, AND DELIBERATELY NOT PART OF THE GATE ─────────────────
+    #
+    # WHAT IT RUNS. `qa/tools/regress/release-regression.mjs` - nine pages x
+    # three widths x two themes against a DEPLOYED url, axe WCAG 2.2 AA, SC
+    # 2.5.8 touch targets, /help's accordions opened and re-measured, /status
+    # driven through five intercepted /api/health states, and the #1833
+    # /api/briefing bound.
+    #
+    # WHY IT IS A CI JOB AT ALL. The browser half cannot be trusted on the
+    # owner's laptop: free memory fell 2,833 -> 1,613 MB on 2026-10-30, and a
+    # Chromium reaped mid-run yields four of nine pages measured with nothing
+    # in the output saying so. A partial result that LOOKS complete is the
+    # failure this job exists to remove.
+    #
+    # WHY IT LIVES IN THIS FILE rather than in a workflow of its own: a
+    # brand-new workflow is not dispatchable until it is on the DEFAULT branch,
+    # while a new `workflow_dispatch` input IS honoured from the ref being
+    # dispatched. So a job added here is runnable from a branch today; a
+    # separate file would have to reach `main` first - which is the branch this
+    # measurement exists to gate.
+    #
+    # IT IS ABSENT FROM `gate`'s `needs`, and that is load-bearing. It measures
+    # a DEPLOYED host, which on a release PR is NOT the commit being gated, so
+    # it cannot stand in for the browser suite. Wiring it into the gate would
+    # publish a check a reader could mistake for one.
+    #
+    # NO `needs:` EITHER, so it does not queue behind lint/typecheck/build. It
+    # does not test this checkout's code - it tests what is already serving -
+    # and `expect_commit` is what ties the result to a commit instead.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.regression }}
+    runs-on: ubuntu-latest
+    # ~8 min is the measured shape (54 page loads, the five status states, and
+    # an axe pass on each). The cap is loose rather than tight because the free
+    # plan sleeps when idle and the first request after that is slow.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # The SAME cache key as the e2e job, on purpose: same browser, same
+      # version, so this job rides that cache instead of paying a second 120MB
+      # download.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "v=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: pwcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.v }}
+
+      - name: Install Chromium
+        if: steps.pwcache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium system deps
+        if: steps.pwcache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # THREE EXIT CODES, AND THE MIDDLE ONE IS THE WHOLE REASON FOR THIS STEP:
+      #   0  clean
+      #   1  findings - read the artifact
+      #   2  NOT MEASURED - /api/version disagreed with expect_commit, or it
+      #      was unset. NOT a pass and NOT a fail.
+      #
+      # `${PIPESTATUS[0]}` rather than `$?`, because `$?` after a pipeline is
+      # the PIPE's status - `tee` succeeds while the script crashes, and that
+      # reported exit=0 for a crashed run twice on 2026-10-30. `pipefail` is
+      # not used here either: with the default `set -e` it would abort before
+      # the code could be classified and printed.
+      - name: Run the release regression
+        env:
+          QA_BASE_URL: ${{ inputs.base_url || 'https://liquidity-hq-qa.onrender.com' }}
+          EXPECT_COMMIT: ${{ inputs.expect_commit }}
+        run: |
+          node qa/tools/regress/release-regression.mjs | tee regression-output.txt
+          code=${PIPESTATUS[0]}
+          echo "release-regression exit=$code"
+          case "$code" in
+            0) echo "clean" ;;
+            2) echo "::error::exit 2 - NOT MEASURED. The deployed commit did not match expect_commit, or expect_commit was unset. Do not read this as a pass." ;;
+            *) echo "::error::exit $code - the regression reported findings. Read the release-regression artifact." ;;
+          esac
+          exit "$code"
+
+      # `always()`, because the output of a FAILING run is the entire reason to
+      # run it. Without this the one artifact worth reading is the one that
+      # never uploads.
+      - name: Upload the output
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-regression-${{ github.run_attempt }}
+          path: regression-output.txt
+          retention-days: 14
+
   gate:
     # The NAME is computed, and that is the whole point - it is what makes the
     # required check un-forgeable. QA found the hole on release PR #38.
