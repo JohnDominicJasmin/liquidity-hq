@@ -57,6 +57,21 @@ export const dynamic = 'force-dynamic';
 /** PostgREST's page size. Kept below the 1000 cap so a page is never silently clipped. */
 const PAGE = 900;
 
+/* Chain one `.order()` per key column. A composite primary key ordered on its first column only
+   is not deterministic - rows sharing that value can come back in any order between pages, which
+   is the drift the ordering exists to stop. `labels` (key, locale) and `muted_alerts`
+   (user_id, key) are both composite. */
+type Orderable = { order: (c: string, o?: { ascending?: boolean }) => Orderable };
+function ordered<T extends Orderable>(q: T, cols: readonly string[]): T {
+  return cols.reduce((acc, c) => acc.order(c, { ascending: true }), q as Orderable) as T;
+}
+
+/** The identity of a row under a composite key, for the uniqueness assertion. */
+function rowKey(row: unknown, cols: readonly string[]): string {
+  const r = row as Record<string, unknown>;
+  return JSON.stringify(cols.map(c => r[c]));
+}
+
 interface TableResult {
   table: string;
   rows: number;
@@ -94,9 +109,9 @@ export async function GET(req: Request) {
        PostgREST rejects an unknown column, but only on a request that actually orders, so an
        export would be the first thing to discover it. `mode=count` therefore does one ordered
        single-row read per table, which makes the cheap mode the one that validates the config. */
-    const { error: orderErr } = await admin.from(table).select('*').order(orderBy).range(0, 0);
+    const { error: orderErr } = await ordered(admin.from(table).select('*'), orderBy).range(0, 0);
     if (orderErr) {
-      results.push({ table, rows: 0, expected, ok: false, note: `orderBy '${orderBy}' rejected: ${orderErr.message}` });
+      results.push({ table, rows: 0, expected, ok: false, note: `orderBy [${orderBy.join(', ')}] rejected: ${orderErr.message}` });
       continue;
     }
 
@@ -112,7 +127,7 @@ export async function GET(req: Request) {
        because the file reports itself sound. Found by the automated security review. */
     const rows: unknown[] = [];
     for (let from = 0; ; from += PAGE) {
-      const { data, error } = await admin.from(table).select('*').order(orderBy).range(from, from + PAGE - 1);
+      const { data, error } = await ordered(admin.from(table).select('*'), orderBy).range(from, from + PAGE - 1);
       if (error) {
         results.push({ table, rows: rows.length, expected, ok: false, note: `read failed at ${from}: ${error.message}` });
         break;
@@ -124,7 +139,7 @@ export async function GET(req: Request) {
     /* TWO CHECKS, because the count alone is the one that was defeatable. The second asserts the
        order key is actually unique across what we fetched - if it is not, paging on it can still
        drift, and a duplicate key is the symptom. */
-    const keys = rows.map(r => JSON.stringify((r as Record<string, unknown>)[orderBy]));
+    const keys = rows.map(r => rowKey(r, orderBy));
     const distinct = new Set(keys).size;
     const countOk = rows.length === expected;
     const uniqueOk = distinct === rows.length;
@@ -132,7 +147,7 @@ export async function GET(req: Request) {
     results.push({
       table, rows: rows.length, expected, ok,
       ...(countOk ? {} : { note: `SHORT READ - fetched ${rows.length} of ${expected}` }),
-      ...(countOk && !uniqueOk ? { note: `DUPLICATE KEYS - ${rows.length} rows, ${distinct} distinct ${orderBy}` } : {}),
+      ...(countOk && !uniqueOk ? { note: `DUPLICATE KEYS - ${rows.length} rows, ${distinct} distinct [${orderBy.join(', ')}]` } : {}),
     });
     dump[table] = rows;
   }
@@ -190,35 +205,59 @@ export async function GET(req: Request) {
     return NextResponse.json({ ...body, written: false, reason: `upload failed: ${upErr.message}`, bytes, sha256 }, { status: 502 });
   }
 
-  /* RETENTION, BY AGE **AND** COUNT - and count alone was a way to destroy every backup.
+  /* RETENTION, BY DAY **AND** AGE - and counting FILES was a way to destroy every backup.
    *
-   * The first version kept the newest 14 and deleted the rest. If this route ran 15 times in an
-   * hour - a retry loop, a misconfigured schedule, someone curling it - the fifteenth run would
-   * delete every genuine nightly copy and leave fourteen made in the same hour. **A retention
-   * rule that counts files assumes the files are spread over time, and nothing was enforcing
-   * that.** Flagged by the automated security review.
+   * The first version kept the newest 14 files and deleted the rest. If this route ran 15 times
+   * in an hour - a retry loop, a misconfigured schedule, someone curling it - the fifteenth run
+   * would delete every genuine nightly copy and leave fourteen made in the same hour. **A
+   * retention rule that counts files assumes the files are spread over time, and nothing was
+   * enforcing that.** Flagged by the automated security review, twice: the first fix added an age
+   * floor but still counted files, which narrows the window without closing it.
    *
-   * So a file must be BOTH outside the newest KEEP and older than MIN_AGE_DAYS to be removed.
-   * The two conditions fail in opposite directions, which is the point: a burst of exports
-   * cannot age anything out, and a long quiet period cannot leave zero. */
-  const KEEP = 14;
-  const MIN_AGE_DAYS = 7;
-  const minAgeMs = MIN_AGE_DAYS * 86_400_000;
+   * Counting DAYS cannot be fooled that way - a burst occupies one slot however many files it
+   * writes. So: keep the newest file per UTC day for the last KEEP_DAYS days, and on top of that
+   * a file must also be older than the age floor before it can be removed. The two conditions
+   * fail in opposite directions, which is the point: a burst of exports cannot age anything out,
+   * and a long quiet period cannot leave zero. */
+  const KEEP_DAYS = 14;
+  const minAgeMs = 7 * 86_400_000;
   let pruned = 0;
-  const { data: listed } = await admin.storage.from(bucket).list('', { limit: 100, sortBy: { column: 'name', order: 'desc' } });
-  const backups = (listed ?? []).filter(f => f.name.startsWith('backup-'));
+
+  /* Page the listing. `list` caps at 100 per call, and a cap that hides the OLDEST files is the
+     one direction that matters here - those are exactly the ones retention is deciding about. */
+  const backups: { name: string; created_at?: string | null }[] = [];
+  for (let page = 0; page < 20; page++) {
+    const { data } = await admin.storage.from(bucket).list('', {
+      limit: 100, offset: page * 100, sortBy: { column: 'name', order: 'desc' },
+    });
+    const batch = (data ?? []).filter(f => f.name.startsWith('backup-'));
+    backups.push(...batch);
+    if (!data || data.length < 100) break;
+  }
+
+  /* One survivor per day, newest first - the listing is name-descending and the name carries
+     the ISO timestamp, so the first file seen for a day is that day's newest. */
+  const keptPerDay = new Map<string, string>();
+  for (const f of backups) {
+    const day = (f.created_at ?? f.name.slice(7, 17)).slice(0, 10);
+    if (!keptPerDay.has(day)) keptPerDay.set(day, f.name);
+  }
+  const protectedDays = [...keptPerDay.keys()].sort().reverse().slice(0, KEEP_DAYS);
+  const protectedNames = new Set(protectedDays.map(d => keptPerDay.get(d) as string));
+
   const stale = backups
-    .slice(KEEP)
+    .filter(f => !protectedNames.has(f.name))
     .filter(f => {
       const created = Date.parse(f.created_at ?? '');
       /* Unparseable timestamp means we cannot show it is old enough, so it stays. */
       return Number.isFinite(created) && Date.now() - created > minAgeMs;
     })
     .map(f => f.name);
+
   if (stale.length) {
     const { error: delErr } = await admin.storage.from(bucket).remove(stale);
     if (!delErr) pruned = stale.length;
   }
 
-  return NextResponse.json({ ...body, written: true, file: name, bytes, sha256, keep: KEEP, minAgeDays: MIN_AGE_DAYS, pruned });
+  return NextResponse.json({ ...body, written: true, file: name, bytes, sha256, keepDays: KEEP_DAYS, kept: protectedNames.size, listed: backups.length, pruned });
 }
