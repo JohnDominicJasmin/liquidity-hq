@@ -30,32 +30,80 @@ export type CoinId = string;
 
 const BY_ID = new Map<string, CoinRow>(COIN_UNIVERSE.map(r => [r.id, r]));
 
-/** Every instrument, ranked by 24h turnover on the thinner of its two venues. */
-export const COINS: CoinId[] = COIN_UNIVERSE.map(r => r.id);
+/** EVERY instrument the exchanges trade and both venues cover - 463 of them, opt-in.
+ *
+ * Nothing renders this by default. It is here for the surfaces that are SUPPOSED to offer the
+ * whole market, and each of those is a visual decision the owner signs off on one at a time.
+ * Import it deliberately; do not reach for it because it is the bigger number. */
+export const UNIVERSE_COINS: CoinId[] = COIN_UNIVERSE.map(r => r.id);
 
-/* HOW MANY COINS THE ALERT CRON SCANS, and why it is not simply `COINS`.
+/* WHAT THE APP RENDERS, and why this is an EDITORIAL list rather than the top 50 of the
+ * universe. This was `COIN_UNIVERSE.map(...)` - all 463 - and that was wrong in two ways that
+ * only showed up when the landing page was measured rather than reasoned about.
+ *
+ * ONE: 76 references to `COINS` across 23 files all silently became 463. The landing ticker
+ * rendered 448 symbols instead of 50 (+163 KB of markup on `/`, measured by the landing gate).
+ * `CorrelationTerminal` builds an N-by-N matrix and fetches klines per coin: 463 requests and
+ * 214,369 cells. `BriefingTerminal` puts a row per coin into an AI prompt that has a
+ * 64,000-character cap. None of that was chosen; it followed from one list changing length.
+ *
+ * TWO, and worse because it is invisible: slicing the front of a universe sorted by turnover
+ * does NOT give back the 50 coins this app has been running. Measured against `origin/dev` -
+ * 18 coins leave and 18 arrive. Leaving: atom bonk dydx etc fil gmt gmx jup ldo mana pyth
+ * render rune sand sei spx stx wif. Arriving: birb fartcoin hbar lit lsk parti pengu q qnt soph
+ * strk trump useless xaut xmr xpl zec zro. **Users hold alerts on the coins in the first list.**
+ * Their alerts would have stopped firing with nothing anywhere reporting it - the cron would
+ * have logged a healthy run over a different 50.
+ *
+ * So membership stays editorial and the DATA stays generated. The ids below are the hand-written
+ * list this app shipped with; symbols, decimals, labels and price multipliers for them all come
+ * from the generated universe, so adding a coin here is still one edit rather than five.
+ *
+ * Every id is asserted to exist in the universe at module load - see below. */
+const RENDERED_IDS: readonly string[] = [
+  'btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui',
+  'doge', 'avax', 'link', 'ada', 'dot', 'atom', 'wif', 'pepe', 'bonk',
+  'ltc', 'bch', 'trx', 'xlm', 'etc', 'fil',
+  'arb', 'op', 'apt', 'sei', 'inj', 'tia',
+  'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv',
+  'stx', 'jup', 'wld', 'render', 'tao', 'fet',
+  'ondo', 'pyth', 'ena', 'dydx',
+  'sand', 'mana', 'gmt',
+  'xau', 'spx',
+];
+
+/* A CURATED ID THAT THE UNIVERSE DOES NOT CARRY IS A BUILD ERROR, not a silently shorter list.
+ * Dropping it quietly is the failure this whole comment is about: the app would render 49 coins
+ * and nothing would say which one went. Today the count is 0. */
+const MISSING = RENDERED_IDS.filter(id => !BY_ID.has(id));
+if (MISSING.length) {
+  throw new Error(
+    `lib/coins.ts: ${MISSING.length} curated coin(s) are absent from the generated universe: ` +
+    `${MISSING.join(', ')}. Regenerate with scripts/generate-coins.mjs, or remove them here - ` +
+    `but decide, because they are rendered and alerted on today.`,
+  );
+}
+
+/** The coins the app renders, in the order it has always rendered them. */
+export const COINS: CoinId[] = [...RENDERED_IDS];
+
+/* WHAT THE ALERT CRON SCANS. It is `COINS`, deliberately and not a slice.
  *
  * `app/api/telegram/alert/route.ts` fetches 300 klines PER COIN on every run - `checkRSI` alone
- * is `runBatched(COINS.map(...))`. That cost tracked the length of the list, so growing the list
- * from 50 to 463 would have multiplied the cron's exchange calls by nine without anyone choosing
- * it. **The breadth of the scan and the breadth of the product are different questions, and
- * before this they were the same variable.**
+ * is `runBatched(COINS.map(...))` - so the scan's cost tracks this list's length. Keeping it
+ * equal to what the app renders means a user can only hold an alert on a coin the cron actually
+ * looks at. The two drifting apart is how an alert goes quiet without an error.
  *
- * So the product gets every instrument - selection, charts, Pro access, the heatmap - and the
- * SCAN stays at the number it has been running at. Nothing about the cron's cost changes with
- * this release.
+ * It was `COINS.slice(0, 50)` of the 463-long universe, which held the COST at 50 while silently
+ * changing WHICH 50 - see the measurement above. Cost was the only thing that version checked.
  *
- * THE RIGHT ANSWER IS SMALLER THAN THIS, and it is the next change rather than this one: the
- * cron should scan the union of coins at least one recipient has NOT muted. Mute keys are
- * already `coin:<id>` and today's two recipients have muted 46 and 47 coins each, so the real
- * working set is about four. That would make the cron cheaper than it is now, at any list
- * length. It needs `mutedByUser` threaded into the check functions, which is a refactor of a
- * 2,400-line route and does not belong in the same change as the list.
- *
- * Sliced off the front because the generated universe is sorted by liquidity on the thinner
- * venue, so this is "the most tradable N" rather than an arbitrary N. */
+ * THE RIGHT ANSWER IS SMALLER THAN THIS and is the next change, not this one: scan the union of
+ * coins at least one recipient has NOT muted. Mute keys are already `coin:<id>` and today's two
+ * recipients have muted 46 and 47 coins each, so the real working set is about four. That would
+ * be cheaper than today at any list length. It needs `mutedByUser` threaded into the check
+ * functions, a refactor of a 2,400-line route. */
 export const SCAN_LIMIT = 50;
-export const SCANNED_COINS: CoinId[] = COINS.slice(0, SCAN_LIMIT);
+export const SCANNED_COINS: CoinId[] = COINS;
 
 /** The row behind a coin, or undefined for an id this build does not serve. */
 export function coinRow(coin: string): CoinRow | undefined {

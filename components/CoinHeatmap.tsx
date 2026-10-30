@@ -40,9 +40,17 @@ const CURATED_IDS = new Set<CoinId>(Object.values(CURATED).flat());
 const CAT: Record<Cat, readonly CoinId[]> = {
   all:    COINS,
   ...CURATED,
-  /* Derived, so it cannot fall behind the generated list the way a hand bucket would. */
+  /* Derived, so it cannot fall behind the rendered list the way a hand bucket would. */
   other:  COINS.filter(c => !CURATED_IDS.has(c)),
 };
+
+/* THE TAB IS HIDDEN WHILE IT IS EMPTY, and shows itself the moment it is not.
+ *
+ * The four buckets happen to name all 50 rendered coins today, so `other` is empty and a visible
+ * tab leading to an empty grid would be a defect of its own. It is not deleted, because the whole
+ * point of deriving it is the day someone adds a coin to COINS and not to a bucket: on that day
+ * the tab appears by itself rather than the coin vanishing from every filtered view. */
+const TABS = (Object.keys(CAT) as Cat[]).filter(c => c !== 'other' || CAT.other.length > 0);
 
 function changeColor(chg: number | null): { bg: string; text: string } {
   if (chg == null) return { bg: 'color-mix(in srgb, var(--txt) 4%, transparent)', text: 'var(--txt-dim)' };
@@ -205,7 +213,7 @@ export default function CoinHeatmap() {
 
       {/* Category filter */}
       <div style={{ padding: '8px 12px 6px', display: 'flex', gap: 4 }}>
-        {(Object.keys(CAT) as Cat[]).map(c => (
+        {TABS.map(c => (
           <button
             key={c}
             onClick={() => setCat(c)}
