@@ -94,7 +94,7 @@ const log = (s) => process.stdout.write(s + '\n');
  * surfaced the first time the refusal path was actually exercised. So everything lives in `main()`
  * and the status is set with `process.exitCode`. */
 async function main() {
-const ver = await fetch(`${BASE}/api/version`, { cache: 'no-store' }).then((r) => r.json());
+const ver = await fetch(`${BASE}/api/version`, { cache: 'no-store', signal: AbortSignal.timeout(45_000) }).then((r) => r.json());
 log(`build: commit=${ver.commit} branch=${ver.branch} appEnv=${ver.appEnv}`);
 if (!EXPECT_COMMIT) { log('REFUSING: set EXPECT_COMMIT so results are attributable to a build.'); return 2; }
 if (!String(ver.commit).startsWith(EXPECT_COMMIT)) {
@@ -183,7 +183,102 @@ const PROBE = `(async () => {
   };
 })()`;
 
-const browser = await chromium.launch();
+/* ── CREDENTIALS, SHARED BY THE TWO SECTIONS THAT NEED THEM ─────────────────────────────────────
+ *
+ * `/api/briefing`'s bound and `/upgrade`'s purchase path both need a real user token, and both
+ * were reported as blocked on the owner provisioning credentials. **That was wrong, and the
+ * correction is PM/DevOps's:** the secrets already exist in this repository and `ci.yml`
+ * already uses them. What was missing is that a Claude cloud runner cannot see repository
+ * secrets - so the run that skipped was right to skip, and the conclusion drawn from it was not.
+ *
+ * Read from `.env.e2e.local` / `.env.local` first and the environment second, the same order
+ * `qa/e2e/_auth.ts` uses, so a local run and a dispatched one behave identically. */
+function loadQaEnv() {
+  const env = {};
+  for (const f of ['.env.e2e.local', '.env.local']) {
+    const path = `${REPO_ROOT}${f}`;
+    let raw; try { raw = readFileSync(path, 'utf8'); } catch { continue; }
+    for (const line of raw.split(/\r?\n/)) {
+      const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line.replace(/^\uFEFF/, ''));
+      if (m && !(m[1] in env)) env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
+    }
+  }
+  for (const [k, v] of Object.entries(process.env)) if (!(k in env) && v) env[k] = v;
+  return env;
+}
+
+const QA_ENV = loadQaEnv();
+const CREDS_NEEDED = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'E2E_USER_A_EMAIL', 'E2E_USER_A_PASSWORD'];
+const CREDS_MISSING = CREDS_NEEDED.filter((k) => !QA_ENV[k]);
+
+/** One password grant for the whole run, or null with the reason already logged by the caller. */
+/** Set by any section that could not complete. Makes the run exit 2 - see main()'s return. */
+let NOT_MEASURED = false;
+
+let SESSION = null;
+async function signInOnce() {
+  if (SESSION !== null) return SESSION;
+  if (CREDS_MISSING.length) { SESSION = false; return SESSION; }
+  try {
+    const r = await fetch(`${QA_ENV.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: QA_ENV.NEXT_PUBLIC_SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email: QA_ENV.E2E_USER_A_EMAIL, password: QA_ENV.E2E_USER_A_PASSWORD }),
+      /* A DEADLINE, because a hung auth service must not hang the run. Measured: dev Supabase
+         answered 522 in seconds and then, minutes later, stopped answering at all - an unbounded
+         fetch turned a 20-second refusal into an indefinite wait with no output. */
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!r.ok) { SESSION = { error: `HTTP ${r.status}` }; return SESSION; }
+    const b = await r.json();
+    SESSION = b.access_token ? { ...b, mintedAtMs: Date.now() } : { error: 'no access_token in the response' };
+  } catch (e) {
+    SESSION = { error: e instanceof Error ? e.message.split('\n')[0] : String(e) };
+  }
+  return SESSION;
+}
+
+/* Seeds the session the way the app reads it - supabase-js v2 keeps `sb-<projectRef>-auth-token`
+ * in localStorage. Driving /login instead would mean solving a Cloudflare Turnstile widget,
+ * which a test must not do. Same mechanism as `qa/e2e/_auth.ts`'s signedInContext.
+ *
+ * `expires_at` is derived from when the token was MINTED, not from now: a reused session is
+ * already partway through its life and telling the client otherwise is how a token dies
+ * mid-measurement. */
+async function seedSession(ctx, session) {
+  const ref = new URL(QA_ENV.NEXT_PUBLIC_SUPABASE_URL).hostname.split('.')[0];
+  await ctx.addInitScript(([r, sIn]) => {
+    try {
+      localStorage.setItem(`sb-${r}-auth-token`, JSON.stringify({
+        access_token: sIn.access_token,
+        refresh_token: sIn.refresh_token,
+        expires_in: sIn.expires_in,
+        expires_at: Math.floor(sIn.mintedAtMs / 1000) + sIn.expires_in,
+        token_type: 'bearer',
+        user: sIn.user,
+      }));
+    } catch {}
+  }, [ref, session]);
+}
+
+/* ── RUN ONE SECTION, OR ALL OF THEM ────────────────────────────────────────────────────────────
+ *
+ * `ONLY=briefing,upgrade` runs just those. Default is everything, so a release run is unchanged.
+ *
+ * WHY IT EXISTS: the two credentialed sections - the #1833 bound and /upgrade's purchase path -
+ * are the ones holding this release, and both are cheap on their own. Being forced to spend the
+ * full 54-row browser sweep to re-measure one of them is how a cheap check stops being run.
+ * `ONLY=briefing` makes no browser call at all. */
+const ONLY = (process.env.ONLY || '').split(',').map((x) => x.trim()).filter(Boolean);
+const RUN = (name) => ONLY.length === 0 || ONLY.includes(name);
+if (ONLY.length) log(`running only: ${ONLY.join(', ')}`);
+
+
+/* No browser at all when nothing that needs one is selected. `ONLY=briefing` is a handful of
+   fetches, and launching Chromium for it would spend ~100 MB on a laptop that ran out of memory
+   once tonight already. */
+const NEEDS_BROWSER = ['pages', 'help', 'upgrade', 'status'].some((x) => RUN(x));
+const browser = NEEDS_BROWSER ? await chromium.launch() : null;
 const rows = [];
 /** Every third-party host the allowlist refused, across the whole run. */
 const BLOCKED = new Set();
@@ -191,7 +286,7 @@ const BLOCKED = new Set();
  *  BLOCKED set that invalidates the run - it means the handler never installed. */
 const SEEN = { count: 0, sameOrigin: 0 };
 
-for (const vp of WIDTHS) {
+if (RUN('pages')) for (const vp of WIDTHS) {
   for (const theme of ['dark', 'light']) {
     const ctx = await browser.newContext({
       viewport: { width: vp.w, height: vp.h }, isMobile: vp.mobile, hasTouch: vp.mobile, colorScheme: theme,
@@ -228,7 +323,7 @@ for (const vp of WIDTHS) {
 }
 
 /* ── /help's accordions, opened ──────────────────────────────────────────────────────────────── */
-{
+if (RUN('help')) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light' });
   await installAllowlist(ctx, BLOCKED);
   await ctx.addInitScript(() => { try { localStorage.setItem('theme', 'light'); } catch {} });
@@ -288,14 +383,37 @@ for (const vp of WIDTHS) {
  * Both widths and both themes, because this is a layout surface as well as a copy one: a panel
  * that overflows a phone is the same defect class as a page that does.
  */
-for (const [vpName, w, h, theme] of [['phone', 390, 844, 'light'], ['desktop', 1440, 900, 'dark']]) {
+/* SIGNED OUT **AND** SIGNED IN. The signed-out pass is what a visitor sees; the signed-in pass is
+ * the only way to reach the method panel at all, because choosing a plan while signed out
+ * navigates to /login?signup=1&next=/upgrade - measured, not assumed.
+ *
+ * **Without the signed-in pass this release's payment surface is verified by nothing**: not the
+ * copy, not the panel at 390, not its axe result, not its touch targets. */
+if (RUN('upgrade')) for (const [vpName, w, h, theme, signedIn] of [
+  ['phone', 390, 844, 'light', false],
+  ['phone', 390, 844, 'light', true],
+  ['desktop', 1440, 900, 'dark', true],
+]) {
   const ctx = await browser.newContext({
     viewport: { width: w, height: h }, isMobile: vpName === 'phone', hasTouch: vpName === 'phone', colorScheme: theme,
   });
   await installAllowlist(ctx, BLOCKED);
   await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch {} }, theme);
+  log(`\n--- /upgrade purchase path (${theme}, ${w}, ${signedIn ? 'SIGNED IN' : 'signed out'}) ---`);
+  if (signedIn) {
+    const session = await signInOnce();
+    if (!session || session.error) {
+      /* NOT a skip that reads as a pass. The reason is named, and a missing credential is
+         reported differently from an auth service that refused - they need different actions. */
+      log(`  NOT MEASURED: ${CREDS_MISSING.length
+        ? `missing credentials: ${CREDS_MISSING.join(', ')}`
+        : `sign-in failed - ${session.error}`}. NOT a pass.`);
+      await ctx.close();
+      continue;
+    }
+    await seedSession(ctx, session);
+  }
   const page = await ctx.newPage();
-  log(`\n--- /upgrade purchase path (${theme}, ${w}) ---`);
   try {
     await page.goto(`${BASE}/upgrade`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.waitForLoadState('load', { timeout: 20_000 }).catch(() => {});
@@ -392,7 +510,7 @@ for (const [vpName, w, h, theme] of [['phone', 390, 844, 'light'], ['desktop', 1
 }
 
 /* ── /status in four states, by intercepting /api/health ─────────────────────────────────────── */
-{
+if (RUN('status')) {
   const STATES = [
     { name: 'all ok', body: { ok: true, checked_at: new Date().toISOString(), db_age_ms: 10, exchanges: { binance: { degraded: false }, bybit: { degraded: false }, okx: { degraded: false }, hyperliquid: { degraded: false } } } },
     { name: 'db slow', body: { ok: false, reason: 'db_slow', checked_at: new Date().toISOString(), db_age_ms: 0, exchanges: { binance: { degraded: false } } } },
@@ -492,10 +610,10 @@ for (const [vpName, w, h, theme] of [['phone', 390, 844, 'light'], ['desktop', 1
   await ctx.close();
 }
 
-await browser.close();
+if (browser) await browser.close();
 
 /* ── report ──────────────────────────────────────────────────────────────────────────────────── */
-log('\n--- pages x widths x themes ---');
+if (RUN('pages')) log('\n--- pages x widths x themes ---');
 let fails = 0;
 for (const r of rows) {
   const tag = `${r.w.padEnd(7)} ${r.theme.padEnd(5)} ${r.path.padEnd(15)}`;
@@ -513,7 +631,7 @@ for (const r of rows) {
   const held = r.viewportHeld ? '' : ` [VIEWPORT NOT HELD: asked ${r.requestedW}, got ${r.innerWidth}]`;
   log(`${tag} sw=${String(r.scrollWidth).padEnd(5)} iw=${String(r.innerWidth).padEnd(5)}${held} ${p.length ? 'FAIL  ' + p.join(' | ') : 'ok'}`);
 }
-log(`\n${rows.length} page measurements, ${fails} with findings.`);
+if (RUN('pages')) log(`\n${rows.length} page measurements, ${fails} with findings.`);
 /* THE CONTROL LINE SAYS WHAT IT MEASURES, because the first run's did not and was misquotable.
    It read `CONTROL /about across all widths: clean` while /about was failing SC 2.5.8 on all six
    of its rows - the expression only covered overflow and axe. Naming the two dimensions in the
@@ -525,14 +643,20 @@ for (const c of rows.filter((r) => r.control && !r.error && r.urlMatches).reduce
   const targets = got.every((r) => r.smallCount === 0);
   log(`CONTROL ${path} (${got.length} rows): overflow+axe ${overflowAndAxe ? 'clean' : 'FAILING'}, SC 2.5.8 ${targets ? 'clean' : 'FAILING'}`);
 }
-log('  A control that fails is not a release regression - it is pre-existing on a page this promotion did not change.');
+if (RUN('pages')) log('  A control that fails is not a release regression - it is pre-existing on a page this promotion did not change.');
 
 /* THE BLOCKING MUST BE SHOWN TO HAVE FIRED. An allowlist that refused nothing is indistinguishable
    from one that was never installed - and in that case every number above was taken with the market
    feeds LIVE, which is the opposite of what this run claims about itself. */
 log(`\n--- third parties refused by the allowlist (app origin ${APP_ORIGIN}) ---`);
 log(`  the handler saw ${SEEN.count} request(s), ${SEEN.sameOrigin} of them same-origin.`);
-if (SEEN.count === 0) {
+if (!NEEDS_BROWSER) {
+  /* A FALSE ALARM HERE WOULD BE WORSE THAN NO CHECK. With ONLY=briefing nothing opens a page, so
+     zero requests is the correct and only possible result - and the "never installed, the run is
+     invalid" line below would be a loud, confident lie about a run that was fine. Ask what a WRONG
+     firing would prompt: here it would discard a good measurement. */
+  log('  (no browser section ran, so there was nothing to intercept - not a finding)');
+} else if (SEEN.count === 0) {
   log('  THE HANDLER NEVER FIRED, so it never installed. Nothing above was measured behind it and');
   log('  the interception claim does not hold. This invalidates the run rather than the pages.');
 } else if (BLOCKED.size === 0) {
@@ -573,26 +697,19 @@ if (SEEN.count === 0) {
  * worst case is derived from the builder's structure rather than from logged payloads.
  */
 async function briefingBound() {
-  const env = {};
-  for (const f of ['.env.e2e.local', '.env.local']) {
-    const path = `${REPO_ROOT}${f}`;
-    let raw; try { raw = readFileSync(path, 'utf8'); } catch { continue; }
-    for (const line of raw.split(/\r?\n/)) {
-      const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line.replace(/^\uFEFF/, ''));
-      if (m && !(m[1] in env)) env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
-    }
-  }
-  for (const [k, v] of Object.entries(process.env)) if (!(k in env) && v) env[k] = v;
+  /* ONE loader and ONE sign-in for the whole run, shared with the /upgrade pass above. This had its
+     own copy of both, and two copies of a credential-reading rule is how one of them quietly stops
+     matching the other. */
+  const env = QA_ENV;
 
   log('\n--- #1833: /api/briefing input bound (nothing billed - the bound precedes the reservation) ---');
-  const need = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'E2E_USER_A_EMAIL', 'E2E_USER_A_PASSWORD'];
-  const missing = need.filter((k) => !env[k]);
-  if (missing.length) { log(`  SKIPPED - missing credentials: ${missing.join(', ')}. NOT a pass.`); return; }
+  if (CREDS_MISSING.length) { log(`  SKIPPED - missing credentials: ${CREDS_MISSING.join(', ')}. NOT a pass.`); return; }
 
   const post = (body, token) => fetch(`${BASE}/api/briefing`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
 
   /* Unauthenticated first: free, and it proves the route is reachable and that the token below is
@@ -601,14 +718,21 @@ async function briefingBound() {
   const anonBody = await anon.json().catch(() => ({}));
   log(`  unauthenticated            -> ${anon.status} ${JSON.stringify(anonBody.error ?? anonBody.code ?? '')}  ${anon.status === 401 ? 'ok' : 'UNEXPECTED'}`);
 
-  const auth = await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY },
-    body: JSON.stringify({ email: env.E2E_USER_A_EMAIL, password: env.E2E_USER_A_PASSWORD }),
-  });
-  if (!auth.ok) { log(`  SKIPPED - sign-in failed HTTP ${auth.status}. NOT a pass.`); return; }
-  const token = (await auth.json()).access_token;
-  if (!token) { log('  SKIPPED - sign-in returned no access_token. NOT a pass.'); return; }
+  /* ONE sign-in for the whole run, shared with the /upgrade pass, and it CANNOT THROW.
+   *
+   * This block used to mint its own token with a bare `fetch` and no deadline. On 2026-10-31 dev
+   * Supabase stopped answering mid-request and the run hung for five minutes, then died on undici's
+   * `UND_ERR_HEADERS_TIMEOUT` - **and exited 0.** A crash that reports success is the single worst
+   * outcome available to a release tool: the output ends mid-sentence and the status says fine.
+   *
+   * So: a 25-second deadline inside `signInOnce`, the error returned rather than thrown, and the
+   * reason printed. An outage is reported as an outage, in seconds, and never as a pass. */
+  const session = await signInOnce();
+  if (!session || session.error) {
+    log(`  SKIPPED - sign-in failed: ${session ? session.error : 'no credentials'}. NOT a pass.`);
+    return;
+  }
+  const token = session.access_token;
 
   /* The empty-context gate, as the discriminator: also a 400, different string. */
   const empty = await post({ context: '' }, token);
@@ -630,8 +754,33 @@ async function briefingBound() {
     log('    gate from the empty-context gate and the result above means nothing.');
   }
 }
-await briefingBound();
+/* AN OUTAGE MUST NEVER LOOK LIKE A CRASH, and this section had both failure modes tonight: a
+ * five-minute hang that exited 0, then a clean 25-second abort that still ended in an uncaught
+ * DOMException with the output stopping mid-section. Both read as "the tool is broken" to anyone
+ * who did not watch it happen, and neither says what it actually learned: the service did not
+ * answer.
+ *
+ * So every throw from this section is caught here, named, and reported as NOT MEASURED - which is
+ * neither a pass nor a product finding. The run's status still reflects it; what changes is that
+ * the output says which. */
+if (RUN('briefing')) {
+  try {
+    await briefingBound();
+  } catch (e) {
+    const msg = e instanceof Error ? `${e.name}: ${e.message.split('\n')[0]}` : String(e);
+    log(`  NOT MEASURED - the request did not complete: ${msg}`);
+    log('  This is the ENVIRONMENT, not the bound: a timeout here means dev Supabase or the app did');
+    log('  not answer. NOT a pass, and not a finding about #1833 either.');
+    NOT_MEASURED = true;
+  }
+}
 
+/* 2 OUTRANKS BOTH, and that ordering is the point. A section that could not run is not a pass
+   and not a finding - reporting it as either is how a release gets signed off on an outage.
+   The first version set `process.exitCode = 2` inside the catch and it was OVERWRITTEN by
+   this line a moment later, so a NOT MEASURED run exited 0. That is my own documented trap:
+   a skip that exits 0 cannot gate anything. */
+if (NOT_MEASURED) return 2;
 return fails > 0 ? 1 : 0;
 }
 

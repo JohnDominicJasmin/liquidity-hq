@@ -1290,6 +1290,35 @@ jobs:
         env:
           QA_BASE_URL: ${{ inputs.base_url || 'https://liquidity-hq-qa.onrender.com' }}
           EXPECT_COMMIT: ${{ inputs.expect_commit }}
+
+          # ── THE CREDENTIALS, AND THE CORRECTION THAT PUT THEM HERE ────────────
+          #
+          # The #1833 /api/briefing bound and the /upgrade purchase path both need
+          # a real user token, and both were reported as held on "the owner must
+          # provision credentials". **That was wrong.** The secrets already exist
+          # in this repository and this very workflow already uses them - the e2e
+          # preflight above reads E2E_SUPABASE_URL and E2E_SUPABASE_ANON_KEY, and
+          # the e2e job takes the E2E_USER_* set. PM/DevOps found it; the gap was
+          # that the Claude cloud runner cannot see repository secrets, not that
+          # they did not exist.
+          #
+          # NAMED AS THE SCRIPT EXPECTS THEM, not as the secrets are stored. The
+          # script asserts on the NEXT_PUBLIC_* names because that is what the app
+          # and `qa/e2e/_auth.ts` use; the secrets carry the E2E_ prefix. The
+          # mapping is here rather than in the script so the script keeps working
+          # unchanged from a local `.env.e2e.local`.
+          #
+          # DEV SUPABASE ONLY, and the anon key only - never the service role.
+          # The anon key is public by design and the dev project holds no real
+          # user data.
+          #
+          # If any of these is unset the script SKIPS that section and says "NOT a
+          # pass" rather than passing quietly - which is what it did on the cloud
+          # runner, correctly.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
+          E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
         run: |
           node qa/tools/regress/release-regression.mjs | tee regression-output.txt
           code=${PIPESTATUS[0]}
