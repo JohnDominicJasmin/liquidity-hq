@@ -245,7 +245,19 @@ on:
     # `if:` below - the argument was about the 2-minute job, and the 38-minute
     # one was reaching `staging` through a release PR that has since stopped
     # being opened. Issue #207.
-    branches: [dev, staging, main]
+    # `dev` LEFT THIS LIST on the owner's order, 2026-10-30. The recheck after
+    # every merge is what 36 of 129 runs in two days were. The merged head is
+    # instead built ONCE before each promotion, through the build-only
+    # `workflow_dispatch` above - leave `e2e` unchecked - and guardrail 3 in
+    # docs/WORK-QUEUE.md is the control that it happened.
+    #
+    # WHAT THIS GIVES UP, stated rather than discovered later: between merges,
+    # `dev` is unchecked. `.githooks/pre-push` runs `tsc` and nothing else, so
+    # lint, unit tests and build are unverified there until someone dispatches.
+    # Guardrail 3 stops being a good habit and becomes the only thing standing
+    # between a broken merge and `qa`. That is the owner's choice, made with the
+    # cost in front of him.
+    branches: [staging, main]
     # Docs-only pushes do not need a build. Every path here is either not
     # compiled or not shipped, so a run over them proves nothing that the
     # PR-side run had not already proved.
@@ -394,9 +406,80 @@ permissions:
   contents: read
 
 jobs:
+  # ── WHICH FILES CHANGED, computed ONCE and reused ────────────────────────
+  #
+  # Owner's order, 2026-10-30, first-hand: documentation-only changes and the
+  # rechecks after each merge skip the full checks; the merged head is checked
+  # once before release. Real code, test changes and release PRs keep them.
+  #
+  # DOCS-ONLY means EVERY changed path is `docs/**` or a root-level `*.md`.
+  # `.github/**`, `qa/**`, `__tests__/**` and every app path are NOT docs - a
+  # change there runs the full check. A workflow or a test is the thing that
+  # decides whether anything else is checked at all, so exempting it would let
+  # a change to the checker itself ship unchecked.
+  #
+  # IT FAILS CLOSED. No obtainable file list - a dispatch, or a push whose
+  # `before` is the zero sha - yields `docs_only=false`, so a classification
+  # that could not be made runs everything. The wrong default here is a green
+  # check over no work, which is the release-PR-#38 failure in a new costume.
+  #
+  # EXERCISED BEFORE IT WAS COMMITTED, both directions, 12 cases. TRUE:
+  # `docs/x.md`; two docs files; `README.md`; docs + a root md. FALSE: mixed
+  # docs+code; `__tests__/x.test.mts`; `qa/e2e/x.spec.ts`;
+  # `.github/workflows/ci.yml`; `app/(main)/page.tsx`; `app/(main)/notes.md`;
+  # `lib/docs/x.md`; an empty list. The mixed case is the refusal path the
+  # owner asked to see fail, and it does.
+  changes:
+    name: Changed-file classification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The diff needs both endpoints, so a shallow clone will not do.
+          fetch-depth: 0
+
+      - id: classify
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          list=""
+          if [ "$EVENT" = pull_request ]; then
+            list=$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA" || true)
+          elif [ "$EVENT" = push ] && [ -n "${PUSH_BEFORE:-}" ] \
+               && [ "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ]; then
+            list=$(git diff --name-only "$PUSH_BEFORE" "$PUSH_AFTER" || true)
+          fi
+          printf "changed files:\n%s\n" "${list:-(none obtained)}"
+          docs_only=false
+          if [ -n "$list" ]; then
+            # ONE alternation rather than two sweeps: a single-pattern sweep is
+            # how a check comes back clean for the wrong reason.
+            if printf "%s\n" "$list" | grep -qvE "^(docs/.+|[^/]+[.]md)$"; then
+              docs_only=false
+            else
+              docs_only=true
+            fi
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+          echo "docs_only=$docs_only"
+
   build:
     name: Lint + typecheck + test + build
     runs-on: ubuntu-latest
+    needs: changes
+    # Skipped ONLY for a documentation-only change, and NEVER for a PR into
+    # `main` - a release PR always builds, docs or not. The gate below accepts
+    # this skip only when the SAME RUN proved the condition, so a skip for any
+    # other reason is still a failure.
+    if: ${{ needs.changes.outputs.docs_only != 'true' || github.base_ref == 'main' }}
     # Had no cap at all, so a hung npm ci billed toward GitHub's 6-hour default.
     timeout-minutes: 10
     steps:
@@ -689,6 +772,55 @@ jobs:
     # the first mobile numbers this project has ever had.
     timeout-minutes: 120
     steps:
+      # ── PREFLIGHT: dev Supabase auth must answer, BEFORE anything expensive ──
+      #
+      # WHY THIS IS FIRST. 5 E2E jobs over 2026-10-29/30 took 605 minutes and
+      # every one was cancelled at the cap, producing no result: dev Supabase
+      # answered nothing at the data plane, so each run bought `npm ci`, a
+      # Chromium install and ~85 sign-in failures at ~70s each. The minutes were
+      # spent measuring an outage.
+      #
+      # ANY HTTP STATUS MEANS HEALTHY. A 400 or 401 is a working endpoint
+      # refusing deliberately bad credentials - that is the signal we want. No
+      # response, a 5xx or a Cloudflare 522 means the suite cannot sign in and
+      # nothing it reports afterwards would be about the product.
+      #
+      # IT FAILS THE JOB RATHER THAN SKIPPING IT. A skip reads as a green check
+      # to anything downstream, which is the release-PR-#38 hole and also the
+      # mistake QA made on 2026-10-30 turning 67 truthful reds into skips. An
+      # environment outage should be loud and cost two minutes.
+      #
+      # SELF-TESTED BOTH WAYS before it was committed, on 2026-10-30 while the
+      # outage was live, against the same host so the difference is the endpoint
+      # and not the network:
+      #   auth/v1/token -> 000  => UNHEALTHY, exit 1   (the refusal path)
+      #   rest/v1/      -> 401  => HEALTHY,   exit 0   (the positive control)
+      - name: Preflight - the auth endpoint must answer
+        env:
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${ANON_KEY:-}" ]; then
+            echo "::error::E2E_SUPABASE_URL or E2E_SUPABASE_ANON_KEY is unset - cannot preflight, and the suite would fail on sign-in anyway"
+            exit 1
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
+            -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+            -H "Content-Type: application/json" -H "apikey: $ANON_KEY" \
+            -d '{"email":"ci-preflight@invalid.test","password":"not-a-password"}' || true)
+          echo "auth/v1/token -> $code"
+          case "$code" in
+            2??|400|401|403|422)
+              echo "healthy: the endpoint answered and refused bad credentials" ;;
+            429)
+              echo "::error::auth is rate limiting (429). Alive, but ~85 sign-ins would fail - refusing to spend the cap."
+              exit 1 ;;
+            *)
+              echo "::error::auth returned '$code' - no usable response. The suite would spend its cap on sign-in failures rather than testing anything. This is an ENVIRONMENT failure, not a code failure."
+              exit 1 ;;
+          esac
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -746,7 +878,19 @@ jobs:
       - name: Run E2E
         # `--project` is what makes a leg a leg. Without it each one would run
         # the whole 1274 and the split would double the bill for nothing.
-        run: npm run test:e2e -- --project=${{ matrix.project }}
+        # `--max-failures` ON DESKTOP ONLY, and the asymmetry is the point.
+        #
+        # It stops a run that has started failing in bulk - the documented shape
+        # is ~85 sign-in failures at ~70s each, which is what the preflight above
+        # now catches at the start, but an endpoint can also die MID-RUN.
+        #
+        # MOBILE IS DELIBERATELY EXEMPT. Its first-ever completed run is the
+        # measurement this matrix was built to produce, and a first run of 637
+        # never-executed specs can legitimately fail in bulk. Capping it would
+        # truncate the baseline and leave us with neither a pass nor a number -
+        # which is the same "spent the minutes, got no result" outcome the cap is
+        # meant to prevent. Revisit once mobile has one completed run on record.
+        run: npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && '--max-failures=25' || '' }}
         # ── MOBILE IS NON-BLOCKING FOR ITS FIRST RUN. REVERT AFTER v2026.10.29c ──────
         #
         # ⚠️ TEMPORARY. Remove this line once the mobile leg has one completed run on
@@ -1214,7 +1358,7 @@ jobs:
     # advisory result is still worth reading.
     name: ${{ github.base_ref == 'main' && 'CI Gate' || 'CI Gate (advisory)' }}
     if: ${{ always() }}
-    needs: [build, e2e]
+    needs: [build, e2e, changes]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -1223,12 +1367,27 @@ jobs:
           BUILD: ${{ needs.build.result }}
           E2E: ${{ needs.e2e.result }}
           BASE: ${{ github.base_ref }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
         run: |
           set -uo pipefail
           echo "build=$BUILD  e2e=$E2E  base=$BASE"
           fail=0
-          # build carries no `if:`, so anything other than success is real.
-          [ "$BUILD" = success ] || { echo "::error::build job: $BUILD"; fail=1; }
+          # build USED to carry no `if:`, so anything but success was real. It now
+          # skips for a documentation-only change - so a skip is acceptable ONLY
+          # when THIS RUN proved that condition. Every other skip is still a
+          # failure, and that is what keeps the #38 hole shut: a skipped job
+          # reading as a green check is precisely what that incident was.
+          case "$BUILD" in
+            success) ;;
+            skipped)
+              if [ "${DOCS_ONLY:-}" = true ]; then
+                echo "build skipped: documentation-only change, proven in this run"
+              else
+                echo "::error::build SKIPPED and this run did not prove a docs-only change (docs_only=${DOCS_ONLY:-unset})"
+                fail=1
+              fi ;;
+            *) echo "::error::build job: $BUILD"; fail=1 ;;
+          esac
           if [ "$BASE" = main ]; then
             # A release PR. E2E was supposed to run. `skipped` here means build
             # died - and GitHub would otherwise report that skip as a green
