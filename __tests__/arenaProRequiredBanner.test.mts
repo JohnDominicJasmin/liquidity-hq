@@ -46,11 +46,48 @@ const COPY = 'Fast timeframes (1m, 5m, 15m) are part of Pro.';
 
 /* ══ lib/grok.ts: the behaviour ═══════════════════════════════════════════════════════════════════════ */
 
+/* ══ STEP 0 (#1631 item 5): A CALL SITE THAT COMPILES UNDER BOTH SIGNATURES ══════════════════════════
+ *
+ * WHY THIS LOOKS WRONG AND IS NOT. Dev's change to `lib/grok.ts` turns `callGrokViaProxy` from
+ * `(prompt, tf, session, type, coin?)` into `(ctx, chart, type, selection)`. These two calls pinned
+ * the old arity, so they were a `tsc` ERROR on Dev's tree, and the pre-push gate is
+ * `npx tsc --noEmit` - their branch could not leave their machine. The exits were `--no-verify`
+ * (forbidden), dev editing a QA test (forbidden), or deadlock, so `CONTRIBUTING.md` -> *When QA
+ * writes code* step 0 says QA loosens the pin to a form green on BOTH trees and pushes FIRST.
+ *
+ * HERE THE PIN IS A TYPE, NOT AN ASSERTION, so what is loosened is the call's TYPE and not one
+ * expectation. Every assertion below is untouched.
+ *
+ * THE ARGUMENTS ARE THE NEW SHAPE'S, deliberately: `(ctx, chart, type, selection)`. They are
+ * runtime-correct on the CURRENT tree too, because `callGrokViaProxy` packs its arguments into the
+ * POST body with `JSON.stringify` and does not read a field off any of them before `fetch` - and
+ * these tests stub `fetch` to answer a fixed status and body regardless of what was sent. So the
+ * values cannot reach an assertion from either direction.
+ *
+ * THE GAP, STATED RATHER THAN IMPLIED: while this cast is here, these cells DO NOT CHECK THE CALL
+ * SHAPE. If Dev's signature ends up taking a fifth field, or renames one, this compiles anyway and
+ * says nothing about it. That is the price of unblocking the push, and it is temporary: the pin is
+ * tightened to the new contract on Dev's pushed branch (step 2) and this comment goes with it.
+ *
+ * WHAT WAS MEASURED AND WHAT WAS NOT:
+ *   - MEASURED here: compiles and passes on current `dev` (`tsc --noEmit` clean, 4 of 4 green).
+ *   - MEASURED by simulation: `lib/grok.ts` was temporarily given a 4-parameter `(ctx, chart, type,
+ *     selection)` signature that still packs-and-fetches; `tsc` stayed clean and all four cells
+ *     stayed green. That is a REPRESENTATIVE new shape, not Dev's actual one.
+ *   - NOT measured, and for Dev to confirm on their tree: that the real implementation does not
+ *     DEREFERENCE `chart` or `selection` before `fetch`. `null` is passed for both. If either is
+ *     read before the request, these cells throw for the wrong reason and need a fixture object -
+ *     which is a one-line change, and is step 2's business anyway.
+ */
+const LOOSENED_CALL = [
+  { coin: 'btc', tf: '5m', session: 'london' }, null, 'quick', null,
+] as unknown as Parameters<typeof callGrokViaProxy>;
+
 const realFetch = globalThis.fetch;
 async function proxyAnswers(status: number, body: unknown) {
   globalThis.fetch = (async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })) as typeof fetch;
   try {
-    await callGrokViaProxy('prompt', '5m', 'london', 'quick');
+    await callGrokViaProxy(...LOOSENED_CALL);
     return null;
   } catch (e) {
     return e as Error & { code?: string; usage?: unknown };
@@ -64,7 +101,7 @@ test('CONTROL. a 200 from the proxy resolves with the body, so a throw below is 
   const result = { signal: 'FLAT', confidence: 40, levels: [], chartAnalysis: '', patterns: [], reasoning: '', catalysts: [], waitFor: null, bias: null, raidSetup: null, raidTarget: null, raidTrigger: null, analyzedAt: 1, tf: '1h', session: 'london' };
   globalThis.fetch = (async () => Response.json({ result, usage: null })) as typeof fetch;
   try {
-    const out = await callGrokViaProxy('prompt', '1h', 'london', 'quick');
+    const out = await callGrokViaProxy(...LOOSENED_CALL);
     assert.deepEqual(out, { result, usage: null });
   } finally { globalThis.fetch = realFetch; }
 });
