@@ -608,6 +608,103 @@ export const CLS_UNSTABLE = new Set<string>([]);
  */
 export const ENV_FAILURE = 'ENVIRONMENT';
 
+/* ── WHERE A REQUEST ACTUALLY LANDED ─────────────────────────────────────────
+ *
+ * THE DEFECT THIS EXISTS FOR, and it shipped for three weeks. `/refund` was
+ * 307-ing to `/terms` on production while checkout was open. Six committed QA
+ * tools swept a route list, measured whatever came back, and filed the results
+ * under the route they ASKED for - so `/terms` was reported as "Refunds" from
+ * 2026-10-08 until it was found on 2026-10-30. Every one of those runs was
+ * green.
+ *
+ * **A route list cannot tell you that a route redirects.** Nothing in
+ * `settle()` compared the URL it requested with the URL it got, so a redirect
+ * was indistinguishable from a page that happened to look like its neighbour.
+ * It is the cheapest possible check and its absence invalidated 22 audited rows
+ * down to one contaminated one that nobody could have spotted from the output.
+ *
+ * WHY THIS IS NOT YET AN ASSERTION EVERYWHERE, stated rather than left as a
+ * surprise. Five spec files sweep all of `ROUTES` SIGNED OUT, and several of
+ * those routes legitimately redirect to `/login` in that state. Which ones has
+ * never been measured, so a strict default would turn a correct redirect into a
+ * failure on the first run - a gate whose first run is red is a gate nobody can
+ * read. So: a route WITH a recorded expectation is asserted; a route without
+ * one prints `REDIRECT-UNBASELINED` and does not fail. The gap is visible in
+ * every run instead of silent, and it closes when the table below is filled by
+ * a measured sweep rather than by anyone's recollection.
+ */
+
+/** Compare paths the way a reader means it: query, hash and a trailing slash are not a redirect. */
+export function normalizePath(p: string): string {
+  let out = p;
+  const cut = Math.min(
+    ...[out.indexOf('?'), out.indexOf('#')].filter(i => i >= 0),
+    out.length,
+  );
+  out = out.slice(0, cut);
+  /* `/` must stay `/` - stripping its slash would make it compare equal to the empty string, and
+     every route would then "land" on the root. */
+  if (out.length > 1 && out.endsWith('/')) out = out.slice(0, -1);
+  return out || '/';
+}
+
+export function samePath(a: string, b: string): boolean {
+  return normalizePath(a) === normalizePath(b);
+}
+
+/**
+ * WHERE EACH ROUTE IS EXPECTED TO LAND WHEN REQUESTED SIGNED OUT.
+ *
+ * **Deliberately empty until a sweep measures it.** Filling it from memory is
+ * how the original defect would be re-created with more ceremony: the value of
+ * this table is that it was observed, and an entry nobody measured is worse
+ * than no entry, because it reads as having been checked.
+ *
+ * HOW IT GETS FILLED: collect the `REDIRECT-UNBASELINED` lines from a full run
+ * on a deployed URL - every sweep emits one per redirecting route - and paste
+ * the result here, in the same commit that flips `settle()` to strict. There is
+ * no separate tool and this comment used to name one that was never written;
+ * the run already produces the data.
+ *
+ * A value equal to the key means "must not redirect". `null` means "this route
+ * is allowed to land anywhere" - use it only with a reason at the entry, never
+ * to silence a surprise.
+ */
+export const EXPECTED_LANDING: Readonly<Record<string, string | null>> = {};
+
+/**
+ * Assert, or report, where a navigation ended up.
+ *
+ * Returns the normalized landing path so a caller can record it. Throws only
+ * when an expectation exists and was not met - the message names what was
+ * requested, what was expected and what arrived, because "a page did not match"
+ * without those three is the error that sent someone to read the wrong file.
+ */
+export function checkLanding(requested: string, actualUrl: string, expected?: string | null): string {
+  const landed = normalizePath(new URL(actualUrl).pathname);
+  const want = expected === undefined ? EXPECTED_LANDING[normalizePath(requested)] : expected;
+
+  if (want === null) return landed;
+  if (want === undefined) {
+    if (!samePath(requested, landed)) {
+      /* Not a failure yet - but it must not be invisible either. A reader
+         grepping a run for this prefix gets the whole redirect map. */
+      console.log(`REDIRECT-UNBASELINED ${normalizePath(requested)} -> ${landed}`);
+    }
+    return landed;
+  }
+  if (!samePath(want, landed)) {
+    throw new Error(
+      `${requested} landed on ${landed}, expected ${normalizePath(want)}.\n` +
+      `Measurements taken here would describe ${landed}, not ${requested}. ` +
+      `This is the /refund -> /terms defect: six QA tools reported /terms as "Refunds" ` +
+      `for three weeks because nothing compared the requested path with the served one.\n` +
+      `If the redirect is correct, record it in EXPECTED_LANDING with a reason.`,
+    );
+  }
+  return landed;
+}
+
 /**
  * `page.goto` that tells a dead service apart from a real finding.
  *
@@ -727,6 +824,13 @@ export async function settle(page: Page, path: string): Promise<void> {
   if (res && res.status() >= 400) {
     throw new Error(`${path} returned HTTP ${res.status()}`);
   }
+
+  /* BEFORE ANY MEASUREMENT, not after: every caller of settle() measures the
+     page it gets back, and a measurement attributed to the wrong route is worse
+     than a missing one. See EXPECTED_LANDING - asserted where an expectation
+     exists, reported as REDIRECT-UNBASELINED where none does yet. */
+  checkLanding(path, page.url());
+
   // Client components fetch on mount; give them room before measuring.
   await page.waitForTimeout(2500);
 
