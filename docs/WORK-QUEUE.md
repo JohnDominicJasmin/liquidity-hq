@@ -261,6 +261,43 @@ git diff --name-only <newest-built-sha> origin/<branch>                    # if 
 proceed and say so. **Do not resolve it by reading `ci.yml`** — the path filter
 tells you what CI *would* skip, not what it *did*.
 
+### AMENDED 2026-10-30: `dev` no longer builds on push, so "no run" is now the DEFAULT answer
+
+The owner removed the per-merge recheck (36 of 129 runs in two days). **`dev` is
+gone from `ci.yml`'s `push` trigger**, so the first command below will normally
+report **no run for a `dev` head** — and that is now the designed state rather
+than the signal it used to be.
+
+**So for `dev` → `qa` the guardrail changes shape: you create the run instead of
+looking for one.**
+
+```sh
+gh workflow run ci.yml --ref dev          # leave `e2e` UNCHECKED: build-only
+gh run list --workflow=ci.yml --branch dev --limit 3 \
+  --json headSha,status,conclusion        # wait for conclusion=success on the head you are promoting
+```
+
+**The diff-the-two-heads step loses its meaning here**, because there is no
+"newest built sha" on `dev` to diff against any more. It still applies to
+`staging` and `main`, which remain on the `push` trigger.
+
+**And the two promotions are not the same check, which the original text did not
+distinguish:**
+
+- **`dev` → `qa` is fast-forward**, so the commit landing on `qa` is bit-identical
+  to the one on `dev` — `ci.yml`'s own comment is why `qa` is absent from the
+  trigger. **Dispatch, wait for green, then promote.**
+- **`qa` → `staging` is a MERGE COMMIT.** The resulting tree has never existed
+  anywhere, so no run for it can possibly exist before the push. **There the
+  check happens AFTER the push and before sign-off** — the new head's own run,
+  not a diff.
+
+**What this gives up, and it is the owner's choice made with the cost in front of
+him:** between merges, `dev` is unchecked. `.githooks/pre-push` runs `tsc` and
+nothing else, so lint, unit tests and build are unverified on `dev` until someone
+dispatches. **This guardrail stops being a good habit and becomes the only thing
+standing between a broken merge and `qa`.**
+
 **THE TWO HOPS ARE NOT THE SAME CHECK, and the first version of this guardrail
 could not be executed on one of them.** QA caught it against the promotion they
 own:
