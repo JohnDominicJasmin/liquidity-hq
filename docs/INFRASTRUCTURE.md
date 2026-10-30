@@ -930,6 +930,25 @@ disagreeing with itself about a single branch.
 known-clean push as the control. **The practice below does not depend on the hypothesis being right**,
 which is the reason the practice is the part to follow.
 
+### THE REMEDY, tested twice rather than reasoned
+
+**One clean push to the branch resyncs the view.** The hypothesis predicted it and it worked both
+times it was tried:
+
+- **#1835**, already matching, took a second commit on a push accepted first time - view matched the
+  ref immediately. A third clean data point.
+- **#1829**, stale at `view=5dc385a2` / `remote=dfea5924`, with its own merge refused for
+  *"Head branch is out of date"* and `update-branch` failing on *"head sha didn't match the current head
+  ref"*, took one commit: **view and ref both `be63dd12` immediately afterwards.**
+
+So the fix costs one commit, and **a prediction that produced a working remedy is worth more than the
+diagnosis that produced it.** It is still not a rule - see the evidence caveat above - but it is the
+thing to try first, and it is cheap enough that trying it beats waiting for the view to catch up.
+
+**What would falsify this:** a clean push that leaves the view stale, or a branch whose push was
+accepted first time and whose view is stale anyway. Either one, and this subsection is wrong and
+should be struck rather than hedged.
+
 **Two caveats about the table itself.** The #1835 row is the state of this entry's own pull request at
 the commit BEFORE the one that added the table, so it reports a past head rather than a current one -
 every row here is an observation with a timestamp, including the row describing the file you are
