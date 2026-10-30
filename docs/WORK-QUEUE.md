@@ -224,6 +224,43 @@ failing verdict with `**QA: not ready**`. Before sending a PR back to Dev, the P
 it does: say on the PR that it's frozen, add it to `docs/OWNER-BLOCKERS.md`, and move Dev
 and QA to their next items. **Nobody stops.** The "never idle" rule outranks any single PR.
 
+**3. Before promoting, check that CI has actually built the head you are promoting —
+and when there is no run for it, DIFF THE TWO HEADS rather than explaining the
+absence.**
+
+Found by Dev on 2026-10-30, before a 58-commit promotion. `dev`'s head
+`92f27f9b` had **no CI run at all**; the newest was on `842ed35f` and still in
+progress. Verified independently by PM: `git diff --name-only 842ed35f origin/dev`
+returns **`CONTRIBUTING.md` and nothing else**, so the uncovered commit was
+docs-only and the code being promoted *was* covered. The absence was correct.
+
+**The reason this is a guardrail and not a note is the shape of the trap, not the
+instance.** A true fact about this repository stood ready to explain the missing
+run: `ci.yml`'s `push` trigger really does carry `paths-ignore` for `**.md` and
+`docs/**`, and its own comment says that is deliberate and deliberately not on
+`pull_request`. **Citing it would have produced the right answer for the wrong
+reason** — and the same explanation would have been equally available, and wrong,
+if the uncovered commits had been application code.
+
+> **A missing CI run on a release branch is indistinguishable from a correctly
+> skipped one until you diff the two heads.**
+
+**What it costs when the guess goes the other way:** QA receives a promotion whose
+final state nothing has built, **with every PR in it green** — because each PR was
+built at its own head, and nothing builds the result of merging them in order.
+That is a gap no individual PR's status can show.
+
+**So, two commands, every promotion:**
+
+```sh
+gh run list --branch <branch> --limit 6 --json headSha,status,conclusion   # is there a run for the head?
+git diff --name-only <newest-built-sha> origin/<branch>                    # if not, what is uncovered?
+```
+
+**Code in that diff means wait for a run on the real head.** Docs-only means
+proceed and say so. **Do not resolve it by reading `ci.yml`** — the path filter
+tells you what CI *would* skip, not what it *did*.
+
 **Not adopted from that doc, and why:**
 - A drift check that needs a local Supabase stack (there isn't one on this machine) and
   generates migrations itself. A generated diff can contain DROPs.
