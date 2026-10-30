@@ -24,7 +24,7 @@ import {
   FREE_SIGNAL_COINS, SIGNED_OUT_SIGNAL_COINS, type SignalPlan,
 } from '../lib/signalCoinGate.ts';
 import type { StrategySignal } from '../lib/useEMAStrategy.ts';
-import { chartFor, contextFor, grokBody, SERVER_BUILDS_PROMPT } from './_grokBody.mts';
+import { chartFor, contextFor, grokBody, ROUTE_NAMES_UNTRACKED_COIN, SERVER_BUILDS_PROMPT } from './_grokBody.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -261,11 +261,48 @@ test('R1. Free on a locked coin, however it is written, or on no coin: refused (
     if (SERVER_BUILDS_PROMPT) {
       assert.equal(r.status, 400, `${type} notacoin: ${r.status}`);
       assert.equal(r.body.error, 'Invalid request.');
-      assert.equal(r.body.code, undefined, 'the parse refusal carries no typed code');
+      /* THE REFUSAL GAINED A NAME, and that is a third tree state rather than a correction.
+         Item 5 refused an untracked coin flat. #1855 then offers 463 coins of which 413 are
+         untracked, so a user picking one out of our own list got an untranslated English string
+         from a generic client branch - the code exists so the Arena can say something true in
+         their language. My pin said "carries no typed code", which was right about the behaviour
+         at the time and is why this reads as a change rather than as a surprise. */
+      assert.equal(r.body.code, ROUTE_NAMES_UNTRACKED_COIN ? 'COIN_NOT_TRACKED' : undefined);
     } else {
       assert.equal(r.status, 403, `${type} notacoin: ${r.status}`); assert.equal(r.body.code, 'COIN_LOCKED');
     }
     nothingSpent(`${type} notacoin`);
+  }
+
+  /* THE CONTROL THAT STOPS THE NAME BECOMING A SHAPE ORACLE. Dev's point, and it is the half that
+     makes the code worth having: ONLY the untracked coin is named. Any other parse failure must
+     stay a flat 400 with no code, or the typed answer starts telling a caller which field it got
+     wrong - which is a probe, not an error message. `context.price` as a NUMBER is a parse failure
+     that has nothing to do with the coin. */
+  if (SERVER_BUILDS_PROMPT) {
+    db.reset();
+    const bad = await call('free', { override: { context: { ...contextFor('BTC/USDT'), price: 1 }, chart: chartFor('1h') } });
+    assert.equal(bad.status, 400, 'a non-string context field must be refused');
+    assert.equal(bad.body.error, 'Invalid request.');
+    assert.equal(bad.body.code, undefined, 'only the untracked coin is named; every other parse failure stays flat');
+    nothingSpent('non-string context field');
+  }
+
+  /* AND IT IS NOT A TIER DECISION. Validation precedes the plan read, so an untracked coin is
+     refused identically for Pro - the one account that may run every TRACKED coin. The contrast
+     with the 403 arm above is the point: "unknown" and "locked" are different answers and must not
+     collapse into one. */
+  if (SERVER_BUILDS_PROMPT) {
+    for (const who of ['free', 'trial', 'pro'] as const) {
+      db.reset(); const r = await call(who, { coin: 'notacoin' });
+      assert.equal(r.status, 400, `${who} on an untracked coin: ${r.status}`);
+      assert.equal(r.body.code, ROUTE_NAMES_UNTRACKED_COIN ? 'COIN_NOT_TRACKED' : undefined, `${who}`);
+      nothingSpent(`${who} untracked`);
+    }
+    db.reset();
+    const locked = await call('free', { coin: 'xrp' });
+    assert.equal(locked.status, 403, 'a TRACKED coin the plan may not have is still COIN_LOCKED');
+    assert.equal(locked.body.code, 'COIN_LOCKED');
   }
 
   /* NO COIN, OR A COIN THAT IS NOT A STRING. Refused either way and nothing is spent - which is
