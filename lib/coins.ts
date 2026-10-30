@@ -110,11 +110,6 @@ export function coinRow(coin: string): CoinRow | undefined {
   return BY_ID.get(coin);
 }
 
-/** True when only one exchange lists it, so a failover read is not available. */
-export function isSingleVenue(coin: string): boolean {
-  return BY_ID.get(coin)?.oneVenue ?? false;
-}
-
 /* THESE TWO MAPS COVER WHAT THE APP RENDERS, NOT THE WHOLE UNIVERSE, and that is load-bearing
  * rather than tidy.
  *
@@ -173,6 +168,30 @@ export const BINANCE_SYMS: Record<string, string> = Object.fromEntries(
 export const BYBIT_SYMS: Record<string, string> = Object.fromEntries(
   RENDERED_IDS.map(id => [id, BY_ID.get(id)?.bybit]).filter(([, s]) => s) as [string, string][],
 );
+
+/* IS THERE A SECOND SOURCE FOR THIS COIN? ANSWERED FROM THE SHIPPED MAPS, not from the
+ * generated row, and the difference was a lie about the one thing this function exists to say.
+ *
+ * It used to read `BY_ID.get(coin)?.oneVenue`, which is what the EXCHANGES list. The failover
+ * reads `BINANCE_SYMS`, which is what WE ship - and those disagree for `pepe` and `bonk`:
+ *
+ *     generated row   { id: 'pepe', bybit: '1000PEPEUSDT', binance: '1000PEPEUSDT', oneVenue: false }
+ *     shipped maps    bybit = 1000PEPEUSDT   binance = ABSENT   (held back, see BINANCE_HOLD)
+ *     old answer      isSingleVenue('pepe') === false   -> "yes, there is a failover"
+ *
+ * So a caller asked "is there a second source?", was told yes, and would have found out there
+ * was not **during an outage** - which is the exact moment this function exists to prevent. The
+ * irony is that pepe and bonk are the two coins whose Binance listing was the discovery that
+ * justified generating this file at all; the editorial map then dropped them for a display
+ * reason and nothing told the flag. Found by QA's fixtures, not by me.
+ *
+ * Deriving it from the two maps means it cannot disagree with them, because they ARE the answer.
+ * An id in neither map is not served at all, so there is no failover for it either - `true` is
+ * the honest answer and `coinRow(id)` is how you ask the different question of whether the
+ * exchanges list it. */
+export function isSingleVenue(coin: string): boolean {
+  return !(BYBIT_SYMS[coin] && BINANCE_SYMS[coin]);
+}
 
 /* Reverse of BINANCE_SYMS - given a Binance symbol, which coin it is. Shared across every
  * #1077 server-side failover route that fans out over BINANCE_SYMS and needs that coin's
