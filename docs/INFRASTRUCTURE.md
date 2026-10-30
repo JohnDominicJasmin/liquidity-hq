@@ -702,10 +702,16 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
 
 ---
 
-## 9. Four instrument traps found on 2026-10-30, each of which returns a confident wrong answer
+## 9. Instrument traps found on 2026-10-30, each of which returns a confident wrong answer
 
 None of these fails loudly. Each produces a result that looks like data. **§9e is the rule they all
-collapse to; read that one if you read nothing else.**
+collapse to; read that one if you read nothing else.** §9f sits after it because it was found after
+it, and is two more instances of it rather than a new trap.
+
+**This heading counted the traps - "Four instrument traps" - and appending §9f made the number
+wrong in the title of the section about figures that rot. The count is gone rather than corrected: a
+heading that does not count cannot go stale. §9e carries the same lesson about its own table, which
+it learned by breaking twice - so this is the third time one section has caught itself.**
 
 ### 9a. `grep -i` COMBINED WITH `-F` **CRASHES** HERE (SIGABRT, exit 134)
 
@@ -815,7 +821,8 @@ a comment ends, including `//` inside a string literal — guarding the first.
 
 > **A control must be shown to FIRE before its silence means anything.**
 
-Narrower and more useful than "add controls". Six instances in one day, in six different tools:
+Narrower and more useful than "add controls". Eight instances in one day, in eight different
+instruments — and **the last two are instruments nobody here built**, which is why §9f exists:
 
 | Instrument | Looked like | Actually |
 |---|---|---|
@@ -825,6 +832,8 @@ Narrower and more useful than "add controls". Six instances in one day, in six d
 | A spec asserting a string is ABSENT | the placeholder fix verified | the whole section failed to mount |
 | A range-scoped `sed` read of this file | the abort correction was never written | it was written further down, outside the range |
 | `gh pr checks <n>` | "no checks reported on the branch" | a run was PENDING on the same head the whole time |
+| A pull request's own API view | a 2-commit, 2-file branch ready to merge | `git ls-remote` had a THIRD commit — the suite that gated the work — and a merge would have taken the view |
+| githubstatus.com | "all systems operational", no incidents | six write failures across three sessions in ~40 minutes |
 
 **The `sed` row is this document being read with an instrument scoped narrower than the question**, and
 it was caught by checking the whole file before claiming an absence — which is §9a's own advice
@@ -850,3 +859,56 @@ A wrong fact gets checked. **A correct fact that happens to explain a stale read
 it supplies the confidence to stop looking. When two channels disagree about whether something ran,
 wait for both rather than picking the one a known fact can explain - and prefer **watching the run**
 over polling the checks API, which is the practical form of this.
+
+### 9f. A VENDOR'S OWN STATUS PAGE IS A CONTROL THAT HAS NOT FIRED
+
+**§9e's seventh and eighth instances, and the only two from instruments this project did not build.**
+Placed after the rule rather than before it because that is when they were found; §9e's table is read
+by row name, not by position, so adding them above would have been the hazard that section already
+documents.
+
+**2026-10-30. Six GitHub write failures across three sessions in about forty minutes:** a `git push`
+rejected with `Internal Server Error` (twice in one session, once in another), a `502` on
+`gh pr create`, a GraphQL error on `gh pr edit`, a GraphQL error on `gh pr close`, and a branch
+delete that only went through over REST. **githubstatus.com, fetched directly during the window,
+reported every component operational — Git Operations, API Requests, Actions, Pull Requests — with
+no active or recent incidents.**
+
+> **"The status page is green" is not a measurement. It is a detector that has not fired, and
+> somebody else owns the detector.**
+
+A status page is a *downstream* instrument: it reports what the vendor has decided to declare, after
+they have noticed and decided to say so. **Our own six failures were the measurement.** They
+outranked the page, and they were available the whole time.
+
+### The expensive instance, and it is not the failed writes
+
+The failed writes were loud. **The dangerous one was silent: a pull request's own view disagreed with
+the branch it claimed to show.**
+
+```
+gh pr view 1831 --json headRefOid              ->  e29ec943   (2 commits, 2 files)
+git ls-remote origin test/chart-structure-fixtures ->  0b8387fd
+```
+
+The missing third commit was the binding test suite — **the half that gated the feature it was
+written for.** Nothing looked wrong. The PR was green, the branch was correct, and **a merge would
+have taken what the view held**: the work would have landed, the gate would have been absent, and
+the issue would have been ticked on a passing merge.
+
+**It was caught because the author checked a ref against the view six times over several minutes
+rather than accepting one refresh as lag.** That is the only reason.
+
+### What to do, stated as practice rather than principle
+
+1. **Before merging anything whose contents matter, compare `git ls-remote` against the PR's
+   `headRefOid`.** They should be the same object. **A green PR is not evidence that the view holds
+   what you pushed**, and neither is a passing CI run — both describe whatever the view has.
+2. **Check the artifact before retrying any failed write.** Every failure that day genuinely had not
+   landed, so no duplicates were created — but a write that both errors and lands turns a blind
+   retry into a duplicate PR, a double comment, or a second branch.
+3. **Never close out an incident on a status page.** It can confirm a vendor's own account of
+   something you already measured. It cannot tell you nothing happened.
+4. **Two channels disagreeing is a measurement, not noise.** This is §9e's `gh pr checks` row in a
+   second tool, and the response is the same: wait for both, prefer watching the thing itself, and
+   do not pick the channel that a known true fact can explain.
