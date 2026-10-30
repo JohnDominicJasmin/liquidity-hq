@@ -899,6 +899,12 @@ the issue would have been ticked on a passing merge.
 **It was caught because the author checked a ref against the view six times over several minutes
 rather than accepting one refresh as lag.** That is the only reason.
 
+**And the author's own account of why they kept going is worth more than the catch, so it is recorded
+in their words rather than cleaned up:** *"my six checks were luck in the sense that I only kept
+going because the first three agreed with each other; I had no principle saying to."* **A catch that
+depended on a hunch is not a procedure.** That is precisely why practice item 1 below had to become
+a rule — the next person will not have the hunch.
+
 ### Which pull requests are affected — a control, and a hypothesis that is NOT recency
 
 The first reading was "the two most recently pushed branches". **That is checkable and it is wrong.**
@@ -919,6 +925,16 @@ two mismatching branches share is their push history: **both had a `git push` re
 > **Hypothesis, labelled as one because n is small: a push that fails and then succeeds on retry can
 > leave the pull request's view pointing at the PRE-FAILURE head while the ref advances.** The failed
 > write is the marker, not the clock.
+
+**NARROWED, and it was first stated too broadly as "a failed write".** Two of that day's failures were
+not pushes at all — a 502 on `gh pr create` and a GraphQL error on `gh pr edit`. **#1833 was created
+on a retry after that 502 and its view MATCHED**, which is the row that discriminates: a retried
+pull-request-object write did not produce a stale view. On the evidence the marker is specifically
+**a failed PUSH**.
+
+**That fits the remedy rather than fighting it.** PR-object writes are what *rebuilds* a stale view
+(below), so it would be odd if they were also what caused one. Two findings from two sessions,
+arrived at separately, pointing the same way.
 
 **If it holds, it is better than the recency reading in the one way that matters — it tells you WHICH
 pull requests to distrust.** The one you retried. It is also consistent with the rest of that day's
