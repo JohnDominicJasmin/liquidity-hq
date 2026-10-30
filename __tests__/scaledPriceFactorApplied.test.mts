@@ -37,7 +37,10 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BYBIT_SYMS, bybitPriceFactor, bybitSymbolPriceFactor, chartDisplaySymbol } from '../lib/coins.ts';
+import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor, bybitSymbolPriceFactor, chartDisplaySymbol } from '../lib/coins.ts';
+/* The whole module, for a function that exists on some trees and not others - a named import of
+   `binancePriceFactor` would fail to COMPILE where the generated universe has not landed. */
+import * as COINS_MOD from '../lib/coins.ts';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
@@ -173,5 +176,101 @@ test('M5. every file that reads a Bybit price applies the conversion, or says wh
     `only ${inPricePath.length} files matched the Bybit price path (${inPricePath.join(', ')}). ` +
     'There were 6 on 2026-10-31. A sharp drop means the patterns stopped matching, not that the ' +
     'code got safer - check PRICE_FIELD and BYBIT_SOURCE against how the app names things now.',
+  );
+});
+
+/* ── 3. THE OTHER VENUE, WHICH THIS GUARD DID NOT COVER ───────────────────────────────────────────
+ *
+ * Dev found the gap and it is shaped like the defect that caused the guard: everything above names
+ * only the Bybit side. The measurement that opens this file is `binancePriceFactor` shipping with
+ * ZERO call sites - and that is still true, so **a guard that would not have caught its own
+ * originating defect is not finished.**
+ *
+ * WHY NOTHING IS WRONG TODAY, AND WHY THAT IS NOT REASSURING. No shipped Binance symbol is scaled,
+ * because a hold keeps `pepe` and `bonk` out of `BINANCE_SYMS`. **That hold is a one-line edit to a
+ * `Set`, and the comment beside it invites exactly that edit.** The day it is lifted, Binance reads
+ * of those two coins are 1000x wrong and everything above stays green.
+ *
+ * SO THE RULE IS WRITTEN AS A CONDITIONAL THAT IS NON-VACUOUS TODAY, which is the part worth
+ * getting right: not "the Binance factor is applied" (nothing to apply it to yet, so it would hold
+ * on an empty set forever) but **"a scaled Binance symbol may not ship without a converter that is
+ * actually called"**. On a tree with no `binancePriceFactor` at all it reduces to "no scaled
+ * Binance symbol may ship", which is checkable and true. On a tree that has one it demands call
+ * sites. Either way it fires on the edit that would break it rather than on the day someone
+ * notices a price. */
+
+const COINS_SRC = readFileSync(path.join(ROOT, 'lib/coins.ts'), 'utf8');
+/** Does this tree even have a Binance converter? It arrives with the generated universe. */
+const HAS_BINANCE_FACTOR = /export function binancePriceFactor/.test(COINS_SRC);
+
+test('M6. no shipped Binance symbol is scaled without a converter for it', () => {
+  const scaledOnBinance = Object.entries(BINANCE_SYMS)
+    .map(([coin, sym]) => ({ coin, sym, prefix: unitPrefix(sym) }))
+    .filter(r => r.prefix !== 1);
+
+  /* The scan must be looking at a real map, or "none are scaled" is a statement about nothing. */
+  assert.ok(
+    Object.keys(BINANCE_SYMS).length >= 20,
+    `only ${Object.keys(BINANCE_SYMS).length} Binance symbols - the map is not populated, so this cell proves nothing`,
+  );
+
+  if (!HAS_BINANCE_FACTOR) {
+    assert.deepEqual(
+      scaledOnBinance.map(r => r.sym), [],
+      'a scaled Binance symbol ships on a tree with NO binancePriceFactor, so nothing can convert it: ' +
+      `${scaledOnBinance.map(r => `${r.coin}=${r.sym}`).join(', ')}`,
+    );
+    return;
+  }
+
+  /* With a converter present, every entry must agree with its own symbol - the Bybit rule, applied
+     to the venue that was missing from it. */
+  const mod = COINS_MOD as { binancePriceFactor?: (c: string) => number };
+  const binanceFactor = mod.binancePriceFactor;
+  /* `assert.ok` rather than `assert.equal`: it is typed `asserts value`, so it NARROWS the optional
+     away for tsc. The equality form reads the same to a human and leaves the call site as
+     "possibly undefined" - which the pre-push gate caught, correctly. */
+  assert.ok(typeof binanceFactor === 'function', 'the source declares binancePriceFactor but the module does not export it');
+  for (const [coin, sym] of Object.entries(BINANCE_SYMS)) {
+    assert.equal(
+      binanceFactor(coin), 1 / unitPrefix(sym),
+      `${coin} (${sym}): the Binance factor disagrees with the symbol's own unit`,
+    );
+  }
+});
+
+test('M7. a scaled Bybit coin is kept off Binance by a HOLD, or its Binance factor has call sites', () => {
+  /* THE CELL THAT FIRES ON THE ONE-LINE EDIT. For every coin quoted per N tokens on Bybit, exactly
+     one of these must be true:
+       - it is absent from BINANCE_SYMS (the hold, whatever the hold is called), or
+       - it ships on Binance AND something outside lib/coins.ts actually calls the converter.
+     The second arm is what `binancePriceFactor` having zero call sites means today, and why the
+     first arm is the only thing standing between us and a 1000x Binance price. */
+  const callSites = [...sourceFiles('app'), ...sourceFiles('lib'), ...sourceFiles('components')]
+    .filter(rel => rel !== 'lib/coins.ts')
+    .filter(rel => /\bbinancePriceFactor\b/.test(stripComments(readFileSync(path.join(ROOT, rel), 'utf8'))));
+
+  const unprotected: string[] = [];
+  for (const { coin, sym } of SCALED) {
+    if (!BINANCE_SYMS[coin]) continue;                       // held off Binance - safe by absence
+    if (callSites.length > 0) continue;                      // shipped, and something converts
+    unprotected.push(`${coin} (bybit ${sym}, binance ${BINANCE_SYMS[coin]})`);
+  }
+
+  assert.deepEqual(
+    unprotected, [],
+    'these coins are scaled on Bybit AND ship on Binance while binancePriceFactor has NO call sites:\n  ' +
+    unprotected.join('\n  ') +
+    '\n\nEvery Binance read of them is out by their unit. Either keep them off BINANCE_SYMS, or give ' +
+    'the converter call sites in the files that read a Binance price.',
+  );
+
+  /* AND THE STATE IS REPORTED EVEN WHEN IT PASSES, because "green" here currently means "protected
+     by an absence" rather than "handled", and those are not the same thing to the next reader. */
+  const heldOff = SCALED.filter(r => !BINANCE_SYMS[r.coin]).map(r => r.coin);
+  assert.ok(
+    heldOff.length > 0 || callSites.length > 0,
+    'no scaled coin is held off Binance and the converter has no call sites - this cell has nothing ' +
+    'to protect, which means either SCALED is empty (see M1) or the maps changed shape.',
   );
 });
