@@ -805,6 +805,10 @@ why; one that never started cannot.
 
 ### 9d. A SOURCE-READING GATE THAT MATCHES RAW TEXT CANNOT TELL CODE FROM PROSE
 
+**Two directions and a third path, one defect. The second was found a day after the first and is the
+nastier of the two, because it arrives looking like the gate doing its job - and the third needs no
+gate at all.**
+
 The first version of the legal-name gate (#1825) tested whether the file text contained
 `LEGAL_NAME_CONFIRMED` — over the whole file, **including comments**. So a planted mutation that
 removed the import *and* the guard, while leaving the explanatory comment behind, **compiled clean
@@ -817,6 +821,142 @@ This is the repository's own grep-matches-comment-prose trap, promoted into a ga
 ask the AST whether the name appears as an identifier**, which excludes comments *by construction*.
 Stripping comments first is a second instrument with its own failure modes — it has to decide where
 a comment ends, including `//` inside a string literal — guarding the first.
+
+#### The same defect with the sign flipped: the gate demands the deletion of good documentation
+
+**2026-10-31, found by QA while writing the replacement for the gate above — which is the same gate,
+one day later, failing the other way.** Worth recording because the first direction is the one
+everybody anticipates and this one arrives looking like the gate working.
+
+The replacement asserts that a retired mechanism has not come back. Its first version flagged the
+placeholder string **wherever it appeared, comments included** — while a sibling assertion in the
+same file held that *a comment recalling the retired mechanism is history, not a revival.* **Those
+two cannot both be true**, and the file that would have failed is `app/(main)/upgrade/page.tsx`,
+whose comment carries the clearest account anyone wrote of the #1824 defect: the one line whose
+entire job is to say who is selling had read `Sold by PLACEHOLDER - LEGAL NAME NOT YET CONFIRMED`
+directly above the checkout buttons.
+
+> **A text-matching gate does not only go green on prose. It also goes RED on prose — and the
+> obvious way to make it pass is to delete the documentation.**
+
+**That is the worse direction, because the first one fails silently and this one recruits you.** A
+red gate is believed. The cheapest fix is to remove the offending sentence, the suite goes green,
+and the loss never appears in a diff as a loss — it appears as a cleanup.
+
+**Same remedy, applied one level more precisely: read the AST for what the file would SHIP** — string
+literals, template text, JSX text — **and ignore comments.** A real string literal is still caught;
+prose about the thing is not. **Pin the distinction in both directions**, or it is one well-meaning
+edit away from being lost again.
+
+**And it was found by running the gate against the real tree rather than a fixture.** On a tree where
+the mechanism still existed it went red naming all eight genuine traces, which is a positive control
+taken from the code rather than written by the gate's own author — the difference between a control
+and a mirror (§9f).
+
+#### THE THIRD PATH, and it needs no gate at all
+
+**The warning not to delete that comment arrived after it had already been deleted — and not
+defensively.** Dev removed it while writing the change, for a reason that sounds like good hygiene:
+**the comment described a mechanism that no longer existed.** The switch was gone, the warning block
+was gone, so the prose about them looked like dead weight.
+
+> **A comment about a removed mechanism still carries WHY the thing it guarded mattered. Delete it
+> for describing dead code and you keep the code and lose the reason.**
+
+What would have been lost here is the account of the #1824 defect: `/security` warned about the
+unconfirmed name and `/upgrade` did not, so **the one line whose entire job is to say who is selling
+printed a placeholder directly above the checkout buttons** — and dropping the seller line instead
+was considered and rejected, because its absence is the exact thing the disclosure rule is about.
+**None of that is inferable from the code that remains**, before or after the change.
+
+**So the same loss has three routes, and only one of them involves a gate:** a checker that goes red
+on the prose; someone deleting the prose to make the checker green; and **someone deleting it simply
+because its subject is gone.** The third needs no tooling and no pressure, which makes it the one
+most likely to happen on an ordinary day.
+
+**The test, when a comment's subject is being removed: does it explain a MECHANISM, or does it
+explain a CONSEQUENCE that was paid for once?** The first can go with the mechanism. The second is
+the only record that the consequence ever happened, and the code never contained it.
+
+**Restored in full substance here, in its own paragraph**, and checked to stay a comment: the string
+appears exactly once across `app/`, `lib/` and `components/`, inside a JSX `{/* … */}` block — not
+a string literal, not JSX text, so the AST gate above does not see it. **Both halves verified rather
+than assumed**, which is what makes it safe to keep prose that quotes a forbidden string.
+
+#### A THIRD DIRECTION, and it is about WHICH FILES get read
+
+**Asked whether the AST remedy had a failure direction of its own, QA measured instead of reasoning
+and found one — in their own gate, not in the remedy.** The scan covered `.ts/.tsx/.mts/.js`, so it
+**skipped `lib/labelDefaults.en.json` entirely — which is where the user-facing sentences actually
+live.** The TypeScript constants were only the values interpolated into them.
+
+> **A revival delivered through a label would have passed in silence while rendering on the page.**
+
+**That is not a flaw in reading the AST. It is a flaw in which surfaces the reader was pointed at**,
+and the AST fix was still right for both prose directions. The two are independent: getting the
+parser right does nothing about a file the walk never opens.
+
+**The obvious repair was also wrong, and in the familiar way.** "No label may contain `{name}`" is
+the nearest-helper rule, and `{name}` appears in **five** labels of which only two are operator
+identity — the other three are market-session labels where `{name}` is a trading session, not a
+person:
+
+```
+SECURITY_SECTION_OPERATOR_BODY   "...operated by {name}, an individual based in {country}..."   operator
+UPGRADE_SELLER_IDENTITY_NOTE     "Sold by {name}, {country}..."                                 operator
+HOURS_WINDOW_ACTIVE_NOW          "{name} - Active now"                                          session
+HOURS_WINDOW_ACTIVE_RIGHT_NOW    "{name} is active RIGHT NOW"                                   session
+SESSION_COUNTDOWN_HOLIDAY_ITEM   "{region} closed - {name}"                                     session
+```
+
+**So the gate is scoped BY KEY, never by value, and the three session labels are held as a control:**
+a future broadening that takes their `{name}` away turns that cell red and names them. The
+planted-wrong-repair shape (§9g, #1837) — **except this time the wrong repair was the one the gate's
+own author was about to write**, and running it against the real tree is what stopped it.
+
+**The general form — and the first version of it under-reached, which QA demonstrated using the same
+gate.** It said "different file types". **The variable is SCOPE, and that gate had TWO scope limits
+of different kinds:**
+
+| Filter | What it skipped | Found by |
+|---|---|---|
+| Extension list — `.ts/.tsx/.mts/.js` | `lib/labelDefaults.en.json`, where the sentences live | the question "does the remedy have its own direction?" |
+| Directory list — `app`, `components`, `lib` | `supabase/migrations/`, **130 files that insert into `lhq_labels`** | enumerating what the gate opens |
+
+The second matters because `lib/labelOverrides.ts:4` says it plainly: **a row in `lhq_labels`
+silently wins over the shipped default in `lib/labelDefaults.en.json`.** So a migration seeding an
+operator label would override the very JSON the new check reads, and **neither filter would see it.**
+
+> **When a check and the thing it protects can live in different places, the check's file filter is a
+> silent scope limit — by extension AND by directory.** It produces a clean pass over the half it can
+> see. **Ask what the gate does not open before asking whether its predicate is right** — then ask
+> where the protected thing can live, because the answer is usually more places than the gate opens.
+
+#### Some scope limits cannot be closed by a test, and those get NAMED
+
+QA closed the migration half. **The other half cannot be closed from this repository at all: a row
+written directly to `lhq_labels`, outside any migration, is invisible to every test here.** There is
+no file to read.
+
+**So it is stated as a limit in the gate's own header**, with the measurement and its date — zero
+rows for all three retired keys on production on 2026-10-30, against a 198-row `NAV_%` control that
+shows the query can find rows.
+
+> **A gate that silently does not cover something is worse than one that says so.**
+
+#### The mechanical test, which is cheaper than the insight
+
+**Enumerate what the gate opens. List where the protected thing can live. Compare the two lists.**
+
+That would have found both scope limits in about a minute, and it needs no judgement — which is why
+it is the part to keep. The author of that gate had not done it for their own gate until the
+question was asked directly.
+
+**And the fix for the file-filter lesson needed the file-filter lesson applied to itself.** The new
+migration scan carries its own positive control: a key that genuinely appears in migrations, taken
+from the tree. **Without it the migration cell passes if the glob misses, if the reads come back
+empty, or if the needle is simply never present anywhere — three distinct ways to be green over
+nothing**, and none of them distinguishable from a real pass.
 
 ### 9e. THE RULE ALL OF §9 COLLAPSES TO
 
