@@ -1,144 +1,150 @@
-export type CoinId =
-  | 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'sui'
-  | 'doge' | 'avax' | 'link' | 'ada' | 'dot' | 'atom' | 'wif' | 'pepe' | 'bonk'
-  | 'ltc' | 'bch' | 'trx' | 'xlm' | 'etc' | 'fil'
-  | 'arb' | 'op' | 'apt' | 'sei' | 'inj' | 'tia'
-  | 'aave' | 'uni' | 'ldo' | 'rune' | 'gmx' | 'crv'
-  | 'stx' | 'jup' | 'wld' | 'render' | 'tao' | 'fet'
-  | 'ondo' | 'pyth' | 'ena' | 'dydx'
-  | 'sand' | 'mana' | 'gmt'
-  | 'xau' | 'spx';
-
-export const COINS: CoinId[] = [
-  'btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui',
-  'doge', 'avax', 'link', 'ada', 'dot', 'atom', 'wif', 'pepe', 'bonk',
-  'ltc', 'bch', 'trx', 'xlm', 'etc', 'fil',
-  'arb', 'op', 'apt', 'sei', 'inj', 'tia',
-  'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv',
-  'stx', 'jup', 'wld', 'render', 'tao', 'fet',
-  'ondo', 'pyth', 'ena', 'dydx',
-  'sand', 'mana', 'gmt',
-  'xau', 'spx',
-];
-
-// Binance perp futures symbols - pepe/bonk/hype/xau/spx excluded (Bybit-only)
-export const BINANCE_SYMS: Record<string, string> = {
-  btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
-  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
-  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
-  ltc: 'LTCUSDT', bch: 'BCHUSDT', trx: 'TRXUSDT', xlm: 'XLMUSDT',
-  etc: 'ETCUSDT', fil: 'FILUSDT',
-  arb: 'ARBUSDT', op: 'OPUSDT', apt: 'APTUSDT', sei: 'SEIUSDT',
-  inj: 'INJUSDT', tia: 'TIAUSDT',
-  aave: 'AAVEUSDT', uni: 'UNIUSDT', ldo: 'LDOUSDT', rune: 'RUNEUSDT',
-  gmx: 'GMXUSDT', crv: 'CRVUSDT',
-  stx: 'STXUSDT', jup: 'JUPUSDT', wld: 'WLDUSDT', render: 'RENDERUSDT',
-  tao: 'TAOUSDT', fet: 'FETUSDT',
-  ondo: 'ONDOUSDT', pyth: 'PYTHUSDT', ena: 'ENAUSDT', dydx: 'DYDXUSDT',
-  sand: 'SANDUSDT', mana: 'MANAUSDT', gmt: 'GMTUSDT',
-  // pepe/bonk: Binance uses 1000x denomination - kept Bybit-only to avoid display confusion
-  // hype/xau/spx: Bybit-only perps
-};
-
-/* The Arena chart deliberately plots PEPE and BONK in Bybit's own 1000-token
-   denomination, unlike everywhere else in the app.
+/* The coins this app serves, DERIVED from what the exchanges trade (#1263, #1600).
  *
- * Not a preference - klinecharts cannot render them per-token. At ~0.0000027 a
- * candle spans about 2e-8 and the library's axis degenerates: it produces a
- * range roughly 150x too wide, centred on zero, complete with negative price
- * ticks, and the candles collapse to a flat line. Raising pricePrecision to 10
- * was tried and changed only the tick LABELS, not the range, so the cause is
- * inside klinecharts' scale handling rather than our precision setting.
+ * This file used to hold five hand-written maps - COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC,
+ * COIN_LABELS - that had to agree with each other, 50 entries each. Adding a coin meant five
+ * edits and getting one wrong was silent. The owner asked for "as many coins as possible" on
+ * 2026-10-20 and again on 2026-10-30; a list that has to be typed is a list that stays at 50.
  *
- * So the chart keeps the raw contract price and SAYS so - hence the 1000 prefix
- * in the label. Everything else in the app (ticker, alerts, outcome tracking,
- * EMA Signal card, Market Structure card, Confluence Score) is per-token.
+ * Now `scripts/generate-coins.mjs` writes `coinUniverse.generated.ts` from both exchanges and
+ * everything below is derived from it. Adding a coin is a regeneration, not an edit.
  *
- * Nothing leaks out of the chart at this scale: its two internal consumers of
- * the last close are a pixel conversion and a percentage distance to S/R, both
- * scale-invariant. Revisit if klinecharts fixes small-value axes - the fix is
- * to delete this and re-apply bybitSymbolPriceFactor in the chart's fetches. */
-export function chartDisplaySymbol(coin: string): string {
-  const prefix = BYBIT_SYMS[coin]?.startsWith('1000') && !BINANCE_SYMS[coin] ? '1000' : '';
-  return `${prefix}${coin.toUpperCase()}/USDT`;
+ * THE SELECTION RULE is the failover guarantee expressed as a list: an instrument qualifies
+ * when BOTH Bybit and Binance trade it as a USDT perpetual. Bybit is the default source and
+ * Binance the failover (lib/klinesFailover.ts), so a single-venue coin has no second source.
+ * Two exceptions are kept deliberately and marked `oneVenue` - see the generator's header.
+ *
+ * WHAT THE HAND TABLE GOT WRONG, found by generating it: `pepe` and `bonk` were recorded as
+ * Bybit-only, and Binance lists `1000PEPEUSDT` and `1000BONKUSDT` too. They have had no
+ * failover for as long as that comment has been there, for no reason.
+ */
+import { COIN_UNIVERSE, type CoinRow } from './coinUniverse.generated.ts';
+
+/* A coin id is now any string the generated universe contains, not a closed union.
+ *
+ * It was a hand-written union of 50 literals, and that is what made the list unextendable:
+ * a generated list cannot produce a compile-time union, and `Record<CoinId, …>` demanded an
+ * entry per literal. Measured before changing it - of 21 `Record<CoinId, …>` uses across the
+ * app, 19 are `Partial<…>` and need no change at all, and the only two total ones were
+ * COIN_DEC and COIN_LABELS, both in this file. So widening costs almost nothing elsewhere. */
+export type CoinId = string;
+
+const BY_ID = new Map<string, CoinRow>(COIN_UNIVERSE.map(r => [r.id, r]));
+
+/** Every instrument, ranked by 24h turnover on the thinner of its two venues. */
+export const COINS: CoinId[] = COIN_UNIVERSE.map(r => r.id);
+
+/* HOW MANY COINS THE ALERT CRON SCANS, and why it is not simply `COINS`.
+ *
+ * `app/api/telegram/alert/route.ts` fetches 300 klines PER COIN on every run - `checkRSI` alone
+ * is `runBatched(COINS.map(...))`. That cost tracked the length of the list, so growing the list
+ * from 50 to 463 would have multiplied the cron's exchange calls by nine without anyone choosing
+ * it. **The breadth of the scan and the breadth of the product are different questions, and
+ * before this they were the same variable.**
+ *
+ * So the product gets every instrument - selection, charts, Pro access, the heatmap - and the
+ * SCAN stays at the number it has been running at. Nothing about the cron's cost changes with
+ * this release.
+ *
+ * THE RIGHT ANSWER IS SMALLER THAN THIS, and it is the next change rather than this one: the
+ * cron should scan the union of coins at least one recipient has NOT muted. Mute keys are
+ * already `coin:<id>` and today's two recipients have muted 46 and 47 coins each, so the real
+ * working set is about four. That would make the cron cheaper than it is now, at any list
+ * length. It needs `mutedByUser` threaded into the check functions, which is a refactor of a
+ * 2,400-line route and does not belong in the same change as the list.
+ *
+ * Sliced off the front because the generated universe is sorted by liquidity on the thinner
+ * venue, so this is "the most tradable N" rather than an arbitrary N. */
+export const SCAN_LIMIT = 50;
+export const SCANNED_COINS: CoinId[] = COINS.slice(0, SCAN_LIMIT);
+
+/** The row behind a coin, or undefined for an id this build does not serve. */
+export function coinRow(coin: string): CoinRow | undefined {
+  return BY_ID.get(coin);
 }
 
-/* Bybit quotes the low-unit-price meme perps per 1000 tokens - 1000PEPEUSDT,
-   1000BONKUSDT - so ANY price read from those symbols is 1000x the per-token
-   price every other part of this app uses. Multiply by this factor to convert.
+/** True when only one exchange lists it, so a failover read is not available. */
+export function isSingleVenue(coin: string): boolean {
+  return BY_ID.get(coin)?.oneVenue ?? false;
+}
 
-   This existed as an inline `sym.startsWith('1000') ? 0.001 : 1` in two places
-   and was missed in a third: app/api/alert-outcomes/resolve recorded price_24h
-   straight from Bybit while price_at_fire was already normalised, giving PEPE
-   and BONK outcomes of ±100,000%. That dragged the Alert Track Record's average
-   24h move to -126% when the real median across 6,201 fires is +0.28%.
+export const BINANCE_SYMS: Record<string, string> = Object.fromEntries(
+  COIN_UNIVERSE.filter(r => r.binance).map(r => [r.id, r.binance as string]),
+);
 
-   Any new code reading a price, kline or level from BYBIT_SYMS must apply this.
-   The failure is silent and only shows up on two coins. */
+// Bybit linear perp symbols - includes the 1000x meme listings and the synthetics.
+export const BYBIT_SYMS: Record<string, string> = Object.fromEntries(
+  COIN_UNIVERSE.filter(r => r.bybit).map(r => [r.id, r.bybit as string]),
+);
+
+/* Reverse of BINANCE_SYMS - given a Binance symbol, which coin it is. Shared across every
+ * #1077 server-side failover route that fans out over BINANCE_SYMS and needs that coin's
+ * Bybit equivalent, or needs to discover there isn't one.
+ * app/api/market/klines/route.ts still keeps its own local copy rather than importing this -
+ * out of scope here, not overlooked. */
+export const BINANCE_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
+  Object.entries(BINANCE_SYMS).map(([coin, sym]) => [sym, coin]),
+);
+
+/* Decimal places for display, from each exchange's own tick size rather than a hand table.
+ *
+ * 44 of the previous 50 hand-written values come out identical. Six differ because the
+ * exchange disagrees with what was typed, and the exchange is the authority on its own tick:
+ *
+ *     btc  2 -> 1     sol  3 -> 2     near 4 -> 3
+ *     dot  3 -> 4     dydx 4 -> 5     gmt  5 -> 6
+ *
+ * Three of those show MORE precision than before and three show less. The three that show
+ * less are cases where the hand table displayed a digit the venue does not quote. */
+export const COIN_DEC: Record<string, number> = Object.fromEntries(
+  COIN_UNIVERSE.map(r => [r.id, r.dec]),
+);
+
+/** Display label. The ticker is the label for every instrument, so this is derived rather
+ *  than listed - a generated coin cannot arrive without one. */
+export const COIN_LABELS: Record<string, string> = Object.fromEntries(
+  COIN_UNIVERSE.map(r => [r.id, r.id.toUpperCase()]),
+);
+
+/* Bybit quotes the low-unit-price meme perps per 1000 tokens - 1000PEPEUSDT, 1000BONKUSDT -
+   so ANY price read from those symbols is 1000x the per-token price every other part of this
+   app uses. Multiply by this factor to convert.
+
+   This existed as an inline `sym.startsWith('1000') ? 0.001 : 1` in two places and was missed
+   in a third: app/api/alert-outcomes/resolve recorded price_24h straight from Bybit while
+   price_at_fire was already normalised, giving PEPE and BONK outcomes of ±100,000%. That
+   dragged the Alert Track Record's average 24h move to -126% when the real median across
+   6,201 fires is +0.28%.
+
+   The factor is now DERIVED from the symbol the exchange returned and carried in the generated
+   row, so a new 1000x listing cannot arrive without it. The string test is kept as the
+   fallback for an id the universe does not know.
+
+   Any new code reading a price, kline or level from BYBIT_SYMS must apply this. The failure is
+   silent and only shows up on the 1000x coins. */
 export function bybitPriceFactor(coin: string): number {
+  const row = BY_ID.get(coin);
+  if (row) return row.mult;
   return BYBIT_SYMS[coin]?.startsWith('1000') ? 0.001 : 1;
 }
 
 /** Same conversion when only the symbol is in hand, not the coin id. */
 export function bybitSymbolPriceFactor(symbol: string): number {
-  return symbol.startsWith('1000') ? 0.001 : 1;
+  const m = /^(\d+)/.exec(symbol);
+  return m ? 1 / Number(m[1]) : 1;
 }
 
-// Bybit linear perp symbols - includes all coins + 1000x meme coins + synthetics
-export const BYBIT_SYMS: Record<string, string> = {
-  btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
-  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
-  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
-  pepe: '1000PEPEUSDT', bonk: '1000BONKUSDT',
-  ltc: 'LTCUSDT', bch: 'BCHUSDT', trx: 'TRXUSDT', xlm: 'XLMUSDT',
-  etc: 'ETCUSDT', fil: 'FILUSDT',
-  arb: 'ARBUSDT', op: 'OPUSDT', apt: 'APTUSDT', sei: 'SEIUSDT',
-  inj: 'INJUSDT', tia: 'TIAUSDT',
-  aave: 'AAVEUSDT', uni: 'UNIUSDT', ldo: 'LDOUSDT', rune: 'RUNEUSDT',
-  gmx: 'GMXUSDT', crv: 'CRVUSDT',
-  stx: 'STXUSDT', jup: 'JUPUSDT', wld: 'WLDUSDT', render: 'RENDERUSDT',
-  tao: 'TAOUSDT',
-  // fet: Binance-only - Bybit does not list FETUSDT as a linear perp
-  ondo: 'ONDOUSDT', pyth: 'PYTHUSDT', ena: 'ENAUSDT', dydx: 'DYDXUSDT',
-  sand: 'SANDUSDT', mana: 'MANAUSDT', gmt: 'GMTUSDT',
-  xau: 'XAUUSDT', spx: 'SPXUSDT',
-};
-
-/* Reverse of BINANCE_SYMS - given a Binance symbol, which coin it is. Shared
- * across every #1077 server-side failover route that fans out over
- * BINANCE_SYMS and needs to find that coin's Bybit equivalent (or discover
- * there isn't one, e.g. fet - "Bybit does not list FETUSDT as a linear
- * perp", above). app/api/market/klines/route.ts still keeps its own local
- * copy rather than importing this - out of scope here, not overlooked. */
-export const BINANCE_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
-  Object.entries(BINANCE_SYMS).map(([coin, sym]) => [sym, coin]),
-);
-
-export const COIN_DEC: Record<CoinId, number> = {
-  btc: 2, eth: 2, sol: 3, xrp: 4, bnb: 2, hype: 3, near: 4, sui: 4,
-  doge: 5, avax: 3, link: 3, ada: 4, dot: 3, atom: 3, wif: 4,
-  pepe: 8, bonk: 8,
-  ltc: 2, bch: 2, trx: 4, xlm: 4, etc: 3, fil: 4,
-  arb: 5, op: 5, apt: 4, sei: 5, inj: 3, tia: 4,
-  aave: 2, uni: 3, ldo: 4, rune: 4, gmx: 3, crv: 4,
-  stx: 4, jup: 4, wld: 4, render: 3, tao: 2, fet: 4,
-  ondo: 4, pyth: 5, ena: 5, dydx: 4,
-  sand: 5, mana: 5, gmt: 5,
-  xau: 2, spx: 4,
-};
-
-export const COIN_LABELS: Record<CoinId, string> = {
-  btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
-  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
-  doge: 'DOGE', avax: 'AVAX', link: 'LINK', ada: 'ADA',
-  dot: 'DOT', atom: 'ATOM', wif: 'WIF', pepe: 'PEPE', bonk: 'BONK',
-  ltc: 'LTC', bch: 'BCH', trx: 'TRX', xlm: 'XLM', etc: 'ETC', fil: 'FIL',
-  arb: 'ARB', op: 'OP', apt: 'APT', sei: 'SEI', inj: 'INJ', tia: 'TIA',
-  aave: 'AAVE', uni: 'UNI', ldo: 'LDO', rune: 'RUNE', gmx: 'GMX', crv: 'CRV',
-  stx: 'STX', jup: 'JUP', wld: 'WLD', render: 'RENDER', tao: 'TAO', fet: 'FET',
-  ondo: 'ONDO', pyth: 'PYTH', ena: 'ENA', dydx: 'DYDX',
-  sand: 'SAND', mana: 'MANA', gmt: 'GMT',
-  xau: 'XAU', spx: 'SPX',
-};
+/* The symbol the CHART shows, which is not always the symbol we fetch.
+ *
+ * klinecharts' y-axis collapses at very small values, so the 1000x meme perps are charted on
+ * the exchange's own 1000x series and the label says so. Everything else in the app - ticker,
+ * alerts, outcome tracking, EMA Signal card, Market Structure card, Confluence Score - is
+ * per-token.
+ *
+ * Nothing leaks out of the chart at this scale: its two internal consumers of the last close
+ * are a pixel conversion and a percentage distance to S/R, both scale-invariant. Revisit if
+ * klinecharts fixes small-value axes - the fix is to delete this and re-apply
+ * bybitSymbolPriceFactor in the chart's fetches. */
+export function chartDisplaySymbol(coin: string): string {
+  const prefix = BYBIT_SYMS[coin]?.startsWith('1000') ? '1000' : '';
+  return `${prefix}${coin.toUpperCase()}/USDT`;
+}

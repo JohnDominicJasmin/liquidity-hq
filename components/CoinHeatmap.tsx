@@ -10,14 +10,38 @@ const RERANK_MS = 60_000;
 /* If a feed never reports, rank anyway rather than sitting in declared order. */
 const FIRST_RANK_TIMEOUT_MS = 12_000;
 
-type Cat = 'all' | 'majors' | 'alts' | 'defi' | 'meme';
+type Cat = 'all' | 'majors' | 'alts' | 'defi' | 'meme' | 'other';
 
-const CAT: Record<Cat, readonly CoinId[]> = {
-  all:    COINS,
+/* THE SECTOR BUCKETS ARE EDITORIAL AND CANNOT BE DERIVED, which is why `other` exists.
+ *
+ * `COINS` is generated from both exchanges now (#1263) rather than hand-written at 50, so these
+ * four named lists name a small part of it. I checked whether the buckets could be derived
+ * instead of extended: Bybit's `instruments-info` and Binance's `exchangeInfo` give quote asset,
+ * contract type, tick size, leverage and status - **no sector field on either venue.** There is
+ * nothing to derive "meme" or "DeFi" from, so inventing a taxonomy for hundreds of coins would
+ * be guessing with a straight face.
+ *
+ * So the four stay curated, and everything they do not name falls into `other`, which is VISIBLE
+ * in the tab row. The failure this prevents is a coin that is tradable, shown under All, and
+ * absent from every filtered view with nothing saying so - findable only by someone who already
+ * knew to look for it.
+ *
+ * Adding a coin to a sector bucket is now an editorial act, which is the honest description of
+ * what it always was. */
+const CURATED: Record<Exclude<Cat, 'all' | 'other'>, readonly CoinId[]> = {
   majors: ['btc', 'eth', 'sol', 'xrp', 'bnb', 'ltc', 'bch', 'ada'],
   alts:   ['near', 'sui', 'avax', 'link', 'dot', 'atom', 'arb', 'op', 'apt', 'sei', 'inj', 'tia', 'trx', 'xlm', 'etc', 'fil', 'stx'],
   defi:   ['hype', 'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv', 'jup', 'wld', 'render', 'tao', 'fet', 'ondo', 'pyth', 'ena', 'dydx', 'xau', 'spx'],
   meme:   ['doge', 'pepe', 'wif', 'bonk', 'gmt', 'sand', 'mana'],
+};
+
+const CURATED_IDS = new Set<CoinId>(Object.values(CURATED).flat());
+
+const CAT: Record<Cat, readonly CoinId[]> = {
+  all:    COINS,
+  ...CURATED,
+  /* Derived, so it cannot fall behind the generated list the way a hand bucket would. */
+  other:  COINS.filter(c => !CURATED_IDS.has(c)),
 };
 
 function changeColor(chg: number | null): { bg: string; text: string } {
@@ -63,6 +87,7 @@ export default function CoinHeatmap() {
     alts: t('COIN_HEATMAP_CAT_ALTS'),
     defi: t('COIN_HEATMAP_CAT_DEFI'),
     meme: t('COIN_HEATMAP_CAT_MEME'),
+    other: t('COIN_HEATMAP_CAT_OTHER'),
   };
 
   const entries = [...(CAT[cat] as CoinId[])].map(c => ({ c, coin: store.coins[c] }));
