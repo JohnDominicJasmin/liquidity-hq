@@ -359,7 +359,7 @@ function alertTimeIn(timeZone: string | null): string {
  *
  * AN UNKNOWN TIMEZONE FALLS BACK TO UTC, AND THAT IS A DELIBERATE BEHAVIOUR CHANGE.
  *
- * It was Asia/Manila, and the comment here argued for it: the operator's zone was the historical
+ * It was the operator's own zone, and the comment here argued for it: that zone was the historical
  * anchor before per-user timezones existed, so falling back to it gave a recipient we cannot place
  * "exactly the behavior they already had". That reasoning was sound and it is overruled - the owner,
  * 2026-10-31: "don't mention where is the server and where country I live."
@@ -1300,7 +1300,7 @@ async function checkFearGreed(
 }
 
 /* ════════════════════════════════════════
-   10. DAILY 7AM PHT SUMMARY
+   10. DAILY 7AM SUMMARY, IN EACH RECIPIENT'S OWN TIMEZONE
    ════════════════════════════════════════ */
 async function checkDailySummary(
   token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
@@ -1308,9 +1308,9 @@ async function checkDailySummary(
 ): Promise<string[]> {
   const d = new Date();
   // Each recipient's OWN local 7:00-7:10am window, not one fixed instant that
-  // only actually meant "morning" for Philippine subscribers. This used to
+  // only actually meant "morning" for subscribers in one particular zone. This used to
   // gate the entire function on a single `(getUTCHours()+8)%24 === 7` check -
-  // correct for PHT, but a "7am summary" that always lands at 7pm the
+  // correct for that zone, but a "7am summary" that always lands at 7pm the
   // previous evening for a US Eastern subscriber isn't a morning briefing for
   // them at all. Cron ticks every few minutes (see the 10-minute slop below)
   // and checks every recipient's zone each time, so each one gets exactly one
@@ -2358,7 +2358,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   if (allChatIds.length === 0)
     return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });
 
-  // Session-based cooldowns - tighter during pre-NY + NY (8pm–4am PHT)
+  // Session-based cooldowns - tighter during pre-NY + NY (12:00-20:00 UTC)
   const nyActive = isHighActivity();
   CD.whale = nyActive ? 5 * 60_000  : 30 * 60_000;
   CD.news  = nyActive ? 5 * 60_000  : 15 * 60_000;

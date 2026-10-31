@@ -1,12 +1,12 @@
 // Daily usage quotas reset at midnight UTC (server-side fact). This converts that
 // instant into the viewer's own local wall-clock time - never hardcoded to any one
-// timezone (not UTC, not PHT) - so it's correct for whoever is looking at the screen.
+// timezone - not UTC, and not a single fixed zone - so it's correct for whoever is looking.
 export function nextResetLocalTime(): string {
   const now = new Date();
   const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
   // timeZoneName: 'short' - the value was already correctly localized, but the
   // string alone ("8:00 AM") didn't say which zone that was, ambiguous to the
-  // viewer (AUDIT.md AUTH-7). Label it explicitly instead of hardcoding PHT.
+  // viewer (AUDIT.md AUTH-7). Label it explicitly instead of hardcoding one zone.
   return next.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
 }
 
@@ -20,7 +20,7 @@ export function utcHourToLocalTime(utcHour: number, utcMinute = 0): string {
 
 /**
  * The viewer's own timezone abbreviation ("GMT+8", "BST", "EDT"), for labelling a
- * clock that is already rendering their local time. Replaces hardcoded "PHT"
+ * clock that is already rendering their local time. Replaces a hardcoded zone label
  * suffixes, which claimed one specific zone for a number that was never in it.
  */
 export function localZoneAbbr(): string {
@@ -33,8 +33,8 @@ export function localZoneAbbr(): string {
  * the viewer's own timezone, e.g. London Open 07:00-10:00 UTC shows as
  * "3:00 PM - 6:00 PM GMT+8" in Manila and "8:00 AM - 11:00 AM BST" in London.
  *
- * These used to be pre-baked PHT strings in the labels table ("3PM - 6PM PHT"),
- * which meant every non-PHT trader read someone else's clock - and the strings
+ * These used to be pre-baked strings in the labels table, written in one fixed zone,
+ * which meant every trader elsewhere read someone else's clock - and the strings
  * drifted from the enforced UTC logic besides (the London label claimed
  * "9:30-11AM UTC" while session.ts uses 07:00-10:00).
  *

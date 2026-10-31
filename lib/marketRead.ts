@@ -124,10 +124,10 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
   // Session detection MUST come from lib/session.ts, which anchors every
   // window to UTC. This block used to re-implement the same five windows
   // against the VIEWER'S local clock (`now.getHours()`), with thresholds that
-  // were really PHT wall-clock values - so a trader in London hit the
+  // were really wall-clock values in one fixed zone - so a trader in London hit the
   // "London Open" bonus at 15:00 London time, which is the NY session, while
   // the actual London window (07:00-10:00 UTC) scored nothing. Silently wrong
-  // for everyone outside UTC+8, with no "PHT" label anywhere to hint at it.
+  // for everyone in a different zone, with no label anywhere to hint at it.
   // The two copies had already drifted apart (session.ts London = 07:00-10:00
   // UTC vs 15:00-18:00 local here), which is exactly why this is a call now
   // and not a second copy.
