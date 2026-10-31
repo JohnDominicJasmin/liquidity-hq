@@ -956,7 +956,31 @@ question was asked directly.
 migration scan carries its own positive control: a key that genuinely appears in migrations, taken
 from the tree. **Without it the migration cell passes if the glob misses, if the reads come back
 empty, or if the needle is simply never present anywhere — three distinct ways to be green over
-nothing**, and none of them distinguishable from a real pass.
+
+#### A FOURTH DIRECTION: a BANNED-substring control has the same blind spot as a required one
+
+**Found while shipping the 404 page's empty-chart graphic (#1895), by the author's own pre-merge
+control.** Every direction above is about a check that must find something. This one is the same
+defect on a check that must find NOTHING, and the comment that defeats it is explaining the very
+constraint the control exists to enforce.
+
+The chart was required to be static — no `fetch`, no `<canvas>`, no `Math.random`, no `animate` —
+so the pre-merge control asserted those strings are **absent** from the file. `Math.random` was not
+absent. **It is in the comment explaining why the component does not call it**, the same sentence
+this section is paraphrasing. The control cannot tell "the code calls it" from "the comment says it
+does not" — the exact failure 9d opened with, arrived from the other side.
+
+> **A required-substring gate goes green on a comment that merely mentions the right word. A
+> banned-substring gate goes red on a comment that correctly explains why the word does not appear
+> in the code. Same blindness, opposite direction.**
+
+**The merge was confirmed by reading the line, not by the control** — `NotFoundContent.tsx` was
+opened and the call site checked by eye. The control still ran and still logged a false positive,
+which is the point: **a banned-substring check needs the AST exclusion as much as a required one
+does**, and skipping it because "it only ever needs to find zero" is how this one shipped unguarded.
+No fix was written here — the chart has no behaviour to regress and the file is small enough to
+read — but a banned-substring control on a larger surface inherits this blind spot exactly as
+written above for the required kind.
 
 ### 9e. THE RULE ALL OF §9 COLLAPSES TO
 
