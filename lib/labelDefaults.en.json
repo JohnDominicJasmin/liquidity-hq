@@ -2847,9 +2847,9 @@
   "A11Y_SECTION_AIM_TITLE": "What we aim for",
   "A11Y_SECTION_AIM_BODY": "We work towards the Web Content Accessibility Guidelines (WCAG) 2.2 at Level AA and test against them as we build. That is what we measure ourselves against - it is not a certification, and nobody outside this project has audited it.",
   "A11Y_SECTION_DONE_TITLE": "What is in place",
-  "A11Y_SECTION_DONE_BODY": "Visible keyboard focus indicators throughout. Dialogs keep keyboard focus inside them while they are open. Scores, grades and status chips carry text names, so a screen reader announces them rather than skipping past them. Controls are sized for touch. The platform works in dark and light, and honours a reduced-motion setting from your operating system.",
+  "A11Y_SECTION_DONE_BODY": "Visible keyboard focus indicators throughout. Dialogs keep keyboard focus inside them while they are open. Scores, grades and status chips carry text names, so a screen reader announces them rather than skipping past them. The platform works in dark and light, and honours a reduced-motion setting from your operating system.",
   "A11Y_SECTION_LIMITS_TITLE": "Where we know we fall short",
-  "A11Y_SECTION_LIMITS_BODY": "The price and liquidation charts are visual by nature. The figures behind them appear as text elsewhere in the platform, but the chart drawing itself cannot be read by a screen reader. There is no skip-to-content link yet. And the platform has been tested by us, not by an outside accessibility specialist.",
+  "A11Y_SECTION_LIMITS_BODY": "The price and liquidation charts are visual by nature. The figures behind them appear as text elsewhere in the platform, but the chart drawing itself cannot be read by a screen reader. Some links, including those in the footer, are smaller than the minimum touch size the guidelines recommend. There is no skip-to-content link yet. And the platform has been tested by us, not by an outside accessibility specialist.",
   "A11Y_SECTION_HELP_TITLE": "If something blocks you",
   "A11Y_SECTION_HELP_BODY": "Write to support@liquidity-hq.com. Tell us which page, what you were trying to do, and what assistive technology you use. We will reply and say what we can do and roughly when.",
 
