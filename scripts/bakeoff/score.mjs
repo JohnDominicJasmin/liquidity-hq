@@ -27,6 +27,17 @@
 import { findSwingPivots, fitLine, lineValueAt, measureFit } from '../../lib/chartStructures.ts';
 import { atrOf } from './classify.mjs';
 
+/* WHAT "AGREE" MEANS, AS ONE NUMBER WITH ONE DEFINITION.
+ *
+ * Exported and written into every result file, so a reader can see the threshold without reading
+ * this scorer - PM's point, and the right one: an exclusion rule whose criterion is buried in code
+ * is an exclusion a reader has to take on trust.
+ *
+ * Half an ATR is the mean absolute separation two claimed lines may have across the whole window
+ * and still be called the same structure. Mean rather than maximum, because two engines describing
+ * one trendline will disagree most at the extrapolated ends, where neither claimed a touch. */
+export const AGREEMENT_ATR = 0.5;
+
 /** A claim's line, fitted through the timestamps the model named. Null when it named too few
  *  valid points to fit anything - which is itself a finding, not an error. */
 export function claimLine(claim, candles) {
@@ -48,7 +59,7 @@ export function claimsAgree(a, b, candles, atr) {
   for (let i = 0; i < candles.length; i++) {
     sum += Math.abs(lineValueAt(a.fit, i) - lineValueAt(b.fit, i));
   }
-  return (sum / candles.length) <= 0.5 * atr;
+  return (sum / candles.length) <= AGREEMENT_ATR * atr;
 }
 
 /**
@@ -135,7 +146,9 @@ export function compare(byEngine, fixturesById) {
           side: reps[0].side,
           touchCounts: reps.map(r => r.touchCount),
           classifierZ: fx.classifier?.z ?? null,
-          note: 'Every engine claimed the same line in a window our geometry calls noise. '
+          agreementThresholdAtr: AGREEMENT_ATR,
+          note: 'Every engine claimed the same line in a window our geometry calls noise, their '
+              + `fitted lines within ${AGREEMENT_ATR} ATR mean separation across the window. `
               + 'EXCLUDED from the fabrication count - this is evidence our definition is blind, '
               + 'not independent fabrication. Rule fixed before the run (#1818).',
         });

@@ -24,7 +24,7 @@
  */
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { parseReply } from './prompt.mjs';
-import { scoreAnswer, compare } from './score.mjs';
+import { scoreAnswer, compare, AGREEMENT_ATR } from './score.mjs';
 import { ENGINES, PRICING } from './engines.mjs';
 
 const args = process.argv.slice(2);
@@ -111,6 +111,14 @@ writeFileSync(new URL(`result-${stamp}.json`, OUT), JSON.stringify({
   /* The un-blinding, written only now that every score is computed. */
 
   pricing: PRICING,
+  /* The criterion the convergence exclusion used, in the output rather than only in the code. */
+  convergence: {
+    agreementThresholdAtr: AGREEMENT_ATR,
+    meaning: 'Two claims are the same structure when they name the same side and their fitted '
+           + `lines differ by <= ${AGREEMENT_ATR} ATR in mean absolute separation across the window.`,
+    appliesTo: 'group B only',
+    effect: 'converged windows are excluded from the fabrication count and listed separately',
+  },
   caveats: [
     'Claude cost is an UPPER BOUND: prompt caching is off on the account.',
     'Groups were assigned by scripts/bakeoff/classify.mjs against a shuffled-returns null, which is'
