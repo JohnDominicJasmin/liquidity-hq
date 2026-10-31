@@ -3,7 +3,7 @@
 -- and the rows were deleted by hand - see 20261031b. THIS FILE IS DELIBERATELY NOT EDITED: it is
 -- the record of what was applied, and changing it would make it claim it inserted text it never
 -- did. **IF YOU REPLAY THIS FILE - fresh project, restore, new environment - RUN
--- 20261031c_guard_no_reseeded_location.sql AFTERWARDS**, or the country goes back in, in five
+-- 20261031c_sweep_operator_location_rows.sql AFTERWARDS**, or the country goes back in, in five
 -- locales, and nothing watches for it.
 
 -- Per-user IANA timezone, so Telegram alerts can be stamped in each

@@ -1,7 +1,20 @@
--- GUARD: remove any label row that names the operator's country, city, region or timezone.
+-- A RE-RUNNABLE SWEEP: remove any label row that names the operator's country, city, region or
+-- timezone.
 --
 -- Safe to run at any time, as often as you like. It is a NO-OP against the current state of both
 -- projects, and it exists for the state AFTER a replay.
+--
+-- **IT IS A SWEEP, NOT A GUARD, AND IT WAS NAMED `guard_no_reseeded_location` UNTIL QA READ IT.**
+-- The executable content is two `delete from` statements. There is no trigger, no constraint and
+-- nothing standing - so if one of the eight seed files is replayed AFTER this file is applied, the
+-- rows come back and nothing removes them. **The ordering it depends on is the ordering nobody
+-- controls**, and a file called "guard" invites a reader to assume otherwise. Renamed rather than
+-- strengthened under a deadline.
+--
+-- WHAT ACTUALLY SCALES IS THE HEADER ON EACH SEED FILE, which tells a replayer to run this
+-- afterwards: it stops the replay rather than cleaning up after it. A trigger would additionally
+-- catch a row hand-inserted from the Supabase dashboard, which no migration ordering can reach -
+-- worth considering, not worth doing today.
 --
 -- ============================ WHY THIS FILE EXISTS ============================
 --
@@ -41,7 +54,22 @@
 -- turned on: a sweep for the English word "Philippines" found ONE row of forty. "PHT" was carrying
 -- twenty-eight of them, and four of the five privacy rows said the country in their own script.
 -- **Any future term added here needs its abbreviation, its IANA identifier and its translations, or
--- this guard will report clean while a row sits there.**
+-- this sweep will report clean while a row sits there.**
+--
+-- `%PHT%` IS A THREE-LETTER SUBSTRING AND THAT WAS CHECKED RATHER THAN ASSUMED (QA). It is the
+-- shape that quietly deletes a row containing "naphtha". Measured across everything a replay could
+-- insert - the 2,845-key defaults file and every seed migration - **`pht` appears only as the
+-- standalone token `PHT`**, so no false-positive class exists here. **If a future value could
+-- contain the letters in a word, this predicate needs a word boundary before it is applied again.**
+--
+-- THE REGION HALF IS DELIBERATELY UNCOVERED, and saying so is the point (QA). The owner ordered the
+-- server location removed as well as the country, and this sweep only matches country and timezone
+-- terms. **It costs nothing: no seed migration carries `Seoul`, `South Korea`, `ap-northeast` or
+-- `Singapore`** - measured, with a control that the same grep finds the country terms in 10 of
+-- those files. So there is nothing for a region sweep to catch on a replay. **The asymmetry is
+-- recorded because the next reader would otherwise see it and wonder which half was forgotten** -
+-- and because the same asymmetry already bit once today: a sweep that covered the country was
+-- reported as covering the order, and one hit in a QA tool survived it.
 
 -- ===================== PROD (liquidity-hq, qdpwhnvmhqgzijuwopso) =====================
 
