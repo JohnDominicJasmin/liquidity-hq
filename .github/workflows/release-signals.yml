@@ -20,8 +20,9 @@ on:
   push:
     branches: [staging, main]
   schedule:
-    # 08:00 Asia/Manila. Catches "merged on Friday, never deployed" without
-    # anyone having to look.
+    # 00:00 UTC daily. Catches "merged on Friday, never deployed" without anyone
+    # having to look. The cron is UTC - the comment used to state the operator's
+    # local equivalent, which told a reader nothing the schedule does not.
     - cron: '0 0 * * *'
   workflow_dispatch:
 

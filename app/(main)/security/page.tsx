@@ -15,8 +15,9 @@ import EmailLinked from '@/components/EmailLinked';
  * in app/api/liq-events/purge/route.ts. This page links to it instead.
  *
  * THE DATA REGION IS MEASURED, NOT RECALLED. `list_projects` on 2026-10-30
- * reports liquidity-hq-prod in ap-northeast-2 (Seoul) and liquidity-hq-dev in
- * ap-northeast-1 (Tokyo). Customer data is in the PROD project, so Seoul is
+ * reports the prod and dev projects in different regions. Customer data is in the PROD project.
+ * THE REGION IS NOT NAMED HERE OR ON THE PAGE (owner, 2026-10-31) - see the comment further down;
+ * if you need it, read it from Render rather than restating it in a file that ships.
  * what this page says. The #1810 research comment said Tokyo for both, which
  * is true of dev and false of the one that holds customers. */
 
@@ -76,13 +77,21 @@ export default function SecurityPage() {
               LEGAL_NAME_CONFIRMED switch are both deleted: the whole module existed for the
               2026-10-29 disclosure decision that this reverses.
 
-              THE COUNTRY IS STILL ON THIS PAGE, two sections down, and that is deliberate
-              rather than an oversight. SECURITY_SECTION_WHERE_BODY says the service is
-              operated from the Philippines so the data can be reached from there - that is a
-              data-TRANSFER disclosure, not a fact about who he is, and Seoul has an EU
-              adequacy decision where the Philippines does not. Removing it would make a legal
-              page incomplete rather than private. The owner was told this before it shipped
-              and can overrule it. */}
+              NO GEOGRAPHY IS ON THIS PAGE ANY MORE, and the paragraph this replaces argued the
+              opposite. It said the country was deliberately kept two sections down, because
+              SECURITY_SECTION_WHERE_BODY was a data-TRANSFER disclosure rather than a fact about
+              who he is, and it ended "the owner was told this before it shipped and can overrule
+              it". He overruled it, 2026-10-31: "don't mention where is the server and where
+              country I live. Remove that shit."
+
+              So that body now names the PROCESSOR and the FACT of international transfer and
+              nothing else - no country, no city, no region code, on either side. The disclosure
+              duty is to say data may be processed outside the user's own country and point at the
+              safeguard; it is not a duty to name the destination. The transfer sentence survives,
+              its geography does not.
+
+              AND NOT A VAGUER LOCATION EITHER. No "Asia-Pacific", no "South East Asia" - he said
+              no location, so the answer is no location rather than a coarser one. */}
           <EmailLinked text={t('SECURITY_SECTION_OPERATOR_BODY')} />
         </div>
       </div>
