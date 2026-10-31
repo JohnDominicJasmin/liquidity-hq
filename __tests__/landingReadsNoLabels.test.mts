@@ -31,7 +31,23 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { ROOT, appPath } from './_appPath.mts';
 
-const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
+
+/* COMMENTS ARE STRIPPED BEFORE ANY SCAN, and the reason is close to funny.
+ *
+ * L2's failure message tells the next reader to make a component take its copy as a prop and, by
+ * implication, to say so. **A landing component carrying the comment "deliberately does not call
+ * useLabels()" would have turned L2 RED** - the loudest failure in the suite, instructing someone
+ * to undo the thing they had just done correctly.
+ *
+ * Not hypothetical: Dev found `components/LabelsProvider.tsx`'s only `useLabels(` is inside a
+ * comment, which is why L1's consumer control counted 77 against 76 stripped. Harmless in a control
+ * that wants a floor; not harmless in L2, which names files.
+ *
+ * Grep-inside-comments has now produced four false findings in one day across both sessions -
+ * including Dev's deadness check on HOURS_WIN_LONDON_TIME, whose two "still referenced" hits were
+ * both inside the comment explaining its deletion. */
+const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const read = (rel: string) => stripTsComments(readFileSync(path.join(ROOT, rel), 'utf8'));
 
 /** `useLabels` is DEFINED here, so its own file is not a consumer of it. The one exemption, named. */
 const LABELS_MODULE = 'lib/labels.ts';
@@ -117,9 +133,18 @@ function allReachableFrom(entry: string): string[] {
   return [...seen].sort();
 }
 
-const LANDING = appPath('app/page.tsx');
-const SUBTREE = reachableFrom(LANDING);
-const ALL_REACHABLE = allReachableFrom(LANDING);
+/* BOTH LANDING ROUTES, not just the one. `app/(main)/page.tsx` serves `/` and
+ * `app/(intl)/[locale]/page.tsx` serves `/ko` and `/zh` - and the two files DIFFER (measured: their
+ * metadata and dictionary handling are not the same). They both render `LandingContent`, so the
+ * component subtree is identical TODAY and starting from one of them happened to cover the other.
+ *
+ * **That is an accident, not coverage**, and Dev caught it. Walking both makes it coverage: the
+ * moment the intl route renders something of its own, this cell sees it. */
+const LANDING_ROUTES = [appPath('app/page.tsx'), 'app/(intl)/[locale]/page.tsx']
+  .filter((p) => existsSync(path.join(ROOT, p)));
+const LANDING = LANDING_ROUTES.join(' + ');
+const SUBTREE = [...new Set(LANDING_ROUTES.flatMap((r) => reachableFrom(r)))].sort();
+const ALL_REACHABLE = [...new Set(LANDING_ROUTES.flatMap((r) => allReachableFrom(r)))].sort();
 
 test('L1. CONTROLS: the walk reaches landing\'s real subtree, and the detector it feeds can fire', () => {
   /* Without these, every assertion below is satisfied by a walk that found nothing. A silent
