@@ -21,9 +21,9 @@ export const SECRETS: Secret[] = [
   { n: 13, name: 'Funding rate divergence', cat: 'hunt', text: 'Extremely high positive funding (longs paying) but price keeps pumping = classic sign a short squeeze is being manufactured. They are using the longs own greed against them.' },
   { n: 14, name: 'Exhaustion spike signal', cat: 'hunt', text: 'When funding goes parabolic while price is raiding a zone, that is the top of the squeeze. The moment funding hits extreme levels during the raid - look for your exit immediately.' },
   { n: 15, name: 'The 90-minute rule', cat: 'time', text: 'After any major raid: first 30 minutes = chaos and fake moves. Next 60 minutes = real directional move emerges. Most people trade the first 30 and get wrecked every time.' },
-  // Times stated in UTC so they read the same for every trader. The PHT ranges
+  // Times stated in UTC so they read the same for every trader. The operator-timezone ranges
   // these used to carry were converted 1:1 - the only correction is n16's
-  // parenthetical, which said "Monday 00:30-02:30 UTC" while the PHT range in
+  // parenthetical, which said "Monday 00:30-02:30 UTC" while the other range in
   // the same sentence (and isGodTier() in lib/session.ts) both mean
   // Sunday 15:00-19:00 UTC. Playbook was teaching a window the signal engine
   // doesn't use.

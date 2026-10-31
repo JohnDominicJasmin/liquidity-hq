@@ -158,7 +158,7 @@ function fmtDate(s: string) {
   const d = new Date(s);
   // undefined locale = follow the viewer's own formatting conventions. The
   // instant was always right here (no timeZone override), but 'en-PH' forced
-  // Philippine date/time formatting on every user.
+  // one fixed locale's date/time formatting on every user.
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
     + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }

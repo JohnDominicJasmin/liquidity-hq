@@ -1,0 +1,425 @@
+/* THE MARKET SNAPSHOT DATA LAYER, LIFTED OUT OF THE ROUTE.
+ *
+ * #1631 item 5, step 1, same reasoning as `lib/marketRsi.ts`: `app/api/grok/route.ts` reasons about
+ * market data the CLIENT sent it, so the numbers behind an AI answer are not ours. A server-side
+ * gather fixes that, and a gather cannot call a route handler - a handler is reachable only over
+ * HTTP, which from inside another handler costs an extra hop, needs the caller's auth, and gets no
+ * benefit from response `Cache-Control` headers.
+ *
+ * MODELLED ON `lib/bybitFanout.ts`, which already did this for the agg-trades and account-ratio
+ * feeds. That file is the precedent rather than the work.
+ *
+ * NOTHING HERE IS REQUEST-DEPENDENT, which is why the split is cleaner than the RSI one: this
+ * response is visitor-independent (its own `Cache-Control` says so), so there is no entitlement
+ * decision to leave behind in the handler. The rate limit, the status codes and the headers stay
+ * there; everything else moved.
+ *
+ * NO BEHAVIOUR CHANGE IS INTENDED. The three cache keys and TTLs, the allSettled, the
+ * empty-counts-as-failed rule and the `partial` / `viaFallback` shapes are the handler's code,
+ * moved rather than rewritten.
+ */
+
+/**
+ * Server-side market snapshot: 24h ticker, 15m kline metrics, long/short ratios.
+ *
+ * GET /api/market/snapshot
+ *   → { ticker: {...}, klines: {...}, lsr: {...}, ts }
+ *
+ * WHY THIS EXISTS
+ *
+ * Measured on a real /dashboard load, this is what the browser used to ask
+ * Binance for directly, per visitor:
+ *
+ *   aggTrades                     45 req   180 weight
+ *   ticker/24hr (45 symbols)       2 req   160 weight
+ *   fapi/v1/klines                45 req    90 weight
+ *   globalLongShortAccountRatio   46 req    46 weight
+ *   topLongShortPositionRatio     45 req    45 weight
+ *   everything else               10 req    33 weight
+ *   ------------------------------------------------
+ *   TOTAL                        193 req   554 weight
+ *
+ * This route takes the three biggest that are safe to move — ticker, klines and
+ * the two ratio endpoints — which is 138 of those requests and 341 of that
+ * weight, and serves them to every visitor from one cached result.
+ *
+ * The point is not that any single visitor was close to Binance's limit. It is
+ * that the cost was per-visitor and therefore unbounded: two tabs doubled it,
+ * ten visitors multiplied it by ten, and Binance rate-limits by IP, which on
+ * mobile CGNAT or an office NAT is shared. Once an IP is limited Binance
+ * returns 418 to everything from it, including the chart's own calls, so the
+ * app appears completely broken with nothing on screen explaining why. Doing it
+ * here makes the upstream cost fixed instead.
+ *
+ * WHAT IS DELIBERATELY LEFT IN THE BROWSER
+ *
+ * `aggTrades` (45 requests, 180 weight — the single largest remaining item)
+ * stays client-side on purpose. It does two jobs: a pure CVD sum, which would
+ * move happily, and whale detection, which dispatches a `whale-trade` DOM event
+ * for each new large trade and dedupes against a per-client `lastAggId`. Moving
+ * it would need a server→client push channel and a shared notion of "already
+ * seen", i.e. a different design rather than a relocation. It is a known
+ * remainder, not an oversight.
+ */
+
+import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
+import { cached } from './apiCache.ts';
+import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
+import { parseRatioPair } from './ratioPair.ts';
+import { reportHealth, healthError } from './apiHealth.ts';
+import { computeKlineMetrics, type KlineMetrics } from './klineMetrics.ts';
+import { exchangeFetch } from './exchangeGuard.ts';
+
+
+/* Cadences the client used, kept so nothing gets fresher or staler than it was:
+   fetchVolume ran every 3 minutes, fetchLSR every 5. */
+const KLINES_TTL = 3 * 60_000;
+const TICKER_TTL = 3 * 60_000;
+const LSR_TTL    = 5 * 60_000;
+
+/* 45 symbols x 2 ratio endpoints is 90 requests. Unbounded parallelism is what
+   this route exists to stop doing, and it is also more sockets than the Render
+   instance should hold open at once. */
+const CONCURRENCY = 12;
+
+/* Same mirror-walk as /api/funding and /api/market/rsi: individual Binance
+   edges return 451/503 by region while the others are healthy. Resolved once
+   per cache fill rather than per request. */
+const SPOT_HOSTS    = ['https://api.binance.com', 'https://api1.binance.com', 'https://api2.binance.com'];
+const FUTURES_HOSTS = ['https://fapi.binance.com', 'https://fapi1.binance.com', 'https://fapi2.binance.com'];
+
+const SYMS = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
+
+interface TickerEntry { price: number; change: number; high: number; low: number; vol24: number }
+interface LsrEntry {
+  bnLongRatio?: number; bnShortRatio?: number;
+  bnWhaleLongRatio?: number; bnWhaleShortRatio?: number;
+}
+
+/** 418 = IP banned, 429 = rate limited. Neither is about the symbol asked for.
+ *
+ *  This was a local `class BinanceBackoff extends Error {}` until #665. The
+ *  identical class existed in rsi/route.ts, and having it twice is what kept
+ *  the pool below from being shareable - both copies stopped on
+ *  `instanceof BinanceBackoff`, so neither could serve a non-Binance caller.
+ *
+ *  Deliberately NOT lib/pool.ts's `isRateLimitStatus`, which also treats 403
+ *  as fatal for Bybit's sake. Binance does not use 403 for rate limiting, so
+ *  adopting it here would turn what is currently an ordinary per-symbol miss
+ *  into a whole-batch abort on this route. Same pool, same error type, the
+ *  caller's own stop condition - which is the point of the predicate. */
+const isBinanceBackoff = (e: unknown): boolean =>
+  e instanceof HttpStatusError && (e.status === 418 || e.status === 429);
+
+async function get(url: string, timeoutMs = 8000): Promise<unknown | null> {
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await exchangeFetch(url, {
+      cache: 'no-store', signal: ac.signal, headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (res.status === 418 || res.status === 429) throw new HttpStatusError(res.status, `Binance ${res.status}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    if (e instanceof HttpStatusError) throw e;
+    return null;
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
+/* Cheap probe so a dead edge is found once, not 90 times.
+ *
+ * Swallows the 418/429 HttpStatusError deliberately. A 418 on the ping means
+ * this IP is banned, which is a reason to report "no reachable host" and return
+ * an empty section - not to throw and take the other two sections down with it.
+ * Letting
+ * it propagate is what made the ticker come back empty *and* rejected while
+ * klines and ratios were fine. */
+async function resolveHost(hosts: readonly string[], pingPath: string): Promise<string | null> {
+  for (const h of hosts) {
+    try {
+      const ok = await get(`${h}${pingPath}`, 5000);
+      if (ok !== null) return h;
+    } catch { /* banned or rate-limited on this edge - try the next */ }
+  }
+  return null;
+}
+
+/* #1236 (#1077 split): why `lsr` (below) gets no Bybit fallback while
+ * `ticker` and `klines` do. Bybit's account-ratio endpoints report BYBIT's
+ * own traders' long/short positioning - a real, different population from
+ * Binance's. Price and candles are the same fact regardless of which
+ * exchange answers (both track the same underlying asset, which is the
+ * entire premise #1240/#1233/#1234/#1235 rely on to fail over at all); a
+ * long/short ratio is not - it IS the fact "what Binance's traders are
+ * doing", and substituting Bybit's would silently relabel a different
+ * exchange's retail positioning as Binance's own. That is fabrication
+ * wearing resilience's clothes, not the #1077 pattern. `lsr` degrades to
+ * `{}` on a Binance outage today and keeps doing exactly that here - absent
+ * beats a number that answers a different question than the one asked. */
+
+/* Bybit's public ticker gives absolute price - REAL scaling, unlike RSI
+ * (#1235), where a price factor is mathematically inert. `price24hPcnt` is a
+ * fraction (0.0022 = 0.22%), confirmed live (curl, not memory) against
+ * Binance's `priceChangePercent`, which is already a percentage number -
+ * hence the `* 100`. `turnover24h` is Bybit's quote-currency (USD) 24h
+ * volume, matching Binance's `quoteVolume` semantically - `volume24h` would
+ * be base-coin units instead, the wrong field for this route's `vol24`. */
+function bybitTickerToEntry(
+  t: { lastPrice: string; price24hPcnt: string; highPrice24h: string; lowPrice24h: string; turnover24h: string },
+  priceFactor: number,
+): TickerEntry {
+  return {
+    price:  parseFloat(t.lastPrice)     * priceFactor,
+    change: parseFloat(t.price24hPcnt)  * 100,
+    high:   parseFloat(t.highPrice24h)  * priceFactor,
+    low:    parseFloat(t.lowPrice24h)   * priceFactor,
+    vol24:  parseFloat(t.turnover24h),
+  };
+}
+
+/* Bybit's kline row is `[start, open, high, low, close, volume, turnover]` -
+ * 7 fields against Binance's 12, newest-first against Binance's oldest-first
+ * (same asymmetry app/api/market/klines/route.ts's own comment documents,
+ * confirmed there live). Reshaped into a Binance-shaped 12-field row so the
+ * EXISTING computeKlineMetrics can consume it unmodified - only the fields
+ * that function actually reads are populated:
+ *   [1-4] OHLC, priceFactor-scaled (real price, unlike RSI)
+ *   [5]   base volume, unconverted (a count of tokens, not a price)
+ *   [7]   quote volume (turnover), unconverted - already USD-denominated
+ *         regardless of what one "contract" means on either exchange
+ *   [9]   taker buy base volume - Bybit's public kline has no such
+ *         breakdown, left as '' rather than fabricated. lib/klineMetrics.ts
+ *         treats a missing k[9] as "unknowable", not zero. */
+function bybitKlineToBinanceShape(body: unknown, priceFactor: number): string[][] | null {
+  const list = (body as { result?: { list?: string[][] } })?.result?.list;
+  if (!Array.isArray(list)) return null;
+  const oldestFirst = [...list].reverse();
+  return oldestFirst.map(row => {
+    const [start, open, high, low, close, volume, turnover] = row;
+    return [
+      start,
+      String(Number(open)  * priceFactor),
+      String(Number(high)  * priceFactor),
+      String(Number(low)   * priceFactor),
+      String(Number(close) * priceFactor),
+      volume, '', turnover, '', '',
+    ];
+  });
+}
+
+async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFallback: string[] }> {
+  const out: Record<string, TickerEntry> = {};
+  const byCoin = Object.fromEntries(SYMS.map(([c, s]) => [s, c]));
+
+  const absorb = (arr: unknown) => {
+    if (!Array.isArray(arr)) return;
+    for (const d of arr as Record<string, string>[]) {
+      const coin = byCoin[d.symbol];
+      if (!coin) continue;
+      out[coin] = {
+        price:  parseFloat(d.lastPrice || '0'),
+        change: parseFloat(d.priceChangePercent || '0'),
+        high:   parseFloat(d.highPrice || '0'),
+        low:    parseFloat(d.lowPrice || '0'),
+        vol24:  parseFloat(d.quoteVolume || '0'),
+      };
+    }
+  };
+
+  /* Spot first: one batched call for all 45 symbols, exactly as the client
+     did. Weight 80 either way - the saving is that it happens once per TTL
+     rather than once per visitor. */
+  const spot = await resolveHost(SPOT_HOSTS, '/api/v3/ping');
+  if (spot) {
+    const batch = encodeURIComponent(JSON.stringify(SYMS.map(([, s]) => s)));
+    absorb(await get(`${spot}/api/v3/ticker/24hr?symbols=${batch}`));
+  }
+
+  /* Futures fallback. Spot and futures are separate rate-limit buckets, and in
+     practice they fail independently - this was found with spot returning 418
+     for a banned IP while futures answered normally on the same machine and
+     the same second. Without this, one banned bucket meant no 24h volume
+     anywhere in the app.
+     The futures endpoint takes no `symbols` array, so this asks for everything
+     (weight 40) and filters. Perp volume is not identical to spot volume for
+     the same pair, so this is a degraded answer rather than an equal one -
+     which is why it is a fallback and not the default. */
+  const source = Object.keys(out).length > 0 ? 'spot' : 'futures';
+  if (Object.keys(out).length === 0) {
+    const fut = await resolveHost(FUTURES_HOSTS, '/fapi/v1/ping');
+    if (fut) absorb(await get(`${fut}/fapi/v1/ticker/24hr`));
+  }
+
+  /* #1236: whatever coin still has no entry - both Binance attempts missed
+     it entirely, or (rare) a symbol mapping gap - gets one shot at Bybit's
+     OWN bulk ticker call: `category=linear` with no `symbol` returns every
+     linear ticker in ONE request, the same endpoint app/api/funding/route.ts's
+     getBybit() already proves, so this costs one extra call regardless of
+     how many coins are missing rather than one per coin. */
+  const viaFallback: string[] = [];
+  const missingCoins = SYMS.map(([c]) => c).filter(c => !out[c]);
+  if (missingCoins.length > 0) {
+    try {
+      const bbBody = await get('https://api.bybit.com/v5/market/tickers?category=linear') as
+        { result?: { list?: Array<{ symbol: string; lastPrice: string; price24hPcnt: string; highPrice24h: string; lowPrice24h: string; turnover24h: string }> } } | null;
+      const bbBySymbol = Object.fromEntries((bbBody?.result?.list ?? []).map(t => [t.symbol, t]));
+      for (const coin of missingCoins) {
+        const bbSym = BYBIT_SYMS[coin];
+        const t = bbSym ? bbBySymbol[bbSym] : undefined;
+        if (!t) continue; // fet - no Bybit linear perp (lib/coins.ts) - or Bybit is down too
+        out[coin] = bybitTickerToEntry(t, bybitPriceFactor(coin));
+        viaFallback.push(coin);
+      }
+    } catch { /* Bybit also unreachable - those coins simply stay missing, same as today */ }
+  }
+
+  reportHealth('binance:ticker', 'market', Object.keys(out).length > 0,
+    `${Object.keys(out).length} coins via ${source}`
+      + (viaFallback.length ? `, ${viaFallback.length} via bybit-fallback` : ''));
+  return { out, viaFallback };
+}
+
+async function buildKlines(): Promise<{ out: Record<string, KlineMetrics>; viaFallback: string[] }> {
+  /* Futures klines, with spot as fallback - the client preferred fapi because
+     its taker buy/sell split is the one perp traders act on. */
+  const fut  = await resolveHost(FUTURES_HOSTS, '/fapi/v1/ping');
+  const spot = fut ? null : await resolveHost(SPOT_HOSTS, '/api/v3/ping');
+  const out: Record<string, KlineMetrics> = {};
+  /* No early return on "no reachable host" any more (#1236) - unlike before,
+     that no longer means nothing can be done: every symbol just starts the
+     fallback pass below already missing, and Bybit gets a real shot at all
+     of them rather than the route giving up before trying. */
+  const symsToTry = (!fut && !spot) ? [] : SYMS;
+
+  const banned = symsToTry.length ? await runPool(symsToTry, CONCURRENCY, async ([coin, sym]) => {
+    const url = fut
+      // 121: the RSI reads the 120 closed ones (#1626 C); every other metric still reads the newest 100 (lib/klineMetrics METRIC_WINDOW).
+      ? `${fut}/fapi/v1/klines?symbol=${sym}&interval=15m&limit=121`
+      : `${spot}/api/v3/klines?symbol=${sym}&interval=15m&limit=121`;
+    const raw = await get(url);
+    if (!Array.isArray(raw)) return;
+    const m = computeKlineMetrics(raw as string[][]);
+    if (m) out[coin] = m;
+  }, isBinanceBackoff) : false;
+
+  /* #1236: same "missing is missing" retry as #1233/#1234/#1235's fallback
+     pools - runs whether the whole host was unreachable, the primary pool
+     was banned mid-run, or one symbol individually missed. Bybit's own
+     stop condition (isRateLimitStatus, which treats its 403 as fatal) - NOT
+     isBinanceBackoff, the same distinction #1235 draws for the same reason. */
+  const viaFallback: string[] = [];
+  const missing = SYMS.filter(([coin]) => !out[coin]);
+  if (missing.length > 0) {
+    await runPool(missing, CONCURRENCY, async ([coin, sym]) => {
+      const bbSym = BYBIT_SYMS[coin];
+      if (!bbSym) return; // fet - no Bybit linear perp (lib/coins.ts)
+      const body = await get(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bbSym}&interval=15&limit=121`);
+      const converted = bybitKlineToBinanceShape(body, bybitPriceFactor(coin));
+      if (!converted) return;
+      const m = computeKlineMetrics(converted);
+      if (m) { out[coin] = m; viaFallback.push(coin); }
+    }, isRateLimitStatus);
+  }
+
+  reportHealth('binance:klines', 'market', Object.keys(out).length > 0 && !banned,
+    (banned ? `418/429 after ${Object.keys(out).length}/${SYMS.length}`
+            : `${Object.keys(out).length}/${SYMS.length} via ${fut ? 'futures' : (spot ? 'spot' : 'none')}`)
+      + (viaFallback.length ? `, ${viaFallback.length} via bybit-fallback` : ''));
+  return { out, viaFallback };
+}
+
+/* #1236: deliberately no Bybit fallback here - see the comment above
+   buildTicker for why. Degrades to {} on a Binance outage, same as always. */
+async function buildLsr(): Promise<Record<string, LsrEntry>> {
+  const host = await resolveHost(FUTURES_HOSTS, '/fapi/v1/ping');
+  const out: Record<string, LsrEntry> = {};
+  if (!host) { reportHealth('binance:lsr', 'market', false, 'no reachable futures host'); return out; }
+
+  const banned = await runPool(SYMS, CONCURRENCY, async ([coin, sym]) => {
+    const [g, w] = await Promise.all([
+      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`),
+      get(`${host}/futures/data/topLongShortPositionRatio?symbol=${sym}&period=5m&limit=1`),
+    ]);
+    const gi = Array.isArray(g) ? (g[0] as Record<string, string>) : null;
+    const wi = Array.isArray(w) ? (w[0] as Record<string, string>) : null;
+    const e: LsrEntry = {};
+    /* #1651: both lines were `parseFloat(gi.longAccount || '0.5')`. A row Binance returned without its ratio became a measured-looking
+       50/50 in the snapshot every client reads. A pair that does not parse, sit in [0,1] and sum to 1 is left OFF the entry entirely,
+       which the consumers already handle - they all test `!= null` before using it. */
+    const g2 = gi && parseRatioPair(gi.longAccount, gi.shortAccount);
+    const w2 = wi && parseRatioPair(wi.longAccount, wi.shortAccount);
+    if (g2) { e.bnLongRatio = g2.longRatio; e.bnShortRatio = g2.shortRatio; }
+    if (w2) { e.bnWhaleLongRatio = w2.longRatio; e.bnWhaleShortRatio = w2.shortRatio; }
+    if (Object.keys(e).length) out[coin] = e;
+  }, isBinanceBackoff);
+
+  reportHealth('binance:lsr', 'market', Object.keys(out).length > 0 && !banned,
+    banned ? `418/429 after ${Object.keys(out).length}/${SYMS.length}` : `${Object.keys(out).length}/${SYMS.length}`);
+  return out;
+}
+
+
+export interface MarketSnapshot {
+  ticker: Record<string, TickerEntry>;
+  klines: Record<string, KlineMetrics>;
+  lsr: Record<string, LsrEntry>;
+  /** Sections that came back EMPTY, named rather than signalled as a boolean - see below. */
+  partial: string[];
+  /** Per-section lists of coins served by Bybit rather than Binance. */
+  viaFallback: Record<string, string[]>;
+}
+
+/**
+ * All three sections, each on its own cache and cadence, merged.
+ *
+ * Returns a result rather than throwing so the route keeps owning its status codes, and so the
+ * #1631 gather can decide for itself what an unavailable section means in a prompt.
+ */
+export async function marketSnapshotData(): Promise<
+  { ok: true; data: MarketSnapshot } | { ok: false; reason: unknown }
+> {
+  /* Three independent caches with their original cadences, merged into one response. allSettled,
+     not all: a failing kline fill must not take the ticker down with it - the client merges
+     whatever arrives and leaves the rest at its previous value, which is how the per-coin version
+     behaved when one symbol failed. */
+  const [t, k, l] = await Promise.allSettled([
+    cached('mkt:ticker', TICKER_TTL, buildTicker),
+    cached('mkt:klines', KLINES_TTL, buildKlines),
+    cached('mkt:lsr',    LSR_TTL,    buildLsr),
+  ]);
+
+  if (t.status === 'rejected' && k.status === 'rejected' && l.status === 'rejected') {
+    reportHealth('binance:snapshot', 'market', false, healthError(t.reason));
+    return { ok: false, reason: t.reason };
+  }
+
+  const ticker = t.status === 'fulfilled' ? t.value.out : {};
+  const klines = k.status === 'fulfilled' ? k.value.out : {};
+  const lsr    = l.status === 'fulfilled' ? l.value    : {};
+
+  /* #1236: which coins came from Bybit rather than Binance, per section - additive, omitted when
+     empty so an all-Binance response's shape is unchanged. `lsr` never contributes - see
+     buildLsr's own comment on why it has no fallback. */
+  const viaFallback: Record<string, string[]> = {};
+  if (t.status === 'fulfilled' && t.value.viaFallback.length) viaFallback.ticker = t.value.viaFallback;
+  if (k.status === 'fulfilled' && k.value.viaFallback.length) viaFallback.klines = k.value.viaFallback;
+
+  /* NAME THE PARTS THAT CAME BACK EMPTY (#228), and EMPTY COUNTS AS FAILED rather than just
+     rejected: `buildKlines` returns `{}` instead of throwing when no host is reachable, so a
+     rejection check alone would have missed the incident this was written for - klines empty on qa
+     and staging for hours while prod served 45, because Binance returned 418 (IP ban) for that one
+     endpoint while ticker and lsr on the same host kept working, and nothing in the response said
+     so. Specific, not boolean: `['klines']` tells a caller what to hide; `true` leaves it guessing.
+     Deliberately NOT cachedStale() - an all-time high six hours old is right to several decimals,
+     but candles six hours old are a chart of the wrong six hours, drawn confidently. */
+  const partial = [
+    ['ticker', ticker] as const,
+    ['klines', klines] as const,
+    ['lsr',    lsr]    as const,
+  ].filter(([, v]) => Object.keys(v).length === 0).map(([name]) => name);
+
+  return { ok: true, data: { ticker, klines, lsr, partial, viaFallback } };
+}

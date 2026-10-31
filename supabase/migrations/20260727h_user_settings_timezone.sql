@@ -1,3 +1,11 @@
+-- SUPERSEDED IN PART, 2026-10-31: some values below name the operator's country or timezone.
+-- The owner ordered those removed ("don't mention where is the server and where country I live"),
+-- and the rows were deleted by hand - see 20261031b. THIS FILE IS DELIBERATELY NOT EDITED: it is
+-- the record of what was applied, and changing it would make it claim it inserted text it never
+-- did. **IF YOU REPLAY THIS FILE - fresh project, restore, new environment - RUN
+-- 20261031c_sweep_operator_location_rows.sql AFTERWARDS**, or the country goes back in, in five
+-- locales, and nothing watches for it.
+
 -- Per-user IANA timezone, so Telegram alerts can be stamped in each
 -- subscriber's own clock instead of one global timezone.
 --
