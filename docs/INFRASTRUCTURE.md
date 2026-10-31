@@ -1321,3 +1321,62 @@ thing standing in for the independence the check does not have.**
 its own maintenance note warns against prose that indexes that table by position. This is a
 different failure with the same consequence - **a confident wrong answer that looks like data** -
 so it gets its own heading and its own table, and nothing above it needs re-reading.
+
+### 9i. A STATISTIC MAXIMISED OVER MANY CANDIDATES, AND A NUMBER AN LLM REPORTS
+
+> **Two instruments that return a confident wrong answer for structural reasons rather than by
+> accident. Both cost real paid calls to learn, on #1818.**
+
+#### A goodness-of-fit chosen as best-of-N is ~1.0 by construction
+
+`lib/chartStructures.ts` already warns that a 2-point line is exact and says nothing. **The same
+defect survives at 3 points once you search for the best triple:** fitting every 3-pivot
+combination in a 200-candle window - about a thousand of them, both sides - and keeping the best
+returned **r2 = 0.99998**. That is the multiple-comparisons problem wearing a goodness-of-fit
+badge. It carried no information at all, and a fabrication test built on it would have produced a
+complete, confident, meaningless result.
+
+**Raw touch count failed identically.** Across 78 windows and 26 coin/timeframe pairs the best
+line's touch count ran **36 to 109 out of 200, median 52** - every window contained a line a
+quarter of its candles touched. Two classifier versions therefore found **zero** structureless
+windows in real market data.
+
+**THE FIX IS A NULL MODEL, NOT A BETTER THRESHOLD.** Score the real window against surrogates
+built from its own volatility - shuffle the bar-to-bar returns, keep each bar's wicks and body -
+and report how many surrogate standard deviations the real result sits above the surrogate mean.
+That spread windows from **-1.01 to 6.35** where both earlier metrics saw no variation.
+
+**And do not quote the grouping as evidence for the grouping.** "Group A is z>=3 and group B is
+z<=0.5, and they do not overlap" is a tautology, and it is the sentence a reader will lift. The
+non-circular evidence is the **spread**, and that a naive metric **disagrees** - the three noise
+windows had 70, 83 and 91 touches against their own nulls of 82.9, 87.3 and 87.4.
+
+#### Any absolute level an LLM reports is promptable; a ranking is not
+
+Asking for structures with one added sentence - *"an empty list is a valid and correct answer"* -
+produced **0 structures on a structured window AND 0 on a noise window**. Removing that sentence
+produced **3 on both**. One neutral-looking line decided the entire output; the chart content did
+not.
+
+Scoring the reported **confidence level** has the same defect one layer down. Measured: a stern
+preamble and a loose one moved mean confidence **0.68 to 0.76** while the separation statistic
+stayed at chance.
+
+**So pre-register a RANK statistic.** A prompt that shifts confidence globally moves both groups
+together and leaves the ranking untouched - prompt-robust by construction. Fix the output length
+too (always N candidates), so list length carries no signal and a permission sentence has nothing
+to act on.
+
+**How to apply:**
+
+1. Before trusting any "best" fit, ask **how many candidates were searched**. More than a handful
+   means the statistic needs a null, not a cutoff.
+2. **Test prompt-robustness before committing spend** - two preambles over one group is a few
+   calls and it is what tells a real effect from a wording effect.
+3. **Retire a protocol for non-discrimination, in writing, while no outcome exists to favour.** On
+   #1818 the first rule was retired when the second engine had produced zero results, and the
+   0/0-and-3/3 table is recorded as the reason. A rule retired after the numbers arrive is
+   indistinguishable from excusing whichever side lost.
+4. **Blind the human check too.** A chart shown with our verdict on it measures agreement with a
+   label, not judgement - which is why `scripts/bakeoff/render-blind.mjs` strips the group letter,
+   the z, the symbol and even the price axis.
