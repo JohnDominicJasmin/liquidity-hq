@@ -377,6 +377,23 @@ seat that will go around PM next time. **Acknowledge, decide, and say what is ne
 
 ## Keeping this file true
 
+**RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
+
+The ten commits before that date touching this file were **direct commits to `dev`, single-parent,
+no pull request** - `4ac439f2`, `5156c018`, `b3fcb085`, `ada38392`, `f061ab20`, `ffc8a337`,
+`b679b93c`, `3d142279`, `d1f07802`, `cc3d61a0`. **The file every seat is told to read first had
+never had an independent reader.**
+
+**The first one that got one failed review.** Section 13 as first written said *"if PM or QA could
+act on it, they receive it - not him"*, which read literally has a seat redirect the owner for
+status he has just asked for. QA caught it; the clause that fixes it is in section 13 now. **Ten
+changes went in with nobody positioned to find the equivalent.**
+
+**So: a change to this file opens a PR and another seat reads it before it merges**, by the same
+principle as everything else - the session that wrote it does not merge it. **It is slower and the
+first review already paid for the cost.**
+
+
 **PM/DevOps owns it.** When the owner gives a new instruction, it goes in here **in the same session he gives it**, in his words, with the date. When an instruction is superseded, the old text stays with a note saying what replaced it and when — a rules file that hides its own history teaches nothing.
 
 **If he has to repeat himself, this file failed.**
