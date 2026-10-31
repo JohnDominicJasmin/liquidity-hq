@@ -15,7 +15,8 @@
 # runs nothing in CI. What covers the code is the PULL REQUEST check before the
 # merge, plus one build-only `workflow_dispatch` run on the merged head before
 # each promotion. Committing straight to dev and pushing is therefore gated by
-# this hook alone, which is two thirds of a gate.
+# this hook alone - which is ONE of the four gates, the typecheck, and nothing
+# else. No lint, no unit tests, no build. See line 3.
 #
 # WHY IT MOVED. `node --test` was measured at 206 seconds and about a gigabyte,
 # on the owner's laptop, for every push every session made. He asked four times
@@ -73,7 +74,8 @@
 #     gh api repos/:owner/:repo/actions/workflows --jq '.workflows[] | .state + "  " + .name'
 #
 # and it should print `active  CI`. If it does not, the unit tests are running
-# NOWHERE - not here, not there - and this hook is two thirds of a gate. Put
+# NOWHERE - not here, not there - and this hook was two thirds of a gate. It is
+# now one of four: `eslint .` left on 2026-10-30, the day after. Put
 # `npm test` back below until CI is fixed, and say so where the team reads.
 #
 # THE SECOND THING THAT WOULD MAKE IT A BAD TRADE IS `qa` DIVERGING. CI watches
