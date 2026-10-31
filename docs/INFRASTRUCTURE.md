@@ -1322,11 +1322,86 @@ its own maintenance note warns against prose that indexes that table by position
 different failure with the same consequence - **a confident wrong answer that looks like data** -
 so it gets its own heading and its own table, and nothing above it needs re-reading.
 
-### 9j. A ZERO IS A MEASUREMENT OF THE INSTRUMENT UNTIL A CONTROL SAYS OTHERWISE
+### 9i. A STATISTIC MAXIMISED OVER MANY CANDIDATES, AND A NUMBER AN LLM REPORTS
 
-**Numbered 9j although this file ends at 9h: 9i is on PR #1875 and has not merged yet.** The
-gap is deliberate rather than a mistake - taking 9i here would collide with that PR and produce two
-sections with one number. If #1875 is ever abandoned, renumber this one rather than leaving a hole.
+> **Two instruments that return a confident wrong answer for structural reasons rather than by
+> accident. Both cost real paid calls to learn, on #1818.**
+
+#### A goodness-of-fit chosen as best-of-N is ~1.0 by construction
+
+`lib/chartStructures.ts` already warns that a 2-point line is exact and says nothing. **The same
+defect survives at 3 points once you search for the best triple:** fitting every 3-pivot
+combination in a 200-candle window - about a thousand of them, both sides - and keeping the best
+returned **r2 = 0.99998**. That is the multiple-comparisons problem wearing a goodness-of-fit
+badge. It carried no information at all, and a fabrication test built on it would have produced a
+complete, confident, meaningless result.
+
+**Raw touch count failed identically.** Across 78 windows and 26 coin/timeframe pairs the best
+line's touch count ran **36 to 109 out of 200, median 52** - every window contained a line a
+quarter of its candles touched. Two classifier versions therefore found **zero** structureless
+windows in real market data.
+
+**THE FIX IS A NULL MODEL, NOT A BETTER THRESHOLD.** Score the real window against surrogates
+built from its own volatility - shuffle the bar-to-bar returns, keep each bar's wicks and body -
+and report how many surrogate standard deviations the real result sits above the surrogate mean.
+That spread windows from **-1.01 to 6.35** where both earlier metrics saw no variation.
+
+**And do not quote the grouping as evidence for the grouping.** "Group A is z>=3 and group B is
+z<=0.5, and they do not overlap" is a tautology, and it is the sentence a reader will lift. The
+non-circular evidence is the **spread**, and that a naive metric **disagrees** - the three noise
+windows had 70, 83 and 91 touches against their own nulls of 82.9, 87.3 and 87.4.
+
+#### Any absolute level an LLM reports is promptable; a ranking is not
+
+Asking for structures with one added sentence - *"an empty list is a valid and correct answer"* -
+produced **0 structures on a structured window AND 0 on a noise window**. Removing that sentence
+produced **3 on both**. One neutral-looking line decided the entire output; the chart content did
+not.
+
+Scoring the reported **confidence level** has the same defect one layer down. Measured: a stern
+preamble and a loose one moved mean confidence **0.68 to 0.76** while the separation statistic
+stayed at chance.
+
+**So pre-register a RANK statistic.** A prompt that shifts confidence globally moves both groups
+together and leaves the ranking untouched - prompt-robust by construction. Fix the output length
+too (always N candidates), so list length carries no signal and a permission sentence has nothing
+to act on.
+
+**How to apply:**
+
+1. Before trusting any "best" fit, ask **how many candidates were searched**. More than a handful
+   means the statistic needs a null, not a cutoff.
+2. **Test prompt-robustness before committing spend** - two preambles over one group is a few
+   calls and it is what tells a real effect from a wording effect.
+3. **Retire a protocol for non-discrimination, in writing, while no outcome exists to favour.** On
+   #1818 the first rule was retired when the second engine had produced zero results, and the
+   0/0-and-3/3 table is recorded as the reason. A rule retired after the numbers arrive is
+   indistinguishable from excusing whichever side lost.
+4. **Blind the human check too.** A chart shown with our verdict on it measures agreement with a
+   label, not judgement - which is why `scripts/bakeoff/render-blind.mjs` strips the group letter,
+   the z, the symbol and even the price axis.
+5. **ASSERT THE BALANCE OF EVERY NUISANCE VARIABLE. Do not eyeball it.** This is the most
+   transferable lesson of the exercise and it cost two rounds.
+
+   Round 1's group A was **entirely 4-hour**. So the timeframe label alone predicted the group, and
+   the whole comparison measured nothing about structure: **hide the label and a trader cannot
+   answer; show it and you have handed over the key.** The owner found it in one sentence, having
+   already raised it in the original proposal - which is the part worth recording, because it was
+   knowable before any spend.
+
+   **Fixing it created two more confounds, and that is the real warning.** Balancing timeframes
+   let 15m fill every group before the daily windows were reached, so no group contained a daily
+   chart at all; the next attempt put 1h in exactly one group. **Both were caught only by
+   assertions added after the first confound** - neither was visible in a summary table, and
+   neither would have been noticed by looking at the fixtures.
+
+   So: for every variable that is not the thing under test - timeframe, symbol, **position in the
+   presentation order**, anything the subject can see - write an assertion that each group holds
+   the same mix, and fail the run rather than the analysis. Round 2 balanced position as well as
+   timeframe, which is the version worth copying. **A confound is not a flaw in the result; it
+   means there is no result.**
+
+### 9j. A ZERO IS A MEASUREMENT OF THE INSTRUMENT UNTIL A CONTROL SAYS OTHERWISE
 
 Two findings from 2026-10-31, on #1818's Draw Structure work. They look unrelated - one is about
 Postgres, one about `git grep` - and they are the same failure: **a check reported an absence, the
