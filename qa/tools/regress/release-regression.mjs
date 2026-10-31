@@ -144,11 +144,42 @@ const APP_ORIGIN = new URL(BASE).origin;
  * ONE REAL LIMIT REMAINS: `ctx.route` does not intercept WebSockets. A page that opens
  * `wss://fstream.binance.com` is not blocked by this and never was - it does not apply to the
  * prose pages here, but it would to /arena or /dashboard. */
+/* THE SUPABASE ORIGIN IS NOT A THIRD PARTY HERE, AND BLOCKING IT BROKE THE MEASUREMENT IT WAS
+ * MEANT TO PROTECT.
+ *
+ * Found 2026-10-31, after three other fixes to this same section. Every SIGNED IN `/upgrade` leg
+ * reported the reveal control present but permanently DISABLED. The cause was this function:
+ *
+ *   AuthProvider.tsx:522 reads `sb.from(T.user_subscriptions)` - PostgREST, FROM THE BROWSER, on
+ *   the Supabase host. The fence aborted it. `entitlementsLoading` therefore never settled, so
+ *   `purchaseReady` (:218) stayed false and the control (:516) stayed disabled forever.
+ *
+ * The run even said so and I read past it: `1 distinct host(s): wdtjhrilakoitfcezxpx.supabase.co`.
+ * **The instrument reported its own interference as a product result.**
+ *
+ * Measured before changing anything, so the diagnosis is not a guess: that exact PostgREST read,
+ * with the anon key and the user's JWT under RLS, answers **200 in 266-896 ms** for both test
+ * accounts. Nothing about it is slow or broken - it was simply not allowed to happen.
+ *
+ * WHY ALLOWING IT DOES NOT WEAKEN THE FENCE. The fence exists to catch a PAYMENT third party - a
+ * Whop or Stripe origin loading a real checkout - and venue calls that should be server-side. The
+ * Supabase project is the app's own auth and data backend, reached by every signed-in page by
+ * design. It is counted separately rather than silently waved through, so the fence's own claim
+ * stays honest about what it let past. */
+/* LAZY, NOT TOP-LEVEL. `QA_ENV` is initialised further down this file, so reading it here at module
+   scope throws a ReferenceError in its temporal dead zone - the same trap that made one of today's
+   mutation controls report `exit 1` with no cell named. Computed at install time instead. */
+const supabaseOrigin = () => {
+  try { return new URL(QA_ENV.NEXT_PUBLIC_SUPABASE_URL).origin; } catch { return null; }
+};
+
 async function installAllowlist(ctx, blockedHosts) {
+  const backend = supabaseOrigin();
   await ctx.route('**/*', (route) => {
     SEEN.count += 1;
     const url = route.request().url();
     if (url.startsWith(APP_ORIGIN) || /^(data|blob|about):/.test(url)) { SEEN.sameOrigin += 1; return route.continue(); }
+    if (backend && url.startsWith(backend)) { SEEN.backend = (SEEN.backend ?? 0) + 1; return route.continue(); }
     try { blockedHosts.add(new URL(url).host); } catch { blockedHosts.add('(unparseable)'); }
     return route.abort();
   });
@@ -230,7 +261,31 @@ const BASE_ORIGIN = (() => { try { return new URL(BASE).origin; } catch { return
 const CREDENTIALS_ALLOWED_HERE = CREDENTIALED_ORIGINS.includes(BASE_ORIGIN);
 
 const QA_ENV = loadQaEnv();
-const CREDS_NEEDED = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'E2E_USER_A_EMAIL', 'E2E_USER_A_PASSWORD'];
+
+/* WHICH TEST ACCOUNT SIGNS IN, and it is not a preference - the `/upgrade` section cannot be
+ * measured with the wrong one.
+ *
+ * This was hardcoded to `E2E_USER_A_*`, and `qa.user.a@liquidityhq.test` has `role = 'pro'` with a
+ * null `current_period_end` on the dev database - lifetime Pro, which `planKindOfRow` never lapses.
+ * `app/(main)/upgrade/page.tsx:387` replaces the whole page for a Pro account and :120 redirects it
+ * to `/arena`, so **the purchase path does not exist for user A and never will.** A fixture that
+ * signs in as Pro to test a purchase path is asking a different question from the one it reports on.
+ *
+ * **CORRECTION, recorded because I asserted it before checking: being Pro was NOT the whole cause of
+ * the MISSING control.** Re-running as the free account B produced the same `reveal button MISSING`,
+ * so the Pro branch explained user A and nothing else. The second cause was this tool's own fixed
+ * 1.5-second wait - see the `waitForSelector` note below. Two different causes, one identical
+ * symptom, and the first plausible explanation accounted for only one of them.
+ *
+ * So the payment surface needs BOTH: a non-Pro account, and waiting for the control rather than
+ * sleeping. Signed out it redirects to `/login`; signed in as Pro it is absent by design.
+ *
+ * `QA_USER=B` is the free account (`role = 'free'`, no trial). Default stays `A` so every other
+ * section behaves as before. */
+const QA_USER = (process.env.QA_USER || 'A').toUpperCase();
+const EMAIL_KEY = `E2E_USER_${QA_USER}_EMAIL`;
+const PASSWORD_KEY = `E2E_USER_${QA_USER}_PASSWORD`;
+const CREDS_NEEDED = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', EMAIL_KEY, PASSWORD_KEY];
 const CREDS_MISSING = CREDS_NEEDED.filter((k) => !QA_ENV[k]);
 
 /** One password grant for the whole run, or null with the reason already logged by the caller. */
@@ -250,7 +305,7 @@ async function signInOnce() {
     const r = await fetch(`${QA_ENV.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: QA_ENV.NEXT_PUBLIC_SUPABASE_ANON_KEY },
-      body: JSON.stringify({ email: QA_ENV.E2E_USER_A_EMAIL, password: QA_ENV.E2E_USER_A_PASSWORD }),
+      body: JSON.stringify({ email: QA_ENV[EMAIL_KEY], password: QA_ENV[PASSWORD_KEY] }),
       /* A DEADLINE, because a hung auth service must not hang the run. Measured: dev Supabase
          answered 522 in seconds and then, minutes later, stopped answering at all - an unbounded
          fetch turned a 20-second refusal into an indefinite wait with no output. */
@@ -299,6 +354,11 @@ async function seedSession(ctx, session) {
 const ONLY = (process.env.ONLY || '').split(',').map((x) => x.trim()).filter(Boolean);
 const RUN = (name) => ONLY.length === 0 || ONLY.includes(name);
 if (ONLY.length) log(`running only: ${ONLY.join(', ')}`);
+/* The account is printed, not just configured. A run whose output does not say WHICH account signed
+   in cannot be read later - the `/upgrade` section's result depends entirely on that account's plan,
+   and "reveal button MISSING" means opposite things for a Pro and a free one. The letter only; no
+   address and never a password. */
+log(`signing in as E2E_USER_${QA_USER}${QA_USER === 'A' ? ' (pro - /upgrade offers no purchase controls to it; use QA_USER=B for the payment surface)' : ''}`);
 
 
 /* No browser at all when nothing that needs one is selected. `ONLY=briefing` is a handful of
@@ -444,7 +504,43 @@ if (RUN('upgrade')) for (const [vpName, w, h, theme, signedIn] of [
   try {
     await page.goto(`${BASE}/upgrade`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.waitForLoadState('load', { timeout: 20_000 }).catch(() => {});
-    await page.waitForTimeout(1500);
+    /* WAIT FOR THE CONTROL, DO NOT SLEEP AND HOPE. This was `waitForTimeout(1500)`, and on
+     * 2026-10-31 that produced the most expensive false reading of the release: both SIGNED IN legs
+     * printed `reveal button MISSING` and NOT MEASURED, which reads as a product defect.
+     *
+     * `app/(main)/upgrade/page.tsx` has THREE renders that all omit this testid, and 1.5 seconds is
+     * long enough to catch the wrong one:
+     *   :387  `if (isPro)` - a full-page redirecting state. Correct and permanent for a Pro account.
+     *   :390  `if (user && entitlementStatus === 'unknown')` - the entitlement read has not settled.
+     *         TRANSIENT, and a signed-out load never passes through it, which is why only the
+     *         signed-in legs were affected.
+     *   the plan cards, with the button, once the read settles.
+     *
+     * Measured afterwards: `/api/subscription` answers 200 in 277 ms for the free account, so the
+     * read was fine - the instrument simply looked during the gap. A fixed sleep cannot tell "absent"
+     * from "not yet", and those are opposite findings. */
+    /* AND WAIT FOR IT TO BE ENABLED, NOT MERELY PRESENT - the second iteration of this fix.
+     *
+     * Waiting for existence alone replaced one timing artefact with another. It returns the instant
+     * the element mounts, which is EARLIER than the old sleep, so the next run read
+     * `disabled=true` on legs that had previously read `disabled=false`. The page's own rule is
+     * `disabled={plansOpen || !purchaseReady}` at :516, and `purchaseReady = !loading && !(user &&
+     * entitlementsLoading)` at :218 - so "present" and "ready" are different moments and only the
+     * second one is measurable.
+     *
+     * Two instrument fixes in a row, each exposing the next layer. Recorded rather than smoothed
+     * over: the first fix was right and incomplete, which is the harder kind to notice. */
+    const appeared = await page.waitForSelector('[data-testid="upgrade-reveal-plans"]:not([disabled])', { timeout: 20_000 })
+      .then(() => true).catch(() => false);
+    if (!appeared) {
+      /* Which of the three renders is on screen? Without this the failure names no cause. */
+      const branch = await page.evaluate(() => ({
+        text: (document.body.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 200),
+        url: location.pathname + location.search,
+      }));
+      log(`  the control never appeared in 20s. url=${branch.url}`);
+      log(`  what rendered instead: "${branch.text}"`);
+    }
 
     const before = await page.evaluate(() => {
       const b = document.querySelector('[data-testid="upgrade-reveal-plans"]');
