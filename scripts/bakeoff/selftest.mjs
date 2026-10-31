@@ -15,7 +15,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { findSwingPivots, fitLine, lineValueAt } from '../../lib/chartStructures.ts';
 import { atrOf } from './classify.mjs';
 import { parseReply } from './prompt.mjs';
-import { scoreAnswer, compare } from './score.mjs';
+import { scoreAnswer, compare, auc, aucInterval } from './score.mjs';
 
 const FIX = new URL('./fixtures/', import.meta.url);
 const fixtures = readdirSync(FIX).filter(n => n !== 'manifest.json')
@@ -119,6 +119,25 @@ console.log('\n— a shifted line must not count as agreement —');
   const b = { line: { fit: { ...base, intercept: base.intercept + 3 * atr }, side: 'low' }, touchCount: 9 };
   const sep = Math.abs(lineValueAt(a.line.fit, 0) - lineValueAt(b.line.fit, 0)) / atr;
   check('the two synthetic lines really are ~3 ATR apart', Math.round(sep), 3);
+}
+
+console.log('\n— AUC: the deciding statistic —');
+{
+  /* Perfect separation, reversed separation, and no separation. Without these three a null or a
+     constant would quietly read as 0.5 and look like an honest "no difference". */
+  check('A entirely above B is 1.0', auc([0.8, 0.9, 0.7], [0.1, 0.2, 0.3]), 1);
+  check('A entirely below B is 0.0 - more confident about noise', auc([0.1, 0.2], [0.8, 0.9]), 0);
+  check('identical values are 0.5, ties counted as half', auc([0.5, 0.5], [0.5, 0.5]), 0.5);
+  check('one value each, a tie, is 0.5', auc([0.4], [0.4]), 0.5);
+  check('an empty side is null, not 0.5', auc([], [0.4]), null);
+
+  /* An interval that does not contain its own point estimate makes every verdict unreadable. */
+  const vals = [[0.9, 0.8, 0.85, 0.7], [0.2, 0.3, 0.1, 0.25]];
+  const point = auc(...vals);
+  const ci = aucInterval(...vals);
+  check('the interval contains the point estimate', ci.lo <= point && point <= ci.hi, true);
+  check('and it is reproducible across calls',
+    JSON.stringify(aucInterval(...vals)), JSON.stringify(ci));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -197,3 +197,102 @@ export function compare(byEngine, fixturesById) {
 
   return { summary, converged, excludedFromFabricationCount: [...excluded] };
 }
+
+/* ── SEPARATION, NOT LEVEL. THE DECIDING MEASUREMENT (#1818, second design) ───────────────────
+ *
+ * The first design counted structures on group B and called that a fabrication rate. Measured,
+ * list length was decided by two lines of prompt wording rather than by the candles, so it could
+ * not separate A from B at all - see `prompt.mjs`.
+ *
+ * **The absolute confidence LEVEL has the same defect one layer down:** a sterner preamble lowers
+ * every number and a looser one raises them, so scoring the level measures wording again.
+ *
+ * **A rank statistic does not have it.** AUC here is the probability that a confidence drawn from
+ * a group A window exceeds one drawn from a group B window. A prompt that shifts confidence
+ * globally moves A and B together and leaves that probability untouched - **prompt-robust by
+ * construction**, which is the property the first design lacked. PM's design.
+ *
+ * 0.5 is chance. 1.0 is perfect separation. **Below 0.5 means the engine is more confident about
+ * noise than about structure**, which is a finding rather than a bad score.
+ */
+
+/** Mann-Whitney U as AUC, with ties counted as half - a tie is genuinely no information, and
+ *  dropping ties instead would quietly reward an engine that emits one confidence for everything. */
+export function auc(aValues, bValues) {
+  if (!aValues.length || !bValues.length) return null;
+  let wins = 0;
+  for (const a of aValues) for (const b of bValues) wins += a > b ? 1 : a === b ? 0.5 : 0;
+  return wins / (aValues.length * bValues.length);
+}
+
+/** Percentile bootstrap interval. Seeded, so a reported interval is reproducible rather than
+ *  slightly different every time anyone re-reads the result file. */
+export function aucInterval(aValues, bValues, iterations = 2000, seed = 7) {
+  if (!aValues.length || !bValues.length) return null;
+  let st = seed >>> 0;
+  const rand = () => {
+    st = (st + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(st ^ (st >>> 15), 1 | st);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const draw = arr => Array.from({ length: arr.length }, () => arr[Math.floor(rand() * arr.length)]);
+  const samples = [];
+  for (let i = 0; i < iterations; i++) samples.push(auc(draw(aValues), draw(bValues)));
+  samples.sort((x, y) => x - y);
+  return {
+    lo: Number(samples[Math.floor(iterations * 0.025)].toFixed(3)),
+    hi: Number(samples[Math.floor(iterations * 0.975)].toFixed(3)),
+  };
+}
+
+/**
+ * The separation figures for one engine.
+ *
+ * TWO READINGS, and the primary is the stricter one. `perWindow` takes the engine's HIGHEST
+ * confidence on each window-run - "how sure are you there is structure here", which is the
+ * question - giving one value per run. `perClaim` pools every candidate, which has a larger n and
+ * **correlated values**, because three candidates from one reply are not three independent
+ * opinions. The interval is reported on the primary only, and n is printed beside both so nobody
+ * reads the pooled figure as better evidence for being narrower.
+ */
+export function separation(runsByFixture, fixturesById) {
+  const conf = group => Object.keys(runsByFixture)
+    .filter(f => fixturesById[f].group === group)
+    .flatMap(f => runsByFixture[f]);
+
+  const maxOf = runs => runs
+    .map(r => r.claims.map(c => c.confidence).filter(v => typeof v === 'number'))
+    .filter(v => v.length)
+    .map(v => Math.max(...v));
+  const allOf = runs => runs
+    .flatMap(r => r.claims.map(c => c.confidence))
+    .filter(v => typeof v === 'number');
+
+  const aMax = maxOf(conf('A')), bMax = maxOf(conf('B'));
+  const aAll = allOf(conf('A')), bAll = allOf(conf('B'));
+  const primary = auc(aMax, bMax);
+
+  return {
+    perWindow: {
+      auc: primary === null ? null : Number(primary.toFixed(3)),
+      interval: aucInterval(aMax, bMax),
+      nA: aMax.length, nB: bMax.length,
+      note: 'PRIMARY. Highest confidence per window-run. 0.5 is chance; below 0.5 means the engine '
+          + 'was more confident about noise than about structure.',
+    },
+    perClaim: {
+      auc: (() => { const v = auc(aAll, bAll); return v === null ? null : Number(v.toFixed(3)); })(),
+      nA: aAll.length, nB: bAll.length,
+      note: 'SECONDARY. Pools every candidate, so n is larger and the values are CORRELATED - '
+          + 'three candidates from one reply are not three independent opinions. No interval is '
+          + 'given, because a bootstrap over correlated draws would understate the uncertainty.',
+    },
+    /* Reported so a reader can see whether a prompt shifted the whole distribution, which is the
+       thing AUC is designed to be immune to - showing it is how that immunity is checkable. */
+    meanConfidence: {
+      A: aAll.length ? Number((aAll.reduce((x, y) => x + y, 0) / aAll.length).toFixed(3)) : null,
+      B: bAll.length ? Number((bAll.reduce((x, y) => x + y, 0) / bAll.length).toFixed(3)) : null,
+    },
+  };
+}

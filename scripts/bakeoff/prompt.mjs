@@ -10,17 +10,39 @@
  * are pivots at all. A prose answer would make the scorer a reader rather than a calculator, and
  * then the result is a taste contest again.
  *
- * ── TWO THINGS IN HERE THAT LOOK LIKE DETAIL AND ARE THE EXPERIMENT ──────────────────────────
+ * ── THE ENGINE IS NEVER ASKED WHETHER STRUCTURE EXISTS. THAT IS THE DESIGN, AND IT IS THE
+ *    SECOND DESIGN THIS FILE HAS HAD ─────────────────────────────────────────────────────────
  *
- * **"none" IS AN EXPLICITLY CORRECT ANSWER, SAID ONCE AND WITHOUT ENCOURAGEMENT.** Group B is the
- * fabrication test, and the spec says it decides the result. Omitting the permission would measure
- * whether a model guesses that silence is allowed; repeating it or praising it would coach the
- * refusal and measure our prompt instead of the engine. One neutral sentence is the honest middle.
+ * The first version said "an empty list is a valid and correct answer", once, neutrally, so group
+ * B could be a fair fabrication test. **Measured, that sentence was not a permission but a
+ * switch.** One A fixture, one B fixture, three phrasings:
  *
- * **NO HINT OF WHICH GROUP A FIXTURE IS IN.** The window arrives with no coin name, no timeframe
- * and no group. A model told "this is a messy window" would be answering a different question, and
- * a model told the symbol could lean on what it remembers about that asset rather than on the
- * candles in front of it.
+ *     "an empty list is a valid and correct answer"    A=0  B=0
+ *     no mention of an empty list at all              A=3  B=3
+ *     one symmetric factual clause                    A=0  B=0
+ *
+ * **Any mention of emptiness refused everything; no mention claimed structure on everything.** The
+ * answer tracked two lines of my wording rather than the candles, so neither configuration could
+ * separate A from B - the one thing the fabrication test had to do.
+ *
+ * **So the lever is removed rather than rephrased: the engine always returns exactly CANDIDATES
+ * structures.** List length carries no information, so a permission sentence has nothing to act
+ * on. What it reports instead is a CONFIDENCE per candidate, and the scorer asks whether
+ * confidence RANKS group A above group B.
+ *
+ * **Why ranking and not level.** The level is still promptable - a sterner preamble lowers every
+ * number, a looser one raises them - so scoring the level measures wording again, one layer down.
+ * **A global shift moves A and B together and leaves the ranking untouched**, so a rank statistic
+ * is prompt-robust by construction. PM's point, and the property Finding 2 says this test needs.
+ *
+ * It is also the better question for the product: "does it say 0.2 on noise and 0.8 on structure"
+ * is what a trader's money depends on. A feature that draws a channel with no stated confidence
+ * is the thing this project said it feared; one that ranks and quantifies can ship behind a
+ * threshold.
+ *
+ * NO FIXTURE CARRIES ITS COIN, TIMEFRAME OR GROUP. A model told "this is a messy window" would be
+ * answering a different question, and one told the symbol could lean on what it remembers about
+ * that asset rather than the candles in front of it.
  *
  * ── INDICES, AND THIS FILE ASKED FOR TIMESTAMPS FIRST. THE CHANGE WAS FORCED BY A FAILED CONTROL
  *    AND IT IS THE MOST IMPORTANT THING IN THE FILE ──────────────────────────────────────────────
@@ -51,6 +73,9 @@
  * clearly do the task.
  */
 
+/** How many candidates the engine must always return. Fixed on purpose - see the header. */
+export const CANDIDATES = 3;
+
 /** The JSON contract. Kept as a string in the prompt AND parsed by the scorer, so there is one
  *  definition of the shape rather than a prompt and a parser that can drift apart. */
 export const SCHEMA = `{
@@ -77,24 +102,23 @@ export const SYSTEM = [
  * token count is one of the things this test measures.
  */
 export function buildPrompt(candles) {
-  const rows = candles.map(c =>
-    `${c.timestamp}\t${c.open}\t${c.high}\t${c.low}\t${c.close}`).join('\n');
+  /* INDEX, not timestamp. The prompt asks for index numbers, so showing timestamps would ask the
+     model to answer in a column it was never given - and asking for 13-digit numbers is exactly
+     what produced a flat zero on group A. See Finding 1 in the header. */
+  const rows = candles.map((c, i) =>
+    `${i}\t${c.open}\t${c.high}\t${c.low}\t${c.close}`).join('\n');
 
   return [
     `Below are ${candles.length} consecutive candles, oldest first, as TSV:`,
-    'timestamp(ms)\topen\thigh\tlow\tclose',
+    'index\topen\thigh\tlow\tclose',
     '',
     rows,
     '',
-    'Identify every chart structure you can support from these candles: trendlines, channels,',
-    'flags, triangles, horizontal levels.',
+    `Return exactly ${CANDIDATES} candidate chart structures - your ${CANDIDATES} best guesses,`,
+    'ranked most convincing first. Types: trendline, channel, flag, triangle, horizontal level.',
     '',
-    'For each structure, list the index numbers of the candles you claim touch it. A trendline or',
-    'horizontal level needs at least 3 touch points; a channel, flag or triangle needs at least 3',
-    'on the side you name.',
-    '',
-    'If this window has no structure you can support from the candles, return an empty list.',
-    'An empty list is a valid and correct answer.',
+    'For each candidate, give the index numbers of the candles you claim touch it (at least 3),',
+    'and a confidence between 0 and 1 for how well those candles support that structure.',
     '',
     `Reply with JSON only, matching exactly this schema:`,
     SCHEMA,

@@ -30,7 +30,7 @@
  */
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { parseReply } from './prompt.mjs';
-import { scoreAnswer, compare, AGREEMENT_ATR } from './score.mjs';
+import { scoreAnswer, compare, separation, AGREEMENT_ATR } from './score.mjs';
 import { ENGINES, PRICING } from './engines.mjs';
 
 const args = process.argv.slice(2);
@@ -97,6 +97,11 @@ const result = compare(byEngine, fixturesById);
 /* The un-blinding, attached only now that every score is computed - see the header. */
 result.engineMap = Object.fromEntries([...blind].map(([v, id]) => [id, v]));
 
+/* THE DECIDING MEASUREMENT: does confidence rank group A above group B? */
+for (const id of Object.keys(byEngine)) {
+  result.summary[id].separation = separation(byEngine[id], fixturesById);
+}
+
 /* Cost and latency per engine, from the vendors' own figures. */
 for (const id of Object.keys(byEngine)) {
   const all = Object.values(byEngine[id]).flat();
@@ -127,6 +132,11 @@ writeFileSync(new URL(`result-${stamp}.json`, OUT), JSON.stringify({
     appliesTo: 'group B only',
     effect: 'converged windows are excluded from the fabrication count and listed separately',
   },
+  decisionRule: 'Higher AUC separating A from B wins. If the intervals overlap, fit quality on C '
+    + 'decides. If that overlaps too, cost per call. A tie builds on Grok. Written before any '
+    + 'comparison existed - Claude had produced zero results at the time, so there was no outcome '
+    + 'to favour. The first rule (fewest fabrications on B) was retired for NON-DISCRIMINATION, '
+    + 'measured: 0 structures on both groups with the refusal sentence, 3 on both without it.',
   caveats: [
     'Claude cost is an UPPER BOUND: prompt caching is off on the account.',
     'Groups were assigned by scripts/bakeoff/classify.mjs against a shuffled-returns null, which is'
@@ -141,8 +151,10 @@ writeFileSync(new URL(`result-${stamp}.json`, OUT), JSON.stringify({
 console.log('');
 for (const [id, s] of Object.entries(result.summary)) {
   console.log(`${id}  (${result.engineMap[id]})`);
-  console.log(`  group A found            ${s.groupAFoundRate}   <- THE CONTROL. not ~1.0 means the prompt is wrong, not the engine`);
-  console.log(`  fabrications on B        ${s.fabricationsOnB}/${s.bRuns}  rate ${s.fabricationRate}   <- THE DECIDER`);
+  const sep = s.separation?.perWindow;
+  console.log(`  A vs B separation (AUC)  ${sep?.auc}  ${sep?.interval ? `[${sep.interval.lo}, ${sep.interval.hi}]` : ''}  n=${sep?.nA}/${sep?.nB}   <- THE DECIDER. 0.5 is chance`);
+  console.log(`  mean confidence A / B    ${s.separation?.meanConfidence?.A} / ${s.separation?.meanConfidence?.B}   (level is promptable; the AUC above is not)`);
+  console.log(`  group A answered         ${s.groupAFoundRate}   <- THE CONTROL. a flat 0 means the prompt is wrong, not the engine`);
   console.log(`  group C touches          ${s.groupCTouch ? `min ${s.groupCTouch.min} median ${s.groupCTouch.median} max ${s.groupCTouch.max}` : 'n/a'}`);
   console.log(`  mean pivot agreement     ${s.meanPivotAgreement}`);
   console.log(`  parse fails / repairs    ${s.parseFailures} / ${s.formatRepairs}   invalid timestamps ${s.invalidTimestamps}`);
