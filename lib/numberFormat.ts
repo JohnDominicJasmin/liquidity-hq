@@ -18,14 +18,21 @@
  * __tests__/numberFormatProperties.test.mts) asserts BOTH halves: the output must not contain
  * NaN/Infinity, and must not look like a real number either.
  *
- * "n/a" RATHER THAN A LABEL KEY, deliberately, and this is the part to revisit if the owner
- * wants different wording. Five of the eight callers of these functions are prompt builders -
- * lib/chatPrompt.ts, lib/grok.ts, lib/liqClusters.ts, lib/useEMAStrategy.ts - not UI. Threading
- * `t()` through a pure formatter would put a localized string into an English prompt, and
- * `lib/grok.ts` already reads "n/a" back FROM the model as "no value" (:918), so this keeps one
- * vocabulary on both sides of the call. A UI surface that wants different words can map this
- * constant; it must not go back to printing the raw value. */
-export const UNKNOWN_NUMBER = 'n/a';
+ * "N/A" RATHER THAN A LABEL KEY, and the CASING is not arbitrary - it is what this app already
+ * prints for exactly these values: components/BriefingTerminal.tsx:125 and :135, and
+ * app/(main)/arena/page.tsx:1417. A lowercase marker here would have put "n/a" next to an
+ * existing "N/A" on the SAME briefing surface - two spellings of one idea, which is the
+ * inconsistency a reader notices before they notice the fix.
+ *
+ * It still round-trips with the model: `lib/grok.ts`:918 and :926 compare `.toLowerCase()`
+ * against 'n/a' when reading a value BACK, so "N/A" is recognised as "no value" there.
+ * One vocabulary on both sides of the call, which is a correctness property rather than tidiness.
+ *
+ * NOT A LABEL KEY, deliberately. Several callers are prompt builders rather than UI, and
+ * threading `t()` through a pure formatter would put a localized string into an English prompt.
+ * A UI surface that wants different words can map this constant; it must not go back to printing
+ * the raw value. */
+export const UNKNOWN_NUMBER = 'N/A';
 
 /** The digits of a price with as many decimals as its size needs: 107,250 / 2,345.67 / 2.3456 / 0.5123 / 0.00001234 (no "$"). */
 export function priceDigits(v: number): string {
