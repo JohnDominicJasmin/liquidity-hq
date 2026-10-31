@@ -120,6 +120,29 @@ functions, so it does not stop the reliability work.
 8. **Before any big marketing push** (6, 7): the three server fixes live, then re-measure CPU and upstream calls per page load, then the owner decides the Render tier with the number in hand.
 9. Then 15 (cross-browser, QA), 12 close-out, the owner-visible queue (#1601, #1595, #1603), and the three visual fails from QA's 2026-10-21 regression (#1640: R6 `/learn` ignores the light theme, R7 `/hours` labels collide, R8 `/liq` stats grid squeezed) for the owner's look.
 
+## Owner decisions, 2026-10-31 (first-hand to PM)
+
+| What he decided | His words | What it changed |
+|---|---|---|
+| **The chart-drawing deep research is built on Claude, NOT Grok — subject to a head-to-head first.** | *"for deep research will do it"*, then *"yes, set up the head-to-head test"* after being told there is no provable reason Claude is better. | `#1818` gains a bake-off before any build: 12 committed candle windows, both engines return coordinates, scored by `lib/chartStructures.ts` rather than by eye. **Decision rule fixed before the run** — fewest fabrications on the structureless group wins; fit quality breaks a tie; cost breaks that; **a tie builds on Grok**, which is already wired and validated. |
+| **The shipped deep analysis and Ask-AI search STAY on Grok.** | *"grok is better because it has access to X posts"* | Correct, and verified rather than accepted: `app/api/grok/route.ts:296-306` attaches `searchTools(xWindow)` when `type === 'deep'`, and `grok-chat` search mode does the same. **Claude cannot see X at all.** The split is by input, not by feature: *what people are saying* goes to Grok, *our own numbers* can go to Claude. |
+| **The $100 Claude credit is part of his Max plan and refills.** | *"it's part of my Claude Max plan... I will have another one in next few days"* | Usable budget for the over-ceiling features. **Recorded with its risk: do not let a feature's economics depend on a promotional grant** — if it stops, the cost lands on him at full rate, so anything built on it must be switchable back. |
+
+**What this decision exposed, and it is a live business fact rather than a note.** Production's own
+AI call log says **three of six AI features already cost more per answer than his $0.0085 ceiling**:
+deep analysis **$0.0238**, Ask-AI search **$0.0271**, quick read **$0.0117**. Macro, chat and dry
+powder are under. Total ever spent is $0.59 — **that is low traffic, not low unit cost.** Input size
+is the driver: deep sends ~15,000 tokens in and gets ~1,400 back. **Prompt caching is OFF on the
+Claude account**, so the first Claude figure the bake-off produces is an upper bound, not a running
+cost.
+
+**One owner action outstanding:** an Anthropic API key as an environment variable. **Neither PM nor
+Dev handles it.** The Grok half of the bake-off runs without it.
+
+**One naming hazard, cheap now and expensive later:** "deep analysis" already ships and means the
+X-powered one; this proposal is also called "deep research". **Two buttons, different jobs, one
+word.** Rename the new one before it ships.
+
 ## Owner decisions, 2026-10-30 (first-hand to PM)
 
 | What he decided | His words | What it changed |

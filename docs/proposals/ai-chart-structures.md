@@ -1,5 +1,24 @@
 # Proposal: AI chart structures — deep research draws on the chart
 
+**Status: PHASE 0 SHIPPED. A GROK vs CLAUDE BAKE-OFF RUNS BEFORE PHASE 1. Tracked on `#1818`.**
+
+**Owner decision, 2026-10-31.** He chose Claude for this feature, then accepted that there is no
+provable reason it is better and ordered a head-to-head instead: *"yes, set up the head-to-head
+test"*. **The shipped deep analysis stays on Grok** - it attaches live X search and Claude cannot
+see X. **This feature reads candles, not tweets**, so that advantage does not apply to it.
+
+**The bake-off is scored by this proposal own Phase 0 code**, which is why it can be objective:
+both engines return coordinates, and `findSwingPivots` / `fitLine` / `measureFit` decide whether the
+claimed structure is there. **Decision rule fixed before the run** - fewest fabrications on the
+structureless fixtures wins, fit quality breaks a tie, cost breaks that, **and a tie builds on
+Grok**. Full spec and the group definitions: `#1818`.
+
+**Known bound, stated rather than discovered:** the engines are scored by the same geometry that
+chose the fixtures, so a real structure our code is blind to is filed as noise and an engine that
+finds it is marked as fabricating. **Mitigation: if BOTH engines independently report the same
+structure on the same noise window, that is evidence our definition is blind, not two
+fabrications** - those windows are reported separately and excluded from the count.
+
 **Status: PHASE 0 SCHEDULED AND ASSIGNED, 2026-10-30 13:26 UTC. Tracked on `#1818`.**
 
 **Both owner instructions, in order, because this document's status line stopped being true within
