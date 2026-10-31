@@ -54,11 +54,6 @@ const WINDOW = 200;
 const MIN_CANDLES = 60;
 const MAX_CANDLES = 1500;
 
-/* Enough for a handful of proposals as JSON and nothing like enough for prose. A model that starts
- * explaining itself gets truncated, and a truncated explanation fails the JSON parse, which is the
- * outcome we want: no half-read structure reaches the chart. */
-const MAX_TOKENS = 700;
-
 class RateLimitError extends Error {
   constructor(public limit: number, public reason: UsageBlockReason) {
     super(rateLimitMessage(reason, limit, 'Draw Structure'));
@@ -263,7 +258,18 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             model: 'grok-4.3',
             messages: [{ role: 'user', content: buildPrompt(coin, tf, candles) }],
-            max_tokens: MAX_TOKENS,
+            /* WRITTEN AS A LITERAL, not a constant, and that is a test contract rather than a style
+               choice. `__tests__/xaiOutputCapsPairWithEndpoint.test.mts` reads every xAI call site's
+               cap from the source and allows exactly ONE computed value - grok-chat's, which is
+               clamped because the browser supplies the figure and has its own behavioural test for
+               the clamp. A constant here reads as 'computed' to that sweep and fails it, correctly:
+               a cap it cannot see the value of is a cap it cannot check.
+
+               700 is enough for a handful of proposals as JSON and nothing like enough for prose. A
+               model that starts explaining itself gets truncated, and a truncated explanation fails
+               the JSON parse - which is the outcome we want: no half-read structure reaches the
+               chart. Nothing clamps it because nothing caller-controlled feeds it. */
+            max_tokens: 700,
           }),
         });
         if (!aiRes.ok) {
