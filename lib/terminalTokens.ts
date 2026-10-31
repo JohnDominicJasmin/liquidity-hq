@@ -10,9 +10,21 @@
  * fixture is how the fixture and the stylesheet end up disagreeing, and the
  * disagreement would be invisible - both would look correct in isolation.
  *
- * NOT wired into the app yet. `app/globals.css` carries these under
- * [data-design="terminal"], which nothing sets, so the running app is
- * unchanged. The redesign opts in screen by screen.
+ * WIRED INTO THE APP, AND THIS PARAGRAPH SAID THE OPPOSITE. It read "NOT wired into the app
+ * yet ... [data-design="terminal"], which nothing sets, so the running app is unchanged".
+ * `components/RootDocument.tsx`:88 puts `data-design="terminal"` on `<html>` statically, on every
+ * page, and has since #1111 - its own comment at :82 records the change from a `?design=` lookup
+ * to a fixed attribute. So `app/globals.css`'s rules under that selector apply everywhere, and
+ * these tokens are what the running app paints with.
+ *
+ * The claim was about EXTERNAL state - what another file does - which is the kind that goes stale
+ * without anything here changing. Found by QA while rendering landing for the #1881 gate: they
+ * measured `?design=current` and got `terminal` back on all twelve renders, which is also why
+ * that gate's "four contexts" are two.
+ *
+ * What IS still true: the redesign opts in screen by screen, so a screen that has not been
+ * converted still looks unconverted - but that is because its own markup has not changed, not
+ * because these tokens are inert.
  */
 
 /** The 18 documented colour tokens. Values are the README's, EXCEPT --bg1 and
