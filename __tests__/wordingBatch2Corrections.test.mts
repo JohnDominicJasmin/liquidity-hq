@@ -99,7 +99,18 @@ const AUDIT_KEYS_FIXED = [
   'FAQ_Q_DATA_SOURCES_A', 'ABOUT_DATA_SOURCE_BREAKING_NEWS_VALUE', 'ABOUT_DATA_SOURCE_CRYPTO_NEWS_VALUE',
   'ALERTS_PAGE_SUBTITLE', 'ALERTS_PRICE_LOCKED_DESC',
   'SPOTLIGHT_TOUR_STEP4_BODY',
-  'HOURS_WIN_GOD_BADGE', 'HOURS_WIN_GOD_DESC', 'HOURS_WIN_MON_EVE_DESC', 'HOURS_WIN_LONDON_TIME', 'HOURS_WIN_PRIME_DESC',
+  /* `HOURS_WIN_LONDON_TIME` WAS HERE AND THE KEY IS GONE, 2026-10-31. It is not a transcription
+     error and the audit record is not being quietly edited: #1327 did fix its wording, and that
+     history is why the name stays written down here in prose.
+     The key itself was DELETED from lib/labelKeys.ts and lib/labelDefaults.en.json along with six
+     other dead `HOURS_*` keys - nothing outside labelKeys.ts read any of them - because its value
+     was the last remaining "3PM - 6PM PHT (7-10AM UTC)" in the defaults file and the owner's
+     instruction was to remove every trace of the operator's location.
+     IT HAD TO COME OUT OF THIS LIST FIRST. The cell below asserts `value !== undefined` for every
+     AUDIT_KEYS entry, so deleting the key while it was still listed would have failed with
+     "labelDefaults.en.json has no HOURS_WIN_LONDON_TIME key at all" - a true message about a
+     deliberate deletion, blocking the purge on a test of mine. */
+  'HOURS_WIN_GOD_BADGE', 'HOURS_WIN_GOD_DESC', 'HOURS_WIN_MON_EVE_DESC', 'HOURS_WIN_PRIME_DESC',
   'FUNDING_SIG_LONGS_OVERCROWDED_DESC', 'FUNDING_SIG_SHORTS_CROWDED_ACTION',
   'FUNDING_SIG_SHORTS_OVERCROWDED_HINT', 'FUNDING_SIG_SHORTS_OVERCROWDED_ACTION',
   'ARENA_BREAKDOWN_SHOW',
