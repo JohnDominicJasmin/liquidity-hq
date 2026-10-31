@@ -72,6 +72,22 @@ if (routeHasStaleClient !== hasContextKeys) {
 /** True when the route builds the prompt itself and refuses a client-built one. */
 export const SERVER_BUILDS_PROMPT = routeHasStaleClient;
 
+/**
+ * Whether the route NAMES the untracked-coin refusal instead of refusing flat.
+ *
+ * A THIRD TREE STATE, not a second flavour of the first. #1855 offers 463 coins of which 413 are
+ * untracked by the AI read, and item 5 refuses an untracked coin with a flat `400 Invalid request.`
+ * - so a user picking a coin out of our own list got an untranslated English string from a generic
+ * client branch. That refusal now carries `COIN_NOT_TRACKED` so the Arena can say something true in
+ * the user's language.
+ *
+ * Read separately from `SERVER_BUILDS_PROMPT` because the two arrive on different branches: a tree
+ * can build the prompt server-side and NOT name this code, which is `dev` plus item 5 today. A
+ * single boolean would have made one of those states unrepresentable.
+ */
+export const ROUTE_NAMES_UNTRACKED_COIN =
+  /code:\s*['"]COIN_NOT_TRACKED['"]/.test(read('app/api/grok/route.ts'));
+
 /** What a caller means, independent of which shape carries it. */
 export interface GrokIntent {
   type?: 'quick' | 'deep';

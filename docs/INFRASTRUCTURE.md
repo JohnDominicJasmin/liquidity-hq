@@ -1268,3 +1268,56 @@ had supplied themselves.
    than incidental** — and structural means greppable. A gate whose highest tier returns early is a
    gate where a privileged test account is an instrument, and that can be found deliberately instead
    of by a near-miss. QA's addition, and it is the one item here that turns the trap into a search.
+
+### 9h. WHEN A CHECK DISAGREES WITH THE ARTIFACT IT CHECKS, SUSPECT THE CHECK FIRST
+
+> **9e is about a control whose silence means nothing. This is its mirror: a check that SPEAKS
+> and is wrong.**
+
+Six instances on 2026-10-31, in six different checks, across two sessions. **In every one the
+artifact was right and the check was wrong.** None of them resembled a tooling fault at the time;
+each read as a finding.
+
+| The check | Said | Actually |
+|---|---|---|
+| `grep -cE '^✖ [A-Z]'` over `node --test` | 2 failures | ONE failure. `node:test` prints each failing cell twice - inline and in the summary block - so every count was doubled |
+| A mutation harness's own extraction filter | `red=[]` for both mutations | both mutations HAD fired; the filter could not see its own cells |
+| `grep -c` in an `&&` chain | a bare `0`, reading as "no payment words on the page" | `grep -c` **exits 1 on zero matches**, which broke the chain and killed the controls before they printed. Real answer 3 |
+| `grep -c "do not merge or rebase"` | 0, reading as "the edit did not land" | the row says **"Do not"**. Case-sensitive miss, and the exit-1 ALSO broke the chain so the next check never ran |
+| A hand-written table validator | "must be 4 pipes", got 5 | the table has **four columns**, so five pipes is correct. Every sibling row agreed |
+| `grep -c "held for the next window"` after a rewrite | 1, reading as "the stale claim survived" | it survives inside the **quotation of what the row used to say** - the record of the error, not a live claim |
+
+**The fourth row is the worst of the family: a failure that hid its own second failure.** The case
+error produced the wrong number, and the same non-zero exit suppressed the check that would have
+caught it. One mistake, two silences.
+
+**The last two rows are the ones that generalise beyond `grep`.** Both are a check encoding an
+assumption the artifact never agreed to - a column count, and the idea that a string appears only
+as an assertion. **A quotation is not a claim, and a deleted quotation is a deleted record.**
+
+**How to apply, in order:**
+
+1. **Read the lines, not the count.** Every row above is survivable by printing what matched.
+2. **Never put a counting command in an `&&` chain.** `grep -c` exits 1 on zero matches; so does
+   `grep` itself. Run it, capture `$?`, read the output anyway - the same rule as a gate
+   (`cmd > out 2>&1; echo "EXIT=$?"`).
+3. **Prefer the runner's own summary** - `node --test`'s `ℹ fail N` - over counting matched
+   lines. The runner knows how many cells failed; a regex over its prose does not.
+4. **Give a counting filter a positive control**: feed it a run you KNOW fails and confirm it says
+   so. A harness that cannot report red is not evidence when it reports green.
+5. **Check case and anchors against the artifact** before believing an absence, and prefer `-F`
+   for a literal - subject to §9a, which is why `-iF` is not the answer here.
+
+**THE COMMON FACTOR UNDER ALL SIX, AND THE REASON STEP 4 GENERALISES PAST `grep` ENTIRELY: every
+one of these checks was written by the person who wanted the answer.** Not one was an
+independent instrument. A check built to confirm a result inherits the author's expectation of
+what it will find - the double-count went unnoticed because "2 failures" was plausible, the
+`red=[]` went unnoticed because "my cells do not detect this" was the feared answer, and the
+case-sensitive miss went unnoticed because "the edit did not land" was the thing being checked
+for. **So a positive control is not optional hygiene on a self-written check; it is the only
+thing standing in for the independence the check does not have.**
+
+**Why this belongs beside §9e rather than inside it.** §9e's table is controls that never fired, and
+its own maintenance note warns against prose that indexes that table by position. This is a
+different failure with the same consequence - **a confident wrong answer that looks like data** -
+so it gets its own heading and its own table, and nothing above it needs re-reading.

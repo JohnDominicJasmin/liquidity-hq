@@ -5,7 +5,7 @@ import type { RealYield } from './realYield.ts';
 import { healthLabelKey } from './healthGradeA11y.ts';
 import type { HealthLabelKey } from './healthGradeA11y.ts';
 export type { CoinId } from './coins.ts';
-export { COINS, UNIVERSE_COINS, UNIVERSE_SYM_TO_COIN, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS } from './coins.ts';
+export { COINS, UNIVERSE_COINS, UNIVERSE_SYM_TO_COIN, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS, coinLabel } from './coins.ts';
 
 export interface GexLevel {
   strike: number;

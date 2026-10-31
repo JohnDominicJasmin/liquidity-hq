@@ -125,11 +125,21 @@ functions, so it does not stop the reliability work.
 | What he decided | His words | What it changed |
 |---|---|---|
 | **Start the deep-research chart-drawing feature.** Phase 0 only; phases 1-4 stay sequenced. | *"start it"* (13:19 UTC), after asking *"what happened to my proposal about deep research thing?"* | `#1818` moved from `priority: low` / not-scheduled to `priority: medium` / Phase 0 assigned. Dev writes `lib/chartStructures.ts` (pure functions, no UI, no AI, no network); QA writes the fixtures. Spec `docs/proposals/ai-chart-structures.md`. The `priority: high` reliability work (#1631, #1649, #1651) is NOT cancelled. |
-| **No Google AdSense on the site.** | Asked *"can we have adsense also for our website?"*; PM recommended no and he did not overrule it. | Nothing built. Recorded so it is not re-proposed: at our traffic the revenue is single-digit dollars a month against $49/mo subscriptions, ads leak visitors off the pricing page, we would not control which exchange or token ads appear beside our own signals, Google treats trading-signal sites as restricted, and EU/UK consent work would be required. **Where it could return:** a separate free content arm (glossary, education) that never touches the app or the checkout — traffic first. |
+| **Run CI only where it is needed.** | *"Keep only the real code, test, change, and release... The changes to documents and rechecking after each merge, skip it... run once before release."* | Docs-only PRs skip the full checks. `dev` merges stop re-running them; the merged head is built once before promotion. Rule: `docs/OWNER-RULES.md` section 12. |
+| **Deploy the release without him IF the regression is flawless.** | Shown the risk in writing and chose it: *"Deploy it if testing is fully clean."* | **Any failure or any gap holds it until he wakes.** QA's sign-off becomes the deploy decision rather than an input to it. |
+| **CI spend: the free $12, then up to $5 on his card, hard stop.** | *"save every penny on the GitHub run... Run when it's needed."* Two days consumed 80% of a month. | Docs-only PRs and per-merge rechecks stop running checks (#1848). Measured 8.5 min/run; 605 of the wasted minutes were browser tests that were all cancelled. |
+| **Build a nightly database backup.** | Asked why it had not moved after raising it the day before. | **It was never blocked by funding.** 32 MB database, free export on the existing cron-authed pattern. Not done until a restore is proven. |
+| **Ship as many coins as both exchanges carry.** | Second time of asking: *"coins availability should be done like days ago."* | Being built, not scoped. 50 today. |
 
-**Both of these are decisions, not deferrals waiting for a nudge.** The second one is written down
-with its reasoning because "why not ads?" is the kind of question that comes back every few weeks,
-and re-deriving the answer each time is how a settled thing reopens.
+## Open, PM recommendation only - he has NOT ruled
+
+| What | His words | Where it stands |
+|---|---|---|
+| **Google AdSense** | *"can we have adsense also for our website?"* - he asked, PM recommended against it, **he has not answered.** Silence is not a decision. | Nothing built. **The traffic figure behind the recommendation was never measured** - real page views were not read, so "single-digit dollars a month" is an estimate, not a measurement. Reasons given: ads undercut a $49 product, leak visitors off the pricing page, put competitor and token ads beside our own signals, and the category is restricted by Google. |
+
+**Every row in the table above is his, first-hand.** The AdSense item is NOT, which is why it now sits
+in its own section below rather than in a table headed "What he decided" - QA's catch, and the
+distinction matters: a recommendation filed among decisions closes a question he still holds.
 
 ## Not on this list, and that is deliberate
 

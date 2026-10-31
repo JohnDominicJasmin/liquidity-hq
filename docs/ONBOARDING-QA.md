@@ -91,7 +91,8 @@ Every one of these produced a false result, once, before it was caught. None of 
 
 - **No NVDA or VoiceOver.** A real screen-reader pass needs a person and that software. You can get a long way with the accessibility tree and source reading — see `qa/TEST_GAPS.md` §6 for what that partial pass has caught and what it structurally can't (actual announcement behavior, timing, reading order). Say plainly which kind of check you did.
 - **No Sentry/PostHog dashboard access.** You can confirm an error was *sent* (network tab, a 200 from the ingest endpoint) but not that it *arrived* or was *seen*. Naming that gap is more useful than a confident claim you can't back.
-- **CI is off, by owner decision, and that's a cost control, not an outage.** Never enable or trigger a workflow without asking — even `workflow_dispatch` won't fire on a disabled workflow anyway. **The E2E job's own trigger is narrower than the workflow's** (`ci.yml:359`, `if: github.base_ref == 'main'`) — `base_ref` only exists on a `pull_request` event, so the browser suite runs only on a PR into `main`, never on a push to `staging`. As of #948 the `workflow_dispatch` input no longer has an `e2e` toggle either (`ci.yml:47` says so directly: no way to run the suite on demand). So there is exactly one path that ever runs it, and re-enabling the workflow doesn't add a second one. Historical run logs cost nothing to read and don't need the suite re-enabled — read those before asking anyone to spend the owner's money on a fresh run.
+- **⚠️ CI's STATE IS NOT IN GIT, and this bullet was wrong for a month.** It read "CI is off" until 2026-10-31. Measured: the `CI` workflow is **`active`**, and the `workflow_dispatch` `e2e` toggle was **restored** on 2026-10-29 - so a release PR into `main` now fires the browser suite by itself and the suite CAN be run on demand. Run `gh api repos/:owner/:repo/actions/workflows --jq '.workflows[] | "\(.state)  \(.name)"'` rather than trusting any sentence here. **The cost control is still real** - never enable or trigger a workflow without asking - but the premise below was stale, which is exactly the §9d shape applied to our own documentation.
+- **CI is a cost control, not an outage.** Never enable or trigger a workflow without asking. **The E2E job's own trigger is narrower than the workflow's** — `base_ref` only exists on a `pull_request` event, so the browser suite runs on a PR into `main`, never on a push to `staging`. **There are now TWO paths that run it, not one:** that release PR, and an explicit `e2e: true` on a dispatch. The sentence that used to sit here — *"as of #948 the `workflow_dispatch` input no longer has an `e2e` toggle … no way to run the suite on demand"* — was true when written and was reversed on 2026-10-29; it is quoted rather than deleted because it is what a reader would otherwise keep acting on. Historical run logs cost nothing to read and don't need a fresh run — read those before asking anyone to spend the owner's money. **A push to `staging` or `main` also costs a run** (`push.branches: [staging, main]`, added 2026-08-10, issue #207), which the old "exactly one path" framing hid - and `dev` was REMOVED from that list by #1848, so a push there no longer costs one. Verified at the time of writing: all three workflows `active`, and the `e2e` input present at `ci.yml:331`.
 
 ---
 
@@ -105,3 +106,62 @@ Every one of these produced a false result, once, before it was caught. None of 
 ---
 
 *Written by QA Team 2026-09-06/07, at PM/DevOps's relay of the owner's request. §5 is a list of specific incidents rather than general advice on purpose — the near-miss with `Write` overwriting an existing test file, and, the same day, an entire scratch workflow living outside the repo against the owner's own standing instruction, caught only because they asked directly. Both are in here because a lesson that isn't written down gets relearned by whoever comes next.*
+
+## 9. The shape underneath §5: most of your false results will be about your instrument
+
+§5 is a list of individual traps. This is the shape they share, written down because it kept producing new instances after every individual one was fixed — **eleven in two days, in four different dimensions.**
+
+> **When your check and the product disagree, the check is wrong more often than you expect — and it fails in the direction that looks like a result.**
+
+### 9a. The layer between the failure and your eyes is itself untested
+
+Four instances on 2026-10-30/31. In every one the code was right and the thing reporting on it was wrong:
+
+- `node x.mjs | tail; echo $?` reported **exit 0 for a crashed run** — after a pipeline `$?` is the pipe's status. Read `${PIPESTATUS[0]}`, or redirect to a file.
+- A `grep -E` for a runner's summary line missed it, so a **green run printed nothing** and read as a failure.
+- A mutation control printed **`red=[]` while both mutations had actually fired.** The worst output available: it says *"your cells cannot detect this"* when it means *"I cannot see my cells."*
+- A per-file counter used `grep -cE '^✖ '` and **`node --test` prints each failing cell twice** — once inline, once in the summary — so every *"fail 2"* reported for a night was **one** real failure.
+
+**The rule: print the raw exit code and the assertion text next to any count, never the count alone.** Prefer the runner's own `ℹ tests/pass/fail` to counting matched lines. And give a filter a positive control — feed it a run you *know* fails and check that it says so.
+
+### 9b. A control that cannot fire looks exactly like one that passed
+
+- A gate's `/status` arm quoted a criterion about `/api/health` being **blocked entirely** while actually sending a **500 with a JSON body** — different code path, and the page passes one while appearing to fail the other.
+- An overflow check computed `scrollWidth − innerWidth` under `isMobile: true`, where Chromium **widens the layout viewport to fit content**. That expression cannot be positive. It was the only check at the one width the pass existed for.
+- An empty blocked-set was reported as *"either the handler never installed, or there was nothing to block"* — two readings with opposite consequences and no way to tell them apart. **Count what the instrument saw**, so zero becomes interpretable.
+- A landing gate's own positive control replaced the hero subtitle with `ZZPLACEHOLDERZZ` — 254 bytes of HTML, 127 fewer visible characters — and **all 136 criteria stayed green.** A gate that cannot see a replaced headline cannot be cited as evidence that a page is unchanged.
+
+**The rule: plant the defect before trusting the silence.** Every new cell gets a mutation in **real source** that must turn it red, and the restore is from original bytes — never `git checkout`, which discards a teammate's uncommitted work.
+
+### 9c. A fix that exists and is not applied everywhere is indistinguishable from no fix
+
+Three instances in one night, in three different dimensions:
+
+| dimension | the fix | what shipped |
+|---|---|---|
+| prices | `binancePriceFactor` | **zero call sites**; a later pass missed one, then had eleven |
+| failover | `isSingleVenue` | answered from the generated row while the failover read the shipped maps — wrong for the two coins whose listing justified the work |
+| labels | `LABEL_OVERRIDE = { spx: 'SPX6900' }` | **26 renderers** upper-case the id instead, including the public landing page |
+
+**The rule: put the guarantee where every caller inherits it** — in the one function they all pass through, not at the call sites, because the fifteenth call site will not remember. Then derive the cell that holds it from the shipped data, never a hand list: **a hand list passes on the day the thirteenth entry appears, which is the day it is needed.**
+
+### 9d. Your expectation can be older than the page
+
+A regression reported `MISSING ["Sold by LiquidityHQ"]` on six rows. The phrase existed **nowhere in the repository** — the copy had been rewritten inside the same promotion being measured. Six-of-six reproducibility made it look stronger, not weaker: a stale expectation fails on every row exactly like a real defect.
+
+Two more expectations for the same page were then wrong in the same way, because the copy they asserted sits **two clicks and a sign-in** behind the page a sweep loads.
+
+**The rule: before filing a missing-string finding, grep the whole tree for the phrase with a positive control**, and derive the replacement from the governing source — the owner's decision, or the component's own comment — not from the artifact under test.
+
+### 9e. A claim about production is a claim about `origin/main`
+
+A PR title (*"the checkout page printed the unconfirmed legal name unmarked"*) was about to be relayed to the owner as something live on his site. It was true of the **batch**, never of production: zero hits across `origin/main`, zero rows in the prod label table. **`lib/labelOverrides.ts` means a stored row silently beats a shipped default**, so source alone is not the whole answer either — check both, with a positive control on each.
+
+**The rule: a soft item beside precise ones is the one he checks, and the one that makes him doubt the rest.**
+
+### 9f. Two cheap checks that answer the wrong question
+
+- **A fast bad-credential `401` is not evidence that a real sign-in works.** GoTrue rejects bad credentials before bcrypt and before writing a session row; a real password grant does both. Measured on 2026-10-31: sub-200 ms refusals while real grants timed out at 25 s, sixteen times across 45 minutes. **Poll with a real grant and accept only 200.**
+- **`get_project` reporting `ACTIVE_HEALTHY` says nothing about the data plane.** It returned healthy throughout an outage where `/auth/v1/token` answered nothing at all.
+
+---

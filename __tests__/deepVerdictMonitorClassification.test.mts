@@ -50,7 +50,13 @@ const KNOWN_CODES = [...Object.keys(CANNOT_RUN_CODES), 'BAD_ANSWER'];
  * turning into a list of codes nobody can account for.
  */
 const ARRIVING_WITH: Readonly<Record<string, string>> = {
-  /* EMPTY, AND THE EMPTY STATE IS THE POINT.
+  /* THE MECHANISM'S SECOND CUSTOMER, which is the first evidence it generalises rather than having
+     been built for one code. #1855 names the untracked-coin refusal so the Arena can say something
+     true in the user's language instead of surfacing "Invalid request." in English from a generic
+     client branch. Remove this entry in the commit that tightens, once the route returns it. */
+  COIN_NOT_TRACKED: '#1855 - the coin selector offers 463 instruments and the AI read is tracked for about 50, so the refusal needed a name the client could translate.',
+
+  /* THE FIRST CUSTOMER'S ENTRY IS GONE, AND THE EMPTY STATE WAS THE POINT.
    *
    * This held `STALE_CLIENT` while #1854 was unmerged, and it did its job: D5 stayed green on `dev`
    * while the classifier already knew a code the route did not yet return. The route returns it

@@ -103,6 +103,19 @@ export const COINS: CoinId[] = [...RENDERED_IDS];
  * be cheaper than today at any list length. It needs `mutedByUser` threaded into the check
  * functions, a refactor of a 2,400-line route. */
 export const SCAN_LIMIT = 50;
+/* NOTHING IMPORTS THIS YET, DELIBERATELY. It was wired through the alert cron and /api/funding
+   in an earlier version of this branch and taken back out: `SCANNED_COINS` IS `COINS` - the same
+   array, the same 50 ids - so the rename changed no behaviour and only moved a name that QA's
+   `planKindOfRow` S5 pins by literal text, parking the whole PR behind a string match for a seam
+   that is not load-bearing yet.
+ *
+   THE NAME EXISTS SO THE SEAM IS FINDABLE. Rename the call sites in the change where the two
+   sets actually diverge - that is when the pin genuinely needs moving and when it is worth QA's
+   step 0. **Two places must move together on that day:** the cron in
+   `app/api/telegram/alert/route.ts`, and `app/api/alerts/preview/route.ts`, which shows the user
+   which coins they would be alerted about. If the preview keeps reading the rendered list while
+   the cron reads the scan set, **the preview advertises coins nothing is watching and nothing
+   fails** - the same silent shape as the 18 coins an earlier version of this branch dropped. */
 export const SCANNED_COINS: CoinId[] = COINS;
 
 /* BYBIT SYMBOL -> COIN ID, FOR THE WHOLE UNIVERSE. Read this map; never iterate it.
@@ -122,11 +135,6 @@ export const UNIVERSE_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
 /** The row behind a coin, or undefined for an id this build does not serve. */
 export function coinRow(coin: string): CoinRow | undefined {
   return BY_ID.get(coin);
-}
-
-/** True when only one exchange lists it, so a failover read is not available. */
-export function isSingleVenue(coin: string): boolean {
-  return BY_ID.get(coin)?.oneVenue ?? false;
 }
 
 /* THESE TWO MAPS COVER WHAT THE APP RENDERS, NOT THE WHOLE UNIVERSE, and that is load-bearing
@@ -187,6 +195,30 @@ export const BINANCE_SYMS: Record<string, string> = Object.fromEntries(
 export const BYBIT_SYMS: Record<string, string> = Object.fromEntries(
   RENDERED_IDS.map(id => [id, BY_ID.get(id)?.bybit]).filter(([, s]) => s) as [string, string][],
 );
+
+/* IS THERE A SECOND SOURCE FOR THIS COIN? ANSWERED FROM THE SHIPPED MAPS, not from the
+ * generated row, and the difference was a lie about the one thing this function exists to say.
+ *
+ * It used to read `BY_ID.get(coin)?.oneVenue`, which is what the EXCHANGES list. The failover
+ * reads `BINANCE_SYMS`, which is what WE ship - and those disagree for `pepe` and `bonk`:
+ *
+ *     generated row   { id: 'pepe', bybit: '1000PEPEUSDT', binance: '1000PEPEUSDT', oneVenue: false }
+ *     shipped maps    bybit = 1000PEPEUSDT   binance = ABSENT   (held back, see BINANCE_HOLD)
+ *     old answer      isSingleVenue('pepe') === false   -> "yes, there is a failover"
+ *
+ * So a caller asked "is there a second source?", was told yes, and would have found out there
+ * was not **during an outage** - which is the exact moment this function exists to prevent. The
+ * irony is that pepe and bonk are the two coins whose Binance listing was the discovery that
+ * justified generating this file at all; the editorial map then dropped them for a display
+ * reason and nothing told the flag. Found by QA's fixtures, not by me.
+ *
+ * Deriving it from the two maps means it cannot disagree with them, because they ARE the answer.
+ * An id in neither map is not served at all, so there is no failover for it either - `true` is
+ * the honest answer and `coinRow(id)` is how you ask the different question of whether the
+ * exchanges list it. */
+export function isSingleVenue(coin: string): boolean {
+  return !(BYBIT_SYMS[coin] && BINANCE_SYMS[coin]);
+}
 
 /* Reverse of BINANCE_SYMS - given a Binance symbol, which coin it is. Shared across every
  * #1077 server-side failover route that fans out over BINANCE_SYMS and needs that coin's
@@ -303,4 +335,38 @@ export function bybitSymbolPriceFactor(symbol: string): number {
 export function chartDisplaySymbol(coin: string): string {
   const prefix = BYBIT_SYMS[coin]?.startsWith('1000') ? '1000' : '';
   return `${prefix}${coin.toUpperCase()}/USDT`;
+}
+
+/* The helper arrived on `dev` in #1863 with a HAND-WRITTEN COIN_LABELS beside it; this branch
+   generates the map instead. Only the helper is taken across - it reads COIN_LABELS and does
+   not care how the map is built, which is the property that made the two mergeable at all.
+   The override above is this branch's version of the same fix: #1863 edited the literal entry,
+   and here the entry is derived, so the editorial value lives in LABEL_OVERRIDE. */
+/* THE ONE WAY TO RENDER A COIN'S NAME. Use this, never `id.toUpperCase()`.
+ *
+ * WHY A HELPER FOR A ONE-LINE LOOKUP. The label is EDITORIAL for at least one coin - `spx` is
+ * SPX6900, above - and a renderer that upper-cases the id silently ignores that. Measured
+ * tonight: 26 files in app/ and components/ upper-case a coin id and never import COIN_LABELS,
+ * 8 do. So the rename reached 8 surfaces and missed 26, including `components/LandingTicker.tsx`
+ * - the landing page. A visitor who knows what SPX means read a ticker claiming we track the
+ * S&P 500.
+ *
+ * **Shipping a rename on 8 of 34 surfaces is worse than not shipping it**, because it turns "we
+ * know this is wrong everywhere" into "we believe this is fixed", and that is where the next
+ * reader stops looking.
+ *
+ * THIRD TIME TONIGHT for the same shape: `binancePriceFactor` with zero call sites, the universe
+ * price pass missing the multiplier, and now a label override 26 renderers bypass. **A fix that
+ * exists and is not applied everywhere is indistinguishable from no fix.** One function is what
+ * makes the fourth instance impossible rather than merely unlikely.
+ *
+ * Falls back to the uppercased id, so an unknown or generated coin renders sensibly instead of
+ * `undefined` - the fallback is the reason this is safe to use at every call site, including the
+ * ones reading ids that are not in the curated map. */
+export function coinLabel(coin: string): string {
+  /* Widened on purpose: the parameter is `string` so EVERY call site can use this, including
+     the ones holding an id that is not in the curated union - a generated coin, a value off a
+     feed, a URL parameter. Narrowing it to CoinId would send those call sites back to
+     `.toUpperCase()`, which is the bypass this function exists to remove. */
+  return (COIN_LABELS as Record<string, string>)[coin] ?? coin.toUpperCase();
 }
