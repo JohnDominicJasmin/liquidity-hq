@@ -1280,7 +1280,7 @@ match proves the regex compiles - not that it is the right regex, and not that i
 right file. **Eight checks on one day were working instruments asking the wrong question**, and a
 control aimed at that same wrong question agrees with them.
 
-**Eight instances on 2026-10-31, in eight different checks, across two sessions** - six below, then
+**Nine instances on 2026-10-31, in nine different checks, across two sessions** - six below, then
 two more in the subsection at the end, which were found while correcting the first six. **In every
 one the artifact was right and the check was wrong.** None resembled a tooling fault at the time;
 each read as a finding.
@@ -1329,10 +1329,11 @@ its own maintenance note warns against prose that indexes that table by position
 different failure with the same consequence - **a confident wrong answer that looks like data** -
 so it gets its own heading and its own table, and nothing above it needs re-reading.
 
-#### TWO MORE FROM THE SAME DAY, AND THE ONE-LINE TEST THAT COVERS BOTH
+#### THREE MORE FROM THE SAME DAY, AND THE ONE-LINE TEST THAT COVERS THE FIRST TWO
 
-**Eight instances now, not six.** The two added here are the same failure wearing different
-clothes, and together they produce the test worth memorising.
+**Nine instances now, not six.** The first two added here are the same failure wearing different
+clothes, and together they produce the test worth memorising. The third is its own thing and is at
+the end.
 
 **A grep over one file answers "does this file contain X". It never answers "does this code path
 do X".**
@@ -1360,6 +1361,29 @@ it sat next to; in the assembled file it plainly dominated the assertion.
 **Ordering is the property a diff shows worst** - it shows what changed, not what surrounds it -
 and ordering is exactly what a guard depends on. So: **a review finding about sequence, scope or
 dominance is checked against the file, never against the patch.**
+
+**AND A THIRD: THE WORKING TREE IS NOT THE RECORD.**
+
+A script added an eight-line header to eight SQL files. It decided their line endings by reading
+the checked-out copy, which git serves as CRLF on this machine, and wrote that back. **The repo
+stores those files as LF.** So every line of every file changed: **7,501 insertions for 64 lines of
+intended change**, 4,758 of them in each of three translation files.
+
+**Caught by reading `git show --stat` after committing, not by the commit succeeding.** The commit
+was clean, the content was right, and the diff was unreviewable.
+
+**The fix is to take the original bytes from git rather than from disk:** `git show <ref>:<path>`,
+assert the ending you expect, prepend in **binary**. No text-mode round-trip, so nothing can be
+re-encoded on the way through. Verified by diffing the result against the ORIGINAL - **+8 lines, 0
+deletions per file** - rather than against the previous commit, whose diff is also whole-file
+because it is undoing one.
+
+**Why it belongs in 9h rather than beside it:** the check that spoke was the script's own line-ending
+detection, and it was confidently wrong about the artifact it was editing. It is the same sentence as
+the rest of this section with a different subject - **the thing in front of you is not the thing of
+record** - and it is the third form of that today, after a page sweep that could not see a cron route
+and a partial file listing that nearly struck a correct note.
+
 
 **What makes these 9h rather than 9j.** Each check SPOKE - it produced a confident finding that
 was wrong - where 9j's checks stayed silent. The shared remedy is unchanged and is 9i's step 4: a
