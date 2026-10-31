@@ -46,7 +46,31 @@ import { ROOT, appPath } from './_appPath.mts';
  * Grep-inside-comments has now produced four false findings in one day across both sessions -
  * including Dev's deadness check on HOURS_WIN_LONDON_TIME, whose two "still referenced" hits were
  * both inside the comment explaining its deletion. */
-const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/* TRAILING `//` COMMENTS ARE STRIPPED TOO, and the gap mattered more than the fix it was part of.
+ *
+ * This was `/^\s*\/\/.*$/gm` - anchored at the start of a line - so it removed a comment on its own
+ * line and left this one:
+ *
+ *     const copy = props.copy; // deliberately not useLabels()
+ *
+ * **That is the form L2's own failure message invites.** The message tells the reader to take the
+ * copy as a prop, and someone doing that annotates the line they changed, not the line above it. So
+ * the false positive the strip was added to remove survived in its most likely shape. Dev measured
+ * all four forms and found three of four stripped.
+ *
+ * REQUIRING WHITESPACE BEFORE THE `//` is what keeps a URL intact, and my first attempt got this
+ * wrong in a way L0 caught before it shipped. I tried `[^:/]`, which protects `://` and `///` but
+ * NOT the second slash pair in `"https://example.invalid/a//b"` - the character before it is `a`,
+ * so the strip ate the rest of the line. A comment conventionally has whitespace in front of it and
+ * a URL's inner `//` does not, which is the distinction that holds.
+ *
+ * THE BOUND, since it is a real one: `foo();//note` with no space is NOT stripped. Acceptable - the
+ * forms this exists for are a comment on its own line and a comment after code, both spaced. L0
+ * asserts the URL survives, so the day someone simplifies this to `\/\/.*$` the cell fails and this
+ * paragraph is what needs rewriting. */
+const stripTsComments = (s: string) => s
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/(^|\s)\/\/.*$/gm, '$1');
 const read = (rel: string) => stripTsComments(readFileSync(path.join(ROOT, rel), 'utf8'));
 
 /** `useLabels` is DEFINED here, so its own file is not a consumer of it. The one exemption, named. */
@@ -145,6 +169,40 @@ const LANDING_ROUTES = [appPath('app/page.tsx'), 'app/(intl)/[locale]/page.tsx']
 const LANDING = LANDING_ROUTES.join(' + ');
 const SUBTREE = [...new Set(LANDING_ROUTES.flatMap((r) => reachableFrom(r)))].sort();
 const ALL_REACHABLE = [...new Set(LANDING_ROUTES.flatMap((r) => allReachableFrom(r)))].sort();
+
+test('L0. CONTROLS: the comment strip removes prose and keeps code - in all four comment forms', () => {
+  /* WHY THIS CELL EXISTS, and Dev is the reason it does. `stripTsComments` discards input before
+     any scan in this file, so if it is ever tightened or loosened, **all four cells below change
+     meaning with nothing failing.** That is the shape L4 exists to prevent one level up: a
+     narrowing that deserves a cell rather than a comment.
+     It went in on #1909 with its controls living only in a scratchpad harness - which is to say,
+     nowhere. Committed here. */
+  const probe = [
+    '  // own-line: useLabels() in prose',
+    '  const a = 1; // trailing: useLabels() in prose',
+    '  /* block: useLabels() in prose */',
+    '  /* multi-line block:',
+    '     useLabels() in prose */',
+    '  const { t } = useLabels();',
+    '  const u = "https://example.invalid/a//b";',
+  ].join('\n');
+  const out = stripTsComments(probe);
+
+  /* All four comment forms must lose their prose. The trailing form is the one that survived until
+     now, and it is the one L2's failure message invites someone to write. */
+  assert.equal(
+    (out.match(/useLabels\(\)/g) || []).length, 1,
+    `the strip left ${(out.match(/useLabels\(\)/g) || []).length} occurrences of useLabels() instead of 1 - ` +
+    `only the real call should survive. Output was:\n${out}`,
+  );
+  assert.match(out, /const \{ t \} = useLabels\(\);/, 'the strip removed a REAL call - every cell in this file would then be blind');
+  assert.match(out, /const a = 1;/, 'the strip ate the code before a trailing comment, not just the comment');
+
+  /* THE COST OF WIDENING, asserted rather than trusted: `//` inside a string must survive. This is
+     the assertion that fails the day someone simplifies the pattern to `\/\/.*$`, which is exactly
+     when the paragraph above the strip needs rewriting. */
+  assert.match(out, /https:\/\/example\.invalid\/a\/\/b/, 'the strip ate a URL - widen it again and this file starts reading truncated source');
+});
 
 test('L1. CONTROLS: the walk reaches landing\'s real subtree, and the detector it feeds can fire', () => {
   /* Without these, every assertion below is satisfied by a walk that found nothing. A silent
