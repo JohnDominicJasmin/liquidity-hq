@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Active crypto traders, worldwide (perps and spot: BTC, ETH, majors and alts). They open LiquidityHQ before entering a trade to read the market, and the pain they bring is getting liquidated or stopped out right before price reverses. Buyers are anywhere (Malaysia, Netherlands, UK, Japan, Australia, US, EU and the rest); the owner being in the Philippines does not make it a Philippine product. Confirmed by the owner, 2026-10-19.
+Active crypto traders, worldwide (perps and spot: BTC, ETH, majors and alts). They open LiquidityHQ before entering a trade to read the market, and the pain they bring is getting liquidated or stopped out right before price reverses. Buyers are anywhere (Malaysia, Netherlands, UK, Japan, Australia, US, EU and the rest); the owner's own location does not make it a local product. Confirmed by the owner, 2026-10-19.
 
 ## Product Purpose
 

@@ -10,7 +10,7 @@ Last verified: 2026-10-10; prices, payments state, environments and permissions 
 - State this plainly in every payment-provider application. Do not describe it as only a "charting utility": the BUY/SELL markers exist.
 
 ## Audience: worldwide
-- Buyers are anywhere: Malaysia, Netherlands, UK, Japan, Australia, US, EU and the rest. The owner lives in the Philippines. That does **not** make this a Filipino product.
+- Buyers are anywhere: Malaysia, Netherlands, UK, Japan, Australia, US, EU and the rest. The owner's own location does **not** make this a local product.
 - Never propose a country-specific gateway or wallet (GCash, Maya, PayMongo, Xendit). Gateway candidates must accept buyers from most countries.
 
 ## Plans and prices (owner final, 2026-10-08)
@@ -27,7 +27,7 @@ Payments are OFF on prod (`isProBuyable` false; /upgrade says "launching soon").
 
 Rejected or banned for our category (primary sources):
 - Lemon Squeezy (store application rejected). Polar.sh (form said crypto trading signals tools not allowed, 2026-10-07). Paddle (its list names "trading signals and strategies").
-- Stripe does not support Philippines sellers (stripe.com/global country list). A company in a supported country would be needed.
+- Stripe does not support sellers in the owner's country (stripe.com/global country list). A company in a supported country would be needed.
 - Do not reword the product to dodge a review. Describe it exactly.
 
 Candidates as of 2026-10-10 (none confirmed to approve us). **Superseded by the 2026-10-17 decision, Whop only (below); kept as history.** The Whop details here are the 2026-10-10 state: the webhook route has since been built (#1567) and its secret set on qa (2026-10-19/20 section).
@@ -53,7 +53,7 @@ Candidates as of 2026-10-10 (none confirmed to approve us). **Superseded by the 
 - Replies: short, in English, like a message to a colleague. No essays, no re-explaining what was decided.
 
 ## Cash-out plan (owner, 2026-10-10)
-- Crypto route (BoomFi / MoonPay Commerce): payouts arrive as USDC/USDT in the owner's own wallet. The owner has a personal contact who converts USDT to cash, so a Philippine bank is not on the critical path for crypto sales.
+- Crypto route (BoomFi / MoonPay Commerce): payouts arrive as USDC/USDT in the owner's own wallet. The owner has a personal contact who converts USDT to cash, so a local bank is not on the critical path for crypto sales.
 - Whop pays out to a bank or other payout method, not USDT; the cash-out contact does not apply to Whop.
 - Keep a record of each conversion (date, amount, rate, counterparty) for BIR income reporting and any source-of-funds question. Income is taxable however it is cashed out; ask an accountant (not legal or tax advice).
 
@@ -85,29 +85,29 @@ Keep every page free of: guaranteed or promised returns, earnings claims, win-ra
 
 ## Radom verified OUT (2026-10-10, Google AI Mode reading of Radom's official hosted-checkout guide)
 - Radom does NOT host a card form. Checkout is crypto only (QR code, wallet connect, manual transfer); fiat arrives only by bank transfer swapped to stablecoin. An earlier Google answer saying Radom takes cards was wrong. Do not list Radom.
-- Radom, further verified 2026-10-10 (quotes from Radom's own footer/docs via Google AI Mode): services "not directed at, offered to, or intended for persons located or established in the EU/EEA, the United Kingdom, or the United States" - buyers in US/UK/EU are excluded, so it cannot serve a worldwide audience. Recurring needs the buyer's wallet approval. No signals ban listed. Philippines individual onboarding unverified.
+- Radom, further verified 2026-10-10 (quotes from Radom's own footer/docs via Google AI Mode): services "not directed at, offered to, or intended for persons located or established in the EU/EEA, the United Kingdom, or the United States" - buyers in US/UK/EU are excluded, so it cannot serve a worldwide audience. Recurring needs the buyer's wallet approval. No signals ban listed. Individual onboarding in the owner's country unverified.
 
 ## Working rule (owner, 2026-10-10): verify before presenting
 If a claim is unverified, verify it in the background (official page or screenshot; Google AI Mode in the SAME thread, never a new thread) BEFORE telling the owner. Do not present unchecked results. Do not ask the owner to do verification manually.
 
 ## BoomFi card support, verified 2026-10-10 (quotes from BoomFi docs via Google AI Mode, same thread)
 - Verified: BoomFi docs say "Dual payment options: Accept both fiat and cryptocurrency payments"; feature list "Banking rails: SEPA, FPS, Swift, ACH, Wire"; merchant can settle in crypto or fiat.
-- NOT verified: the card form itself (never seen), card auto-renew (BoomFi recurring is wallet-based), and the card processor (Google says Stripe; docs only list "Stripe Billing" as an integration). If Stripe runs the card side, Stripe's rules (no Philippines sellers, signals wariness) may apply. (2026-10-10 wording, superseded twice: "all three gateways" the same day, then Whop only on 2026-10-17.)
+- NOT verified: the card form itself (never seen), card auto-renew (BoomFi recurring is wallet-based), and the card processor (Google says Stripe; docs only list "Stripe Billing" as an integration). If Stripe runs the card side, Stripe's rules (no sellers in the owner's country, signals wariness) may apply. (2026-10-10 wording, superseded twice: "all three gateways" the same day, then Whop only on 2026-10-17.)
 
 ## Three-gateway verification, 2026-10-10 (Google AI Mode in one thread; quotes from official pages where marked)
 Owner decision at the time: use ALL THREE (superseded 2026-10-17: Whop only).
-- **Whop:** card form stated in Whop docs (not seen on our own page; the owner's "Get access" is greyed because he owns the product, to be confirmed in a private window). Buyers blocked: sanctioned countries only. Philippines individual accepted; signals/analytics allowed under conditions; review triggers: first sale/withdrawal, $1k/$5k milestones, fraud scores, earnings-claim wording.
+- **Whop:** card form stated in Whop docs (not seen on our own page; the owner's "Get access" is greyed because he owns the product, to be confirmed in a private window). Buyers blocked: sanctioned countries only. Individual seller in the owner's country accepted; signals/analytics allowed under conditions; review triggers: first sale/withdrawal, $1k/$5k milestones, fraud scores, earnings-claim wording.
 - **Whop card form SEEN 2026-10-10** (Whop dashboard checkout-link preview of the $20 plan): Card information (number, MM/YY, CVC) + billing details; also Google Pay, Apple Pay, DuitNow QR, iDEAL, Kakao Pay, MB WAY, Multibanco, Satispay, ACH. It is Whop's preview, not a live payment. Account side has no blocker; individual accepted (payout identity verified). Pending: webhook/API key/secret after the #1567 code, and public product page description + disclaimer (state unchecked).
 - **Whop payment methods, Google AI Mode in the existing thread 2026-10-10 (quotes attributed to Whop docs, NOT opened by us; screen-verified: a "Crypto" payment method exists and is ticked in the Whop account's Checkout > Payment methods):** cards Visa/Mastercard/Discover/Amex/Maestro; Apple Pay, Google Pay, Cash App; PayPal (merchant setup); ACH, SEPA; iDEAL, Bancontact, Swish, MobilePay, Vipps. Crypto: BTC, ETH, SOL, USDC, USDT on Ethereum, Bitcoin, Solana, Base, Polygon, Arbitrum, Optimism (via Coinbase Commerce per Google, unverified); buyer can pay from a Binance/Bybit withdrawal (buyer must cover the withdrawal fee); crypto is ONE-TIME ONLY, no auto-renew, buyer re-pays each period; Whop converts crypto to USD at checkout. Only real test purchase settles it.
 - **Why Whop needs no company, Google AI Mode in the existing thread 2026-10-10 (quotes attributed to Whop docs, NOT opened by us):** Whop is the merchant of record ("Whop acts as the merchant of record for transactions processed through Whop Payments"), so an individual can sell; MoonPay Commerce makes the seller the direct merchant, hence its company vetting. The SELLER stays liable for chargebacks plus fees. Whop collects and remits sales tax/VAT on digital products (income tax is still the seller's). Whop "reserves the right to request additional documentation, including official business registration" at volume thresholds or high-risk patterns; the threshold is not published (UNVERIFIED). Plan for a possible business registration later; it does not block the first customer.
-- **MoonPay Commerce:** MoonPay's "Unsupported Countries" list (quoted via Google) includes Malaysia, Japan, India, China, Bangladesh, Pakistan, Morocco, Mali and others, in addition to sanctioned places. This conflicts with the earlier assumption that Malaysia and Japan are supported: card buyers there cannot use it. Philippines individual: UNVERIFIED (announcement says it serves "individual creators to enterprise-scale platforms"). Signals/analytics policy: UNVERIFIED (not documented in public text). No public card-form demo URL.
-- **BoomFi:** Philippines individual: UNVERIFIED. Blocked-country list: only "services may not be available in all jurisdictions" quoted; the earlier-read list (UK, Malaysia, Netherlands, Quebec, NY/AK/LA, China, Russia, ~30 more) was a docs summary. Signals/analytics policy: UNVERIFIED. No public card-form demo. Card support stated in docs; auto-renew of cards and the processor (Stripe?) UNVERIFIED.
+- **MoonPay Commerce:** MoonPay's "Unsupported Countries" list (quoted via Google) includes Malaysia, Japan, India, China, Bangladesh, Pakistan, Morocco, Mali and others, in addition to sanctioned places. This conflicts with the earlier assumption that Malaysia and Japan are supported: card buyers there cannot use it. Individual seller in the owner's country: UNVERIFIED (announcement says it serves "individual creators to enterprise-scale platforms"). Signals/analytics policy: UNVERIFIED (not documented in public text). No public card-form demo URL.
+- **BoomFi:** individual seller in the owner's country: UNVERIFIED. Blocked-country list: only "services may not be available in all jurisdictions" quoted; the earlier-read list (UK, Malaysia, Netherlands, Quebec, NY/AK/LA, China, Russia, ~30 more) was a docs summary. Signals/analytics policy: UNVERIFIED. No public card-form demo. Card support stated in docs; auto-renew of cards and the processor (Stripe?) UNVERIFIED.
 - The owner signed up to BoomFi (dashboard reached) on 2026-10-10.
 
 ## Whop account state, 2026-10-15 (read from the Whop dashboard unless marked; owner rule: new facts go in the docs)
 - **Verification:** individual verification done. The red action "Provide source of wealth, proposed use of cards" (marked "Affects withdrawals") was submitted by the owner on 2026-10-11 and the banner is gone. Business verification is an optional "Get verified" button, not forced. Payouts Active; Whop Card and Bank deposits Inactive.
 - **No business-documents requirement** on any settings tab read (Verifications, Risk, Payments, Checkout, Legal, Tax, Invoices). Whop's own threshold for asking stays unpublished (unverified).
-- **Whop Card (Google AI Mode, unverified):** a virtual Visa card spending from the Whop balance; not required for payouts; Philippines availability unverified. The owner answered "no card planned".
+- **Whop Card (Google AI Mode, unverified):** a virtual Visa card spending from the Whop balance; not required for payouts; availability in the owner's country unverified. The owner answered "no card planned".
 - **Payout details are Google AI Mode only (unverified):** local bank account via Stripe Express is the main method; USDC/USDT, PayPal, Wise, GCash not native; fee about 3% (unconfirmed); minimum about $10; first payout held 7-14 days, then about 7-day rolling; no published monthly cap. Whether payouts can be withdrawn is proven only by a real test withdrawal (not done).
 - **Settings seen:** max price $2,500 per checkout ("Request increase" exists); payment orchestration ON (0.8% fee per Whop's text); 3D Secure frictionless; Dispute Fighter available, off; "$25 / Save 20%" strikethrough on the $20 plan has no setting and looks auto-computed.
 - **Legal tab:** Terms of Service, Privacy policy and Return policy PDFs uploaded by the owner; EULA left empty on purpose (a web app has no installed software; Google says Whop does not require any of the four, unverified). "Require terms and conditions acceptance" is ON.

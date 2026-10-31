@@ -1415,7 +1415,7 @@ QA tests the previous build and neither of you finds out for a while.
 | | |
 |---|---|
 | **URL** | https://liquidity-hq-qa.onrender.com |
-| **Render service** | `liquidity-hq-qa` (`srv-d9p42ke1egvs73f8car0`), free plan, Singapore |
+| **Render service** | `liquidity-hq-qa` (`srv-d9p42ke1egvs73f8car0`), free plan |
 | **Database** | Supabase `liquidity-hq-dev` (`wdtjhrilakoitfcezxpx`) |
 | **Auto-deploy** | **no** — merge, then trigger manually |
 
