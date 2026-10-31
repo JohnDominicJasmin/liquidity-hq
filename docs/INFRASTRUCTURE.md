@@ -1321,3 +1321,88 @@ thing standing in for the independence the check does not have.**
 its own maintenance note warns against prose that indexes that table by position. This is a
 different failure with the same consequence - **a confident wrong answer that looks like data** -
 so it gets its own heading and its own table, and nothing above it needs re-reading.
+
+### 9j. A ZERO IS A MEASUREMENT OF THE INSTRUMENT UNTIL A CONTROL SAYS OTHERWISE
+
+**Numbered 9j although this file ends at 9h: 9i is on PR #1875 and has not merged yet.** The
+gap is deliberate rather than a mistake - taking 9i here would collide with that PR and produce two
+sections with one number. If #1875 is ever abandoned, renumber this one rather than leaving a hole.
+
+Two findings from 2026-10-31, on #1818's Draw Structure work. They look unrelated - one is about
+Postgres, one about `git grep` - and they are the same failure: **a check reported an absence, the
+absence was the check's own blind spot, and the number it printed was identical to the number a
+true absence would print.**
+
+#### A PROD FUNCTION BODY CANNOT BE DIFFED AGAINST ITS REPO MIGRATION DIRECTLY
+
+Before replacing `increment_ai_usage_impl` - the function that meters every Pro tool - the live
+definition was dumped with `pg_get_functiondef` and compared against
+`supabase/migrations/20260727e_ai_tool_pool.sql`. **It differed.** The live body was missing
+comments the repo body has, and no migration in the repo explained it: `20260807b` only renames
+the function (a rename preserves the body verbatim) and `20260907b` mentions it in a comment. That
+is the exact shape of "someone edited this by hand in the dashboard", and the correct response to
+that reading is to stop.
+
+**It was not a hand-edit. Something in the apply path strips SQL comments before Postgres sees
+them**, so `prosrc` comes back comment-free for everything:
+
+| Check | Result |
+|---|---|
+| Functions in prod `public` carrying a `--` in `prosrc` | **0 of 14** |
+| `--` lines in the repo source of `lhq_grant_signup_trial` | 21 |
+| `--` lines in the repo source of `lhq_record_api_health` | 3 |
+| Normalised md5, prod live body vs repo body | **identical**, 7646 chars each side |
+
+**Postgres does not do this** - it stores a function body as given. So the stripping is ours, and
+the consequence is that **every function in the database looks modified** when compared to its
+migration. Anyone auditing a function against its source will reach the same wrong conclusion.
+
+**The control is what separated the two readings, and it was nearly skipped.** "Prod differs from
+the repo" and "every function in the database differs the same way" lead to opposite actions, and
+only the second reading is available if you look at **one** function. The question that produced
+it was *do the other instances show this too* - not *let me read the body more carefully*, which
+is what the first reading invites.
+
+**So, to compare a live function against a migration:** strip comments and collapse whitespace on
+both sides, then hash - or compare only the statements. And **give that normalisation a positive
+control**: a one-character code change must flip the hash while removing a comment must not. Both
+were verified before the hash match above was believed.
+
+**A corollary that bites the other way.** A comment stripper cannot tell `--` in code from `--`
+inside a string literal, so a `--` in a `format()` template or an error message would be truncated
+at that point, silently, and the function would still be created. Check for `--` inside string
+literals before applying DDL here. Same family as 9d, pointed the other direction.
+
+#### `git grep` RETURNS THE SAME ZERO BEFORE AND AFTER A PUSH
+
+Two sessions independently searched for a string and both got a reassuring zero, **for unrelated
+reasons, neither of which was the string being absent**:
+
+| Who searched | What they searched | Why the zero was meaningless |
+|---|---|---|
+| Dev | `git grep` over the working directory | `git grep` searches **tracked** files; the file was new and untracked |
+| QA | `git grep` over `origin/feature/draw-structure` | the pushed ref **predated the work** - the route did not exist on it |
+
+The claim being checked happened to be true, which is the worst outcome: a false method agreed with
+reality and would have been trusted the next time.
+
+**QA's search carried a positive control and dev's did not**, which is the only reason one of the
+two zeros was caught in the act: searching `RATE_LIMIT` in the same command returned 5 files, so
+the mechanism was known to work and the absence was known to be real for that ref. Without that
+line QA would have sent a false confirmation.
+
+**The trap is that the command does not change, only the truth does.** `git grep X` is wrong
+before a commit and right after it, with no change in output format and no error. So:
+
+1. **To search code you have just written, search the working tree** - `rg`, or the Grep tool -
+   never `git grep`.
+2. **To search a ref, first prove the file is on that ref**: `git ls-tree -r <ref> -- <path>`. An
+   empty listing means the search could not have found anything.
+3. **Never chain on a grep's exit code.** `git grep` and `grep -c` exit 1 on zero matches, so
+   `grep ... && npx tsc` silently skips the typecheck and `$?` reports the grep. This happened in
+   the same session that wrote rule 1, and the printed "exit" was the grep's.
+
+**Why this sits beside 9h rather than inside it.** 9h is *when a check disagrees with the artifact,
+suspect the check first* - a check that **speaks**. This is a check that **stays silent**, which is
+harder, because disagreement prompts investigation and agreement does not. The shared remedy is
+9i's step 4: **a positive control, because a self-written check has no independence to borrow.**
