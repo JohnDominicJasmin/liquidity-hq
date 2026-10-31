@@ -1385,6 +1385,30 @@ record** - and it is the third form of that today, after a page sweep that could
 and a partial file listing that nearly struck a correct note.
 
 
+**AND THE REASON TWO CLEAN REVIEWS KEEP MEETING A RED BUILD:**
+
+> **A review reads the change. CI reads the change plus everything that was pointed at it.**
+
+Twice on 2026-10-31 a change was cleared field by field by a second reader and then failed CI, both
+times because a source-reading test elsewhere was anchored on a token the change had moved. **Neither
+reader could have seen it by reading the diff**, because the thing that broke was not in it:
+
+| the change | what broke | the anchor it used |
+|---|---|---|
+| an RSI data layer moved to `lib/` | `rsiWilderOracle:54` | the route's file PATH |
+| thirteen prompt fields moved into a shared module | `aiFeedsUnknownNotEmpty:38` | the `rsi14` token that happened to FOLLOW the field it wanted |
+
+**That is four source-pin breaks on provably-safe changes in one day** - also a rename and a
+declaration style - and every one fired on the safe case while being blind to the dangerous one. A
+pin on a neighbour cannot tell a move from a deletion, and stays green through a behaviour change
+that keeps the text.
+
+**What follows for a reviewer: clearing a diff is not clearing a change.** The question a reader
+cannot answer is *what else names this?* - so for a move or a rename, grep the OLD name across
+`__tests__` and `qa/` before claiming it is safe, or say plainly that you cleared the content and
+not the references.
+
+
 **What makes these 9h rather than 9j.** Each check SPOKE - it produced a confident finding that
 was wrong - where 9j's checks stayed silent. The shared remedy is unchanged and is 9i's step 4: a
 positive control, because a self-written check has no independence to borrow - subject to the
