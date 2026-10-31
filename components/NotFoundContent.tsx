@@ -91,7 +91,13 @@ export default function NotFoundContent() {
       </svg>
 
       <div style={{
-        fontSize: 'var(--fs-page)', fontWeight: 800, color: 'var(--txt1, #e8e8e8)',
+        /* `--txt`, NOT `--txt1`. The latter is defined NOWHERE in app/globals.css - grep count 0 -
+           and this line was its only use in the repository, so it always resolved to the hardcoded
+           fallback `#e8e8e8`. In dark that looks correct, which is why it survived. In light it is
+           near-white text on a near-white page: measured 1.13:1 against `rgb(247,246,243)`, where
+           AA wants 4.5:1. Found while rendering this page for the owner's sign-off on the chart
+           size - the chart itself was fine at 5.68:1 because it uses `--txt3`, which exists. */
+        fontSize: 'var(--fs-page)', fontWeight: 800, color: 'var(--txt)',
         fontFamily: "'JetBrains Mono', monospace",
       }}>
         {t('NOT_FOUND_TITLE')}
