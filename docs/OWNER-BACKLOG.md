@@ -124,14 +124,22 @@ functions, so it does not stop the reliability work.
 
 | What he decided | His words | What it changed |
 |---|---|---|
-| **The chart-drawing deep research is built on Claude, NOT Grok — subject to a head-to-head first.** | *"for deep research will do it"*, then *"yes, set up the head-to-head test"* after being told there is no provable reason Claude is better. | `#1818` gains a bake-off before any build: 12 committed candle windows, both engines return coordinates, scored by `lib/chartStructures.ts` rather than by eye. **Decision rule fixed before the run** — fewest fabrications on the structureless group wins; fit quality breaks a tie; cost breaks that; **a tie builds on Grok**, which is already wired and validated. |
+| **The chart-drawing feature went to a head-to-head, and the result changed the feature.** | *"for deep research will do it"*, then *"yes, set up the head-to-head test"* after being told there is no provable reason Claude is better, then *"go D"*. | **IT RAN. Grok AUC 0.648, Claude 0.716, both intervals containing 0.5 — neither engine's confidence separates real structure from noise.** The pre-registered rule resolved to **Grok** twice (fit quality tied, cost broke it), $2.74 spent. **Then the owner's own blind review put OUR detector at chance against him too** — and he said "noise" **zero times in sixteen charts**, so there was no negative class for an automatic filter to produce. **The automatic version was abandoned.** The feature shipped as **"Draw Structure"** (his name): Grok proposes lines, the user accepts or rejects, 4h and above, nothing claimed as verified. #1881. |
 | **The shipped deep analysis and Ask-AI search STAY on Grok.** | *"grok is better because it has access to X posts"* | Correct, and verified rather than accepted: `app/api/grok/route.ts:296-306` attaches `searchTools(xWindow)` when `type === 'deep'`, and `grok-chat` search mode does the same. **Claude cannot see X at all.** The split is by input, not by feature: *what people are saying* goes to Grok, *our own numbers* can go to Claude. |
 | **The $100 Claude credit is part of his Max plan and refills.** | *"it's part of my Claude Max plan... I will have another one in next few days"* | Usable budget for the over-ceiling features. **Recorded with its risk: do not let a feature's economics depend on a promotional grant** — if it stops, the cost lands on him at full rate, so anything built on it must be switchable back. |
 
 **What this decision exposed, and it is a live business fact rather than a note.** Production's own
 AI call log says **three of six AI features already cost more per answer than his $0.0085 ceiling**:
 deep analysis **$0.0238**, Ask-AI search **$0.0271**, quick read **$0.0117**. Macro, chat and dry
-powder are under. Total ever spent is $0.59 — **that is low traffic, not low unit cost.** Input size
+powder are under. Total ever spent is $0.59 — **that is low traffic, not low unit cost.**
+
+**Re-measured against production by Dev Team and every figure matches to five decimals**, with the
+control that `costed_calls` equals `calls` for all six types, so no unmeasured rows are dragging an
+average down. **Two caveats that change how the numbers should be USED rather than whether they are
+right:** the whole dataset is **43 calls**, and `deep`'s most expensive call was **$0.0747, three
+times its own average** — so "deep costs $0.0238" is a mean over 14 calls with a 3x spread, fine for
+arguing about the ceiling and thin for a projection. **Six of the seventeen call types have never
+been invoked at all.** Input size
 is the driver: deep sends ~15,000 tokens in and gets ~1,400 back. **Prompt caching is OFF on the
 Claude account**, so the first Claude figure the bake-off produces is an upper bound, not a running
 cost.

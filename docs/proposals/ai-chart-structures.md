@@ -1,6 +1,33 @@
 # Proposal: AI chart structures — deep research draws on the chart
 
-**Status: PHASE 0 SHIPPED. A GROK vs CLAUDE BAKE-OFF RUNS BEFORE PHASE 1. Tracked on `#1818`.**
+**Status: THE BAKE-OFF RAN AND THE AUTOMATIC VERSION IS ABANDONED. Shipping as "Draw Structure"
+(#1881). Tracked on `#1818`.**
+
+**Three measurements, in order, and each one narrowed the feature:**
+
+1. **Both engines are at chance.** Grok AUC 0.648, Claude 0.716, both intervals containing 0.5.
+   Rule resolved to Grok twice. $2.74.
+2. **Our own detector is at chance against the owner** - 12 blind charts, our z predicting nothing
+   he would draw. His answers tracked the TIMEFRAME: 4h 3 of 3, 15m 0 of 4.
+3. **Sixteen more charts at 1h and 4h: he said "noise" ZERO times.** No negative class, so no
+   automatic filter is shippable. That, not the inversion, is what killed it - the inversion was
+   n=4 per cell and inside the noise.
+
+**So the AI proposes and the user disposes.** Grok suggests lines, the user accepts or rejects,
+4h and above, 15m never, 1h a later question. **Nothing is drawn as a claim**, so the honesty
+problem is solved by the interaction rather than by a statistic we do not have. Accepting a line
+promotes it into the user own drawing group, after which it is indistinguishable from one they drew.
+
+**This is a stronger position than the automatic version, not a retreat.** An automatic detector
+would have had to CLAIM its lines were real, on a statistic measured at chance against the only
+trader we have.
+
+**Untested rather than ruled out:** our statistic only measured SLOPED trendlines through swing
+pivots. He said something to 16 of 16 on 1h and 4h, so something is making him say yes - a
+horizontal level is the obvious candidate and nobody has looked.
+
+**Phase 0 (`lib/chartStructures.ts`) survives as the way to turn claimed points into a drawable
+line. The judge dies; the geometry lives.**
 
 **Owner decision, 2026-10-31.** He chose Claude for this feature, then accepted that there is no
 provable reason it is better and ordered a head-to-head instead: *"yes, set up the head-to-head
