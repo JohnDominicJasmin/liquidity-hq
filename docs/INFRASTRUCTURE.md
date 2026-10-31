@@ -1352,6 +1352,20 @@ them**, so `prosrc` comes back comment-free for everything:
 | `--` lines in the repo source of `lhq_grant_signup_trial` | 21 |
 | `--` lines in the repo source of `lhq_record_api_health` | 3 |
 | Normalised md5, prod live body vs repo body | **identical**, 7646 chars each side |
+| Functions carrying a `/* ... */` block comment | **0 of 14** (QA) |
+| Functions whose `prosrc` still contains newlines | **14 of 14** (QA) |
+
+**THE NEWLINE ROW IS THE CONTROL AND IT IS NOT DECORATION.** Without it, "0 of 14 carry a
+comment" is equally consistent with *`prosrc` is not the body you think it is* - a path that
+flattened or re-serialised bodies wholesale would produce the same zero, and would make the md5
+match above uninterpretable rather than convincing. Newlines survive in all 14, so formatting is
+preserved and **only comments are removed**. That is what licenses the conclusion.
+
+**BOTH COMMENT STYLES ARE STRIPPED, so a normaliser that only handles `--` will disagree with the
+database in the other direction** - it will leave a block comment in the repo side that the live
+side does not have, and report a difference that is not one. Strip `--` to end of line AND
+`/* ... */` spans. (The hash recorded in `20261031a_draw_structure_usage.sql` is unaffected: that
+body contains no block comments, so both normalisers agree on it. Checked, not assumed.)
 
 **Postgres does not do this** - it stores a function body as given. So the stripping is ours, and
 the consequence is that **every function in the database looks modified** when compared to its
@@ -1363,8 +1377,8 @@ only the second reading is available if you look at **one** function. The questi
 it was *do the other instances show this too* - not *let me read the body more carefully*, which
 is what the first reading invites.
 
-**So, to compare a live function against a migration:** strip comments and collapse whitespace on
-both sides, then hash - or compare only the statements. And **give that normalisation a positive
+**So, to compare a live function against a migration:** strip BOTH comment styles and collapse
+whitespace on both sides, then hash - or compare only the statements. And **give that normalisation a positive
 control**: a one-character code change must flip the hash while removing a comment must not. Both
 were verified before the hash match above was believed.
 
