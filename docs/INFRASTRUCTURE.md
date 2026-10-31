@@ -1274,8 +1274,15 @@ had supplied themselves.
 > **9e is about a control whose silence means nothing. This is its mirror: a check that SPEAKS
 > and is wrong.**
 
-Six instances on 2026-10-31, in six different checks, across two sessions. **In every one the
-artifact was right and the check was wrong.** None of them resembled a tooling fault at the time;
+**A CONTROL ONLY FIRES IF THE CHECK CAN BE WRONG IN THE DIRECTION YOU TESTED.** That is the
+general statement; everything below is an instance of it. A positive control proving a grep *can*
+match proves the regex compiles - not that it is the right regex, and not that it is reading the
+right file. **Eight checks on one day were working instruments asking the wrong question**, and a
+control aimed at that same wrong question agrees with them.
+
+**Eight instances on 2026-10-31, in eight different checks, across two sessions** - six below, then
+two more in the subsection at the end, which were found while correcting the first six. **In every
+one the artifact was right and the check was wrong.** None resembled a tooling fault at the time;
 each read as a finding.
 
 | The check | Said | Actually |
@@ -1321,6 +1328,43 @@ thing standing in for the independence the check does not have.**
 its own maintenance note warns against prose that indexes that table by position. This is a
 different failure with the same consequence - **a confident wrong answer that looks like data** -
 so it gets its own heading and its own table, and nothing above it needs re-reading.
+
+#### TWO MORE FROM THE SAME DAY, AND THE ONE-LINE TEST THAT COVERS BOTH
+
+**Eight instances now, not six.** The two added here are the same failure wearing different
+clothes, and together they produce the test worth memorising.
+
+**A grep over one file answers "does this file contain X". It never answers "does this code path
+do X".**
+
+Three findings on 2026-10-31 were that single mistake with three different subjects, and each was
+reported before being withdrawn:
+
+| The check | What it said | What was true |
+|---|---|---|
+| `grep cached\( app/api/market/agg-trades/route.ts` | no cache on that feed | the cache is in `lib/bybitFanout.ts`, which the route calls - 60 s and 120 s |
+| `git grep NOT_ENABLED` | the string is in one route only | `git grep` searches **tracked** files; the file was new and untracked, so the search could not have found it |
+| union of `LABEL_KEYS` vs `labelDefaults.en.json` | three keys have no label | `TradeJournal.tsx:55`'s `ariaName` supplies English at the call site; the keys are fine |
+
+**Each was a true sentence about a file, reported as a claim about behaviour.** *"No `cached(` in
+the route file"* is true. *"No cache"* is a different statement. The remedy is mechanical: **when
+the question is about behaviour, follow the call, or say what you actually searched.**
+
+**And the second instrument: reviewing from a diff is reviewing a DESCRIPTION of the file.**
+
+A review of a test PR flagged a positive control as being placed *after* the assertions it was
+meant to guard, which would have let them pass vacuously. **The guard was sixteen lines above
+them.** In the patch the two hunks were separated and the guard read as a replacement for the code
+it sat next to; in the assembled file it plainly dominated the assertion.
+
+**Ordering is the property a diff shows worst** - it shows what changed, not what surrounds it -
+and ordering is exactly what a guard depends on. So: **a review finding about sequence, scope or
+dominance is checked against the file, never against the patch.**
+
+**What makes these 9h rather than 9j.** Each check SPOKE - it produced a confident finding that
+was wrong - where 9j's checks stayed silent. The shared remedy is unchanged and is 9i's step 4: a
+positive control, because a self-written check has no independence to borrow - subject to the
+statement under this section's heading, which is what these two added.
 
 ### 9i. A STATISTIC MAXIMISED OVER MANY CANDIDATES, AND A NUMBER AN LLM REPORTS
 
