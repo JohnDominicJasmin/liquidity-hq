@@ -1308,6 +1308,15 @@ as an assertion. **A quotation is not a claim, and a deleted quotation is a dele
 5. **Check case and anchors against the artifact** before believing an absence, and prefer `-F`
    for a literal - subject to §9a, which is why `-iF` is not the answer here.
 
+**THE COMMON FACTOR UNDER ALL SIX, AND THE REASON STEP 4 GENERALISES PAST `grep` ENTIRELY: every
+one of these checks was written by the person who wanted the answer.** Not one was an
+independent instrument. A check built to confirm a result inherits the author's expectation of
+what it will find - the double-count went unnoticed because "2 failures" was plausible, the
+`red=[]` went unnoticed because "my cells do not detect this" was the feared answer, and the
+case-sensitive miss went unnoticed because "the edit did not land" was the thing being checked
+for. **So a positive control is not optional hygiene on a self-written check; it is the only
+thing standing in for the independence the check does not have.**
+
 **Why this belongs beside §9e rather than inside it.** §9e's table is controls that never fired, and
 its own maintenance note warns against prose that indexes that table by position. This is a
 different failure with the same consequence - **a confident wrong answer that looks like data** -
