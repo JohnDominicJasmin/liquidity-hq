@@ -120,6 +120,37 @@ functions, so it does not stop the reliability work.
 8. **Before any big marketing push** (6, 7): the three server fixes live, then re-measure CPU and upstream calls per page load, then the owner decides the Render tier with the number in hand.
 9. Then 15 (cross-browser, QA), 12 close-out, the owner-visible queue (#1601, #1595, #1603), and the three visual fails from QA's 2026-10-21 regression (#1640: R6 `/learn` ignores the light theme, R7 `/hours` labels collide, R8 `/liq` stats grid squeezed) for the owner's look.
 
+## Owner decisions, 2026-10-31 (first-hand to PM)
+
+| What he decided | His words | What it changed |
+|---|---|---|
+| **The chart-drawing feature went to a head-to-head, and the result changed the feature.** | *"for deep research will do it"*, then *"yes, set up the head-to-head test"* after being told there is no provable reason Claude is better, then *"go D"*. | **IT RAN. Grok AUC 0.648, Claude 0.716, both intervals containing 0.5 — neither engine's confidence separates real structure from noise.** The pre-registered rule resolved to **Grok** twice (fit quality tied, cost broke it), $2.74 spent. **Then the owner's own blind review put OUR detector at chance against him too** — and he said "noise" **zero times in sixteen charts**, so there was no negative class for an automatic filter to produce. **The automatic version was abandoned.** The feature shipped as **"Draw Structure"** (his name): Grok proposes lines, the user accepts or rejects, **4h and 1d ONLY** - not "4h and above": **2h is deliberately absent**, because he never saw a 2-hour chart in either blind round and it is untested in exactly the way 1h is. Nothing claimed as verified. #1881. |
+| **The shipped deep analysis and Ask-AI search STAY on Grok.** | *"grok is better because it has access to X posts"* | Correct, and verified rather than accepted: `app/api/grok/route.ts:296-306` attaches `searchTools(xWindow)` when `type === 'deep'`, and `grok-chat` search mode does the same. **Claude cannot see X at all.** The split is by input, not by feature: *what people are saying* goes to Grok, *our own numbers* can go to Claude. |
+| **The $100 Claude credit is part of his Max plan and refills.** | *"it's part of my Claude Max plan... I will have another one in next few days"* | Usable budget for the over-ceiling features. **Recorded with its risk: do not let a feature's economics depend on a promotional grant** — if it stops, the cost lands on him at full rate, so anything built on it must be switchable back. |
+
+**What this decision exposed, and it is a live business fact rather than a note.** Production's own
+AI call log says **three of six AI features already cost more per answer than his $0.0085 ceiling**:
+deep analysis **$0.0238**, Ask-AI search **$0.0271**, quick read **$0.0117**. Macro, chat and dry
+powder are under. Total ever spent is $0.59 — **that is low traffic, not low unit cost.**
+
+**Re-measured against production by Dev Team and every figure matches to five decimals**, with the
+control that `costed_calls` equals `calls` for all six types, so no unmeasured rows are dragging an
+average down. **Two caveats that change how the numbers should be USED rather than whether they are
+right:** the whole dataset is **43 calls**, and `deep`'s most expensive call was **$0.0747, three
+times its own average** — so "deep costs $0.0238" is a mean over 14 calls with a 3x spread, fine for
+arguing about the ceiling and thin for a projection. **Six of the seventeen call types have never
+been invoked at all.** Input size
+is the driver: deep sends ~15,000 tokens in and gets ~1,400 back. **Prompt caching is OFF on the
+Claude account**, so the first Claude figure the bake-off produces is an upper bound, not a running
+cost.
+
+**One owner action outstanding:** an Anthropic API key as an environment variable. **Neither PM nor
+Dev handles it.** The Grok half of the bake-off runs without it.
+
+**One naming hazard, cheap now and expensive later:** "deep analysis" already ships and means the
+X-powered one; this proposal is also called "deep research". **Two buttons, different jobs, one
+word.** Rename the new one before it ships.
+
 ## Owner decisions, 2026-10-30 (first-hand to PM)
 
 | What he decided | His words | What it changed |

@@ -1274,8 +1274,15 @@ had supplied themselves.
 > **9e is about a control whose silence means nothing. This is its mirror: a check that SPEAKS
 > and is wrong.**
 
-Six instances on 2026-10-31, in six different checks, across two sessions. **In every one the
-artifact was right and the check was wrong.** None of them resembled a tooling fault at the time;
+**A CONTROL ONLY FIRES IF THE CHECK CAN BE WRONG IN THE DIRECTION YOU TESTED.** That is the
+general statement; everything below is an instance of it. A positive control proving a grep *can*
+match proves the regex compiles - not that it is the right regex, and not that it is reading the
+right file. **Eight checks on one day were working instruments asking the wrong question**, and a
+control aimed at that same wrong question agrees with them.
+
+**Nine instances on 2026-10-31, in nine different checks, across two sessions** - six below, then
+two more in the subsection at the end, which were found while correcting the first six. **In every
+one the artifact was right and the check was wrong.** None resembled a tooling fault at the time;
 each read as a finding.
 
 | The check | Said | Actually |
@@ -1321,3 +1328,310 @@ thing standing in for the independence the check does not have.**
 its own maintenance note warns against prose that indexes that table by position. This is a
 different failure with the same consequence - **a confident wrong answer that looks like data** -
 so it gets its own heading and its own table, and nothing above it needs re-reading.
+
+#### THREE MORE FROM THE SAME DAY, AND THE ONE-LINE TEST THAT COVERS THE FIRST TWO
+
+**Nine instances now, not six.** The first two added here are the same failure wearing different
+clothes, and together they produce the test worth memorising. The third is its own thing and is at
+the end.
+
+**A grep over one file answers "does this file contain X". It never answers "does this code path
+do X".**
+
+Three findings on 2026-10-31 were that single mistake with three different subjects, and each was
+reported before being withdrawn:
+
+| The check | What it said | What was true |
+|---|---|---|
+| `grep cached\( app/api/market/agg-trades/route.ts` | no cache on that feed | the cache is in `lib/bybitFanout.ts`, which the route calls - 60 s and 120 s |
+| `git grep NOT_ENABLED` | the string is in one route only | `git grep` searches **tracked** files; the file was new and untracked, so the search could not have found it |
+| union of `LABEL_KEYS` vs `labelDefaults.en.json` | three keys have no label | `TradeJournal.tsx:55`'s `ariaName` supplies English at the call site; the keys are fine |
+
+**Each was a true sentence about a file, reported as a claim about behaviour.** *"No `cached(` in
+the route file"* is true. *"No cache"* is a different statement. The remedy is mechanical: **when
+the question is about behaviour, follow the call, or say what you actually searched.**
+
+**And the second instrument: reviewing from a diff is reviewing a DESCRIPTION of the file.**
+
+A review of a test PR flagged a positive control as being placed *after* the assertions it was
+meant to guard, which would have let them pass vacuously. **The guard was sixteen lines above
+them.** In the patch the two hunks were separated and the guard read as a replacement for the code
+it sat next to; in the assembled file it plainly dominated the assertion.
+
+**Ordering is the property a diff shows worst** - it shows what changed, not what surrounds it -
+and ordering is exactly what a guard depends on. So: **a review finding about sequence, scope or
+dominance is checked against the file, never against the patch.**
+
+**AND A THIRD: THE WORKING TREE IS NOT THE RECORD.**
+
+A script added an eight-line header to eight SQL files. It decided their line endings by reading
+the checked-out copy, which git serves as CRLF on this machine, and wrote that back. **The repo
+stores those files as LF.** So every line of every file changed: **7,501 insertions for 64 lines of
+intended change**, 4,758 of them in each of three translation files.
+
+**Caught by reading `git show --stat` after committing, not by the commit succeeding.** The commit
+was clean, the content was right, and the diff was unreviewable.
+
+**The fix is to take the original bytes from git rather than from disk:** `git show <ref>:<path>`,
+assert the ending you expect, prepend in **binary**. No text-mode round-trip, so nothing can be
+re-encoded on the way through. Verified by diffing the result against the ORIGINAL - **+8 lines, 0
+deletions per file** - rather than against the previous commit, whose diff is also whole-file
+because it is undoing one.
+
+**Why it belongs in 9h rather than beside it:** the check that spoke was the script's own line-ending
+detection, and it was confidently wrong about the artifact it was editing. It is the same sentence as
+the rest of this section with a different subject - **the thing in front of you is not the thing of
+record** - and it is the third form of that today, after a page sweep that could not see a cron route
+and a partial file listing that nearly struck a correct note.
+
+
+**AND THE REASON TWO CLEAN REVIEWS KEEP MEETING A RED BUILD:**
+
+> **A review reads the change. CI reads the change plus everything that was pointed at it.**
+
+Twice on 2026-10-31 a change was cleared field by field by a second reader and then failed CI, both
+times because a source-reading test elsewhere was anchored on a token the change had moved. **Neither
+reader could have seen it by reading the diff**, because the thing that broke was not in it:
+
+| the change | what broke | the anchor it used |
+|---|---|---|
+| an RSI data layer moved to `lib/` | `rsiWilderOracle:54` | the route's file PATH |
+| thirteen prompt fields moved into a shared module | `aiFeedsUnknownNotEmpty:38` | the `rsi14` token that happened to FOLLOW the field it wanted |
+
+**That is four source-pin breaks on provably-safe changes in one day** - also a rename and a
+declaration style - and every one fired on the safe case while being blind to the dangerous one. A
+pin on a neighbour cannot tell a move from a deletion, and stays green through a behaviour change
+that keeps the text.
+
+**What follows for a reviewer: clearing a diff is not clearing a change.** The question a reader
+cannot answer is *what else names this?* - so for a move or a rename, grep the OLD name across
+`__tests__` and `qa/` before claiming it is safe, or say plainly that you cleared the content and
+not the references.
+
+
+**What makes these 9h rather than 9j.** Each check SPOKE - it produced a confident finding that
+was wrong - where 9j's checks stayed silent. The shared remedy is unchanged and is 9i's step 4: a
+positive control, because a self-written check has no independence to borrow - subject to the
+statement under this section's heading, which is what these two added.
+
+### 9i. A STATISTIC MAXIMISED OVER MANY CANDIDATES, AND A NUMBER AN LLM REPORTS
+
+> **Two instruments that return a confident wrong answer for structural reasons rather than by
+> accident. Both cost real paid calls to learn, on #1818.**
+
+#### A goodness-of-fit chosen as best-of-N is ~1.0 by construction
+
+`lib/chartStructures.ts` already warns that a 2-point line is exact and says nothing. **The same
+defect survives at 3 points once you search for the best triple:** fitting every 3-pivot
+combination in a 200-candle window - about a thousand of them, both sides - and keeping the best
+returned **r2 = 0.99998**. That is the multiple-comparisons problem wearing a goodness-of-fit
+badge. It carried no information at all, and a fabrication test built on it would have produced a
+complete, confident, meaningless result.
+
+**Raw touch count failed identically.** Across 78 windows and 26 coin/timeframe pairs the best
+line's touch count ran **36 to 109 out of 200, median 52** - every window contained a line a
+quarter of its candles touched. Two classifier versions therefore found **zero** structureless
+windows in real market data.
+
+**THE FIX IS A NULL MODEL, NOT A BETTER THRESHOLD.** Score the real window against surrogates
+built from its own volatility - shuffle the bar-to-bar returns, keep each bar's wicks and body -
+and report how many surrogate standard deviations the real result sits above the surrogate mean.
+That spread windows from **-1.01 to 6.35** where both earlier metrics saw no variation.
+
+**And do not quote the grouping as evidence for the grouping.** "Group A is z>=3 and group B is
+z<=0.5, and they do not overlap" is a tautology, and it is the sentence a reader will lift. The
+non-circular evidence is the **spread**, and that a naive metric **disagrees** - the three noise
+windows had 70, 83 and 91 touches against their own nulls of 82.9, 87.3 and 87.4.
+
+#### Any absolute level an LLM reports is promptable; a ranking is not
+
+Asking for structures with one added sentence - *"an empty list is a valid and correct answer"* -
+produced **0 structures on a structured window AND 0 on a noise window**. Removing that sentence
+produced **3 on both**. One neutral-looking line decided the entire output; the chart content did
+not.
+
+Scoring the reported **confidence level** has the same defect one layer down. Measured: a stern
+preamble and a loose one moved mean confidence **0.68 to 0.76** while the separation statistic
+stayed at chance.
+
+**So pre-register a RANK statistic.** A prompt that shifts confidence globally moves both groups
+together and leaves the ranking untouched - prompt-robust by construction. Fix the output length
+too (always N candidates), so list length carries no signal and a permission sentence has nothing
+to act on.
+
+**How to apply:**
+
+1. Before trusting any "best" fit, ask **how many candidates were searched**. More than a handful
+   means the statistic needs a null, not a cutoff.
+2. **Test prompt-robustness before committing spend** - two preambles over one group is a few
+   calls and it is what tells a real effect from a wording effect.
+3. **Retire a protocol for non-discrimination, in writing, while no outcome exists to favour.** On
+   #1818 the first rule was retired when the second engine had produced zero results, and the
+   0/0-and-3/3 table is recorded as the reason. A rule retired after the numbers arrive is
+   indistinguishable from excusing whichever side lost.
+4. **Blind the human check too.** A chart shown with our verdict on it measures agreement with a
+   label, not judgement - which is why `scripts/bakeoff/render-blind.mjs` strips the group letter,
+   the z, the symbol and even the price axis.
+5. **ASSERT THE BALANCE OF EVERY NUISANCE VARIABLE. Do not eyeball it.** This is the most
+   transferable lesson of the exercise and it cost two rounds.
+
+   Round 1's group A was **entirely 4-hour**. So the timeframe label alone predicted the group, and
+   the whole comparison measured nothing about structure: **hide the label and a trader cannot
+   answer; show it and you have handed over the key.** The owner found it in one sentence, having
+   already raised it in the original proposal - which is the part worth recording, because it was
+   knowable before any spend.
+
+   **Fixing it created two more confounds, and that is the real warning.** Balancing timeframes
+   let 15m fill every group before the daily windows were reached, so no group contained a daily
+   chart at all; the next attempt put 1h in exactly one group. **Both were caught only by
+   assertions added after the first confound** - neither was visible in a summary table, and
+   neither would have been noticed by looking at the fixtures.
+
+   So: for every variable that is not the thing under test - timeframe, symbol, **position in the
+   presentation order**, anything the subject can see - write an assertion that each group holds
+   the same mix, and fail the run rather than the analysis. Round 2 balanced position as well as
+   timeframe, which is the version worth copying. **A confound is not a flaw in the result; it
+   means there is no result.**
+
+### 9j. A ZERO IS A MEASUREMENT OF THE INSTRUMENT UNTIL A CONTROL SAYS OTHERWISE
+
+Two findings from 2026-10-31, on #1818's Draw Structure work. They look unrelated - one is about
+Postgres, one about `git grep` - and they are the same failure: **a check reported an absence, the
+absence was the check's own blind spot, and the number it printed was identical to the number a
+true absence would print.**
+
+#### A PROD FUNCTION BODY CANNOT BE DIFFED AGAINST ITS REPO MIGRATION DIRECTLY
+
+Before replacing `increment_ai_usage_impl` - the function that meters every Pro tool - the live
+definition was dumped with `pg_get_functiondef` and compared against
+`supabase/migrations/20260727e_ai_tool_pool.sql`. **It differed.** The live body was missing
+comments the repo body has, and no migration in the repo explained it: `20260807b` only renames
+the function (a rename preserves the body verbatim) and `20260907b` mentions it in a comment. That
+is the exact shape of "someone edited this by hand in the dashboard", and the correct response to
+that reading is to stop.
+
+**It was not a hand-edit. Something in the apply path strips SQL comments before Postgres sees
+them**, so `prosrc` comes back comment-free for everything:
+
+| Check | Result |
+|---|---|
+| Functions in prod `public` carrying a `--` in `prosrc` | **0 of 14** |
+| `--` lines in the repo source of `lhq_grant_signup_trial` | 21 |
+| `--` lines in the repo source of `lhq_record_api_health` | 3 |
+| Normalised md5, prod live body vs repo body | **identical**, 7646 chars each side |
+| Functions carrying a `/* ... */` block comment | **0 of 14** (QA) |
+| Functions whose `prosrc` still contains newlines | **14 of 14** (QA) |
+
+**THE NEWLINE ROW IS THE CONTROL AND IT IS NOT DECORATION.** Without it, "0 of 14 carry a
+comment" is equally consistent with *`prosrc` is not the body you think it is* - a path that
+flattened or re-serialised bodies wholesale would produce the same zero, and would make the md5
+match above uninterpretable rather than convincing. Newlines survive in all 14, so formatting is
+preserved and **only comments are removed**. That is what licenses the conclusion.
+
+**BOTH COMMENT STYLES ARE STRIPPED, so a normaliser that only handles `--` will disagree with the
+database in the other direction** - it will leave a block comment in the repo side that the live
+side does not have, and report a difference that is not one. Strip `--` to end of line AND
+`/* ... */` spans. (The hash recorded in `20261031a_draw_structure_usage.sql` is unaffected: that
+body contains no block comments, so both normalisers agree on it. Checked, not assumed.)
+
+**Postgres does not do this** - it stores a function body as given. So the stripping is ours, and
+the consequence is that **every function in the database looks modified** when compared to its
+migration. Anyone auditing a function against its source will reach the same wrong conclusion.
+
+**The control is what separated the two readings, and it was nearly skipped.** "Prod differs from
+the repo" and "every function in the database differs the same way" lead to opposite actions, and
+only the second reading is available if you look at **one** function. The question that produced
+it was *do the other instances show this too* - not *let me read the body more carefully*, which
+is what the first reading invites.
+
+**So, to compare a live function against a migration:** strip BOTH comment styles and collapse
+whitespace on both sides, then hash - or compare only the statements. And **give that normalisation a positive
+control**: a one-character code change must flip the hash while removing a comment must not. Both
+were verified before the hash match above was believed.
+
+**A corollary that bites the other way.** A comment stripper cannot tell `--` in code from `--`
+inside a string literal, so a `--` in a `format()` template or an error message would be truncated
+at that point, silently, and the function would still be created. Check for `--` inside string
+literals before applying DDL here. Same family as 9d, pointed the other direction.
+
+#### `git grep` RETURNS THE SAME ZERO BEFORE AND AFTER A PUSH
+
+Two sessions independently searched for a string and both got a reassuring zero, **for unrelated
+reasons, neither of which was the string being absent**:
+
+| Who searched | What they searched | Why the zero was meaningless |
+|---|---|---|
+| Dev | `git grep` over the working directory | `git grep` searches **tracked** files; the file was new and untracked |
+| QA | `git grep` over `origin/feature/draw-structure` | the pushed ref **predated the work** - the route did not exist on it |
+
+The claim being checked happened to be true, which is the worst outcome: a false method agreed with
+reality and would have been trusted the next time.
+
+**QA's search carried a positive control and dev's did not**, which is the only reason one of the
+two zeros was caught in the act: searching `RATE_LIMIT` in the same command returned 5 files, so
+the mechanism was known to work and the absence was known to be real for that ref. Without that
+line QA would have sent a false confirmation.
+
+**The trap is that the command does not change, only the truth does.** `git grep X` is wrong
+before a commit and right after it, with no change in output format and no error. So:
+
+1. **To search code you have just written, search the working tree** - `rg`, or the Grep tool -
+   never `git grep`.
+2. **To search a ref, first prove the file is on that ref**: `git ls-tree -r <ref> -- <path>`. An
+   empty listing means the search could not have found anything.
+3. **Never chain on a grep's exit code.** `git grep` and `grep -c` exit 1 on zero matches, so
+   `grep ... && npx tsc` silently skips the typecheck and `$?` reports the grep. This happened in
+   the same session that wrote rule 1, and the printed "exit" was the grep's.
+
+**Why this sits beside 9h rather than inside it.** 9h is *when a check disagrees with the artifact,
+suspect the check first* - a check that **speaks**. This is a check that **stays silent**, which is
+harder, because disagreement prompts investigation and agreement does not. The shared remedy is
+9i's step 4: **a positive control, because a self-written check has no independence to borrow.**
+
+### 9k. A PARTIAL CHECK THAT AGREES WITH YOU IS HOW A CORRECT RECORD GETS "CORRECTED"
+
+> **9h is a check that speaks and is wrong. 9j is a check that stays silent. This is a check that is
+> RIGHT about what it examined, and examined the wrong half of the answer.**
+
+**And it is worse than a wrong check, because it destroys information rather than producing noise.**
+A failed grep leaves the record standing and someone re-runs it. **A partial confirmation deletes
+the record**, and nothing afterwards says a deletion happened.
+
+#### The instance, 2026-10-31
+
+A note recorded that the 404 page is permanently dark - it renders outside both root layouts, so it
+never gets `RootDocument`'s `beforeInteractive` theme script and keeps its hardcoded
+`data-theme="dark"` whatever the user stored.
+
+Asked to add a graphic to that page, the obvious first step was to check whether the claim still
+held. `app/(main)/not-found.tsx` was found, read, and **is** correctly themed - it sits inside
+`app/(main)/layout.tsx`, which renders `RootDocument`. Conclusion drawn: the note is stale, strike
+it.
+
+**The note was about `app/global-not-found.tsx`, a second file that was never listed.** It serves
+URLs outside the route tree, carries no theme script, and is still dark-only. PM measured it on
+production while the correction was being written: the theme-init script occurs **0** times on
+`/page-does-not-exist` and **2** times on `/faq` as the control.
+
+**THIS PROJECT HAS TWO 404 FILES AND THEY DO NOT BEHAVE THE SAME.** That is the specific fact; the
+general one is below.
+
+#### The test
+
+**Before striking a record, establish that you enumerated everything it could be about.** Not "I
+found the thing it mentions and it is fine" - *"this is the complete set of files/routes/rows this
+claim could refer to, and I checked all of them."*
+
+1. **An `ls` of one guessed path is not an enumeration.** `app/not-found.tsx` and
+   `app/(main)/not-found.tsx` were listed; `app/global-not-found.tsx` was not, because nothing
+   prompted the third guess. Glob the pattern, do not list the candidates you thought of.
+2. **A record that names a file is a lead, not a boundary.** The note said "outside both root
+   layouts" - a description that matches a CLASS, and the class had a member nobody had seen.
+3. **Agreement is the dangerous outcome, not disagreement.** A check that contradicts a record
+   invites a second look. One that confirms your suspicion ends the enquiry, which is the same
+   asymmetry as 9h's *"none of them resembled a tooling fault at the time"*.
+
+**Why it belongs in this section rather than being a one-off.** Every other entry here is about a
+check producing a wrong ANSWER. This one produced a right answer to a question that was not the one
+being asked - and the cost lands on the record rather than on the work, which is the only failure
+mode in §9 that is silent, permanent and self-congratulatory at the same time.

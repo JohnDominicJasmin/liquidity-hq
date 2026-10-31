@@ -5,8 +5,9 @@ export interface Window {
   bg: string;
 }
 
-// All session detection runs in UTC so it works correctly for every timezone.
-// PHT (UTC+8) equivalent UTC times are noted in comments.
+// All session detection runs in UTC so it works correctly for every timezone. The windows below
+// are stated in UTC only - they used to carry a second set of times in the operator's own zone,
+// which read as authoritative and was meaningless to every other reader.
 
 function utc(d: Date): { day: number; mins: number } {
   return { day: d.getUTCDay(), mins: d.getUTCHours() * 60 + d.getUTCMinutes() };
@@ -103,25 +104,25 @@ export function getLocalNow(): Date {
   return new Date();
 }
 
-// God Tier: Sun 15:00–19:00 UTC (Sun 11PM – Mon 3AM PHT)
+// God Tier: Sun 15:00–19:00 UTC
 export function isGodTier(d: Date): boolean {
   const { day, mins } = utc(d);
   return day === 0 && mins >= 900 && mins < 1140;
 }
 
-// Prime: Daily 18:00–21:00 UTC (2AM – 5AM PHT)
+// Prime: Daily 18:00–21:00 UTC
 export function isPrime(d: Date): boolean {
   const { mins } = utc(d);
   return mins >= 1080 && mins < 1260;
 }
 
-// Mon Evening: Mon 12:00–15:00 UTC (8PM – 11PM PHT)
+// Mon Evening: Mon 12:00–15:00 UTC
 export function isMonEvening(d: Date): boolean {
   const { day, mins } = utc(d);
   return day === 1 && mins >= 720 && mins < 900;
 }
 
-// London Open: Weekdays 07:00–10:00 UTC (3PM – 6PM PHT)
+// London Open: Weekdays 07:00–10:00 UTC
 export function isLondon(d: Date): boolean {
   if (getHoliday('London', d)) return false;
   const { day, mins } = utc(d);
@@ -129,7 +130,7 @@ export function isLondon(d: Date): boolean {
   return mins >= 420 && mins < 600;
 }
 
-// Asia session: Weekdays 23:00–03:00 UTC (7AM – 11AM PHT, crosses UTC midnight)
+// Asia session: Weekdays 23:00–03:00 UTC (crosses UTC midnight)
 export function isAsia(d: Date): boolean {
   if (getHoliday('Asia', d)) return false;
   const { day, mins } = utc(d);
@@ -138,7 +139,7 @@ export function isAsia(d: Date): boolean {
   return false;
 }
 
-// Pre-NY: Tue–Fri 12:00–13:30 UTC (8PM – 9:30PM PHT; Mon excluded - Mon Evening covers it)
+// Pre-NY: Tue–Fri 12:00–13:30 UTC (Mon excluded - Mon Evening covers it)
 // Gated on the NY holiday too - no point anticipating a session that won't open.
 export function isPreNY(d: Date): boolean {
   if (getHoliday('NY', d)) return false;
@@ -147,7 +148,7 @@ export function isPreNY(d: Date): boolean {
   return mins >= 720 && mins < 810;
 }
 
-// NY Session: Mon–Fri 13:30–18:00 UTC (9:30PM – 2AM PHT)
+// NY Session: Mon–Fri 13:30–18:00 UTC
 // Mon special: Mon Evening ends at 15:00 UTC, so NY picks up from there
 export function isNY(d: Date): boolean {
   if (getHoliday('NY', d)) return false;
@@ -157,7 +158,7 @@ export function isNY(d: Date): boolean {
   return mins >= 810 && mins < 1080;               // Tue–Fri 13:30–18:00 UTC
 }
 
-// Dead Zone: Weekdays 04:00–07:00 UTC (12PM – 3PM PHT)
+// Dead Zone: Weekdays 04:00–07:00 UTC
 export function isDead(d: Date): boolean {
   const { day, mins } = utc(d);
   if (day === 0 || day === 6) return false;

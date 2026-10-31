@@ -42,7 +42,7 @@ function markSent(key: string) {
 }
 
 // UTC, not Manila. These alerts go out to every subscriber (see the Recipient
-// list in app/api/telegram/alert/route.ts), so a Philippine wall-clock stamp
+// list in app/api/telegram/alert/route.ts), so a fixed-zone wall-clock stamp
 // was simply someone else's time for most of them. There is no per-user
 // timezone stored anywhere yet; UTC is the one label that is correct for
 // everybody rather than for exactly one country.
