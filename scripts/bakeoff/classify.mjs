@@ -29,6 +29,18 @@
  * null this test needs. A window whose best line is no better than its own noise is group B,
  * however good it looks.
  *
+ * **THE NULL IS TOO EASY, AND THAT CUTS IN GROUP B's FAVOUR.** Shuffling returns destroys
+ * volatility clustering, so a surrogate is more i.i.d. than real price. A trendline search feeds
+ * on runs and trends, and those are rarer in the surrogates than in any real series - **so z is
+ * inflated across the board.** Two consequences, and they are not symmetric: a group C window may
+ * be flattered by it, while **a group B window surviving at z ~ 0 DESPITE an upward bias is
+ * structureless by a conservative margin.** A block bootstrap preserving clustering is the
+ * stricter null and is not done here; the C band is the one not to over-read. Raised by PM.
+ *
+ * **24 SURROGATES GIVES AN SD ESTIMATE WITH ABOUT 15% UNCERTAINTY OF ITS OWN.** Fine for sorting
+ * windows into three groups whose boundaries are 2.5 apart; not fine for comparing two z values
+ * to a decimal place. They are reported rounded to one, as estimates.
+ *
  * **THE LIMIT THIS STILL HAS, stated rather than hidden.** The engines are scored by the same
  * geometry that chose the fixtures, so a real structure our code is blind to is filed under B and
  * an engine that finds it is marked as fabricating. The spec accepts that by making Phase 0 the
@@ -157,7 +169,9 @@ export function classifyWindow(candles, seed = 1) {
     nullMean: Number(mean.toFixed(1)),
     nullSd: Number(sd.toFixed(2)),
     nullMax: Math.max(...nullTouches),
-    z: z === null ? null : Number(z.toFixed(2)),
+    /* ONE decimal: see the header - the sd behind this has ~15% uncertainty of its own, so a
+       second decimal would be precision the measurement does not have. */
+    z: z === null ? null : Number(z.toFixed(1)),
     atr: Number(tol.toPrecision(6)),
   };
 
