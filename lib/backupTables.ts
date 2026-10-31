@@ -34,15 +34,28 @@ export interface BackupTable {
    * composite key is NOT deterministic: rows sharing that value can come back in any order
    * between pages, which is the same drift the ordering exists to prevent.
    *
-   * VERIFIED AGAINST THE MIGRATIONS, not guessed. The first version guessed `id` for six tables
-   * and was wrong on four - user_subscriptions and admin_users key on user_id, and the three
-   * webhook tables on payload_hash. PostgREST rejects an unknown column, so those would have
-   * failed on the first real export rather than silently; the uniqueness assertion in the route
-   * is what covers a key that exists but does not identify a row.
+   * VERIFIED AGAINST THE DATABASE'S OWN CATALOG, which is a stronger claim than the one this
+   * comment used to make. All sixteen tuples below are the PRIMARY KEY of their table on
+   * production, read from `pg_index`/`pg_attribute` - including both composites, `labels`
+   * (key, locale) and `muted_alerts` (user_id, key). A primary key governs every future row,
+   * where a row-count comparison only describes today's.
    *
-   * Four tables are not in the migrations at all - app_config, price_alerts, hypotheses and
-   * hypothesis_evidence - so their keys are UNVERIFIED and `mode=count` is what proves them.
-   * That is the honest state rather than a confident-looking guess.
+   * THIS COMMENT WAS WRONG TWICE AND THE CORRECTION IS RECORDED RATHER THAN SWAPPED IN. It said
+   * four tables - app_config, price_alerts, hypotheses, hypothesis_evidence - were UNVERIFIED
+   * because they are absent from `supabase/migrations/`, and that `mode=count` was what proved
+   * them. Both halves were false:
+   *
+   *   1. All four carry a primary key on exactly the column declared here. Their absence from the
+   *      migrations says something about this REPOSITORY, not about the database - rows and
+   *      constraints exist in production that no migration in this tree created, which is the
+   *      same lesson the `labels` entry below carries about copy.
+   *   2. `mode=count` compares a fetched row count against `count(*)`. That answers whether the
+   *      column EXISTS - PostgREST rejects an unknown one - and says nothing whatever about
+   *      whether it is UNIQUE. It could never have proved what it was cited for. Six of these
+   *      tables hold zero rows, so a count check passes `0 = 0` having measured nothing at all.
+   *
+   * The uniqueness assertion in the route still earns its place: it covers the gap between "this
+   * is the primary key today" and "the rows this export actually fetched did not repeat one".
    */
   readonly orderBy: readonly string[];
 }
