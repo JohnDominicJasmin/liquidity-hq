@@ -10,7 +10,7 @@ import { readableOn } from '@/lib/readableOn';
 import PageHint from '@/components/PageHint';
 
 /* Typical-weekday session blocks, as UTC hour ranges - the same windows
-   lib/session.ts enforces. These used to be PHT hours on a fixed PHT axis
+   lib/session.ts enforces. These used to be wall-clock hours on a single fixed axis
    while the needle below was positioned from the VIEWER'S local clock, so
    for anyone outside UTC+8 the blocks and the "you are here" marker
    disagreed: a London trader saw the needle sitting in "DEAD" during their
@@ -49,9 +49,9 @@ function localSegments(offsetHours: number) {
 }
 
 /* Each window's hours are DERIVED from the UTC anchors in lib/session.ts and
-   formatted in the viewer's own timezone, instead of the pre-baked PHT strings
-   these used to read out of the labels table ("Daily 2AM - 5AM PHT"). Those
-   made every non-PHT trader read someone else's clock, and had drifted from
+   formatted in the viewer's own timezone, instead of the pre-baked strings these
+   used to read out of the labels table, which were written in one fixed zone. Those
+   made every trader elsewhere read someone else's clock, and had drifted from
    the enforced logic besides - the London label claimed "9:30-11AM UTC" while
    isLondon() actually uses 07:00-10:00 UTC.
    utc: [startHour, startMin, endHour, endMin, utcDay?] matching session.ts. */
@@ -170,8 +170,8 @@ export default function BestHours() {
         <div suppressHydrationWarning style={{ fontSize: '2.25rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
           {pad(h12)}:{pad(m)}:{pad(s)}
           {/* The clock has always shown the VIEWER'S own time (getLocalNow() is
-              just new Date()), but the label said "PHT" - so a trader in London
-              read "09:00 AM PHT" for their 9am. Show the real zone instead. */}
+              just new Date()), but the label named a single fixed zone - so a trader in
+              London read their own 9am under someone else's label. Show the real zone. */}
           <span suppressHydrationWarning style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{ampm} {localZoneAbbr()}</span>
         </div>
         <div suppressHydrationWarning style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', marginTop: 4 }}>

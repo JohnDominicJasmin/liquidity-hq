@@ -660,7 +660,7 @@ export default function NewsPage() {
           )}
           {(() => {
             // Group events by the VIEWER'S own calendar date. This used to force
-            // 'en-PH' + Asia/Manila, so a trader in New York saw every release at
+            // a single fixed locale and zone, so a trader in New York saw every release at
             // Manila's clock AND filed under Manila's date - an 8:30 AM ET print
             // showed as 9:30 PM and landed under the *next* day's heading, with
             // "TODAY" pointing at the wrong group. Passing undefined as the locale
