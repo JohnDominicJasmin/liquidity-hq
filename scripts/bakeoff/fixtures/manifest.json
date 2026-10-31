@@ -1,83 +1,125 @@
 {
- "pulledAt": "2026-10-31T06:53:25.532Z",
+ "pulledAt": "2026-10-31T08:35:50.492Z",
  "source": "bybit v5 linear kline",
  "window": 200,
- "note": "Groups assigned by scripts/bakeoff/classify.mjs, not by hand. See its header for the limit this creates.",
+ "composition": {
+  "A": {
+   "count": 3,
+   "timeframes": {
+    "15": 1,
+    "60": 1,
+    "240": 1
+   },
+   "distinctTimeframes": 3,
+   "coins": [
+    "GMT",
+    "ETH",
+    "SOL"
+   ]
+  },
+  "B": {
+   "count": 3,
+   "timeframes": {
+    "15": 1,
+    "240": 1,
+    "D": 1
+   },
+   "distinctTimeframes": 3,
+   "coins": [
+    "BTC",
+    "ETH",
+    "SOL"
+   ]
+  },
+  "C": {
+   "count": 6,
+   "timeframes": {
+    "15": 2,
+    "60": 1,
+    "240": 1,
+    "D": 2
+   },
+   "distinctTimeframes": 4,
+   "coins": [
+    "SOL",
+    "BTC",
+    "XRP",
+    "ETH",
+    "DOGE",
+    "LINK"
+   ]
+  }
+ },
+ "requiredTimeframes": {
+  "A": [],
+  "B": [
+   "D"
+  ],
+  "C": [
+   "D"
+  ]
+ },
+ "notes": [
+  "Groups assigned by scripts/bakeoff/classify.mjs, not by hand.",
+  "BALANCED ACROSS TIMEFRAMES after the owner found that v1 group A was entirely 4-hour, so the set partly tested \"is this a 4h chart?\" rather than \"is there a pattern?\". That was a confound in the engine run as well as in the human check.",
+  "NO DAILY WINDOW REACHES GROUP A: over 95 daily windows the best z is 2.9 against a threshold of 3. A finding, not a selection failure - and in tension with the owner own view that the higher timeframe is more reliable, which the blind chart review is the right way to settle."
+ ],
  "fixtures": [
   {
-   "id": "A-eth-240-1790553600000",
+   "id": "A-gmt-15-1793076300000",
+   "group": "A",
+   "symbol": "GMTUSDT",
+   "interval": "15",
+   "from": "2026-10-27T04:45:00.000Z",
+   "to": "2026-10-29T06:30:00.000Z",
+   "classifier": {
+    "group": "A",
+    "touches": 118,
+    "side": "low",
+    "r2": 0.497,
+    "nullMean": 78.6,
+    "nullSd": 12.11,
+    "nullMax": 98,
+    "z": 3.3,
+    "atr": 0.0000361709
+   }
+  },
+  {
+   "id": "A-eth-240-1790568000000",
    "group": "A",
    "symbol": "ETHUSDT",
    "interval": "240",
-   "from": "2026-09-28T00:00:00.000Z",
-   "to": "2026-10-31T04:00:00.000Z",
+   "from": "2026-09-28T04:00:00.000Z",
+   "to": "2026-10-31T08:00:00.000Z",
    "classifier": {
     "group": "A",
-    "touches": 121,
+    "touches": 122,
     "side": "high",
     "r2": 0.9421,
-    "nullMean": 84.3,
-    "nullSd": 11.82,
-    "nullMax": 104,
-    "z": 3.1,
-    "atr": 35.3043
+    "nullMean": 80.4,
+    "nullSd": 12.42,
+    "nullMax": 120,
+    "z": 3.3,
+    "atr": 35.2158
    }
   },
   {
-   "id": "A-xrp-240-1784793600000",
+   "id": "A-sol-60-1790557200000",
    "group": "A",
-   "symbol": "XRPUSDT",
-   "interval": "240",
-   "from": "2026-07-23T08:00:00.000Z",
-   "to": "2026-08-25T12:00:00.000Z",
+   "symbol": "SOLUSDT",
+   "interval": "60",
+   "from": "2026-09-28T01:00:00.000Z",
+   "to": "2026-10-06T08:00:00.000Z",
    "classifier": {
     "group": "A",
-    "touches": 157,
-    "side": "high",
-    "r2": 0.9989,
-    "nullMean": 77.4,
-    "nullSd": 12.54,
-    "nullMax": 98,
-    "z": 6.35,
-    "atr": 0.0225568
-   }
-  },
-  {
-   "id": "A-doge-240-1784793600000",
-   "group": "A",
-   "symbol": "DOGEUSDT",
-   "interval": "240",
-   "from": "2026-07-23T08:00:00.000Z",
-   "to": "2026-08-25T12:00:00.000Z",
-   "classifier": {
-    "group": "A",
-    "touches": 146,
+    "touches": 130,
     "side": "low",
-    "r2": 0.8024,
-    "nullMean": 90.7,
-    "nullSd": 13.7,
-    "nullMax": 112,
-    "z": 4.04,
-    "atr": 0.00136156
-   }
-  },
-  {
-   "id": "B-btc-15-1793250000000",
-   "group": "B",
-   "symbol": "BTCUSDT",
-   "interval": "15",
-   "from": "2026-10-29T05:00:00.000Z",
-   "to": "2026-10-31T06:45:00.000Z",
-   "classifier": {
-    "group": "B",
-    "touches": 83,
-    "side": "high",
-    "r2": 0.9985,
-    "nullMean": 87.3,
-    "nullSd": 14.15,
+    "r2": 0.9345,
+    "nullMean": 83.4,
+    "nullSd": 11.83,
     "nullMax": 115,
-    "z": -0.3,
-    "atr": 282.098
+    "z": 3.9,
+    "atr": 0.960201
    }
   },
   {
@@ -92,144 +134,163 @@
     "touches": 70,
     "side": "high",
     "r2": 0.6183,
-    "nullMean": 82.9,
-    "nullSd": 12.85,
-    "nullMax": 105,
-    "z": -1.01,
+    "nullMean": 83.2,
+    "nullSd": 12.77,
+    "nullMax": 106,
+    "z": -1,
     "atr": 2110.54
    }
   },
   {
-   "id": "B-eth-15-1793250000000",
+   "id": "B-eth-15-1793076300000",
    "group": "B",
    "symbol": "ETHUSDT",
    "interval": "15",
-   "from": "2026-10-29T05:00:00.000Z",
-   "to": "2026-10-31T06:45:00.000Z",
+   "from": "2026-10-27T04:45:00.000Z",
+   "to": "2026-10-29T06:30:00.000Z",
    "classifier": {
     "group": "B",
-    "touches": 91,
-    "side": "low",
-    "r2": 0.3988,
-    "nullMean": 87.4,
-    "nullSd": 15.81,
-    "nullMax": 117,
-    "z": 0.23,
-    "atr": 10.569
+    "touches": 87,
+    "side": "high",
+    "r2": 0.0626,
+    "nullMean": 94,
+    "nullSd": 14.96,
+    "nullMax": 115,
+    "z": -0.5,
+    "atr": 7.74819
    }
   },
   {
-   "id": "C-btc-60-1792710000000",
-   "group": "C",
-   "symbol": "BTCUSDT",
-   "interval": "60",
-   "from": "2026-10-22T23:00:00.000Z",
-   "to": "2026-10-31T06:00:00.000Z",
+   "id": "B-sol-240-1787688000000",
+   "group": "B",
+   "symbol": "SOLUSDT",
+   "interval": "240",
+   "from": "2026-08-25T20:00:00.000Z",
+   "to": "2026-09-28T00:00:00.000Z",
    "classifier": {
-    "group": "C",
-    "touches": 109,
-    "side": "high",
-    "r2": 0.9768,
+    "group": "B",
+    "touches": 78,
+    "side": "low",
+    "r2": 0.9955,
     "nullMean": 87.9,
-    "nullSd": 13.55,
+    "nullSd": 13.93,
     "nullMax": 112,
-    "z": 1.56,
-    "atr": 434.235
+    "z": -0.7,
+    "atr": 2.04377
    }
   },
   {
-   "id": "C-btc-240-1790553600000",
+   "id": "C-sol-D-1741651200000",
+   "group": "C",
+   "symbol": "SOLUSDT",
+   "interval": "D",
+   "from": "2025-03-11T00:00:00.000Z",
+   "to": "2025-09-26T00:00:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 101,
+    "side": "low",
+    "r2": 0.9635,
+    "nullMean": 89.7,
+    "nullSd": 13.72,
+    "nullMax": 115,
+    "z": 0.8,
+    "atr": 10.0047
+   }
+  },
+  {
+   "id": "C-btc-15-1792896300000",
    "group": "C",
    "symbol": "BTCUSDT",
-   "interval": "240",
-   "from": "2026-09-28T00:00:00.000Z",
-   "to": "2026-10-31T04:00:00.000Z",
+   "interval": "15",
+   "from": "2026-10-25T02:45:00.000Z",
+   "to": "2026-10-27T04:30:00.000Z",
    "classifier": {
     "group": "C",
-    "touches": 122,
+    "touches": 117,
     "side": "high",
-    "r2": 0.9917,
-    "nullMean": 84.2,
-    "nullSd": 12.95,
-    "nullMax": 117,
-    "z": 2.92,
-    "atr": 841.193
+    "r2": 0.9247,
+    "nullMean": 87.6,
+    "nullSd": 14.27,
+    "nullMax": 115,
+    "z": 2.1,
+    "atr": 187.967
    }
   },
   {
-   "id": "C-eth-60-1792710000000",
-   "group": "C",
-   "symbol": "ETHUSDT",
-   "interval": "60",
-   "from": "2026-10-22T23:00:00.000Z",
-   "to": "2026-10-31T06:00:00.000Z",
-   "classifier": {
-    "group": "C",
-    "touches": 121,
-    "side": "high",
-    "r2": 0.9993,
-    "nullMean": 92.5,
-    "nullSd": 15.45,
-    "nullMax": 124,
-    "z": 1.85,
-    "atr": 17.7853
-   }
-  },
-  {
-   "id": "C-sol-60-1792710000000",
-   "group": "C",
-   "symbol": "SOLUSDT",
-   "interval": "60",
-   "from": "2026-10-22T23:00:00.000Z",
-   "to": "2026-10-31T06:00:00.000Z",
-   "classifier": {
-    "group": "C",
-    "touches": 105,
-    "side": "high",
-    "r2": 0.9914,
-    "nullMean": 85.8,
-    "nullSd": 10.99,
-    "nullMax": 107,
-    "z": 1.74,
-    "atr": 0.857035
-   }
-  },
-  {
-   "id": "C-sol-240-1790553600000",
-   "group": "C",
-   "symbol": "SOLUSDT",
-   "interval": "240",
-   "from": "2026-09-28T00:00:00.000Z",
-   "to": "2026-10-31T04:00:00.000Z",
-   "classifier": {
-    "group": "C",
-    "touches": 113,
-    "side": "low",
-    "r2": 0.9445,
-    "nullMean": 86.9,
-    "nullSd": 13.82,
-    "nullMax": 110,
-    "z": 1.89,
-    "atr": 1.87266
-   }
-  },
-  {
-   "id": "C-xrp-60-1791270000000",
+   "id": "C-xrp-240-1790568000000",
    "group": "C",
    "symbol": "XRPUSDT",
-   "interval": "60",
-   "from": "2026-10-06T07:00:00.000Z",
-   "to": "2026-10-14T14:00:00.000Z",
+   "interval": "240",
+   "from": "2026-09-28T04:00:00.000Z",
+   "to": "2026-10-31T08:00:00.000Z",
    "classifier": {
     "group": "C",
     "touches": 103,
+    "side": "low",
+    "r2": 0.9819,
+    "nullMean": 89.4,
+    "nullSd": 13.53,
+    "nullMax": 113,
+    "z": 1,
+    "atr": 0.0229226
+   }
+  },
+  {
+   "id": "C-eth-60-1791997200000",
+   "group": "C",
+   "symbol": "ETHUSDT",
+   "interval": "60",
+   "from": "2026-10-14T17:00:00.000Z",
+   "to": "2026-10-23T00:00:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 108,
     "side": "high",
-    "r2": 0.9935,
-    "nullMean": 80,
-    "nullSd": 10.82,
-    "nullMax": 109,
-    "z": 2.12,
-    "atr": 0.0111307
+    "r2": 0.8287,
+    "nullMean": 88.4,
+    "nullSd": 16.6,
+    "nullMax": 130,
+    "z": 1.2,
+    "atr": 18.0895
+   }
+  },
+  {
+   "id": "C-doge-D-1758931200000",
+   "group": "C",
+   "symbol": "DOGEUSDT",
+   "interval": "D",
+   "from": "2025-09-27T00:00:00.000Z",
+   "to": "2026-04-14T00:00:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 116,
+    "side": "low",
+    "r2": 0.9639,
+    "nullMean": 89.4,
+    "nullSd": 15.53,
+    "nullMax": 119,
+    "z": 1.7,
+    "atr": 0.00960437
+   }
+  },
+  {
+   "id": "C-link-15-1792896300000",
+   "group": "C",
+   "symbol": "LINKUSDT",
+   "interval": "15",
+   "from": "2026-10-25T02:45:00.000Z",
+   "to": "2026-10-27T04:30:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 113,
+    "side": "high",
+    "r2": 0.9031,
+    "nullMean": 90.2,
+    "nullSd": 15.18,
+    "nullMax": 122,
+    "z": 1.5,
+    "atr": 0.0494271
    }
   }
  ]

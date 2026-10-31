@@ -23,6 +23,14 @@
  * **No price axis and no dates.** Not squeamishness: a y-axis reading 82,000 identifies BTC, and
  * he may read a major differently from an altcoin. The question is scale-free, so the scale goes.
  *
+ * **THE TIMEFRAME IS SHOWN, AND IT WAS NOT IN VERSION 1.** The owner's objection to the first set
+ * was that his answer depends on the timeframe - a shape worth drawing on a daily is not worth
+ * drawing on a 15m - and he had already said so in the proposal. Hiding it made the question
+ * unanswerable. **It leaks nothing now only because the fixtures were re-picked:** every timeframe
+ * appears in at least two groups, so "this is a 1h chart" no longer predicts the verdict. In
+ * version 1, group A was entirely 4-hour and showing it would have handed over the answer.
+ * The coin is still hidden, because the coin is the thing that biases.
+ *
  * **No answer key beside the charts.** It is written to a separate file for PM to hold. A page
  * where his answer and ours appear together invites the reading that he saw ours first.
  *
@@ -34,7 +42,9 @@ import { readFileSync, readdirSync, writeFileSync, rmSync, mkdirSync } from 'nod
 
 const FIX = new URL('./fixtures/', import.meta.url);
 const OUT = new URL('./blind-charts/', import.meta.url);
-const SEED = 20261031;
+/* NEW SEED for the balanced set. The old order keyed to the old fixtures, and a stale page used
+   against new charts is worse than no page - PM is deleting their copy of the v1 viewer. */
+const SEED = 20261031002;
 
 const W = 1200, H = 620, PAD = 24;
 
@@ -99,7 +109,9 @@ const order = shuffled(fixtures, SEED);
 const key = [];
 order.forEach((fx, i) => {
   const n = String(i + 1).padStart(2, '0');
-  writeFileSync(new URL(`chart-${n}.svg`, OUT), svg(fx.candles, `Chart ${i + 1}`));
+  const tf = fx.interval === 'D' ? '1 day' : fx.interval === '240' ? '4 hour'
+    : fx.interval === '60' ? '1 hour' : `${fx.interval} minute`;
+  writeFileSync(new URL(`chart-${n}.svg`, OUT), svg(fx.candles, `Chart ${i + 1}  ·  ${tf} candles`));
   key.push({
     chart: `chart-${n}.svg`,
     fixtureId: fx.id,
@@ -120,6 +132,9 @@ writeFileSync(new URL('QUESTIONS.md', OUT), [
   '- **structure** — there is a line, channel or level here you would actually draw',
   '- **noise** — nothing here you would draw',
   '- **maybe** — borderline',
+  '',
+  'Each chart says its timeframe, because a shape worth drawing on a daily is not worth drawing on',
+  'a 15m - your point, and the first version of this wrongly hid it. The coin is still not shown.',
   '',
   'Nothing else is needed. The coin, the timeframe and our own answer are deliberately not shown,',
   'because seeing them would make this a question about agreeing with us rather than about the chart.',

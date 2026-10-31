@@ -10,10 +10,10 @@
   "touches": 70,
   "side": "high",
   "r2": 0.6183,
-  "nullMean": 82.9,
-  "nullSd": 12.85,
-  "nullMax": 105,
-  "z": -1.01,
+  "nullMean": 83.2,
+  "nullSd": 12.77,
+  "nullMax": 106,
+  "z": -1,
   "atr": 2110.54
  },
  "candles": [
@@ -1614,8 +1614,8 @@
    "open": 77287.4,
    "high": 77592,
    "low": 77026.3,
-   "close": 77346.9,
-   "volume": 5714.745
+   "close": 77200.1,
+   "volume": 7009.309
   }
  ]
 }
