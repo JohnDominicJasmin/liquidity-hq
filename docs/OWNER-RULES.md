@@ -353,6 +353,15 @@ one-line recap is still a recap. **If PM or QA could act on it, they receive it 
 | blockers, and what you need to unblock | a visual he has to approve (condition 5) |
 | corrections and retractions | nothing else |
 
+**HE ALWAYS GETS A DIRECT ANSWER TO A DIRECT QUESTION. This rule governs what a seat
+VOLUNTEERS.** Unsolicited status, progress and findings go to PM. **If he asks, answer him** —
+redirecting him to PM for something he just asked you for is the opposite of what he wants.
+
+**Then make sure PM has it too, because answering him is not reporting.** The failure is quiet:
+he asks one seat for status, that seat answers well, and PM never learns the thing the rest of the
+work depends on. **QA caught this reading before it shipped** — the rule as first written would
+have had a session with no history of him redirect him at 2am.
+
 **The four things that still go to him directly, unchanged:** merging to `main`, production
 deploys, his money, and visual sign-off. **An owner decision relayed through another seat is not
 an owner decision** — whoever is asked confirms it with him first.
