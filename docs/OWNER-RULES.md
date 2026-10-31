@@ -395,6 +395,49 @@ which is what he had asked for. **PM answers that question with timestamps, not 
 seat that will go around PM next time. **Acknowledge, decide, and say what is next** — the reason
 `docs/WORK-QUEUE.md` exists is that the PM was once the bottleneck.
 
+## 14. NEVER SHOW A CUSTOMER WHERE HE LIVES OR WHERE THE SERVERS ARE
+
+> *"don't mention where is the server and where country I live… Remove that shit."* — the owner,
+> 2026-10-31, after finding both on `/security` and `/privacy`. **He was angrier about this than
+> about anything else in five months.**
+
+**THE TEST IS WHETHER A CUSTOMER CAN SEE IT.** His own words settling the edge cases:
+
+> *"If it doesn't show any cost, if it doesn't show to customers, then leave it."*
+
+| | |
+|---|---|
+| **A customer can reach it** — a page, a label row, a Telegram message, an API response, an email | **REMOVE IT.** No exceptions, no legal argument, no "it is only the region". |
+| **Internal only** — private-repo code, deploy config, our own notes, migration history | **LEAVE IT.** Changing it buys nothing and some of it breaks things. |
+
+**This covers BOTH: the country he lives in AND where the servers run.** Seoul, Singapore,
+`ap-northeast-2`, `Asia/Manila`, `PHT` and every translation of them. **"PHT" is the one that hides**
+— a sweep for the country name finds the legal pages and **none** of the feature.
+
+**WHY IT SHIPPED, because the cause was not an oversight.** A comment in
+`app/(main)/security/page.tsx` argued for keeping it: *"a data-TRANSFER disclosure, not a fact
+about who he is … The owner was told this before it shipped and can overrule it."* **Somebody
+reasoned it through, assumed he had agreed, and shipped it.** He had not. **A privacy disclosure
+does not require naming a destination** — "processed outside your own country" satisfies it, and
+that is what the pages say now.
+
+**SO: this is never a judgement call again.** If a transfer disclosure seems to need the
+geography, it does not. **And an assumption that he was told is not his approval** — see section 3.
+
+**The four deliberate survivors, decided by him on 2026-10-31. Do not re-raise them:**
+
+- **`render.yaml`'s `region:`** — functional deploy config; removing it moves his services.
+- **`components/OnboardingFlow.tsx`'s country list** — the **user's** own country, one of ~200.
+- **`qa/fixtures/proxy/proxy-llama-stables.json`** — `PHT Stablecoin`, `Mento Philippine Peso`:
+  third-party coin names in recorded market data. **Stripping them corrupts a recording to satisfy
+  a grep.**
+- **`supabase/migrations/*` seeds** — a migration is the record of what ran; editing it makes the
+  file lie. **`20261031c` guards the replay instead.**
+
+**AND THE AUDIENCE RULE THIS SITS ON: the product is WORLDWIDE.** Buyers are in Malaysia, the
+Netherlands, the UK, Japan, Australia, the US and the EU. **His location does not make this a local
+product** — which is also why `/hours` shows each visitor their own clock rather than his.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
