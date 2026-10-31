@@ -430,7 +430,7 @@ The sorting rule that follows from #2, and it governs triage: **after #719, a te
 >
 > One rule from #2 that did NOT change: terminal styling still goes **over the existing production layout**. Do not restructure a screen to match a canvas. #843 is what happens when that line is crossed and then reverted — see §14.
 
-**The one exception is landing.** The owner likes the canvas-mirrored landing (`ad6b08c`, #592) and it was deliberately excluded from the revert. Never revert it, and treat "landing renders identically" as a hard gate on any work touching `app/globals.css`, `components/AppShell.tsx` or `lib/i18n/dictionaries.ts` — **the trigger list changed on 2026-10-31 and the two files it dropped are the reason, see below** — all four are shared between landing and the reverted screens, and `AppShell.tsx` is the one that bit us (it rendered `PriceTickerStrip` on `/` gated on design mode rather than pathname).
+**The one exception is landing.** The owner likes the canvas-mirrored landing (`ad6b08c`, #592) and it was deliberately excluded from the revert. Never revert it, and treat "landing renders identically" as a hard gate on any work touching `app/globals.css`, `components/AppShell.tsx` or `lib/i18n/dictionaries.ts` — **the trigger list changed on 2026-10-31 and the two files it dropped are the reason, see below** — `app/globals.css` and `AppShell.tsx` are shared between landing and the reverted screens, and `AppShell.tsx` is the one that bit us (it rendered `PriceTickerStrip` on `/` gated on design mode rather than pathname).
 
 **THE TRIGGER LIST DROPPED `lib/labelKeys.ts` AND `lib/labelDefaults.en.json` ON 2026-10-31, because
 landing cannot read them.** Measured by QA, not inferred: `app/(main)/page.tsx` passes a dictionary
