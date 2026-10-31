@@ -17,10 +17,45 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { wilderRsiSeries, wilderRsi, computeRSI14, formatRsi } from '../lib/rsi.ts';
 import { computeKlineMetrics, METRIC_WINDOW } from '../lib/klineMetrics.ts';
-import { appPath } from './_appPath.mts';
+import { appPath, appPathOrNull } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
+const tryRead = (rel: string): string | null => { try { return read(rel); } catch { return null; } };
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+/* ── WHERE THE RSI DATA LAYER LIVES IS RESOLVED, NOT PINNED ──────────────────────────────────
+ *
+ * S1 used to read `app/api/market/rsi/route.ts` by path. #1884 lifts the data layer into
+ * `lib/marketRsi.ts` - 804 lines moved, byte-identical, the route left as a 47-line handler - and
+ * S1 went red for a change that altered no behaviour at all. **There is no literal path that is
+ * green on both trees**, because the file exists in one place on `dev` and another on the branch,
+ * which is the same bind `_appPath.mts` was written for and the same argument applies: resolve at
+ * run time instead of asserting where the code lives.
+ *
+ * WHAT THIS BUYS BEYOND UNBLOCKING THE MOVE. The old cell could not tell "the forming-candle
+ * filter was deleted" from "the file was renamed" - both printed the same failure. This one
+ * distinguishes them: a pin found in NO candidate is a deletion and says so, a pin found in TWO
+ * is a duplicated copy that will drift, and the three pins being split across different files
+ * means the layer has been pulled apart. Each gets its own message.
+ *
+ * IT IS STILL A SOURCE-TEXT PIN AND THAT IS A KNOWN WEAKNESS. These three assert that the code
+ * LOOKS a certain way, so they break on safe edits and stay green through an unsafe one that keeps
+ * the text. The behavioural half already exists and is stronger: K1 drives `computeKlineMetrics`
+ * with a 121-kline fixture built so that taking the forming candle, or keeping only the newest
+ * 100, reads tens of RSI points away from the right answer. What is NOT reachable that way is
+ * whether the ROUTE hands the metrics layer closed candles in the first place - that is a property
+ * of the fetch, and nothing short of running it against an exchange sees it. So these three stay,
+ * and this paragraph is why rather than an oversight. */
+const RSI_LAYER_CANDIDATES: readonly string[] = [
+  appPathOrNull('app/api/market/rsi/route.ts'),
+  'lib/marketRsi.ts',
+].filter((p): p is string => p !== null);
+
+const RSI_LAYER_PINS: ReadonlyArray<{ re: RegExp; what: string }> = [
+  { re: /const RSI_HISTORY = 120;/, what: 'the 120-candle history size' },
+  { re: /return \[\.\.\.list\]\.slice\(1\)\.reverse\(\)\.map\(/, what: 'the Bybit forming row being dropped' },
+  { re: /body\.filter\(\(k: \(string \| number\)\[\]\) => Number\(k\[6\]\) < now\)/, what: 'Binance rows being filtered by their close time' },
+];
 
 const CLOSES = [44.3389, 44.0902, 44.1497, 43.6124, 44.3278, 44.8264, 45.0955, 45.4245, 45.8433, 46.0826, 45.8931, 46.0328, 45.6140, 46.2820, 46.2820, 46.0028,
   46.0328, 46.4116, 46.2222, 45.6439, 46.2122, 46.2521, 45.7137, 46.4515, 45.7835, 45.3548, 44.0288, 44.1783, 44.2181, 44.5672, 43.4205, 42.6628, 43.1314];
@@ -50,11 +85,49 @@ test('O4. display: one decimal, "-" for nothing; 29.6 is not shown as "30"; 29.9
   assert.equal(formatRsi(null), '-'); assert.equal(formatRsi(Number.NaN), '-');
 });
 
-test('S1. the RSI route keeps CLOSED candles only and fetches 120 of them', () => {
-  const src = stripTsComments(read(appPath('app/api/market/rsi/route.ts')));
-  assert.ok(/const RSI_HISTORY = 120;/.test(src));
-  assert.ok(/return \[\.\.\.list\]\.slice\(1\)\.reverse\(\)\.map\(/.test(src), 'the Bybit forming row is not dropped');
-  assert.ok(/body\.filter\(\(k: \(string \| number\)\[\]\) => Number\(k\[6\]\) < now\)/.test(src), 'Binance rows are not filtered by their close time');
+test('S1. the RSI data layer keeps CLOSED candles only and fetches 120 of them, wherever that layer lives', () => {
+  const present = RSI_LAYER_CANDIDATES
+    .map((p) => ({ path: p, src: tryRead(p) }))
+    .filter((c): c is { path: string; src: string } => c.src !== null);
+
+  /* CONTROLS FIRST, because every assertion below is "this text is present somewhere" and an empty
+     candidate set, or an empty file, would satisfy none of them for reasons that have nothing to do
+     with the RSI layer. */
+  assert.ok(
+    present.length > 0,
+    `none of the RSI data layer's known locations could be read: ${RSI_LAYER_CANDIDATES.join(', ')}. ` +
+    'The layer has moved somewhere this cell does not know about - add the new path to ' +
+    'RSI_LAYER_CANDIDATES rather than deleting the assertions.',
+  );
+  for (const c of present) {
+    assert.ok(c.src.length > 200, `${c.path} read back only ${c.src.length} characters, so a "not found" below would mean nothing`);
+  }
+
+  const foundIn = new Map<string, string[]>();
+  for (const pin of RSI_LAYER_PINS) {
+    const hits = present.filter((c) => pin.re.test(stripTsComments(c.src))).map((c) => c.path);
+    assert.ok(
+      hits.length > 0,
+      `${pin.what} is in none of ${present.map((c) => c.path).join(', ')}. This is a DELETION, not a ` +
+      'move - the RSI fetch would be taking a forming candle or the wrong history length. If the code ' +
+      'moved again, add the new file to RSI_LAYER_CANDIDATES; if it was removed on purpose, this cell ' +
+      'needs re-deriving rather than re-pointing.',
+    );
+    assert.equal(
+      hits.length, 1,
+      `${pin.what} appears in ${hits.length} files (${hits.join(', ')}). Two copies of the same ` +
+      'closed-candle rule will drift, and the one the route actually calls is the one that matters.',
+    );
+    foundIn.set(pin.what, hits);
+  }
+
+  const files = [...new Set([...foundIn.values()].flat())];
+  assert.equal(
+    files.length, 1,
+    `the three closed-candle rules are split across ${files.join(', ')}: ` +
+    `${[...foundIn.entries()].map(([what, where]) => `${what} in ${where.join('/')}`).join('; ')}. ` +
+    'They are one decision about one fetch and belong in one place.',
+  );
 });
 
 test('K1. computeKlineMetrics: RSI from every CLOSED kline given, while the other metrics keep the newest 100', () => {
