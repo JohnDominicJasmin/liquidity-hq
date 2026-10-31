@@ -22,10 +22,33 @@
  * a model told the symbol could lean on what it remembers about that asset rather than on the
  * candles in front of it.
  *
- * TIMESTAMPS RATHER THAN INDICES, because an index is only meaningful against an array whose
- * ordering the model has to trust itself to have preserved. A timestamp is checkable: the scorer
- * maps it back, and a timestamp that is not in the window is a detectable invention rather than an
- * off-by-one.
+ * ── INDICES, AND THIS FILE ASKED FOR TIMESTAMPS FIRST. THE CHANGE WAS FORCED BY A FAILED CONTROL
+ *    AND IT IS THE MOST IMPORTANT THING IN THE FILE ──────────────────────────────────────────────
+ *
+ * The first version asked for the exact candle TIMESTAMP of each touch point, reasoning that a
+ * timestamp is checkable while an index is only meaningful against an array whose ordering the
+ * model has to trust itself to have preserved. **That reasoning is sound and it was wrong in
+ * practice.** Measured on group A, which exists to catch exactly this:
+ *
+ *     200 candles, timestamps asked for      0 structures on all 3 fixtures, 3/3 runs
+ *     + an index column in the TSV           0 structures
+ *     + the refusal sentence removed         0 structures
+ *     60 candles instead of 200              0 structures
+ *     asked in PROSE, no coordinates         describes a downtrend, a consolidation near 1.00
+ *                                            and an ascending channel in the final third
+ *     INDICES instead of timestamps          6 structures, immediately
+ *
+ * **The model could see the structure the whole time and would not commit to 13-digit
+ * millisecond numbers copied out of a 200-row table.** Returning nothing rather than inventing a
+ * timestamp is defensible behaviour; the fault was the prompt's, and the cost was a total refusal
+ * that looked like an engine finding no structure. The control is the only reason this surfaced
+ * before 72 calls were spent on it.
+ *
+ * WHAT IS GIVEN UP, STATED RATHER THAN GLOSSED. An index outside `0..n-1` is as detectable as an
+ * unknown timestamp, so invention is still caught. An index that is IN range but wrong is an
+ * off-by-one the scorer cannot distinguish from a deliberate claim - that is the real price, and
+ * it is worth paying, because the alternative measured zero answers from an engine that can
+ * clearly do the task.
  */
 
 /** The JSON contract. Kept as a string in the prompt AND parsed by the scorer, so there is one
@@ -35,7 +58,7 @@ export const SCHEMA = `{
     {
       "type": "trendline" | "channel" | "flag" | "triangle" | "horizontal",
       "side": "high" | "low",
-      "touchTimestamps": [<integer ms>, ...],
+      "touchIndices": [<integer 0..n-1>, ...],
       "confidence": <number 0..1>
     }
   ]
@@ -66,9 +89,9 @@ export function buildPrompt(candles) {
     'Identify every chart structure you can support from these candles: trendlines, channels,',
     'flags, triangles, horizontal levels.',
     '',
-    'For each structure, list the exact timestamps of the candles you claim touch it. Use only',
-    'timestamps that appear above. A trendline or horizontal level needs at least 3 touch points;',
-    'a channel, flag or triangle needs at least 3 on the side you name.',
+    'For each structure, list the index numbers of the candles you claim touch it. A trendline or',
+    'horizontal level needs at least 3 touch points; a channel, flag or triangle needs at least 3',
+    'on the side you name.',
     '',
     'If this window has no structure you can support from the candles, return an empty list.',
     'An empty list is a valid and correct answer.',
@@ -90,7 +113,6 @@ export function buildPrompt(candles) {
  * the model inventing a candle rather than misreading one.
  */
 export function parseReply(text, candles) {
-  const valid = new Set(candles.map(c => c.timestamp));
   const out = { structures: [], formatRepaired: false, parseFailed: false, invalidTimestamps: 0 };
 
   let raw = (text ?? '').trim();
@@ -107,14 +129,21 @@ export function parseReply(text, candles) {
   if (!parsed || !Array.isArray(parsed.structures)) { out.parseFailed = true; return out; }
 
   for (const s of parsed.structures) {
-    const ts = Array.isArray(s?.touchTimestamps) ? s.touchTimestamps.map(Number) : [];
-    const kept = ts.filter(t => valid.has(t));
-    out.invalidTimestamps += ts.length - kept.length;
+    /* `touchTimestamps` is still read, so a model that answers the old way is not scored as
+       having said nothing - a silent zero there is the failure this whole section is about. */
+    const byTs = new Map(candles.map((c, i) => [c.timestamp, i]));
+    const rawIdx = Array.isArray(s?.touchIndices) ? s.touchIndices.map(Number)
+      : Array.isArray(s?.touchTimestamps) ? s.touchTimestamps.map(Number).map(t => byTs.get(t) ?? -1)
+      : [];
+    const kept = rawIdx.filter(i => Number.isInteger(i) && i >= 0 && i < candles.length);
+    out.invalidTimestamps += rawIdx.length - kept.length;
     out.structures.push({
       type: typeof s?.type === 'string' ? s.type : 'unknown',
       side: s?.side === 'high' || s?.side === 'low' ? s.side : null,
-      touchTimestamps: kept,
-      claimedTimestamps: ts.length,
+      /* Mapped back to timestamps so everything downstream is unchanged and the scorer still
+         reasons about candles rather than array positions. */
+      touchTimestamps: kept.map(i => candles[i].timestamp),
+      claimedTimestamps: rawIdx.length,
       confidence: Number.isFinite(Number(s?.confidence)) ? Number(s.confidence) : null,
     });
   }

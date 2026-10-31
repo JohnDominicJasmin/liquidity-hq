@@ -42,8 +42,12 @@ function costOf(model, usage) {
 /** Grok, through the same chat-completions endpoint the app uses. No search tools attached: this
  *  feature reads candles, not tweets, which is the spec's reason the X advantage does not apply. */
 export async function callGrok(candles) {
-  const key = process.env.XAI_API_KEY;
-  if (!key) return { ok: false, reason: 'XAI_API_KEY not set' };
+  /* GROK_API_KEY, not XAI_API_KEY. This file read the wrong name and would have produced the
+     exact 0/0 null rate the runner's own control exists to catch - the control would have worked
+     and it would have cost a run to find out. The app uses GROK_API_KEY in 14 places and
+     XAI_API_KEY in none; `.env.example:41` says so too. Caught by the owner. */
+  const key = process.env.GROK_API_KEY;
+  if (!key) return { ok: false, reason: 'GROK_API_KEY not set' };
   const model = 'grok-4.3';
   const started = Date.now();
   let r;
@@ -64,7 +68,14 @@ export async function callGrok(candles) {
     return { ok: false, reason: `transport: ${String(e?.message ?? e).slice(0, 120)}` };
   }
   const latencyMs = Date.now() - started;
-  if (!r.ok) return { ok: false, reason: `HTTP ${r.status}`, latencyMs };
+  if (!r.ok) {
+    /* THE BODY, NOT JUST THE STATUS. A bare `HTTP 400` is indistinguishable between a bad model
+       id, a malformed body and a rejected parameter, and diagnosing it by guessing costs a paid
+       call per guess. Sliced, because this text reaches a report and an error body has carried
+       request headers on this project before. */
+    const detail = await r.text().catch(() => '');
+    return { ok: false, reason: `HTTP ${r.status}: ${detail.slice(0, 300)}`, latencyMs };
+  }
   const d = await r.json();
   return {
     ok: true, model, latencyMs,
@@ -102,7 +113,14 @@ export async function callClaude(candles) {
     return { ok: false, reason: `transport: ${String(e?.message ?? e).slice(0, 120)}` };
   }
   const latencyMs = Date.now() - started;
-  if (!r.ok) return { ok: false, reason: `HTTP ${r.status}`, latencyMs };
+  if (!r.ok) {
+    /* THE BODY, NOT JUST THE STATUS. A bare `HTTP 400` is indistinguishable between a bad model
+       id, a malformed body and a rejected parameter, and diagnosing it by guessing costs a paid
+       call per guess. Sliced, because this text reaches a report and an error body has carried
+       request headers on this project before. */
+    const detail = await r.text().catch(() => '');
+    return { ok: false, reason: `HTTP ${r.status}: ${detail.slice(0, 300)}`, latencyMs };
+  }
   const d = await r.json();
   return {
     ok: true, model, latencyMs,

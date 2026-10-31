@@ -1,8 +1,14 @@
 /* THE RUNNER (#1818). 12 fixtures x 3 runs x N engines, scored blind, reported with the spread.
  *
- * Run:  node scripts/bakeoff/run.mjs              both engines, whichever have keys
- *       node scripts/bakeoff/run.mjs --only grok  one engine
- *       node scripts/bakeoff/run.mjs --runs 1     cheaper smoke pass, NOT a result
+ * Run:  node --env-file=.env.local scripts/bakeoff/run.mjs
+ *       ... --only grok        one engine
+ *       ... --runs 1           cheaper smoke pass, NOT a result
+ *       ... --group A          group A alone - the fixture set's control, run this FIRST
+ *
+ * **`--env-file` IS REQUIRED.** Node does not read `.env.local` by itself, and without it every
+ * call fails on a missing key - which the runner reports honestly as a failure rather than as an
+ * empty answer, but costs a confusing minute. The keys are the owner's; this script never prints
+ * one and never writes one to a result file.
  *
  * ── HOW THE BLINDING ACTUALLY WORKS, because "we stripped the vendor name" is easy to say and
  *    easy to get wrong ──────────────────────────────────────────────────────────────────────────
@@ -31,12 +37,14 @@ const args = process.argv.slice(2);
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
 const RUNS = args.includes('--runs') ? Number(args[args.indexOf('--runs') + 1]) : 3;
 const SEED = args.includes('--seed') ? Number(args[args.indexOf('--seed') + 1]) : 1;
+const GROUP = args.includes('--group') ? args[args.indexOf('--group') + 1] : null;
 
 const FIX = new URL('./fixtures/', import.meta.url);
 const OUT = new URL('./results/', import.meta.url);
 
 const fixtures = readdirSync(FIX).filter(n => n !== 'manifest.json')
   .map(n => JSON.parse(readFileSync(new URL(n, FIX), 'utf8')))
+  .filter(f => !GROUP || f.group === GROUP)
   .sort((a, b) => a.id.localeCompare(b.id));
 
 const byGroup = g => fixtures.filter(f => f.group === g).length;
