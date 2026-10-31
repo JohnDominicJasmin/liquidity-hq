@@ -490,6 +490,17 @@ opens a `release-drift` issue if they differ or if the deployed commit is
 untagged. It closes itself when both are right. If the endpoint is unreachable
 it reports **nothing** — a failed measurement is not evidence of drift.
 
+**`/changelog` is part of the release too, and nothing updates it automatically.**
+`lib/changelog.ts` is hand-maintained and says so about itself — *"the same shape as
+`RELEASE_PR_PAUSED`"*, which is the precedent that earns it a line here rather than
+only in `CONTRIBUTING.md`. **It had already drifted before it shipped:** on 2026-10-31
+the page carried no entry for `v2026.10.30`, which was live. **Dev writes the entry,
+PM/DevOps is responsible for it existing**, in the same release that tags. A release
+with nothing user-visible gets **no entry** — and PM records that it got none *on
+purpose*, because forgotten and deliberately-absent look identical on the page. Never
+invent an entry to make the page look alive. Full rule: `CONTRIBUTING.md` → *The public
+changelog*.
+
 **Low ceremony** — small internal chores (dep bumps, formatting, comments) may
 skip the commit body and screenshots. Branch naming and the `type(scope):`
 prefix are non-negotiable on everything.
