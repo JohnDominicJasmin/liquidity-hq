@@ -1539,3 +1539,51 @@ before a commit and right after it, with no change in output format and no error
 suspect the check first* - a check that **speaks**. This is a check that **stays silent**, which is
 harder, because disagreement prompts investigation and agreement does not. The shared remedy is
 9i's step 4: **a positive control, because a self-written check has no independence to borrow.**
+
+### 9k. A PARTIAL CHECK THAT AGREES WITH YOU IS HOW A CORRECT RECORD GETS "CORRECTED"
+
+> **9h is a check that speaks and is wrong. 9j is a check that stays silent. This is a check that is
+> RIGHT about what it examined, and examined the wrong half of the answer.**
+
+**And it is worse than a wrong check, because it destroys information rather than producing noise.**
+A failed grep leaves the record standing and someone re-runs it. **A partial confirmation deletes
+the record**, and nothing afterwards says a deletion happened.
+
+#### The instance, 2026-10-31
+
+A note recorded that the 404 page is permanently dark - it renders outside both root layouts, so it
+never gets `RootDocument`'s `beforeInteractive` theme script and keeps its hardcoded
+`data-theme="dark"` whatever the user stored.
+
+Asked to add a graphic to that page, the obvious first step was to check whether the claim still
+held. `app/(main)/not-found.tsx` was found, read, and **is** correctly themed - it sits inside
+`app/(main)/layout.tsx`, which renders `RootDocument`. Conclusion drawn: the note is stale, strike
+it.
+
+**The note was about `app/global-not-found.tsx`, a second file that was never listed.** It serves
+URLs outside the route tree, carries no theme script, and is still dark-only. PM measured it on
+production while the correction was being written: the theme-init script occurs **0** times on
+`/page-does-not-exist` and **2** times on `/faq` as the control.
+
+**THIS PROJECT HAS TWO 404 FILES AND THEY DO NOT BEHAVE THE SAME.** That is the specific fact; the
+general one is below.
+
+#### The test
+
+**Before striking a record, establish that you enumerated everything it could be about.** Not "I
+found the thing it mentions and it is fine" - *"this is the complete set of files/routes/rows this
+claim could refer to, and I checked all of them."*
+
+1. **An `ls` of one guessed path is not an enumeration.** `app/not-found.tsx` and
+   `app/(main)/not-found.tsx` were listed; `app/global-not-found.tsx` was not, because nothing
+   prompted the third guess. Glob the pattern, do not list the candidates you thought of.
+2. **A record that names a file is a lead, not a boundary.** The note said "outside both root
+   layouts" - a description that matches a CLASS, and the class had a member nobody had seen.
+3. **Agreement is the dangerous outcome, not disagreement.** A check that contradicts a record
+   invites a second look. One that confirms your suspicion ends the enquiry, which is the same
+   asymmetry as 9h's *"none of them resembled a tooling fault at the time"*.
+
+**Why it belongs in this section rather than being a one-off.** Every other entry here is about a
+check producing a wrong ANSWER. This one produced a right answer to a question that was not the one
+being asked - and the cost lands on the record rather than on the work, which is the only failure
+mode in §9 that is silent, permanent and self-congratulatory at the same time.
