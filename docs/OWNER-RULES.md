@@ -324,6 +324,15 @@ Steps 1-5 cost roughly ten minutes before a fix. They replace three to four revi
 
 ---
 
+## 12. DO NOT SPEND CI ON CHECKS THAT ARE NOT NEEDED
+
+Owner, 2026-10-30: *"Keep only the real code, test, change, and release... The changes to documents and rechecking after each merge, skip it. And for rechecking after each merge, run once before release."*
+
+- **Document-only changes do not run the full checks.**
+- **Merging into `dev` does not run the full checks again.** Build the merged head once, before promotion.
+- **Real code, test changes and release PRs keep them.**
+- **Batch docs.** One PR, not one per note.
+
 ## Keeping this file true
 
 **PM/DevOps owns it.** When the owner gives a new instruction, it goes in here **in the same session he gives it**, in his words, with the date. When an instruction is superseded, the old text stays with a note saying what replaced it and when — a rules file that hides its own history teaches nothing.

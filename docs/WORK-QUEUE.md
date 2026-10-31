@@ -257,6 +257,10 @@ gh run list --branch <branch> --limit 6 --json headSha,status,conclusion   # is 
 git diff --name-only <newest-built-sha> origin/<branch>                    # if not, what is uncovered?
 ```
 
+**A run that exists but has not finished is the same answer as no run.** Found on
+this guardrail's first real use, 2026-10-30: `df1abe97` was pending at promotion
+time. Wait for it to complete green, then re-read it at the moment of promoting.
+
 **Code in that diff means wait for a run on the real head.** Docs-only means
 proceed and say so. **Do not resolve it by reading `ci.yml`** — the path filter
 tells you what CI *would* skip, not what it *did*.
@@ -399,9 +403,19 @@ is included); **#1159** (leaked-password protection, deferred with the Supabase 
 **#372** (annual subscription - paused by the owner). **#1413:** GitHub Actions cannot start
 while the account is locked; nothing else depends on it.
 
-**Backups remain deferred to funding** (`docs/OWNER-BLOCKERS.md` row 1), with the rule that
-follows: **while there is no backup, no destructive migration touches production.** Additive
-only - `add column if not exists`, new tables, new policies.
+**CORRECTED 2026-10-30: backups were NEVER blocked by funding, and reading it that way cost
+seven weeks.** The sentence here said they were deferred until the owner paid for Supabase Pro.
+What Pro buys is *managed* backups. **It does not make a backup possible; it makes one convenient.**
+
+**The production database is 32 MB.** A nightly export is small, free, and runs on machinery that
+already exists - `app/api/liq-events/purge/route.ts` is cron-authed with `checkCronAuth`, driven
+by cron-job.org, and `CRON_SECRET` is already set on production. **A nightly backup route is being
+built on that pattern.** Owner raised it on 2026-10-30 and was right to ask why it had not moved.
+
+**The rule that follows is UNCHANGED while no backup exists: no destructive migration touches
+production.** Additive only - `add column if not exists`, new tables, new policies. **It stops
+applying only when a restore has been PROVEN**, not when a backup file first appears. A backup
+nobody has restored is not a backup.
 
 ---
 
