@@ -8,6 +8,9 @@ import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
 import { useLabels } from '@/lib/labels';
+import { useAuth } from '@/components/AuthProvider';
+import { getAuthToken } from '@/lib/supabase';
+import { drawStructureAvailable, type DrawableStructure } from '@/lib/drawStructure';
 import Tip from '@/components/Tip';
 import { barsAfter } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
@@ -56,6 +59,21 @@ const TOOLS = [
 
 // ── Drawing persistence - user-drawn lines survive a page refresh, per coin ──
 const DRAWING_GROUP = 'user_drawing';
+
+/* DRAW STRUCTURE PROPOSALS LIVE IN THEIR OWN GROUP, and that one choice is the whole
+ * lifecycle - there is no cleanup code to forget.
+ *
+ * `saveDrawings` persists `user_drawing` and nothing else, so a proposal the trader ignores
+ * or discards CANNOT survive a reload. Accepting one does not mark it accepted; it MOVES it
+ * into DRAWING_GROUP, where it becomes an ordinary user drawing - draggable, persisted per
+ * coin, indistinguishable from a line drawn by hand. That is the honest end state for a
+ * feature whose entire premise is that the model proposes and the trader decides: once kept,
+ * the claim is theirs.
+ *
+ * Proposals are created LOCKED and accepted lines are not. `lock` only gates mouse-down and
+ * pressed-move (see the emaRibbonLine note below), so a locked proposal can still be hovered
+ * but not dragged into something the model never proposed. */
+const PROPOSAL_GROUP = 'structure_proposals';
 const drawingsKey = (coin: CoinId) => `lhq_chart_drawings_${coin}`;
 
 interface PersistedOverlay {
@@ -778,6 +796,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   }, [onResizeMove, onResizeEnd]);
   const { store } = useMarket();
   const { t: tl } = useLabels();
+  const { entitlementStatus } = useAuth();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
   const paOverlayIds              = useRef<string[]>([]);
@@ -2678,6 +2697,127 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     }
   }, [coin, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Draw Structure (#1818 option D) ──────────────────────────────────
+  const [proposals, setProposals] = useState<DrawableStructure[]>([]);
+  const [dsLoading, setDsLoading] = useState(false);
+  const [dsError, setDsError] = useState<string | null>(null);
+  const proposalIds = useRef<string[]>([]);
+
+  /* The two setState calls BAIL OUT when there is nothing to clear, returning the previous
+     reference so React skips the re-render. This runs from an effect on every coin and
+     timeframe change - which is most of what this chart does - and an unconditional
+     setState([]) there is a new array each time, so every tf click would re-render the
+     whole chart toolbar to replace one empty list with another. */
+  const clearProposals = useCallback(() => {
+    const chart = chartRef.current;
+    if (chart) chart.removeOverlay({ groupId: PROPOSAL_GROUP });
+    proposalIds.current = [];
+    setProposals(prev => (prev.length === 0 ? prev : []));
+    setDsError(prev => (prev === null ? prev : null));
+  }, []);
+
+  /* Proposals are about ONE window. Changing coin or timeframe makes every index they were
+     built from meaningless, so they go rather than being redrawn against candles they were
+     never fitted to. */
+  useEffect(() => { clearProposals(); }, [coin, tf, clearProposals]);
+
+  const requestStructures = useCallback(async () => {
+    const chart = chartRef.current;
+    if (!chart || dsLoading) return;
+    setDsError(null);
+    setDsLoading(true);
+    try {
+      const token = await getAuthToken();
+      if (!token) { setDsError(tl('DRAW_STRUCTURE_SIGNED_OUT')); return; }
+      /* THE WINDOW THE USER IS LOOKING AT, sent rather than re-fetched server-side. The
+         proposal is a set of candle INDICES, so it only lands on the right bars if those
+         indices refer to this array - and /api/market/klines can fail over to Bybit with a
+         price rescale, which would put the line through the wrong candles at plausible
+         prices. The route validates it as untrusted input and drops the forming bar. */
+      const candles = chart.getDataList().map(d => ({
+        timestamp: d.timestamp, open: d.open, high: d.high, low: d.low, close: d.close,
+      }));
+      const res = await fetch('/api/draw-structure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ coin: coinRef.current, tf, candles }),
+      });
+      const data = await res.json().catch(() => ({})) as
+        { structures?: unknown; error?: unknown; message?: unknown };
+      if (!res.ok) {
+        /* The server's own words. It is the only side that knows WHY - Pro, timeframe, a
+           malformed window, or the tool not being enabled yet - and inventing a friendlier
+           local string here would be the UI claiming a cause it did not establish. */
+        const msg = typeof data.message === 'string' ? data.message
+          : typeof data.error === 'string' ? data.error
+          : tl('DRAW_STRUCTURE_FAILED');
+        setDsError(msg);
+        return;
+      }
+      const list = (Array.isArray(data.structures) ? data.structures : []) as DrawableStructure[];
+      clearProposals();
+      const ids: string[] = [];
+      for (const s of list) {
+        const id = chart.createOverlay({
+          name: 'segment',
+          groupId: PROPOSAL_GROUP,
+          lock: true,
+          points: [
+            { timestamp: s.from.timestamp, value: s.from.price },
+            { timestamp: s.to.timestamp, value: s.to.price },
+          ],
+          /* Dashed, and no colour set: the chart's own line ink differs per theme and this
+             has to read in both. A hardcoded colour here is how the last two colour fixes
+             regressed the other theme. Dashed is what says "not yours yet". */
+          styles: { line: { style: 'dashed', size: 1 } },
+        } as OverlayCreate);
+        if (typeof id === 'string') ids.push(id);
+      }
+      proposalIds.current = ids;
+      setProposals(list);
+    } catch {
+      setDsError(tl('DRAW_STRUCTURE_FAILED'));
+    } finally {
+      setDsLoading(false);
+    }
+  }, [tf, tl, dsLoading, clearProposals]);
+
+  const dropProposal = (i: number) => {
+    const chart = chartRef.current;
+    const id = proposalIds.current[i];
+    if (chart && id) chart.removeOverlay({ id });
+    proposalIds.current = proposalIds.current.filter((_, n) => n !== i);
+    setProposals(prev => prev.filter((_, n) => n !== i));
+  };
+
+  /* ACCEPT IS A PROMOTION, NOT A FLAG. The proposal overlay is removed and the same two
+     points are re-created in DRAWING_GROUP with no `lock`, which hands it to the existing
+     user-drawing machinery: drag handles, per-coin persistence, the same Clear-all button.
+     Nothing marks it as model-suggested afterwards, on purpose - the trader accepted it, so
+     it is their line. */
+  const acceptProposal = (i: number) => {
+    const chart = chartRef.current;
+    const s = proposals[i];
+    if (!chart || !s) return;
+    const id = chart.createOverlay({
+      name: 'segment',
+      groupId: DRAWING_GROUP,
+      points: [
+        { timestamp: s.from.timestamp, value: s.from.price },
+        { timestamp: s.to.timestamp, value: s.to.price },
+      ],
+      onDrawEnd: () => saveDrawings(chart, coinRef.current),
+      onRemoved: () => saveDrawings(chart, coinRef.current),
+      onPressedMoveEnd: () => saveDrawings(chart, coinRef.current),
+    } as OverlayCreate);
+    if (typeof id === 'string') userDrawOverlayIds.current.push(id);
+    saveDrawings(chart, coinRef.current);
+    dropProposal(i);
+  };
+
+  const structureTypeLabel = (type: DrawableStructure['type']) =>
+    tl(`DRAW_STRUCTURE_TYPE_${type.toUpperCase()}` as Parameters<typeof tl>[0]);
+
   // ── Drawing toolbar ──────────────────────────────────────────────────
   const handleTool = (toolId: string) => {
     const chart = chartRef.current;
@@ -2781,6 +2921,54 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           </button>
         ))}
         <div className="klc-sep" />
+
+        {/* DRAW STRUCTURE. Offered on 4h and 1d only - from the owner's own answers on 28
+            blind charts, not a guess about what traders like. 15m was 0 of 4 and is absent
+            rather than configurable, because a setting invites someone to turn it on.
+
+            HIDDEN ONLY ON A CONFIRMED FREE ACCOUNT. `entitlementStatus` is 'unknown' when
+            every entitlement retry failed, and the conscious decision for that case (which
+            AuthProvider requires each call site to make) is to SHOW the button: hiding a paid
+            feature from a paying customer because OUR read failed is the worse error, and the
+            route refuses a genuine free account server-side regardless. Reuses the Draw
+            menu's classes so this adds no CSS - globals.css is a landing-gated file and this
+            needs none of it. */}
+        {drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled' && (
+          <div className="klc-draw-wrap">
+            <button
+              className={`klc-tool-btn klc-draw-btn${proposals.length ? ' on' : ''}`}
+              onClick={requestStructures}
+              disabled={dsLoading}
+              title={tl('DRAW_STRUCTURE_BUTTON')}
+            >
+              {dsLoading ? tl('DRAW_STRUCTURE_LOADING') : tl('DRAW_STRUCTURE_BUTTON')}
+            </button>
+            {(proposals.length > 0 || dsError) && (
+              <div className="klc-draw-menu">
+                {dsError
+                  ? <div className="klc-draw-item">{dsError}</div>
+                  : (<>
+                      <div className="klc-draw-item">{tl('DRAW_STRUCTURE_PANEL_TITLE')}</div>
+                      <div className="klc-draw-item">{tl('DRAW_STRUCTURE_HINT')}</div>
+                      {proposals.map((s, i) => (
+                        <div key={`${s.type}-${s.from.timestamp}-${s.to.timestamp}`} className="klc-draw-item">
+                          {structureTypeLabel(s.type)}
+                          <button className="klc-draw-item" onClick={() => acceptProposal(i)}>
+                            {tl('DRAW_STRUCTURE_ACCEPT')}
+                          </button>
+                          <button className="klc-draw-item" onClick={() => dropProposal(i)}>
+                            {tl('DRAW_STRUCTURE_REJECT')}
+                          </button>
+                        </div>
+                      ))}
+                      <button className="klc-draw-item klc-draw-clear" onClick={clearProposals}>
+                        {tl('DRAW_STRUCTURE_CLEAR')}
+                      </button>
+                    </>)}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Drawing tools collapsed into a Draw menu so the toolbar stays clean */}
         <div className="klc-draw-wrap" ref={drawWrapRef}>

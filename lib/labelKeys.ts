@@ -1406,6 +1406,30 @@ export const LABEL_KEYS = [
   /* Item 10: what a buyer is told BEFORE paying, on /upgrade - when the
      subscription starts, that payments are final, and who they are buying from. */
   'UPGRADE_PURCHASE_TERMS_NOTE', 'UPGRADE_SELLER_IDENTITY_NOTE',
+
+  /* #1818 option D: Draw Structure. The copy carries the whole product position, so it lives
+     in label keys where the owner can change it without a code change.
+
+     NOTHING HERE ASSERTS. No "detected", no "confirmed", no confidence, no strength - three
+     measurements on #1818 put both engines and our own detector at chance, so a word implying
+     a measurement would be claiming something we do not have. The hint says what accepting
+     DOES rather than how good the line is, because what accepting does is the honest part:
+     the line becomes the trader's own drawing. */
+  'DRAW_STRUCTURE_BUTTON',
+  'DRAW_STRUCTURE_LOADING',
+  'DRAW_STRUCTURE_PANEL_TITLE',
+  'DRAW_STRUCTURE_HINT',
+  'DRAW_STRUCTURE_NONE',
+  'DRAW_STRUCTURE_ACCEPT',
+  'DRAW_STRUCTURE_REJECT',
+  'DRAW_STRUCTURE_CLEAR',
+  'DRAW_STRUCTURE_SIGNED_OUT',
+  'DRAW_STRUCTURE_FAILED',
+  'DRAW_STRUCTURE_TYPE_TRENDLINE',
+  'DRAW_STRUCTURE_TYPE_CHANNEL',
+  'DRAW_STRUCTURE_TYPE_FLAG',
+  'DRAW_STRUCTURE_TYPE_TRIANGLE',
+  'DRAW_STRUCTURE_TYPE_HORIZONTAL',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];
