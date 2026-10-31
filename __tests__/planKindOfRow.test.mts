@@ -13,6 +13,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { planKindOfRow, PAID_GRACE_MS } from '../lib/paidPeriod.ts';
 import { FREE_SIGNAL_COINS } from '../lib/signalCoinGate.ts';
+/* Imported as a namespace because S9 looks a coin-set name up at runtime - the identifier it checks
+   is captured out of the route's source, so it cannot be a named import. */
+import * as coins from '../lib/coins.ts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -179,26 +182,11 @@ const PREVIEW_RE = new RegExp(
   ' \\(FREE_SIGNAL_COINS as readonly string\\[\\]\\)\\.includes\\(c\\)\\)\\);',
 );
 
-/** Follows `export const <name>: CoinId[] = <rhs>;` in lib/coins.ts until it reaches a declaration
- *  that is not a bare alias, and reports what that declaration is built from. */
-const resolveCoinSet = (name: string): { hops: string[]; rhs: string } => {
-  const src = read('lib/coins.ts');
-  const hops: string[] = [];
-  let at = name;
-  for (let i = 0; i < 6; i += 1) {
-    hops.push(at);
-    const decl = new RegExp(`^export const ${at}(?:\\s*:[^=]*)?= *(.+);$`, 'm').exec(src);
-    if (!decl) return { hops, rhs: `NOT EXPORTED from lib/coins.ts` };
-    const rhs = (decl[1] ?? '').trim();
-    /* ONLY a bare identifier counts as an alias to follow. `[...RENDERED_IDS]` is NOT unwrapped
-       on purpose - that spread IS the rendered list's declaration, and it is what S9 reads. */
-    const alias = /^([A-Z][A-Z0-9_]*)$/.exec(rhs);
-    if (!alias) return { hops, rhs };
-    at = alias[1] ?? '';
-    if (hops.includes(at)) return { hops, rhs };
-  }
-  return { hops, rhs: 'alias chain longer than 6 hops' };
-};
+/* `resolveCoinSet` WAS HERE AND IS GONE DELIBERATELY. It parsed `export const <name> = <rhs>;` out
+   of lib/coins.ts and required the right-hand side to mention `RENDERED_IDS`, which pinned a
+   declaration's STYLE - the same mistake as pinning a name, one level up. S9 now imports the module
+   and compares the arrays by value, so a rename and a re-declaration both pass and a widening
+   cannot. Recorded rather than silently deleted because the deleted version looked careful. */
 
 test('S5. #1639 ladder in the alert cron: every coin outside the Free list is muted for each trial user, after the stored mutes are read and before the cost pre-filter', () => {
   const src = stripTsComments(read('app/api/telegram/alert/route.ts'));
@@ -251,6 +239,19 @@ test('S9. the cron and the preview read the SAME coin set, and it resolves to th
   const preview = PREVIEW_RE.exec(stripTsComments(read('app/api/alerts/preview/route.ts')));
   assert.ok(cron, 'the cron cost pre-filter was not found - S5 says more about why');
   assert.ok(preview, 'the preview coin list was not found - S6 says more about why');
+
+  /* THE CONTROLS COME FIRST, BEFORE THE ASSERTIONS THEY VALIDATE, and that ordering is the point
+     rather than tidiness. They sat at the END of this cell when it shipped in #1877. They could not
+     bite - `COIN_SET` has a mandatory capture group, so a match implies a captured string - but if
+     that group were ever made optional, the equality below would pass vacuously with `undefined`
+     on both sides and the control would report it only AFTERWARDS, in a cell that had already
+     said "pass". A control that runs after the thing it guards is a postscript, not a control.
+     Dev caught this reviewing #1877; it is §9b's own rule applied to the cell that cites §9b. */
+  for (const [what, m] of [['cron', cron], ['preview', preview]] as const) {
+    assert.match(m[1] ?? '', /^[A-Z][A-Z0-9_]*$/,
+      `no identifier was captured from the ${what}, so every assertion in this cell would be vacuous`);
+  }
+
   assert.equal(
     cron[1], preview[1],
     `the cron scans ${cron[1]} and the preview advertises ${preview[1]}. The user is shown alerts for ` +
@@ -258,24 +259,43 @@ test('S9. the cron and the preview read the SAME coin set, and it resolves to th
     'silent divergence lib/coins.ts:119 warns about. Move both call sites in one change.',
   );
 
-  /* AND IT MUST BE THE RENDERED LIST. A rename is free; a widening is not. `UNIVERSE_COINS` is 463
-     instruments and the cron fetches 300 klines per coin per run, twice. */
-  const set = resolveCoinSet(cron[1] ?? '');
-  const chain = set.hops.join(' -> ');
+  /* AND IT MUST BE THE RENDERED LIST. A rename is free; a widening is not.
+   *
+   * THIS IS COMPARED BY VALUE, NOT BY DECLARATION STYLE, and the first version got that wrong in
+   * the same way as the pin this file replaced. It required the resolved right-hand side to mention
+   * `RENDERED_IDS`, so writing `COINS` as an explicit literal array - a change with nothing wrong
+   * with it - would have gone red. Pinning the SHAPE OF A DECLARATION is the same mistake as
+   * pinning a name, one level up. Dev flagged it on #1877.
+   *
+   * So: resolve the captured identifier to the actual exported array and compare contents. A
+   * rename passes, a re-declaration passes, and a widening cannot. */
+  const name = cron[1] ?? '';
+  const exported = (coins as Record<string, unknown>)[name];
   assert.ok(
-    /RENDERED_IDS/.test(set.rhs),
-    `the cron's coin set resolves ${chain} = ${set.rhs}, which does not reach RENDERED_IDS. The alert ` +
-    'cron must scan what the app renders. If this is a deliberate change of scan set, change this ' +
-    'cell in the same commit and say what the new cost is.',
-  );
-  assert.ok(
-    !/COIN_UNIVERSE/.test(set.rhs),
-    `the cron's coin set resolves ${chain} = ${set.rhs}, which is built from COIN_UNIVERSE - all 463 ` +
-    'instruments. app/api/telegram/alert/route.ts fetches 300 klines PER COIN and runs checkRSI over ' +
-    'the whole list, so this is roughly a 9x increase in the cron\'s cost and in the exchanges\' rate ' +
-    'budget. Nothing else in the suite would have said so.',
+    Array.isArray(exported),
+    `the cron reads ${name}, which lib/coins.ts does not export as an array (got ${typeof exported}). ` +
+    'Either the identifier is local to the route - in which case the cron is scanning a list this ' +
+    'cell cannot see - or the export was renamed without this cell being told.',
   );
 
-  /* The positive control for both: the identifier actually came from the source, not from a default. */
-  assert.match(cron[1] ?? '', /^[A-Z][A-Z0-9_]*$/, 'no identifier was captured from the cron, so the assertions above are vacuous');
+  /* THE CONTROL THAT MAKES THE COMPARISON MEAN ANYTHING. If the rendered list and the universe ever
+     became the same array, "equals COINS" would be satisfied by the 463-coin version and this cell
+     would pass while the cron's cost went up ninefold. That is the exact failure it exists to stop,
+     so the gap between them is asserted rather than assumed. */
+  assert.ok(
+    coins.UNIVERSE_COINS.length > coins.COINS.length,
+    `UNIVERSE_COINS (${coins.UNIVERSE_COINS.length}) is not larger than COINS (${coins.COINS.length}), ` +
+    'so comparing the cron\'s set against COINS no longer rules out the whole universe. Decide what ' +
+    'the rendered list is before trusting anything else in this cell.',
+  );
+  assert.deepEqual(
+    exported, coins.COINS,
+    `the cron reads ${name}, which is not the rendered list. COINS has ${coins.COINS.length} ids and ` +
+    `${name} has ${(exported as unknown[]).length}; UNIVERSE_COINS has ${coins.UNIVERSE_COINS.length}. ` +
+    'app/api/telegram/alert/route.ts fetches 300 klines PER COIN and runs checkRSI over the whole ' +
+    'list, twice, so this is a direct multiplier on the cron\'s cost and on the exchanges\' rate ' +
+    'budget. If the scan set is deliberately diverging from the rendered list, change this cell in ' +
+    'the same commit and say what the new cost is - and move the preview with it, or the assertion ' +
+    'above will tell you to.',
+  );
 });
