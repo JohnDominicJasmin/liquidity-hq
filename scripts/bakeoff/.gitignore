@@ -1,4 +1,5 @@
 results/*
 !results/result-*.json
 blind-charts/
+round2-charts/
 .tfscan.*

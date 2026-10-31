@@ -1,0 +1,231 @@
+{
+ "pulledAt": "2026-10-31T08:45:13.038Z",
+ "question": "Within a FIXED timeframe, do his answers separate by our z? Round 1 could not tell shape from timeframe because the two varied together.",
+ "readIfYes": "The shape statistic is real, A-prime is a genuine filter, and the timeframe floor is the only open parameter.",
+ "readIfNo": "Shape is noise, A-prime collapses to \"draw on 4h and above\", and the honest recommendation changes - simpler, or not worth building.",
+ "round1": {
+  "hisMeanOnOurHighZ": 0.67,
+  "hisMeanOnOurLowZ": 0.67,
+  "note": "Identical. He called structure on z = -1.0 and noise on z = 2.1. By timeframe his structure rate was 15m 0/4, 1h 1/2, 4h 3/3, 1d 2/3."
+ },
+ "design": {
+  "blocks": [
+   "4 hour",
+   "1 hour"
+  ],
+  "perArm": 4,
+  "highZ": ">= 3",
+  "lowZ": "<= 0",
+  "dropped15m": "he answered noise to 4 of 4, so his attention there buys nothing",
+  "droppedDaily": "the pool contains no high-z daily window at all, in 95 of them",
+  "noTimeframeFloor": "NOT hardcoded anywhere. Twelve answers do not set a parameter, and writing 4h into the code now would bake in the thing this round exists to test."
+ },
+ "composition": {
+  "4 hour": {
+   "high": [
+    {
+     "coin": "ETH",
+     "z": 3.3
+    },
+    {
+     "coin": "XRP",
+     "z": 7.8
+    },
+    {
+     "coin": "LINK",
+     "z": 4
+    },
+    {
+     "coin": "AVAX",
+     "z": 3.1
+    }
+   ],
+   "low": [
+    {
+     "coin": "BTC",
+     "z": -0.5
+    },
+    {
+     "coin": "SOL",
+     "z": -0.7
+    },
+    {
+     "coin": "DOGE",
+     "z": -0.6
+    },
+    {
+     "coin": "ATOM",
+     "z": -0.1
+    }
+   ]
+  },
+  "1 hour": {
+   "high": [
+    {
+     "coin": "ETH",
+     "z": 3.4
+    },
+    {
+     "coin": "SOL",
+     "z": 3.9
+    },
+    {
+     "coin": "XRP",
+     "z": 6
+    },
+    {
+     "coin": "GMT",
+     "z": 3.7
+    }
+   ],
+   "low": [
+    {
+     "coin": "BTC",
+     "z": -0.1
+    },
+    {
+     "coin": "LINK",
+     "z": -0.2
+    },
+    {
+     "coin": "AVAX",
+     "z": -0.3
+    },
+    {
+     "coin": "FIL",
+     "z": -0.2
+    }
+   ]
+  }
+ },
+ "fixtures": [
+  {
+   "id": "r2-240-high-eth-1790568000000",
+   "block": "4 hour",
+   "tf": "240",
+   "arm": "high",
+   "symbol": "ETHUSDT",
+   "z": 3.3
+  },
+  {
+   "id": "r2-240-high-xrp-1784808000000",
+   "block": "4 hour",
+   "tf": "240",
+   "arm": "high",
+   "symbol": "XRPUSDT",
+   "z": 7.8
+  },
+  {
+   "id": "r2-240-high-link-1790568000000",
+   "block": "4 hour",
+   "tf": "240",
+   "arm": "high",
+   "symbol": "LINKUSDT",
+   "z": 4
+  },
+  {
+   "id": "r2-240-high-avax-1790568000000",
+   "block": "4 hour",
+   "tf": "240",
+   "arm": "high",
+   "symbol": "AVAXUSDT",
+   "z": 3.1
+  },
+  {
+   "id": "r2-240-low-btc-1787688000000",
+   "block": "4 hour",
+   "tf": "240",
+   "arm": "low",
+   "symbol": "BTCUSDT",
+   "z": -0.5
+  },
+  {
+   "id": "r2-240-low-sol-1787688000000",
+   "block": "4 hour",
+   "tf": "240",
+   "arm": "low",
+   "symbol": "SOLUSDT",
+   "z": -0.7
+  },
+  {
+   "id": "r2-240-low-doge-1787688000000",
+   "block": "4 hour",
+   "tf": "240",
+   "arm": "low",
+   "symbol": "DOGEUSDT",
+   "z": -0.6
+  },
+  {
+   "id": "r2-240-low-atom-1779048000000",
+   "block": "4 hour",
+   "tf": "240",
+   "arm": "low",
+   "symbol": "ATOMUSDT",
+   "z": -0.1
+  },
+  {
+   "id": "r2-60-high-eth-1792717200000",
+   "block": "1 hour",
+   "tf": "60",
+   "arm": "high",
+   "symbol": "ETHUSDT",
+   "z": 3.4
+  },
+  {
+   "id": "r2-60-high-sol-1790557200000",
+   "block": "1 hour",
+   "tf": "60",
+   "arm": "high",
+   "symbol": "SOLUSDT",
+   "z": 3.9
+  },
+  {
+   "id": "r2-60-high-xrp-1790557200000",
+   "block": "1 hour",
+   "tf": "60",
+   "arm": "high",
+   "symbol": "XRPUSDT",
+   "z": 6
+  },
+  {
+   "id": "r2-60-high-gmt-1790557200000",
+   "block": "1 hour",
+   "tf": "60",
+   "arm": "high",
+   "symbol": "GMTUSDT",
+   "z": 3.7
+  },
+  {
+   "id": "r2-60-low-btc-1789837200000",
+   "block": "1 hour",
+   "tf": "60",
+   "arm": "low",
+   "symbol": "BTCUSDT",
+   "z": -0.1
+  },
+  {
+   "id": "r2-60-low-link-1791997200000",
+   "block": "1 hour",
+   "tf": "60",
+   "arm": "low",
+   "symbol": "LINKUSDT",
+   "z": -0.2
+  },
+  {
+   "id": "r2-60-low-avax-1791277200000",
+   "block": "1 hour",
+   "tf": "60",
+   "arm": "low",
+   "symbol": "AVAXUSDT",
+   "z": -0.3
+  },
+  {
+   "id": "r2-60-low-fil-1791997200000",
+   "block": "1 hour",
+   "tf": "60",
+   "arm": "low",
+   "symbol": "FILUSDT",
+   "z": -0.2
+  }
+ ]
+}
