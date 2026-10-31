@@ -205,6 +205,18 @@ const PROBE = `(async () => {
        NO BACKTICKS IN THIS BLOCK - it lives inside a template literal. */
     innerWidth: window.innerWidth,
     violations: ax.violations.map((v) => v.id + '[' + v.impact + ']x' + v.nodes.length),
+    /* THE NODE, NOT JUST THE COUNT. \`AA=1 [nested-interactive[serious]x1]\` tells a reader that
+       something is wrong and nothing about where, so the next person re-derives it by hand - which
+       is exactly what PM/DevOps started doing on 2026-10-31 (seven buttons read in the source, none
+       textually nested, because the nesting is RENDERED). My own rule from §9a says print the
+       assertion text beside the count; this is that rule applied to axe. */
+    violationNodeDetail: ax.violations.flatMap((v) => v.nodes.slice(0, 3).map((n) => ({
+      rule: v.id,
+      impact: v.impact,
+      target: (n.target || []).join(' '),
+      html: (n.html || '').replace(/\\s+/g, ' ').slice(0, 220),
+      why: (n.failureSummary || '').replace(/\\s+/g, ' ').slice(0, 200),
+    }))),
     violationNodes: ax.violations.reduce((a, v) => a + v.nodes.length, 0),
     incompleteNodes: ax.incomplete.reduce((a, v) => a + v.nodes.length, 0),
     unsubstituted: ['{name}', '{country}', '{region}'].filter((t) => txt.includes(t)),
@@ -596,6 +608,48 @@ if (RUN('upgrade')) for (const [vpName, w, h, theme, signedIn] of [
           continue;
         }
 
+        /* ── WHICH CHECKOUT BRANCH MOUNTED, READ TWICE AND REQUIRED TO AGREE ──────────────────
+         *
+         * `app/(main)/upgrade/page.tsx:240` is `embedded = !!(embed && accountEmail &&
+         * !embedFailed)` - **no width term**, and `:241`'s `embedPhone` only changes padding. So
+         * one signed-in account must take the SAME branch at 390 and at 1440.
+         *
+         * It did not. On 2026-10-31 I measured `whopCta=true` at 390 and `false` at 1440 and
+         * reported the difference as a width behaviour, explained by the fence blocking
+         * `cdn.whop.com`. **Both readings cannot be right, and nothing width-dependent separates
+         * them - so one of them was this instrument, not the product.** PM/DevOps found the
+         * contradiction in the source and used it to kill a hypothesis; the step I had missed is
+         * that a contradiction with no mechanism behind it impeaches the DATA.
+         *
+         * The two branches are mutually exclusive in the DOM - `checkout-method-whop` exists only
+         * on the plain-link branch, `checkout-method-whop-embed-fallback` only on the embedded one
+         * - so the branch is observable rather than inferred.
+         *
+         * READ TWICE, A SECOND APART, AND REQUIRED TO AGREE. Two of my readings today landed inside
+         * a transition that a single fixed-point read cannot see, and the embed can mount, emit DOM
+         * and then set `embedFailed`. **Disagreement between the two samples is a RESULT - "the
+         * panel was still changing" - not a failure to report around.** */
+        const sampleBranch = () => page.evaluate(() => ({
+          plainCta: Boolean(document.querySelector('[data-testid="checkout-method-whop"]')),
+          embedFallback: Boolean(document.querySelector('[data-testid="checkout-method-whop-embed-fallback"]')),
+          whopNodes: document.querySelectorAll('[class*="whop-"]').length,
+        }));
+        const b1 = await sampleBranch();
+        await page.waitForTimeout(1000);
+        const b2 = await sampleBranch();
+        const stable = b1.plainCta === b2.plainCta && b1.embedFallback === b2.embedFallback;
+        const describe = (b) => `plainCta=${b.plainCta} embedFallback=${b.embedFallback} whopNodes=${b.whopNodes}`;
+        if (!stable) {
+          log(`  BRANCH STILL CHANGING - the panel is not settled, so any single read of it is a transition:`);
+          log(`    t0: ${describe(b1)}`);
+          log(`    t1: ${describe(b2)}`);
+        } else {
+          const which = b2.plainCta ? 'plain link (embedded=false)'
+            : b2.embedFallback ? 'EMBEDDED (embedded=true)'
+            : 'NEITHER - no checkout control of either kind';
+          log(`  branch: ${which}; stable across 1s; ${describe(b2)}`);
+        }
+
         await page.addScriptTag({ content: AXE_SRC });
         const opened = await page.evaluate(PROBE);
         const panel = await page.evaluate(() => {
@@ -621,6 +675,11 @@ if (RUN('upgrade')) for (const [vpName, w, h, theme, signedIn] of [
         log(`  the two required facts: ${panel.missingFacts.length === 0 ? 'both present' : `MISSING ${JSON.stringify(panel.missingFacts)}`}`);
         if (panel.forbidden.length) log(`  FORBIDDEN CLAIM ON SCREEN: ${JSON.stringify(panel.forbidden)}`);
         log(`  OPENED PANEL: overflow=${opened.scrollWidth - w} (sw=${opened.scrollWidth} iw=${opened.innerWidth}) AA=${opened.violationNodes} [${opened.violations.join(' ') || 'none'}] incomplete=${opened.incompleteNodes} smallTargets=${opened.smallCount} ${opened.smallTargets.join(' ')}`);
+        for (const n of opened.violationNodeDetail ?? []) {
+          log(`    ${n.rule}[${n.impact}] at ${n.target}`);
+          log(`      html: ${n.html}`);
+          if (n.why) log(`      axe:  ${n.why}`);
+        }
         /* Nothing may have navigated. The checkout control is deliberately NOT clicked, and this
            is the assertion that says so rather than the intention. */
         log(`  still on the same page: ${page.url() === urlBefore ? 'yes' : `NO - moved to ${page.url()}`}`);
