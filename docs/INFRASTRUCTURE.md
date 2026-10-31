@@ -1380,3 +1380,23 @@ to act on.
 4. **Blind the human check too.** A chart shown with our verdict on it measures agreement with a
    label, not judgement - which is why `scripts/bakeoff/render-blind.mjs` strips the group letter,
    the z, the symbol and even the price axis.
+5. **ASSERT THE BALANCE OF EVERY NUISANCE VARIABLE. Do not eyeball it.** This is the most
+   transferable lesson of the exercise and it cost two rounds.
+
+   Round 1's group A was **entirely 4-hour**. So the timeframe label alone predicted the group, and
+   the whole comparison measured nothing about structure: **hide the label and a trader cannot
+   answer; show it and you have handed over the key.** The owner found it in one sentence, having
+   already raised it in the original proposal - which is the part worth recording, because it was
+   knowable before any spend.
+
+   **Fixing it created two more confounds, and that is the real warning.** Balancing timeframes
+   let 15m fill every group before the daily windows were reached, so no group contained a daily
+   chart at all; the next attempt put 1h in exactly one group. **Both were caught only by
+   assertions added after the first confound** - neither was visible in a summary table, and
+   neither would have been noticed by looking at the fixtures.
+
+   So: for every variable that is not the thing under test - timeframe, symbol, **position in the
+   presentation order**, anything the subject can see - write an assertion that each group holds
+   the same mix, and fail the run rather than the analysis. Round 2 balanced position as well as
+   timeframe, which is the version worth copying. **A confound is not a flaw in the result; it
+   means there is no result.**
