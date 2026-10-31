@@ -34,13 +34,38 @@
 --
 -- THE TWO PROJECTS DIFFER AND THAT WAS MEASURED, NOT ASSUMED:
 --
---     prod (lhq_labels)      12 rows carry the country:  5 privacy + 7 HOURS_* (ar and zh only)
---     dev  (lhq_dev_labels)  40 rows:                    5 privacy + 35 HOURS_* (all five locales)
+--     prod (lhq_labels)      40 rows carried the country or PHT:  5 privacy + 35 HOURS_*
+--     dev  (lhq_dev_labels)  40 rows, the same shape
+--
+-- An earlier version of this header said prod carried 12. That was the count from a sweep that
+-- searched the country name and its translations but NOT the abbreviation "PHT" - so it found the
+-- five privacy rows plus the seven HOURS_* rows that spell the country out in Arabic and Chinese,
+-- and missed the twenty-eight that say PHT. Corrected because the file outlives the memory.
 --
 -- So dev/qa/staging show it in more places than production does. Only the 5 privacy rows are in scope
 -- here, in both projects.
 --
--- NOT APPLIED. This is a write to the shared database, which is the owner's approval and nobody
+-- ALREADY DONE BY HAND, 2026-10-31. This file is the RECORD, not a pending change.
+--
+-- The owner gave a blanket order ("do a full audit all pages, all codes... remove it") and PM
+-- deleted the rows directly on that go, in BOTH projects, with counts and a control:
+--
+--     lhq_labels      13,367 -> 13,327   0 PHT, 0 country   control: 295 HOURS_% rows remain
+--     lhq_dev_labels  13,341 -> 13,301   0 PHT, 0 country   control: 293 HOURS_% rows remain
+--
+-- The control matters: a zero from the sweep could mean the table is clean OR that the sweep is
+-- broken, and the surviving HOURS_% count distinguishes them.
+--
+-- SO RUNNING THIS IS A NO-OP on both projects. It is kept rather than deleted because a hand
+-- deletion with no file leaves the next reader unable to answer "when did these rows go, and who
+-- said so" - which is the same gap that made the label table untrustworthy in the first place.
+--
+-- THE DEV HALF WAS COMMENTED OUT AND THAT WAS A DEFECT, caught by QA. As written, applying this
+-- file would have cleaned prod and left qa untouched - a dual-project migration that silently does
+-- one project. Both halves are active below. It changed nothing here only because the rows were
+-- already gone; in any other week it would have been a half-applied fix nobody noticed.
+--
+-- The original note, now historical: this is a write to the shared database, which is the owner's approval and nobody
 -- else's. Neither PM nor Dev applies it, and a relay of his approval through another session does not
 -- count - it goes to him directly.
 --
@@ -82,16 +107,17 @@ delete from lhq_labels
    and locale in ('ar', 'ko', 'ru', 'zh');
 
 -- ============ DEV (shared by dev/qa/staging, wdtjhrilakoitfcezxpx) ============
--- Commented out: applies only in the QA DDL window. Same rows, prefixed table (lib/tables.ts).
---
--- update lhq_dev_labels
---    set value = 'Your data may be transferred to and processed outside your own country by our hosting and service providers. By using the Platform, you consent to this transfer.'
---  where key = 'PRIVACY_SECTION_INTERNATIONAL_USERS_BODY'
---    and locale = 'en';
---
--- delete from lhq_dev_labels
---  where key = 'PRIVACY_SECTION_INTERNATIONAL_USERS_BODY'
---    and locale in ('ar', 'ko', 'ru', 'zh');
+-- ACTIVE, not commented. Same rows, prefixed table (lib/tables.ts). dev/qa/staging share this
+-- project, so leaving it commented is how prod gets fixed and the site QA tests does not.
+
+update lhq_dev_labels
+   set value = 'Your data may be transferred to and processed outside your own country by our hosting and service providers. By using the Platform, you consent to this transfer.'
+ where key = 'PRIVACY_SECTION_INTERNATIONAL_USERS_BODY'
+   and locale = 'en';
+
+delete from lhq_dev_labels
+ where key = 'PRIVACY_SECTION_INTERNATIONAL_USERS_BODY'
+   and locale in ('ar', 'ko', 'ru', 'zh');
 
 -- ===================== VERIFY AFTER APPLYING, per project =====================
 --
