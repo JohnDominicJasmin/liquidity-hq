@@ -109,18 +109,19 @@ Every one of these produced a false result, once, before it was caught. None of 
 
 ## 9. The shape underneath §5: most of your false results will be about your instrument
 
-§5 is a list of individual traps. This is the shape they share, written down because it kept producing new instances after every individual one was fixed — **eleven in two days, in four different dimensions.**
+§5 is a list of individual traps. This is the shape they share, written down because it kept producing new instances after every individual one was fixed — **twelve in two days, in four different dimensions.** The twelfth landed inside the script written to avoid the eleventh, which is the clearest argument there is for reading this section as a shape rather than a checklist.
 
 > **When your check and the product disagree, the check is wrong more often than you expect — and it fails in the direction that looks like a result.**
 
 ### 9a. The layer between the failure and your eyes is itself untested
 
-Four instances on 2026-10-30/31. In every one the code was right and the thing reporting on it was wrong:
+Five instances on 2026-10-30/31. In every one the code was right and the thing reporting on it was wrong:
 
 - `node x.mjs | tail; echo $?` reported **exit 0 for a crashed run** — after a pipeline `$?` is the pipe's status. Read `${PIPESTATUS[0]}`, or redirect to a file.
 - A `grep -E` for a runner's summary line missed it, so a **green run printed nothing** and read as a failure.
 - A mutation control printed **`red=[]` while both mutations had actually fired.** The worst output available: it says *"your cells cannot detect this"* when it means *"I cannot see my cells."*
 - A per-file counter used `grep -cE '^✖ '` and **`node --test` prints each failing cell twice** — once inline, once in the summary — so every *"fail 2"* reported for a night was **one** real failure.
+- **It happened again inside the script written after the bullet above.** A mutation harness scraped `not ok <n> - <cell>` out of the run, which is TAP; `node --test` defaults to the spec reporter, which prints a glyph and no `not ok` line at all. So four genuine reds printed `exit 1 red=[none]` — **the exit codes were right and the summary of them was wrong**, which is the dangerous half: the measurement succeeded and the thing reading it lied. Fixed by passing `--test-reporter=tap` rather than by improving the pattern, because **a scraper that has to guess the format will guess again.**
 
 **The rule: print the raw exit code and the assertion text next to any count, never the count alone.** Prefer the runner's own `ℹ tests/pass/fail` to counting matched lines. And give a filter a positive control — feed it a run you *know* fails and check that it says so.
 
