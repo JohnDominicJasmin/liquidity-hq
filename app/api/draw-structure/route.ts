@@ -23,6 +23,7 @@
  * nothing, billed to their own Pro quota. It is about a malformed window producing a confident
  * line, which is the failure this whole feature exists to avoid.
  */
+import { createHash } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
@@ -75,7 +76,10 @@ interface ClientCandle { timestamp?: unknown; open?: unknown; high?: unknown; lo
  * out-of-order timestamps - `toDrawable` returns endpoints in index order, so a non-monotonic
  * window would draw a line backwards in time.
  */
-function parseWindow(raw: unknown): { candles: StructureCandle[] } | { error: string } {
+function parseWindow(
+  raw: unknown,
+  barOpen: number,
+): { candles: StructureCandle[] } | { error: string } {
   if (!Array.isArray(raw)) return { error: 'candles must be an array' };
   if (raw.length < MIN_CANDLES) return { error: `need at least ${MIN_CANDLES} candles` };
   if (raw.length > MAX_CANDLES) return { error: `at most ${MAX_CANDLES} candles` };
@@ -95,7 +99,20 @@ function parseWindow(raw: unknown): { candles: StructureCandle[] } | { error: st
     prevTs = ts;
     out.push({ timestamp: ts, open, high, low, close });
   }
-  return { candles: out.slice(-WINDOW) };
+  /* THE FORMING CANDLE IS DROPPED, and that is load-bearing for the cache rather than a
+   * nicety about data quality. Two traders on the same 4h chart send windows that differ in
+   * exactly one place - the current bar's close, which moves every tick - so hashing the
+   * window with it included would make the key unique per request and the cache dead weight.
+   * Closed bars are identical across clients on the same feed and bar, so the hash matches
+   * and one call serves both.
+   *
+   * It is also the right input on its own terms: a half-formed bar's high and low are not yet
+   * facts, and a line fitted through one is fitted through a number that will change. */
+  const closed = out.filter(c => c.timestamp < barOpen);
+  if (closed.length < MIN_CANDLES) {
+    return { error: `need at least ${MIN_CANDLES} closed candles` };
+  }
+  return { candles: closed.slice(-WINDOW) };
 }
 
 /**
@@ -189,10 +206,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const parsed = parseWindow(body.candles);
-  if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const candles = parsed.candles;
-
   /* Unreachable today: `drawStructureAvailable` has already restricted tf to 4h and 1d, both
    * of which `intervalToMs` knows. Handled rather than asserted because the cache key is what
    * breaks if it is ever wrong - a 0 interval makes `closedCandleKey` return 0, which would
@@ -203,9 +216,37 @@ export async function POST(req: NextRequest) {
   }
   const bar = closedCandleKey(intervalMs, Date.now());
 
+  const parsed = parseWindow(body.candles, bar);
+  if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const candles = parsed.candles;
+
+  /* THE WINDOW IS PART OF THE CACHE KEY, and leaving it out was a real cross-user defect
+   * rather than a theoretical one. Caught by the automated security review on the first
+   * commit of this route; recording it here because the mistake is instructive.
+   *
+   * The key was `coin:tf:bar`, which is correct ONLY if the candles are canonical. They are
+   * not - they come from the client, deliberately (see the header). So trader A could send
+   * any window for btc/4h and trader B, on a genuine btc/4h chart, would be served A's
+   * proposals: lines whose timestamps came from A's candles, drawn on B's chart. That is
+   * precisely the failure this feature exists to avoid - a plausible-looking line through
+   * the wrong candles - arriving through the cache instead of through the geometry.
+   *
+   * I justified client-supplied candles for correctness and then keyed the cache as though
+   * they were canonical. The two decisions contradicted each other and the review caught it.
+   *
+   * Hashing the window keeps the cost sharing that the cache exists for: honest clients on
+   * the same feed and the same closed bar send byte-identical arrays, so they still share one
+   * call. Anyone sending anything else caches only against themselves, billed to their own
+   * pool. A hash mismatch costs a duplicate call, never a wrong line - the right direction
+   * for the failure to fall. */
+  const windowHash = createHash('sha256')
+    .update(candles.map(c => `${c.timestamp}:${c.open}:${c.high}:${c.low}:${c.close}`).join('|'))
+    .digest('hex')
+    .slice(0, 16);
+
   try {
     const result = await cached(
-      `draw-structure:${coin}:${tf}:${bar}`,
+      `draw-structure:${coin}:${tf}:${bar}:${windowHash}`,
       MAX_TTL,
       async (): Promise<{ structures: DrawableStructure[]; coin: string; tf: string }> => {
         /* Only the cache-miss path spends, so only it bills - a second trader on the same bar
