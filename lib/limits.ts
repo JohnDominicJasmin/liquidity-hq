@@ -63,16 +63,17 @@ export function isArenaTf(tf: unknown): tf is ArenaTf {
 export type ExtraTool =
   | 'thesisCheck' | 'strategyResearch' | 'shadowAccount'
   | 'behavioralBias' | 'pineScript' | 'hypothesisAnalyze' | 'tokenUnlock'
-  | 'smcSnapshot' | 'dryPowder' | 'macroContext' | 'onchain';
+  | 'smcSnapshot' | 'dryPowder' | 'macroContext' | 'onchain'
+  | 'drawStructure';
 
-// `toolPool` is a SHARED daily budget across all 11 ExtraTool routes, on top of
+// `toolPool` is a SHARED daily budget across all 12 ExtraTool routes, on top of
 // each tool's own cap. Why it exists: 11 separate per-tool caps multiply out -
 // at 18 each that's a 198-call/day ceiling per Pro user (~43% of the whole
 // worst-case xAI bill) for tools nobody actually runs 18 times a day. A pool
 // collapses that ceiling while making each individual tool MORE generous: a
 // Pro user who only ever runs SMC snapshots gets 25 of them, not 6.
 //
-// All 11 ExtraTool routes are Pro-only: each calls hasProFeatures() and returns
+// All 12 ExtraTool routes are Pro-only: each calls hasProFeatures() and returns
 // 403 PRO_REQUIRED, which is what /upgrade has always sold
 // (UPGRADE_PRO_FEATURE_TOOL_POOL sits in the Pro column; the Free column never
 // listed tools). Until 2026-08-07 only 6 of the 11 enforced it, so a free
@@ -105,6 +106,7 @@ export const AI_LIMITS: Record<UsageTier, {
     thesisCheck: 0, strategyResearch: 0, shadowAccount: 0,
     behavioralBias: 0, pineScript: 0, hypothesisAnalyze: 0, tokenUnlock: 0,
     smcSnapshot: 0, dryPowder: 0, macroContext: 0, onchain: 0,
+    drawStructure: 0,
   },
   trial: {
     quick: 5,  deep: 3,  chat: 5,  search: 3,  briefing: 2,
@@ -115,6 +117,7 @@ export const AI_LIMITS: Record<UsageTier, {
     thesisCheck: 8, strategyResearch: 8, shadowAccount: 8,
     behavioralBias: 8, pineScript: 8, hypothesisAnalyze: 8, tokenUnlock: 8,
     smcSnapshot: 8, dryPowder: 8, macroContext: 8, onchain: 8,
+    drawStructure: 8,
   },
   pro: {
     quick: 30, deep: 10, chat: 50, search: 10, briefing: 4,
@@ -126,5 +129,13 @@ export const AI_LIMITS: Record<UsageTier, {
     thesisCheck: 25, strategyResearch: 25, shadowAccount: 25,
     behavioralBias: 25, pineScript: 25, hypothesisAnalyze: 25, tokenUnlock: 25,
     smcSnapshot: 25, dryPowder: 25, macroContext: 25, onchain: 25,
+    // PROVISIONAL, and matched to strategyResearch rather than measured. Draw
+    // Structure sends a comparable window and returns coordinates instead of
+    // prose, so it should land cheaper than `deep`'s measured $0.0238 - but no
+    // real call has been billed yet, so there is nothing to set this from.
+    // Matching the sibling errs tight rather than generous, which is the right
+    // direction while three features are already over the owner's ceiling.
+    // Revisit once the ledger has Draw Structure rows.
+    drawStructure: 25,
   },
 };

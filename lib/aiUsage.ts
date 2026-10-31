@@ -70,6 +70,7 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
   dryPowder:         'dry_powder_count',
   macroContext:      'macro_context_count',
   onchain:           'onchain_count',
+  drawStructure:     'draw_structure_count',
 };
 
 // blocked.reason distinguishes what actually blocked the caller - this user's
@@ -84,7 +85,23 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
 // The dollar-cap reasons (SpendReason: pro_daily/pro_monthly/free_daily/fuse) are
 // part of this union so a route passes `usageResult.reason` straight through to
 // rateLimitMessage unchanged, and the message builder maps each to owner copy.
-export type UsageBlockReason = 'user' | 'global' | 'pool' | 'disabled' | SpendReason;
+// `not_enabled` is the one reason that is OUR fault rather than the user's: the
+// metering RPC refused the column, which on this schema means a tool's migration
+// has not been applied yet (see 20261031a). It is separated from `user` because
+// "daily limit reached" on a first-ever use reads as a broken product and sends
+// someone to support for an answer the message could have given.
+// `error` is an RPC failure we could not identify, and it is separate from `user`
+// for the same reason `not_enabled` is. QA's point on #1818, and they are right:
+// before this existed, a transient database error told a Pro user "daily limit
+// reached" when they had spent nothing. A false statement to a paying customer is
+// the same class of defect as the accessibility page claiming a touch size we fail
+// (#1852) - the fact that it fails SAFE does not make it true.
+//
+// The asymmetry that matters is preserved: an unidentified error still never reads
+// as "not available yet", so a real cap cannot hide behind our deployment state.
+// It just no longer names a limit nobody hit.
+export type UsageBlockReason =
+  | 'user' | 'global' | 'pool' | 'disabled' | 'not_enabled' | 'error' | SpendReason;
 
 export type UsageIncrementResult =
   | { blocked: false; count: number }
@@ -96,20 +113,20 @@ export type UsageIncrementResult =
 // could decide them instead: pass a huge p_limit to sail past its own daily
 // cap, or a huge p_global_limit to inflate lhq_global_ai_usage past the real
 // AI_GLOBAL_DAILY_MAX and trip the app-wide breaker, locking every user out of
-// AI for the rest of the UTC day. `userId` is safe to pass because all 14
+// AI for the rest of the UTC day. `userId` is safe to pass because all 15
 // callers derive it from a verified token server-side, never from the body.
 export async function incrementUsageColumn(
   userId: string, tier: UsageTier, column: string, limit: number,
   poolLimit: number | null = null,
 ): Promise<UsageIncrementResult> {
-  // Single choke point for all 14 AI routes (see this file's header comment) -
+  // Single choke point for all 15 AI routes (see this file's header comment) -
   // checking here instead of per-route means the admin kill switch
-  // (/ops/config) covers every one of them, including the 11 one-shot tools
+  // (/ops/config) covers every one of them, including the 12 one-shot tools
   // that have no other Grok-specific gate of their own.
   if (!(await isFeatureEnabled('grok'))) return { blocked: true, reason: 'disabled', limit };
 
   // Dollar caps (#1399 part 2) - checked here, at the same choke point as the
-  // count reserve and before the xAI call, so all 14 routes get them. Reads the
+  // count reserve and before the xAI call, so all 15 routes get them. Reads the
   // ledger's measured cost_usd (lib/aiSpendCap.ts); Pro fails OPEN on a read
   // error, free/trial fail CLOSED. `capKey` is the owner-approved message.
   const dollar = await spendCapBlock(tier, userId);
@@ -125,7 +142,17 @@ export async function incrementUsageColumn(
   });
   if (error) {
     console.error(`[aiUsage] increment_ai_usage failed for ${column}:`, error.message);
-    return { blocked: true, reason: 'user', limit };
+    // The RPC is an `elsif p_column = '<name>_count'` chain ending in
+    // `raise exception 'increment_ai_usage: invalid column %'`, so an unknown column
+    // is the DB telling us this tool's migration has not been applied. Matching on
+    // the text is the only signal available - a bare `raise` carries SQLSTATE P0001,
+    // which every other `raise` in this schema also carries. Anything we cannot
+    // identify still falls through to `user`, so a real cap is never reported as
+    // not-enabled.
+    if (error.message.includes('invalid column')) {
+      return { blocked: true, reason: 'not_enabled', limit: 0 };
+    }
+    return { blocked: true, reason: 'error', limit };
   }
   // -1 / -2 are the DB sentinels for the two shared caps (distinct from null =
   // this column's own per-user cap). Any increment already made was rolled
@@ -143,7 +170,7 @@ export async function incrementUsageColumn(
   return { blocked: false, count: data as number };
 }
 
-// Convenience wrapper for the 11 one-shot tool routes (keyed by lib/limits.ts's
+// Convenience wrapper for the 12 one-shot tool routes (keyed by lib/limits.ts's
 // ExtraTool union instead of a raw column string). Takes the caller's tier
 // rather than a pre-looked-up number so the per-tool cap and the shared pool
 // can never be sourced from different places - passing one without the other
@@ -160,7 +187,7 @@ export async function incrementToolUsage(
   );
 }
 
-// Shared message builder so all 14 call sites word this identically. Unchanged
+// Shared message builder so all 15 call sites word this identically. Unchanged
 // signature: routes still pass (reason, limit, label). The dollar-cap reasons are
 // handled here by mapping to owner-approved copy, single-sourced from the en
 // defaults (the lhq_labels migration seeds the same keys for client localization).
@@ -174,6 +201,18 @@ export function rateLimitMessage(
   }
   if (reason === 'disabled') {
     return 'AI features are temporarily disabled.';
+  }
+  // Says what is true today and nothing about when that changes - the owner's
+  // standing rule on copy. No "coming soon": a date we have not committed to is a
+  // promise, and this one depends on a migration only the owner can approve.
+  if (reason === 'not_enabled') {
+    return `${label} is not available yet.`;
+  }
+  // True and unhelpful, which is the right trade when we do not know what happened.
+  // Naming a cause we have not established is how a log line becomes a wrong answer
+  // in the user's hands.
+  if (reason === 'error') {
+    return 'Something went wrong. Try again.';
   }
   if (reason === 'global') {
     return `AI Arena is at capacity right now across all users - try again shortly.`;
