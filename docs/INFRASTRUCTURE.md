@@ -1274,6 +1274,12 @@ had supplied themselves.
 > **9e is about a control whose silence means nothing. This is its mirror: a check that SPEAKS
 > and is wrong.**
 
+**A CONTROL ONLY FIRES IF THE CHECK CAN BE WRONG IN THE DIRECTION YOU TESTED.** That is the
+general statement; everything below is an instance of it. A positive control proving a grep *can*
+match proves the regex compiles - not that it is the right regex, and not that it is reading the
+right file. **Eight checks on one day were working instruments asking the wrong question**, and a
+control aimed at that same wrong question agrees with them.
+
 **Eight instances on 2026-10-31, in eight different checks, across two sessions** - six below, then
 two more in the subsection at the end, which were found while correcting the first six. **In every
 one the artifact was right and the check was wrong.** None resembled a tooling fault at the time;
@@ -1357,10 +1363,8 @@ dominance is checked against the file, never against the patch.**
 
 **What makes these 9h rather than 9j.** Each check SPOKE - it produced a confident finding that
 was wrong - where 9j's checks stayed silent. The shared remedy is unchanged and is 9i's step 4: a
-positive control, because a self-written check has no independence to borrow. **But a control only
-fires if the check is capable of being wrong in the direction you tested.** A control proving a
-grep can match does not prove the grep is asking the right question, which is why the one-line
-test above is the thing to carry rather than another control.
+positive control, because a self-written check has no independence to borrow - subject to the
+statement under this section's heading, which is what these two added.
 
 ### 9i. A STATISTIC MAXIMISED OVER MANY CANDIDATES, AND A NUMBER AN LLM REPORTS
 
