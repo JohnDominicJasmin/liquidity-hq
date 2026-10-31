@@ -424,8 +424,15 @@ produced, and no restore has ever been attempted.**
    route is on `main`; against dev the moment that database answers. Record row counts per table from
    the export and **separately** from the database, then compare - an export counting itself is not a
    measurement.
-2. **Prove each paging key is unique**, per table, with a `group by ... having count(*) > 1` shown to FIRE
-   on a planted duplicate. "The key is present" is `mode=count`’s answer and it is the wrong question.
+2. ~~**Prove each paging key is unique**, per table.~~ **DONE 2026-10-31 against PRODUCTION, reads only,
+   on #1413.** Not by counting rows - **16 of 16 declared `orderBy` tuples are a PRIMARY KEY on exactly
+   those columns**, read from the catalog, both composite keys included. The row-count version was run
+   first and discarded: **six of the sixteen tables hold zero rows, so six of sixteen "greens" measured
+   nothing**, and equal counts describe today’s rows while a primary key governs every future one.
+   Three controls fired, two of them by dropping the second column of a composite key - `labels` collapses
+   13,367 rows into 2,726 keys, `muted_alerts` 109 into 2. **Dev’s side-effect:** the `orderBy` comment in
+   `lib/backupTables.ts` still calls four keys UNVERIFIED and credits `mode=count` with proving them; all
+   four carry a primary key, and `mode=count` answers existence, never uniqueness.
 3. **Restore it somewhere and read the rows back.** Never into the shared dev/qa/staging tables - that is a
    write to the shared database and needs the owner. Into a throwaway target, or give
    `scripts/restore-backup.mjs` a plan-only mode whose output is diffed against the export. **A plan-only
