@@ -9,13 +9,27 @@ import EmailLinked from '@/components/EmailLinked';
  * THE LIMITATIONS SECTION IS NOT AN OVERSIGHT AND MUST NOT BE EDITED OUT. An
  * accessibility statement with no known shortcomings is not a strong statement,
  * it is an unbelievable one - naming them is what the EAA expects and what
- * makes the rest of the page worth reading. Every claim in
- * A11Y_SECTION_DONE_BODY was checked against shipped code before it was
+ * makes the rest of the page worth reading. Most claims in
+ * A11Y_SECTION_DONE_BODY were checked against shipped code before they were
  * written (focus indicators and the dialog focus trap shipped in v2026.09.17,
  * the accessible name on the coin health grade in v2026.09.06b, and
  * app/globals.css carries prefers-reduced-motion rules); the skip-link gap in
  * A11Y_SECTION_LIMITS_BODY was found the same way, by grepping for one and
  * finding none.
+ *
+ * ONE WAS NOT, AND IT IS RECORDED RATHER THAN QUIETLY DELETED. The line read
+   "Controls are sized for touch." Nobody measured a control. QA then measured
+   the footer links and found every row under 24px, failing WCAG SC 2.5.8 - so
+   the page asserted in the first person something the same release contradicts.
+   The sentence is gone and the shortfall is named in the limits instead.
+ *
+ * The footer itself is NOT fixed here. It is systemic across every page and is
+   tracked on #1185; a CSS change touching every page is the larger risk in a
+   held release. This makes the PAGE truthful, which is the part that was
+   publishing a false claim. The grep that would have caught it is the same one
+   used for the skip link - the difference is that nobody ran it for this
+   sentence, because a claim that sounds like a design value does not read like
+   a measurable one.
  *
  * Shape is /refund's, like the other legal-register pages. */
 

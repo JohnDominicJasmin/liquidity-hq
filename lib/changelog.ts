@@ -31,6 +31,23 @@
 //      at all; they are absent rather than invented. Per PM, bare tags are NOT
 //      backfilled.
 //
+// TWO CALLS v2026.10.30 FORCED, recorded because rule 2 fights both ways on them:
+//
+//   #1804 EARNS AN ENTRY. A `lang` attribute is not something a user looks at, so rule 2
+//   could read as dropping it. It is kept because of what it DOES: a screen reader uses it to
+//   choose pronunciation and a browser uses it to offer a translation, so for a Korean or
+//   Chinese reader it is the difference between a page that reads correctly and one that does
+//   not. The item is written as that effect rather than as the attribute. The 26 October entry
+//   already describes language-tag work in those terms, so this is the file's own precedent.
+//
+//   THE 404 APPEARANCE CHANGE IS NOT LISTED, and it is live on production. Two reasons: the
+//   entry at 2026-10-18 already records that an unknown address answers with a proper 404
+//   page, and the APPEARANCE change on top of it is unapproved by the owner with the undo
+//   ready. Announcing a visual the owner may reverse is worse than announcing nothing.
+//
+//   The release tag's own summary agrees - 'What a user can see: #1804 only' - and the other
+//   27 commits are tests, QA tooling, CI corrections and documentation with no runtime effect.
+//
 // WHERE THE LIST STARTS. 2026-09-05 is the first tag with a real description;
 // everything before it is "Release <date>". FIRST_ENTRY_NOTE on the page says
 // so, so a reader is not left wondering whether the product existed before it.
@@ -51,6 +68,13 @@ export interface ChangelogEntry {
 
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-10-30',
+    tag: 'v2026.10.30',
+    items: [
+      'The Korean and Chinese pages now tell browsers and screen readers which language they are in.',
+    ],
+  },
   {
     date: '2026-10-29',
     tag: 'v2026.10.29b',

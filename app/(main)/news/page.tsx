@@ -664,7 +664,7 @@ export default function NewsPage() {
             // Manila's clock AND filed under Manila's date - an 8:30 AM ET print
             // showed as 9:30 PM and landed under the *next* day's heading, with
             // "TODAY" pointing at the wrong group. Passing undefined as the locale
-            // also lets the date format follow the viewer, not the Philippines.
+            // also lets the date format follow the viewer, not wherever the app is run from.
             const groups: { dateLabel: string; isToday: boolean; events: typeof econEvents }[] = [];
             const dateFmt: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             const todayLocal = new Date().toLocaleDateString(undefined, dateFmt);

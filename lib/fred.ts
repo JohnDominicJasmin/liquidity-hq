@@ -51,7 +51,7 @@ export async function fetchFredRows(seriesId: string, ttlMs = FRED_TTL_DEFAULT):
   if (c && Date.now() - c.ts < ttlMs) return c.rows;
   try {
     const r = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`,
-      { next: { revalidate: Math.floor(ttlMs / 1000) } });
+      { next: { revalidate: Math.floor(ttlMs / 1000) }, signal: AbortSignal.timeout(10_000) });
     if (!r.ok) return [];
     const rows = parseFredCsv(await r.text());
     _cache[seriesId] = { rows, ts: Date.now() };

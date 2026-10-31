@@ -31,6 +31,41 @@ import { whopPlanTable } from './whopEntitlement.ts';
  * EACH FLAG COMES FROM THE SAME READ THE APP GATES ON, never a parallel list.
  * A boolean computed differently from the thing it describes is worse than no
  * boolean: it would report health while the feature was broken.
+ *
+ * ── WHAT THIS OBJECT CANNOT TELL YOU, AND THE MISREADING IT INVITES ─────────
+ *
+ * EVERY FLAG IS SELF-CONSISTENCY. This function takes `process.env` and
+ * nothing else. No flag here has ever contacted an external party, so the
+ * whole object answers one question - "is this host's own configuration
+ * internally coherent?" - and no other.
+ *
+ * THE TWO SHAPES THAT READ AS HEALTH AND ARE NOT:
+ *
+ *   A SECRET THAT IS WRONG READS `true`. `whopWebhook` is `set(...)` - a
+ *   non-empty string. A secret that is present and incorrect rejects every
+ *   delivery and this flag still says `true`. "A key is set" is not "a
+ *   delivery arrived"; only the second has an external party in it.
+ *
+ *   `whopPlanMatchesLink*` COMPARES TWO OF OUR OWN VALUES. It asks whether our
+ *   checkout URL variable carries the plan id our unlock variable grants for.
+ *   Both sides are ours. They can agree perfectly while the link points at the
+ *   wrong account, or the account posts its webhook somewhere else entirely -
+ *   which is not hypothetical here: the Whop webhook NAMED "Production"
+ *   pointed at the qa host for nine days, and every flag in this object was
+ *   true throughout.
+ *
+ * SO "ELEVEN OF ELEVEN TRUE" MEANS THE ENVIRONMENT IS COHERENT AND NOTHING
+ * MORE. It is a necessary condition for payments working and nowhere near a
+ * sufficient one, and a release checklist that reads it as the latter is
+ * reading the wrong instrument.
+ *
+ * WHERE EXTERNAL TRUTH ACTUALLY LIVES: one row in `lhq_whop_webhook_events`.
+ * As of 2026-10-31 there have never been any, three days after payments went
+ * live - which is consistent with nobody having bought and equally consistent
+ * with deliveries going to the wrong host. **This object cannot distinguish
+ * those two, and no addition to it could.** That is a deliberate boundary, not
+ * a gap to fill: a flag that reached out to a payment provider on every
+ * `/api/version` read would be a different thing with a different cost.
  */
 
 export type ConfiguredFlags = Record<string, boolean>;
@@ -69,7 +104,8 @@ export function configuredFlags(env: Record<string, string | undefined>): Config
     /* Both, because either one missing refuses every delivery: no key fails
        the signature check, no organisation id fails the check after it. */
     boomfiWebhook: set(env.BOOMFI_WEBHOOK_PUBLIC_KEY) && set(env.BOOMFI_ORG_ID),
-    /* The Whop webhook secret (#1567, Phase 1). A boolean only, never the value. Unset refuses every delivery. */
+    /* The Whop webhook secret (#1567, Phase 1). A boolean only, never the value. Unset refuses every delivery -
+       and so does a WRONG one, which reads `true` here. See the header: presence is not correctness. */
     whopWebhook: set(env.WHOP_WEBHOOK_SECRET),
     /* Which Whop plan ids the unlock will grant for on this environment (#1567 Phase 3): WHOP_PLAN_ID_MONTHLY / _ANNUAL / _FORTNIGHTLY. Booleans
        only, never the ids. A plan that is unset, duplicated or equal to the record-only test plan reads false, and its payments go to review. */

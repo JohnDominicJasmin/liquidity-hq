@@ -33,6 +33,29 @@ export function isGatedTf(tf: string): boolean {
   return (GATED_TFS as readonly string[]).includes(tf);
 }
 
+/* EVERY TIMEFRAME THE APP HAS, as an allowlist. `isGatedTf` is an exact `includes` against the three
+ * above, so anything that is not compared exactly is NOT gated: '5M' and '5m ' are the same timeframe to
+ * a human and to an exchange, and neither is on that list. A server that accepts a shape like
+ * /^[0-9a-zA-Z]{1,8}$/ therefore hands a free account a fast-timeframe read while the gate reports it
+ * refused nothing. Validate against this first and the gate's exact comparison becomes sound.
+ *
+ * Type-only import of ChartTf, so the assertion below fails the build if the chart grows a timeframe this
+ * list does not have. The import is erased at compile time - no client component reaches a server route
+ * through it. */
+export const ARENA_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
+export type ArenaTf = (typeof ARENA_TFS)[number];
+
+type ExactTf<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+const _tfsMatchChart: ExactTf<ArenaTf, import('../components/KLineProChart.tsx').ChartTf> = true;
+void _tfsMatchChart;
+
+/** An exact, known timeframe. Case and spacing are NOT normalised: a value that is not already one of the
+ *  app's own strings is refused rather than repaired, because repairing it is what creates the gap between
+ *  what was gated and what was sent. */
+export function isArenaTf(tf: unknown): tf is ArenaTf {
+  return typeof tf === 'string' && (ARENA_TFS as readonly string[]).includes(tf);
+}
+
 // One-shot analysis tools gated by lib/aiUsage.ts (thesis-check, strategy-research,
 // shadow-account, behavioral-bias, pine-script, hypotheses/[id]/analyze). No web
 // search tools, cheaper per-call than `deep`, but still real xAI spend - previously

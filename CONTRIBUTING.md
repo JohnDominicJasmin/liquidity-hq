@@ -2000,9 +2000,64 @@ git push origin v2026.08.05
 ```
 
 Date-based, because this ships continuously and has no versioned API for semver
-to describe. There are **no tags at all** right now, which means the only way to
-answer "what is in production?" is to read the commit hash off the Render
-dashboard and hope it matches something. One command per release fixes that.
+to describe. **This paragraph said "there are no tags at all right now" until
+2026-10-31, and it had been false for months** - `git tag` lists every release
+back to `v2026.10.17` and beyond. The sentence was written when it was true and
+nothing was watching the date, which is the failure mode `docs/OWNER-BLOCKERS.md`
+exists to catch. The reason for tagging is unchanged: without it, "what is in
+production?" is answerable only by reading a hash off the Render dashboard and
+hoping it matches something.
+
+**A drift check enforces it** - on every push to `main`, daily, and on demand. It
+reads `/api/version` on liquidity-hq.com, so it compares what production is
+*serving* against `main` rather than what was merged, and opens a `release-drift`
+issue if they differ or if the deployed commit is untagged. **Note the annotated-tag
+trap when you check this by hand:** `git for-each-ref --format='%(objectname)'`
+prints the *tag object* sha, not the commit, so a correctly tagged release looks
+like a mismatch. Use `v2026.10.30^{commit}`. A reading taken the other way is a
+drift report about nothing.
+
+### The public changelog - and it is part of the release, not an afterthought
+
+**`/changelog` is hand-maintained and nothing updates it when a release ships.**
+`lib/changelog.ts` says so about itself, and names the right precedent:
+
+> **KNOWN GAP, stated rather than hidden: nothing updates this file when a
+> release ships. It is a file somebody has to remember to edit - the same shape
+> as `RELEASE_PR_PAUSED`.**
+
+That comparison is the whole argument for this subsection. `RELEASE_PR_PAUSED`
+was set for a good reason on 2026-08-09, nothing was watching the date, and a
+month later four pushes to `staging` opened no release PR while the file still
+claimed one opened itself. **A remembered step is an unperformed step.**
+
+**It had already drifted before it shipped.** On 2026-10-31 the page carried no
+entry for `v2026.10.30`, which was live on production - and by the file's own
+precedent it earns one, since the 26 October entry already describes language-tag
+work in exactly those terms.
+
+**So the step, and it sits beside the tag because they answer the same question:**
+
+| | |
+|---|---|
+| Who | **Dev writes the entry** - `lib/changelog.ts` is app code. **PM/DevOps is responsible for it existing**, in the same release that tags. |
+| When | After the production deploy is verified against `/api/version`, before the release is called done. |
+| What | The tag subject, rewritten in plain language, under the three editorial rules already in the file: strip anything written for us, **drop anything not user-visible or shipped switched off**, and leave a release with nothing visible absent rather than invented. |
+
+**The third rule is the one to not quietly break.** A release whose only changes
+are tests, tooling or docs gets **no entry** - and PM confirms that it got none
+on purpose rather than by being forgotten. Those two states look identical on the
+page, which is exactly why the release records which one it was.
+
+**Do not fix this by inventing an entry to make the page look alive.** The owner's
+standing rule is that copy says only what the product does today, and a changelog
+is read by someone deciding whether to pay.
+
+**The durable fix is to stop remembering.** Generating the list from
+`git tag --sort=-creatordate` at build time would remove the step entirely; the
+editorial rewrite is the part a generator cannot do, so the realistic version is a
+check that **fails** when the newest tag has no entry and no recorded decision to
+skip it. Until that exists, this is a step in a list, with the weakness named.
 
 ---
 
