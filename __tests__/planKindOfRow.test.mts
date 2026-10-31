@@ -147,22 +147,85 @@ test('S4. /api/subscription reports the role the account is on now (a lapsed Pro
   assert.ok(/const role = planKindOfRow\(data, Date\.now\(\)\) === 'pro' \? 'pro' : 'free';/.test(src), 'the reported role is not from planKindOfRow');
 });
 
+/* ── THE COIN SET IS MATCHED BY SHAPE AND NAMED BY S9, NOT PINNED AS LITERAL TEXT ─────────────
+ *
+ * S5 and S6 used to contain the identifier `COINS` inside their patterns. On 2026-10-31 that cost
+ * #1850 - the owner's top-priority PR - six CI runs and most of a day: dev renamed the cron's two
+ * call sites to `SCANNED_COINS`, the array was LITERALLY THE SAME ARRAY (`SCANNED_COINS = COINS`),
+ * and these cells reported "the trial ladder loop was not found" about a loop sitting at line 2397
+ * with nothing wrong with it. Dev reverted a correct rename to get past a stale pin of mine.
+ *
+ * A PIN THAT CANNOT TELL A RENAME FROM A DELETION IS A BAD PIN. The shape is the thing worth
+ * pinning; the name is worth checking separately, where a failure can say which it was.
+ *
+ * WHAT IS NOT LOOSENED, because this is where a well-meant fix would go wrong. Accepting ANY
+ * identifier would accept `UNIVERSE_COINS` - all 463 instruments - in a cron that fetches 300
+ * klines per coin per run. That is a 9x cost change and it would pass silently. S9 resolves the
+ * captured name through `lib/coins.ts` and requires it to reach the RENDERED list, so a rename
+ * passes and a widening does not. */
+const IDENT_SHAPE = 'any SCREAMING_SNAKE identifier';
+const COIN_SET = '([A-Z][A-Z0-9_]*)';
+
+const LADDER_RE = new RegExp(
+  'for \\(const uid of trialUserIds\\) \\{\\s*const set = new Set\\(mutedByUser\\.get\\(uid\\) \\?\\? \\[\\]\\);' +
+  `\\s*for \\(const c of ${COIN_SET}\\) if \\(!\\(FREE_SIGNAL_COINS as readonly string\\[\\]\\)\\.includes\\(c\\)\\)` +
+  ' set\\.add\\(`coin:\\$\\{c\\}`\\);\\s*mutedByUser\\.set\\(uid, set\\);\\s*\\}',
+);
+const PRE_FILTER_RE = new RegExp(
+  `${COIN_SET}\\.filter\\(coin => recipients\\.every\\(r => mutedByUser\\.get\\(r\\.userId\\)\\?\\.has\\(\`coin:\\$\\{coin\\}\`\\)\\)\\)`,
+);
+const PREVIEW_RE = new RegExp(
+  `const coins = ${COIN_SET}\\.filter\\(c => !keys\\.has\\(\`coin:\\$\\{c\\}\`\\) && \\(!trialOnly \\|\\|` +
+  ' \\(FREE_SIGNAL_COINS as readonly string\\[\\]\\)\\.includes\\(c\\)\\)\\);',
+);
+
+/** Follows `export const <name>: CoinId[] = <rhs>;` in lib/coins.ts until it reaches a declaration
+ *  that is not a bare alias, and reports what that declaration is built from. */
+const resolveCoinSet = (name: string): { hops: string[]; rhs: string } => {
+  const src = read('lib/coins.ts');
+  const hops: string[] = [];
+  let at = name;
+  for (let i = 0; i < 6; i += 1) {
+    hops.push(at);
+    const decl = new RegExp(`^export const ${at}(?:\\s*:[^=]*)?= *(.+);$`, 'm').exec(src);
+    if (!decl) return { hops, rhs: `NOT EXPORTED from lib/coins.ts` };
+    const rhs = (decl[1] ?? '').trim();
+    /* ONLY a bare identifier counts as an alias to follow. `[...RENDERED_IDS]` is NOT unwrapped
+       on purpose - that spread IS the rendered list's declaration, and it is what S9 reads. */
+    const alias = /^([A-Z][A-Z0-9_]*)$/.exec(rhs);
+    if (!alias) return { hops, rhs };
+    at = alias[1] ?? '';
+    if (hops.includes(at)) return { hops, rhs };
+  }
+  return { hops, rhs: 'alias chain longer than 6 hops' };
+};
+
 test('S5. #1639 ladder in the alert cron: every coin outside the Free list is muted for each trial user, after the stored mutes are read and before the cost pre-filter', () => {
   const src = stripTsComments(read('app/api/telegram/alert/route.ts'));
   const readMutes = src.indexOf('fetchMutedKeysByUser(), fetchThresholdsByUser()');
-  const ladder = src.search(/for \(const uid of trialUserIds\) \{\s*const set = new Set\(mutedByUser\.get\(uid\) \?\? \[\]\);\s*for \(const c of COINS\) if \(!\(FREE_SIGNAL_COINS as readonly string\[\]\)\.includes\(c\)\) set\.add\(`coin:\$\{c\}`\);\s*mutedByUser\.set\(uid, set\);\s*\}/);
-  const preFilter = src.indexOf('COINS.filter(coin => recipients.every(r => mutedByUser.get(r.userId)?.has(`coin:${coin}`)))');
+  const ladder = LADDER_RE.exec(src);
+  const preFilter = PRE_FILTER_RE.exec(src);
   assert.ok(readMutes > 0, 'the stored mute read was not found');
-  assert.ok(ladder > 0, 'the trial ladder loop was not found');
-  assert.ok(preFilter > 0, 'the cost pre-filter was not found');
-  assert.ok(readMutes < ladder && ladder < preFilter, `order is wrong: mutes read @${readMutes}, ladder @${ladder}, pre-filter @${preFilter}`);
+  assert.ok(ladder, 'the trial ladder loop was not found. The coin set it iterates may be called anything ' +
+    `(${IDENT_SHAPE}); what must not change is the shape - a per-trial-user loop that adds coin:<id> for ` +
+    'every coin OUTSIDE FREE_SIGNAL_COINS. If only the name moved, S9 is the cell that checks the name.');
+  assert.ok(preFilter, 'the cost pre-filter was not found');
+  const at = { mutes: readMutes, ladder: ladder.index, pre: preFilter.index };
+  assert.ok(at.mutes < at.ladder && at.ladder < at.pre,
+    `order is wrong: mutes read @${at.mutes}, ladder @${at.ladder}, pre-filter @${at.pre}`);
+  /* The ladder and the pre-filter must walk the SAME set. Muting the rendered list and then
+     costing the scan set would ladder one list and bill for another. */
+  assert.equal(ladder[1], preFilter[1],
+    `the ladder iterates ${ladder[1]} and the cost pre-filter iterates ${preFilter[1]}. A trial user is ` +
+    'laddered against one coin list while the cron prices another, so coins can be charged for and never muted.');
 });
 
 test('S6. #1639 preview route: a trial previews the Free list only, paid Pro everything, Free is still refused', () => {
   const src = stripTsComments(read('app/api/alerts/preview/route.ts'));
   assert.ok(/if \(!entitlement\.proFeatures\) \{\s*return NextResponse\.json\(\s*\{ error: 'PRO_REQUIRED'/.test(src), 'Free is no longer refused with PRO_REQUIRED');
   assert.ok(/const trialOnly = entitlement\.role !== 'pro';/.test(src), 'trialOnly is not derived from the paid role');
-  assert.ok(/const coins = COINS\.filter\(c => !keys\.has\(`coin:\$\{c\}`\) && \(!trialOnly \|\| \(FREE_SIGNAL_COINS as readonly string\[\]\)\.includes\(c\)\)\);/.test(src), 'the preview coin list does not apply the Free list for a trial');
+  const preview = PREVIEW_RE.exec(src);
+  assert.ok(preview, 'the preview coin list does not apply the Free list for a trial');
 });
 
 test('S7. user price alerts are not laddered: checkPriceAlerts neither takes nor reads the mute map', () => {
@@ -176,4 +239,43 @@ test('S7. user price alerts are not laddered: checkPriceAlerts neither takes nor
 
 test('S8. the Free signal list the trial ladder uses is exactly BTC, ETH, SOL (owner rule #1596, scope confirmed on #1639)', () => {
   assert.deepEqual([...FREE_SIGNAL_COINS], ['btc', 'eth', 'sol']);
+});
+
+test('S9. the cron and the preview read the SAME coin set, and it resolves to the rendered list rather than the 463-coin universe', () => {
+  /* THIS CELL IS THE REASON S5 AND S6 CAN STOP PINNING THE NAME, and it covers a hazard neither of
+     them did. `lib/coins.ts:119` names it in the source: the cron in app/api/telegram/alert and the
+     preview in app/api/alerts/preview MUST move together, because
+     "if the preview keeps reading the rendered list while the cron reads the scan set, the preview
+     advertises coins nothing is watching and nothing fails". Nothing failed. Now something does. */
+  const cron = PRE_FILTER_RE.exec(stripTsComments(read('app/api/telegram/alert/route.ts')));
+  const preview = PREVIEW_RE.exec(stripTsComments(read('app/api/alerts/preview/route.ts')));
+  assert.ok(cron, 'the cron cost pre-filter was not found - S5 says more about why');
+  assert.ok(preview, 'the preview coin list was not found - S6 says more about why');
+  assert.equal(
+    cron[1], preview[1],
+    `the cron scans ${cron[1]} and the preview advertises ${preview[1]}. The user is shown alerts for ` +
+    'coins the cron may never look at, and no error is raised when that happens - this is the exact ' +
+    'silent divergence lib/coins.ts:119 warns about. Move both call sites in one change.',
+  );
+
+  /* AND IT MUST BE THE RENDERED LIST. A rename is free; a widening is not. `UNIVERSE_COINS` is 463
+     instruments and the cron fetches 300 klines per coin per run, twice. */
+  const set = resolveCoinSet(cron[1] ?? '');
+  const chain = set.hops.join(' -> ');
+  assert.ok(
+    /RENDERED_IDS/.test(set.rhs),
+    `the cron's coin set resolves ${chain} = ${set.rhs}, which does not reach RENDERED_IDS. The alert ` +
+    'cron must scan what the app renders. If this is a deliberate change of scan set, change this ' +
+    'cell in the same commit and say what the new cost is.',
+  );
+  assert.ok(
+    !/COIN_UNIVERSE/.test(set.rhs),
+    `the cron's coin set resolves ${chain} = ${set.rhs}, which is built from COIN_UNIVERSE - all 463 ` +
+    'instruments. app/api/telegram/alert/route.ts fetches 300 klines PER COIN and runs checkRSI over ' +
+    'the whole list, so this is roughly a 9x increase in the cron\'s cost and in the exchanges\' rate ' +
+    'budget. Nothing else in the suite would have said so.',
+  );
+
+  /* The positive control for both: the identifier actually came from the source, not from a default. */
+  assert.match(cron[1] ?? '', /^[A-Z][A-Z0-9_]*$/, 'no identifier was captured from the cron, so the assertions above are vacuous');
 });
