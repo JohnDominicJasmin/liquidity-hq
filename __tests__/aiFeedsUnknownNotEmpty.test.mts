@@ -35,7 +35,24 @@ const once = (re: RegExp, label: string) => {
 /* ── 1. the Arena prompt's fallbacks ───────────────────────────────────── */
 
 const UPCOMING_SRC = once(/const upcomingList = econEvents[\s\S]*?;\n/, 'the upcoming-events statement')[0];
-const NEWS_SRC = once(/\bnews: (latestNews\.length > 0[\s\S]*?),\n\s*rsi14\b/, 'the news field')[1];
+/* ANCHORED ON THE FIELD'S OWN TERMINAL STRING, NOT ON WHATEVER FOLLOWS IT.
+ *
+ * This pattern used to end `,\n\s*rsi14\b`, and #1898 moved `rsi14` out of the return object into a
+ * spread of shared formatters. **`news:` was untouched and the cell went red anyway** - "the news
+ * field: found 0 times, not once" - because the locator was pinned to a NEIGHBOUR. A refactor that
+ * cannot change this field's behaviour was blocked by a test of this field.
+ *
+ * Dev offered `oilPrice` as the new following token, and it is a better neighbour - it stays inline,
+ * so a field moving to the server cannot break it. **But any neighbour is the wrong thing to hold
+ * on to.** The anchor is now the news expression's OWN last literal, which is unique in the file
+ * (checked: 1 occurrence) and is the exact string U2 and U3 assert on - so the locator and the
+ * assertions now depend on the same text, and a change that breaks the locator is a change the cell
+ * is supposed to notice.
+ *
+ * WHAT STAYS: this cell is BEHAVIOURAL. It extracts the expression and evaluates it with
+ * `new Function` against the loaded/stale combinations, which is the strong form - it runs the real
+ * code rather than reading it. Only the locator was fragile, so only the locator moved. */
+const NEWS_SRC = once(/\bnews: (latestNews\.length > 0[\s\S]*?'News feed unavailable \(not loaded\)[^']*')/, 'the news field')[1];
 const upcomingList = (econEvents: unknown[], eventsLoaded: boolean, econStale: boolean, now = Date.now()) =>
   new Function('econEvents', 'now', 'utcStamp', 'eventsLoaded', 'econStale', `${UPCOMING_SRC}\nreturn upcomingList;`)(econEvents, now, utcStamp, eventsLoaded, econStale) as string;
 const newsField = (latestNews: unknown[], alertsLoaded: boolean, now = Date.now()) =>

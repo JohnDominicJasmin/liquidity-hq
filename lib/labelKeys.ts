@@ -1,25 +1,31 @@
-// LANDING HARD GATE - this file is one of four that trips it.
+// THIS FILE WAS A LANDING HARD GATE FILE. IT NO LONGER IS, as of 2026-10-31.
+// Recorded rather than deleted - a check whose outcome disappears teaches
+// nobody that the question was ever asked. Same reasoning as keeping
+// supabase/migrations/20261031b as a record instead of rewriting it.
 //
-// Changing this file requires that LANDING (`/`) IS RENDERED and confirmed
-// unchanged in FOUR CONTEXTS - current/terminal x dark/light - before the PR
-// merges. Not "the selectors cannot reach landing", not "the diff is
-// additive": rendered. The rule and its history live in docs/HANDOVER.md
-// section 14 (search: "landing renders identically"); this is a signpost, not a
-// second copy of it.
+// IT WAS ONE OF FOUR FILES (with app/globals.css, lib/labelDefaults.en.json
+// and components/AppShell.tsx) that tripped a rendered-landing check before
+// any change could merge. QA measured why it never needed to be: landing's
+// subtree calls useLabels() zero times - app/(main)/page.tsx passes its own
+// dictionary prop - so no key-name change here can reach landing. Blanking a
+// changed label value produced noise-floor difference only.
 //
-// WHY THIS FILE. The owner keeps the canvas-mirrored landing (#592) and it was
-// deliberately excluded from the 2026-09-03 revert. These four files are shared
-// between landing and the reverted screens, so a change aimed at an app screen
-// reaches landing too. AppShell.tsx is the one that bit us - it rendered
-// PriceTickerStrip on `/` gated on design mode rather than pathname.
+// docs/HANDOVER.md section 14 replaced this file and lib/labelDefaults.en.json
+// with lib/i18n/dictionaries.ts, which is what actually changes landing copy.
+// That list carries a cell asserting the zero stays zero - if it ever fails,
+// this file is gated again and this comment is wrong.
 //
-// The reason is written down because a guard whose reason is invisible gets
-// deleted by the next reader - see app/globals.css:597, removed on the strength
-// of a comment that had gone stale, which reinstated the defect it described.
+// WHY THIS FILE WAS ON THE OLD LIST. The owner keeps the canvas-mirrored
+// landing (#592), deliberately excluded from the 2026-09-03 revert.
+// app/globals.css and components/AppShell.tsx remain shared between landing
+// and the reverted screens and are still gated; AppShell.tsx is the one that
+// actually bit us - it rendered PriceTickerStrip on `/` gated on design mode
+// rather than pathname.
 //
-// Missed twice in two days (#871, #883) by authors who had read HANDOVER, both
-// times because they verified what they CHANGED rather than what the gate
-// PROTECTS. That is why this sits here rather than only in a document. #873.
+// Missed twice in two days (#871, #883) while this WAS the rule, by authors
+// who had read HANDOVER, both times because they verified what they CHANGED
+// rather than what the gate PROTECTED. Left here as the cost of getting it
+// wrong once, for whoever next considers adding a label file to the list.
 
 // Canonical list of every label key currently seeded/consumed (see
 // supabase/migrations/20260723_labels_seed.sql). t() only accepts keys from
