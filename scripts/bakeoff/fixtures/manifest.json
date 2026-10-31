@@ -1,0 +1,297 @@
+{
+ "pulledAt": "2026-10-31T08:35:50.492Z",
+ "source": "bybit v5 linear kline",
+ "window": 200,
+ "composition": {
+  "A": {
+   "count": 3,
+   "timeframes": {
+    "15": 1,
+    "60": 1,
+    "240": 1
+   },
+   "distinctTimeframes": 3,
+   "coins": [
+    "GMT",
+    "ETH",
+    "SOL"
+   ]
+  },
+  "B": {
+   "count": 3,
+   "timeframes": {
+    "15": 1,
+    "240": 1,
+    "D": 1
+   },
+   "distinctTimeframes": 3,
+   "coins": [
+    "BTC",
+    "ETH",
+    "SOL"
+   ]
+  },
+  "C": {
+   "count": 6,
+   "timeframes": {
+    "15": 2,
+    "60": 1,
+    "240": 1,
+    "D": 2
+   },
+   "distinctTimeframes": 4,
+   "coins": [
+    "SOL",
+    "BTC",
+    "XRP",
+    "ETH",
+    "DOGE",
+    "LINK"
+   ]
+  }
+ },
+ "requiredTimeframes": {
+  "A": [],
+  "B": [
+   "D"
+  ],
+  "C": [
+   "D"
+  ]
+ },
+ "notes": [
+  "Groups assigned by scripts/bakeoff/classify.mjs, not by hand.",
+  "BALANCED ACROSS TIMEFRAMES after the owner found that v1 group A was entirely 4-hour, so the set partly tested \"is this a 4h chart?\" rather than \"is there a pattern?\". That was a confound in the engine run as well as in the human check.",
+  "NO DAILY WINDOW REACHES GROUP A: over 95 daily windows the best z is 2.9 against a threshold of 3. A finding, not a selection failure - and in tension with the owner own view that the higher timeframe is more reliable, which the blind chart review is the right way to settle."
+ ],
+ "fixtures": [
+  {
+   "id": "A-gmt-15-1793076300000",
+   "group": "A",
+   "symbol": "GMTUSDT",
+   "interval": "15",
+   "from": "2026-10-27T04:45:00.000Z",
+   "to": "2026-10-29T06:30:00.000Z",
+   "classifier": {
+    "group": "A",
+    "touches": 118,
+    "side": "low",
+    "r2": 0.497,
+    "nullMean": 78.6,
+    "nullSd": 12.11,
+    "nullMax": 98,
+    "z": 3.3,
+    "atr": 0.0000361709
+   }
+  },
+  {
+   "id": "A-eth-240-1790568000000",
+   "group": "A",
+   "symbol": "ETHUSDT",
+   "interval": "240",
+   "from": "2026-09-28T04:00:00.000Z",
+   "to": "2026-10-31T08:00:00.000Z",
+   "classifier": {
+    "group": "A",
+    "touches": 122,
+    "side": "high",
+    "r2": 0.9421,
+    "nullMean": 80.4,
+    "nullSd": 12.42,
+    "nullMax": 120,
+    "z": 3.3,
+    "atr": 35.2158
+   }
+  },
+  {
+   "id": "A-sol-60-1790557200000",
+   "group": "A",
+   "symbol": "SOLUSDT",
+   "interval": "60",
+   "from": "2026-09-28T01:00:00.000Z",
+   "to": "2026-10-06T08:00:00.000Z",
+   "classifier": {
+    "group": "A",
+    "touches": 130,
+    "side": "low",
+    "r2": 0.9345,
+    "nullMean": 83.4,
+    "nullSd": 11.83,
+    "nullMax": 115,
+    "z": 3.9,
+    "atr": 0.960201
+   }
+  },
+  {
+   "id": "B-btc-D-1776211200000",
+   "group": "B",
+   "symbol": "BTCUSDT",
+   "interval": "D",
+   "from": "2026-04-15T00:00:00.000Z",
+   "to": "2026-10-31T00:00:00.000Z",
+   "classifier": {
+    "group": "B",
+    "touches": 70,
+    "side": "high",
+    "r2": 0.6183,
+    "nullMean": 83.2,
+    "nullSd": 12.77,
+    "nullMax": 106,
+    "z": -1,
+    "atr": 2110.54
+   }
+  },
+  {
+   "id": "B-eth-15-1793076300000",
+   "group": "B",
+   "symbol": "ETHUSDT",
+   "interval": "15",
+   "from": "2026-10-27T04:45:00.000Z",
+   "to": "2026-10-29T06:30:00.000Z",
+   "classifier": {
+    "group": "B",
+    "touches": 87,
+    "side": "high",
+    "r2": 0.0626,
+    "nullMean": 94,
+    "nullSd": 14.96,
+    "nullMax": 115,
+    "z": -0.5,
+    "atr": 7.74819
+   }
+  },
+  {
+   "id": "B-sol-240-1787688000000",
+   "group": "B",
+   "symbol": "SOLUSDT",
+   "interval": "240",
+   "from": "2026-08-25T20:00:00.000Z",
+   "to": "2026-09-28T00:00:00.000Z",
+   "classifier": {
+    "group": "B",
+    "touches": 78,
+    "side": "low",
+    "r2": 0.9955,
+    "nullMean": 87.9,
+    "nullSd": 13.93,
+    "nullMax": 112,
+    "z": -0.7,
+    "atr": 2.04377
+   }
+  },
+  {
+   "id": "C-sol-D-1741651200000",
+   "group": "C",
+   "symbol": "SOLUSDT",
+   "interval": "D",
+   "from": "2025-03-11T00:00:00.000Z",
+   "to": "2025-09-26T00:00:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 101,
+    "side": "low",
+    "r2": 0.9635,
+    "nullMean": 89.7,
+    "nullSd": 13.72,
+    "nullMax": 115,
+    "z": 0.8,
+    "atr": 10.0047
+   }
+  },
+  {
+   "id": "C-btc-15-1792896300000",
+   "group": "C",
+   "symbol": "BTCUSDT",
+   "interval": "15",
+   "from": "2026-10-25T02:45:00.000Z",
+   "to": "2026-10-27T04:30:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 117,
+    "side": "high",
+    "r2": 0.9247,
+    "nullMean": 87.6,
+    "nullSd": 14.27,
+    "nullMax": 115,
+    "z": 2.1,
+    "atr": 187.967
+   }
+  },
+  {
+   "id": "C-xrp-240-1790568000000",
+   "group": "C",
+   "symbol": "XRPUSDT",
+   "interval": "240",
+   "from": "2026-09-28T04:00:00.000Z",
+   "to": "2026-10-31T08:00:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 103,
+    "side": "low",
+    "r2": 0.9819,
+    "nullMean": 89.4,
+    "nullSd": 13.53,
+    "nullMax": 113,
+    "z": 1,
+    "atr": 0.0229226
+   }
+  },
+  {
+   "id": "C-eth-60-1791997200000",
+   "group": "C",
+   "symbol": "ETHUSDT",
+   "interval": "60",
+   "from": "2026-10-14T17:00:00.000Z",
+   "to": "2026-10-23T00:00:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 108,
+    "side": "high",
+    "r2": 0.8287,
+    "nullMean": 88.4,
+    "nullSd": 16.6,
+    "nullMax": 130,
+    "z": 1.2,
+    "atr": 18.0895
+   }
+  },
+  {
+   "id": "C-doge-D-1758931200000",
+   "group": "C",
+   "symbol": "DOGEUSDT",
+   "interval": "D",
+   "from": "2025-09-27T00:00:00.000Z",
+   "to": "2026-04-14T00:00:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 116,
+    "side": "low",
+    "r2": 0.9639,
+    "nullMean": 89.4,
+    "nullSd": 15.53,
+    "nullMax": 119,
+    "z": 1.7,
+    "atr": 0.00960437
+   }
+  },
+  {
+   "id": "C-link-15-1792896300000",
+   "group": "C",
+   "symbol": "LINKUSDT",
+   "interval": "15",
+   "from": "2026-10-25T02:45:00.000Z",
+   "to": "2026-10-27T04:30:00.000Z",
+   "classifier": {
+    "group": "C",
+    "touches": 113,
+    "side": "high",
+    "r2": 0.9031,
+    "nullMean": 90.2,
+    "nullSd": 15.18,
+    "nullMax": 122,
+    "z": 1.5,
+    "atr": 0.0494271
+   }
+  }
+ ]
+}

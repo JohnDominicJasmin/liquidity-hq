@@ -1274,8 +1274,15 @@ had supplied themselves.
 > **9e is about a control whose silence means nothing. This is its mirror: a check that SPEAKS
 > and is wrong.**
 
-Six instances on 2026-10-31, in six different checks, across two sessions. **In every one the
-artifact was right and the check was wrong.** None of them resembled a tooling fault at the time;
+**A CONTROL ONLY FIRES IF THE CHECK CAN BE WRONG IN THE DIRECTION YOU TESTED.** That is the
+general statement; everything below is an instance of it. A positive control proving a grep *can*
+match proves the regex compiles - not that it is the right regex, and not that it is reading the
+right file. **Eight checks on one day were working instruments asking the wrong question**, and a
+control aimed at that same wrong question agrees with them.
+
+**Eight instances on 2026-10-31, in eight different checks, across two sessions** - six below, then
+two more in the subsection at the end, which were found while correcting the first six. **In every
+one the artifact was right and the check was wrong.** None resembled a tooling fault at the time;
 each read as a finding.
 
 | The check | Said | Actually |
@@ -1321,6 +1328,43 @@ thing standing in for the independence the check does not have.**
 its own maintenance note warns against prose that indexes that table by position. This is a
 different failure with the same consequence - **a confident wrong answer that looks like data** -
 so it gets its own heading and its own table, and nothing above it needs re-reading.
+
+#### TWO MORE FROM THE SAME DAY, AND THE ONE-LINE TEST THAT COVERS BOTH
+
+**Eight instances now, not six.** The two added here are the same failure wearing different
+clothes, and together they produce the test worth memorising.
+
+**A grep over one file answers "does this file contain X". It never answers "does this code path
+do X".**
+
+Three findings on 2026-10-31 were that single mistake with three different subjects, and each was
+reported before being withdrawn:
+
+| The check | What it said | What was true |
+|---|---|---|
+| `grep cached\( app/api/market/agg-trades/route.ts` | no cache on that feed | the cache is in `lib/bybitFanout.ts`, which the route calls - 60 s and 120 s |
+| `git grep NOT_ENABLED` | the string is in one route only | `git grep` searches **tracked** files; the file was new and untracked, so the search could not have found it |
+| union of `LABEL_KEYS` vs `labelDefaults.en.json` | three keys have no label | `TradeJournal.tsx:55`'s `ariaName` supplies English at the call site; the keys are fine |
+
+**Each was a true sentence about a file, reported as a claim about behaviour.** *"No `cached(` in
+the route file"* is true. *"No cache"* is a different statement. The remedy is mechanical: **when
+the question is about behaviour, follow the call, or say what you actually searched.**
+
+**And the second instrument: reviewing from a diff is reviewing a DESCRIPTION of the file.**
+
+A review of a test PR flagged a positive control as being placed *after* the assertions it was
+meant to guard, which would have let them pass vacuously. **The guard was sixteen lines above
+them.** In the patch the two hunks were separated and the guard read as a replacement for the code
+it sat next to; in the assembled file it plainly dominated the assertion.
+
+**Ordering is the property a diff shows worst** - it shows what changed, not what surrounds it -
+and ordering is exactly what a guard depends on. So: **a review finding about sequence, scope or
+dominance is checked against the file, never against the patch.**
+
+**What makes these 9h rather than 9j.** Each check SPOKE - it produced a confident finding that
+was wrong - where 9j's checks stayed silent. The shared remedy is unchanged and is 9i's step 4: a
+positive control, because a self-written check has no independence to borrow - subject to the
+statement under this section's heading, which is what these two added.
 
 ### 9i. A STATISTIC MAXIMISED OVER MANY CANDIDATES, AND A NUMBER AN LLM REPORTS
 
@@ -1400,3 +1444,98 @@ to act on.
    the same mix, and fail the run rather than the analysis. Round 2 balanced position as well as
    timeframe, which is the version worth copying. **A confound is not a flaw in the result; it
    means there is no result.**
+
+### 9j. A ZERO IS A MEASUREMENT OF THE INSTRUMENT UNTIL A CONTROL SAYS OTHERWISE
+
+Two findings from 2026-10-31, on #1818's Draw Structure work. They look unrelated - one is about
+Postgres, one about `git grep` - and they are the same failure: **a check reported an absence, the
+absence was the check's own blind spot, and the number it printed was identical to the number a
+true absence would print.**
+
+#### A PROD FUNCTION BODY CANNOT BE DIFFED AGAINST ITS REPO MIGRATION DIRECTLY
+
+Before replacing `increment_ai_usage_impl` - the function that meters every Pro tool - the live
+definition was dumped with `pg_get_functiondef` and compared against
+`supabase/migrations/20260727e_ai_tool_pool.sql`. **It differed.** The live body was missing
+comments the repo body has, and no migration in the repo explained it: `20260807b` only renames
+the function (a rename preserves the body verbatim) and `20260907b` mentions it in a comment. That
+is the exact shape of "someone edited this by hand in the dashboard", and the correct response to
+that reading is to stop.
+
+**It was not a hand-edit. Something in the apply path strips SQL comments before Postgres sees
+them**, so `prosrc` comes back comment-free for everything:
+
+| Check | Result |
+|---|---|
+| Functions in prod `public` carrying a `--` in `prosrc` | **0 of 14** |
+| `--` lines in the repo source of `lhq_grant_signup_trial` | 21 |
+| `--` lines in the repo source of `lhq_record_api_health` | 3 |
+| Normalised md5, prod live body vs repo body | **identical**, 7646 chars each side |
+| Functions carrying a `/* ... */` block comment | **0 of 14** (QA) |
+| Functions whose `prosrc` still contains newlines | **14 of 14** (QA) |
+
+**THE NEWLINE ROW IS THE CONTROL AND IT IS NOT DECORATION.** Without it, "0 of 14 carry a
+comment" is equally consistent with *`prosrc` is not the body you think it is* - a path that
+flattened or re-serialised bodies wholesale would produce the same zero, and would make the md5
+match above uninterpretable rather than convincing. Newlines survive in all 14, so formatting is
+preserved and **only comments are removed**. That is what licenses the conclusion.
+
+**BOTH COMMENT STYLES ARE STRIPPED, so a normaliser that only handles `--` will disagree with the
+database in the other direction** - it will leave a block comment in the repo side that the live
+side does not have, and report a difference that is not one. Strip `--` to end of line AND
+`/* ... */` spans. (The hash recorded in `20261031a_draw_structure_usage.sql` is unaffected: that
+body contains no block comments, so both normalisers agree on it. Checked, not assumed.)
+
+**Postgres does not do this** - it stores a function body as given. So the stripping is ours, and
+the consequence is that **every function in the database looks modified** when compared to its
+migration. Anyone auditing a function against its source will reach the same wrong conclusion.
+
+**The control is what separated the two readings, and it was nearly skipped.** "Prod differs from
+the repo" and "every function in the database differs the same way" lead to opposite actions, and
+only the second reading is available if you look at **one** function. The question that produced
+it was *do the other instances show this too* - not *let me read the body more carefully*, which
+is what the first reading invites.
+
+**So, to compare a live function against a migration:** strip BOTH comment styles and collapse
+whitespace on both sides, then hash - or compare only the statements. And **give that normalisation a positive
+control**: a one-character code change must flip the hash while removing a comment must not. Both
+were verified before the hash match above was believed.
+
+**A corollary that bites the other way.** A comment stripper cannot tell `--` in code from `--`
+inside a string literal, so a `--` in a `format()` template or an error message would be truncated
+at that point, silently, and the function would still be created. Check for `--` inside string
+literals before applying DDL here. Same family as 9d, pointed the other direction.
+
+#### `git grep` RETURNS THE SAME ZERO BEFORE AND AFTER A PUSH
+
+Two sessions independently searched for a string and both got a reassuring zero, **for unrelated
+reasons, neither of which was the string being absent**:
+
+| Who searched | What they searched | Why the zero was meaningless |
+|---|---|---|
+| Dev | `git grep` over the working directory | `git grep` searches **tracked** files; the file was new and untracked |
+| QA | `git grep` over `origin/feature/draw-structure` | the pushed ref **predated the work** - the route did not exist on it |
+
+The claim being checked happened to be true, which is the worst outcome: a false method agreed with
+reality and would have been trusted the next time.
+
+**QA's search carried a positive control and dev's did not**, which is the only reason one of the
+two zeros was caught in the act: searching `RATE_LIMIT` in the same command returned 5 files, so
+the mechanism was known to work and the absence was known to be real for that ref. Without that
+line QA would have sent a false confirmation.
+
+**The trap is that the command does not change, only the truth does.** `git grep X` is wrong
+before a commit and right after it, with no change in output format and no error. So:
+
+1. **To search code you have just written, search the working tree** - `rg`, or the Grep tool -
+   never `git grep`.
+2. **To search a ref, first prove the file is on that ref**: `git ls-tree -r <ref> -- <path>`. An
+   empty listing means the search could not have found anything.
+3. **Never chain on a grep's exit code.** `git grep` and `grep -c` exit 1 on zero matches, so
+   `grep ... && npx tsc` silently skips the typecheck and `$?` reports the grep. This happened in
+   the same session that wrote rule 1, and the printed "exit" was the grep's.
+
+**Why this sits beside 9h rather than inside it.** 9h is *when a check disagrees with the artifact,
+suspect the check first* - a check that **speaks**. This is a check that **stays silent**, which is
+harder, because disagreement prompts investigation and agreement does not. The shared remedy is
+9i's step 4: **a positive control, because a self-written check has no independence to borrow.**
