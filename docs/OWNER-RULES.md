@@ -335,8 +335,11 @@ Owner, 2026-10-30: *"Keep only the real code, test, change, and release... The c
 
 ## 13. REPORT TO PM/DEVOPS, NOT TO HIM
 
-> *"can u always report back to PM / dev ops"* — the owner, 2026-10-31. **The fourth time he has
-> said it**, which is why it is a numbered rule rather than a note in somebody's session.
+> *"can u always report back to PM / dev ops"* — the owner, 2026-10-31. **He has said it
+> repeatedly — 2026-08-14, 2026-10-01 and today are the occasions anyone can cite** — which is why
+> it is a numbered rule rather than a note in somebody's session. **Say the dates or say
+> "repeatedly"; nobody here can count the total, and a number we cannot support is the first thing
+> a reader checks.**
 
 **Dev and QA report to PM/DevOps. PM/DevOps is the only seat that reports to him.** He set the four
 seats up deliberately and he does not want to be the relay between them.
@@ -362,9 +365,26 @@ he asks one seat for status, that seat answers well, and PM never learns the thi
 work depends on. **QA caught this reading before it shipped** — the rule as first written would
 have had a session with no history of him redirect him at 2am.
 
-**The four things that still go to him directly, unchanged:** merging to `main`, production
-deploys, his money, and visual sign-off. **An owner decision relayed through another seat is not
-an owner decision** — whoever is asked confirms it with him first.
+**FIVE things go to him directly, and `CLAUDE.md` carries two different lists — read this as the
+union of them, not as either one.**
+
+| | |
+|---|---|
+| merging to `main` | both lists |
+| production deploys | both lists |
+| his money | `CLAUDE.md:28` |
+| visual sign-off (condition 5) | `CLAUDE.md:28` |
+| **writes to the shared database** | **`CLAUDE.md:303` — and absent from line 28** |
+
+**This section said "four" and omitted the database write. Dev Team held the PR over it and was
+right to.** The omission is not symmetric with the others: **a shared-database write is the one
+with no recovery path**, on a database with no backups and no proven restore. A seat treating a
+four-item list as authoritative would conclude it may apply a migration on its own — and there is
+one sitting unapplied right now (`20261031a_draw_structure_usage.sql`) **precisely because that
+approval is his**, and it replaces the function metering all twelve Pro tools.
+
+**An owner decision relayed through another seat is not an owner decision** — whoever is asked
+confirms it with him first.
 
 **Silence from a seat is not idleness, and PM says so when he asks.** On 2026-10-31 he said the
 team had stopped working. **Both sessions were busy, with pushes nine minutes old and GitHub
