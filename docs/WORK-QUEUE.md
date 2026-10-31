@@ -409,8 +409,37 @@ What Pro buys is *managed* backups. **It does not make a backup possible; it mak
 
 **The production database is 32 MB.** A nightly export is small, free, and runs on machinery that
 already exists - `app/api/liq-events/purge/route.ts` is cron-authed with `checkCronAuth`, driven
-by cron-job.org, and `CRON_SECRET` is already set on production. **A nightly backup route is being
-built on that pattern.** Owner raised it on 2026-10-30 and was right to ask why it had not moved.
+by cron-job.org, and `CRON_SECRET` is already set on production. **The nightly backup route is BUILT - #1851, merged to `dev`.** Owner raised it on 2026-10-30 and was
+right to ask why it had not moved.
+
+**It has never written a file, and that gap is the whole item (2026-10-31).** #1851 has only ever run in
+`mode=count`. That proves every paging key *exists*; it does not prove any key is *unique*, and a
+non-unique paging key truncates an export without erroring. The dev-Supabase export was approved on
+2026-10-30 and **could not run** - that database was degraded for 17 hours. So **no export has ever been
+produced, and no restore has ever been attempted.**
+
+**The next three steps, in this order, and none of them is "merge it":**
+
+1. **Run `mode=export` once and keep the artifact.** Against production (a read, so ungated) once the
+   route is on `main`; against dev the moment that database answers. Record row counts per table from
+   the export and **separately** from the database, then compare - an export counting itself is not a
+   measurement.
+2. ~~**Prove each paging key is unique**, per table.~~ **DONE 2026-10-31 against PRODUCTION, reads only,
+   on #1413.** Not by counting rows - **16 of 16 declared `orderBy` tuples are a PRIMARY KEY on exactly
+   those columns**, read from the catalog, both composite keys included. The row-count version was run
+   first and discarded: **six of the sixteen tables hold zero rows, so six of sixteen "greens" measured
+   nothing**, and equal counts describe today’s rows while a primary key governs every future one.
+   Three controls fired, two of them by dropping the second column of a composite key - `labels` collapses
+   13,367 rows into 2,726 keys, `muted_alerts` 109 into 2. **Dev’s side-effect:** the `orderBy` comment in
+   `lib/backupTables.ts` still calls four keys UNVERIFIED and credits `mode=count` with proving them; all
+   four carry a primary key, and `mode=count` answers existence, never uniqueness.
+3. **Restore it somewhere and read the rows back.** Never into the shared dev/qa/staging tables - that is a
+   write to the shared database and needs the owner. Into a throwaway target, or give
+   `scripts/restore-backup.mjs` a plan-only mode whose output is diffed against the export. **A plan-only
+   pass proves the parser, not the restore, and must be reported as exactly that.**
+
+**Until step 3 passes, every document reads "the mechanism exists and is unproven" and nothing reads
+"we have backups".**
 
 **The rule that follows is UNCHANGED while no backup exists: no destructive migration touches
 production.** Additive only - `add column if not exists`, new tables, new policies. **It stops
