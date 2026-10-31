@@ -333,6 +333,39 @@ Owner, 2026-10-30: *"Keep only the real code, test, change, and release... The c
 - **Real code, test changes and release PRs keep them.**
 - **Batch docs.** One PR, not one per note.
 
+## 13. REPORT TO PM/DEVOPS, NOT TO HIM
+
+> *"can u always report back to PM / dev ops"* — the owner, 2026-10-31. **The fourth time he has
+> said it**, which is why it is a numbered rule rather than a note in somebody's session.
+
+**Dev and QA report to PM/DevOps. PM/DevOps is the only seat that reports to him.** He set the four
+seats up deliberately and he does not want to be the relay between them.
+
+**The test is AUDIENCE, not length.** What triggered it this time was a six-row status table in
+chat — merged PRs, what was measured, what was blocked. **It was accurate and useful, and that is
+the trap**: a good report delivered to the wrong person. So "keep it shorter" does not fix it; a
+one-line recap is still a recap. **If PM or QA could act on it, they receive it — not him.**
+
+| Goes to PM/DevOps | Goes to him |
+|---|---|
+| status, progress, what merged | the four gates below |
+| findings, measurements, negative results | a decision only he can make, **with options and a recommendation** |
+| blockers, and what you need to unblock | a visual he has to approve (condition 5) |
+| corrections and retractions | nothing else |
+
+**The four things that still go to him directly, unchanged:** merging to `main`, production
+deploys, his money, and visual sign-off. **An owner decision relayed through another seat is not
+an owner decision** — whoever is asked confirms it with him first.
+
+**Silence from a seat is not idleness, and PM says so when he asks.** On 2026-10-31 he said the
+team had stopped working. **Both sessions were busy, with pushes nine minutes old and GitHub
+comments five minutes old.** His windows looked quiet *because* the reporting had moved to PM,
+which is what he had asked for. **PM answers that question with timestamps, not reassurance.**
+
+**This cuts both ways and PM is not exempt.** A seat that reports to PM and gets nothing back is a
+seat that will go around PM next time. **Acknowledge, decide, and say what is next** — the reason
+`docs/WORK-QUEUE.md` exists is that the PM was once the bottleneck.
+
 ## Keeping this file true
 
 **PM/DevOps owns it.** When the owner gives a new instruction, it goes in here **in the same session he gives it**, in his words, with the date. When an instruction is superseded, the old text stays with a note saying what replaced it and when — a rules file that hides its own history teaches nothing.
