@@ -20,11 +20,26 @@
  * the project's global daily counter, AND one of the signed-in account's ten daily Deep reads. Do not run it on a loop, and do not
  * schedule it more than once a day without saying so where the owner can see it.
  *
+ * IT TELLS "NO VERDICT" APART FROM "COULD NOT ASK", and the first version did not. Every non-parseable outcome exited 1 - "the paid
+ * feature is broken" - including the ones that say nothing about the feature at all. A 429 means this account has used its ten daily
+ * Deep reads, a 401 means the credentials expired, a 503 FEATURE_DISABLED means somebody turned the Arena off on purpose. Reporting
+ * any of those as a regression sends the next reader to hunt a product defect that is not there, and a monitor that cries wolf gets
+ * switched off - which costs the protection, not just the morning. The route already carries a typed `code` on every error path, so
+ * the discriminator exists and was simply not being read. See classifyOutcome, and the test that binds it to the route's own codes:
+ * `__tests__/deepVerdictMonitorClassification.test.mts`.
+ *
+ * THE DEFAULT IS STILL "BROKEN", deliberately. Anything that is not a parseable verdict and not one of the enumerated can't-run
+ * conditions exits 1, so an unhandled 500 or a shape nobody predicted surfaces as a failure rather than being swallowed as weather.
+ *
  * usage: node qa/tools/regress/deep-verdict-monitor.mjs <base-url> [--dry]
- * exit 0 = a parseable verdict came back. exit 1 = it did not, and the raw body is printed for the issue.  */
+ * exit 0 = a parseable verdict came back.
+ * exit 1 = the feature did not deliver one, and the raw body is printed for the issue.
+ * exit 2 = the check could not run, with the reason named. NOT a product failure.  */
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { assembleDeepPrompt } from './deep-prompt-fixture.mjs';
+
+import { classifyOutcome, CANNOT_RUN_CODES } from './deep-verdict-classify.mjs';
 
 const BASE = (process.argv[2] || '').replace(/\/$/, '');
 const DRY = process.argv.includes('--dry');
@@ -90,13 +105,24 @@ if (!token) { console.error('sign-in returned no access_token'); return 2; }
 /* The app's assembled prompt, not a question of QA's own. An advice-shaped question ("should I go long") is a legitimate thing for the
    model to decline and so cannot test availability - that confound cost one billed call on 2026-10-23, and the bare neutral prompt that
    replaced it cost three more by asking for no verdict at all. The builder decides what is asked; this tool decides only what counts. */
-const res = await fetch(`${BASE}/api/grok`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-  body: JSON.stringify({ prompt: asm.prompt, tf: '4h', session: 'ny', type: 'deep', coin: 'btc' }),
-  signal: AbortSignal.timeout(180_000),
-});
-const text = await res.text();
+/* WRAPPED, because an AbortError here used to escape main() as an unhandled rejection - no classification, no saved evidence, and an
+   exit code that read to a scheduler as "the feature is broken". A Deep call takes minutes and the free-plan service sleeps, so a
+   timeout is an ordinary outcome of this check and not a verdict about the product. The header already warned about exactly this for
+   /api/version; the call that actually costs money was the one left unguarded. */
+let res = null;
+let text = '';
+let networkError = null;
+try {
+  res = await fetch(`${BASE}/api/grok`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ prompt: asm.prompt, tf: '4h', session: 'ny', type: 'deep', coin: 'btc' }),
+    signal: AbortSignal.timeout(180_000),
+  });
+  text = await res.text();
+} catch (e) {
+  networkError = e instanceof Error ? `${e.name}: ${e.message || '(no message)'}` : String(e);
+}
 let json; try { json = JSON.parse(text); } catch { json = null; }
 
 /* THE ASSERTION: a verdict the app itself would accept. The five values are lib/grok.ts's own contract (SIGNALS), and confidence is
@@ -106,6 +132,10 @@ const signal = json?.signal ?? json?.result?.signal;
 const confidence = json?.confidence ?? json?.result?.confidence;
 const parseable = typeof signal === 'string' && SIGNALS.includes(signal.toUpperCase()) && Number.isFinite(Number(confidence));
 
+/* What the outcome MEANS, separated from what it IS. Keyed on the route's typed `code` so a spent daily allowance is not reported as
+   a regression - see deep-verdict-classify.mjs. */
+const verdict = classifyOutcome({ status: res?.status, code: json?.code, parseable, networkError });
+
 const dir = `${REPO}/../qa-evidence-guardrail`;
 mkdirSync(dir, { recursive: true });
 const file = `${dir}/deep-verdict-${ver.commit}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
@@ -114,17 +144,26 @@ const file = `${dir}/deep-verdict-${ver.commit}-${new Date().toISOString().repla
 writeFileSync(file, JSON.stringify({
   build: ver,
   request: { chars: asm.chars, lines: asm.lines, firstSignalLine: asm.firstSignalLine, prompt: asm.prompt },
-  status: res.status, parseable, signal, confidence, body: json ?? text,
+  status: res?.status ?? null, code: json?.code ?? null, networkError,
+  outcome: verdict, parseable, signal, confidence, body: json ?? text,
 }, null, 2));
 
-if (parseable) {
+if (verdict.exit === 0) {
   console.log(`PASS: verdict=${signal} confidence=${confidence} (HTTP ${res.status}) on ${ver.commit}`);
   console.log(`usage: ${JSON.stringify(json?.usage ?? json?._usage ?? '(not reported)')}`);
   console.log(`saved ${file}`);
   return 0;
 }
 
-console.error(`FAIL on ${ver.commit}: no parseable verdict. HTTP ${res.status}`);
+if (verdict.exit === 2) {
+  /* NOT a product failure, and it says so in the first line, because the first line is what a scheduler's notification shows. */
+  console.error(`CANNOT RUN on ${ver.commit} - this says nothing about Deep Research: ${verdict.reason}`);
+  console.error(`HTTP ${res?.status ?? '(no response)'} code=${json?.code ?? '(none)'}`);
+  console.error(`nothing was billed unless the route reached the model; saved ${file}`);
+  return 2;
+}
+
+console.error(`FAIL on ${ver.commit}: no parseable verdict. ${verdict.reason}`);
 console.error(`the prompt DID ask for it: ${asm.chars} chars, SIGNAL: instruction on line ${asm.firstSignalLine} of ${asm.lines}`);
 console.error(`signal=${JSON.stringify(signal)} confidence=${JSON.stringify(confidence)}`);
 console.error(`RAW BODY (for the issue):\n${text.slice(0, 1200)}`);

@@ -1039,6 +1039,35 @@ BOTH trees — the old one and dev's — as its own QA branch, pushed first.** D
 can then push, and the pin tightens to the new exact contract on dev's branch
 before the merge.
 
+**A CHANGED FUNCTION SIGNATURE IS THIS CASE, and it has to be said because it
+does not look like it.** Step 0 above is written in terms of an *assertion*
+pinning a contract — an exact string, a five-key response. **A signature change
+produces a `tsc` error instead, in a test file nobody has touched**, and
+`.githooks/pre-push` is `npx tsc --noEmit`, so the push is refused for a reason
+that reads like a compiler problem rather than a process one.
+
+Instance, 2026-10-30, #1631 item 5: `callGrokViaProxy` went from
+`(prompt, tf, session, type)` to `(ctx, chart, type, selection)`, and
+`__tests__/arenaProRequiredBanner.test.mts` called the old shape. **Same
+deadlock, same three forbidden exits.**
+
+**Step 0 applies unchanged — only the shape of "loosened" differs: a widened
+call TYPE rather than a widened expectation.** The call site is typed loosely
+enough to compile under either signature, QA pushes that first, dev pushes, and
+QA tightens it to the new signature on dev's branch.
+
+**Recorded because PM/DevOps got this wrong on that date, in a way worth more
+than the fix.** The ruling given was that dev could adapt the call site itself,
+"arity and argument shape only" — invented, and strictly worse than what already
+existed here, because it put a test file in dev's hands to solve something this
+section solves without that. **The cause was reading this section as far as the
+three-step table and answering from it**, which is an instrument scoped narrower
+than the question. It was withdrawn before dev pushed anything.
+
+**The practical tell, for whoever hits it next: if a push is refused by `tsc`
+rather than by a failing assertion, this is still step 0.** The gate is the same
+gate and the deadlock is the same deadlock.
+
 **Two things that keep step 0 honest.** The loosened form must be stated as a
 gap, not left implied — a required set plus an allow list will not catch dev
 omitting one of the new fields, and that is the price of unblocking. **And the

@@ -253,8 +253,12 @@ export async function POST(req: NextRequest) {
           model: 'grok-4.3',
           input: [{ role: 'user', content: prompt }],
           tools: searchTools(xWindow),
-          // Deep is the expensive path (frontier model + web and X search) and
-          // was the only xAI call in the app with no output bound at all.
+          // Deep is the expensive path (frontier model + web and X search).
+          /* This comment used to end "and was the only xAI call in the app with no output bound at all".
+             That was true when it was written and false by the time anyone read it: /api/grok-chat's search
+             branch and /api/onchain had none either, and a reader checking whether a path was covered would
+             have taken this sentence as saying they were. Both are capped now (#1631 item 4), and the claim
+             is removed rather than re-scoped - counting the other call sites is what rotted. */
           max_output_tokens: 2000,
         }),
       });

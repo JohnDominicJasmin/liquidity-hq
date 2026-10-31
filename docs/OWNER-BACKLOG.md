@@ -104,6 +104,12 @@ One list, so nothing waits in a chat. Recommendation first in each.
 
 ## Order of work (PM, updated 2026-10-21 afternoon UTC)
 
+**Amended 2026-10-30 13:26 UTC, and the list below is otherwise nine days old — read it as shape,
+not as state.** Item 1 shipped (v2026.10.21, and four releases after it). **One row is new:**
+`#1818` Phase 0, the deterministic half of the chart-structure feature, on the owner's direct
+order. It slots in alongside items 2-4 rather than ahead of them, and it is one file of pure
+functions, so it does not stop the reliability work.
+
 1. **Release v2026.10.21** (#1654): the out-of-memory crash fix (sign-in tokens checked locally; #1657's lighter checks follow in the next release), the candle-cache and RSI fixes, the security limits, the image-optimizer advisory closed. QA passed it on 2026-10-21; it goes to production with the owner's approval (two database migrations and the label rows; no env change; payments stay off).
 2. **AI correctness** (#1631): E+B+C with the nominal 10-year yield, then A+D (Deep citations, our own dated data).
 3. **Exchange data never blocked** (#1649): phase 2 (Bybit stream), phase 3 (OKX + our own snapshots), phase 4 (Hyperliquid as third source); Dev's estimate for #1662 at a natural break.
@@ -114,8 +120,47 @@ One list, so nothing waits in a chat. Recommendation first in each.
 8. **Before any big marketing push** (6, 7): the three server fixes live, then re-measure CPU and upstream calls per page load, then the owner decides the Render tier with the number in hand.
 9. Then 15 (cross-browser, QA), 12 close-out, the owner-visible queue (#1601, #1595, #1603), and the three visual fails from QA's 2026-10-21 regression (#1640: R6 `/learn` ignores the light theme, R7 `/hours` labels collide, R8 `/liq` stats grid squeezed) for the owner's look.
 
+## Owner decisions, 2026-10-30 (first-hand to PM)
+
+| What he decided | His words | What it changed |
+|---|---|---|
+| **Start the deep-research chart-drawing feature.** Phase 0 only; phases 1-4 stay sequenced. | *"start it"* (13:19 UTC), after asking *"what happened to my proposal about deep research thing?"* | `#1818` moved from `priority: low` / not-scheduled to `priority: medium` / Phase 0 assigned. Dev writes `lib/chartStructures.ts` (pure functions, no UI, no AI, no network); QA writes the fixtures. Spec `docs/proposals/ai-chart-structures.md`. The `priority: high` reliability work (#1631, #1649, #1651) is NOT cancelled. |
+| **No Google AdSense on the site.** | Asked *"can we have adsense also for our website?"*; PM recommended no and he did not overrule it. | Nothing built. Recorded so it is not re-proposed: at our traffic the revenue is single-digit dollars a month against $49/mo subscriptions, ads leak visitors off the pricing page, we would not control which exchange or token ads appear beside our own signals, Google treats trading-signal sites as restricted, and EU/UK consent work would be required. **Where it could return:** a separate free content arm (glossary, education) that never touches the app or the checkout — traffic first. |
+
+**Both of these are decisions, not deferrals waiting for a nudge.** The second one is written down
+with its reasoning because "why not ads?" is the kind of question that comes back every few weeks,
+and re-deriving the answer each time is how a settled thing reopens.
+
 ## Not on this list, and that is deliberate
 
 The UI audit (58 findings), the Arena audit leftovers, UI polish, the Russian
 menu and the old design switch are all `priority: low` and parked. Built work
 for them sits in open PRs, unmerged, until the owner grants a window.
+
+---
+
+## Supabase Pro — BACKLOG, owner 2026-10-29. Do not re-raise.
+
+**His words: *"postpone it"*, then *"You put it on backlog and we'll work on it later."*** That is a
+decision, not a deferral waiting for a nudge.
+
+**What it would buy, so nobody has to reconstruct it:** daily backups of the subscriber and payment
+records (there are none today, at all), leaked-password protection, and headroom on the dev
+project's compute. **~$35/month** — $25 plan + $20 compute for two projects − $10 included credit.
+The $25 figure that circulated is the plan fee alone and is wrong for this account.
+
+**NO TRIGGER CONDITION IS ATTACHED, and that is deliberate.** The previous version of this item
+carried one — *"Pro is bought the day Whop payments go live"* — which came true on 2026-10-28 and
+**nothing noticed for two days**, so it surfaced as an unexplained $35 charge he had to be talked
+through twice. A written condition does not fire. This returns when **he** raises it, or when
+somebody reviews this file on purpose.
+
+**The operational rule that stands in its place, and it is not optional:** no destructive migration
+on production. No `drop`, no `alter ... type`, no data-rewriting backfill. Additive only — add a
+column, add a table, add a policy — because that is reversible by dropping what was added. **With
+no backups there is no other undo.**
+
+**How to explain it if it ever comes up again:** lead with what breaks, never the vendor. "Supabase
+Pro" means nothing at founder level; "your subscriber records cannot be recovered if something
+corrupts them" does. He asked *"what the fuck is this $35 for"* twice because the first two
+explanations named a company and a feature instead of a consequence.

@@ -1,7 +1,7 @@
 #!/bin/sh
 #
-# Runs two of the four gates before every push. The unit tests used to be here
-# and are now in CI.
+# Runs ONE of the four gates before every push: the typecheck. The unit tests
+# left on 2026-10-29 and `eslint .` left on 2026-10-30. Both are in CI.
 #
 # THE TESTS MOVED TO CI ON 2026-10-29, AND THIS IS A RELOCATION OF THE GATE
 # RATHER THAN A REMOVAL OF IT. .github/workflows/ci.yml runs lint, typecheck,
@@ -23,6 +23,41 @@
 # and that is what it is for. It cannot reach `main`, because the PR check
 # stands in between, and it cannot reach production, which needs QA's sign-off
 # and the owner's word regardless.
+#
+# SINCE 2026-10-30 THAT INCLUDES LINT ERRORS, and the window has a precise edge.
+# CI's `build` job carries no `if:`, so it lints whatever the workflow triggers
+# on - and that trigger block (ci.yml:229) is:
+#
+#     pull_request:  branches: [dev, qa, staging, main]
+#     push:          branches: [dev, staging, main]
+#
+# No feature branches on either, and no `qa` on push. SO THE GAP IS: a push to a
+# feature branch runs no CI at all, and a lint error can sit there until a pull
+# request opens into one of those four. Nothing can merge inside that window and
+# it is usually minutes.
+#
+# NAMED RATHER THAN CLOSED, DELIBERATELY. Closing it means `push: branches:
+# ['**']`, which fires the build job on every feature push - and Actions minutes
+# are the binding constraint, not a spare resource: 1,755 of the 2,000/month
+# allowance went in three days in August, and the owner pays that bill. So the
+# cheap fix is the expensive one. If you are about to reach for a push trigger
+# here, that is the number to weigh first.
+#
+# WHY LINT AND NOT TYPECHECK, measured rather than assumed - the two halves were
+# run separately on 2026-10-30 from a clean baseline, with a per-process sampler:
+#
+#     npm run lint       46 s   free 3622 -> 1044 MB   biggest process 1698 MB
+#     npx tsc --noEmit    9 s   free 2895 -> 1484 MB   biggest process  428 MB
+#
+# eslint is essentially the entire cost: about 2.6 GB of headroom for 46 seconds,
+# on a 15 GB laptop the owner is working on. The typecheck is 428 MB for 9
+# seconds, which is cheap in both currencies and is the half that catches the
+# error class CI cannot catch any faster than you can - a type error that would
+# otherwise reach origin and need a second commit to undo.
+#
+# WHAT THAT MEASUREMENT COVERS, so it is not re-used for something else: eslint
+# and tsc over this repo, warm checkout, QA's clone, nothing else of mine
+# running. It says nothing about `npm run build` or the browser suite.
 #
 # WHAT WOULD MAKE THAT A BAD TRADE, so you can check it instead of trusting it:
 # CI being off again. THIS FILE CANNOT SEE THAT. Run
@@ -78,12 +113,18 @@
 # nothing. Build stays manual before opening a PR - CONTRIBUTING.md - and it is
 # the one that catches the keyless-env class of defect.
 #
-# `eslint .` reported 0 errors and 199 WARNINGS when measured 2026-10-29, and
-# exits 0 on warnings. It said 140 from whenever that was until today, which is
-# the same stale-number trap this file warns about twice elsewhere. Do NOT add
-# --max-warnings 0 without clearing those 199 first, or this becomes unusable on
-# day one and gets bypassed by reflex.
-# this becomes unusable on day one and gets bypassed by reflex.
+# ALSO NOT HERE SINCE 2026-10-30: `eslint .`. It is in CI on the pull request.
+# The numbers are in the trade above; the reasoning that is NOT about cost is
+# that CI's lint is a strict superset of this one, so running it here bought a
+# few minutes of earliness for 2.6 GB of the owner's memory.
+#
+# It reported 0 errors and 199 WARNINGS when measured 2026-10-29 and exits 0 on
+# warnings, so it was never failing anyone's push anyway - it was spending
+# memory to confirm a number that does not gate. If it comes back, do NOT add
+# --max-warnings 0 without clearing those warnings first, or it becomes unusable
+# on day one and gets bypassed by reflex. (That paragraph also said 140 for an
+# unknown stretch before 2026-10-29 - the same stale-number trap this file warns
+# about twice elsewhere.)
 #
 # Bypass with `git push --no-verify` when you genuinely need to - and say so in
 # the PR, because nothing else will.
@@ -100,9 +141,12 @@ set -e
 # the whole gate ONCE PER BRANCH to prove nothing about refs that carry no
 # content.
 #
-# HOW LONG THE GATE TAKES, RE-MEASURED 2026-10-29 ON THE DAY THE TESTS LEFT -
-# do not re-estimate from memory: `npm run lint` 56 s, `npx tsc --noEmit` 10 s,
-# SIXTY-SIX SECONDS in total, on a warm checkout. Budget two minutes cold.
+# HOW LONG THE GATE TAKES, RE-MEASURED 2026-10-30 ON THE DAY LINT LEFT - do not
+# re-estimate from memory: `npx tsc --noEmit` alone, NINE SECONDS on a warm
+# checkout and about 430 MB. Budget thirty seconds cold.
+#
+# It said 66 s until today (lint 56 s + tsc 10 s) and five to eight minutes
+# before that, when `node --test` reported duration_ms 206298 for 2078 tests.
 #
 # It said FIVE TO EIGHT MINUTES until today, which was honest - `node --test`
 # alone reported duration_ms 206298 for 2078 tests. Before that it said "722
@@ -135,10 +179,7 @@ if [ "$saw_ref" = 1 ] && [ "$only_deletions" = 1 ]; then
   exit 0
 fi
 
-printf '[pre-push] lint\n'
-npm run lint
-
 printf '[pre-push] typecheck\n'
 npx tsc --noEmit
 
-printf '[pre-push] lint and typecheck passed. UNIT TESTS AND BUILD NOT RUN HERE - the tests run in CI on the pull request, the build is `npm run verify` by hand.\n'
+printf '[pre-push] typecheck passed. LINT, UNIT TESTS AND BUILD NOT RUN HERE - lint and the tests run in CI on the pull request, the build is `npm run verify` by hand.\n'

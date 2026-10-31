@@ -155,6 +155,10 @@ export async function GET(req: NextRequest) {
           input: [{ role: 'user', content: prompt }],
           // #1651 item 1: X posts from the last 3 days only - the prompt asks for CURRENT on-chain values.
           tools: searchTools(searchWindow(3)),
+          /* This was the last xAI call in the app with no output bound of any kind - 13 of the 14 capped
+             between 200 and 2000 tokens and this one did not. Same figure as app/api/grok/route.ts:258,
+             the app's other search-tool /v1/responses call. */
+          max_output_tokens: 2000,
         }),
         signal: AbortSignal.timeout(45000),
       });

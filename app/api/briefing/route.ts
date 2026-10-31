@@ -67,6 +67,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'context required' }, { status: 400 });
   }
 
+  /* The context is assembled in the browser (components/BriefingTerminal.tsx, buildBriefingContext) and sent
+   * whole, so its length is caller-controlled. The daily cap counts CALLS, not tokens.
+   *
+   * THE DOLLAR CAP CANNOT COVER THIS, and that is the reason this bound has to exist rather than a reason to
+   * skip it: lib/aiSpendCap.ts checks BEFORE the call, so an account sitting at $0.00 passes the check and
+   * then spends whatever the call costs. The input bound is the only thing limiting the FIRST oversized call.
+   * At grok-4.3's input rate roughly half a megabyte of text would pass a Free account's whole daily cap in
+   * one call, and lib/aiCost.ts records that its own estimates run about 4x low.
+   *
+   * 64,000 is not a new number - app/api/grok/route.ts:129 already uses it for exactly this, so it carries
+   * its review with it. buildBriefingContext assembles a fixed-shape block over a bounded set of rows and
+   * runs far under it; anything larger is not the app talking. */
+  if (context.length > 64_000) {
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
+  }
+
   /* ── Rate limit check ── */
   const today = todayUtc();
   const [{ briefingUsed }, role] = await Promise.all([
