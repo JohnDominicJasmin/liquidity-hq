@@ -6,7 +6,7 @@ import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
 import { formatAlertTally } from '@/lib/alertTally';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
-import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, SCANNED_COINS, bybitSymbolPriceFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { bootstrapReadings, trendBetween } from '@/lib/oiTrendWindow';
 import { isFeatureEnabled } from '@/lib/featureFlags';
@@ -533,7 +533,7 @@ const BINANCE_ONLY_FR_COINS = new Set(['gmt', 'fet']);
 
 async function fetchAllFR(skipCounts: SkipCounts): Promise<Record<string, number | null>> {
   const result: Record<string, number | null> = {};
-  SCANNED_COINS.forEach(c => (result[c] = null));
+  COINS.forEach(c => (result[c] = null));
   const [bbR, bnR] = await Promise.allSettled([
     exchangeFetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
     exchangeFetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
@@ -681,7 +681,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
   const loosestOb = obValues.length ? Math.min(...obValues) : DEFAULT_THRESHOLDS.rsiOb;
   const loosestOs = osValues.length ? Math.max(...osValues) : DEFAULT_THRESHOLDS.rsiOs;
 
-  await runBatched(SCANNED_COINS.map(coin => async () => {
+  await runBatched(COINS.map(coin => async () => {
     try {
       // #1266 step 2: moved off Binance - see bybitSpotOrLinear's own
       // comment for why this reads Bybit spot (or linear for TAO, the one
@@ -741,7 +741,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
   ] as const;
 
   await runBatched(
-    SCANNED_COINS.flatMap(coin =>
+    COINS.flatMap(coin =>
       FRAMES.map(({ interval, bybitInterval, threshold, cd, tfLabel }) => async () => {
         try {
           let prevClose: number, currClose: number;
@@ -1321,7 +1321,7 @@ async function checkDailySummary(
   } catch { /* skip */ }
 
   // Funding rates - two rows of 4
-  const frParts = SCANNED_COINS.map(coin => {
+  const frParts = COINS.map(coin => {
     const fr = frMap[coin];
     if (fr == null) return null;
     const sign = fr >= 0 ? '+' : '';
@@ -1465,7 +1465,7 @@ async function checkSentimentExtremes(
 
 async function fetchAllLSR(skipCounts: SkipCounts): Promise<Record<string, number | null>> {
   const result: Record<string, number | null> = {};
-  SCANNED_COINS.forEach(c => (result[c] = null));
+  COINS.forEach(c => (result[c] = null));
   await Promise.all([
     // Binance perp L/S ratio
     ...Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
@@ -1547,7 +1547,7 @@ async function checkSqueezeAlerts(
   const thValues = recipients.map(r => (thresholdsByUser.get(r.userId) ?? DEFAULT_THRESHOLDS).squeezeThreshold);
   const loosestTh = thValues.length ? Math.min(...thValues) : DEFAULT_THRESHOLDS.squeezeThreshold;
 
-  for (const coin of SCANNED_COINS) {
+  for (const coin of COINS) {
     const fr       = frMap[coin];
     const longRat  = lsMap[coin];
     const price    = prices[coin];
@@ -1625,7 +1625,7 @@ async function checkDistribution(
 ): Promise<string[]> {
   const fired: string[] = [];
 
-  const tasks = SCANNED_COINS
+  const tasks = COINS
     .filter(coin => !fullyMutedCoins.has(coin) && BINANCE_PERP[coin])
     .map(coin => async () => {
       try {
@@ -1813,7 +1813,7 @@ async function checkEMASignal(
     { antiChopMode: true,  params: STRICT_FILTER_PARAMS,  dedupSuffix: 'strict' },
   ];
 
-  await Promise.all(SCANNED_COINS.map(async coin => {
+  await Promise.all(COINS.map(async coin => {
     try {
       // Closed candles only (owner decision 2026-10-22): the newest kline is still forming, and an alert sent on it cannot be taken back if
       // it closes back across EMA50. See closedCandles in lib/ribbonCandles.ts. The chart keeps its live marker.
@@ -2051,7 +2051,7 @@ async function checkStructureSignal(
   const ruleKey = `structure_${tf}`;
   const tfLabel = tf.toUpperCase();
 
-  await Promise.all(SCANNED_COINS.map(async coin => {
+  await Promise.all(COINS.map(async coin => {
     try {
       // Closed candles only, like the EMA alert (owner, 2026-10-22: "alert only on finished candles"). The message says "price closed
       // above the prior swing high"; on the forming candle that close has not happened yet. See closedCandles in lib/ribbonCandles.ts.
@@ -2394,7 +2394,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const mutedUsersStored = mutedByUser.size; // the stat below counts stored mutes, not the ladder
   for (const uid of trialUserIds) {
     const set = new Set(mutedByUser.get(uid) ?? []);
-    for (const c of SCANNED_COINS) if (!(FREE_SIGNAL_COINS as readonly string[]).includes(c)) set.add(`coin:${c}`);
+    for (const c of COINS) if (!(FREE_SIGNAL_COINS as readonly string[]).includes(c)) set.add(`coin:${c}`);
     mutedByUser.set(uid, set);
   }
 
@@ -2403,7 +2403,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // Anything less than 100% agreement still has to be fetched; per-recipient
   // eligibility is decided later, at flush/push time.
   const fullyMutedCoins = new Set(
-    SCANNED_COINS.filter(coin => recipients.every(r => mutedByUser.get(r.userId)?.has(`coin:${coin}`))),
+    COINS.filter(coin => recipients.every(r => mutedByUser.get(r.userId)?.has(`coin:${coin}`))),
   );
 
   // Same shape, per-timeframe: a TF nobody has selected at all (see
@@ -2590,7 +2590,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
       ...EMA_SIGNAL_TFS.map(tf => `EMA Buy/Sell Signal (${tf.toUpperCase()})`),
       ...STRUCTURE_TFS.map(tf => `Market structure (${tf.toUpperCase()})`),
     ],
-    coins: SCANNED_COINS.length,
+    coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
   });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
-import { SCANNED_COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 import { reportHealth, healthError } from '@/lib/apiHealth';
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
           : `${Object.keys(bb.rates).length} coins`,
         Object.keys(bb.rates).length);
 
-      const data = SCANNED_COINS.map(coin => ({
+      const data = COINS.map(coin => ({
         coin,
         binance:       bn.rates[coin] ?? null,
         bybit:         bb.rates[coin] ?? null,

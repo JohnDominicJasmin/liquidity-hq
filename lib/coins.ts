@@ -103,6 +103,19 @@ export const COINS: CoinId[] = [...RENDERED_IDS];
  * be cheaper than today at any list length. It needs `mutedByUser` threaded into the check
  * functions, a refactor of a 2,400-line route. */
 export const SCAN_LIMIT = 50;
+/* NOTHING IMPORTS THIS YET, DELIBERATELY. It was wired through the alert cron and /api/funding
+   in an earlier version of this branch and taken back out: `SCANNED_COINS` IS `COINS` - the same
+   array, the same 50 ids - so the rename changed no behaviour and only moved a name that QA's
+   `planKindOfRow` S5 pins by literal text, parking the whole PR behind a string match for a seam
+   that is not load-bearing yet.
+ *
+   THE NAME EXISTS SO THE SEAM IS FINDABLE. Rename the call sites in the change where the two
+   sets actually diverge - that is when the pin genuinely needs moving and when it is worth QA's
+   step 0. **Two places must move together on that day:** the cron in
+   `app/api/telegram/alert/route.ts`, and `app/api/alerts/preview/route.ts`, which shows the user
+   which coins they would be alerted about. If the preview keeps reading the rendered list while
+   the cron reads the scan set, **the preview advertises coins nothing is watching and nothing
+   fails** - the same silent shape as the 18 coins an earlier version of this branch dropped. */
 export const SCANNED_COINS: CoinId[] = COINS;
 
 /** The row behind a coin, or undefined for an id this build does not serve. */
