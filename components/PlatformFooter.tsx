@@ -82,9 +82,24 @@ export default function PlatformFooter() {
         <nav className="pf-footer-nav">
           <Link href="/about" className="pf-footer-link">About</Link>
           <Link href="/faq" className="pf-footer-link">FAQ</Link>
+          <Link href="/help" className="pf-footer-link">Help</Link>
           <Link href="/learn" className="pf-footer-link">Glossary</Link>
+          {/* #1810. The footer is the only route to these five from anywhere on
+              the site, so leaving one out ships a page nothing links to. Ordered
+              product-first then legal, matching the existing run. The labels are
+              literals like every other entry here, not label keys. */}
+          <Link href="/changelog" className="pf-footer-link">Changelog</Link>
+          <Link href="/status" className="pf-footer-link">Status</Link>
+          <Link href="/security" className="pf-footer-link">Security</Link>
+          <Link href="/accessibility" className="pf-footer-link">Accessibility</Link>
           <Link href="/terms" className="pf-footer-link">Terms of Use</Link>
           <Link href="/privacy" className="pf-footer-link">Privacy Policy</Link>
+          {/* Restored 2026-10-31. The link was pulled when /refund was withdrawn until payments
+              went live (owner, 2026-10-08); payments went live 2026-10-28, so the condition the
+              withdrawal named has fired. Placed in the legal run beside Terms and Privacy rather
+              than at its former position, which is not recoverable from the history - the earlier
+              markup differed, so there is nothing to restore it to. */}
+          <Link href="/refund" className="pf-footer-link">Refund Policy</Link>
           <Link href="/disclaimer" className="pf-footer-link">Full Disclaimer</Link>
           <Link href="/contact" className="pf-footer-link">Contact</Link>
           {/* The support address itself, as a working link, on every page (owner, 2026-10-07). */}

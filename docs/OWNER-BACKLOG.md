@@ -104,6 +104,12 @@ One list, so nothing waits in a chat. Recommendation first in each.
 
 ## Order of work (PM, updated 2026-10-21 afternoon UTC)
 
+**Amended 2026-10-30 13:26 UTC, and the list below is otherwise nine days old — read it as shape,
+not as state.** Item 1 shipped (v2026.10.21, and four releases after it). **One row is new:**
+`#1818` Phase 0, the deterministic half of the chart-structure feature, on the owner's direct
+order. It slots in alongside items 2-4 rather than ahead of them, and it is one file of pure
+functions, so it does not stop the reliability work.
+
 1. **Release v2026.10.21** (#1654): the out-of-memory crash fix (sign-in tokens checked locally; #1657's lighter checks follow in the next release), the candle-cache and RSI fixes, the security limits, the image-optimizer advisory closed. QA passed it on 2026-10-21; it goes to production with the owner's approval (two database migrations and the label rows; no env change; payments stay off).
 2. **AI correctness** (#1631): E+B+C with the nominal 10-year yield, then A+D (Deep citations, our own dated data).
 3. **Exchange data never blocked** (#1649): phase 2 (Bybit stream), phase 3 (OKX + our own snapshots), phase 4 (Hyperliquid as third source); Dev's estimate for #1662 at a natural break.
@@ -114,8 +120,88 @@ One list, so nothing waits in a chat. Recommendation first in each.
 8. **Before any big marketing push** (6, 7): the three server fixes live, then re-measure CPU and upstream calls per page load, then the owner decides the Render tier with the number in hand.
 9. Then 15 (cross-browser, QA), 12 close-out, the owner-visible queue (#1601, #1595, #1603), and the three visual fails from QA's 2026-10-21 regression (#1640: R6 `/learn` ignores the light theme, R7 `/hours` labels collide, R8 `/liq` stats grid squeezed) for the owner's look.
 
+## Owner decisions, 2026-10-31 (first-hand to PM)
+
+| What he decided | His words | What it changed |
+|---|---|---|
+| **The chart-drawing feature went to a head-to-head, and the result changed the feature.** | *"for deep research will do it"*, then *"yes, set up the head-to-head test"* after being told there is no provable reason Claude is better, then *"go D"*. | **IT RAN. Grok AUC 0.648, Claude 0.716, both intervals containing 0.5 — neither engine's confidence separates real structure from noise.** The pre-registered rule resolved to **Grok** twice (fit quality tied, cost broke it), $2.74 spent. **Then the owner's own blind review put OUR detector at chance against him too** — and he said "noise" **zero times in sixteen charts**, so there was no negative class for an automatic filter to produce. **The automatic version was abandoned.** The feature shipped as **"Draw Structure"** (his name): Grok proposes lines, the user accepts or rejects, **4h and 1d ONLY** - not "4h and above": **2h is deliberately absent**, because he never saw a 2-hour chart in either blind round and it is untested in exactly the way 1h is. Nothing claimed as verified. #1881. |
+| **The shipped deep analysis and Ask-AI search STAY on Grok.** | *"grok is better because it has access to X posts"* | Correct, and verified rather than accepted: `app/api/grok/route.ts:296-306` attaches `searchTools(xWindow)` when `type === 'deep'`, and `grok-chat` search mode does the same. **Claude cannot see X at all.** The split is by input, not by feature: *what people are saying* goes to Grok, *our own numbers* can go to Claude. |
+| **The $100 Claude credit is part of his Max plan and refills.** | *"it's part of my Claude Max plan... I will have another one in next few days"* | Usable budget for the over-ceiling features. **Recorded with its risk: do not let a feature's economics depend on a promotional grant** — if it stops, the cost lands on him at full rate, so anything built on it must be switchable back. |
+
+**What this decision exposed, and it is a live business fact rather than a note.** Production's own
+AI call log says **three of six AI features already cost more per answer than his $0.0085 ceiling**:
+deep analysis **$0.0238**, Ask-AI search **$0.0271**, quick read **$0.0117**. Macro, chat and dry
+powder are under. Total ever spent is $0.59 — **that is low traffic, not low unit cost.**
+
+**Re-measured against production by Dev Team and every figure matches to five decimals**, with the
+control that `costed_calls` equals `calls` for all six types, so no unmeasured rows are dragging an
+average down. **Two caveats that change how the numbers should be USED rather than whether they are
+right:** the whole dataset is **43 calls**, and `deep`'s most expensive call was **$0.0747, three
+times its own average** — so "deep costs $0.0238" is a mean over 14 calls with a 3x spread, fine for
+arguing about the ceiling and thin for a projection. **Six of the seventeen call types have never
+been invoked at all.** Input size
+is the driver: deep sends ~15,000 tokens in and gets ~1,400 back. **Prompt caching is OFF on the
+Claude account**, so the first Claude figure the bake-off produces is an upper bound, not a running
+cost.
+
+**One owner action outstanding:** an Anthropic API key as an environment variable. **Neither PM nor
+Dev handles it.** The Grok half of the bake-off runs without it.
+
+**One naming hazard, cheap now and expensive later:** "deep analysis" already ships and means the
+X-powered one; this proposal is also called "deep research". **Two buttons, different jobs, one
+word.** Rename the new one before it ships.
+
+## Owner decisions, 2026-10-30 (first-hand to PM)
+
+| What he decided | His words | What it changed |
+|---|---|---|
+| **Start the deep-research chart-drawing feature.** Phase 0 only; phases 1-4 stay sequenced. | *"start it"* (13:19 UTC), after asking *"what happened to my proposal about deep research thing?"* | `#1818` moved from `priority: low` / not-scheduled to `priority: medium` / Phase 0 assigned. Dev writes `lib/chartStructures.ts` (pure functions, no UI, no AI, no network); QA writes the fixtures. Spec `docs/proposals/ai-chart-structures.md`. The `priority: high` reliability work (#1631, #1649, #1651) is NOT cancelled. |
+| **Run CI only where it is needed.** | *"Keep only the real code, test, change, and release... The changes to documents and rechecking after each merge, skip it... run once before release."* | Docs-only PRs skip the full checks. `dev` merges stop re-running them; the merged head is built once before promotion. Rule: `docs/OWNER-RULES.md` section 12. |
+| **Deploy the release without him IF the regression is flawless.** | Shown the risk in writing and chose it: *"Deploy it if testing is fully clean."* | **Any failure or any gap holds it until he wakes.** QA's sign-off becomes the deploy decision rather than an input to it. |
+| **CI spend: the free $12, then up to $5 on his card, hard stop.** | *"save every penny on the GitHub run... Run when it's needed."* Two days consumed 80% of a month. | Docs-only PRs and per-merge rechecks stop running checks (#1848). Measured 8.5 min/run; 605 of the wasted minutes were browser tests that were all cancelled. |
+| **Build a nightly database backup.** | Asked why it had not moved after raising it the day before. | **It was never blocked by funding.** 32 MB database, free export on the existing cron-authed pattern. Not done until a restore is proven. |
+| **Ship as many coins as both exchanges carry.** | Second time of asking: *"coins availability should be done like days ago."* | Being built, not scoped. 50 today. |
+
+## Open, PM recommendation only - he has NOT ruled
+
+| What | His words | Where it stands |
+|---|---|---|
+| **Google AdSense** | *"can we have adsense also for our website?"* - he asked, PM recommended against it, **he has not answered.** Silence is not a decision. | Nothing built. **The traffic figure behind the recommendation was never measured** - real page views were not read, so "single-digit dollars a month" is an estimate, not a measurement. Reasons given: ads undercut a $49 product, leak visitors off the pricing page, put competitor and token ads beside our own signals, and the category is restricted by Google. |
+
+**Every row in the table above is his, first-hand.** The AdSense item is NOT, which is why it now sits
+in its own section below rather than in a table headed "What he decided" - QA's catch, and the
+distinction matters: a recommendation filed among decisions closes a question he still holds.
+
 ## Not on this list, and that is deliberate
 
 The UI audit (58 findings), the Arena audit leftovers, UI polish, the Russian
 menu and the old design switch are all `priority: low` and parked. Built work
 for them sits in open PRs, unmerged, until the owner grants a window.
+
+---
+
+## Supabase Pro — BACKLOG, owner 2026-10-29. Do not re-raise.
+
+**His words: *"postpone it"*, then *"You put it on backlog and we'll work on it later."*** That is a
+decision, not a deferral waiting for a nudge.
+
+**What it would buy, so nobody has to reconstruct it:** daily backups of the subscriber and payment
+records (there are none today, at all), leaked-password protection, and headroom on the dev
+project's compute. **~$35/month** — $25 plan + $20 compute for two projects − $10 included credit.
+The $25 figure that circulated is the plan fee alone and is wrong for this account.
+
+**NO TRIGGER CONDITION IS ATTACHED, and that is deliberate.** The previous version of this item
+carried one — *"Pro is bought the day Whop payments go live"* — which came true on 2026-10-28 and
+**nothing noticed for two days**, so it surfaced as an unexplained $35 charge he had to be talked
+through twice. A written condition does not fire. This returns when **he** raises it, or when
+somebody reviews this file on purpose.
+
+**The operational rule that stands in its place, and it is not optional:** no destructive migration
+on production. No `drop`, no `alter ... type`, no data-rewriting backfill. Additive only — add a
+column, add a table, add a policy — because that is reversible by dropping what was added. **With
+no backups there is no other undo.**
+
+**How to explain it if it ever comes up again:** lead with what breaks, never the vendor. "Supabase
+Pro" means nothing at founder level; "your subscriber records cannot be recovered if something
+corrupts them" does. He asked *"what the fuck is this $35 for"* twice because the first two
+explanations named a company and a feature instead of a consequence.

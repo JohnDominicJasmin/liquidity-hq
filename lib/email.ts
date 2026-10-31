@@ -46,7 +46,8 @@ import { isProBuyable } from './checkout.ts';
    the project docs). This only reports whether the API took it. */
 async function brevoFetch(init: RequestInit): Promise<Response> {
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', init);
+    const res = await fetch('https://api.brevo.com/v3/smtp/email',
+      { signal: AbortSignal.timeout(15_000), ...init });
     reportHealth('brevo:smtp', 'delivery', res.ok, res.ok ? 'accepted' : `HTTP ${res.status}`);
     return res;
   } catch (e) {

@@ -206,6 +206,17 @@ export const SCREEN_NAMES: Record<string, LabelKey> = {
   /* Added with #1673 item 5: /learn renders inside the app shell now, so it shows this bar and needs a name. NAV_GLOSSARY is the name the
      nav drawer already gives it, rather than a second key saying the same word. Caught by QA's N3, not by me - the gate did its job. */
   '/learn':         'NAV_GLOSSARY',
+  /* #1810's five pages. They render inside the app shell like every other entry
+     here, so they show this bar and need a name - and QA's N3 is what said so,
+     by failing with all five listed, which is the second time that gate has
+     caught a new route rather than a reviewer catching it. New keys rather than
+     reused ones: the eyebrow on each page says Product, Platform, Support and
+     Trust, which are section words and wrong as a header name. */
+  '/changelog':     'TNAV_CHANGELOG_LABEL',
+  '/status':        'TNAV_STATUS_LABEL',
+  '/help':          'TNAV_HELP_LABEL',
+  '/security':      'TNAV_SECURITY_LABEL',
+  '/accessibility': 'TNAV_ACCESSIBILITY_LABEL',
 };
 
 // Title-cases each word of a raw route segment - "econ calendar" becomes

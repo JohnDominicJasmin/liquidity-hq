@@ -1,0 +1,140 @@
+{
+ "ranAt": "2026-10-31T08:03:00.274Z",
+ "runs": 3,
+ "seed": 1,
+ "calls": 72,
+ "pricing": {
+  "grok-4.3": {
+   "in": 3,
+   "out": 15,
+   "readAt": "2026-10-31",
+   "note": "x.ai list"
+  },
+  "claude-opus-5-5": {
+   "in": 5,
+   "out": 25,
+   "readAt": "2026-10-31",
+   "note": "Anthropic list; caching OFF on this account, so a ceiling"
+  }
+ },
+ "convergence": {
+  "agreementThresholdAtr": 0.5,
+  "meaning": "Two claims are the same structure when they name the same side and their fitted lines differ by <= 0.5 ATR in mean absolute separation across the window.",
+  "appliesTo": "group B only",
+  "effect": "converged windows are excluded from the fabrication count and listed separately"
+ },
+ "decisionRule": "Higher AUC separating A from B wins. If the intervals overlap, fit quality on C decides. If that overlaps too, cost per call. A tie builds on Grok. Written before any comparison existed - Claude had produced zero results at the time, so there was no outcome to favour. The first rule (fewest fabrications on B) was retired for NON-DISCRIMINATION, measured: 0 structures on both groups with the refusal sentence, 3 on both without it.",
+ "caveats": [
+  "Claude cost is an UPPER BOUND: prompt caching is off on the account.",
+  "Groups were assigned by scripts/bakeoff/classify.mjs against a shuffled-returns null, which is an easier null than real price - so z is inflated and the C band should not be over-read.",
+  "Engines are scored by the same geometry that chose the fixtures; a structure our code cannot see lands in B. The convergence rule is the only guard against that."
+ ],
+ "summary": {
+  "engine-a": {
+   "fabricationsOnB": 9,
+   "bRuns": 9,
+   "fabricationRate": 1,
+   "groupAFoundRate": 1,
+   "groupCTouch": {
+    "min": 8,
+    "median": 35,
+    "max": 105,
+    "n": 51
+   },
+   "meanPivotAgreement": 0.43,
+   "parseFailures": 0,
+   "formatRepairs": 0,
+   "invalidTimestamps": 0,
+   "separation": {
+    "perWindow": {
+     "auc": 0.648,
+     "interval": {
+      "lo": 0.389,
+      "hi": 0.87
+     },
+     "nA": 9,
+     "nB": 9,
+     "note": "PRIMARY. Highest confidence per window-run. 0.5 is chance; below 0.5 means the engine was more confident about noise than about structure."
+    },
+    "perClaim": {
+     "auc": 0.527,
+     "nA": 27,
+     "nB": 27,
+     "note": "SECONDARY. Pools every candidate, so n is larger and the values are CORRELATED - three candidates from one reply are not three independent opinions. No interval is given, because a bootstrap over correlated draws would understate the uncertainty."
+    },
+    "meanConfidence": {
+     "A": 0.727,
+     "B": 0.721
+    }
+   },
+   "calls": 35,
+   "costTotal": 0.5504,
+   "costPerCall": 0.01572,
+   "latencyMs": {
+    "min": 5321,
+    "median": 9093,
+    "max": 26962
+   }
+  },
+  "engine-b": {
+   "fabricationsOnB": 9,
+   "bRuns": 9,
+   "fabricationRate": 1,
+   "groupAFoundRate": 1,
+   "groupCTouch": {
+    "min": 5,
+    "median": 37,
+    "max": 74,
+    "n": 54
+   },
+   "meanPivotAgreement": 0.51,
+   "parseFailures": 0,
+   "formatRepairs": 0,
+   "invalidTimestamps": 0,
+   "separation": {
+    "perWindow": {
+     "auc": 0.716,
+     "interval": {
+      "lo": 0.457,
+      "hi": 0.914
+     },
+     "nA": 9,
+     "nB": 9,
+     "note": "PRIMARY. Highest confidence per window-run. 0.5 is chance; below 0.5 means the engine was more confident about noise than about structure."
+    },
+    "perClaim": {
+     "auc": 0.527,
+     "nA": 27,
+     "nB": 27,
+     "note": "SECONDARY. Pools every candidate, so n is larger and the values are CORRELATED - three candidates from one reply are not three independent opinions. No interval is given, because a bootstrap over correlated draws would understate the uncertainty."
+    },
+    "meanConfidence": {
+     "A": 0.591,
+     "B": 0.579
+    }
+   },
+   "calls": 36,
+   "costTotal": 1.0149,
+   "costPerCall": 0.02819,
+   "latencyMs": {
+    "min": 1764,
+    "median": 2336,
+    "max": 9514
+   }
+  }
+ },
+ "converged": [],
+ "excludedFromFabricationCount": [],
+ "engineMap": {
+  "engine-a": "grok",
+  "engine-b": "claude"
+ },
+ "failures": [
+  {
+   "engine": "engine-a",
+   "fixtureId": "C-xrp-60-1791270000000",
+   "run": 3,
+   "reason": "HTTP 429: {\"code\":\"resource-exhausted\",\"error\":\"The model is currently at capacity due to high demand. Please try again in a few minutes, or use a higher service tier for priority processing: https://docs.x.ai/developers/advanced-api-usage/priority-processing\"}"
+  }
+ ]
+}

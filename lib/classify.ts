@@ -183,7 +183,11 @@ const COIN_PATTERNS: { symbol: string; re: RegExp }[] = [
   { symbol: 'MANA',   re: /\bdecentraland\b/i },
   { symbol: 'GMT',    re: /\bstepn\b/i },
   { symbol: 'XAU',    re: /\bgold (perp|future|futures)\b/i },
-  { symbol: 'SPX',    re: /\bs&p 500 (perp|future|futures)\b/i },
+  /* SPX is SPX6900, a memecoin - NOT the S&P 500, which this app carries separately as
+     store.macro.spx from Yahoo ^GSPC. The pattern here used to be s&p 500 (perp|futures),
+     so a headline about index futures tagged the memecoin. It was narrow and fired rarely,
+     which made it harder to notice rather than safer. Matched on its own name instead. */
+  { symbol: 'SPX',    re: /\bspx ?6900\b/i },
 ];
 
 export function getCoinsInHeadline(headline: string): string[] {

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict } from '@/lib/grok';
+import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, type ChartData, type GrokContext } from '@/lib/grok';
+import { arenaContextCoinId, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
@@ -117,16 +118,66 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'AI Arena is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   }
 
-  const { prompt, tf, session, type, coin } = await req.json() as {
-    prompt: string; tf: string; session: string; type: 'quick' | 'deep'; coin?: string;
-  };
+  const body = await req.json() as Record<string, unknown>;
 
-  // The prompt is assembled in the browser (lib/grok.ts) and sent whole, so its
-  // length is caller-controlled. The daily cap counts CALLS, not tokens, so
-  // without a bound here one allowed call can cost an arbitrary amount at xAI.
-  // The real assembled prompt runs well under this; anything larger is not the
-  // app talking.
-  if (typeof prompt !== 'string' || prompt.length > 64_000) {
+  /* ── THE REQUEST CARRIES DATA, NOT A PROMPT (#1631 item 5) ────────────────
+   *
+   * This route used to take a finished `prompt` built in the browser, with `coin` and `tf` sent beside it
+   * as labels. The two gates below could only check those labels, which both of their comments said: a
+   * hand-made request could declare `coin=btc` and ask about anything, or declare `tf=1h` and ask for
+   * 5-minute candles. The gate read the label, xAI read the text, and nothing compared them.
+   *
+   * The old shape is REFUSED rather than accepted alongside the new one. A dual-accept transition is a
+   * deliberate temporary allowance with nothing watching its date, and this file is not the place to find
+   * out again that a written expiry condition does not fire - it would be a security gate held open by
+   * design. The cost is that a browser tab holding cached JS breaks, so it is answered with its own code
+   * and the page turns it into "reload", not into a generic failure. */
+  if ('prompt' in body) {
+    return NextResponse.json(
+      { error: 'This page is out of date. Reload and try again.', code: 'STALE_CLIENT' },
+      { status: 400 },
+    );
+  }
+
+  const type: 'quick' | 'deep' = body.type === 'deep' ? 'deep' : 'quick';
+  const parsedCtx       = parseArenaContext(body.context);
+  const parsedChart     = parseArenaChart(body.chart);
+  const parsedSelection = parseSelection(body.selection);
+
+  /* The reason names a field, which is exactly what a 400 must not hand to someone probing the shape, so
+     it is logged and the caller gets one flat message. */
+  for (const p of [parsedCtx, parsedChart, parsedSelection]) {
+    if (!p.ok) {
+      console.warn(`[grok] refused request body: ${p.reason}`);
+      return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
+    }
+  }
+  const ctx       = (parsedCtx as { ok: true; value: GrokContext }).value;
+  const chart     = (parsedChart as { ok: true; value: ChartData }).value;
+  const selection = (parsedSelection as { ok: true; value: string[] }).value;
+
+  /* ONE SOURCE FOR EACH OF THESE. They are read out of the validated objects the prompt is built from,
+     never from separate top-level fields, because a second place to say "which coin" is the whole defect.
+     A request can no longer declare one thing and ask another - there is only the one thing.
+
+     `coin` goes through arenaContextCoinId rather than reading ctx.coin directly: that field is a DISPLAY
+     pair ("BTC/USDT") and the ladder compares ids, so the raw value would refuse every Free account on
+     the three coins it is allowed. The helper documents why. A value naming no tracked coin comes back
+     null, which the gate below answers with COIN_REQUIRED exactly as it did when the field was optional. */
+  const coin    = arenaContextCoinId(ctx);
+  const session = ctx.session;
+  const tf      = chart.tf;
+
+  const prompt = buildArenaPrompt(ctx, chart, type, selection);
+
+  /* The 64,000-character bound is the one this route already applied, now measured against the text that
+     actually goes to xAI rather than against a string the client assembled. The daily cap counts CALLS,
+     not tokens, so without a bound one allowed call can cost an arbitrary amount upstream. A real read
+     measures about 26,000 characters, so this is roughly 2.4x headroom; anything larger is not the app
+     talking. Kept as a check rather than dropped because the per-field caps bound each of 61 fields, and
+     61 fields at their individual ceilings still add up. */
+  if (prompt.length > 64_000) {
+    console.warn(`[grok] refused request body: assembled prompt ${prompt.length} chars`);
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   }
 
@@ -253,8 +304,12 @@ export async function POST(req: NextRequest) {
           model: 'grok-4.3',
           input: [{ role: 'user', content: prompt }],
           tools: searchTools(xWindow),
-          // Deep is the expensive path (frontier model + web and X search) and
-          // was the only xAI call in the app with no output bound at all.
+          // Deep is the expensive path (frontier model + web and X search).
+          /* This comment used to end "and was the only xAI call in the app with no output bound at all".
+             That was true when it was written and false by the time anyone read it: /api/grok-chat's search
+             branch and /api/onchain had none either, and a reader checking whether a path was covered would
+             have taken this sentence as saying they were. Both are capped now (#1631 item 4), and the claim
+             is removed rather than re-scoped - counting the other call sites is what rotted. */
           max_output_tokens: 2000,
         }),
       });

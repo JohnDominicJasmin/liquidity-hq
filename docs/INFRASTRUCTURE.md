@@ -699,3 +699,843 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
   the scheduler lives in a tool this repo cannot see. Anything wired outside the
   repo has to be written down by the person who wired it, in the same sitting, or
   it is not recorded at all.
+
+---
+
+## 9. Instrument traps found on 2026-10-30, each of which returns a confident wrong answer
+
+None of these fails loudly. Each produces a result that looks like data. **§9e is the rule they all
+collapse to; read that one if you read nothing else.** §9f sits after it because it was found after
+it, and is two more instances of it rather than a new trap. **§9g is a new trap and sits last for the
+same reason: found later.** Lettering records when something was found, not how important it is.
+
+**This heading counted the traps - "Four instrument traps" - and appending §9f made the number
+wrong in the title of the section about figures that rot. The count is gone rather than corrected: a
+heading that does not count cannot go stale. §9e carries the same lesson about its own table, which
+it learned by breaking twice - so this is the third time one section has caught itself.**
+
+### 9a. `grep -i` COMBINED WITH `-F` **CRASHES** HERE (SIGABRT, exit 134)
+
+**It does not fail to match. The process dies.** Verified independently by two sessions, 3 for 3:
+
+```
+grep -cF   LiquidityHQ file   ->  exit 0      correct   (control)
+grep -ci   LiquidityHQ file   ->  exit 0      correct   (control)
+grep -oF / -oi                ->  correct
+grep -ciF  LiquidityHQ file   ->  exit 134    SIGABRT, also under LC_ALL=C
+grep -oiF  LiquidityHQ file   ->  exit 134    SIGABRT
+```
+
+**grep prints NOTHING to its own stderr.** The familiar `Aborted` line comes from the interactive
+shell's job control, so inside a subshell, a command substitution or a script there is **no
+diagnostic at all** — an empty result and an exit code nobody reads.
+
+Because the process dies before printing, **`-ciF` yields an empty string, not `0`.**
+
+**Three consequences, and the third is the dangerous one:**
+
+1. **`set -e` scripts DIE at exit 134.** A `set -e` script running `grep -ciF` never reaches the
+   next line. This is the one loud case and the only good news here.
+2. **A command substitution leaves the variable EMPTY**, so an `-gt` test fails with *integer
+   expression expected* and exit 2 rather than evaluating false. Inside an `if`, or behind
+   `2>/dev/null`, that error is swallowed and the branch simply is not taken.
+3. **A `|| echo 0` fallback CONVERTS THE CRASH INTO A FABRICATED ZERO**, and it is the most natural
+   way anyone writes this. Verified against a file that *does* contain the string: the variable
+   comes back `0` while the string is present.
+
+   **The defensive idiom that exists to stop a non-match aborting a script is exactly what turns
+   this crash into clean, plausible, wrong data.**
+
+**Use `-F` or `-i`, never both.** And pair every absence check with a string that MUST be present.
+
+**How it was found, and why that matters more than the bug:** a positive control came back `0` on a
+file the string was plainly visible in. The run before it had reported eight markers absent across
+production and dev — coherent, plausible, entirely fabricated. In the output the failures printed
+as **blank cells rather than zeros**, and that was first read as a formatting quirk.
+
+**Both sweeps are clean AND both were controlled.** Dev: a repo-wide search for any grep combining
+`-i` and `-F`, excluding `node_modules`, zero hits, pattern shown to fire on a planted `grep -oiF`.
+QA: `qa/`, `__tests__/`, `scripts/`, `.github/`, `.githooks/` — 14 invocations, none using `-i`.
+**QA's sweep needed TWO patterns:** against a planted file holding `grep -ciF`, `grep -i -F` and
+`grep --ignore-case --fixed-strings`, the combined-letter regex missed the separated form and the
+separated one missed `-ciF`. A single-pattern sweep returns clean for the wrong reason.
+
+### 9b. A DEPENDENCY BEING DOWN READS AS "FINE"
+
+Three instances in one day, each looking like a pass and each a missing measurement:
+
+| What read as fine | What was actually happening |
+|---|---|
+| A sign-in failure naming a database schema bug | The body was not JSON at all — the hint printed unconditionally and its condition was false |
+| `/api/labels` resolving, so labels "work" | File defaults were serving; the database behind them was unreachable |
+| `/upgrade` showing no unconfirmed-placeholder string | The entire purchase block fails to mount against the degraded database — the defect is real and in the code, and the environment hides it |
+
+**The third is the dangerous one.** A spec asserting the placeholder is ABSENT would have passed
+there, confidently green, certifying a fix that had not happened.
+
+> **An absence assertion needs a positive control proving the CONTAINER rendered**, because "the bad
+> string is gone" and "the section is missing" are indistinguishable without one.
+
+**Markup alone could not discriminate.** Those strings are absent from **production's** HTML too,
+because the block is client-rendered on both hosts — so "absent server-side on dev" was true and
+proved nothing. The control that settled it was the same probe against production, post-hydration:
+
+```
+                      prod              dev (degraded db)
+purchase controls     3                 0
+prices visible        yes               no
+rendered words        587               301
+footer links          11                16
+```
+
+Where a defect is "wrong content present", prefer asserting on **source** — a source-reading check
+cannot be fooled by the environment. But see §9d for how it can be fooled instead.
+
+### 9c. `execFileSync('npx', ...)` CANNOT RUN ON WINDOWS WITHOUT `shell: true`
+
+`npx` is `npx.cmd` here, and `execFileSync` does not resolve `.cmd` without a shell. The call
+throws, so **every invocation looks like the command failed.**
+
+Found while mutation-testing a gate: `tsc` never ran once, every mutation reported "tsc failed",
+and **the mutation expected to PASS produced a false confirmation** — the gate looked like it was
+catching something it had never been given.
+
+**The tell was a non-zero exit with zero `error TS` lines.** A compiler that rejects your code says
+why; one that never started cannot.
+
+### 9d. A SOURCE-READING GATE THAT MATCHES RAW TEXT CANNOT TELL CODE FROM PROSE
+
+**Two directions and a third path, one defect. The second was found a day after the first and is the
+nastier of the two, because it arrives looking like the gate doing its job - and the third needs no
+gate at all.**
+
+The first version of the legal-name gate (#1825) tested whether the file text contained
+`LEGAL_NAME_CONFIRMED` — over the whole file, **including comments**. So a planted mutation that
+removed the import *and* the guard, while leaving the explanatory comment behind, **compiled clean
+and kept the gate green.**
+
+**The comment that defeated the gate was a correct, useful comment** written in the fix it was
+guarding (#1824). Good documentation acting as a false positive for a checker that cannot parse.
+
+This is the repository's own grep-matches-comment-prose trap, promoted into a gate. **The fix is to
+ask the AST whether the name appears as an identifier**, which excludes comments *by construction*.
+Stripping comments first is a second instrument with its own failure modes — it has to decide where
+a comment ends, including `//` inside a string literal — guarding the first.
+
+#### The same defect with the sign flipped: the gate demands the deletion of good documentation
+
+**2026-10-31, found by QA while writing the replacement for the gate above — which is the same gate,
+one day later, failing the other way.** Worth recording because the first direction is the one
+everybody anticipates and this one arrives looking like the gate working.
+
+The replacement asserts that a retired mechanism has not come back. Its first version flagged the
+placeholder string **wherever it appeared, comments included** — while a sibling assertion in the
+same file held that *a comment recalling the retired mechanism is history, not a revival.* **Those
+two cannot both be true**, and the file that would have failed is `app/(main)/upgrade/page.tsx`,
+whose comment carries the clearest account anyone wrote of the #1824 defect: the one line whose
+entire job is to say who is selling had read `Sold by PLACEHOLDER - LEGAL NAME NOT YET CONFIRMED`
+directly above the checkout buttons.
+
+> **A text-matching gate does not only go green on prose. It also goes RED on prose — and the
+> obvious way to make it pass is to delete the documentation.**
+
+**That is the worse direction, because the first one fails silently and this one recruits you.** A
+red gate is believed. The cheapest fix is to remove the offending sentence, the suite goes green,
+and the loss never appears in a diff as a loss — it appears as a cleanup.
+
+**Same remedy, applied one level more precisely: read the AST for what the file would SHIP** — string
+literals, template text, JSX text — **and ignore comments.** A real string literal is still caught;
+prose about the thing is not. **Pin the distinction in both directions**, or it is one well-meaning
+edit away from being lost again.
+
+**And it was found by running the gate against the real tree rather than a fixture.** On a tree where
+the mechanism still existed it went red naming all eight genuine traces, which is a positive control
+taken from the code rather than written by the gate's own author — the difference between a control
+and a mirror (§9f).
+
+#### THE THIRD PATH, and it needs no gate at all
+
+**The warning not to delete that comment arrived after it had already been deleted — and not
+defensively.** Dev removed it while writing the change, for a reason that sounds like good hygiene:
+**the comment described a mechanism that no longer existed.** The switch was gone, the warning block
+was gone, so the prose about them looked like dead weight.
+
+> **A comment about a removed mechanism still carries WHY the thing it guarded mattered. Delete it
+> for describing dead code and you keep the code and lose the reason.**
+
+What would have been lost here is the account of the #1824 defect: `/security` warned about the
+unconfirmed name and `/upgrade` did not, so **the one line whose entire job is to say who is selling
+printed a placeholder directly above the checkout buttons** — and dropping the seller line instead
+was considered and rejected, because its absence is the exact thing the disclosure rule is about.
+**None of that is inferable from the code that remains**, before or after the change.
+
+**So the same loss has three routes, and only one of them involves a gate:** a checker that goes red
+on the prose; someone deleting the prose to make the checker green; and **someone deleting it simply
+because its subject is gone.** The third needs no tooling and no pressure, which makes it the one
+most likely to happen on an ordinary day.
+
+**The test, when a comment's subject is being removed: does it explain a MECHANISM, or does it
+explain a CONSEQUENCE that was paid for once?** The first can go with the mechanism. The second is
+the only record that the consequence ever happened, and the code never contained it.
+
+**Restored in full substance here, in its own paragraph**, and checked to stay a comment: the string
+appears exactly once across `app/`, `lib/` and `components/`, inside a JSX `{/* … */}` block — not
+a string literal, not JSX text, so the AST gate above does not see it. **Both halves verified rather
+than assumed**, which is what makes it safe to keep prose that quotes a forbidden string.
+
+#### A THIRD DIRECTION, and it is about WHICH FILES get read
+
+**Asked whether the AST remedy had a failure direction of its own, QA measured instead of reasoning
+and found one — in their own gate, not in the remedy.** The scan covered `.ts/.tsx/.mts/.js`, so it
+**skipped `lib/labelDefaults.en.json` entirely — which is where the user-facing sentences actually
+live.** The TypeScript constants were only the values interpolated into them.
+
+> **A revival delivered through a label would have passed in silence while rendering on the page.**
+
+**That is not a flaw in reading the AST. It is a flaw in which surfaces the reader was pointed at**,
+and the AST fix was still right for both prose directions. The two are independent: getting the
+parser right does nothing about a file the walk never opens.
+
+**The obvious repair was also wrong, and in the familiar way.** "No label may contain `{name}`" is
+the nearest-helper rule, and `{name}` appears in **five** labels of which only two are operator
+identity — the other three are market-session labels where `{name}` is a trading session, not a
+person:
+
+```
+SECURITY_SECTION_OPERATOR_BODY   "...operated by {name}, an individual based in {country}..."   operator
+UPGRADE_SELLER_IDENTITY_NOTE     "Sold by {name}, {country}..."                                 operator
+HOURS_WINDOW_ACTIVE_NOW          "{name} - Active now"                                          session
+HOURS_WINDOW_ACTIVE_RIGHT_NOW    "{name} is active RIGHT NOW"                                   session
+SESSION_COUNTDOWN_HOLIDAY_ITEM   "{region} closed - {name}"                                     session
+```
+
+**So the gate is scoped BY KEY, never by value, and the three session labels are held as a control:**
+a future broadening that takes their `{name}` away turns that cell red and names them. The
+planted-wrong-repair shape (§9g, #1837) — **except this time the wrong repair was the one the gate's
+own author was about to write**, and running it against the real tree is what stopped it.
+
+**The general form — and the first version of it under-reached, which QA demonstrated using the same
+gate.** It said "different file types". **The variable is SCOPE, and that gate had TWO scope limits
+of different kinds:**
+
+| Filter | What it skipped | Found by |
+|---|---|---|
+| Extension list — `.ts/.tsx/.mts/.js` | `lib/labelDefaults.en.json`, where the sentences live | the question "does the remedy have its own direction?" |
+| Directory list — `app`, `components`, `lib` | `supabase/migrations/`, **130 files that insert into `lhq_labels`** | enumerating what the gate opens |
+
+The second matters because `lib/labelOverrides.ts:4` says it plainly: **a row in `lhq_labels`
+silently wins over the shipped default in `lib/labelDefaults.en.json`.** So a migration seeding an
+operator label would override the very JSON the new check reads, and **neither filter would see it.**
+
+> **When a check and the thing it protects can live in different places, the check's file filter is a
+> silent scope limit — by extension AND by directory.** It produces a clean pass over the half it can
+> see. **Ask what the gate does not open before asking whether its predicate is right** — then ask
+> where the protected thing can live, because the answer is usually more places than the gate opens.
+
+#### Some scope limits cannot be closed by a test, and those get NAMED
+
+QA closed the migration half. **The other half cannot be closed from this repository at all: a row
+written directly to `lhq_labels`, outside any migration, is invisible to every test here.** There is
+no file to read.
+
+**So it is stated as a limit in the gate's own header**, with the measurement and its date — zero
+rows for all three retired keys on production on 2026-10-30, against a 198-row `NAV_%` control that
+shows the query can find rows.
+
+> **A gate that silently does not cover something is worse than one that says so.**
+
+#### The mechanical test, which is cheaper than the insight
+
+**Enumerate what the gate opens. List where the protected thing can live. Compare the two lists.**
+
+That would have found both scope limits in about a minute, and it needs no judgement — which is why
+it is the part to keep. The author of that gate had not done it for their own gate until the
+question was asked directly.
+
+**And the fix for the file-filter lesson needed the file-filter lesson applied to itself.** The new
+migration scan carries its own positive control: a key that genuinely appears in migrations, taken
+from the tree. **Without it the migration cell passes if the glob misses, if the reads come back
+empty, or if the needle is simply never present anywhere — three distinct ways to be green over
+nothing**, and none of them distinguishable from a real pass.
+
+### 9e. THE RULE ALL OF §9 COLLAPSES TO
+
+> **A control must be shown to FIRE before its silence means anything.**
+
+Narrower and more useful than "add controls". Eight instances in one day, in eight different
+instruments — and **the last two are instruments nobody here built**, which is why §9f exists:
+
+| Instrument | Looked like | Actually |
+|---|---|---|
+| `grep -iF` | eight markers absent on two hosts | the process aborted; it can never match |
+| `git show` under MSYS path mangling | `continue-on-error` already removed from `dev` | the command never ran; the piped `grep -c` printed `0` |
+| `execFileSync('npx', ...)` | every mutation caught by the gate | `tsc` never started |
+| A spec asserting a string is ABSENT | the placeholder fix verified | the whole section failed to mount |
+| A range-scoped `sed` read of this file | the abort correction was never written | it was written further down, outside the range |
+| `gh pr checks <n>` | "no checks reported on the branch" | a run was PENDING on the same head the whole time |
+| A pull request's own API view | a 2-commit, 2-file branch ready to merge | `git ls-remote` had a THIRD commit — the suite that gated the work — and a merge would have taken the view |
+| githubstatus.com | "all systems operational", no incidents | six write failures across three sessions in ~40 minutes |
+
+**The `sed` row is this document being read with an instrument scoped narrower than the question**, and
+it was caught by checking the whole file before claiming an absence — which is §9a's own advice
+applied to §9a.
+
+**Every one of them returns a clean, plausible, confidently wrong answer, and none of them looks
+wrong on the page.**
+
+**A note on maintaining this table, learned by breaking it twice.** Both sentences below it once
+read "the last row", and appending a row silently repointed one of them at the wrong entry —
+correct new material invalidating something above it that nobody re-read. **Prose that indexes a
+table BY POSITION is the hazard itself.** Name the row, as these two now do, and the next row
+appended breaks nothing.
+
+**The `gh pr checks` row carries the nastiest variant of the whole family, and it is worth stating on its
+own.** `gh pr checks` reported no checks while `gh run list` showed a run pending on the same
+commit. What made that dangerous was not the stale instrument - it was that **a TRUE fact about
+this repository stood ready to justify the wrong reading.** `ci.yml` really does carry a docs path
+filter, so "docs-only, no checks needed" is plausible and the file can be cited for it. The filter
+is on `push` and deliberately NOT on `pull_request`.
+
+A wrong fact gets checked. **A correct fact that happens to explain a stale reading does not**, and
+it supplies the confidence to stop looking. When two channels disagree about whether something ran,
+wait for both rather than picking the one a known fact can explain - and prefer **watching the run**
+over polling the checks API, which is the practical form of this.
+
+### 9f. A VENDOR'S OWN STATUS PAGE IS A CONTROL THAT HAS NOT FIRED
+
+**§9e's seventh and eighth instances, and the only two from instruments this project did not build.**
+Placed after the rule rather than before it because that is when they were found; §9e's table is read
+by row name, not by position, so adding them above would have been the hazard that section already
+documents.
+
+**2026-10-30. Six GitHub write failures across three sessions in about forty minutes:** a `git push`
+rejected with `Internal Server Error` (twice in one session, once in another), a `502` on
+`gh pr create`, a GraphQL error on `gh pr edit`, a GraphQL error on `gh pr close`, and a branch
+delete that only went through over REST. **githubstatus.com, fetched directly during the window,
+reported every component operational — Git Operations, API Requests, Actions, Pull Requests — with
+no active or recent incidents.**
+
+> **"The status page is green" is not a measurement. It is a detector that has not fired, and
+> somebody else owns the detector.**
+
+A status page is a *downstream* instrument: it reports what the vendor has decided to declare, after
+they have noticed and decided to say so. **Our own six failures were the measurement.** They
+outranked the page, and they were available the whole time.
+
+### The expensive instance, and it is not the failed writes
+
+The failed writes were loud. **The dangerous one was silent: a pull request's own view disagreed with
+the branch it claimed to show.**
+
+```
+gh pr view 1831 --json headRefOid              ->  e29ec943   (2 commits, 2 files)
+git ls-remote origin test/chart-structure-fixtures ->  0b8387fd
+```
+
+The missing third commit was the binding test suite — **the half that gated the feature it was
+written for.** Nothing looked wrong. The PR was green, the branch was correct, and **a merge would
+have taken what the view held**: the work would have landed, the gate would have been absent, and
+the issue would have been ticked on a passing merge.
+
+**It was caught because the author checked a ref against the view six times over several minutes
+rather than accepting one refresh as lag.** That is the only reason.
+
+**And the author's own account of why they kept going is worth more than the catch, so it is recorded
+in their words rather than cleaned up:** *"my six checks were luck in the sense that I only kept
+going because the first three agreed with each other; I had no principle saying to."* **A catch that
+depended on a hunch is not a procedure.** That is precisely why practice item 1 below had to become
+a rule — the next person will not have the hunch.
+
+### Which pull requests are affected — a control, and a hypothesis that is NOT recency
+
+The first reading was "the two most recently pushed branches". **That is checkable and it is wrong.**
+Measured across every open pull request within the hour, with the matching rows as the control that
+makes the mismatching ones mean anything:
+
+| PR | view `headRefOid` | `git ls-remote` | |
+|---|---|---|---|
+| #1829 | `5dc385a2` | `dfea5924` | **MISMATCH** |
+| #1831 | `e29ec943` | `0b8387fd` | **MISMATCH** |
+| #1834 | `11bd7686` | `11bd7686` | MATCH |
+| #1835 | `30efa234` | `30efa234` | MATCH |
+
+**#1835 was pushed AFTER #1829 and its view is correct**, so recency does not discriminate. What the
+two mismatching branches share is their push history: **both had a `git push` rejected with
+`Internal Server Error` and succeeded only on a retry.** #1835's push was accepted first time.
+
+> **Hypothesis, labelled as one because n is small: a push that fails and then succeeds on retry can
+> leave the pull request's view pointing at the PRE-FAILURE head while the ref advances.** The failed
+> write is the marker, not the clock.
+
+**NARROWED, and it was first stated too broadly as "a failed write".** Two of that day's failures were
+not pushes at all — a 502 on `gh pr create` and a GraphQL error on `gh pr edit`. **#1833 was created
+on a retry after that 502 and its view MATCHED**, which is the row that discriminates: a retried
+pull-request-object write did not produce a stale view. On the evidence the marker is specifically
+**a failed PUSH**.
+
+**That fits the remedy rather than fighting it.** PR-object writes are what *rebuilds* a stale view
+(below), so it would be odd if they were also what caused one. Two findings from two sessions,
+arrived at separately, pointing the same way.
+
+**If it holds, it is better than the recency reading in the one way that matters — it tells you WHICH
+pull requests to distrust.** The one you retried. It is also consistent with the rest of that day's
+weather: GitHub refused its own merge of #1829 with *"Head branch is out of date"*, and
+`update-branch` then failed with *"head sha didn't match the current head ref"* — the service
+disagreeing with itself about a single branch.
+
+**Do not promote this to a rule on this evidence:** four pull requests, two mismatching, one
+known-clean push as the control. **The practice below does not depend on the hypothesis being right**,
+which is the reason the practice is the part to follow.
+
+### LAG IS NOT STALENESS — and this is where the first remedy claim fell over
+
+**First this subsection claimed "tested twice rather than reasoned". It was not. It was measured
+twice within a second of a push, which measures something else.**
+
+**Immediately after the push that added this very subsection, #1835's own view read `1868e1cb`
+while the ref read `e9d53634` — a MISMATCH. Re-measured after some elapsed time: both
+`e9d53634`.** It had simply not propagated yet.
+
+> **A view read within seconds of a push is measuring ordinary lag. The defect is a mismatch that
+> PERSISTS — across minutes and across repeated checks.**
+
+That distinction is the whole entry, and the first draft of this subsection did not have it. Both
+"clean data points" above were instant reads: one of them would have resolved on its own, and the
+other was never given the chance to.
+
+**So what survives, stated at the strength the evidence supports:**
+
+- **The persistent cases are real.** #1831 was checked six times over several minutes. #1829 held a
+  stale view long enough for GitHub to refuse its own merge for *"Head branch is out of date"* and
+  then fail `update-branch` on *"head sha didn't match the current head ref"*. Neither was lag.
+- **That a push fixes a persistent one is ONE observation.** #1829 matched immediately after a
+  single commit. **With no control for elapsed time**, "the push fixed it" and "it caught up anyway"
+  are not distinguishable from that one run. It is worth trying because it is one commit, not
+  because it is established.
+- **The retry hypothesis is untouched by this.** It is about which branches go stale, not about how
+  to measure them, and the table's MISMATCH rows were persistent ones.
+
+**How to measure it properly, which is the part to actually follow:** read the view and the ref
+**twice, with time between**, before concluding anything. One disagreement is lag. The same
+disagreement minutes later, or after a refresh, is the defect.
+
+### WHAT ACTUALLY REBUILDS THE VIEW — no push needed
+
+**#1831 was fixed by `gh pr close` followed by `gh pr reopen`. No new commit, no write to the
+branch at all.** Its ref had sat at `0b8387fd` for over an hour and never moved; view and ref agreed
+afterwards, verified three times after a fetch, with all three files listed including the binding
+suite. Found by QA.
+
+**So "it takes one clean push" was wrong in a way that costs something.** A reader following it
+would manufacture a commit they do not need, and **an empty commit on an already-reviewed pull
+request is its own small harm** — it re-opens review state and adds a commit that explains nothing.
+
+> **Any mutation of the pull-request object rebuilds the view. Prefer the one that touches no code:
+> close, then reopen.**
+
+**And it narrows the mechanism without supplying a cause: the stale record was DERIVED, not waiting
+on anything from the branch side.** A close/reopen changed no commit and still produced a correct
+view. That is a property of the remedy and it must not be allowed to grow into an explanation of
+what GitHub was doing — see the evidence caveat above.
+
+**One ordering detail that belongs next to the remedy rather than in a footnote:** `gh pr close` was
+tried on #1831 **during** the write-failure window and failed with a GraphQL error. **The remedy
+existed and was unavailable.** So: **retry the remedy once the write path is healthy**, and do not
+read one failed attempt at it as the remedy not working.
+
+**This does not touch the retry hypothesis.** #1831 was already in the stale set, so it adds no data
+point to the question of *which* branches go stale. What it does is separate the **remedy** from the
+**marker**, which had been travelling together in the first draft and did not belong together.
+
+### What the earlier claim was, kept rather than deleted
+
+**One clean push to the branch resyncs the view.** The hypothesis predicted it and it appeared to
+work both times it was tried — and the second of those two is the observation that undid it:
+
+- **#1835**, already matching, took a second commit on a push accepted first time - and its view
+  read the PREVIOUS head for a moment before catching up on its own. **This is the row that
+  falsified the subsection above it**, and it only did so because it was re-measured instead of
+  being recorded once.
+- **#1829**, stale at `view=5dc385a2` / `remote=dfea5924`, with its own merge refused for
+  *"Head branch is out of date"* and `update-branch` failing on *"head sha didn't match the current head
+  ref"*, took one commit: **view and ref both `be63dd12` immediately afterwards.**
+
+**That claim is SUPERSEDED and is kept only as a record of how it failed. Do not follow it.**
+#1831 was fixed with no push at all, so the commit was never the active ingredient — and the
+instruction would have had readers manufacturing empty commits on reviewed pull requests. Follow
+*WHAT ACTUALLY REBUILDS THE VIEW* above instead.
+
+**Both of its failure modes arrived within the hour, and they are different in kind:**
+
+- **Measurement:** #1835's "clean data point" was an instant read that resolved on its own. The
+  claim was built on a measurement that could not tell lag from staleness.
+- **Mechanism:** #1831's close/reopen fixed a stale view without touching the branch, so the push
+  was never doing the work the claim credited it with.
+
+**It is kept rather than deleted because a wrong remedy that was briefly recommended by this file is
+worth more as a worked example than as a gap.** It was written confidently, with two observations
+and a hypothesis that had just predicted something correctly — which is precisely the state in
+which this section's own failures get written. The thing that undid it was re-measuring and someone
+else trying a different remedy, not more care at the time of writing.
+
+**Two caveats about the table itself.** The #1835 row is the state of this entry's own pull request at
+the commit BEFORE the one that added the table, so it reports a past head rather than a current one -
+every row here is an observation with a timestamp, including the row describing the file you are
+reading. And the push that carried this table was itself a further test: on the hypothesis, a push
+accepted first time should leave #1835 matching.
+
+### What to do, stated as practice rather than principle
+
+1. **Before merging anything whose contents matter, read the view and the ref TWICE, with time
+   between.** One disagreement is propagation lag; the same disagreement minutes later is the
+   defect. Compare `git ls-remote` against the PR's
+   `headRefOid`.** They should be the same object. **A green PR is not evidence that the view holds
+   what you pushed**, and neither is a passing CI run — both describe whatever the view has.
+2. **Check the artifact before retrying any failed write.** Every failure that day genuinely had not
+   landed, so no duplicates were created — but a write that both errors and lands turns a blind
+   retry into a duplicate PR, a double comment, or a second branch.
+3. **Never close out an incident on a status page.** It can confirm a vendor's own account of
+   something you already measured. It cannot tell you nothing happened.
+4. **Two channels disagreeing is a measurement, not noise.** This is §9e's `gh pr checks` row in a
+   second tool, and the response is the same: wait for both, prefer watching the thing itself, and
+   do not pick the channel that a known true fact can explain.
+
+### 9g. A TEST ACCOUNT WITH ENTITLEMENTS CANNOT SEE AN ENTITLEMENT BUG
+
+**Found 2026-10-30 by Dev, before commit, on #1631 item 5. Nothing shipped — and it would have
+passed every green run on the account the team actually tests with.**
+
+The change moved prompt assembly server-side so the coin and timeframe gates read the values the
+prompt is built from. The gate was given `ctx.coin`. **`ctx.coin` is not a coin id:**
+`gatherContext` writes `selectedCoin.toUpperCase() + '/USDT'`, so it holds `BTC/USDT`, and
+`normalizeCoinId` only trims and lowercases — producing `btc/usdt`, which is not on the Free list.
+
+**Consequence: every Free and trial account locked out of BTC, ETH and SOL** — the three coins that
+tier is *for* — **while a Pro account saw nothing at all**, because `aiCoinAllowed` returns true for
+Pro before it ever looks at the coin.
+
+> **The entitlement check short-circuits for the highest tier, so the highest tier is blind to every
+> bug in it.**
+
+**This is §9e's rule with the ACCOUNT as the instrument.** A green run proves the gate allowed
+*this* account; it says nothing about the gate. And the control is not available by accident: you
+have to deliberately run as the restricted tier, because the unrestricted one cannot fail.
+
+**What this costs when it escapes:** not an error. Free and trial users would simply find the
+product's advertised coins unavailable, with a correct-looking "not on your plan" refusal. **A
+defect that presents as the product working as designed does not generate a report.** Today that
+means it would have produced no signal at all — not a complaint, not a support message, nothing to
+notice it by. Once there are paying users it means the same silence, with churn behind it that
+nobody can attribute.
+
+**The first version of that sentence ended "it generates a cancellation", and QA sent it back.** It
+was wrong twice: there are no paying users to cancel — payments went live 2026-10-28, and on prod
+today `lhq_whop_webhook_events` is empty while `lhq_user_subscriptions` holds no row with an active or
+trialing status — and **the affected tiers have nothing to cancel anyway.** A free user leaves
+and a trial lapses; the one tier that could cancel is Pro, which is exactly the tier the bug cannot
+touch. **`docs/OWNER-RULES.md` carries "do not argue urgency from user harm" as a standing rule,
+because the bugs are real and the users are not yet** — and that sentence was this file breaking it.
+The silence is the cost, and it is the cost today as well as later.
+
+**And the first version of the CORRECTION carried a rotted figure, inside the entry about figures that
+rot.** It said "both Whop tables at zero rows". Re-read on production 2026-10-30:
+`lhq_whop_webhook_events` is 0, but **`lhq_user_subscriptions` holds 5 rows** - every one with a NULL
+status, last touched 2026-10-02, so they pre-date payments going live. `active_or_trial` is 0, so the
+conclusion never moved; **the stated measurement was simply wrong, and a reader who checked that table
+would have found this file wrong on its own subject.**
+
+**The load-bearing fact was a STATUS and what was reported was a ROW COUNT** - the cheaper measurement
+answering a near-enough question, which is §9e one more time, this time inside a sentence correcting a
+§9g claim about instruments. The replacement above is also harder to falsify by accident: a row
+appearing does not break it, because the claim is about status. Caught by QA re-reading a figure they
+had supplied themselves.
+
+### What to do
+
+1. **Every gate check runs as the RESTRICTED tier, and as each tier that differs.** Free, trial and
+   Pro are three instruments here, not one feature with three skins. A Pro-only pass on anything
+   touching entitlement is a pass on nothing.
+2. **Assert the negative, with a control.** A cell that fails if a Free account is ever *allowed* a
+   non-Free coin, and a control proving that cell can fail — otherwise it is an absence assertion
+   with no evidence it is wired up (§9b).
+3. **Suspect every value whose NAME reads like an id.** `ctx.coin` sounds like `btc`. It holds a
+   display pair. The trap is written at the function now, which is the right place: a comment at
+   the producer reaches the next reader, a note in this file does not.
+4. **Short-circuits deserve a second look wherever they exist.** Any `if (isPro) return true` is a
+   place where the most-tested path is the least-informative one.
+5. **The early return is VISIBLE IN THE SOURCE, so look for it on purpose.** `aiCoinAllowed`
+   short-circuits on `pro` before it reads the coin, which makes the blindness **structural rather
+   than incidental** — and structural means greppable. A gate whose highest tier returns early is a
+   gate where a privileged test account is an instrument, and that can be found deliberately instead
+   of by a near-miss. QA's addition, and it is the one item here that turns the trap into a search.
+
+### 9h. WHEN A CHECK DISAGREES WITH THE ARTIFACT IT CHECKS, SUSPECT THE CHECK FIRST
+
+> **9e is about a control whose silence means nothing. This is its mirror: a check that SPEAKS
+> and is wrong.**
+
+**A CONTROL ONLY FIRES IF THE CHECK CAN BE WRONG IN THE DIRECTION YOU TESTED.** That is the
+general statement; everything below is an instance of it. A positive control proving a grep *can*
+match proves the regex compiles - not that it is the right regex, and not that it is reading the
+right file. **Eight checks on one day were working instruments asking the wrong question**, and a
+control aimed at that same wrong question agrees with them.
+
+**Eight instances on 2026-10-31, in eight different checks, across two sessions** - six below, then
+two more in the subsection at the end, which were found while correcting the first six. **In every
+one the artifact was right and the check was wrong.** None resembled a tooling fault at the time;
+each read as a finding.
+
+| The check | Said | Actually |
+|---|---|---|
+| `grep -cE '^✖ [A-Z]'` over `node --test` | 2 failures | ONE failure. `node:test` prints each failing cell twice - inline and in the summary block - so every count was doubled |
+| A mutation harness's own extraction filter | `red=[]` for both mutations | both mutations HAD fired; the filter could not see its own cells |
+| `grep -c` in an `&&` chain | a bare `0`, reading as "no payment words on the page" | `grep -c` **exits 1 on zero matches**, which broke the chain and killed the controls before they printed. Real answer 3 |
+| `grep -c "do not merge or rebase"` | 0, reading as "the edit did not land" | the row says **"Do not"**. Case-sensitive miss, and the exit-1 ALSO broke the chain so the next check never ran |
+| A hand-written table validator | "must be 4 pipes", got 5 | the table has **four columns**, so five pipes is correct. Every sibling row agreed |
+| `grep -c "held for the next window"` after a rewrite | 1, reading as "the stale claim survived" | it survives inside the **quotation of what the row used to say** - the record of the error, not a live claim |
+
+**The fourth row is the worst of the family: a failure that hid its own second failure.** The case
+error produced the wrong number, and the same non-zero exit suppressed the check that would have
+caught it. One mistake, two silences.
+
+**The last two rows are the ones that generalise beyond `grep`.** Both are a check encoding an
+assumption the artifact never agreed to - a column count, and the idea that a string appears only
+as an assertion. **A quotation is not a claim, and a deleted quotation is a deleted record.**
+
+**How to apply, in order:**
+
+1. **Read the lines, not the count.** Every row above is survivable by printing what matched.
+2. **Never put a counting command in an `&&` chain.** `grep -c` exits 1 on zero matches; so does
+   `grep` itself. Run it, capture `$?`, read the output anyway - the same rule as a gate
+   (`cmd > out 2>&1; echo "EXIT=$?"`).
+3. **Prefer the runner's own summary** - `node --test`'s `ℹ fail N` - over counting matched
+   lines. The runner knows how many cells failed; a regex over its prose does not.
+4. **Give a counting filter a positive control**: feed it a run you KNOW fails and confirm it says
+   so. A harness that cannot report red is not evidence when it reports green.
+5. **Check case and anchors against the artifact** before believing an absence, and prefer `-F`
+   for a literal - subject to §9a, which is why `-iF` is not the answer here.
+
+**THE COMMON FACTOR UNDER ALL SIX, AND THE REASON STEP 4 GENERALISES PAST `grep` ENTIRELY: every
+one of these checks was written by the person who wanted the answer.** Not one was an
+independent instrument. A check built to confirm a result inherits the author's expectation of
+what it will find - the double-count went unnoticed because "2 failures" was plausible, the
+`red=[]` went unnoticed because "my cells do not detect this" was the feared answer, and the
+case-sensitive miss went unnoticed because "the edit did not land" was the thing being checked
+for. **So a positive control is not optional hygiene on a self-written check; it is the only
+thing standing in for the independence the check does not have.**
+
+**Why this belongs beside §9e rather than inside it.** §9e's table is controls that never fired, and
+its own maintenance note warns against prose that indexes that table by position. This is a
+different failure with the same consequence - **a confident wrong answer that looks like data** -
+so it gets its own heading and its own table, and nothing above it needs re-reading.
+
+#### TWO MORE FROM THE SAME DAY, AND THE ONE-LINE TEST THAT COVERS BOTH
+
+**Eight instances now, not six.** The two added here are the same failure wearing different
+clothes, and together they produce the test worth memorising.
+
+**A grep over one file answers "does this file contain X". It never answers "does this code path
+do X".**
+
+Three findings on 2026-10-31 were that single mistake with three different subjects, and each was
+reported before being withdrawn:
+
+| The check | What it said | What was true |
+|---|---|---|
+| `grep cached\( app/api/market/agg-trades/route.ts` | no cache on that feed | the cache is in `lib/bybitFanout.ts`, which the route calls - 60 s and 120 s |
+| `git grep NOT_ENABLED` | the string is in one route only | `git grep` searches **tracked** files; the file was new and untracked, so the search could not have found it |
+| union of `LABEL_KEYS` vs `labelDefaults.en.json` | three keys have no label | `TradeJournal.tsx:55`'s `ariaName` supplies English at the call site; the keys are fine |
+
+**Each was a true sentence about a file, reported as a claim about behaviour.** *"No `cached(` in
+the route file"* is true. *"No cache"* is a different statement. The remedy is mechanical: **when
+the question is about behaviour, follow the call, or say what you actually searched.**
+
+**And the second instrument: reviewing from a diff is reviewing a DESCRIPTION of the file.**
+
+A review of a test PR flagged a positive control as being placed *after* the assertions it was
+meant to guard, which would have let them pass vacuously. **The guard was sixteen lines above
+them.** In the patch the two hunks were separated and the guard read as a replacement for the code
+it sat next to; in the assembled file it plainly dominated the assertion.
+
+**Ordering is the property a diff shows worst** - it shows what changed, not what surrounds it -
+and ordering is exactly what a guard depends on. So: **a review finding about sequence, scope or
+dominance is checked against the file, never against the patch.**
+
+**What makes these 9h rather than 9j.** Each check SPOKE - it produced a confident finding that
+was wrong - where 9j's checks stayed silent. The shared remedy is unchanged and is 9i's step 4: a
+positive control, because a self-written check has no independence to borrow - subject to the
+statement under this section's heading, which is what these two added.
+
+### 9i. A STATISTIC MAXIMISED OVER MANY CANDIDATES, AND A NUMBER AN LLM REPORTS
+
+> **Two instruments that return a confident wrong answer for structural reasons rather than by
+> accident. Both cost real paid calls to learn, on #1818.**
+
+#### A goodness-of-fit chosen as best-of-N is ~1.0 by construction
+
+`lib/chartStructures.ts` already warns that a 2-point line is exact and says nothing. **The same
+defect survives at 3 points once you search for the best triple:** fitting every 3-pivot
+combination in a 200-candle window - about a thousand of them, both sides - and keeping the best
+returned **r2 = 0.99998**. That is the multiple-comparisons problem wearing a goodness-of-fit
+badge. It carried no information at all, and a fabrication test built on it would have produced a
+complete, confident, meaningless result.
+
+**Raw touch count failed identically.** Across 78 windows and 26 coin/timeframe pairs the best
+line's touch count ran **36 to 109 out of 200, median 52** - every window contained a line a
+quarter of its candles touched. Two classifier versions therefore found **zero** structureless
+windows in real market data.
+
+**THE FIX IS A NULL MODEL, NOT A BETTER THRESHOLD.** Score the real window against surrogates
+built from its own volatility - shuffle the bar-to-bar returns, keep each bar's wicks and body -
+and report how many surrogate standard deviations the real result sits above the surrogate mean.
+That spread windows from **-1.01 to 6.35** where both earlier metrics saw no variation.
+
+**And do not quote the grouping as evidence for the grouping.** "Group A is z>=3 and group B is
+z<=0.5, and they do not overlap" is a tautology, and it is the sentence a reader will lift. The
+non-circular evidence is the **spread**, and that a naive metric **disagrees** - the three noise
+windows had 70, 83 and 91 touches against their own nulls of 82.9, 87.3 and 87.4.
+
+#### Any absolute level an LLM reports is promptable; a ranking is not
+
+Asking for structures with one added sentence - *"an empty list is a valid and correct answer"* -
+produced **0 structures on a structured window AND 0 on a noise window**. Removing that sentence
+produced **3 on both**. One neutral-looking line decided the entire output; the chart content did
+not.
+
+Scoring the reported **confidence level** has the same defect one layer down. Measured: a stern
+preamble and a loose one moved mean confidence **0.68 to 0.76** while the separation statistic
+stayed at chance.
+
+**So pre-register a RANK statistic.** A prompt that shifts confidence globally moves both groups
+together and leaves the ranking untouched - prompt-robust by construction. Fix the output length
+too (always N candidates), so list length carries no signal and a permission sentence has nothing
+to act on.
+
+**How to apply:**
+
+1. Before trusting any "best" fit, ask **how many candidates were searched**. More than a handful
+   means the statistic needs a null, not a cutoff.
+2. **Test prompt-robustness before committing spend** - two preambles over one group is a few
+   calls and it is what tells a real effect from a wording effect.
+3. **Retire a protocol for non-discrimination, in writing, while no outcome exists to favour.** On
+   #1818 the first rule was retired when the second engine had produced zero results, and the
+   0/0-and-3/3 table is recorded as the reason. A rule retired after the numbers arrive is
+   indistinguishable from excusing whichever side lost.
+4. **Blind the human check too.** A chart shown with our verdict on it measures agreement with a
+   label, not judgement - which is why `scripts/bakeoff/render-blind.mjs` strips the group letter,
+   the z, the symbol and even the price axis.
+5. **ASSERT THE BALANCE OF EVERY NUISANCE VARIABLE. Do not eyeball it.** This is the most
+   transferable lesson of the exercise and it cost two rounds.
+
+   Round 1's group A was **entirely 4-hour**. So the timeframe label alone predicted the group, and
+   the whole comparison measured nothing about structure: **hide the label and a trader cannot
+   answer; show it and you have handed over the key.** The owner found it in one sentence, having
+   already raised it in the original proposal - which is the part worth recording, because it was
+   knowable before any spend.
+
+   **Fixing it created two more confounds, and that is the real warning.** Balancing timeframes
+   let 15m fill every group before the daily windows were reached, so no group contained a daily
+   chart at all; the next attempt put 1h in exactly one group. **Both were caught only by
+   assertions added after the first confound** - neither was visible in a summary table, and
+   neither would have been noticed by looking at the fixtures.
+
+   So: for every variable that is not the thing under test - timeframe, symbol, **position in the
+   presentation order**, anything the subject can see - write an assertion that each group holds
+   the same mix, and fail the run rather than the analysis. Round 2 balanced position as well as
+   timeframe, which is the version worth copying. **A confound is not a flaw in the result; it
+   means there is no result.**
+
+### 9j. A ZERO IS A MEASUREMENT OF THE INSTRUMENT UNTIL A CONTROL SAYS OTHERWISE
+
+Two findings from 2026-10-31, on #1818's Draw Structure work. They look unrelated - one is about
+Postgres, one about `git grep` - and they are the same failure: **a check reported an absence, the
+absence was the check's own blind spot, and the number it printed was identical to the number a
+true absence would print.**
+
+#### A PROD FUNCTION BODY CANNOT BE DIFFED AGAINST ITS REPO MIGRATION DIRECTLY
+
+Before replacing `increment_ai_usage_impl` - the function that meters every Pro tool - the live
+definition was dumped with `pg_get_functiondef` and compared against
+`supabase/migrations/20260727e_ai_tool_pool.sql`. **It differed.** The live body was missing
+comments the repo body has, and no migration in the repo explained it: `20260807b` only renames
+the function (a rename preserves the body verbatim) and `20260907b` mentions it in a comment. That
+is the exact shape of "someone edited this by hand in the dashboard", and the correct response to
+that reading is to stop.
+
+**It was not a hand-edit. Something in the apply path strips SQL comments before Postgres sees
+them**, so `prosrc` comes back comment-free for everything:
+
+| Check | Result |
+|---|---|
+| Functions in prod `public` carrying a `--` in `prosrc` | **0 of 14** |
+| `--` lines in the repo source of `lhq_grant_signup_trial` | 21 |
+| `--` lines in the repo source of `lhq_record_api_health` | 3 |
+| Normalised md5, prod live body vs repo body | **identical**, 7646 chars each side |
+| Functions carrying a `/* ... */` block comment | **0 of 14** (QA) |
+| Functions whose `prosrc` still contains newlines | **14 of 14** (QA) |
+
+**THE NEWLINE ROW IS THE CONTROL AND IT IS NOT DECORATION.** Without it, "0 of 14 carry a
+comment" is equally consistent with *`prosrc` is not the body you think it is* - a path that
+flattened or re-serialised bodies wholesale would produce the same zero, and would make the md5
+match above uninterpretable rather than convincing. Newlines survive in all 14, so formatting is
+preserved and **only comments are removed**. That is what licenses the conclusion.
+
+**BOTH COMMENT STYLES ARE STRIPPED, so a normaliser that only handles `--` will disagree with the
+database in the other direction** - it will leave a block comment in the repo side that the live
+side does not have, and report a difference that is not one. Strip `--` to end of line AND
+`/* ... */` spans. (The hash recorded in `20261031a_draw_structure_usage.sql` is unaffected: that
+body contains no block comments, so both normalisers agree on it. Checked, not assumed.)
+
+**Postgres does not do this** - it stores a function body as given. So the stripping is ours, and
+the consequence is that **every function in the database looks modified** when compared to its
+migration. Anyone auditing a function against its source will reach the same wrong conclusion.
+
+**The control is what separated the two readings, and it was nearly skipped.** "Prod differs from
+the repo" and "every function in the database differs the same way" lead to opposite actions, and
+only the second reading is available if you look at **one** function. The question that produced
+it was *do the other instances show this too* - not *let me read the body more carefully*, which
+is what the first reading invites.
+
+**So, to compare a live function against a migration:** strip BOTH comment styles and collapse
+whitespace on both sides, then hash - or compare only the statements. And **give that normalisation a positive
+control**: a one-character code change must flip the hash while removing a comment must not. Both
+were verified before the hash match above was believed.
+
+**A corollary that bites the other way.** A comment stripper cannot tell `--` in code from `--`
+inside a string literal, so a `--` in a `format()` template or an error message would be truncated
+at that point, silently, and the function would still be created. Check for `--` inside string
+literals before applying DDL here. Same family as 9d, pointed the other direction.
+
+#### `git grep` RETURNS THE SAME ZERO BEFORE AND AFTER A PUSH
+
+Two sessions independently searched for a string and both got a reassuring zero, **for unrelated
+reasons, neither of which was the string being absent**:
+
+| Who searched | What they searched | Why the zero was meaningless |
+|---|---|---|
+| Dev | `git grep` over the working directory | `git grep` searches **tracked** files; the file was new and untracked |
+| QA | `git grep` over `origin/feature/draw-structure` | the pushed ref **predated the work** - the route did not exist on it |
+
+The claim being checked happened to be true, which is the worst outcome: a false method agreed with
+reality and would have been trusted the next time.
+
+**QA's search carried a positive control and dev's did not**, which is the only reason one of the
+two zeros was caught in the act: searching `RATE_LIMIT` in the same command returned 5 files, so
+the mechanism was known to work and the absence was known to be real for that ref. Without that
+line QA would have sent a false confirmation.
+
+**The trap is that the command does not change, only the truth does.** `git grep X` is wrong
+before a commit and right after it, with no change in output format and no error. So:
+
+1. **To search code you have just written, search the working tree** - `rg`, or the Grep tool -
+   never `git grep`.
+2. **To search a ref, first prove the file is on that ref**: `git ls-tree -r <ref> -- <path>`. An
+   empty listing means the search could not have found anything.
+3. **Never chain on a grep's exit code.** `git grep` and `grep -c` exit 1 on zero matches, so
+   `grep ... && npx tsc` silently skips the typecheck and `$?` reports the grep. This happened in
+   the same session that wrote rule 1, and the printed "exit" was the grep's.
+
+**Why this sits beside 9h rather than inside it.** 9h is *when a check disagrees with the artifact,
+suspect the check first* - a check that **speaks**. This is a check that **stays silent**, which is
+harder, because disagreement prompts investigation and agreement does not. The shared remedy is
+9i's step 4: **a positive control, because a self-written check has no independence to borrow.**

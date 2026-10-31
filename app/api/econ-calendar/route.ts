@@ -34,6 +34,7 @@ async function tryFedFOMC(now: Date): Promise<CalEvent[]> {
   const r = await fetch('https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LiquidityHQ/1.0)' },
     next: { revalidate: 86400 },
+    signal: AbortSignal.timeout(10_000),
   });
   if (!r.ok) return [];
   const html = await r.text();

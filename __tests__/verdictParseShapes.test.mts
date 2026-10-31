@@ -17,7 +17,7 @@
  * NO BILLED CALLS AND NO NETWORK: this imports the parser and feeds it strings. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseVerdict, parseCombinedResponse } from '../lib/grok.ts';
+import { parseVerdict, parseCombinedRead } from '../lib/grok.ts';
 
 /** A full answer in the shape the prompt asks for, with the verdict lines substituted in. */
 const answer = (signalLine: string, confLine: string) =>
@@ -83,14 +83,20 @@ test('V-gap: both values bolded, which is what a markdown-formatting model would
 
 /* ── THE TWO PARSERS MUST AGREE. Added 2026-10-23 after this file let a regression through. ────────────────────────
  *
- * `lib/grok.ts` reads a verdict twice: `parseVerdict` (strict, refuses) and `parseCombinedResponse` (lenient, defaults to FLAT at 0).
+ * `lib/grok.ts` reads a verdict twice: `parseVerdict` (strict, refuses) and the combined read that returns every field.
  * Everything above only exercised the strict one — so when Dev fixed the markdown gap by removing `\*{0,2}` from the shared patterns,
  * `**SIGNAL:** BULLISH` started coming out of the LENIENT parser as FLAT at 0 and this file stayed green. That is the exact coercion
  * 0d63309b set out to end, reintroduced by the fix for it, and my tests could not see it because they only asked one parser.
  *
  * Dev caught it by running both parsers over the shapes rather than the one they had changed. These tests make that permanent: any shape
  * the app must accept has to produce the SAME verdict from both readers, because the two disagreeing is how a displayed verdict and a
- * refused one come apart. */
+ * refused one come apart.
+ *
+ * NOW ASKED THROUGH `parseCombinedRead`, NOT `parseCombinedResponse` — step 2 of 3 on #1727/#1631, and it does not weaken these cells.
+ * `parseCombinedRead` gates on `parseVerdict` and then delegates, so for every shape below the strict parser passes and the combined
+ * fields still come from the same lenient read. The regression above would present identically: a shape the strict parser accepts, read
+ * as FLAT at 0 by the field parser. What changes is only that nothing outside `lib/grok.ts` now holds the defaulting entry point open,
+ * which is what lets Dev make it non-exported and delete the `?? 'FLAT'` / `?? '0'` pair at `lib/grok.ts:851`. */
 
 const TF = '4h';
 const SESSION = 'ny';
@@ -99,7 +105,8 @@ for (const [label, sig, conf] of ACCEPTED) {
   test(`V-agree: both parsers read the same verdict - ${label}`, () => {
     const strict = parseVerdict(answer(sig, conf));
     assert.ok(strict, `the strict parser refused a shape the app must accept: ${sig}`);
-    const lenient = parseCombinedResponse(answer(sig, conf), TF, SESSION, Date.parse('2026-10-23T04:00:00Z'));
+    const lenient = parseCombinedRead(answer(sig, conf), TF, SESSION, Date.parse('2026-10-23T04:00:00Z'));
+    assert.ok(lenient, `the combined read refused a shape the strict parser accepted: ${sig}`);
     assert.equal(lenient.signal, strict.signal,
       `the parsers disagree on "${sig}": strict says ${strict.signal}, lenient says ${lenient.signal} - a lenient FLAT here is the coerced verdict 0d63309b removed`);
     assert.equal(lenient.confidence, strict.confidence,
@@ -110,21 +117,46 @@ for (const [label, sig, conf] of ACCEPTED) {
 test('V-agree: underscore emphasis parses in BOTH, since a fix for asterisks must not stop at asterisks', { todo: '#1721: __SIGNAL:__ is refused on dev - Dev\'s 8d064a99 strips emphasis rather than widening the pattern, which turns this green' }, () => {
   const text = answer('__SIGNAL:__ BULLISH', '__CONFIDENCE:__ 62');
   const strict = parseVerdict(text);
-  const lenient = parseCombinedResponse(text, TF, SESSION, Date.parse('2026-10-23T04:00:00Z'));
+  const lenient = parseCombinedRead(text, TF, SESSION, Date.parse('2026-10-23T04:00:00Z'));
   assert.ok(strict, '__SIGNAL:__ BULLISH was refused by the strict parser');
+  assert.ok(lenient, 'and the combined read refused it too');
   assert.equal(lenient.signal, strict.signal, `underscore emphasis disagrees: strict ${strict.signal}, lenient ${lenient.signal}`);
 });
 
-test('V-trapdoor: the lenient parser STILL coerces an unreadable answer to FLAT at 0 - pinned so removing it is visible', () => {
-  /* This is not approval. parseCombinedResponse is reached only after parseVerdict has passed, so the default is unreachable today -
-     which makes it a trap for the next caller who changes the order rather than a live defect. Dev and I agreed it comes out in its own
-     PR, not bundled with a regex fix. This test records the CURRENT behaviour so that PR has something to flip, and so nobody
-     "simplifies" it in passing and believes they changed nothing. */
+test('V-trapdoor: NO exported read coerces a verdictless answer - this cell is the flip the trapdoor PR was waiting for', () => {
+  /* WHAT THIS CELL USED TO DO, because the change of direction is the point. It pinned the OPPOSITE: that
+     `parseCombinedResponse` answers FLAT at 0% for an answer stating no verdict, recorded as current behaviour "so that PR has
+     something to flip, and so nobody simplifies it in passing and believes they changed nothing".
+     THIS IS THAT FLIP. The trapdoor at `lib/grok.ts:851` cannot be deleted while a test holds the defaulting entry point exported -
+     and Dev writing that move would be Dev writing tests. So the assertion is inverted to the honest contract: the read REFUSES.
+     It passes on today's `dev`, before the deletion, and it still passes after - which is deliberate. A cell that only goes green
+     once Dev lands their half would gate their PR on mine, and a cell that goes red on today's tree is unmergeable. What it does
+     catch is the reintroduction: any future entry point that answers FLAT at 0 instead of refusing turns this red. */
   const unreadable = 'I could not reach a verdict for BTC on this timeframe.';
   assert.equal(parseVerdict(unreadable), null, 'the strict parser must refuse an answer with no verdict');
-  const lenient = parseCombinedResponse(unreadable, TF, SESSION, Date.parse('2026-10-23T04:00:00Z'));
-  assert.equal(lenient.signal, 'FLAT', 'the lenient default changed - if that was deliberate, this test is the one to update');
-  assert.equal(lenient.confidence, 0, 'the lenient confidence default changed');
+  assert.equal(
+    parseCombinedRead(unreadable, TF, SESSION, Date.parse('2026-10-23T04:00:00Z')), null,
+    'the combined read must REFUSE, not answer FLAT at 0%. A coerced verdict is shown to the user as a "Wait" the model never ' +
+    'said, which is the defect 0d63309b removed.',
+  );
+
+  /* Every shape the strict parser refuses, the combined read must refuse too - the general form, so the one example above cannot be
+     the only thing standing between a verdictless answer and a displayed verdict. */
+  for (const [label, text] of REFUSED) {
+    assert.equal(parseVerdict(text), null, `strict parser accepted: ${label}`);
+    assert.equal(
+      parseCombinedRead(text, TF, SESSION, Date.parse('2026-10-23T04:00:00Z')), null,
+      `the combined read answered something for a shape the strict parser refuses (${label}): ` +
+      `${text.replace(/\n/g, ' | ')}`,
+    );
+  }
+
+  /* THE POSITIVE CONTROL. Without it every assertion above is satisfied by a function that returns null for everything - which is
+     exactly how an absence assertion passes while measuring nothing. */
+  const ok = parseCombinedRead(answer('SIGNAL: BULLISH', 'CONFIDENCE: 62'), TF, SESSION, Date.parse('2026-10-23T04:00:00Z'));
+  assert.ok(ok, 'a well-formed answer must still be read - otherwise the refusals above prove nothing');
+  assert.equal(ok.signal, 'BULLISH');
+  assert.equal(ok.confidence, 62);
 });
 
 test('V-strict: whatever shape is added, UNREADABLE must still be refused', () => {

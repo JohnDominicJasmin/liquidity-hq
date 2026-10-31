@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
     const jpy = await cached('forex:usd-jpy', JPY_TTL_MS, () => trackHealth('er-api:USD', 'macro', async () => {
       const r = await fetch('https://open.er-api.com/v6/latest/USD', {
         cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json() as { rates?: Record<string, number> };

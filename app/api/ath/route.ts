@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
         const r = await fetch(url, {
           cache: 'no-store',   // cachedStale owns the caching now
           headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(10_000),
         });
         if (!r.ok) throw new Error(`CoinGecko ${r.status}`);
 

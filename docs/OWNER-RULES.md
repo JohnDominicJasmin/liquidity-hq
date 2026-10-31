@@ -324,7 +324,95 @@ Steps 1-5 cost roughly ten minutes before a fix. They replace three to four revi
 
 ---
 
+## 12. DO NOT SPEND CI ON CHECKS THAT ARE NOT NEEDED
+
+Owner, 2026-10-30: *"Keep only the real code, test, change, and release... The changes to documents and rechecking after each merge, skip it. And for rechecking after each merge, run once before release."*
+
+- **Document-only changes do not run the full checks.**
+- **Merging into `dev` does not run the full checks again.** Build the merged head once, before promotion.
+- **Real code, test changes and release PRs keep them.**
+- **Batch docs.** One PR, not one per note.
+
+## 13. REPORT TO PM/DEVOPS, NOT TO HIM
+
+> *"can u always report back to PM / dev ops"* — the owner, 2026-10-31. **He has said it
+> repeatedly — 2026-08-14, 2026-10-01 and today are the occasions anyone can cite** — which is why
+> it is a numbered rule rather than a note in somebody's session. **Say the dates or say
+> "repeatedly"; nobody here can count the total, and a number we cannot support is the first thing
+> a reader checks.**
+
+**Dev and QA report to PM/DevOps. PM/DevOps is the only seat that reports to him.** He set the four
+seats up deliberately and he does not want to be the relay between them.
+
+**The test is AUDIENCE, not length.** What triggered it this time was a six-row status table in
+chat — merged PRs, what was measured, what was blocked. **It was accurate and useful, and that is
+the trap**: a good report delivered to the wrong person. So "keep it shorter" does not fix it; a
+one-line recap is still a recap. **If PM or QA could act on it, they receive it — not him.**
+
+| Goes to PM/DevOps | Goes to him |
+|---|---|
+| status, progress, what merged | the four gates below |
+| findings, measurements, negative results | a decision only he can make, **with options and a recommendation** |
+| blockers, and what you need to unblock | a visual he has to approve (condition 5) |
+| corrections and retractions | nothing else |
+
+**HE ALWAYS GETS A DIRECT ANSWER TO A DIRECT QUESTION. This rule governs what a seat
+VOLUNTEERS.** Unsolicited status, progress and findings go to PM. **If he asks, answer him** —
+redirecting him to PM for something he just asked you for is the opposite of what he wants.
+
+**Then make sure PM has it too, because answering him is not reporting.** The failure is quiet:
+he asks one seat for status, that seat answers well, and PM never learns the thing the rest of the
+work depends on. **QA caught this reading before it shipped** — the rule as first written would
+have had a session with no history of him redirect him at 2am.
+
+**FIVE things go to him directly, and `CLAUDE.md` carries two different lists — read this as the
+union of them, not as either one.**
+
+| | |
+|---|---|
+| merging to `main` | both lists |
+| production deploys | both lists |
+| his money | `CLAUDE.md:28` |
+| visual sign-off (condition 5) | `CLAUDE.md:28` |
+| **writes to the shared database** | **`CLAUDE.md:303` — and absent from line 28** |
+
+**This section said "four" and omitted the database write. Dev Team held the PR over it and was
+right to.** The omission is not symmetric with the others: **a shared-database write is the one
+with no recovery path**, on a database with no backups and no proven restore. A seat treating a
+four-item list as authoritative would conclude it may apply a migration on its own — and there is
+one sitting unapplied right now (`20261031a_draw_structure_usage.sql`) **precisely because that
+approval is his**, and it replaces the function metering all twelve Pro tools.
+
+**An owner decision relayed through another seat is not an owner decision** — whoever is asked
+confirms it with him first.
+
+**Silence from a seat is not idleness, and PM says so when he asks.** On 2026-10-31 he said the
+team had stopped working. **Both sessions were busy, with pushes nine minutes old and GitHub
+comments five minutes old.** His windows looked quiet *because* the reporting had moved to PM,
+which is what he had asked for. **PM answers that question with timestamps, not reassurance.**
+
+**This cuts both ways and PM is not exempt.** A seat that reports to PM and gets nothing back is a
+seat that will go around PM next time. **Acknowledge, decide, and say what is next** — the reason
+`docs/WORK-QUEUE.md` exists is that the PM was once the bottleneck.
+
 ## Keeping this file true
+
+**RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
+
+The ten commits before that date touching this file were **direct commits to `dev`, single-parent,
+no pull request** - `4ac439f2`, `5156c018`, `b3fcb085`, `ada38392`, `f061ab20`, `ffc8a337`,
+`b679b93c`, `3d142279`, `d1f07802`, `cc3d61a0`. **The file every seat is told to read first had
+never had an independent reader.**
+
+**The first one that got one failed review.** Section 13 as first written said *"if PM or QA could
+act on it, they receive it - not him"*, which read literally has a seat redirect the owner for
+status he has just asked for. QA caught it; the clause that fixes it is in section 13 now. **Ten
+changes went in with nobody positioned to find the equivalent.**
+
+**So: a change to this file opens a PR and another seat reads it before it merges**, by the same
+principle as everything else - the session that wrote it does not merge it. **It is slower and the
+first review already paid for the cost.**
+
 
 **PM/DevOps owns it.** When the owner gives a new instruction, it goes in here **in the same session he gives it**, in his words, with the date. When an instruction is superseded, the old text stays with a note saying what replaced it and when — a rules file that hides its own history teaches nothing.
 

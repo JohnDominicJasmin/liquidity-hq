@@ -15,7 +15,7 @@
  * Whether dashboard's own curated-8 was ever correct is a separate, open
  * question (flagged to QA, not resolved here) - this file only answers it
  * for landing, where the spec is explicit. */
-import { useMarket, COINS, COIN_DEC, fmtPrice } from '@/lib/marketStore';
+import { useMarket, COINS, COIN_DEC, coinLabel, fmtPrice } from '@/lib/marketStore';
 
 export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: 'ltr' | 'rtl' }) {
   const { store } = useMarket();
@@ -46,7 +46,9 @@ export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: '
             borderRight: '1px solid var(--bdr3)', flexShrink: 0,
           }}>
             <span style={{ fontSize: mobile ? 10 : 11, fontWeight: 600, letterSpacing: '.06em', color: 'var(--txt2)' }}>
-              {id.toUpperCase()}
+              {/* coinLabel, not id.toUpperCase() - `spx` is SPX6900 and this page was the most
+                  public of the 26 surfaces that rendered the raw id. */}
+              {coinLabel(id)}
             </span>
             {!mobile && (
               <span style={{ fontSize: 11, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>

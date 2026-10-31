@@ -52,6 +52,7 @@ async function fetchYFOnce(symbol: string): Promise<{ price: number; prev: numbe
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Accept': 'application/json',
     },
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
