@@ -164,7 +164,11 @@ function allReachableFrom(entry: string): string[] {
  *
  * **That is an accident, not coverage**, and Dev caught it. Walking both makes it coverage: the
  * moment the intl route renders something of its own, this cell sees it. */
-const LANDING_ROUTES = [appPath('app/page.tsx'), 'app/(intl)/[locale]/page.tsx']
+/* BOTH THROUGH THE RESOLVER, and the second one was not. `app/(intl)/[locale]/page.tsx` was
+   hardcoded with its route group spelled out - correct today and silently wrong the next time a
+   group moves, which is the whole failure #1413 tracks. `appPath('app/[locale]/page.tsx')`
+   resolves to the same file today (verified) and keeps resolving to it afterwards. */
+const LANDING_ROUTES = [appPath('app/page.tsx'), appPath('app/[locale]/page.tsx')]
   .filter((p) => existsSync(path.join(ROOT, p)));
 const LANDING = LANDING_ROUTES.join(' + ');
 const SUBTREE = [...new Set(LANDING_ROUTES.flatMap((r) => reachableFrom(r)))].sort();
