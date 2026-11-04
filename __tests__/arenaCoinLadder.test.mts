@@ -139,7 +139,10 @@ const db = {
   /* Paths the route asked for that the stand-in does not model. Collected rather than thrown (see the fall-through below) and asserted
      after every call, so a gap names itself instead of surfacing as a status mismatch several seconds later. */
   unknown: [] as string[],
-  reset() { this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.banned = false; this.unknown = []; },
+  /* Market feeds the gather reached. A cell can assert the gather HAPPENED rather than inferring
+     it from a 200 - see the market stand-in below. */
+  market: [] as string[],
+  reset() { this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.banned = false; this.unknown = []; this.market = []; },
 };
 const T = (n: string) => (process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_') + n;
 const noRow = () => json(406, { code: 'PGRST116', details: 'The result contains 0 rows', message: 'JSON object requested, multiple (or no) rows returned' });
@@ -158,6 +161,84 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (url.pathname.endsWith('/responses')) return json(200, { model: 'qa-stand-in', usage: {}, output: [{ type: 'message', content: [{ text: 'SIGNAL: BULLISH\nCONFIDENCE: 60' }] }] });
     return json(200, { model: 'qa-stand-in', usage: {}, choices: [{ message: { content: 'SIGNAL: BULLISH\nCONFIDENCE: 60' } }] });
   }
+  /* ── THE MARKET FEEDS, STUBBED SO THESE CELLS CAN REACH WHAT THEY TEST ────────────────────────
+   *
+   * WHY THIS EXISTS. #1910 makes `/api/grok` read the Arena's numbers server-side
+   * (`arenaServerNumbers`) BEFORE it calls the model, and refuse with 503 `MARKET_UNAVAILABLE` when
+   * that gather fails. The gather reaches real exchange hosts, which this stand-in did not model -
+   * and the line below throws on any non-Supabase origin - so **every Arena cell in this file
+   * returned 503 regardless of what it was testing.** R6 is the clearest case: it sets
+   * `db.failSubsRead` and is entirely about the PLAN read, and it failed on a market refusal it
+   * never reaches in the product.
+   *
+   * Dev Team read the failure message and first diagnosed it as the 503 contradicting #1119's
+   * precedent. It is not: there is no market stub in this file at all - grep it for `binance` or
+   * `bybit` before this commit and you get nothing. The owner's decision stands (a market outage
+   * never bills the request) and this is the harness catching up to it.
+   *
+   * WHAT THIS IS NOT. It is shaped to make the gather SUCCEED, not to be a market-data fixture.
+   * The numbers are a deterministic ramp. **Nothing here may be used to assert a formatted field**
+   * - that needs a fixture built for it, with a candle count large enough that
+   * `computeKlineMetrics` does not return null (it needs 15, over a 100 window), or every field
+   * degrades to '-' on both sides of a comparison and parity holds while measuring nothing.
+   *
+   * ONLY THE TICKER SECTION DECIDES ok/not-ok. `arenaServerNumbers` refuses when
+   * `snap.data.partial` includes `'ticker'`; a failing kline or RSI feed degrades individual fields
+   * instead. The klines and Bybit handlers below are here so a real request does not fall through
+   * to the throw and read as a stray, not because the ladder needs their values. */
+  const BINANCE_HOST = /^(?:api[0-9]?|fapi[0-9]?)\.binance\.com$/;
+  if (BINANCE_HOST.test(url.host) || url.host === 'api.bybit.com') {
+    db.market.push(`${url.host}${url.pathname}`);
+    /* The mirror-walk pings each host to pick one; answering keeps it off the real network. */
+    if (url.pathname.endsWith('/ping')) return json(200, {});
+
+    if (url.pathname.endsWith('/ticker/24hr')) {
+      /* The batched spot call passes `symbols=["BTCUSDT",...]`; the futures call passes none and
+         expects every symbol. Echoing the request's own list keeps the two shapes honest. */
+      const asked = url.searchParams.get('symbols');
+      const syms: string[] = asked ? JSON.parse(asked) : ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT'];
+      return json(200, syms.map((symbol, i) => ({
+        symbol,
+        lastPrice: String(100 + i),
+        priceChangePercent: '1.5',
+        quoteVolume: '1000000',
+        highPrice: String(101 + i),
+        lowPrice: String(99 + i),
+        weightedAvgPrice: String(100 + i),
+      })));
+    }
+
+    /* 121 rows because the gather asks for `limit=121`; oldest-first, as Binance returns them. */
+    const binanceKlines = Array.from({ length: 121 }, (_, i) => {
+      const open = 100 + (i % 7);
+      const t = 1_700_000_000_000 + i * 900_000;
+      return [t, String(open), String(open + 1), String(open - 1), String(open + 0.5), '10',
+        t + 899_999, '1000', 5, '5', '500', '0'];
+    });
+    if (url.pathname.endsWith('/klines')) return json(200, binanceKlines);
+
+    /* The long/short ratio feeds. Named by the harness own gap report rather than found by
+       reading: it printed globalLongShortAccountRatio and topLongShortPositionRatio instead of
+       letting the failure read as a route defect, which is what that mechanism is for. */
+    if (url.pathname.startsWith('/futures/data/')) {
+      const sym = url.searchParams.get('symbol') ?? 'BTCUSDT';
+      return json(200, [{ symbol: sym, longAccount: '0.55', shortAccount: '0.45', longShortRatio: '1.22', timestamp: 1_700_000_000_000 }]);
+    }
+
+    if (url.pathname.startsWith('/v5/market/tickers')) {
+      return json(200, { retCode: 0, result: { list: [{ symbol: 'HYPEUSDT', lastPrice: '30', price24hPcnt: '0.02', turnover24h: '1000000' }] } });
+    }
+    if (url.pathname.startsWith('/v5/market/kline')) {
+      /* Bybit returns newest-first and as strings, which is the opposite of Binance - reversing
+         here rather than reusing the array is deliberate, since a stub that flattened that
+         difference would hide a real parsing bug. */
+      return json(200, { retCode: 0, result: { list: [...binanceKlines].reverse().map((k) => [String(k[0]), k[1], k[2], k[3], k[4], k[5], k[7]]) } });
+    }
+    /* A market path the stand-in does not model is recorded like any other gap, not thrown. */
+    db.unknown.push(`${req.method} ${url.host}${url.pathname}`);
+    return json(501, { code: 'QA_STAND_IN_GAP', message: `the stand-in does not model ${url.host}${url.pathname}` });
+  }
+
   if (url.origin !== SUPABASE) throw new Error(`stray request ${req.method} ${req.url}`);
   const p = url.pathname; const q = url.searchParams;
   const single = (req.headers.get('accept') ?? '').includes('vnd.pgrst.object');

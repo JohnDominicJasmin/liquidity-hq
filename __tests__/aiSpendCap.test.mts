@@ -697,7 +697,12 @@ test('A8. the routes that RECORD an AI cost are exactly the routes behind the ca
   const app = filesUnder('app');
   const recorders = app.filter((f) => /\brecordAiCall\b/.test(read(f)));
   const gated = app.filter((f) => /\b(incrementUsageColumn|incrementToolUsage)\(/.test(read(f)));
-  assert.equal(gated.length, 14, 'the cap is said to cover all 14 AI routes');
+  /* A FLOOR, NOT A COUNT, and the change is deliberate. This read `=== 14` and went red the moment
+     Draw Structure became the 15th capped route (#1881) - a cell failing because the product grew
+     correctly. The real assertion is the set equality on the next line: every route that spends is
+     capped, and every capped route is logged. The number's only job is to catch a BROKEN
+     enumeration, which a floor does just as well while staying green as routes are added. */
+  assert.ok(gated.length >= 14, `only ${gated.length} capped AI routes found (14 on 2026-10-30), so the enumeration broke and the set comparison below would be vacuous`);
   assert.deepEqual([...recorders].sort(), [...gated].sort(), 'a route spends AI money without the cap, or is capped without being logged');
   for (const f of gated) {
     const src = read(f);

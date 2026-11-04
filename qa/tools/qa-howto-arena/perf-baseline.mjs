@@ -3,7 +3,9 @@
  * Metrics (browser Performance API): TTFB, FCP, LCP, CLS, TBT (long tasks after FCP, sum of duration-50ms, measured to 8 s after load), load event;
  * network: requests, transfer bytes and JS transfer bytes (CDP Network.loadingFinished encodedDataLength).
  * Conditions: "plain" = this machine's real network, no throttling. "mobile" = CDP 4x CPU slowdown + 1.6 Mbps down / 0.75 Mbps up / 150 ms RTT (Lighthouse-style mobile),
- * only for the 390 px viewport. Far from a lab: one machine, one network, a Singapore server; use it to compare a later run made the SAME way, not as an absolute.
+ * only for the 390 px viewport. Far from a lab: one machine, one network, one hosting region; use it to compare a later run made the SAME way, not as an absolute.
+ * (The region used to be named here. It is not, deliberately - the owner's 2026-10-31 instruction is that no file states where the servers are. What the
+ *  caveat needs is that the region is FIXED between runs, which is what makes two runs comparable; which region it is adds nothing to that argument.)
  * usage: node perf-baseline.mjs <base-url> <runs=3> <out.json>                                                                            */
 import { chromium } from 'file:///C:/Users/Dominic/Documents/VS%20code/liquidity-hq-qa/liquidity-hq/node_modules/playwright/index.mjs';
 import { writeFileSync } from 'node:fs';

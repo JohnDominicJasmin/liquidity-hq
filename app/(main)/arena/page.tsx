@@ -49,6 +49,7 @@ import { latestStructureSignal, describeStructureSignal, type PASignal } from '@
 import { usePerpSpot } from '@/lib/usePerpSpot';
 import { formatRsi } from '@/lib/rsi';
 import { priceDigits, priceText, signedUsd } from '@/lib/numberFormat';
+import { arenaNumberFields } from '@/lib/arenaContextFields';
 import { announcePageCoin } from '@/lib/pageCoin';
 import { ageText, utcStamp } from '@/lib/promptTime';
 import AiDisclaimer from '@/components/AiDisclaimer';
@@ -1026,29 +1027,15 @@ function ArenaContent() {
     const session = getSessionName(new Date());
 
     /* 15m technicals */
-    const rsi14 = coin?.rsi14 != null
-      ? coin.rsi14.toFixed(1) + (coin.rsi14 >= 70 ? ' (Overbought)' : coin.rsi14 <= 30 ? ' (Oversold)' : ' (Neutral)')
-      : '-';
-    const ma20 = coin?.ma20 != null ? priceText(coin.ma20) : '-';
-    const priceVsMA = coin?.price && coin?.ma20
-      ? coin.price > coin.ma20
-        ? 'ABOVE MA20 (+' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% - bullish)'
-        : 'BELOW MA20 (' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% - bearish)'
-      : '-';
-    const volRatio = coin?.volRatio != null
-      ? coin.volRatio.toFixed(2) + 'x' + (coin.volRatio >= 1.5 ? ' (spike)' : coin.volRatio <= 0.6 ? ' (dry)' : ' (normal)')
-      : '-';
-    const longShortRatio = coin?.longRatio != null && coin?.shortRatio != null
-      ? 'Long ' + (coin.longRatio * 100).toFixed(1) + '% / Short ' + (coin.shortRatio * 100).toFixed(1) + '%'
-        + (coin.longRatio > 0.6 ? ' (overleveraged longs)' : coin.shortRatio > 0.6 ? ' (overleveraged shorts)' : ' (balanced)')
-      : '-';
+    /* THE THIRTEEN FIELDS THE SERVER ALSO SOURCES, formatted by the shared function so the two
+       callers cannot drift (#1631 item 5). They were inline here; the expressions moved to
+       lib/arenaContextFields.ts unchanged, and this page's output is identical.
 
-    /* Multi-TF RSI */
-    const fmt = (v: number | null | undefined) => v != null
-      ? v.toFixed(0) + (v >= 70 ? ' (Overbought)' : v <= 30 ? ' (Oversold)' : ' (Neutral)')
-      : '-';
-    const rsi1h = fmt(coin?.rsi1h);
-    const rsi4h = fmt(coin?.rsi4h);
+       Shared rather than duplicated on purpose: each one is a sentence with interpretive text in
+       it, and a server-side copy differing by a space or a threshold would change the prompt - and
+       so the answer - with nothing failing. */
+    const numberFields = arenaNumberFields(coin);
+
 
     /* CVD */
     const cvd = coin?.cvd != null
@@ -1158,23 +1145,7 @@ function ArenaContent() {
     const sectorRotation = computeSectorRotation(store, selectedCoin).line;
 
     /* Volume Profile POC */
-    const pocLine = coin?.poc != null
-      ? priceText(coin.poc)
-        + (coin.vah != null ? ' | VAH ' + priceText(coin.vah) : '')
-        + (coin.val != null ? ' | VAL ' + priceText(coin.val) : '')
-        + (coin.price && coin.poc ? (coin.price > coin.poc ? ' - price ABOVE POC (bullish)' : ' - price BELOW POC (bearish)') : '')
-      : '-';
 
-    /* Taker Buy/Sell ratio */
-    const takerBuy = coin?.takerBuyRatio;
-    const takerRatio = takerBuy != null
-      ? `Buy ${Math.round(takerBuy * 100)}% / Sell ${Math.round((1 - takerBuy) * 100)}%`
-        + (takerBuy >= 0.65 ? ' - aggressive buyers hitting asks (BULLISH)'
-        :  takerBuy >= 0.55 ? ' - mild buy pressure'
-        :  takerBuy <= 0.35 ? ' - aggressive sellers hitting bids (BEARISH)'
-        :  takerBuy <= 0.45 ? ' - mild sell pressure'
-        :                     ' - balanced flow')
-      : '-';
 
     /* Coinbase Premium */
     const cbPremium = store.cbPremium != null && store.cbPremiumPct != null
@@ -1185,15 +1156,6 @@ function ArenaContent() {
         :                               ' - neutral')
       : '-';
 
-    /* VWAP */
-    const vwap = coin?.vwap != null
-      ? priceText(coin.vwap)
-        + (coin.price
-          ? (coin.price > coin.vwap
-              ? ' - price ABOVE VWAP (bullish, paying up)'
-              : ' - price BELOW VWAP (bearish, distributing)')
-          : '')
-      : '-';
 
     /* OI Trend vs Price */
     const OI_TREND_LABELS: Record<string, string> = {
@@ -1309,8 +1271,9 @@ function ArenaContent() {
     return {
       coin: selectedCoin.toUpperCase() + '/USDT',
       // #1631 B: toLocaleString() keeps at most 3 decimals, so a PEPE-sized price read "$0".
-      price: coin?.price ? priceText(coin.price) : '-',
-      change24h: coin?.change != null ? (coin.change >= 0 ? '+' : '') + coin.change.toFixed(2) + '%' : '-',
+      /* The thirteen server-sourced fields. Spread FIRST so a later key in this object would
+         visibly override one rather than doing it silently - see SERVER_SOURCED_FIELDS. */
+      ...numberFields,
       fundingRate: coin?.fundingRate != null ? classifyFunding(coin.fundingRate).label : '-',
       openInterest: coin?.oi != null ? '$' + (coin.oi / 1e9).toFixed(2) + 'B' : '-',
       fearGreed: store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '-',
@@ -1321,18 +1284,17 @@ function ArenaContent() {
         ? [...latestNews].sort((a, b) => b.ts - a.ts).slice(0, 15)
             .map(n => `- [${utcStamp(n.ts * 1000)}, ${ageText(now - n.ts * 1000)} | ${n.source || 'news feed'}] ${n.headline}`).join('\n')
         : alertsLoaded ? 'No recent alerts' : 'News feed unavailable (not loaded) - do not assume there is no news',
-      rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, real10y, upcomingEvents: upcoming,
       etfFlows: etfDaysText(store.etfFlowDays), ethEtfFlows: etfDaysText(store.ethEtfFlowDays),
-      rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
+      cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, liqLevels, btcDomTrend, sectorRotation,
       // Placeholder: needs candles, which this synchronous builder has no
       // access to. Overridden at the call site once they are fetched, the same
       // way rsiDaily is - see the gatherContext() spread below.
       structureBreak: '-',
-      pocLine, dxyLine, spxLine, goldLine,
-      cbPremium, vwap, oiTrend, takerRatio, crossExchangeFunding,
+      dxyLine, spxLine, goldLine,
+      cbPremium, oiTrend, crossExchangeFunding,
       cascadeLine, whaleFlow,
       distribution: (() => {
         if (!coin?.price) return '-';

@@ -430,7 +430,40 @@ The sorting rule that follows from #2, and it governs triage: **after #719, a te
 >
 > One rule from #2 that did NOT change: terminal styling still goes **over the existing production layout**. Do not restructure a screen to match a canvas. #843 is what happens when that line is crossed and then reverted — see §14.
 
-**The one exception is landing.** The owner likes the canvas-mirrored landing (`ad6b08c`, #592) and it was deliberately excluded from the revert. Never revert it, and treat "landing renders identically" as a hard gate on any work touching `app/globals.css`, `lib/labelKeys.ts`, `lib/labelDefaults.en.json` or `components/AppShell.tsx` — all four are shared between landing and the reverted screens, and `AppShell.tsx` is the one that bit us (it rendered `PriceTickerStrip` on `/` gated on design mode rather than pathname).
+**The one exception is landing.** The owner likes the canvas-mirrored landing (`ad6b08c`, #592) and it was deliberately excluded from the revert. Never revert it, and treat "landing renders identically" as a hard gate on any work touching `app/globals.css`, `components/AppShell.tsx` or `lib/i18n/dictionaries.ts` — **the trigger list changed on 2026-10-31 and the two files it dropped are the reason, see below** — `app/globals.css` and `AppShell.tsx` are shared between landing and the reverted screens, and `AppShell.tsx` is the one that bit us (it rendered `PriceTickerStrip` on `/` gated on design mode rather than pathname).
+
+**THE TRIGGER LIST DROPPED `lib/labelKeys.ts` AND `lib/labelDefaults.en.json` ON 2026-10-31, because
+landing cannot read them.** Measured by QA, not inferred: `app/(main)/page.tsx` passes a dictionary
+prop, **`useLabels` appears 0 times across all six components in landing's subtree**, and no labels
+context is provided above it. **Blanking one of #1852's own changed label values produced
+noise-floor difference only and zero occurrences in the rendered text.**
+
+**So the gate could never fail for those two files. It passed every time, and a gate that cannot
+fail is a formality that costs a render.** `lib/i18n/dictionaries.ts` replaces them because that is
+what actually changes landing copy. `app/globals.css` and `components/AppShell.tsx` are unchanged
+and still meaningful.
+
+**A LABEL-VALUE CHANGE IS STILL GATED — on the page that renders it, not on landing.** #1852
+changed two `A11Y_*` values, so the check is a rendered comparison of `/accessibility`. Same
+requirement, aimed at a page that can actually fail it.
+
+**THIS REPLACES ONE MEASURED FACT WITH ANOTHER, SO IT NEEDS A CHECK THAT THE PREMISE HOLDS.** "0
+`useLabels` in landing's subtree" is true on 2026-10-31 and nothing stops someone adding one.
+**QA owns a cell asserting that count stays 0** — when it fails, this list is wrong again and the
+failure says so. Without it we have traded a stale rule for a newer stale rule, which is the
+failure `docs/OWNER-BLOCKERS.md` exists to catch.
+
+**AND THE "FOUR CONTEXTS" IN THIS SECTION ARE TWO.** `data-design` is static — measured over 12
+renders, `?design=current` carried `terminal` every time. The rule's text is older than the
+product. Render what exists and report what you rendered; **do not claim a number of contexts.**
+
+**ANY PIXEL COMPARISON ON LANDING MUST NEUTRALISE THE CANVAS FIRST.**
+`components/BeamsBackground.tsx` seeds every beam's angle, position, width, speed, opacity, hue and
+pulse from `Math.random()` at mount, and `reducedMotion: 'reduce'` stops the animation but **not**
+the randomised geometry. **Two renders of the same build differed by 904,516 pixels.** With
+`canvas{visibility:hidden}` the same-build floor is 0 / 75 / 0 / 0. **A gate that does not do this
+either fails always or gets tuned to a threshold no text change can ever trip** — so: hide the
+canvas, establish the same-build floor, and only then compare.
 
 **Known and deliberately not filed**, so nobody re-derives them: `/dashboard` shows 10 terminal radius violations, all `MarketRead` (`.mr`, `.mr-factor`, `.mr-track`, unscoped in `app/globals.css` around lines 776-812, outside `.dashboard-term-wrap` so the blanket radius rule misses them). That is `#413`-era, restored correctly by the revert, and invisible after #719. Landing also fails 3 of 21 `specs/landing.md` criteria (C10 hero-glow, C11 nav 44 vs 56, C18 mobile nav 38 vs 52) — pre-existing, and the owner has stopped aligning to the handoff specs.
 

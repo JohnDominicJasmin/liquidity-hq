@@ -1,14 +1,14 @@
-/* LANDING HARD GATE - this file is one of four that trips it.
+/* LANDING HARD GATE - this file is one of the files that trips it.
 
    Changing this file requires that LANDING (`/`) IS RENDERED and confirmed
-   unchanged in FOUR CONTEXTS - current/terminal x dark/light - before the PR
-   merges. Not "the selectors cannot reach landing", not "the diff is
+   unchanged in every reachable context - docs/HANDOVER.md section 14 names how
+   many, and the number has drifted before - before the PR merges. Not "the selectors cannot reach landing", not "the diff is
    additive": rendered. The rule and its history live in docs/HANDOVER.md
    section 14 (search: "landing renders identically"); this is a signpost, not a
    second copy of it.
 
    WHY THIS FILE. The owner keeps the canvas-mirrored landing (#592) and it was
-   deliberately excluded from the 2026-09-03 revert. These four files are shared
+   deliberately excluded from the 2026-09-03 revert. These files are shared
    between landing and the reverted screens, so a change aimed at an app screen
    reaches landing too. AppShell.tsx is the one that bit us - it rendered
    PriceTickerStrip on `/` gated on design mode rather than pathname.
