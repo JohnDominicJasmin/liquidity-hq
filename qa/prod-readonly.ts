@@ -168,6 +168,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'state-matrix': 'signs in as free, Pro, trial AND admin across 60 cells: needs four production accounts, one of them an admin, and `needs` describes a single tier. Same reason as plan-badge-same-user-auth-event and ops-admit, and the admin half is the stronger one - signing in as an administrator on production to measure layout is not something an allowlist should permit by default. It writes nothing and classifies clean, so the exclusion is about the accounts rather than the code',
   'arena-alert-resilience': 'clicks Save on a price alert on purpose; safe only while a route stub matches, and a missed match would create a real alert',
   'checkout': 'clicks the checkout CTA on purpose; safe only while a route stub matches, and a missed match would create a real checkout session',
+  'draw-structure-labels-render': 'CLICKS the Draw Structure control, which calls a CAPPED AI route - safe only while the route stub matches, and a missed match is a billed xAI call on a production account. Same reason as checkout and arena-alert-resilience. It also signs in with a DEV-project fixture, which is not a production account at all.',
   'lemonsqueezy-real-purchase': 'a real purchase',
   'arena-quick-deep-stale-selection': 'real AI credits (billed), and PATCHes settings',
   'chart-indicator-draw-failure': 'depends on a QA seam that is dead on a production build; also PATCHes settings',
