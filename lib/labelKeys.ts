@@ -725,7 +725,12 @@ export const LABEL_KEYS = [
   'HOURS_WIN_GOD_BADGE', 'HOURS_WIN_GOD_DESC',
   'HOURS_WIN_PRIME_BADGE', 'HOURS_WIN_PRIME_DESC',
   'HOURS_WIN_MON_EVE_BADGE', 'HOURS_WIN_MON_EVE_DESC',
-  'HOURS_WIN_LONDON_BADGE', 'HOURS_WIN_LONDON_TIME', 'HOURS_WIN_LONDON_DESC',
+  /* HOURS_WIN_LONDON_TIME WAS HERE and was deleted 2026-10-31, not renamed. Its value was the
+     last string in this file naming the operator's timezone, and the owner's instruction was to
+     remove every trace of it. Nothing read the key: app/(main)/hours/page.tsx carries the windows
+     as `utc:` arrays and formats them in the VIEWER's zone (#1327), which is what made every
+     HOURS_WIN_*_TIME key dead - the other four went in that round and this one was missed. */
+  'HOURS_WIN_LONDON_BADGE', 'HOURS_WIN_LONDON_DESC',
   'HOURS_WIN_DEAD_BADGE', 'HOURS_WIN_DEAD_DESC',
 
   // Briefing

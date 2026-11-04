@@ -41,6 +41,20 @@ export const CANNOT_RUN_CODES = {
      become tracked by asking again. A monitor that buckets this as a failed verdict reports the
      model as having answered badly about a coin it was never asked about. */
   COIN_NOT_TRACKED: 'this coin has no AI read - it is in the selector but not in the tracked set, so retrying cannot help',
+  /* #1910. The route now reads the Arena's numbers server-side before calling the model, and refuses
+     with 503 when that gather fails rather than asking for a verdict on a context full of '-'.
+     NOTHING IS SPENT: the refusal is before the reservation, so a monitor run that hits it has not
+     billed anything and has learned nothing about Deep Research.
+
+     THE OWNER DECIDED THIS AND IT IS WORTH RECORDING WHY IT IS NOT #1119's PRECEDENT. That one lets
+     a failed PLAN read through, because the user then gets the feature they paid for. A failed
+     MARKET read going through is the opposite: it bills a quick or deep call for an answer whose
+     numeric fields are all '-'. Same shape of outage, opposite correct answer.
+
+     A RETRY MAY WELL HELP, unlike COIN_NOT_TRACKED - an exchange feed comes back. So this is a
+     can-not-run that is genuinely transient, and a monitor seeing it repeatedly for hours is
+     reporting a market-data outage rather than a model failure. Either way it is not exit 1. */
+  MARKET_UNAVAILABLE: 'the server could not read live market data, so the route refused before spending - transient, and a retry may help',
 };
 
 /**
