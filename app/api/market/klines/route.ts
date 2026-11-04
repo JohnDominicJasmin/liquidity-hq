@@ -46,7 +46,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BYBIT_SYMS, OKX_SYMS, bybitPriceFactor } from '@/lib/coins';
-import { OKX_BARS, OKX_MAX_LIMIT, okxCandlesParams, okxCandlesToBareArray, okxPageCount, mergeOkxPages } from '@/lib/okx';
+import { OKX_BARS, OKX_MAX_LIMIT, okxBarToMs, okxCandlesParams, okxCandlesToBareArray, okxPageCount, mergeOkxPages } from '@/lib/okx';
 import { shouldFailToBybit, canFailoverForRequest, bybitIntervalFor } from '@/lib/klinesFailover';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { exchangeFetch } from '@/lib/exchangeGuard';
@@ -453,9 +453,27 @@ export async function GET(req: NextRequest) {
      close it changes), so the first read after a close misses and fetches once (single-flight per key), and every read within the candle hits.
      The entry may live the whole candle (it cannot outlive its key); a period or the old stopwatch, whichever is longer. Still opt-in (closed=1)
      and still a distinct key from a live request. Upstream traffic: one call per key per candle, never more than the old floor allowed. */
-  const ivMs = closedOnly ? intervalToMs(interval) : null;
+  /* OKX'S BARS NEED THEIR OWN ms LOOKUP. `intervalToMs` matches `/^(\d+)(m|h|d)$/` plus bare
+     minutes and a bare `D`, all LOWERCASE - so 8 of OKX's 13 bars return null from it, including
+     `4H` and `1D`, the two the Arena EMA signal asks for. */
+  const ivMs = closedOnly ? (source === 'okx' ? okxBarToMs(interval) : intervalToMs(interval)) : null;
   const ttl = ivMs != null ? Math.max(ivMs + CLOSE_SKEW_MS, ttlFor(interval)) : ttlFor(interval);
-  const closedTag = ivMs != null ? `:closed:${closedCandleKey(ivMs, Date.now())}` : '';
+  /* THE TAG SEPARATES CLOSED FROM LIVE EVEN WHEN NO BOUNDARY CAN BE COMPUTED, and that `: ':closed'`
+     is a security fix rather than tidying.
+     It read `ivMs != null ? ... : ''`, so an interval with no computable boundary - W and M on every
+     venue, and until the line above EVERY uppercase OKX bar - produced an EMPTY tag, which put a
+     `closed=1` request and a live one on the SAME KEY. That was merely a stale-TTL question while
+     both variants returned the same body. It stopped being one in the commit that added
+     `includeForming: !closedOnly`: the two now differ by the forming bar, so whichever request
+     populated the key first served its answer to the other kind of caller - a closed-candle reader
+     getting a bar whose close keeps moving, which is the un-firing signal that `closed=1` exists to
+     prevent. And `closed` is a query parameter any client sets, so which variant lands in the
+     shared entry was the caller's choice, for everyone.
+     Flagged by the automated security review of that commit. The W/M TTL fallback above is
+     unchanged - this only separates the keys. */
+  const closedTag = closedOnly
+    ? (ivMs != null ? `:closed:${closedCandleKey(ivMs, Date.now())}` : ':closed')
+    : '';
 
   try {
     const key = `klines:${source}:${symbol}:${interval}:${limit}${closedTag}`;

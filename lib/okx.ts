@@ -93,6 +93,31 @@ export function okxBarForBinanceInterval(interval: string): OkxBar | null {
   return BINANCE_TO_OKX_BAR[interval] ?? null;
 }
 
+/** An OKX bar's length in milliseconds, or `null` where there is no fixed one.
+ *
+ *  WHY THIS EXISTS RATHER THAN REUSING `lib/candles.ts`'s `intervalToMs`: that function matches
+ *  `/^(\d+)(m|h|d)$/` - LOWERCASE - plus bare minutes and a bare `'D'`. OKX's hour and day bars are
+ *  uppercase, so **8 of its 13 bars return null from it**, including `4H` and `1D`, which are the
+ *  two the Arena EMA signal uses. Measured, and it was not a theoretical gap: a null there made
+ *  `closedTag` empty, which put a `closed=1` request and a live one on the SAME CACHE KEY while
+ *  this module made their bodies differ by the forming bar. Found by the automated security review
+ *  of the commit that introduced it, not by me.
+ *
+ *  `1W` AND `1M` ARE DELIBERATELY ABSENT. A month is not a fixed number of milliseconds, and a
+ *  week's boundary depends on which day the venue starts it on - something to read from OKX rather
+ *  than assume. `app/api/market/klines/route.ts` already falls back for exactly those two on the
+ *  other venues ("intervals with no computable boundary (W, M)"), so this matches a treatment that
+ *  is already there rather than inventing one. */
+const BAR_MS: Readonly<Partial<Record<OkxBar, number>>> = {
+  '1m': 60_000, '3m': 180_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000,
+  '1H': 3_600_000, '2H': 7_200_000, '4H': 14_400_000, '6H': 21_600_000, '12H': 43_200_000,
+  '1D': 86_400_000,
+};
+
+export function okxBarToMs(bar: string): number | null {
+  return isOkxBar(bar) ? (BAR_MS[bar] ?? null) : null;
+}
+
 /** Is this exactly an OKX bar, case included? A near-miss must fail here rather than at OKX. */
 export function isOkxBar(bar: string): bar is OkxBar {
   return BAR_SET.has(bar);
