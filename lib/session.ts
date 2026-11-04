@@ -20,7 +20,34 @@ function utc(d: Date): { day: number; mins: number } {
    change which day a holiday falls on for these purposes).
    Sourced 2026-07 from SIFMA/NYSE (NY), gov.uk (London), Nippon.com/Japan
    Travel (Asia/Tokyo), China Briefing / State Council notice (China).
-   Update this table at the start of each year. ── */
+
+   ── THE TABLE IS KEYED BY YEAR, AND THAT IS THE FIX, NOT THE 2027 DATA ──
+
+   This was a single `HOLIDAYS_2026` with `getHoliday` reading it directly, so
+   from 2027-01-01 every market holiday became an ordinary trading day - no
+   error, no log line, the app simply saying the market is open on Christmas.
+   QA's `qa/e2e/clock.spec.ts` fires 60 days early on purpose to catch it with
+   time to act, and it did: it went red in early November 2026.
+
+   ADDING A YEAR IS NOW DATA. The lookup reads the year off the REGION-LOCAL
+   date, not the UTC one, so 2027-01-01 in Tokyo resolves against 2027 even
+   while it is still 2026-12-31 in UTC. A year that is absent still returns
+   null, as before - the failure mode is unchanged, it just no longer arrives
+   on a date nobody chose.
+
+   2027 SOURCES, because three of the four are rule-derivable and one is not:
+     NY      NYSE Group's 2026/2027/2028 holiday calendar, published
+             2025-12-23. Three dates are observances rather than the date
+             itself - Juneteenth and Christmas fall on a Saturday and
+             Independence Day on a Sunday.
+     London  Privy Council proclamation sealed 2026-07-08 appoints 1 January,
+             3 May and 28 December 2027; Easter, spring and summer follow the
+             fixed rules. Christmas Day is a Saturday and Boxing Day a Sunday,
+             so both move to substitutes.
+     Asia    Japan's holidays are set in law, with a Sunday moving to the next
+             working day. 2027 has exactly one such substitute: Vernal Equinox
+             Day falls on Sunday 21 March, so 22 March is a holiday too.
+     China   **NOT PUBLISHED YET - see the comment on the China block.** ── */
 
 export type HolidayRegion = 'NY' | 'London' | 'Asia' | 'China';
 
@@ -30,7 +57,8 @@ const REGION_UTC_OFFSET: Record<HolidayRegion, number> = {
   NY: -5, London: 0, Asia: 9, China: 8,
 };
 
-const HOLIDAYS_2026: Record<HolidayRegion, HolidayRange[]> = {
+const HOLIDAYS_BY_YEAR: Record<string, Record<HolidayRegion, HolidayRange[]>> = {
+  '2026': {
   NY: [
     { start: '2026-01-01', end: '2026-01-01', name: "New Year's Day" },
     { start: '2026-01-19', end: '2026-01-19', name: 'Martin Luther King Jr. Day' },
@@ -76,6 +104,92 @@ const HOLIDAYS_2026: Record<HolidayRegion, HolidayRange[]> = {
     { start: '2026-09-25', end: '2026-09-27', name: 'Mid-Autumn Festival' },
     { start: '2026-10-01', end: '2026-10-07', name: 'National Day Golden Week' },
   ],
+  },
+
+  '2027': {
+    NY: [
+      { start: '2027-01-01', end: '2027-01-01', name: "New Year's Day" },
+      { start: '2027-01-18', end: '2027-01-18', name: 'Martin Luther King Jr. Day' },
+      { start: '2027-02-15', end: '2027-02-15', name: "Presidents' Day" },
+      { start: '2027-03-26', end: '2027-03-26', name: 'Good Friday' },
+      { start: '2027-05-31', end: '2027-05-31', name: 'Memorial Day' },
+      /* 19 June 2027 is a Saturday, so the exchange observes the Friday. */
+      { start: '2027-06-18', end: '2027-06-18', name: 'Juneteenth (observed)' },
+      /* 4 July 2027 is a Sunday, so the exchange observes the Monday. */
+      { start: '2027-07-05', end: '2027-07-05', name: 'Independence Day (observed)' },
+      { start: '2027-09-06', end: '2027-09-06', name: 'Labor Day' },
+      { start: '2027-11-25', end: '2027-11-25', name: 'Thanksgiving Day' },
+      /* 25 December 2027 is a Saturday, so the exchange observes the Friday. */
+      { start: '2027-12-24', end: '2027-12-24', name: 'Christmas Day (observed)' },
+    ],
+    London: [
+      { start: '2027-01-01', end: '2027-01-01', name: "New Year's Day" },
+      { start: '2027-03-26', end: '2027-03-26', name: 'Good Friday' },
+      { start: '2027-03-29', end: '2027-03-29', name: 'Easter Monday' },
+      { start: '2027-05-03', end: '2027-05-03', name: 'Early May Bank Holiday' },
+      { start: '2027-05-31', end: '2027-05-31', name: 'Spring Bank Holiday' },
+      { start: '2027-08-30', end: '2027-08-30', name: 'Summer Bank Holiday' },
+      /* Christmas Day is a Saturday and Boxing Day a Sunday in 2027, so BOTH move. */
+      { start: '2027-12-27', end: '2027-12-27', name: 'Christmas Day (substitute)' },
+      { start: '2027-12-28', end: '2027-12-28', name: 'Boxing Day (substitute)' },
+    ],
+    Asia: [
+      { start: '2027-01-01', end: '2027-01-01', name: "New Year's Day" },
+      { start: '2027-01-11', end: '2027-01-11', name: 'Coming of Age Day' },
+      { start: '2027-02-11', end: '2027-02-11', name: 'National Foundation Day' },
+      { start: '2027-02-23', end: '2027-02-23', name: "Emperor's Birthday" },
+      /* Vernal Equinox Day falls on Sunday 21 March 2027, so the Monday is a
+         substitute holiday - the only one Japan has in 2027. */
+      { start: '2027-03-21', end: '2027-03-22', name: 'Spring Equinox Day' },
+      { start: '2027-04-29', end: '2027-05-05', name: 'Golden Week' },
+      { start: '2027-07-19', end: '2027-07-19', name: 'Marine Day' },
+      { start: '2027-08-11', end: '2027-08-11', name: 'Mountain Day' },
+      /* Respect for the Aged Day (20th) and the Autumnal Equinox (23rd) have two
+         working days between them in 2027 - not the single run 2026's "Silver Week"
+         was, so they are listed separately rather than merged into one range. */
+      { start: '2027-09-20', end: '2027-09-20', name: 'Respect for the Aged Day' },
+      { start: '2027-09-23', end: '2027-09-23', name: 'Autumnal Equinox Day' },
+      { start: '2027-10-11', end: '2027-10-11', name: 'Sports Day' },
+      { start: '2027-11-03', end: '2027-11-03', name: 'Culture Day' },
+      { start: '2027-11-23', end: '2027-11-23', name: 'Labor Thanksgiving Day' },
+    ],
+    /* CHINA 2027 IS INCOMPLETE ON PURPOSE AND WILL UNDERSTATE EVERY WINDOW.
+     *
+     * China's holiday LENGTHS are not law. They are an arrangement the State
+     * Council publishes each November or December for the year ahead, with
+     * make-up weekend workdays attached. As of 2026-11-05 the 2027 notice is
+     * NOT OUT: sources put the Spring Festival break at 5, 9 or 11 February
+     * and none of them is official.
+     *
+     * So these are the statutory days whose DATES are fixed - the lunar new
+     * year itself, the solar terms and the two civil dates - and nothing about
+     * how far the breaks extend around them. A reader will see an ordinary
+     * trading day inside a real Golden Week.
+     *
+     * WHY NOT LEAVE IT EMPTY: 6 February 2027 is the lunar new year, the
+     * largest liquidity event in the Chinese calendar, and an empty list would
+     * print "open" on it. Understating a window is a smaller error than
+     * denying the day.
+     *
+     * WHY NOT GUESS THE WINDOWS: a fabricated 7-day range is indistinguishable
+     * from a sourced one to the next reader, and this file already carries real
+     * ranges from the 2026 notice. A wrong range that looks sourced is worse
+     * than a short one that says it is short.
+     *
+     * TWO LUNAR HOLIDAYS ARE ABSENT ENTIRELY - Dragon Boat and Mid-Autumn.
+     * Their dates come off the lunar calendar and I could not source them for
+     * 2027, so they are omitted rather than approximated.
+     *
+     * REVISIT IN DECEMBER 2026 once the notice is published. Until then this
+     * block is the one part of the 2027 table that is not sourced end to end. */
+    China: [
+      { start: '2027-01-01', end: '2027-01-01', name: "New Year's Day" },
+      { start: '2027-02-06', end: '2027-02-06', name: 'Spring Festival' },
+      { start: '2027-04-05', end: '2027-04-05', name: 'Qingming Festival' },
+      { start: '2027-05-01', end: '2027-05-02', name: 'Labour Day' },
+      { start: '2027-10-01', end: '2027-10-03', name: 'National Day' },
+    ],
+  },
 };
 
 function localDateStr(d: Date, utcOffsetHours: number): string {
@@ -86,7 +200,11 @@ function localDateStr(d: Date, utcOffsetHours: number): string {
 // Returns the holiday name if `d` falls on a holiday for that region, else null.
 export function getHoliday(region: HolidayRegion, d: Date): string | null {
   const dateStr = localDateStr(d, REGION_UTC_OFFSET[region]);
-  const ranges = HOLIDAYS_2026[region] ?? [];
+  /* THE YEAR COMES OFF THE REGION-LOCAL DATE STRING, not `d.getUTCFullYear()`.
+     `dateStr` is already shifted into the region's own calendar above, so 1 January
+     in Tokyo resolves against 2027 while it is still 31 December in UTC - which is
+     exactly the boundary a New Year's Day holiday sits on. */
+  const ranges = HOLIDAYS_BY_YEAR[dateStr.slice(0, 4)]?.[region] ?? [];
   const hit = ranges.find(r => dateStr >= r.start && dateStr <= r.end);
   return hit ? hit.name : null;
 }

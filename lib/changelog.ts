@@ -45,6 +45,29 @@
 //   page, and the APPEARANCE change on top of it is unapproved by the owner with the undo
 //   ready. Announcing a visual the owner may reverse is worse than announcing nothing.
 //
+//   ^ THAT CALL EXPIRED ON 2026-11-01 AND THE 2026-11-05 ENTRY LISTS IT. The condition was
+//   "unapproved with the undo ready", and the owner then settled both halves himself: he
+//   rejected the wording ("It should be page not found not liquidity not found") and asked for
+//   the chart bigger after seeing it live. So the reason for holding it is gone, not overruled.
+//   Left above rather than deleted, because the reasoning was right and a reader needs to know
+//   which part changed - the approval, not the rule.
+//
+// DRAW STRUCTURE IS IN THE 2026-11-05 RELEASE AND IS DELIBERATELY ABSENT FROM ITS ENTRY,
+// recorded here because rule 3's "absent rather than invented" cuts the other way too: a
+// forgotten item and a withheld one look identical on the page.
+//
+//   It ships SWITCHED OFF. `supabase/migrations/20261031a_draw_structure_usage.sql` is
+//   unapplied, so the route answers 503 NOT_ENABLED on every environment, and its empty-state
+//   message ("Nothing proposed on this window.") is unreachable with it. Rule 2 drops a feature
+//   that shipped dormant, and the owner's standing rule is that copy says only what the product
+//   does today.
+//
+//   SO IT NEEDS TWO LINES, NOT ONE DECISION. If the owner enables it in this release, the entry
+//   gains: 'On AI Arena, a 4-hour or daily chart can propose trend lines, channels and other
+//   structures for you to keep or discard.' - and nothing about the empty state, which is a
+//   detail of using it rather than a feature. If it stays off, the entry stays as it is and the
+//   feature is announced in the release that turns it on.
+//
 //   The release tag's own summary agrees - 'What a user can see: #1804 only' - and the other
 //   27 commits are tests, QA tooling, CI corrections and documentation with no runtime effect.
 //
@@ -68,6 +91,42 @@ export interface ChangelogEntry {
 
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    /* THE TAG IS NOT CUT YET. PM/DevOps tags after deploying, because only the person who
+       deployed knows it reached live - so whoever tags must check this string matches. The date
+       is the release date rather than the day this was written; they are the same today. */
+    date: '2026-11-05',
+    tag: 'v2026.11.05',
+    items: [
+      'A page that does not exist now says "Page not found", with a larger empty chart.',
+      'When market data is unavailable, an AI read on AI Arena now says so instead of answering, and it does not use up one of your reads.',
+    ],
+  },
+  {
+    /* THIS RELEASE WAS LIVE WITH NO ENTRY AT ALL, which is the drift the header's KNOWN GAP
+       predicted: nothing updates this file when a release ships. Added late rather than skipped,
+       because a missing entry and a deliberately empty one look identical on the page.
+
+       ITS HEADLINE IS NOT LISTED. The tag is "the operator's country and the server region leave
+       every page a customer can reach", and that is 134 commits of privacy hygiene with nothing a
+       reader gains from being told - announcing which details we removed about ourselves tells a
+       customer nothing about the product. Rule 2 drops it.
+
+       WHAT EARNS THE ENTRY IS THE NUMBER FORMATTING, and it took reading the commits to find:
+       `priceText(NaN)` printed "$NaN", `priceText(Infinity)` printed "$∞", and
+       `signedUsd(NaN, 'M', 1)` printed "-$NaNM" - inventing a minus sign from `NaN >= 0` being
+       false. `lib/useEMAStrategy.ts:931` calls `priceText(sig.sl)` unguarded on a value that
+       comes out of ATR arithmetic, so a stop-loss was a reachable place to see it.
+
+       WORDED AS WHAT IT DOES NOW, NOT AS A SIGHTING. The commit that fixed it says plainly "I am
+       not claiming this has been seen in production; I am saying nothing in the way stops it", so
+       an entry saying users saw broken prices would be inventing a report. */
+    date: '2026-10-31',
+    tag: 'v2026.10.31',
+    items: [
+      'A price or figure the app cannot work out now shows "N/A" instead of a broken value.',
+    ],
+  },
   {
     date: '2026-10-30',
     tag: 'v2026.10.30',

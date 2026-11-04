@@ -35,6 +35,50 @@ import { dirname, join } from 'node:path';
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'coinUniverse.generated.ts');
 const CHECK = process.argv.includes('--check');
 
+/**
+ * THREE TICKERS NAME A DIFFERENT ASSET ON ONE VENUE THAN THEY DO ON THE OTHERS, so that venue is
+ * dropped from the row rather than shipped as a second source for a coin it does not trade.
+ *
+ * THIS IS A FAILURE CLASS NOBODY ON THE TEAM HAD NAMED, and the agreement guard below found all
+ * three on its first run against live data. The generator pairs venues by normalised base symbol,
+ * which is structurally blind to it: two exchanges can use one ticker for two unrelated assets and
+ * nothing in the symbol says so. It is NOT the 1000x trap this file's header warns about - the
+ * giveaway is that none of the three ratios is a round factor. A unit error is exactly 1000 or
+ * 10000; these are 1266, 469 and 0.16, which is what two different assets look like.
+ *
+ * ALL THREE VENUES WERE READ FOR EACH ONE, which is the only way to tell WHICH is the odd one out,
+ * and for `on` the answer is not the venue I first assumed:
+ *
+ *            bybit        binance      okx        odd one out
+ *   on       70.51        0.1504       70.50      BINANCE   x469   <- not OKX
+ *   bb       0.006871     0.006873     8.702      OKX       x1266
+ *   qnt      203.34       203.37       32.46      OKX       x0.160
+ *
+ * EACH WAS CHECKED FOR THE INNOCENT EXPLANATIONS FIRST - a stale last price, or a market whose
+ * last trade was months ago. All six markets are live, tightly quoted and actively traded with
+ * coherent daily closes (`bb` oi $263k, `on` oi $244k, `qnt` oi $327k), so "wrong price on a dead
+ * market" is ruled out rather than assumed.
+ *
+ * `on` WAS WRONG IN THE FILE BEFORE ANY OF THIS, AND IT STILL IS NOT AN OUTAGE AWAY FROM HARM.
+ * The row shipped `{ bybit: 'ONUSDT', binance: 'ONUSDT' }` as if they were one asset. Nothing
+ * reads it: both shipped maps are built from `RENDERED_IDS` (the 50 curated coins) and `on` is in
+ * neither, so no price, candle, alert or outcome has ever touched it - 0 rows across four
+ * production tables against a `btc` control of 1,302, and exactly 50 distinct coins recorded ever.
+ * #1861 does not change that either; it wires the extra coins to Bybit only. So this is a latent
+ * trap that goes live the first time somebody reads the `binance` column for a non-curated coin.
+ *
+ * WHY A LIST AND NOT AN AUTOMATIC DROP ON ANY MISMATCH. An automatic drop would silently turn a
+ * real data problem into reduced coverage: the generator would stop offering a venue for a coin
+ * whose price had gone wrong for some entirely different reason, and nobody would be told.
+ * Refusing by default and naming the exceptions here is the same shape as ONE_VENUE_KEEP - a
+ * judgment call that has to be read to be changed.
+ */
+const TICKER_COLLISIONS = new Map([
+  ['bb', 'okx'],
+  ['on', 'binance'],
+  ['qnt', 'okx'],
+]);
+
 /** Kept although only one venue lists them - see the header. */
 const ONE_VENUE_KEEP = new Set(['xau', 'spx', 'fet']);
 
@@ -90,14 +134,26 @@ function decimalsFromTick(tick, mult = 1) {
   return Math.min(8, Math.max(0, d));
 }
 
-const [byInst, byTick, bnInfo, bnTick] = await Promise.all([
+const [byInst, byTick, bnInfo, bnTick, okInst, okTick] = await Promise.all([
   j('https://api.bybit.com/v5/market/instruments-info?category=linear&limit=1000'),
   j('https://api.bybit.com/v5/market/tickers?category=linear'),
   j('https://fapi.binance.com/fapi/v1/exchangeInfo'),
   j('https://fapi.binance.com/fapi/v1/ticker/24hr'),
+  /* OKX ANSWERS HTTP 200 WITH ITS ERROR IN THE BODY, so `j`'s `r.ok` check does not see one.
+     An unknown instrument is `code: '51001'` and a bad parameter is `'51000'`, both on a 200.
+     Checked rather than assumed, because a silent `{ code: '51001', data: [] }` would read here
+     as "OKX lists nothing" and quietly strip the column from every row. */
+  j('https://www.okx.com/api/v5/public/instruments?instType=SWAP'),
+  j('https://www.okx.com/api/v5/market/tickers?instType=SWAP'),
 ]);
+for (const [what, res] of [['instruments', okInst], ['tickers', okTick]]) {
+  if (res.code !== '0') throw new Error(`OKX ${what} -> code ${res.code}: ${res.msg ?? ''}`);
+  if (!Array.isArray(res.data) || res.data.length === 0) throw new Error(`OKX ${what} -> code 0 but no rows`);
+}
 
 const byTurnover = new Map((byTick.result?.list ?? []).map(t => [t.symbol, Number(t.turnover24h) || 0]));
+/* LAST PRICES, for the unit guard near the end of this file and nothing else. Not emitted. */
+const byLast = new Map((byTick.result?.list ?? []).map(t => [t.symbol, Number(t.lastPrice) || 0]));
 const bybit = new Map();
 for (const i of byInst.result?.list ?? []) {
   if (i.quoteCoin !== 'USDT' || i.status !== 'Trading' || i.contractType !== 'LinearPerpetual') continue;
@@ -111,6 +167,7 @@ for (const i of byInst.result?.list ?? []) {
 }
 
 const bnVolume = new Map(bnTick.map(t => [t.symbol, Number(t.quoteVolume) || 0]));
+const bnLast = new Map(bnTick.map(t => [t.symbol, Number(t.lastPrice) || 0]));
 const binance = new Map();
 for (const s of bnInfo.symbols ?? []) {
   if (s.quoteAsset !== 'USDT' || s.status !== 'TRADING' || s.contractType !== 'PERPETUAL') continue;
@@ -119,12 +176,54 @@ for (const s of bnInfo.symbols ?? []) {
   binance.set(id, { symbol: s.symbol, mult, tick, volume: bnVolume.get(s.symbol) ?? 0 });
 }
 
+/* OKX, AS A THIRD COLUMN ONLY - IT DOES NOT CHANGE WHICH COINS EXIST.
+ *
+ * `ids` below is still Bybit ∩ Binance plus ONE_VENUE_KEEP. An instrument OKX lists and the other
+ * two do not is NOT added: widening the universe is a separate decision with its own effect on
+ * every scanner and every fan-out, and bundling it into "add a third venue column" would hide it.
+ *
+ * `okxLast` IS NOT EMITTED. It exists only for the unit guard below. A price in a generated file
+ * is stale the moment it is written, and `liq` is already dropped from the row for that reason -
+ * a field nobody reads is a field that will be trusted. */
+const okxLast = new Map();
+const okx = new Map();
+{
+  const px = new Map(okTick.data.map(t => [t.instId, Number(t.last) || 0]));
+  for (const i of okInst.data) {
+    /* `state: 'live'` and USDT-settled linear swaps only - the same filter shape as the other two
+       venues. A `preopen` or `suspend` instrument answers requests and should not be a fallback. */
+    if (i.instType !== 'SWAP' || i.settleCcy !== 'USDT' || i.state !== 'live') continue;
+    const m = /^(.+)-USDT-SWAP$/.exec(i.instId);
+    if (!m) continue;
+    /* Through `normaliseBase` like the other two, although OKX quotes no 1000x symbol today
+       (`1000PEPE-USDT-SWAP` is not listed; measured). If it ever lists one, this produces the
+       multiplier and the guard below catches the mismatch rather than shipping a 1000x price. */
+    const { id, mult } = normaliseBase(m[1]);
+    okx.set(id, { instId: i.instId, mult });
+    const last = px.get(i.instId) ?? 0;
+    if (last > 0) okxLast.set(id, last * mult);
+  }
+}
+
 const ids = new Set([...bybit.keys()].filter(id => binance.has(id)));
 for (const id of ONE_VENUE_KEEP) if (bybit.has(id) || binance.has(id)) ids.add(id);
 
 const rows = [...ids].map(id => {
-  const b = bybit.get(id);
-  const n = binance.get(id);
+  /* THE COLLIDING VENUE IS DROPPED HERE, AT THE TOP, so everything below follows from the venues
+     the row actually keeps: the multiplier, the decimals, `oneVenue` and the liquidity rank.
+     Dropping it only in the emitted field would leave `dec` and `oneVenue` describing a venue the
+     row does not carry - which is the `isSingleVenue` bug in this file's history, where the flag
+     and the shipped maps disagreed about whether a failover existed. */
+  const drop = TICKER_COLLISIONS.get(id);
+  const b = drop === 'bybit' ? undefined : bybit.get(id);
+  const n = drop === 'binance' ? undefined : binance.get(id);
+  if (!b && !n) {
+    /* Refused rather than crashed on the `n.tick` below. A collision that removes a coin's only
+       venue means the coin should leave the universe, which is a decision, not a null field. */
+    console.error(`TICKER_COLLISIONS drops ${drop} for '${id}', which was its only venue.`);
+    console.error('  Remove the id from the universe instead, or reconsider which venue is the odd one out.');
+    process.exit(2);
+  }
   const oneVenue = !b || !n;
   /* Rank on the THINNER venue: a coin is only as tradable as its weaker side, and that is the
      side a failover read lands on. A single-venue instrument ranks on the venue it has. */
@@ -140,6 +239,15 @@ const rows = [...ids].map(id => {
     id,
     bybit: b?.symbol ?? null,
     binance: n?.symbol ?? null,
+    /* THIRD VENUE, SYMBOL ONLY - no `okxMult`, because OKX quotes every one of these per token.
+       Measured on two independent channels rather than assumed: OKX's PEPE last is 0.000004963
+       while Bybit's 1000PEPEUSDT/1000 is 0.000004958 and Binance's is 0.0000049638, a ratio of
+       1.0010. `ctVal` is the CONTRACT SIZE (10,000,000 PEPE for PEPE-USDT-SWAP) and is not a
+       price factor; deriving a multiplier from it would multiply that price by ten million.
+       `1000PEPE-USDT-SWAP` is not listed at all - the 1000x prefix is a Bybit and Binance symbol
+       -naming artifact, not a property every venue has. The guard below re-measures this on every
+       generation so the next venue change cannot smuggle a unit error in. */
+    okx: drop === 'okx' ? null : (okx.get(id)?.instId ?? null),
     bybitMult: b?.mult ?? 1,
     binanceMult: n?.mult ?? 1,
     /* Decimals follow Bybit, the default price source, falling back to Binance when that is the
@@ -172,6 +280,132 @@ const rows = [...ids].map(id => {
      somewhere inside it. `liq` is still computed and still filters nothing - it is dropped from
      the emitted row below, because a field nobody reads is a field that will be trusted. */
   .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+/* THE AGREEMENT GUARD: do the venues mean the same ASSET, and quote it in the same UNIT?
+ *
+ * WHY IT EXISTS. PM's instruction for this change was to derive an `okxMult` from OKX's `ctVal`,
+ * on the reasonable assumption that a venue listing memecoins must scale them somehow. It does
+ * not: `ctVal` is the CONTRACT SIZE (10,000,000 PEPE for `PEPE-USDT-SWAP`) and OKX quotes the
+ * price per token, so a ctVal-derived multiplier would have multiplied PEPE by ten million.
+ * That was caught by measuring before writing, and this guard is that measurement, kept.
+ *
+ * IT COMPARES EVERY PAIR, NOT JUST THE NEW VENUE. PM asked for the 1000x rows against OKX, which
+ * is the high-risk subset rather than the class - and restricting it to OKX would have left the
+ * `on` row below shipping a 469x error indefinitely, because that one is Bybit against BINANCE.
+ * A guard that names its exceptions has not named what it is guarding. All three pairs, every
+ * row: the prices are already fetched for turnover, so it costs nothing.
+ *
+ * IT READS THE ROW'S OWN EMITTED FIELDS rather than the venue maps, so it checks what actually
+ * ships. A venue dropped by TICKER_COLLISIONS is `null` on the row and is therefore not compared
+ * - which is what lets a known collision pass without widening the band for everyone.
+ *
+ * THE BAND IS WIDE ON PURPOSE, AND IT IS NOT PM'S SUGGESTED 0.95-1.05.
+ * A unit error is a factor of 1,000 or 10,000,000, and a ticker collision is whatever two
+ * unrelated assets happen to cost. Market divergence between two venues on a thin instrument
+ * during a fast move is a few per cent and can briefly be more. A band tight enough to catch
+ * drift would refuse a generation on market noise - and a gate that cries wolf is a gate
+ * somebody deletes, which costs more than it ever saved. So:
+ *   REFUSE outside [0.5, 2.0]  - cannot fire on market noise; catches any real mismatch, the
+ *                                smallest of the three found so far being a factor of 469
+ *   WARN   outside [0.9, 1.1]  - visible without blocking, for a divergence worth a look
+ *
+ * AND A ZERO HERE IS A FAILURE, NOT A PASS. If nothing got compared - a ticker endpoint empty, or
+ * the last-prices missing - then "no mismatches" measures the instrument and not the data, so the
+ * comparison count is asserted before the verdict is trusted. */
+const UNIT_REFUSE = [0.5, 2.0];
+const UNIT_WARN = [0.9, 1.1];
+
+/** Per-token prices for a row, from the venues the row actually carries. */
+function venuePrices(r) {
+  const out = [];
+  const push = (venue, p) => { if (p > 0) out.push([venue, p]); };
+  if (r.bybit) push('bybit', (byLast.get(r.bybit) ?? 0) * r.bybitMult);
+  if (r.binance) push('binance', (bnLast.get(r.binance) ?? 0) * r.binanceMult);
+  if (r.okx) push('okx', okxLast.get(r.id) ?? 0);
+  return out;
+}
+
+const unitChecks = [];
+const unitRefuse = [];
+const unitWarn = [];
+let unitScaled = 0;
+for (const r of rows) {
+  const px = venuePrices(r);
+  if (px.length < 2) continue;
+  if (r.bybitMult !== 1 || r.binanceMult !== 1) unitScaled++;
+  for (let i = 0; i < px.length; i++) {
+    for (let k = i + 1; k < px.length; k++) {
+      const [va, pa] = px[i];
+      const [vb, pb] = px[k];
+      const ratio = pa / pb;
+      unitChecks.push(ratio);
+      if (ratio < UNIT_REFUSE[0] || ratio > UNIT_REFUSE[1]) {
+        unitRefuse.push(`${r.id}: ${va} ${pa} vs ${vb} ${pb} -> x${ratio.toExponential(3)}`);
+      } else if (ratio < UNIT_WARN[0] || ratio > UNIT_WARN[1]) {
+        unitWarn.push(`${r.id}: ${va}/${vb} = ${ratio.toFixed(3)}`);
+      }
+    }
+  }
+}
+if (unitChecks.length === 0) {
+  console.error('AGREEMENT GUARD COMPARED NOTHING: no row carried two venue prices.');
+  console.error('  That is an instrument failure, not a clean result - refusing rather than reporting zero problems.');
+  process.exit(2);
+}
+if (unitRefuse.length) {
+  console.error(`VENUE DISAGREEMENT on ${unitRefuse.length} of ${unitChecks.length} comparisons:`);
+  for (const line of unitRefuse.slice(0, 12)) console.error(`  ${line}`);
+  console.error('  A ROUND ratio (1000, 10000) means a venue scales that instrument and needs a multiplier.');
+  console.error('  A ratio that is NOT round means the two venues mean DIFFERENT ASSETS by one ticker: check');
+  console.error('  all three venues, decide which is the odd one out, and add it to TICKER_COLLISIONS.');
+  console.error('  Do NOT widen the band to make this pass - a wrong price is wrong data, not sparse data.');
+  process.exit(2);
+}
+console.log(`agreement guard: ${unitChecks.length} cross-venue price comparisons`
+  + ` over ${rows.filter(r => venuePrices(r).length >= 2).length} rows`
+  + ` (${unitScaled} scaled 1000x+ on Bybit or Binance), 0 disagreements`
+  + (unitWarn.length ? `, ${unitWarn.length} over 10% apart: ${unitWarn.slice(0, 6).join(', ')}` : ''));
+
+/* TICKER_COLLISIONS HAS ITS OWN EXPIRY, re-measured on every generation.
+ *
+ * An entry costs a venue for that coin FOREVER if the collision ever ends - the exchange relists
+ * the ticker as the asset the others mean, and nothing in this repository would look again. That
+ * is the `RELEASE_PR_PAUSED` shape: correct the day it is written, wrong to whoever finds it next,
+ * with nothing watching the date. So the list reports on itself.
+ *
+ * THIS CHECK EARNED ITS PLACE WITHIN FIVE MINUTES OF BEING WRITTEN. All three ids were first
+ * excluded as OKX collisions; this re-check immediately answered `on: 1.000 - NOT A COLLISION ANY
+ * MORE`, because my original comparison used Binance as the reference and this one used Bybit.
+ * Bybit and OKX agree on `on` to four digits and Binance is the outlier, so the venue to drop was
+ * Binance. Without the re-check, `bb` and `qnt` would have been right, `on` would have been wrong
+ * in a way that still looked handled, and the real 469x bug would have stayed in the file.
+ *
+ * Deliberately NOT automatic, in either direction. Dropping a venue and regaining one both change
+ * which prices the app serves, and that is a decision a person makes after reading the numbers. */
+const collisionReview = [];
+for (const [id, dropped] of TICKER_COLLISIONS) {
+  const r = rows.find(row => row.id === id);
+  if (!r) { collisionReview.push(`${id}: no longer in the universe at all - the entry is dead, remove it`); continue; }
+  const theirs = dropped === 'bybit' ? (byLast.get(bybit.get(id)?.symbol) ?? 0) * (bybit.get(id)?.mult ?? 1)
+    : dropped === 'binance' ? (bnLast.get(binance.get(id)?.symbol) ?? 0) * (binance.get(id)?.mult ?? 1)
+    : (okxLast.get(id) ?? 0);
+  const kept = venuePrices(r);
+  if (!(theirs > 0) || kept.length === 0) {
+    /* Reported rather than ignored: an entry that cannot be re-measured is an entry whose
+       exclusion is no longer backed by anything, which is a different state from "still valid". */
+    collisionReview.push(`${id}: cannot re-measure the dropped ${dropped} - it may have delisted, or a price is missing`);
+    continue;
+  }
+  const ratio = theirs / kept[0][1];
+  if (ratio >= UNIT_WARN[0] && ratio <= UNIT_WARN[1]) {
+    collisionReview.push(`${id}: the dropped ${dropped} now agrees with ${kept[0][0]} (${ratio.toFixed(3)})`
+      + ` - NOT A COLLISION ANY MORE. Remove the entry to regain that venue.`);
+  }
+}
+if (collisionReview.length) {
+  console.log(`TICKER_COLLISIONS needs a human look (${collisionReview.length} of ${TICKER_COLLISIONS.size}):`);
+  for (const line of collisionReview) console.log(`  ${line}`);
+}
 
 /* NO TWO ROWS MAY SHARE AN `id`, AND THIS IS THE ONE WAY THE SORT ABOVE HAS TEETH.
  *
@@ -220,12 +454,15 @@ export interface CoinRow {
   readonly bybitMult: number;
   /** Converts a BINANCE quote to the per-token price. The two differ on sats, toshi, tag, turbo. */
   readonly binanceMult: number;
+  /** OKX instrument id, or null where OKX does not list it. NO MULTIPLIER: OKX quotes these per
+   *  token, verified against the other two venues on every generation. */
+  readonly okx: string | null;
   readonly dec: number;
   readonly oneVenue: boolean;
 }
 
 export const COIN_UNIVERSE: readonly CoinRow[] = [
-${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'}, binance: ${r.binance ? `'${r.binance}'` : 'null'}, bybitMult: ${r.bybitMult}, binanceMult: ${r.binanceMult}, dec: ${r.dec}, oneVenue: ${r.oneVenue} },`).join('\n')}
+${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'}, binance: ${r.binance ? `'${r.binance}'` : 'null'}, okx: ${r.okx ? `'${r.okx}'` : 'null'}, bybitMult: ${r.bybitMult}, binanceMult: ${r.binanceMult}, dec: ${r.dec}, oneVenue: ${r.oneVenue} },`).join('\n')}
 ];
 `;
 
