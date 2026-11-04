@@ -158,6 +158,11 @@ const rows = [...ids].map(id => {
      return one answer and so carries no information. Nothing gates on it, which is the only
      reason that went unnoticed.
 
+     AND THE SORT DID NOT FIX THE CHECK - it fixed one of two causes. `--check` still returned
+     STALE on every Windows checkout after this landed, on line endings. See the normalisation
+     in the `--check` block below. Left as two paragraphs rather than rewritten into one,
+     because "a stable sort makes the check informative" is the inference that was wrong.
+
      THE RANK WAS CONSUMED BY NOTHING. `UNIVERSE_COINS` exports the order as an array and has
      no reader outside `lib/coins.ts`; the Arena scanner builds from `COINS` and re-sorts by
      live `vol24` (app/(main)/arena/page.tsx:1747). So the ordering never reached a screen.
@@ -201,9 +206,41 @@ ${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'},
 
 if (CHECK) {
   const current = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
-  const strip = s => s.replace(/^ \* Generated: .*$/m, '');
+  /* NORMALISE LINE ENDINGS BEFORE COMPARING. This is the SECOND reason this check could only
+     ever return one answer, and the stable sort above - written to fix exactly that - does not
+     reach it.
+
+     `writeFileSync` emits LF. A Windows checkout with `core.autocrlf=true` converts on checkout,
+     and `git check-attr eol` reports `unspecified` for this path, so the committed file carries
+     491 CRLF and 0 bare LF while `body` has none. The comparison then failed on every line of a
+     file whose content was identical, and printed STALE with nothing stale.
+
+     THE COMMENT ABOVE WAS WRONG ON THE DAY IT MERGED, and that is the part worth keeping. #1933
+     recorded that `--check` had stopped being a one-answer check; it had not, for a reason that
+     measurement would have caught and reasoning did not. QA generated and diffed instead of
+     trusting the claim - 463 rows both sides, 0 added, 0 removed, 0 changed, order identical -
+     and found the comparison still failing. My own "before 1 / after 0" was measured seconds
+     after a local regeneration, while the file on disk was still the LF one the script had just
+     written. The reading was true and the inference from it was not.
+
+     NORMALISED HERE RATHER THAN PINNED IN `.gitattributes`: a pin renormalises the file in its
+     own diff, and would still leave this comparison depending on whoever runs it having the
+     right git config. CI's config is not ours to assume. */
+  const strip = s => s.replace(/\r\n/g, '\n').replace(/^ \* Generated: .*$/m, '');
   if (strip(current) === strip(body)) { console.log(`up to date: ${rows.length} instruments`); process.exit(0); }
+
+  /* SAY WHAT DIFFERS, not only that something does. A bare STALE is what sent the last reader
+     looking for a content change that was not there. The line counts and the first differing
+     line separate "a venue listed a new instrument" from "this file was written by another
+     tool" - two findings with nothing in common but the word STALE. */
+  const a = strip(current).split('\n');
+  const b = strip(body).split('\n');
+  const firstDiff = a.findIndex((line, i) => line !== b[i]);
+  const at = firstDiff === -1 ? Math.min(a.length, b.length) : firstDiff;
   console.error(`STALE: regenerate lib/coinUniverse.generated.ts (would be ${rows.length} instruments)`);
+  console.error(`  committed ${a.length} lines, generated ${b.length}; first difference at line ${at + 1}:`);
+  console.error(`    committed: ${JSON.stringify(a[at] ?? null)}`);
+  console.error(`    generated: ${JSON.stringify(b[at] ?? null)}`);
   process.exit(1);
 }
 
