@@ -220,13 +220,37 @@ test('L0. CONTROLS: the comment strip removes prose and keeps code - in all four
    *
    * Measured when written: zero files in `components/`, `app/` and `lib/` contain the shape, and
    * the detector was shown to match a planted instance. */
-  const eaten = stripTsComments('const u = "a // b"; const { t } = useLabels();');
-  assert.doesNotMatch(
-    eaten, /useLabels\(\)/,
-    'the strip no longer eats a real call after a spaced // inside a string. That is an IMPROVEMENT ' +
-    'and this assertion is now wrong: delete it and the canary below, and rewrite the paragraph above ' +
-    'the strip, because the bound it describes is gone.',
-  );
+  /* FOUR FORMS, NOT ONE. The strip is `(^|\s)//`, so it needs whitespace only BEFORE the slashes -
+     the space after was never required, and a template literal is a string too. Each of these loses
+     the real call, and the widened canary below is calibrated to exactly this set. */
+  for (const probe of [
+    'const u = "a // b"; const { t } = useLabels();',
+    'const u = "a //b"; const { t } = useLabels();',
+    'const u = `a // b`; const { t } = useLabels();',
+    'const u = `a //b`; const { t } = useLabels();',
+  ]) {
+    assert.doesNotMatch(
+      stripTsComments(probe), /useLabels\(\)/,
+      `the strip no longer eats a real call in ${JSON.stringify(probe)}. That is an IMPROVEMENT and ` +
+      'this assertion is now wrong: delete it and the canary below, and rewrite the paragraph above ' +
+      'the strip, because the bound it describes is gone.',
+    );
+  }
+
+  /* AND THE TWO IT DOES NOT EAT, so the canary cannot be widened into flagging harmless code.
+     `"a//b"` has no whitespace before the slashes, and a URL is the case the `(^|\s)` was added
+     for in the first place. A canary that fired on these would send someone rewriting correct
+     strings. */
+  for (const safe of [
+    'const u = "a//b"; const { t } = useLabels();',
+    'const u = "https://x"; const { t } = useLabels();',
+  ]) {
+    assert.match(
+      stripTsComments(safe), /useLabels\(\)/,
+      `the strip now eats ${JSON.stringify(safe)}, which it did not before. The canary below does ` +
+      'NOT guard this shape, so L2 and L3 can now go blind on it - widen DANGEROUS before shipping.',
+    );
+  }
 
   /* `[ \t]`, NOT `\s`, AND THIS COST A FALSE POSITIVE BEFORE IT SHIPPED. With `\s` the canary fired
      on `AuthProvider.tsx` and `BrandMark.tsx` - and no single line in either matched. **`\s`
@@ -234,7 +258,20 @@ test('L0. CONTROLS: the comment strip removes prose and keeps code - in all four
      comment line below it, and an apostrophe further down: "don't ... // ... it's". The character
      classes excluded `\n` and the separator did not, which is the whole bug. A string literal lives
      on one line, so the separator must be a space or a tab. */
-  const DANGEROUS = /"[^"\n]*[ \t]\/\/[ \t][^"\n]*"|'[^'\n]*[ \t]\/\/[ \t][^'\n]*'/;
+  /* WIDENED (#1914). This required whitespace on BOTH sides of the slashes and checked only
+     " and ' delimiters, while the strip requires whitespace only BEFORE and does not care what
+     quotes the string uses. So `"a //b"` and `` `a // b` `` were eaten and unguarded - the exact
+     blind-not-red failure the paragraph above says must never happen.
+
+     Measured over all 461 app/lib/components files when widened: the narrow form fired on 3 files,
+     this one on 4. The extra is app/api/pine-script/route.ts:39, a prompt string ending
+     "...Start directly with //@version=6" - genuinely eaten by the strip, genuinely missed before.
+     It is not on landing's import path today, which is why this cell still passes; if it ever
+     arrives, red is the correct outcome and blind was not.
+
+     STILL `[ \t]` AND NOT `\s`, for the reason below, and the newline-bridging regression was
+     re-checked after widening: zero files match the whole file while no single line matches. */
+  const DANGEROUS = /"[^"\n]*[ \t]\/\/[^"\n]*"|'[^'\n]*[ \t]\/\/[^'\n]*'|`[^`\n]*[ \t]\/\/[^`\n]*`/;
   const blinded = SUBTREE.filter((f) => DANGEROUS.test(readFileSync(path.join(ROOT, f), 'utf8')));
   assert.deepEqual(
     blinded, [],
