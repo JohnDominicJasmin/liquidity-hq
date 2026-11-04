@@ -23,7 +23,7 @@ file.**
 >   `degraded`, so a never-called exchange no longer reads as healthy (#1927).
 > - **Before `dev` -> `qa`:** Draw Structure's 16 new strings must pass QA's render check on the
 >   deployed dev service (#1931). And `supabase/migrations/20261031a_draw_structure_usage.sql` is
->   **unapplied** - Draw Structure answers 503 `NOT_ENABLED` until it is; applying it is the owner's.
+>   **unapplied** - Draw Structure answers 503 `NOT_ENABLED` until it is. **Dev DB: PM sequences, QA reviews the SQL and owns the window** (owner ruling 2026-10-23). **Production DB: the owner's word, every time.**
 > - **Owner approvals waiting (visual / copy):** 20 new strings (16 Draw Structure, 4 Arena coin
 >   selector #1861) and the ko/zh/ar/ru translations of the 404 subtitle.
 > - **Exchange fallback:** OKX, Hyperliquid, Kraken and Bitget all reachable from the server region
