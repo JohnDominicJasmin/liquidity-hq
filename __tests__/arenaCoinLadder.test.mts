@@ -225,6 +225,20 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       return json(200, [{ symbol: sym, longAccount: '0.55', shortAccount: '0.45', longShortRatio: '1.22', timestamp: 1_700_000_000_000 }]);
     }
 
+    /* Bybit account-ratio, added BEFORE #1912 needs it. That PR sources longShortRatio from the
+       server, and lib/accountRatioData.ts reaches this path - which falls past every branch above
+       to the gap reporter, so db.unknown would be non-empty and EVERY Arena cell in this file would
+       fail naming it. The route itself stays 200: bybitFanout throws on an all-failed run,
+       accountRatioFor catches it, and the field degrades to a dash - so this is the reporter working
+       correctly on a path that does not exist yet, not a behaviour change.
+
+       THE TWO NUMBERS ARE LOAD-BEARING. pickAccountRatio reads buyRatio/sellRatio off result.list[0],
+       and parseRatioPair REJECTS a pair that does not sum to 1 - #1651, because a missing side used
+       to become a plausible 50/50 that consumers treated as measured. 0.55/0.45 is chosen to pass
+       that rule, not to look realistic. */
+    if (url.pathname.startsWith('/v5/market/account-ratio')) {
+      return json(200, { retCode: 0, result: { list: [{ buyRatio: '0.55', sellRatio: '0.45', timestamp: 1_700_000_000_000 }] } });
+    }
     if (url.pathname.startsWith('/v5/market/tickers')) {
       return json(200, { retCode: 0, result: { list: [{ symbol: 'HYPEUSDT', lastPrice: '30', price24hPcnt: '0.02', turnover24h: '1000000' }] } });
     }
