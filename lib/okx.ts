@@ -45,6 +45,15 @@
 /** OKX's hard cap on `limit` for `/market/candles`. Asking for more returns this many, silently. */
 export const OKX_MAX_LIMIT = 300;
 
+/** How many pages a caller may ask for in one go - 5 x 300 = 1500, the same ceiling
+ *  `app/api/market/klines/route.ts` already enforces on `limit` for every source. */
+export const OKX_MAX_PAGES = 5;
+
+/** Pages needed to reach `limit` bars, 300 at a time. */
+export function okxPageCount(limit: number): number {
+  return Math.min(OKX_MAX_PAGES, Math.max(1, Math.ceil(limit / OKX_MAX_LIMIT)));
+}
+
 /** The `bar` values this app uses, in OKX's own spelling. Case matters - see trap 4.
  *
  *  Deliberately NOT a translation table from another venue's dialect. `app/api/market/klines/route.ts`
@@ -60,6 +69,29 @@ export const OKX_BARS = [
 export type OkxBar = (typeof OKX_BARS)[number];
 
 const BAR_SET: ReadonlySet<string> = new Set(OKX_BARS);
+
+/** Binance's interval spelling to OKX's, for a call site that already has the Binance one.
+ *
+ *  AN EXPLICIT TABLE, NOT A CASE TRANSFORM. `'4h'.toUpperCase()` is `'4H'` and happens to be
+ *  right, and `'15m'.toUpperCase()` is `'15M'` which is a MONTH bar OKX would happily serve - so a
+ *  transform turns a 15-minute request into a 15-month one on the half of the dialect where the
+ *  cases differ. That is the same silent-success shape as the rest of this file's traps.
+ *
+ *  `null` FOR AN INTERVAL OKX DOES NOT HAVE (Binance's `8h` and `3d`), which a caller treats the
+ *  way it treats a coin with no OKX symbol: no OKX attempt, not a failure. `app/api/market/klines
+ *  /route.ts` says intervals are *"deliberately not translated between them"* for the two venues
+ *  that each have their own caller; this exists because the EMA path has one caller that must
+ *  address all three, and a translation someone has to do is better done once, here, beside the
+ *  allowlist it has to agree with. */
+const BINANCE_TO_OKX_BAR: Readonly<Record<string, OkxBar>> = {
+  '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m',
+  '1h': '1H', '2h': '2H', '4h': '4H', '6h': '6H', '12h': '12H',
+  '1d': '1D', '1w': '1W', '1M': '1M',
+};
+
+export function okxBarForBinanceInterval(interval: string): OkxBar | null {
+  return BINANCE_TO_OKX_BAR[interval] ?? null;
+}
 
 /** Is this exactly an OKX bar, case included? A near-miss must fail here rather than at OKX. */
 export function isOkxBar(bar: string): bar is OkxBar {
@@ -106,7 +138,15 @@ export class OkxError extends Error {
  *  REFUSES a limit above the cap instead of sending it, because OKX answers an over-limit request
  *  with `code: '0'` and fewer rows (trap 3). A caller that needs more than 300 bars needs to page
  *  with `before`/`after`, and should find that out here rather than from a short array. */
-export function okxCandlesParams(instId: string, bar: string, limit: number): URLSearchParams {
+export function okxCandlesParams(
+  instId: string,
+  bar: string,
+  limit: number,
+  /** Return bars strictly OLDER than this millisecond timestamp - OKX's backwards page cursor.
+   *  Measured, not read from docs: with `after` set to a page's oldest `ts`, the next page's
+   *  newest bar is exactly one bar older, so pages are contiguous with no overlap and no hole. */
+  after?: number,
+): URLSearchParams {
   if (!isOkxInstId(instId)) throw new Error(`not an OKX USDT-swap instrument id: ${JSON.stringify(instId)}`);
   if (!isOkxBar(bar)) {
     throw new Error(
@@ -116,10 +156,16 @@ export function okxCandlesParams(instId: string, bar: string, limit: number): UR
   if (!Number.isInteger(limit) || limit < 1 || limit > OKX_MAX_LIMIT) {
     throw new Error(
       `limit ${limit} is outside 1..${OKX_MAX_LIMIT}. OKX silently returns ${OKX_MAX_LIMIT} rows for a`
-      + ' larger limit with code 0, so asking for more would yield a short window and no error.',
+      + ' larger limit with code 0, so asking for more would yield a short window and no error.'
+      + ' For more bars, page with `after` - see okxPageCount and mergeOkxPages.',
     );
   }
-  return new URLSearchParams({ instId, bar, limit: String(limit) });
+  const p = new URLSearchParams({ instId, bar, limit: String(limit) });
+  if (after != null) {
+    if (!Number.isFinite(after) || after <= 0) throw new Error(`not a timestamp: after=${after}`);
+    p.set('after', String(Math.trunc(after)));
+  }
+  return p;
 }
 
 /** A number from an OKX field, or NaN - and `''` must be NaN, not 0.
@@ -200,4 +246,53 @@ export function parseOkxCandles(
      rows, and the failure it prevents - a chart drawn backwards - is silent. */
   out.sort((a, b) => a.time - b.time);
   return { candles: out, dropped, forming };
+}
+
+/** The bare, oldest-first `[time, open, high, low, close, volume]` rows.
+ *
+ *  THE SAME SHAPE `source=binance` ALREADY RETURNS, and that is the point: every existing kline
+ *  caller reads indices 0-5 positionally, so OKX arriving in this shape means no client learns a
+ *  third dialect. `app/api/market/klines/route.ts` made the same choice for its Bybit failover and
+ *  said why - *"never the caller's own requested shape, which is the whole point of a failover the
+ *  caller shouldn't have to know happened"*. Bybit keeps its own envelope only because callers
+ *  asking for `source=bybit` already read it.
+ *
+ *  NUMBERS, NOT STRINGS. Binance sends strings and its callers write `+k[0]`, which is unchanged by
+ *  receiving a number. Sending strings back would mean re-stringifying values this module has
+ *  already validated as finite, and a `String(NaN)` round trip is how a rejected row sneaks back. */
+export function okxCandlesToBareArray(
+  body: OkxCandlesBody,
+  opts: ParseOkxCandlesOptions = {},
+): number[][] {
+  return parseOkxCandles(body, opts).candles.map(
+    (c) => [c.time, c.open, c.high, c.low, c.close, c.volume],
+  );
+}
+
+/** Joins paged candle bodies into one oldest-first window of at most `limit` bars.
+ *
+ *  DE-DUPLICATED BY TIMESTAMP, and that is not defensive padding. The pages are contiguous today -
+ *  measured: page 2's newest bar is exactly one bar older than page 1's oldest - but `after` is a
+ *  cursor against a live series, so a bar closing between two requests shifts the window under the
+ *  cursor. The overlap that produces is a DUPLICATE candle in the middle of the array, which every
+ *  indicator downstream would happily average as two separate bars. A `Map` keyed by time is the
+ *  whole fix.
+ *
+ *  THE TRIM TAKES THE NEWEST `limit`, not the first `limit`. The caller asked for "the last N
+ *  bars"; pages arrive going backwards, so the oldest page is the one with surplus. Trimming from
+ *  the front would return a window ending days before now and the chart would look merely stale.
+ *
+ *  A body with a non-zero `code` throws, as it does singly - a refusal on page 3 must not quietly
+ *  yield a 600-bar window where 900 were asked for. */
+export function mergeOkxPages(
+  bodies: readonly OkxCandlesBody[],
+  limit: number,
+  opts: ParseOkxCandlesOptions = {},
+): number[][] {
+  const byTime = new Map<number, number[]>();
+  for (const body of bodies) {
+    for (const row of okxCandlesToBareArray(body, opts)) byTime.set(row[0], row);
+  }
+  const rows = [...byTime.values()].sort((a, b) => a[0] - b[0]);
+  return rows.length > limit ? rows.slice(-limit) : rows;
 }

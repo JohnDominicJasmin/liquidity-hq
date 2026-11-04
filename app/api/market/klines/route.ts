@@ -45,12 +45,16 @@ import { intervalToMs, closedCandleKey, CLOSE_SKEW_MS } from '@/lib/candles';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
-import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, OKX_SYMS, bybitPriceFactor } from '@/lib/coins';
+import { OKX_BARS, OKX_MAX_LIMIT, okxCandlesParams, okxCandlesToBareArray, okxPageCount, mergeOkxPages } from '@/lib/okx';
 import { shouldFailToBybit, canFailoverForRequest, bybitIntervalFor } from '@/lib/klinesFailover';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { exchangeFetch } from '@/lib/exchangeGuard';
 
-type Source = 'bybit' | 'binance' | 'binance-futures';
+/* `okx` added for #1651. Its dialect, its response quirks and the five silent ways it returns the
+   wrong window are all in `lib/okx.ts` rather than here - this route holds the plumbing, that
+   module holds the decisions, and the decisions are unit-testable without a request. */
+type Source = 'bybit' | 'binance' | 'binance-futures' | 'okx';
 
 // Reverse of BINANCE_SYMS, for #1077's failover: given the Binance symbol a
 // caller asked for, find which coin it is so BYBIT_SYMS/bybitPriceFactor can
@@ -104,6 +108,10 @@ const SYMBOLS: Record<Source, Set<string>> = {
   bybit:             new Set(Object.values(BYBIT_SYMS)),
   binance:           new Set(Object.values(BINANCE_SYMS)),
   'binance-futures': new Set(Object.values(BINANCE_SYMS)),
+  /* 49 of the 50 rendered coins, from the generated `okx` column. Three ids the other two venues
+     carry are deliberately absent because OKX names a different asset by that ticker - so this set
+     being SMALLER than BYBIT_SYMS for a reason other than listing coverage is correct. */
+  okx:               new Set(Object.values(OKX_SYMS)),
 };
 
 /* Bybit takes minutes as integers plus D/W/M; Binance takes suffixed strings.
@@ -114,12 +122,18 @@ const INTERVALS: Record<Source, Set<string>> = {
   bybit:             new Set(['1', '3', '5', '15', '30', '60', '120', '240', '360', '720', 'D', 'W', 'M']),
   binance:           new Set(['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M']),
   'binance-futures': new Set(['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M']),
+  /* OKX's own spelling, CASE INCLUDED - minute bars lowercase, hour and day bars uppercase. `4h`
+     is `code: '51000' Parameter bar error` while `4H` works, so one `.toLowerCase()` anywhere in
+     the chain breaks half the timeframes and leaves the other half working. The list lives in
+     lib/okx.ts so the allowlist here and the request builder there cannot disagree. */
+  okx:               new Set<string>(OKX_BARS),
 };
 
 const UPSTREAM: Record<Source, string> = {
   bybit:             'https://api.bybit.com/v5/market/kline',
   binance:           'https://api.binance.com/api/v3/klines',
   'binance-futures': 'https://fapi.binance.com/fapi/v1/klines',
+  okx:               'https://www.okx.com/api/v5/market/candles',
 };
 
 /* Snap `limit` to the next bucket up rather than caching it verbatim.
@@ -262,6 +276,22 @@ export async function GET(req: NextRequest) {
 
   const limit = bucketFor(limitRaw);
 
+  /* OKX SERVES AT MOST 300 BARS PER CALL, SO LARGER WINDOWS ARE PAGED SERVER-SIDE (see
+     fetchUpstream). The first version of this refused `limit > 300` with a 400, which was the
+     wrong call and worth recording: `lib/useEMAStrategy.ts:834` asks for **1000** bars, so a
+     refusal would have made OKX unusable as a fallback at the one call site this venue was added
+     for - the EMA signal - while looking like a tidy guard.
+
+     Paging is only viable because the cursor semantics were MEASURED rather than assumed: with
+     `after` set to a page's oldest timestamp, the next page's newest bar is exactly one bar older,
+     so four calls return 1200 contiguous bars with no overlap and no hole. 5 pages x 300 = 1500,
+     which is the same ceiling `limitRaw` is already checked against above, so no new bound is
+     needed here.
+
+     The cost is paid ONCE PER CANDLE, not per caller: the pages are assembled inside
+     fetchUpstream, so `cached()` holds the finished window under one key and every caller in that
+     bucket shares it. */
+
   /* RANGE REQUESTS (start/end cursors; two callers paginate with them) - #1649, replacing #1632 H3.
    *
    * They used to skip the cache entirely, because timestamps in the key made the key space unbounded (#199). Two things changed: apiCache is
@@ -271,11 +301,27 @@ export async function GET(req: NextRequest) {
    *   - cached: a window that ended before the current candle opened is history and cannot change, so it is kept 6 h; a window that reaches
    *     the forming candle is kept like any other read of that interval. */
   const isRange = Boolean(start || end);
+  /* NO RANGE REQUESTS FOR OKX, and this is a refusal rather than an omission. OKX pages with
+     `before`/`after` cursors that are EXCLUSIVE and bounded to 100 rows on a different endpoint
+     (`/market/history-candles`), so mapping `start`/`end` onto them is a different implementation
+     with a different off-by-one, not a parameter rename. Silently ignoring the window would serve
+     the most recent 300 candles to a caller that asked for a specific month - plausible data for
+     the wrong period, which is the failure mode this venue already has four of. */
+  if (isRange && source === 'okx') {
+    return NextResponse.json(
+      { error: 'okx does not support start/end here - it pages with before/after cursors on a different endpoint' },
+      { status: 400 },
+    );
+  }
   if (isRange && !rateLimit(`klines-range:${ip}`, KLINES_RANGE_PER_MIN, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
   const url = new URL(UPSTREAM[source]);
+  /* NO `okx` BRANCH HERE ON PURPOSE. It needs one URL PER PAGE, built by `okxCandlesParams` so the
+     dialect and the cursor live in one place, so fetchUpstream builds its own and this `url` is
+     unused for that source. Two places building the same request is how a parameter rename ends up
+     applied to one of them. */
   if (source === 'bybit') {
     url.searchParams.set('category', 'linear');
     url.searchParams.set('symbol', symbol);
@@ -291,6 +337,15 @@ export async function GET(req: NextRequest) {
     if (end)   url.searchParams.set('endTime', end);
   }
 
+  /* DECLARED HERE, ABOVE `fetchUpstream`, BECAUSE THAT CLOSURE NOW READS IT. It used to sit with
+     the TTL block below, which was fine while only the TTL used it. `const` is not hoisted, and
+     although `fetchUpstream` is not INVOKED until after that point today, a closure whose
+     correctness depends on where it happens to be called from is one refactor away from a
+     temporal-dead-zone crash on a billed route. Moved rather than left to luck - the same mistake
+     `app/api/grok/route.ts` already records about `logTag`. The TTL block below still explains
+     what the flag means; this is only its declaration. */
+  const closedOnly = q.get('closed') === '1';
+
   const fetchUpstream = async () => {
     const r = await exchangeFetch(url, { cache: 'no-store' });
     if (!r.ok) {
@@ -303,7 +358,65 @@ export async function GET(req: NextRequest) {
       (err as Error & { status?: number }).status = r.status;
       throw err;
     }
-    return r.json();
+    const body = await r.json();
+    /* OKX IS NORMALISED BEFORE THE CACHE SEES IT, and the ordering is the whole reason this sits
+       inside fetchUpstream rather than beside sliceToLimit below.
+
+       `okxCandlesToBareArray` THROWS on a non-zero `code`, and OKX sends its errors on HTTP 200 -
+       an unknown instrument is `{ code: '51001', data: [] }` with a 200 status, so the `r.ok`
+       check above sees nothing wrong. Throwing here means `cached()` never stores a refusal as an
+       answer, which is the #228 lesson this route already applies to non-2xx, extended to the one
+       venue whose refusals arrive looking like success. Normalising after the cache would have
+       pinned `51001` as "this instrument has no candles" for the whole TTL.
+
+       It also returns the bare oldest-first array, so `sliceToLimit`'s `slice(-n)` branch below is
+       already correct for it and no caller learns a third shape.
+       `closedOnly` decides the forming bar: dropped for a closed=1 caller, kept otherwise, which
+       matches what the other two sources do rather than making OKX stricter. The two variants have
+       distinct cache keys (`closedTag`), so one can never be served to the other's caller. */
+    return body;
+  };
+
+  /* OKX, PAGED AND NORMALISED BEFORE THE CACHE SEES IT. Separate from fetchUpstream above rather
+     than a branch inside it, because it is a different number of requests, not a different body
+     shape.
+     THROWS ON A NON-ZERO `code`, which is the half that matters: OKX sends its errors on HTTP 200,
+     so an unknown instrument is `{ code: '51001', data: [] }` with a 200 status and the `r.ok`
+     check sees nothing wrong. `okxCandlesToBareArray` throws on it, so `cached()` never stores a
+     refusal as an answer - the #228 lesson this route already applies to non-2xx, extended to the
+     one venue whose refusals arrive looking like success. Normalising after the cache instead
+     would have pinned `51001` as "this instrument has no candles" for the whole TTL. */
+  const fetchOkxPaged = async () => {
+    const pages = okxPageCount(limit);
+    const bodies: unknown[] = [];
+    let after: number | undefined;
+    for (let page = 0; page < pages; page++) {
+      const u = new URL(UPSTREAM.okx);
+      for (const [k, v] of okxCandlesParams(symbol, interval, Math.min(limit, OKX_MAX_LIMIT), after)) {
+        u.searchParams.set(k, v);
+      }
+      const r = await exchangeFetch(u, { cache: 'no-store' });
+      if (!r.ok) {
+        const err = new Error(`okx klines ${r.status}`);
+        (err as Error & { status?: number }).status = r.status;
+        throw err;
+      }
+      const body = await r.json();
+      bodies.push(body);
+      /* The cursor comes from the PARSED page, so a page whose `code` is non-zero throws here
+         rather than ending the loop with a short window. Rows are oldest-first, so [0] is this
+         page's oldest bar and the next page asks for bars strictly older than it.
+         `includeForming: true` for the cursor only - dropping the forming bar before reading the
+         cursor would still give the right ANSWER, but a window that happens to contain only a
+         forming bar would read as exhausted. */
+      const rows = okxCandlesToBareArray(body, { includeForming: true });
+      if (rows.length === 0) break;
+      after = rows[0][0];
+      /* A SHORT PAGE MEANS THE HISTORY RAN OUT, so stop rather than spend the remaining calls on
+         answers that will be empty. A coin listed last month cannot fill 1000 4h bars. */
+      if (rows.length < OKX_MAX_LIMIT) break;
+    }
+    return mergeOkxPages(bodies as never[], limit, { includeForming: !closedOnly });
   };
 
   /* BOUNDARY-ALIGNED EXPIRY for closed-candle callers (#325), FLOORED.
@@ -340,7 +453,6 @@ export async function GET(req: NextRequest) {
      close it changes), so the first read after a close misses and fetches once (single-flight per key), and every read within the candle hits.
      The entry may live the whole candle (it cannot outlive its key); a period or the old stopwatch, whichever is longer. Still opt-in (closed=1)
      and still a distinct key from a live request. Upstream traffic: one call per key per candle, never more than the old floor allowed. */
-  const closedOnly = q.get('closed') === '1';
   const ivMs = closedOnly ? intervalToMs(interval) : null;
   const ttl = ivMs != null ? Math.max(ivMs + CLOSE_SKEW_MS, ttlFor(interval)) : ttlFor(interval);
   const closedTag = ivMs != null ? `:closed:${closedCandleKey(ivMs, Date.now())}` : '';
@@ -349,7 +461,7 @@ export async function GET(req: NextRequest) {
     const key = `klines:${source}:${symbol}:${interval}:${limit}${closedTag}`;
     const raw = isRange
       ? await cached(`klines:range:${source}:${symbol}:${interval}:${limit}:${start ?? ''}:${end ?? ''}`, rangeTtl(interval, end), fetchUpstream, { failTtlMs: KLINES_FAIL_TTL_MS })
-      : await cached(key, ttl, fetchUpstream, { failTtlMs: KLINES_FAIL_TTL_MS });
+      : await cached(key, ttl, source === 'okx' ? fetchOkxPaged : fetchUpstream, { failTtlMs: KLINES_FAIL_TTL_MS });
     /* Slice AFTER the cache read, using the caller's own limit. The cache holds
        one bucket-sized copy that every caller in that bucket shares; each gets
        back the length it asked for. Range requests are returned untouched -
