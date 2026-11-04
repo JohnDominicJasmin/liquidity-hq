@@ -27,6 +27,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
+import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 
 /** The timeframes that show the control at all - `lib/drawStructure.ts:146`. */
 const DRAW_TFS = ['4h', '1d'] as const;
@@ -46,6 +47,18 @@ test.describe('#1881 Draw Structure label values, entitled render', () => {
   test('an entitled session on a supported timeframe: report which strings render', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a', { viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
+
+    /* THE FENCE FIRST, AND "FIRST" IS LOAD-BEARING. Playwright matches the most recently
+       registered handler, so this must precede this spec's own page.route calls - installed after
+       them it would match first and abort the very requests this spec means to fulfil. The helper
+       says so on itself: "Install before any spec-specific page.route."
+
+       WHAT IT BUYS: the header above reasons at length about not spending the owner's money, and
+       that reasoning is only true while the api/draw-structure glob happens to match the route. Rename
+       the route and the glob stops matching, the click reaches the real handler, and every suite
+       run bills xAI. The fence aborts any paid path this spec has not stubbed, so the renaming
+       turns into a failure instead of an invoice. Dev Team caught that this was missing. */
+    await installPaidAiFence(page);
 
     try {
       await gotoSignedIn(page, '/arena');
@@ -96,6 +109,7 @@ test.describe('#1881 Draw Structure label values, entitled render', () => {
       const anyTf = DRAW_TFS.some((tf) => EXPECT_STRINGS.every((s) => report[tf][s]));
       console.log(`      ALL THREE WITHOUT ANY INTERACTION: ${anyTf ? 'YES' : 'NO'}  (title+hint need the panel open - covered by the intercepted cell below, not a failure here)`);
       console.log(`      (session proven entitled: plan badge read ${JSON.stringify(badgeText)}, ${canvases} canvas(es))`);
+      assertNoUnstubbedPaidAi(page);
     } finally {
       await ctx.close();
     }
@@ -124,6 +138,18 @@ test.describe('#1881 panel strings, route intercepted so nothing is billed', () 
   test('with a stubbed proposal the panel renders its title and hint', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a', { viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
+
+    /* THE FENCE FIRST, AND "FIRST" IS LOAD-BEARING. Playwright matches the most recently
+       registered handler, so this must precede this spec's own page.route calls - installed after
+       them it would match first and abort the very requests this spec means to fulfil. The helper
+       says so on itself: "Install before any spec-specific page.route."
+
+       WHAT IT BUYS: the header above reasons at length about not spending the owner's money, and
+       that reasoning is only true while the api/draw-structure glob happens to match the route. Rename
+       the route and the glob stops matching, the click reaches the real handler, and every suite
+       run bills xAI. The fence aborts any paid path this spec has not stubbed, so the renaming
+       turns into a failure instead of an invoice. Dev Team caught that this was missing. */
+    await installPaidAiFence(page);
 
     let intercepted = 0;
     await page.route('**/api/draw-structure', async (route) => {
@@ -186,6 +212,7 @@ test.describe('#1881 panel strings, route intercepted so nothing is billed', () 
         ).toBeGreaterThan(0);
       }
       console.log(`      panel strings rendered with ${intercepted} intercepted call(s) and 0 billed`);
+      assertNoUnstubbedPaidAi(page);
     } finally {
       await ctx.close();
     }
@@ -207,6 +234,18 @@ test.describe('#1881 loading and failure strings, nothing billed', () => {
   test('loading shows while in flight, and the default failure string on an empty error', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a', { viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
+
+    /* THE FENCE FIRST, AND "FIRST" IS LOAD-BEARING. Playwright matches the most recently
+       registered handler, so this must precede this spec's own page.route calls - installed after
+       them it would match first and abort the very requests this spec means to fulfil. The helper
+       says so on itself: "Install before any spec-specific page.route."
+
+       WHAT IT BUYS: the header above reasons at length about not spending the owner's money, and
+       that reasoning is only true while the api/draw-structure glob happens to match the route. Rename
+       the route and the glob stops matching, the click reaches the real handler, and every suite
+       run bills xAI. The fence aborts any paid path this spec has not stubbed, so the renaming
+       turns into a failure instead of an invoice. Dev Team caught that this was missing. */
+    await installPaidAiFence(page);
 
     let fired = 0;
     await page.route('**/api/draw-structure', async (route) => {
@@ -239,6 +278,7 @@ test.describe('#1881 loading and failure strings, nothing billed', () => {
       expect(loading, '"Reading the chart..." never rendered while the request was held open for 4s, so DRAW_STRUCTURE_LOADING is not reaching the button').toBeGreaterThan(0);
       expect(failed, '"Could not read the chart. Try again." did not render after a 500 with an empty body, so DRAW_STRUCTURE_FAILED is not the fallback it is written to be').toBeGreaterThan(0);
       console.log(`      loading=${loading} failed=${failed}, ${fired} intercepted, 0 billed`);
+      assertNoUnstubbedPaidAi(page);
     } finally {
       await ctx.close();
     }
