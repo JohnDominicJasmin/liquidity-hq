@@ -342,7 +342,7 @@
   "LOGIN_SEND_MAGIC_LINK_BUTTON": "Send Magic Link",
   "LOGIN_SKIP_LINK": "Continue without signing in →",
   "LOGIN_LOADING": "Loading…",
-  "NOT_FOUND_TITLE": "404 - Liquidity not found",
+  "NOT_FOUND_TITLE": "404 - Page not found",
   "NOT_FOUND_BODY": "This page got stop-hunted. The level you're looking for doesn't exist - or it was swept and never came back.",
   "NOT_FOUND_HOME_LINK": "← Dashboard",
   "NOT_FOUND_LIQUIDATION_MAP_LINK": "Liquidation Map",
