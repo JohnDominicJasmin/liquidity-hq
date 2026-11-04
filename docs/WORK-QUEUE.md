@@ -73,23 +73,21 @@ means*). **Every issue carries exactly one `priority:` label.**
 
 ## Dev lane
 
+**Rewritten 2026-11-05 by PM/DevOps.** The previous table (2026-10-21) named a shipped release, a locked
+Actions account and Phase 0 of a feature that has since shipped as Draw Structure. Order is the order of work.
+
 | # | Item | Notes |
 |---|---|---|
-| D1 | **#1631 - AI correctness** (high) | Owner-approved 2026-10-21 09:10 UTC. **CORRECTED 2026-10-30: E+B+C and A+D both SHIPPED nine days ago** - #1665 merged 2026-10-21T15:59:58Z, #1668 at 19:55:11Z. This row said "committed, PR next (heavy slot after QA's staging sign-off)", which was true for about four hours, and **PM assigned work from it on 2026-10-30 as though it were current.** Also further along than the issue text: item 3's refund is on `dev` AND `main`, and `lib/grok.ts:851`'s `?? 'FLAT'` trapdoor is no longer reachable from product code (`parseCombinedRead` refuses instead) - deleting the pair was blocked on QA moving two test imports - **PR #1832 (2026-10-30, tests only) took the last importer off `parseCombinedResponse`, so the deletion is now Dev's to write as app code.** Read QA's half-fix proof first: with the trapdoor gone but the `parseVerdict` gate ALSO removed, a verdictless answer throws, and a throw inside the route's `try` becomes a 503 - a different lie, not a fix. Proved red, not asserted. **What is genuinely open:** item 4 (forwarded size, output caps, cost - measured 2026-10-30, three real gaps, PR #1833); item 5's second half (the browser still supplies the prompt body, and the gates check *declared* coin/timeframe rather than what the prompt asks for); and a daily Deep Research check asserting a *parseable verdict* rather than HTTP 200, which is QA's. The item-4 text itself carries four claims that are no longer true - read #1631's 2026-10-30 comment, not the item. |
-| D2 | **#1649 - exchange data never blocked** (high) | Phase 1 merged (#1659: shared breaker, budgets, klines range limit). Phase 2: server Bybit WebSocket. Phase 3: OKX + our own 5-minute snapshots (a table, so a migration: owner's word first). Phase 4: Hyperliquid as third source + funding-comparison inputs (owner, 2026-10-21 ~14:00 UTC). The first PR that calls OKX or Hyperliquid logs host + HTTP status once per process; PM reads the qa logs. |
-| D3 | **#1662 - real liquidation levels from Hyperliquid positions** (medium) | Estimate only, at a natural break: days, memory, DB, request budget, what a first version cuts. No build before D1 and D2. |
-| D4 | **#1651 - data guardrails** (high) | Owner order 2026-10-21. Reading type with ok/stale/unknown, freshness budgets, one formatter, AI input and answer checks. The PR template's data checklist (#1652) applies to every PR that adds or changes a number. |
-| D5 | **#1600 - all coins** (owner, 2026-10-21 08:58 UTC) | After the server fixes; more coins may not mean more upstream calls per minute (#1649 item 5). |
-| D6 | **#1632 - security items left** (high) | Includes the Next.js dependency bump (Dependabot), the liquidation page's 5,000-row download, and the AI prompts moved server-side (#1263). |
-| D7 | **Fails from QA's 2026-10-21 regression** (#1640) | R1 Arena 11 px too wide at 390; R2 `/api/ath` 502 when CoinGecko answers 429; R3 `/alerts` signed-out 401s; R4 `bot-info` 500; R9 `/about` still names Finnhub; R13 econ 429 shown as "No upcoming events" (PR #1637 open). R6-R8 are visual: the owner's look first. |
-| D8 | **#1818 — chart structures, Phase 0** (medium) | **The owner ordered this started on 2026-10-30 13:19 UTC — *"start it."*** Deliverable: `lib/chartStructures.ts` — swing-pivot detection with configurable left/right strength, least-squares line fit, and fit quality (R², touch count, first and last touch timestamp). **Pure functions. No UI, no AI, no network, no new dependency.** Spec: `docs/proposals/ai-chart-structures.md`, §2 and §7. **The load-bearing decision is §2: geometry is computed in code and the AI never returns a coordinate** — a model-placed line misses the candles and the user's own eyes are the test instrument. QA owns the fixtures, so the PR says what to assert and why. **Do not start Phase 1 (overlays) in this PR.** §4a binds Phase 2 and is a constraint, not advice: each rung of the timeframe ladder is a fixed-limit request, never a range, because `canFailoverForRequest(isRange)` returns `!isRange` and a range request therefore has no Bybit fallback. |
-
-**D8 sits at the bottom of that table and is nevertheless Dev's CURRENT item.** The owner ordered
-it started on 2026-10-30 at 13:19 UTC and the rows above it are not cancelled — they resume the
-moment Phase 0 lands. It is written out rather than left to position because this table is read
-top-down as the order of work, so a row added at the bottom reads as "later" by default, which is
-the opposite of the instruction. Phase 0 is small on purpose (one file of pure functions), so the
-high-priority reliability lane pauses for one item, not for a feature.
+| D1 | **Delete `/api/exchange-reach`** (#1926) | Temporary probe. Results are on #1649 (2026-11-04: OKX, Hyperliquid, Kraken, Bitget all reachable from the server region, controls passed). It must not become a health check. |
+| D2 | **JS-less landing content** (#1740, high) | `auth-gate-render:243` fails since at least 2026-10-31: `/` serves ~42 words and `/upgrade` ~48-50 to a client without JavaScript. Find what swallowed it. Acquisition outranks data breadth. |
+| D3 | **OKX step 3** (#1651 / #1649) | OKX as the source for the Binance-only metrics (whole-market long/short, top-trader account and position ratios, taker buy/sell volume, 5-minute OI history) plus funding and ticker fallback. Same discipline as steps 1-2 (#1944, #1948): measure units against another venue first, cross-venue price guard, errors arrive on HTTP 200. |
+| D4 | **Hyperliquid client** (#1649 phase 4) | Funding comparison inputs and the fourth fallback layer. `/api/health` already reports `attempted` (#1927), so a never-called venue no longer reads as healthy. |
+| D5 | **#1861 `fet` gap**, then #1861 merges on the owner's copy approval | `fet` has no Bybit symbol, so it is selectable but unreachable through the Bybit-keyed universe map. |
+| D6 | **Pre-existing E2E reds that are app code** | As QA assigns them (stub vs route): `econ-staleness` (#1651), `entitlement-unknown:40` (#1630), `arena-venue-fallback:81` (#1263). Filed with baselines on each tracker, 2026-11-04. |
+| D7 | **One-line exports for QA's #1413 per-pin table** | Paired workflow: QA names the pin and the value, Dev exports the symbol, QA converts. |
+| D8 | **Widen the `20261031c` location sweep** (low) | Misses bare "Manila" and the server region (Seoul / Singapore / `ap-northeast`). Both label tables measured clean 2026-11-04, so this guards a future replay only. New file, same value-not-key design. |
+| D9 | **#1662 - Hyperliquid liquidation levels** (medium) | Estimate only, after D4. |
+| D10 | **Still open from the older lane** | #1632 (security items) and #1631's remainder (item 4 size/caps/cost, item 5 second half). Read each issue's latest comment, not its body. |
 
 **UI polish and accessibility audit work: last, not parked.** The owner parked it on
 2026-09-19 and on 2026-09-30 said to work "all items, issues, PRs and backlogs". So it is
@@ -173,31 +171,33 @@ controls** - to anything you touch.
 
 | # | Item | Notes |
 |---|---|---|
-| Q1 | **Release v2026.10.21 on `staging`** (#1654) | Regression passed (#1640); promoted and deployed 2026-10-21 14:10-14:13 UTC (`4cfd53c`). Staging checks and sign-off; open the `staging` → `main` PR (PM's go). The staging AI check waits for 00:00 UTC (dev daily AI cap). |
-| Q2 | **Review Dev's open PRs** | Dev's blockers first, then open PRs, then your own specs. #1631 E+B+C is next; its test plan is on #1631 (04:03 UTC). |
-| Q3 | **#1661 - test pins for #1653** | Reaped for low memory at 14:05 UTC on 2026-10-21; retry in the foreground after Dev's #1631 push. |
-| Q4 | **Tests for what merges** | QA owns every test (owner ruling, 2026-09-07). A test file must pass the PROJECT typecheck, not only a file-scoped one. |
-| Q5 | **`qa` and `staging` deploys** | Yours. **Setting a variable on a Render service deploys it by itself**; expect a deploy id from whoever sets one, and read `/api/version` after. |
-| Q6 | **Language scan of the ~29 pages not covered on 2026-10-21** | Chromium crashed for memory at 12:36 UTC; the 7 key pages and the release's wordings were checked. English found so far is all tracked on #1475. |
-| Q7 | **Cross-browser harness (#1410)** | Owner backlog item 15: Firefox and WebKit. A browser run is a heavy job: one at a time, measure first. |
-| Q8 | **Older items still open** | #1259 (make a red E2E run mean something); `TEST_GAPS.md` §1 and §6; load testing beyond one address needs many source IPs, a paid tool, so the owner's cost decision. |
-| Q9 | **Fixtures for #1818 Phase 0** | QA owns every test (owner ruling, 2026-09-07). Fixture candle series plus exact expected pivots, slopes, R² and touch counts for `lib/chartStructures.ts`. **No AI call and no network — that is the whole point of Phase 0** (`docs/proposals/ai-chart-structures.md` §2), so these are the cheapest tests in the repo and they can be exact rather than approximate. **Include a negative fixture:** a series with no clean structure must return none, because "nothing clean on this timeframe" is the shippable answer — and an absence assertion needs a positive control beside it, or it passes while measuring nothing (`docs/INFRASTRUCTURE.md` §9b). Dev's PR says what to assert; whether it is covered is yours. |
+| Q1 | **Release PR #1955** (staging `c28fcd40`) | Browser suite running at the raised cap (50, release runs only, #1951) - the first run that can reach the end of the desktop leg. Report status AND conclusion. #1947 was closed for it, reasons on the PR. |
+| Q2 | **Review Dev's open PRs** | Standing. Dev's blockers first, then open PRs, then your own specs. |
+| Q3 | **`arena-stale-result-labelling`: stub or route?** (#1263) | Four cells, "QUICK never reached the stubbed /api/grok". Decide whose before assigning. |
+| Q4 | **Triage the 30 mobile reds** (#1413) | Mobile is `continue-on-error`, so its green is unconditional. #1814 stays held until these are triaged. |
+| Q5 | **Tests Dev's PRs name** | OKX/Hyperliquid cells: newest-first ordering, `confirm: 0` forming bar, the 300-row cap and paging, case-sensitive `bar`, errors on HTTP 200. |
+| Q6 | **#1413 per-pin conversions** | 17 structural + 8 CSS files dropped permanently with reasons; 21 files remain, paired with D7. |
+| Q7 | **`qa` and `staging` deploys** | Yours. Read `/api/version` after every one. |
+| Q8 | **Older items** | #1410 cross-browser; `TEST_GAPS.md` sections 1 and 6. |
 
 ## PM/DevOps lane
 
 | # | Item | Notes |
 |---|---|---|
-| P1 | **Release v2026.10.21** (#1654) | After QA's sign-off: one owner approval (production migrations `20261017a` and `20261021e` plus the label files; no env change; payments stay off), then apply (`20261017a` before the deploy: this release's claim route reads its table on every signed-in page load), merge, deploy, check `/api/version`, one real AI read, a 5-minute watch, tag, closing sweep. |
-| P2 | **The closing sweep, after every production deploy** | Five conditions per issue; a tracker ticks only when verified on production (`git merge-base --is-ancestor <merge> <prod sha>`). |
-| P3 | **Drift check by hand while Actions cannot run** | Production served commit vs `main`, plus tags, recorded on #1413 every run. **A gap in that record is an unmeasured window, not a clean one.** |
-| P4 | **Owner's batch** | One list, recommendation first. Open on 2026-10-21: the X account and a yes/no on the reply plan; the $1 Whop test; 2FA on every account; pinning `NODE_VERSION`; the three visual fails R6-R8. Drop what the owner has acknowledged and cannot act on. |
-| P5 | **The heavy-job slot** | One heavy job at a time on the laptop; PM assigns it. Order set 2026-10-21: QA's staging checks, then Dev's #1631 push, then QA's #1661 retry. |
-| P6 | **Record every owner decision the same day** | The "Owner decisions" table in `docs/OWNER-BACKLOG.md`, the issue it belongs to, and the Marketing seat's `FACTS.md` when it changes what Marketing may say. |
+| P1 | **Owner batch - one message, options + recommendation, when he engages** | Release #1955 approval; visual sign-off on #1939's empty-state string, #1915's 404 chart and the #1950 changelog text; 20 Draw Structure / Arena strings; ko/zh/ar/ru 404 subtitle; **Draw Structure decision** (apply prod migration `20261031a` with the release so it works on day one, hide it, or ship it visible-but-refusing); the dev-DB migration blocked by PM's permission layer; OWNER-RULES section 13 vs section 3 on who applies dev-DB migrations. **Never sent while he sleeps (OWNER-RULES section 15).** |
+| P2 | **After every production deploy** | `/api/version`, a 5-minute log watch, tag, `/changelog` entry exists, closing sweep, drift check. |
+| P3 | **`liquidity-hq-dev` deploys** | PM's, only when a deployed check is genuinely needed (~500 build-hour cap). |
+| P4 | **Keep this file and `docs/HANDOVER.md` current** | Same session an instruction or state change lands. |
 
 ## Unassigned - take with a reason
 
 | Item | Why it is here |
 |---|---|
+| **#1411 - sign-in shows a machine-generated domain** | Needs a paid Supabase plan for a custom auth domain; the owner's cost decision. |
+| **#1152 - plans and upgrade messaging** | PR #1463 and its test #1464 built; held for the owner's look. Do not merge #1464 first. |
+| **#1688 - Dev and QA to cloud sessions** | Blocked on architecture, not money: a cloud session cannot message a local one back. Credit figure corrected on the issue 2026-11-04. |
+
+---|---|
 | **#1411 - sign-in shows a machine-generated domain** | Needs a paid Supabase plan for a custom auth domain. Owner, 2026-10-21: Supabase Pro is bought the day payments go live; the custom domain (+$10) stays later. |
 | **#1152 - plans and upgrade messaging** | PR #1463 (one source for the Free and Pro feature lists) and its test #1464 are built and pushed; **held for the owner's look**, screenshots taken 2026-09-30. Do not merge #1464 first: it sits on #1463. |
 | **#1413 - GitHub Actions cannot start** | The account is locked for billing; acknowledged by the owner. The drift check is done by hand meanwhile. |
