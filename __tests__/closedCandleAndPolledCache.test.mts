@@ -75,12 +75,51 @@ test('A3. a non-positive or NaN interval keys as 0; weekly and monthly have no f
   for (const iv of ['1w', '1W', '1M']) assert.equal(intervalToMs(iv), null, `${iv} must not be keyed by epoch arithmetic`);
 });
 
+/* ── A4 PINNED THE VULNERABLE LINE, AND SO IT MANDATED THE BUG AND REJECTED THE FIX ──────────────
+ *
+ * This cell used to require, verbatim:
+ *
+ *     const closedTag = ivMs != null ? `:closed:${closedCandleKey(ivMs, Date.now())}` : '';
+ *
+ * That `: ''` IS the defect. An interval with no computable boundary produced an EMPTY tag, so a
+ * `closed=1` request and a live one landed on the SAME cache key - and once the forming bar started
+ * depending on `closed`, the two bodies differed, so whichever request populated the key first
+ * served its answer to the other kind of caller. A closed-candle reader getting a bar whose close
+ * keeps moving is the un-firing signal that `closed=1` exists to prevent, and `closed` is a query
+ * parameter any client sets.
+ *
+ * So the guard was satisfied by the TEXT rather than the property, and ended up protecting the
+ * defect: Dev Team's fix could not land while this assertion stood. Found by the automated security
+ * review of their commit, not by this cell, which had every opportunity.
+ *
+ * LOOSENED HERE RATHER THAN RETIGHTENED, DELIBERATELY, and pushed before the fix: `CONTRIBUTING.md`
+ * step 0 says a QA pin blocking Dev is loosened to a form green on BOTH trees and pushed FIRST.
+ * Every property below is true on `dev` and on the fix. The one property that is NOT true on `dev` -
+ * that the non-boundary fallback is non-empty - cannot be asserted from here without turning `dev`
+ * red, so it arrives in A5 with the fix. A5 is the cell that matters; this one is the floor.
+ *
+ * WHAT WENT: the verbatim pin of the whole expression, and a pin requiring `closedOnly` and `ivMs`
+ * to be ADJACENT lines. The adjacency was incidental - Dev moved `closedOnly` above a closure that
+ * now reads it, which is correct, because `const` is not hoisted and a closure depending on where it
+ * happens to be invoked is one refactor from a TDZ crash on a billed route. */
 test('A4. the klines route keys a closed request by the candle and keeps it at least a whole candle; a live request stays a different key', () => {
   const src = stripTsComments(read(resolveRoute('app/api/market/klines/route.ts')));
-  assert.ok(/const closedTag = ivMs != null \? `:closed:\$\{closedCandleKey\(ivMs, Date\.now\(\)\)\}` : '';/.test(src), 'the closed tag is not built from the candle key');
+  /* THE PROPERTY, NOT THE EXPRESSION: the tag is derived from the candle key. How the surrounding
+     ternary is spelled is the route's business - that is what pinning it cost. */
+  assert.ok(/closedTag\s*=/.test(src), 'the closed tag is gone entirely');
+  assert.ok(/closedCandleKey\(\s*ivMs/.test(src), 'the closed tag is no longer derived from the candle key');
   assert.ok(/const ttl = ivMs != null \? Math\.max\(ivMs \+ CLOSE_SKEW_MS, ttlFor\(interval\)\) : ttlFor\(interval\);/.test(src), 'the closed-candle TTL is not at least a whole candle');
-  assert.ok(/const closedOnly = q\.get\('closed'\) === '1';\s*const ivMs = closedOnly \? intervalToMs\(interval\) : null;/.test(src), 'closed keying is no longer opt-in (closed=1)');
+  /* OPT-IN, WITHOUT REQUIRING ADJACENCY. Two separate properties, each checked on its own:
+     `closedOnly` comes from the query parameter, and `ivMs` is gated on `closedOnly`. Where those
+     two lines sit relative to each other is not a property of anything. */
+  assert.ok(/const closedOnly = q\.get\('closed'\) === '1';/.test(src),
+    'closed keying is no longer opt-in from the `closed` query parameter');
+  assert.ok(/const ivMs = closedOnly \?/.test(src),
+    'ivMs is no longer gated on closedOnly, so a live request would compute a boundary it does not use');
   assert.ok(!/closedCandleTtl\(/.test(src), 'the old read-timed TTL (the bug) is back');
+
+  /* THE FALLBACK PROPERTY IS NOT HERE, AND THAT IS THE POINT. It is false on `dev`, so asserting it
+     from this cell would turn `dev` red. It lives in A5, which arrives with the fix. */
 });
 
 test('B1. the polled header: max-age=0, must-revalidate, s-maxage for a shared cache, and no stale-while-revalidate', () => {
