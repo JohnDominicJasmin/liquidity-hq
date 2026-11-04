@@ -956,7 +956,31 @@ question was asked directly.
 migration scan carries its own positive control: a key that genuinely appears in migrations, taken
 from the tree. **Without it the migration cell passes if the glob misses, if the reads come back
 empty, or if the needle is simply never present anywhere — three distinct ways to be green over
-nothing**, and none of them distinguishable from a real pass.
+
+#### A FOURTH DIRECTION: a BANNED-substring control has the same blind spot as a required one
+
+**Found while shipping the 404 page's empty-chart graphic (#1895), by the author's own pre-merge
+control.** Every direction above is about a check that must find something. This one is the same
+defect on a check that must find NOTHING, and the comment that defeats it is explaining the very
+constraint the control exists to enforce.
+
+The chart was required to be static — no `fetch`, no `<canvas>`, no `Math.random`, no `animate` —
+so the pre-merge control asserted those strings are **absent** from the file. `Math.random` was not
+absent. **It is in the comment explaining why the component does not call it**, the same sentence
+this section is paraphrasing. The control cannot tell "the code calls it" from "the comment says it
+does not" — the exact failure 9d opened with, arrived from the other side.
+
+> **A required-substring gate goes green on a comment that merely mentions the right word. A
+> banned-substring gate goes red on a comment that correctly explains why the word does not appear
+> in the code. Same blindness, opposite direction.**
+
+**The merge was confirmed by reading the line, not by the control** — `NotFoundContent.tsx` was
+opened and the call site checked by eye. The control still ran and still logged a false positive,
+which is the point: **a banned-substring check needs the AST exclusion as much as a required one
+does**, and skipping it because "it only ever needs to find zero" is how this one shipped unguarded.
+No fix was written here — the chart has no behaviour to regress and the file is small enough to
+read — but a banned-substring control on a larger surface inherits this blind spot exactly as
+written above for the required kind.
 
 ### 9e. THE RULE ALL OF §9 COLLAPSES TO
 
@@ -1635,3 +1659,60 @@ claim could refer to, and I checked all of them."*
 check producing a wrong ANSWER. This one produced a right answer to a question that was not the one
 being asked - and the cost lands on the record rather than on the work, which is the only failure
 mode in §9 that is silent, permanent and self-congratulatory at the same time.
+
+### 9l. A TOOL THAT NEVER RAN REPORTS THE SAME SILENCE AS A TOOL THAT PASSED
+
+> **This is NOT 9d's mechanism and filing it there sends the reader to the wrong fix.** 9d's four
+> instances are all *the check read the wrong text* - a real subject, and a matcher that cannot tell
+> code from prose. The remedy is to strip comments or read the AST. **This one is the check
+> reporting the wrong result of running at all**, and comment-stripping has nothing to do with it.
+
+**Both halves happened within twenty minutes on 2026-10-31, on the same change, to the same person.**
+
+**ONE: the gate failed and the wrapper said success.**
+
+```
+npx tsc --noEmit > out.txt 2>&1; echo "TSC_EXIT=$?"  &&  echo "--- errors ---"  &&  grep ...
+```
+
+`tsc` exited **2** with a real error. The harness summary for the whole command read **"exit code
+0"** - correctly, because the last `echo` in the `&&` chain succeeded. **The compiler's failure was
+true, recorded, and invisible to the line a reader would glance at.**
+
+**TWO: the gate never started and the counter found nothing.**
+
+```
+npx next lint --max-warnings 9999
+error: unknown option '--max-warnings'
+LINT_EXIT=1   ...   "0 error lines"
+```
+
+`--max-warnings` is not a valid flag for this project's lint entry point. **eslint never ran**, so
+the output held one usage error and no findings - and a filter counting `error` lines in that output
+reported **zero**. *"0 errors"* from a tool that did not execute is byte-identical to *"0 errors"*
+from a clean run.
+
+**WHY THE PAIR MATTERS MORE THAN EITHER.** The first is a wrapper masking a real exit code; the
+second is a counter measuring empty output. **They are opposite causes with the same symptom**, so
+"check the exit code" fixes only the first and "read the output" fixes only the second.
+
+**THE RULE: a tool's own exit code belongs in the text you read, and a count of findings is never
+evidence the tool ran.** Print `EXIT=$?` immediately after the tool, before any pipe, filter or
+`&&`, and read that line - not the harness summary, not a downstream count, not the absence of
+output.
+
+```bash
+npx tsc --noEmit > out.txt 2>&1; echo "TSC_EXIT=$?"   # the tool's own status, first
+grep -c "error TS" out.txt                            # the count, which is only meaningful after it
+```
+
+**Neither of these was caught by care.** Both were caught because the command happened to print
+`EXIT=$?` into its own output and that line was read. The habit is cheap and nobody in this project
+had it by default - QA hit the third instance the same day, with a `sed` edit that silently did not
+apply while the suite went on reporting **16/16**, which would have shipped a report of a fix that
+was never made.
+
+**What this shares with the rest of §9**, and why it is here rather than in a tooling note: the
+reported result was *consistent with success* and nothing about it looked like a tooling fault at
+the time - 9h's *"none of them resembled a tooling fault"*, arriving one layer further out. The
+subject was never measured, and the measurement said so in a place nobody reads.

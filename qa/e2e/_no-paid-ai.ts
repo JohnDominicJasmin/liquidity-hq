@@ -41,6 +41,15 @@ export const PAID_AI_SEGMENTS = [
   'grok', 'grok-chat', 'briefing', 'macro-context', 'dry-powder', 'onchain',
   'smc-snapshot', 'strategy-research', 'thesis-check', 'token-unlock',
   'pine-script', 'shadow-account', 'behavioral-bias', 'hypotheses',
+  /* AHEAD OF THE ROUTE, DELIBERATELY. `app/api/draw-structure/route.ts` is on #1881 and not yet on
+     `dev`, and the fence has to cover it BEFORE it merges rather than after: until the segment is
+     listed, a spec that reaches the route unstubbed is passed through, the real route answers, xAI
+     bills for it, and the spec still PASSES. That is the failure this whole file exists for, and
+     the window where it is cheapest to create is exactly the window between a route landing and
+     someone remembering the fence.
+     `P1b` knows about this state and tolerates it only while the route does not exist - see its
+     comment. Nothing to remove when #1881 merges. */
+  'draw-structure',
 ] as const;
 
 /* Matched on the URL rather than built from the list, so a RENAMED path is still caught: anything under /api/ whose first segment

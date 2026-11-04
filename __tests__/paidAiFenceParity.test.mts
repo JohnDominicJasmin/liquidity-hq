@@ -57,12 +57,44 @@ test('P1. every route that calls xAI is covered by the fence\'s segment list', (
     + 'A spec could reach them unstubbed and be billed while still passing. Add them to PAID_AI_SEGMENTS.');
 });
 
+/** Does `app/api/<segment>/` exist at all? Separates "not written yet" from "stopped spending". */
+const routeDirExists = (segment: string): boolean => {
+  try { return statSync(join(ROOT, 'app', 'api', segment)).isDirectory(); } catch { return false; }
+};
+
 test('P1b. the fence lists nothing that has stopped calling xAI - a stale entry is a claim nobody checks', () => {
   const paid = paidRouteSegments();
-  const stale = declared.filter((s) => !paid.includes(s));
+
+  /* TWO DIFFERENT STATES, AND THE OLD CELL COULD NOT TELL THEM APART.
+   *
+   * A declared segment whose route does not call xAI is either
+   *   (a) a route that EXISTS and has stopped spending - a genuinely stale claim, which is what
+   *       this cell is for; or
+   *   (b) a route that does not exist yet - the fence listed AHEAD of the code.
+   *
+   * (b) has to be allowed, and not as a favour. Until a segment is listed, a spec reaching that
+   * route unstubbed is passed through, billed, and still PASSES - so the fence must cover a paid
+   * route BEFORE it merges. Forcing the entry to wait for the route inverts the risk: it leaves the
+   * expensive window open precisely when nobody is looking at the fence.
+   *
+   * `draw-structure` is in that state today (#1881). This needs no exemption list and nothing to
+   * remove on merge: the moment the route lands it either calls xAI, and `paid` covers it, or it
+   * does not, and this cell starts reporting it as stale - which is the correct question to ask of
+   * a route that exists. */
+  const stale = declared.filter((s) => !paid.includes(s) && routeDirExists(s));
   assert.deepEqual(stale, [],
-    `the fence lists ${stale.join(', ')}, which no longer calls xAI. Harmless to traffic, but it means the list is a `
+    `the fence lists ${stale.join(', ')}, whose route EXISTS and no longer calls xAI. Harmless to traffic, but it means the list is a `
     + 'hand-maintained guess rather than a reflection of the source - and the next reader cannot tell which entries are real.');
+
+  /* The other half, so (b) cannot quietly become a backlog: entries ahead of their route are
+     allowed, named, and capped. A list of segments nobody can account for is the state this file
+     was written to prevent, one level up. */
+  const ahead = declared.filter((s) => !paid.includes(s) && !routeDirExists(s));
+  assert.ok(
+    ahead.length <= 2,
+    `${ahead.length} segments are listed with no route at all (${ahead.join(', ')}). That is a backlog, not a handoff - `
+    + 'each one should be a route in flight right now. Drop the ones that are not.',
+  );
 });
 
 /* ── P3: the free-GET exception, pinned against the source ───────────────────────────────── */
