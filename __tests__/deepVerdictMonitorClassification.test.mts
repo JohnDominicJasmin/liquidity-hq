@@ -56,12 +56,6 @@ const ARRIVING_WITH: Readonly<Record<string, string>> = {
      client branch. Remove this entry in the commit that tightens, once the route returns it. */
   COIN_NOT_TRACKED: '#1855 - the coin selector offers 463 instruments and the AI read is tracked for about 50, so the refusal needed a name the client could translate.',
 
-  /* THE THIRD CUSTOMER, and it is the loosen-able direction by a hair. `app/api/grok/route.ts:292`
-     on #1910 returns MARKET_UNAVAILABLE when the server-side gather fails, 503, before the
-     reservation. The classifier knows it now; `dev` does not return it yet. Remove this entry in
-     the commit that tightens, once #1910 merges - the `landed` assertion below is what will ask. */
-  MARKET_UNAVAILABLE: '#1910 - the route reads the Arena numbers server-side and refuses rather than asking for a verdict on a context of dashes. Nothing is spent.',
-
   /* THE FIRST CUSTOMER'S ENTRY IS GONE, AND THE EMPTY STATE WAS THE POINT.
    *
    * This held `STALE_CLIENT` while #1854 was unmerged, and it did its job: D5 stayed green on `dev`
