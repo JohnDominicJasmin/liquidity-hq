@@ -46,8 +46,20 @@
 -- applied. It is the prod body with the table names substituted, NOT a copy of the dev function,
 -- because the dev project was timing out every query while this was written (2026-10-31, the same
 -- outage behind the held release). If the dev body differs from prod by anything more than the table
--- prefix, applying this would silently revert that difference. Re-derive it from the dev project own
--- `pg_get_functiondef` and compare normalised hashes before running the dev section.
+-- prefix, applying this would silently revert that difference. Re-derive it from the dev project's own
+-- `pg_get_functiondef` before running the dev section.
+--
+-- AND COMPARE IT IN TWO PARTS, NOT AS ONE HASH. This said "compare normalised hashes", which reads as
+-- one equality that must hold - and it CANNOT, because the body below deliberately adds a branch the
+-- live function does not have. Hashing the whole thing proves only that it changed, which was never in
+-- doubt. What has to be shown is:
+--
+--   1. dev live (prefix-normalised) == prod live           - the two projects had not drifted apart
+--   2. the body below differs from prod live by ONLY the intended branch, in BOTH directions:
+--      `draw_structure_count` added, and nothing removed. A `create or replace` that silently DROPPED
+--      a branch hashes differently in exactly the same way as one that added it, so an equality test
+--      at the ends cannot tell those two apart. Compare the sets of `p_column = '...'` values.
+--   3. dev body below (prefix-normalised) == prod body below
 
 -- ===================== PROD (liquidity-hq, qdpwhnvmhqgzijuwopso) =====================
 
@@ -434,14 +446,23 @@ $$;
 -- failures and only the pair works:
 --
 --   select count(*) from information_schema.columns
---    where table_name = 'lhq_grok_usage' and column_name = 'draw_structure_count';   -- expect 1
+--    where table_name = 'lhq_grok_usage'       -- PROD. On dev/qa/staging this is lhq_dev_grok_usage;
+--                                              -- there is no lhq_grok_usage there at all, so the prod
+--                                              -- name returns 0 and reads as a FAILED apply that worked.
+--      and column_name = 'draw_structure_count';   -- expect 1
 --
 --   select (prosrc like '%draw_structure_count%') as has_branch,
 --          (length(prosrc) - length(replace(prosrc, 'draw_structure_count', ''))) / 20 as mentions
---     from pg_proc where proname = 'increment_ai_usage_impl';   -- expect true, 7
+--     from pg_proc where proname = 'increment_ai_usage_impl';   -- expect true, 8
 --
--- `mentions` is 7 and not 2: the increment branch names it 5 times, the rollback branch 2. A result of
--- 5 means the rollback chain was missed, which is the failure this count exists to catch.
+-- `mentions` is 8, counted rather than reasoned: the increment branch names it 5 times (the elsif, two
+-- in `set col = col + 1`, the `< p_limit` guard, the `returning`) and the rollback branch 3 (the elsif,
+-- two in `set col = col - 1`). A result of 5 means the rollback chain was missed, which is the failure
+-- this count exists to catch.
+--
+-- THIS SAID 7, WITH THE ROLLBACK AT 2, AND BOTH WERE WRONG. A correct apply would have reported as a
+-- failure against it. The error was arithmetic in a comment nobody runs, which is exactly where a
+-- wrong expected value survives - the query is right and only the number it is checked against is not.
 --
 -- GRANTS ARE PRESERVED: `create or replace function` keeps existing privileges, so the revokes from
 -- 20260807b and 20260807d (impl is service_role only, never `authenticated`) still stand. Re-check:
