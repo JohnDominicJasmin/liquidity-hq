@@ -395,6 +395,72 @@ which is what he had asked for. **PM answers that question with timestamps, not 
 seat that will go around PM next time. **Acknowledge, decide, and say what is next** — the reason
 `docs/WORK-QUEUE.md` exists is that the PM was once the bottleneck.
 
+## 14. NEVER SHOW A CUSTOMER WHERE HE LIVES OR WHERE THE SERVERS ARE
+
+> *"don't mention where is the server and where country I live… Remove that shit."* — the owner,
+> 2026-10-31, after finding both on `/security` and `/privacy`. **He was angrier about this than
+> about anything else in five months, until the one below.**
+
+**THE TEST IS WHETHER A CUSTOMER CAN SEE IT.** His own words settling the edge cases:
+
+> *"If it doesn't show any cost, if it doesn't show to customers, then leave it."*
+
+| | |
+|---|---|
+| **A customer can reach it** — a page, a label row, a Telegram message, an API response, an email | **REMOVE IT.** No exceptions, no legal argument, no "it is only the region". |
+| **Internal only** — private-repo code, deploy config, our own notes, migration history | **LEAVE IT.** Changing it buys nothing and some of it breaks things. |
+
+**This covers BOTH: the country he lives in AND where the servers run.** Seoul, Singapore,
+`ap-northeast-2`, `Asia/Manila`, `PHT` and every translation of them. **"PHT" is the one that hides**
+— a sweep for the country name finds the legal pages and **none** of the feature.
+
+**The four deliberate survivors, decided by him on 2026-10-31. Do not re-raise them:**
+
+- **`render.yaml`'s `region:`** — functional deploy config; removing it moves his services.
+- **`components/OnboardingFlow.tsx`'s country list** — the **user's** own country, one of ~200.
+- **`qa/fixtures/proxy/proxy-llama-stables.json`** — `PHT Stablecoin`, `Mento Philippine Peso`:
+  third-party coin names in recorded market data. Stripping them corrupts a recording to satisfy
+  a grep.
+- **`supabase/migrations/*` seeds** — a migration is the record of what ran; editing it makes the
+  file lie. `20261031c` guards the replay instead.
+
+**AND THE AUDIENCE RULE THIS SITS ON: the product is WORLDWIDE.** His location does not make this
+a local product — which is also why `/hours` shows each visitor their own clock rather than his.
+
+## 15. "I'M GOING TO SLEEP" MEANS DECIDE FOR YOURSELF, NOT WAIT FOR HIM — EVEN ON A STEP ONLY HE CAN DO
+
+> *"When I told you that I'm gonna sleep, it's up to you how to work on it. I'm paying you to do
+> it. You're not here to wait for me. You're here to decide on your own. That's why I am asking
+> you earlier if you need anything else before I sleep, so we avoid this fucking scenario."*
+> — the owner, 2026-11-04/05, after PM asked him (while he was asleep) to click one thing on a
+> dashboard and then held work for it.
+
+**The specific failure: a real tool gap (no MCP action existed to flip a Render service's
+branch) got reported to him as a question, and work paused on the answer.** He had already said
+he was sleeping and already asked once if anything was needed before he went. Asking again, after
+he said "no more," is the part he will not forgive twice.
+
+**The rule, and it is not "try harder to reach him":**
+
+- **A step that needs his hand and a step that is blocked are different things. Only the second
+  one is allowed to slow anything down.** If something genuinely requires his hand (irreversible,
+  his money, a `main` merge, a production deploy, a visual he has not seen, a write to the shared
+  database — the five gates elsewhere in this file), queue it and keep moving everything else. Do
+  **not** pause the rest of the work waiting for that one piece.
+- **"I can't do X" is a dead end only if nothing else was tried.** The actual fix that night was
+  not asking him — it was finding a path that needed no dashboard click at all (merge the branch
+  forward into the one already deployed, instead of repointing a service to a feature branch).
+  **Find the workaround before reporting the gap**, not after.
+- **If he said he is sleeping, that message is a standing "decide without me" for everything that
+  is not one of the five gates, until he says otherwise.** It does not expire at the next blocker;
+  it covers the whole night.
+- **He already told the team this once, in general form, on 2026-09-06** — see
+  `project memory feedback_owner_absence_means_keep_running` — *"when I say 'I need to go' … it
+  means I'm working to get you guys running and funded."* **This is the same rule hitting a case
+  that general form did not make obviously safe: a step that looked gated on him, but was not,
+  because a different path existed.** Read a blocker as "find another way" before reading it as
+  "ask him."
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
