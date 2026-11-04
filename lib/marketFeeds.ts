@@ -40,7 +40,7 @@
  * path - refusing it would break a caller to win a statistic.
  */
 import { bybitFanout } from '@/lib/bybitFanout';
-import { parseRatioPair } from '@/lib/ratioPair';
+import { accountRatioUrl, pickAccountRatio } from '@/lib/accountRatioParse';
 
 export type FeedResult = { payload: unknown; source: string; ok: number; total: number; stopped: boolean };
 
@@ -172,22 +172,12 @@ const accountRatio1h: MarketFeed = {
          against a cache the page no longer reads. */
       'ingest:bybit:account-ratio:1h',
       0,
-      (sym) => `https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=1h&limit=1`,
-      (body) => {
-        const item = (body as { result?: { list?: Array<Record<string, string>> } })?.result?.list?.[0];
-        if (!item) return null;
-        /* #1651: was `parseFloat(item.buyRatio || '0.5')`. A row with no buyRatio became a measured-looking 50/50 here, at ingest,
-           where nothing downstream could ever tell it apart from a real even market. Unknown is now null and stays null. */
-        const pair = parseRatioPair(item.buyRatio, item.sellRatio);
-        return {
-          longRatio:  pair?.longRatio  ?? null,
-          shortRatio: pair?.shortRatio ?? null,
-          /* ADDED field, never a reshape: the live route's parser is the same
-             code and MarketProvider, BriefingTerminal and GrokChat all read
-             longRatio/shortRatio by name, so an extra key is invisible to them. */
-          ts: Number(item.timestamp) || null,
-        };
-      },
+      /* SHARED with the page route and the Arena gather - lib/accountRatioParse.ts. The comment
+         this replaced said "the live route's parser is the same code", which was TRUE and was the
+         problem: two copies agreeing by maintenance rather than by construction. They were measured
+         byte-identical before being merged, so this extraction changes no behaviour. */
+      (sym) => accountRatioUrl(sym, '1h'),
+      pickAccountRatio,
     );
     return { payload: { data, ok, total, ...(stopped ? { stopped: true } : {}) }, source: 'bybit', ok, total, stopped };
   },
