@@ -39,6 +39,41 @@ import type { GrokContext } from './grok.ts';
  * spreads exactly these keys over the client's object, so when field 14 moves the list moves with
  * it, and anything asserting against the list fails loudly instead of quietly covering less.
  */
+export const ARENA_NUMBER_FIELDS = [
+  'price', 'change24h', 'ma20', 'priceVsMA', 'volRatio',
+  'rsi14', 'rsi1h', 'rsi4h', 'rsiDaily',
+  'longShortRatio', 'vwap', 'takerRatio', 'pocLine',
+] as const;
+
+export type ArenaNumberField = (typeof ARENA_NUMBER_FIELDS)[number];
+
+/**
+ * What the ROUTE actually overwrites. Currently every field above - but it is its own list, and
+ * the next time the two differ nothing has to be restructured to say so.
+ *
+ * TWO LISTS RATHER THAN ONE, BECAUSE "THE FORMATTER CAN PRODUCE IT" AND "THE SERVER CAN SOURCE IT"
+ * ARE DIFFERENT CLAIMS, and collapsing them is how the one exception below would have gone unnoticed.
+ *
+ * THE TWO LISTS ARE NOW THE SAME THIRTEEN, AND THE SPLIT STAYS. It is not scaffolding left behind:
+ * `longShortRatio` was excluded when step 2 landed, and the reason is the shape of the NEXT
+ * exclusion rather than a closed ticket.
+ *
+ * WHAT THE EXCLUSION WAS. The formatter reads `coin.longRatio` / `coin.shortRatio`, which
+ * `lib/marketStore.ts:35-36` documents as the **Bybit account ratio over 1h**. The obvious
+ * server-side source was `lsr.bnLongRatio` from the market snapshot - `marketStore.ts:37`, the
+ * **Binance global account ratio over 5m**. Same slot, different exchange, different window, so
+ * feeding one in as the other would have printed a different number inside a sentence whose
+ * thresholds were written for the first. **The string changes value and nothing fails** - this
+ * module's own hazard, arriving through the INPUT instead of through duplicated formatting.
+ * Sharing a formatter makes divergence impossible only while both callers feed it the same quantity.
+ *
+ * HOW IT WAS CLOSED, AND THE NEAR-MISS INSIDE IT. `lib/accountRatioData.ts` resolves this field the
+ * way the PAGE resolves it - the scheduled snapshot row first, then the live fan-out - because
+ * `app/api/market/account-ratio/route.ts` does not simply call Bybit. **Sourcing only the live path
+ * would have diverged from the page just as `bnLongRatio` would**: not by exchange, but by reading
+ * a fresh fan-out while the page read an hour-old stored bucket. The live path is the one that
+ * looks like "the source", and it is the one the page usually does not use.
+ */
 export const SERVER_SOURCED_FIELDS = [
   'price', 'change24h', 'ma20', 'priceVsMA', 'volRatio',
   'rsi14', 'rsi1h', 'rsi4h', 'rsiDaily',
@@ -47,10 +82,17 @@ export const SERVER_SOURCED_FIELDS = [
 
 export type ServerSourcedField = (typeof SERVER_SOURCED_FIELDS)[number];
 
+/* The overwrite list must stay a SUBSET of what the formatter produces. Without this, dropping a
+   field from ARENA_NUMBER_FIELDS while leaving it here would spread an undefined over a real
+   context value - a field silently blanked rather than loudly missing. */
+type _OverwriteIsSubset = ServerSourcedField extends ArenaNumberField ? true : never;
+const _subsetHolds: _OverwriteIsSubset = true;
+void _subsetHolds;
+
 /* Every name above must be a real GrokContext key. A typo would otherwise add a field the prompt
    builder ignores, and the overwrite would silently cover one field fewer than the list claims. */
 type IsContextKey<T extends keyof GrokContext> = T;
-const _fieldsAreReal: IsContextKey<ServerSourcedField> = 'price';
+const _fieldsAreReal: IsContextKey<ArenaNumberField> = 'price';
 void _fieldsAreReal;
 
 /**
@@ -62,7 +104,7 @@ void _fieldsAreReal;
  */
 export function arenaNumberFields(
   coin: Partial<CoinData> | undefined,
-): Pick<GrokContext, ServerSourcedField> {
+): Pick<GrokContext, ArenaNumberField> {
   /* Multi-TF RSI. Note `toFixed(0)` here against `toFixed(1)` for rsi14 below - that difference is
      in the original and is kept; the 14-period reading is quoted more precisely than the
      per-timeframe ones. */

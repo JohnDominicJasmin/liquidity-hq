@@ -57,6 +57,11 @@ function opensBreaker(ex: Exchange, status: number, body: string, retryAfter: bo
 }
 
 interface ExchangeState {
+  /* WHEN WE LAST TRIED THIS EXCHANGE AT ALL, success or failure. 0 means never.
+     `recent` cannot answer this - it is a sliding window that empties, so it says "not lately"
+     where the health endpoint needs "not ever". See exchangeDegraded below for why that
+     distinction is the whole point. */
+  lastCallAt: number;
   openUntil: number; strikes: number; lastTripAt: number;
   inFlight: number; waiters: Array<() => void>;
   recent: number[]; weight: number; weightMinute: number;
@@ -64,7 +69,7 @@ interface ExchangeState {
   lastTrip: { status: number; at: string; kind: string; body: string } | null;
 }
 const blank = (): ExchangeState => ({
-  openUntil: 0, strikes: 0, lastTripAt: 0, inFlight: 0, waiters: [], recent: [], weight: 0, weightMinute: 0, trips: 0, refused: 0,
+  lastCallAt: 0, openUntil: 0, strikes: 0, lastTripAt: 0, inFlight: 0, waiters: [], recent: [], weight: 0, weightMinute: 0, trips: 0, refused: 0,
   lastEvidenceAt: 0, lastTrip: null,
 });
 const g = globalThis as { __lhqExchangeGuard?: Record<Exchange, ExchangeState> };
@@ -175,6 +180,11 @@ export async function exchangeFetch(input: string | URL, init: RequestInit = {})
     // Re-checked after any wait: the breaker may have opened while this request was queued.
     const cool2 = exchangeCoolingDown(ex);
     if (cool2) { s.refused++; throw new HttpStatusError(429, `${ex}: cooling down until ${new Date(cool2.until).toISOString()}`); }
+    /* Recorded BEFORE the call, not after: a request that times out or is refused at the network
+       was still an attempt, and the question this answers is "have we ever tried", not "has it
+       ever worked". Setting it after would leave an exchange we cannot reach at all looking
+       exactly like one nobody has called - the confusion this field exists to remove. */
+    s.lastCallAt = Date.now();
     const r = await fetch(input, { ...init, signal: init.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS) });
     if (ex === 'binance') {
       const w = Number(r.headers.get('x-mbx-used-weight-1m'));
@@ -221,9 +231,36 @@ export function _exchangeGuardStats(now: number = Date.now()) {
  *
  *  Every configured exchange is named every time, healthy or not: the degenerate case is the one that ships broken, because nobody
  *  looks at a response that says nothing is wrong. */
-export function exchangeDegraded(now: number = Date.now()): Record<Exchange, { degraded: boolean }> {
-  const out = {} as Record<Exchange, { degraded: boolean }>;
-  for (const ex of Object.keys(state) as Exchange[]) out[ex] = { degraded: now < state[ex].openUntil };
+/**
+ * Per-exchange health for `/api/health`.
+ *
+ * THREE STATES, NOT TWO, AND THE THIRD IS WHY THIS COMMENT EXISTS. `degraded` answers one question:
+ * is the breaker open right now. For an exchange nobody has ever called it is `false` - the breaker
+ * has never opened because nothing has ever happened - and the endpoint was therefore asserting that
+ * `okx` and `hyperliquid` were **fine**, when the truth was that they had never been tried.
+ * `lib/exchangeGuard.ts` has reserved a slot for both since #1649 and nothing fetches either one.
+ *
+ * "Never tried" rendering as "fine" is the same shape as a liquidation panel rendering an empty
+ * section under a header that says liquidations already happened, and as a zero that measures the
+ * instrument - an absence of evidence drawn as evidence of absence. It matters more here than in
+ * most places, because a health endpoint is what someone consults when deciding whether a fallback
+ * works.
+ *
+ * `attempted` IS ADDED, NEVER A RESHAPE. `degraded` keeps its exact meaning and its exact type, so
+ * every existing consumer is unaffected; a caller that wants the distinction reads one more field.
+ * Same convention as the `ts` field on the account-ratio parser (#1404).
+ *
+ * SCOPE, STATED BECAUSE IT IS EASY TO OVERREAD: this state lives on `globalThis`, so `attempted` is
+ * per process. After a restart - and the non-prod services are on a free plan that spins down - every
+ * exchange reads `attempted: false` until something calls it. **That is the honest answer rather than
+ * a bug**: a fresh process genuinely has no evidence about any exchange. It is not a durable record
+ * of whether the integration has ever worked, and nothing should read it as one.
+ */
+export function exchangeDegraded(now: number = Date.now()): Record<Exchange, { degraded: boolean; attempted: boolean }> {
+  const out = {} as Record<Exchange, { degraded: boolean; attempted: boolean }>;
+  for (const ex of Object.keys(state) as Exchange[]) {
+    out[ex] = { degraded: now < state[ex].openUntil, attempted: state[ex].lastCallAt > 0 };
+  }
   return out;
 }
 

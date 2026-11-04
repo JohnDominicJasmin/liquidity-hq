@@ -1716,3 +1716,25 @@ was never made.
 reported result was *consistent with success* and nothing about it looked like a tooling fault at
 the time - 9h's *"none of them resembled a tooling fault"*, arriving one layer further out. The
 subject was never measured, and the measurement said so in a place nobody reads.
+
+**FOUR MORE INSTANCES, ONE DAY LATER (2026-11-05), ACROSS BOTH PM/DevOps AND Dev - "NOT YET" READ
+AS "NOTHING."**
+
+| who | the field | "not yet" | misread as |
+|---|---|---|---|
+| PM/DevOps | `gh pr ... .conclusion` | `null` while the run is `IN_PROGRESS` | no failure |
+| Dev | `gh run list --branch` | empty, run created seconds earlier | no run exists |
+| Dev | a pre-written echo, `(empty = none, so the gap is theoretical)` | the probe hadn't been re-run against current code | the gap stayed theoretical |
+| QA | a single-file test count reported without the file list | file-scoped number, tree not yet re-run as a whole | a tree-scoped number |
+
+**Same mechanism as the pair above, one field over.** There, a wrapper's own exit code was never
+read. Here, a *second* field exists that distinguishes "the check has not run yet" from "the check
+ran and found nothing" - `.status` next to `.conclusion`, a retry next to an empty list, a fresh run
+next to a stale comment, a file list next to a count - and none of the four readers looked at it
+before reporting the first field's silence as an answer.
+
+**THE REMEDY, as a rule rather than four separate fixes: when a field can be null or empty for two
+different reasons, read the field that tells you which reason, before reporting the first one.**
+`gh pr checks` has one; a cumulative counter has its reset time ([[feedback_counters_need_their_window]]
+elsewhere); a scoped measurement has its scope. The fix in every row above was not more care - it
+was one more field, read before the claim was made.
