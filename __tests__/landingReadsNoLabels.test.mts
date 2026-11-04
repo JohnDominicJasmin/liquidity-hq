@@ -202,6 +202,47 @@ test('L0. CONTROLS: the comment strip removes prose and keeps code - in all four
      the assertion that fails the day someone simplifies the pattern to `\/\/.*$`, which is exactly
      when the paragraph above the strip needs rewriting. */
   assert.match(out, /https:\/\/example\.invalid\/a\/\/b/, 'the strip ate a URL - widen it again and this file starts reading truncated source');
+
+  /* ── THE KNOWN HOLE, ASSERTED SO IT CANNOT BITE SILENTLY ──────────────────────────────────────
+   *
+   * `(^|\s)//` strips from ANY whitespace, which includes a `//` inside a string literal:
+   *
+   *     const u = "a // b"; const { t } = useLabels();
+   *
+   * The real call is eaten. Dev found this and it is a worse failure than the one the strip fixed:
+   * **L2 goes BLIND rather than red.** A cell that names offending files reports a file it cannot
+   * see as a clean one, which is the one direction a control must never fail in.
+   *
+   * A string-aware tokenizer is not worth it for a comment strip, and a comment would not stop it.
+   * So the hole is pinned twice: the first assertion records that it EXISTS, so the day someone
+   * writes the tokenizer this cell fails and tells them to delete the canary; the second is the
+   * canary itself, over the real subtree, so the hole cannot bite without something going red.
+   *
+   * Measured when written: zero files in `components/`, `app/` and `lib/` contain the shape, and
+   * the detector was shown to match a planted instance. */
+  const eaten = stripTsComments('const u = "a // b"; const { t } = useLabels();');
+  assert.doesNotMatch(
+    eaten, /useLabels\(\)/,
+    'the strip no longer eats a real call after a spaced // inside a string. That is an IMPROVEMENT ' +
+    'and this assertion is now wrong: delete it and the canary below, and rewrite the paragraph above ' +
+    'the strip, because the bound it describes is gone.',
+  );
+
+  /* `[ \t]`, NOT `\s`, AND THIS COST A FALSE POSITIVE BEFORE IT SHIPPED. With `\s` the canary fired
+     on `AuthProvider.tsx` and `BrandMark.tsx` - and no single line in either matched. **`\s`
+     includes a newline**, so the pattern bridged an apostrophe in one comment, a `//` starting a
+     comment line below it, and an apostrophe further down: "don't ... // ... it's". The character
+     classes excluded `\n` and the separator did not, which is the whole bug. A string literal lives
+     on one line, so the separator must be a space or a tab. */
+  const DANGEROUS = /"[^"\n]*[ \t]\/\/[ \t][^"\n]*"|'[^'\n]*[ \t]\/\/[ \t][^'\n]*'/;
+  const blinded = SUBTREE.filter((f) => DANGEROUS.test(readFileSync(path.join(ROOT, f), 'utf8')));
+  assert.deepEqual(
+    blinded, [],
+    `${blinded.join(', ')} contains a string literal with a spaced // in it, and is on landing's ` +
+    'import path. The comment strip would truncate that line, so L2 and L3 would stop seeing the ' +
+    'rest of the file - BLIND, not red. Either rewrite the literal (join it, or drop the spaces ' +
+    'around the //), or make the strip string-aware and delete this canary with L0\'s hole assertion.',
+  );
 });
 
 test('L1. CONTROLS: the walk reaches landing\'s real subtree, and the detector it feeds can fire', () => {
