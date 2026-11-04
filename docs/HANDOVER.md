@@ -17,7 +17,8 @@ file.**
 >
 > - **Production: `a9042f7`, tag `v2026.10.31`** - the release that removed the owner's country and
 >   the server region from every page a customer can reach (OWNER-RULES §14). Nothing released since.
-> - **`dev` (`e9a54d9`) is far ahead and deployed on `liquidity-hq-dev`:** Arena numbers now come from
+> - **`dev` is ahead of production by #1910, #1881 and #1927, among others** (`liquidity-hq-dev` serves
+>   whatever `/api/version` says - read it, do not trust a SHA written here): Arena numbers now come from
 >   the server, not the browser (#1910; a market-feed outage refuses the AI read with 503 and spends
 >   nothing - the owner's decision); Draw Structure (#1881); `/api/health` reports `attempted` beside
 >   `degraded`, so a never-called exchange no longer reads as healthy (#1927).
