@@ -29,6 +29,7 @@
  *   value reaches both sides, and must NOT be read as production parity for those two fields.
  */
 import test from 'node:test';
+import { NextRequest } from 'next/server';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -219,11 +220,11 @@ test('2. the server row and the browser row format to the same thirteen strings'
 
     /* THE BROWSER SIDE COMES FROM THE ENDPOINTS MarketProvider ACTUALLY CALLS, not from a row I
        wrote. Authoring both sides by hand would make this a mirror that cannot disagree with me. */
-    const snapBody = await (await snapshotGET(new Request('http://localhost/api/market/snapshot'))).json() as {
+    const snapBody = await (await snapshotGET(new NextRequest('http://localhost/api/market/snapshot'))).json() as {
       ticker?: Record<string, { price: number; change: number }>;
       klines?: Record<string, Record<string, number | null>>;
     };
-    const rsiBody = await (await rsiGET(new Request('http://localhost/api/market/rsi'))).json() as {
+    const rsiBody = await (await rsiGET(new NextRequest('http://localhost/api/market/rsi'))).json() as {
       rsi?: Record<string, { rsi1h?: number; rsi4h?: number; rsiDaily?: number }>;
     };
 
