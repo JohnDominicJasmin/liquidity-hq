@@ -12,6 +12,7 @@ import test, { after, afterEach, beforeEach } from 'node:test';
 import { register } from 'node:module';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
+import { marketStandIn } from './_marketStandIn.mts';
 
 const sentryStub = 'export const captureException = (...a) => { (globalThis.__qaSentry ??= []).push(a); }; export default { captureException };';
 register('data:text/javascript,' + encodeURIComponent(
@@ -287,7 +288,7 @@ const h = b64u(JSON.stringify({ alg: 'ES256', kid: 'kid-1', typ: 'JWT' }));
 const pl = b64u(JSON.stringify({ sub: UID, email: 'qa@example.test', aud: 'authenticated', role: 'authenticated', iss: `${SUPABASE}/auth/v1`, iat: now, exp: now + 600 }));
 const TOK = `${h}.${pl}.${b64u(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, KEY.privateKey, new TextEncoder().encode(`${h}.${pl}`)))}`;
 
-const net = { xai: [] as string[], stray: [] as string[] };
+const net = { xai: [] as string[], stray: [] as string[], market: [] as string[] };
 const DEEP_BODY = { model: 'grok-4.3', output: [{ type: 'message', content: [{ text: ANSWER, annotations: [{ url: 'https://news.example/etf' }] }] }], citations: ['https://news.example/fed'] };
 const QUICK_BODY = { model: 'grok-4.3', choices: [{ message: { content: ANSWER } }] };
 const realFetch = globalThis.fetch;
@@ -295,6 +296,15 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const req = input instanceof Request ? input : new Request(String(input), init);
   const url = new URL(req.url);
   if (url.origin === 'https://api.x.ai') { net.xai.push(url.pathname); return json(200, url.pathname === '/v1/responses' ? DEEP_BODY : QUICK_BODY); }
+  /* THE MARKET FEEDS. #1910 makes this route gather the Arena numbers server-side before calling
+     the model, and refuse 503 MARKET_UNAVAILABLE when that fails - so without this, R1/R2 refuse
+     before reaching anything they are about. Dev Team found it by running the real chain. Shared
+     with `arenaCoinLadder.test.mts`; see `_marketStandIn.mts` for what may not be asserted from
+     it. Must precede the stray throw below, or every market request reads as a stray. */
+  {
+    const answered = marketStandIn(req, url, { seen: (hostAndPath) => net.market.push(hostAndPath) });
+    if (answered) return answered;
+  }
   if (url.origin !== SUPABASE) { net.stray.push(url.host); throw new Error(`stray request ${req.url}`); }
   const p = url.pathname;
   const one = (row: unknown) => ((req.headers.get('accept') ?? '').includes('vnd.pgrst.object') ? json(200, row) : json(200, [row]));
@@ -325,7 +335,7 @@ beforeEach(() => {
 const { grokBody, contextFor, SERVER_BUILDS_PROMPT } = await import('./_grokBody.mts');
 const { POST } = await import('../app/api/grok/route.ts');
 const { _resetApiHealthQueue } = await import('../lib/apiHealth.ts');
-beforeEach(() => { net.xai = []; net.stray = []; });
+beforeEach(() => { net.xai = []; net.stray = []; net.market = []; });
 afterEach(() => _resetApiHealthQueue());
 const read = async (type: 'quick' | 'deep') => {
   const r = await POST(new NextRequest('http://localhost/api/grok', {

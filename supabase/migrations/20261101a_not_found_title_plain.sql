@@ -21,12 +21,28 @@
 -- "Ликвидность не найдена" after every other one changed. The locale list here comes from querying
 -- both tables, not from reading the migrations.
 --
--- ── NOT APPLIED BY THIS SESSION ─────────────────────────────────────────────────────────────────
+-- ── ALREADY APPLIED. THESE ROWS ARE LIVE ON BOTH PROJECTS AS OF 2026-11-01 ──────────────
 --
--- A write to the shared database is one of the three things that go to the OWNER directly, however
--- it is relayed. This file is the prepared change, not an applied one. It is also why the
--- screenshots that accompany this work still show the old headline: the size and contrast fixes are
--- real and visible, the wording is blocked on this.
+-- **DO NOT READ THIS FILE AS PENDING WORK.** PM/DevOps ran these ten statements against prod and
+-- dev on 2026-11-01, after the owner approved the wording, and re-queried both tables to confirm.
+-- Dev Team verified it independently the same way: all five locales on both projects now read
+-- "Page not found" in their own language.
+--
+-- WHY THIS NOTE EXISTS AT ALL. The file landed on `dev` through #1915 looking exactly like a
+-- migration waiting to be run, in a directory where everything else is. **A file whose state is
+-- correct today and whose appearance will mislead the next reader** is the same shape as
+-- `RELEASE_PR_PAUSED` - right when written, wrong to whoever finds it next. QA raised it.
+--
+-- RUNNING IT AGAIN IS HARMLESS, and that is by construction rather than luck: every statement
+-- matches on the OLD value, so a second run updates zero rows, and a row an editor has since
+-- changed by hand is left alone instead of being stamped over.
+--
+-- WHEN IT WAS WRITTEN this said "NOT APPLIED BY THIS SESSION - a write to the shared database is
+-- one of the three things that go to the OWNER directly, however it is relayed." That was true,
+-- and it is why the change went to him instead of being applied here. The reasoning in the header
+-- above is unchanged and still explains why a file edit alone would not have shipped this; only
+-- the STATE moved, and it is corrected here rather than deleted, because the old text is what a
+-- reader would otherwise keep acting on.
 --
 -- SAFE TO RUN MORE THAN ONCE. Matching on the old value rather than on the key means a second run
 -- updates nothing, and a row an editor has since changed by hand is left alone instead of being
