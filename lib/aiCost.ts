@@ -26,9 +26,15 @@ export const XAI_RATES_BY_MODEL: Record<string, { input: number; cachedInput: nu
 // and the /ops estimate keeps using this one.
 const DEFAULT_MODEL = 'grok-4.3';
 
-/* Which call made the request - the same sixteen names lhq_grok_usage counts
-   under (its `<type>_count` columns, see ALL_USAGE_COLUMNS), minus the suffix,
-   so the per-call log and the daily counters agree on what to call things. */
+/* Which call made the request - the names lhq_grok_usage counts under (its
+   `<type>_count` columns, see ALL_USAGE_COLUMNS) minus the suffix, so the per-call
+   log and the daily counters agree on what to call things.
+
+   NOT a 1:1 list with ALL_USAGE_COLUMNS, and the exception is named rather than
+   left to be rediscovered: `verdict_repair` is a call type with no count column,
+   because it is a retry of a call that was already counted. Everything else here
+   has a column, and a tool added to one list and not the other is logged but
+   never costed, or costed but never logged. */
 export const AI_CALL_TYPES = [
   'quick', 'deep', 'chat', 'chat_search', 'briefing',
   'thesis_check', 'strategy_research', 'shadow_account', 'behavioral_bias',
@@ -36,6 +42,8 @@ export const AI_CALL_TYPES = [
   'dry_powder', 'macro_context', 'onchain',
   // #1651 item 3: the one retry that asks for an unreadable Quick/Deep verdict again (app/api/grok/route.ts).
   'verdict_repair',
+  // #1818 option D: Draw Structure (app/api/draw-structure/route.ts).
+  'draw_structure',
 ] as const;
 export type AiCallType = typeof AI_CALL_TYPES[number];
 
@@ -190,6 +198,7 @@ export const ALL_USAGE_COLUMNS = [
   'behavioral_bias_count', 'pine_script_count', 'hypothesis_analyze_count',
   'token_unlock_count', 'smc_snapshot_count',
   'dry_powder_count', 'macro_context_count', 'onchain_count',
+  'draw_structure_count',
 ] as const;
 
 // Estimated $ cost of one lhq_grok_usage row (one user, one day).
