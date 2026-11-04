@@ -21,8 +21,14 @@ export const dynamic = 'force-dynamic';
  * could not tell a fresh answer from a stale one. Measured on production before the split: three calls across six seconds all
  * returned the same `checked_at` and the same `db_ms` under `Cache-Control: no-store`.
  *
- * `exchanges` names every configured exchange every time - { bybit: { degraded }, binance: { degraded } } - healthy or not, because
- * an absent key cannot be told apart from a healthy one. Read at request time, never cached. A degraded upstream does NOT set
+ * `exchanges` names every configured exchange every time - { bybit: { degraded, attempted }, ... } - healthy or not, because
+ * an absent key cannot be told apart from a healthy one. That reasoning was right and it left a THIRD state unrepresented:
+ * an exchange nobody has ever called reads `degraded: false`, because the breaker has never opened, and so the endpoint
+ * asserted `okx` and `hyperliquid` were fine while nothing in the codebase fetched either. `attempted` is the missing bit -
+ * false means no call has been made in this process, not that the exchange is healthy. **Read both or neither.**
+ * `attempted` is per process (the guard's state is on globalThis), so a restart resets it to false for everything; that is the
+ * honest answer for a process with no evidence yet, not a durable record of whether an integration has ever worked.
+ * Read at request time, never cached. A degraded upstream does NOT set
  * ok:false; the site is serving and the guards are working, and a check that goes red during every cooldown gets ignored.
  * The detailed per-exchange figures (strikes, cooling window, last upstream status) are added only for a caller carrying
  * CRON_SECRET: this endpoint is public, and those together map our rate-limit exposure.

@@ -301,17 +301,28 @@ async function runBatched<T>(tasks: Array<() => Promise<T>>, batchSize = 5): Pro
   return results;
 }
 
-/* ── Session helpers ── */
+/* ── Session helpers ──
+ *
+ * THE +8 IS ARITHMETIC, NOT A LOCATION, and the variable names used to say otherwise.
+ *
+ * These decide which market session is open - NY, London, Asia - and those boundaries are absolute
+ * instants that are the same for every reader on earth. Shifting UTC by 8 is just how the thresholds
+ * below were written down; `sessionHour >= 15 && < 21.5` is UTC 07:00-13:30 either way.
+ *
+ * So the offset stays and the names go. They were `phtHour` and `pht`, which read as the operator's
+ * clock and made a correct computation look like a parochial one. **The arithmetic is deliberately
+ * untouched**: rewriting the thresholds in UTC means re-deriving five comparisons across a modulo
+ * boundary, and a renamed variable cannot move a session edge while a rewritten threshold can. */
 function isHighActivity(): boolean {
-  const phtHour = (new Date().getUTCHours() + 8) % 24;
-  return phtHour >= 20 || phtHour < 4;
+  const sessionHour = (new Date().getUTCHours() + 8) % 24;
+  return sessionHour >= 20 || sessionHour < 4;
 }
 function getSession(): string {
-  const d   = new Date();
-  const pht = ((d.getUTCHours() + 8) % 24) + d.getUTCMinutes() / 60;
-  if (pht >= 21.5 || pht < 4)    return '🇺🇸 NY';
-  if (pht >= 15   && pht < 21.5) return '🌍 London';
-  if (pht >= 8    && pht < 15)   return '🌏 Asia';
+  const d = new Date();
+  const sessionHour = ((d.getUTCHours() + 8) % 24) + d.getUTCMinutes() / 60;
+  if (sessionHour >= 21.5 || sessionHour < 4)    return '🇺🇸 NY';
+  if (sessionHour >= 15   && sessionHour < 21.5) return '🌍 London';
+  if (sessionHour >= 8    && sessionHour < 15)   return '🌏 Asia';
   return '😴 Off';
 }
 /* ── Per-recipient alert timestamps ──────────────────────────────────────────
@@ -344,11 +355,22 @@ function alertTimeIn(timeZone: string | null): string {
   }
 }
 
-// checkDailySummary's per-recipient morning-window check. Unknown/bad
-// timezone falls back to Asia/Manila - the historical anchor this used
-// unconditionally before per-user timezones existed, so a recipient we don't
-// know the zone for still gets exactly the behavior they already had, not a
-// regression relative to before this fix.
+/* checkDailySummary's per-recipient morning-window check.
+ *
+ * AN UNKNOWN TIMEZONE FALLS BACK TO UTC, AND THAT IS A DELIBERATE BEHAVIOUR CHANGE.
+ *
+ * It was the operator's own zone, and the comment here argued for it: that zone was the historical
+ * anchor before per-user timezones existed, so falling back to it gave a recipient we cannot place
+ * "exactly the behavior they already had". That reasoning was sound and it is overruled - the owner,
+ * 2026-10-31: "don't mention where is the server and where country I live."
+ *
+ * WHAT IT COSTS, stated rather than discovered: a subscriber who never set a timezone had their
+ * "7am summary" land at 07:00 in the operator's zone and will now get it at 07:00 UTC - eight hours
+ * later. Nobody's summary stops arriving and nobody gets two.
+ *
+ * WHY UTC RATHER THAN ANOTHER GUESS: it is the only neutral answer. Any real zone is a guess about
+ * where someone lives, and picking one because it is where WE are is the thing being removed. A
+ * recipient who sets their timezone is unaffected - this is only the default. */
 function localHourMinute(timeZone: string | null, d: Date): { hour: number; min: number } {
   const read = (zone: string) => {
     const parts = new Intl.DateTimeFormat('en-GB', {
@@ -360,9 +382,11 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
     };
   };
   try {
-    return read(timeZone || 'Asia/Manila');
+    return read(timeZone || 'UTC');
   } catch {
-    return read('Asia/Manila');
+    /* A bad zone string reaches here - Intl throws on an unknown identifier. UTC rather than a
+       re-guess, same reasoning as above. */
+    return read('UTC');
   }
 }
 
@@ -1276,7 +1300,7 @@ async function checkFearGreed(
 }
 
 /* ════════════════════════════════════════
-   10. DAILY 7AM PHT SUMMARY
+   10. DAILY 7AM SUMMARY, IN EACH RECIPIENT'S OWN TIMEZONE
    ════════════════════════════════════════ */
 async function checkDailySummary(
   token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
@@ -1284,9 +1308,9 @@ async function checkDailySummary(
 ): Promise<string[]> {
   const d = new Date();
   // Each recipient's OWN local 7:00-7:10am window, not one fixed instant that
-  // only actually meant "morning" for Philippine subscribers. This used to
+  // only actually meant "morning" for subscribers in one particular zone. This used to
   // gate the entire function on a single `(getUTCHours()+8)%24 === 7` check -
-  // correct for PHT, but a "7am summary" that always lands at 7pm the
+  // correct for that zone, but a "7am summary" that always lands at 7pm the
   // previous evening for a US Eastern subscriber isn't a morning briefing for
   // them at all. Cron ticks every few minutes (see the 10-minute slop below)
   // and checks every recipient's zone each time, so each one gets exactly one
@@ -1295,7 +1319,8 @@ async function checkDailySummary(
   const eligible: { r: Recipient; zone: string }[] = [];
   for (const r of recipients) {
     if (isMutedFor(mutedByUser, r.userId, 'daily_summary')) continue;
-    const zone = CHAT_TZ.get(r.chatId) || 'Asia/Manila';
+    /* UTC when we do not know the recipient's zone (owner, 2026-10-31) - see localHourMinute. */
+    const zone = CHAT_TZ.get(r.chatId) || 'UTC';
     const { hour, min } = localHourMinute(zone, d);
     if (hour !== 7 || min > 10) continue;
     const cdKey = `daily_summary_${r.chatId}`;
@@ -1358,7 +1383,8 @@ async function checkDailySummary(
     try {
       dateStr = d.toLocaleString('en-GB', { timeZone: zone, weekday: 'short', month: 'short', day: 'numeric' });
     } catch {
-      dateStr = d.toLocaleString('en-GB', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric' });
+      /* The recipient's own zone threw, so date-stamp in UTC rather than in ours. */
+      dateStr = d.toLocaleString('en-GB', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
     }
     const bodyBase =
       `☀️ <b>Morning Briefing - ${dateStr}</b>` +
@@ -2332,7 +2358,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   if (allChatIds.length === 0)
     return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });
 
-  // Session-based cooldowns - tighter during pre-NY + NY (8pm–4am PHT)
+  // Session-based cooldowns - tighter during pre-NY + NY (12:00-20:00 UTC)
   const nyActive = isHighActivity();
   CD.whale = nyActive ? 5 * 60_000  : 30 * 60_000;
   CD.news  = nyActive ? 5 * 60_000  : 15 * 60_000;

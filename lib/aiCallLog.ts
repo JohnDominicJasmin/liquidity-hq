@@ -18,8 +18,8 @@ import { T } from '@/lib/tables';
 import { parseAiUsage, type AiCallType } from '@/lib/aiCost';
 
 export interface AiCallRecord {
-  /** Verified server-side from the caller's token - all sixteen call sites
-   *  already have it in hand for the daily-cap increment. */
+  /** Verified server-side from the caller's token - every call site already has it
+   *  in hand for the daily-cap increment, because the increment comes first. */
   userId: string;
   callType: AiCallType;
   /** The model the RESPONSE names (xAI echoes it back), falling back to the one

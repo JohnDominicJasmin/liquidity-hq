@@ -12,8 +12,92 @@ export default function NotFoundContent() {
       textAlign: 'center',
     }}>
 
+      {/* AN EMPTY CHART. The owner asked for one on this page - "add a chart like for Display",
+          then "like empty chart graphic design" - and the emptiness is the joke: "page not found"
+          and "chart with no data" are the same idea.
+
+          NOTHING IS DRAWN IN IT. No candles, no line, no sweep, no axis numbers, no symbol, no
+          timestamp. A reader must not be able to mistake it for an instrument, which is the same
+          reason the #1818 blind charts stripped their labels - the moment a decorative chart shows
+          a real price it is making a claim, and nobody will have thought about its age or source.
+
+          NO FETCH, NO API CALL, NO CANVAS, and each of those is a separate reason:
+            - a 404 is the page that must not fail, so it must not depend on anything that can be
+              slow, stale or down;
+            - 404s are mostly crawlers, so a live chart would mean an upstream call per bot hit on a
+              route with no entitlement check and no rate limit in front of it - a bill with no user
+              attached;
+            - BeamsBackground's Math.random() geometry is why a pixel comparison of landing needed a
+              noise floor of 904,516 px, and this page gets screenshotted for sign-off.
+
+          NO ANIMATION. An empty chart that animates is a chart pretending something is coming.
+
+          COLOUR COMES FROM `currentColor`, NOT A TOKEN, so the same markup is correct on both 404s.
+          app/global-not-found.tsx hardcodes data-theme="dark" and carries no theme script (#1740),
+          while app/(main)/not-found.tsx inherits the viewer's theme through RootDocument - so a
+          token colour would be right on one page and wrong on the other. Inheriting the muted text
+          colour of whichever page renders it sidesteps that instead of waiting for #1740.
+
+          NO NEW CSS. app/globals.css is a landing-gated file (CONTRIBUTING 3c), and a grid of
+          hairlines is not worth spending a rendered landing check on. Inline, like the rest of
+          this component.
+
+          aria-hidden BECAUSE IT IS DECORATIVE. It carries no information the copy below does not,
+          so announcing "chart" to a screen reader would add noise, not meaning. */}
+      <svg
+        viewBox="0 0 240 110"
+        role="presentation"
+        aria-hidden="true"
+        focusable="false"
+        /* 420, NOT 240. The owner saw it live and asked for it bigger - the concept, the copy and
+           both themes were approved as they were, so this changes the cap and nothing else.
+
+           420 IS NOT A NEW NUMBER: it is the `maxWidth` the body copy below already uses, so the
+           chart and the paragraph share one measure and the page reads as one column. Picking 320
+           or 480 would have been a third size on a page that has two.
+
+           `.empty-state-dashed` WAS CHECKED AND DOES NOT CONSTRAIN THIS. It sets background,
+           border, radius and padding - no width at all - and `components/EmptyState.tsx` sets none
+           either, so that convention is "fill the container" and has nothing to say about a cap.
+           Recorded because the obvious assumption is that it carries a size.
+
+           AT 390px THE CAP DOES NOT BIND. The container's `padding: '2rem'` leaves 326px, so the
+           chart and the copy are both 326 wide and the 240:110 aspect gives 149px of height. The
+           cap only takes effect above roughly 484px of viewport. */
+        style={{
+          width: '100%', maxWidth: 420, height: 'auto', marginBottom: 6,
+          color: 'var(--txt3, #808080)', overflow: 'visible',
+        }}
+      >
+        {/* The frame. Dashed, echoing the .empty-state-dashed convention the calculators use for
+            "nothing here", without needing its class. */}
+        <rect
+          x="0.5" y="0.5" width="239" height="109" rx="8"
+          fill="none" stroke="currentColor" strokeWidth="1"
+          strokeDasharray="4 4" opacity="0.35"
+        />
+        {/* Gridlines only - four across, five down. Hairline and faint, so the frame reads as a
+            chart surface rather than as a table. */}
+        <g stroke="currentColor" strokeWidth="0.5" opacity="0.18">
+          <line x1="0" y1="22" x2="240" y2="22" />
+          <line x1="0" y1="44" x2="240" y2="44" />
+          <line x1="0" y1="66" x2="240" y2="66" />
+          <line x1="0" y1="88" x2="240" y2="88" />
+          <line x1="48"  y1="0" x2="48"  y2="110" />
+          <line x1="96"  y1="0" x2="96"  y2="110" />
+          <line x1="144" y1="0" x2="144" y2="110" />
+          <line x1="192" y1="0" x2="192" y2="110" />
+        </g>
+      </svg>
+
       <div style={{
-        fontSize: 'var(--fs-page)', fontWeight: 800, color: 'var(--txt1, #e8e8e8)',
+        /* `--txt`, NOT `--txt1`. The latter is defined NOWHERE in app/globals.css - grep count 0 -
+           and this line was its only use in the repository, so it always resolved to the hardcoded
+           fallback `#e8e8e8`. In dark that looks correct, which is why it survived. In light it is
+           near-white text on a near-white page: measured 1.13:1 against `rgb(247,246,243)`, where
+           AA wants 4.5:1. Found while rendering this page for the owner's sign-off on the chart
+           size - the chart itself was fine at 5.68:1 because it uses `--txt3`, which exists. */
+        fontSize: 'var(--fs-page)', fontWeight: 800, color: 'var(--txt)',
         fontFamily: "'JetBrains Mono', monospace",
       }}>
         {t('NOT_FOUND_TITLE')}

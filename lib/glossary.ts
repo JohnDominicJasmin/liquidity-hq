@@ -199,7 +199,7 @@ const ALL_GLOSSARY: GlossaryCategory[] = [
         // windows lib/session.ts enforces, and UTC is the one description that
         // reads correctly for every reader instead of only one country's. This
         // definition used to say "Sunday night into Monday" and "early morning"
-        // for God Tier/Prime, which is only true from Philippine time (UTC+8) -
+        // for God Tier/Prime, which is only true from one particular timezone -
         // God Tier (Sun 15:00-19:00 UTC) is Sunday AFTERNOON in New York and
         // London, not Sunday night.
         definition: 'Recurring UTC windows in the trading day/week that have historically shown different raid/liquidity behavior: "God Tier" (Sunday 15:00-19:00 UTC) and "Prime" (daily 18:00-21:00 UTC) see more historical raid activity, "London" (weekdays 07:00-10:00 UTC) covers the London open, and the "Dead Zone" (weekdays 04:00-07:00 UTC) tends to be quiet, low-quality chop. See the Hours page to check these against your own local time.',

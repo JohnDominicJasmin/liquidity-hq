@@ -1,25 +1,31 @@
-// LANDING HARD GATE - this file is one of four that trips it.
+// THIS FILE WAS A LANDING HARD GATE FILE. IT NO LONGER IS, as of 2026-10-31.
+// Recorded rather than deleted - a check whose outcome disappears teaches
+// nobody that the question was ever asked. Same reasoning as keeping
+// supabase/migrations/20261031b as a record instead of rewriting it.
 //
-// Changing this file requires that LANDING (`/`) IS RENDERED and confirmed
-// unchanged in FOUR CONTEXTS - current/terminal x dark/light - before the PR
-// merges. Not "the selectors cannot reach landing", not "the diff is
-// additive": rendered. The rule and its history live in docs/HANDOVER.md
-// section 14 (search: "landing renders identically"); this is a signpost, not a
-// second copy of it.
+// IT WAS ONE OF FOUR FILES (with app/globals.css, lib/labelDefaults.en.json
+// and components/AppShell.tsx) that tripped a rendered-landing check before
+// any change could merge. QA measured why it never needed to be: landing's
+// subtree calls useLabels() zero times - app/(main)/page.tsx passes its own
+// dictionary prop - so no key-name change here can reach landing. Blanking a
+// changed label value produced noise-floor difference only.
 //
-// WHY THIS FILE. The owner keeps the canvas-mirrored landing (#592) and it was
-// deliberately excluded from the 2026-09-03 revert. These four files are shared
-// between landing and the reverted screens, so a change aimed at an app screen
-// reaches landing too. AppShell.tsx is the one that bit us - it rendered
-// PriceTickerStrip on `/` gated on design mode rather than pathname.
+// docs/HANDOVER.md section 14 replaced this file and lib/labelDefaults.en.json
+// with lib/i18n/dictionaries.ts, which is what actually changes landing copy.
+// That list carries a cell asserting the zero stays zero - if it ever fails,
+// this file is gated again and this comment is wrong.
 //
-// The reason is written down because a guard whose reason is invisible gets
-// deleted by the next reader - see app/globals.css:597, removed on the strength
-// of a comment that had gone stale, which reinstated the defect it described.
+// WHY THIS FILE WAS ON THE OLD LIST. The owner keeps the canvas-mirrored
+// landing (#592), deliberately excluded from the 2026-09-03 revert.
+// app/globals.css and components/AppShell.tsx remain shared between landing
+// and the reverted screens and are still gated; AppShell.tsx is the one that
+// actually bit us - it rendered PriceTickerStrip on `/` gated on design mode
+// rather than pathname.
 //
-// Missed twice in two days (#871, #883) by authors who had read HANDOVER, both
-// times because they verified what they CHANGED rather than what the gate
-// PROTECTS. That is why this sits here rather than only in a document. #873.
+// Missed twice in two days (#871, #883) while this WAS the rule, by authors
+// who had read HANDOVER, both times because they verified what they CHANGED
+// rather than what the gate PROTECTED. Left here as the cost of getting it
+// wrong once, for whoever next considers adding a label file to the list.
 
 // Canonical list of every label key currently seeded/consumed (see
 // supabase/migrations/20260723_labels_seed.sql). t() only accepts keys from
@@ -703,7 +709,7 @@ export const LABEL_KEYS = [
   'ALERTS_COOLDOWN_FOOTER_NOTE',
 
   // Hours
-  'HOURS_TITLE', 'HOURS_SUBTITLE', 'HOURS_AMPM_PHT', 'HOURS_AM', 'HOURS_PM',
+  'HOURS_TITLE', 'HOURS_SUBTITLE', 'HOURS_AM', 'HOURS_PM',
   'HOURS_DAY_SUN', 'HOURS_DAY_MON', 'HOURS_DAY_TUE', 'HOURS_DAY_WED',
   'HOURS_DAY_THU', 'HOURS_DAY_FRI', 'HOURS_DAY_SAT',
   'HOURS_MONTH_JAN', 'HOURS_MONTH_FEB', 'HOURS_MONTH_MAR', 'HOURS_MONTH_APR',
@@ -713,14 +719,19 @@ export const LABEL_KEYS = [
   'HOURS_SESSION_MAP_TIP', 'HOURS_SESSION_MAP_TITLE', 'HOURS_SESSION_MAP_SUBTITLE',
   'HOURS_SEG_NY', 'HOURS_SEG_PRIME', 'HOURS_SEG_ASIA', 'HOURS_SEG_DEAD', 'HOURS_SEG_LONDON', 'HOURS_SEG_PRE_NY',
   'HOURS_TICK_MIDNIGHT', 'HOURS_TICK_NOON', 'HOURS_TICK_AM', 'HOURS_TICK_PM',
-  'HOURS_NOW_PREFIX', 'HOURS_NOW_TIME', 'HOURS_DOT_SEPARATOR', 'HOURS_DOT_DEAD_ZONE',
+  'HOURS_NOW_PREFIX', 'HOURS_DOT_SEPARATOR', 'HOURS_DOT_DEAD_ZONE',
   'HOURS_NEXT_WINDOWS', 'HOURS_WINDOW_ACTIVE_RIGHT_NOW', 'HOURS_GO_HUNT',
   'HOURS_NO_WINDOWS', 'HOURS_ALL_WINDOWS',
-  'HOURS_WIN_GOD_BADGE', 'HOURS_WIN_GOD_TIME', 'HOURS_WIN_GOD_DESC',
-  'HOURS_WIN_PRIME_BADGE', 'HOURS_WIN_PRIME_TIME', 'HOURS_WIN_PRIME_DESC',
-  'HOURS_WIN_MON_EVE_BADGE', 'HOURS_WIN_MON_EVE_TIME', 'HOURS_WIN_MON_EVE_DESC',
-  'HOURS_WIN_LONDON_BADGE', 'HOURS_WIN_LONDON_TIME', 'HOURS_WIN_LONDON_DESC',
-  'HOURS_WIN_DEAD_BADGE', 'HOURS_WIN_DEAD_TIME', 'HOURS_WIN_DEAD_DESC',
+  'HOURS_WIN_GOD_BADGE', 'HOURS_WIN_GOD_DESC',
+  'HOURS_WIN_PRIME_BADGE', 'HOURS_WIN_PRIME_DESC',
+  'HOURS_WIN_MON_EVE_BADGE', 'HOURS_WIN_MON_EVE_DESC',
+  /* HOURS_WIN_LONDON_TIME WAS HERE and was deleted 2026-10-31, not renamed. Its value was the
+     last string in this file naming the operator's timezone, and the owner's instruction was to
+     remove every trace of it. Nothing read the key: app/(main)/hours/page.tsx carries the windows
+     as `utc:` arrays and formats them in the VIEWER's zone (#1327), which is what made every
+     HOURS_WIN_*_TIME key dead - the other four went in that round and this one was missed. */
+  'HOURS_WIN_LONDON_BADGE', 'HOURS_WIN_LONDON_DESC',
+  'HOURS_WIN_DEAD_BADGE', 'HOURS_WIN_DEAD_DESC',
 
   // Briefing
   'BRIEFING_PAGE_TITLE', 'BRIEFING_HINT_TITLE', 'BRIEFING_HINT_BODY',
@@ -1406,6 +1417,30 @@ export const LABEL_KEYS = [
   /* Item 10: what a buyer is told BEFORE paying, on /upgrade - when the
      subscription starts, that payments are final, and who they are buying from. */
   'UPGRADE_PURCHASE_TERMS_NOTE', 'UPGRADE_SELLER_IDENTITY_NOTE',
+
+  /* #1818 option D: Draw Structure. The copy carries the whole product position, so it lives
+     in label keys where the owner can change it without a code change.
+
+     NOTHING HERE ASSERTS. No "detected", no "confirmed", no confidence, no strength - three
+     measurements on #1818 put both engines and our own detector at chance, so a word implying
+     a measurement would be claiming something we do not have. The hint says what accepting
+     DOES rather than how good the line is, because what accepting does is the honest part:
+     the line becomes the trader's own drawing. */
+  'DRAW_STRUCTURE_BUTTON',
+  'DRAW_STRUCTURE_LOADING',
+  'DRAW_STRUCTURE_PANEL_TITLE',
+  'DRAW_STRUCTURE_HINT',
+  'DRAW_STRUCTURE_NONE',
+  'DRAW_STRUCTURE_ACCEPT',
+  'DRAW_STRUCTURE_REJECT',
+  'DRAW_STRUCTURE_CLEAR',
+  'DRAW_STRUCTURE_SIGNED_OUT',
+  'DRAW_STRUCTURE_FAILED',
+  'DRAW_STRUCTURE_TYPE_TRENDLINE',
+  'DRAW_STRUCTURE_TYPE_CHANNEL',
+  'DRAW_STRUCTURE_TYPE_FLAG',
+  'DRAW_STRUCTURE_TYPE_TRIANGLE',
+  'DRAW_STRUCTURE_TYPE_HORIZONTAL',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];

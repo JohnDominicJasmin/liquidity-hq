@@ -8,7 +8,7 @@ import { useSettings } from '@/lib/settings';
 //
 // Why detect instead of asking: the server has no way to know a user's
 // timezone, and Telegram alerts need it to stamp each subscriber's own local
-// time (app/api/telegram/alert/route.ts). Those alerts used to carry Philippine
+// time (app/api/telegram/alert/route.ts). Those alerts used to carry a fixed-zone
 // time for everyone, then UTC once that was recognised as wrong - honest, but
 // still nobody's actual clock. A timezone dropdown is a chore users skip, and
 // the browser already knows the answer; detecting also self-corrects when

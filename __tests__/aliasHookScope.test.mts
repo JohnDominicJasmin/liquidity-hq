@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { builtinModules } from 'node:module';
 import path from 'node:path';
 
 /* BOUNDS WHAT `qa/alias-hooks.mjs` FORGIVES.
@@ -74,8 +75,53 @@ function specifiersIn(source: string): string[] {
   return [...out];
 }
 
-/** Package specifiers imported by app code - not `@/…`, not relative, not from a comment. */
+/** A Node builtin, which is not a package and does not resolve through `node_modules`.
+ *
+ * BOTH SPELLINGS, and the first version of this only caught one. It read `s.startsWith('node:')`
+ * while the doc comment claimed "not a package, does not resolve through node_modules" - true of
+ * bare `crypto` as well, which **ten** files in the swept scope import (four provider webhook route
+ * handlers and six `lib/` modules). Dev Team found the gap; PM/DevOps recommended narrowing the comment to
+ * match the predicate instead of widening the predicate to match the comment.
+ *
+ * I widened it, because narrowing would have documented the imprecision rather than removed it.
+ * Bare `crypto` is not merely cosmetic in the wrong set: it is a member of `packageSpecifiers()`,
+ * which feeds the cell "every other package resolves to a file that exists WITHOUT the hook". That
+ * cell passes for it because `import.meta.resolve('crypto')` returns `node:crypto`, which is not
+ * MISSING and not THREW - **and also not a file.** So the member satisfied the check for a reason
+ * unrelated to the check's claim, which is precisely the A8 defect this session just fixed in
+ * `aiSpendCap.test.mts`. Same shape, so the same ruling.
+ *
+ * `builtinModules` rather than a hand-written list, so the set cannot drift from the runtime. */
+const isBuiltin = (s: string) => s.startsWith('node:') || builtinModules.includes(s);
+
+/** Package specifiers imported by app code - not `@/…`, not relative, not a builtin, not from a comment.
+ *
+ * BUILTINS ARE DROPPED HERE RATHER THAN BY WIDENING `NAME`, and the choice is the point. This sweep's
+ * subject is *packages that resolve through `node_modules`* - the set the alias hook can affect. A
+ * `node:` specifier resolves inside Node itself, so it is not a member of that set, and teaching the
+ * NAME pattern to accept a colon would make the prose control weaker at telling a package name from
+ * a sentence - its whole job.
+ *
+ * FOUND BY A CONTROL FAILING, NOT BY READING. `#1881`'s Draw Structure route imports
+ * `node:crypto` for its cache-key hash, and the prose control at the bottom of this file rejected it
+ * as "text that is not a package name" because `NAME` has no `:` in it. Measured on `dev`: `app/`
+ * imports **zero** `node:*` specifiers, so that route is the first - a genuine blind spot the
+ * control had never been exercised against rather than a regression.
+ *
+ * Dev declined to swap `createHash` for a dependency to quiet the control, which was right: letting
+ * a test gap pick the implementation is the wrong direction for both files. */
 function packageSpecifiers(): string[] {
+  const out = new Set<string>();
+  const files = execFileSync('git', ['-C', ROOT, 'ls-files', 'app', 'lib', 'components'], { encoding: 'utf8' })
+    .split(/\r?\n/).filter((f) => /\.tsx?$/.test(f));
+  for (const rel of files) {
+    try { for (const s of specifiersIn(readFileSync(path.join(ROOT, rel), 'utf8'))) out.add(s); } catch { continue; }
+  }
+  return [...out].filter((s) => !isBuiltin(s)).sort();
+}
+
+/** The same sweep WITHOUT the builtin filter - so a cell can assert the filter removed something. */
+function allSpecifiersIncludingBuiltins(): string[] {
   const out = new Set<string>();
   const files = execFileSync('git', ['-C', ROOT, 'ls-files', 'app', 'lib', 'components'], { encoding: 'utf8' })
     .split(/\r?\n/).filter((f) => /\.tsx?$/.test(f));
@@ -139,6 +185,48 @@ test('CONTROL: the sweep finds package names, not English prose', () => {
   const NAME = /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*(\/[\w.-]+)*$/i;
   const prose = specs.filter((s) => !NAME.test(s));
   assert.deepEqual(prose, [], `the import sweep picked up text that is not a package name: ${prose.join(' | ')}`);
+
+  /* THE BUILTIN FILTER IS CONTROLLED AGAINST A FIXTURE, NOT AGAINST THE TREE, and my first attempt
+     got that wrong in a way worth recording.
+     I asserted the filter must remove at least one specifier from the real sweep. It removed ZERO
+     and the cell went red - correctly, because `app/`, `lib/` and `components/` import no `node:*`
+     builtin at all on `dev`. The three files that grep for `node:` mention it in COMMENTS, which
+     `specifiersIn` strips before this ever sees them.
+     So a tree-dependent control is green on #1881's branch and red on `dev` - the same bind as an
+     ARRIVING_WITH entry, in a place where it buys nothing. A fixture exercises the filter on every
+     tree, including this one, where the real sweep cannot. */
+  assert.equal(isBuiltin('node:crypto'), true, 'node:crypto must be recognised as a builtin - it is the import that found this gap');
+  assert.equal(isBuiltin('next/server'), false, 'a real package must not be dropped as a builtin');
+  assert.equal(isBuiltin('klinecharts'), false, 'a real package must not be dropped as a builtin');
+  assert.equal(isBuiltin('crypto'), true, 'the BARE builtin spelling must be recognised too - ten files in the swept scope import it that way, and it was the half the first version of this predicate missed');
+
+  const probe = "import { createHash } from 'node:crypto';\nimport { NextResponse } from 'next/server';\n";
+  const seen = specifiersIn(probe);
+  assert.ok(seen.includes('node:crypto'), 'the sweep no longer sees a node: specifier at all, so the filter below is unreachable and the prose control is one such import away from a false positive');
+  assert.deepEqual(
+    seen.filter((s) => !isBuiltin(s)), ['next/server'],
+    'filtering the probe must leave exactly the real package: the builtin dropped, nothing else touched',
+  );
+
+  /* THE PREMISE THAT MAKES WIDENING SAFE, asserted rather than assumed. Dropping bare builtin names
+     is only correct while no real dependency is NAMED like one. Nothing in package.json is today -
+     measured, not guessed - but `buffer`, `events`, `punycode`, `process` and `stream` all exist on
+     npm as browser polyfills, and installing one would make this filter silently delete a real
+     package from the sweep. Then every cell downstream would stop checking it and stay green.
+     A guard that removes a protection when its premise lapses has to state the premise. */
+  const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>; devDependencies?: Record<string, string>;
+  };
+  const shadowing = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter((d) => builtinModules.includes(d));
+  assert.deepEqual(shadowing, [],
+    `a declared dependency is named after a Node builtin (${shadowing.join(', ')}), so the builtin filter would drop the real package and every cell below would silently stop checking it. Match on the node: prefix only for these, or exclude them here deliberately.`);
+
+  /* Reported, not asserted. This is `crypto` on every tree now that the predicate catches the bare
+     spelling, and it was ZERO before that - an assertion on the count would have been wrong on one
+     tree or the other, which is why it stays a report. */
+  const removed = allSpecifiersIncludingBuiltins().filter((s) => !specs.includes(s));
+  assert.ok(removed.every(isBuiltin),
+    `the builtin filter removed ${removed.join(', ')} from the real sweep, and at least one is not a builtin - it is eating real packages`);
   assert.ok(specs.includes('next/server'), 'the sweep lost next/server - it is imported by every route handler');
   assert.ok(specs.includes('klinecharts'), 'the sweep lost klinecharts - it is the one package loaded dynamically');
 });
