@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
+import { OKX_SYMS } from './coins.ts';
+import { okxBarForBinanceInterval } from './okx.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
 import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
@@ -130,6 +132,33 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
   }));
 }
 
+/* OKX, THE THIRD VENUE (#1651). Same bare oldest-first array `source=binance-futures` returns, so
+   this is the Binance fetcher with two differences, both deliberate:
+
+   NO PRICE FACTOR. `bybitSymbolPriceFactor` reads the symbol string for a `1000` prefix, and OKX
+   has no such instrument - it quotes every one of these per token, measured against both other
+   venues at ratios of 1.000. Applying it would be harmless today (an OKX instId never starts with
+   `1000`) and misleading tomorrow, because it would imply the guarantee comes from the symbol
+   name. It does not: `scripts/generate-coins.mjs` re-measures every venue pair on every generation
+   and refuses to write the file if OKX ever disagrees by more than 2x.
+
+   NO RETRY WRAPPER. `fetchBybitKlinesRetry` exists because `source=bybit` was the primary for a
+   chart that went blank on a single 502. OKX is third in line and only runs after two venues have
+   already failed, so a retry here would add 3x the latency to the slowest possible path. One
+   attempt with the same 12s ceiling; if it fails, `firstVenueThatAnswers` has nothing left and the
+   caller's existing error path shows EMA_SIGNAL_FAILED, exactly as it does today when two fail. */
+async function fetchOkxKlines(instId: string, bar: string, limit: number): Promise<OHLCV[]> {
+  const r = await fetch(
+    `/api/market/klines?source=okx&symbol=${instId}&interval=${bar}&limit=${limit}&closed=1`,
+    { signal: AbortSignal.timeout(12_000) },
+  );
+  if (!r.ok) throw new Error(`OKX klines ${r.status}`);
+  const raw = await r.json() as (string | number)[][];
+  return raw.map(k => ({
+    time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
+  }));
+}
+
 async function fetchBybitKlines(sym: string, interval: string, limit: number): Promise<OHLCV[]> {
   /* #1080: this used to be a single fetch with no retry - confirmed hitting
      a real 502 live during #1081's own testing, the same shape that made
@@ -178,9 +207,24 @@ async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: strin
      above described behaviour the code did not have, and had done since #1059.
 
      Order is unchanged - Bybit first, deliberately, for the egress reason above. */
+  /* OKX LAST, and the order is the point rather than an arbitrary append. Bybit stays primary for
+     the egress reason above; Binance keeps second place because it has been the fallback since
+     #1059 and its behaviour here is known. OKX is new, so it gets the position where a surprise
+     costs least - it only runs when BOTH established venues have already failed, which today
+     means the card shows EMA_SIGNAL_FAILED.
+
+     THE BAR IS DERIVED FROM THE BINANCE INTERVAL, not from Bybit's: Bybit's dialect is bare
+     minutes (`240`, `D`) and would need a second table. `null` for an interval OKX lacks
+     (Binance's `8h`, `3d`) skips the attempt, which `firstVenueThatAnswers` treats as "no symbol
+     for this subject" rather than a failure - so an unsupported timeframe cannot turn into a
+     misleading "all venues failed". */
+  const okSym = OKX_SYMS[coin];
+  const okBar = okxBarForBinanceInterval(bnInterval);
+
   return firstVenueThatAnswers<OHLCV[]>([
     bySym ? { venue: 'Bybit', run: () => fetchBybitKlines(bySym, bybitInterval, limit) } : null,
     bnSym ? { venue: 'Binance futures', run: () => fetchBinanceFuturesKlines(bnSym, bnInterval, limit) } : null,
+    okSym && okBar ? { venue: 'OKX', run: () => fetchOkxKlines(okSym, okBar, limit) } : null,
   ], coin, (failed, err, next) => {
     /* Nothing collects this today - it is client-side and GlitchTip's coverage of it is unconfirmed.
        Logged anyway because the alternative is that a venue failover leaves NO trace at all: the card

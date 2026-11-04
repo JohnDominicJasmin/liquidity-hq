@@ -196,6 +196,25 @@ export const BYBIT_SYMS: Record<string, string> = Object.fromEntries(
   RENDERED_IDS.map(id => [id, BY_ID.get(id)?.bybit]).filter(([, s]) => s) as [string, string][],
 );
 
+/* OKX USDT-swap instrument ids - `BTC-USDT-SWAP`. The THIRD venue (#1651), and a partial map by
+ * design: OKX does not list every rendered coin, so a coin absent from here simply has no OKX
+ * fallback, exactly as a coin absent from BINANCE_SYMS has no Binance one.
+ *
+ * NO HOLD LIST AND NO MULTIPLIER, unlike its two neighbours. `BINANCE_HOLD` exists because Bybit
+ * and Binance quote some memecoins per 1000 tokens and the two venues disagree about which; OKX
+ * quotes every one of them per token and lists no `1000X` instrument at all. That is not taken on
+ * trust - `scripts/generate-coins.mjs` re-measures every venue pair on every generation and refuses
+ * to write the file if OKX ever disagrees by more than 2x, so the day OKX changes how it quotes
+ * something, the generator stops rather than this map going quietly wrong.
+ *
+ * FROM THE GENERATED COLUMN, NEVER DERIVED FROM THE ID. `<ID>-USDT-SWAP` is right for most coins
+ * and wrong for the ones that matter: OKX's `BB` and `QNT` name different assets than Bybit's and
+ * Binance's do, by factors of 1266 and 0.16. The generator drops the column for those rows; a
+ * derivation here would have put them back. */
+export const OKX_SYMS: Record<string, string> = Object.fromEntries(
+  RENDERED_IDS.map(id => [id, BY_ID.get(id)?.okx]).filter(([, s]) => s) as [string, string][],
+);
+
 /* IS THERE A SECOND SOURCE FOR THIS COIN? ANSWERED FROM THE SHIPPED MAPS, not from the
  * generated row, and the difference was a lie about the one thing this function exists to say.
  *
