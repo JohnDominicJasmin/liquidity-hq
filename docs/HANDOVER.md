@@ -11,45 +11,36 @@ file.**
 
 ---
 
-> ### State on 2026-10-30 (PM/DevOps)
+> ### State on 2026-11-05 (PM/DevOps)
 >
 > The only dated status in this file. Check it against the live sources in the table further down.
-> **The block this replaced was dated 2026-10-21 and named `b999f8c` as production — nine days and
-> five releases stale.** A 2026-10-29 replacement was written and never merged, so it existed on a
-> branch and nowhere a reader would find it. Writing it is not landing it.
 >
-> - **Production: `21a93a2`, tag `v2026.10.30`, live 2026-10-30 09:49Z.** Verified against the
->   running service: `/ko` serves `lang="ko"` and `/zh` serves `lang="zh"`, with `/` serving
->   `lang="en"` as the control. All 11 Whop flags true, every other flag identical to the pre-merge
->   read.
-> - **IT SHIPPED WITH THE BROWSER SUITE UNRUN, on the owner's first-hand decision.** Both gate legs
->   were killed at the 120-minute cap on 64 `HTTP 522` and 3 `HTTP 504` from the dev Supabase auth
->   endpoint — a path that never touches application code. He was given three options and chose to
->   ship on the checks that passed. Full record and its corrections: PR #1816.
-> - **THE DEV SUPABASE IS DEGRADED AND HAS BEEN SINCE 2026-10-29 16:25Z.** Postgres is alive and
->   STARVED, not dead: a catalogue query took 15,466 ms, 97 statements were cancelled on statement
->   timeout, authentication times out. `get_project` reports `ACTIVE_HEALTHY` throughout — **do not
->   trust it**, it reads the control plane and the edge, both of which are healthy. `qa` and
->   `staging` return 503 because `/api/health` does a real read against a 3-second budget; the sites
->   themselves serve fine. **"The IO budget refills on its own" was wrong — 24 hours produced no
->   improvement.** Supabase Pro is postponed by the owner with no trigger attached; do not re-raise.
-> - **375px has NEVER completed a run in CI**, and #1814 is the only thing that closes the hole —
->   `continue-on-error` for the mobile leg is still live at `ci.yml:780`. It stays open and unmerged
->   until one mobile run completes. **Nobody closes it.** It was briefly closed in a crossed-wires
->   double-revert and reopened, so it looks abandoned and is not.
+> - **Production: `a9042f7`, tag `v2026.10.31`** - the release that removed the owner's country and
+>   the server region from every page a customer can reach (OWNER-RULES §14). Nothing released since.
+> - **`dev` (`e9a54d9`) is far ahead and deployed on `liquidity-hq-dev`:** Arena numbers now come from
+>   the server, not the browser (#1910; a market-feed outage refuses the AI read with 503 and spends
+>   nothing - the owner's decision); Draw Structure (#1881); `/api/health` reports `attempted` beside
+>   `degraded`, so a never-called exchange no longer reads as healthy (#1927).
+> - **Before `dev` -> `qa`:** Draw Structure's 16 new strings must pass QA's render check on the
+>   deployed dev service (#1931). And `supabase/migrations/20261031a_draw_structure_usage.sql` is
+>   **unapplied** - Draw Structure answers 503 `NOT_ENABLED` until it is. **Dev DB: PM sequences, QA reviews the SQL and owns the window** (owner ruling 2026-10-23). **Production DB: the owner's word, every time.**
+> - **Owner approvals waiting (visual / copy):** 20 new strings (16 Draw Structure, 4 Arena coin
+>   selector #1861) and the ko/zh/ar/ru translations of the 404 subtitle.
+> - **Exchange fallback:** OKX, Hyperliquid, Kraken and Bitget all reachable from the server region
+>   (probe 2026-11-04 19:56Z, controls passed, #1649). OKX client first, then Hyperliquid (#1651).
+> - **Dev Supabase:** QA reports password sign-in works again as of 2026-11-04 - the 2026-10-29
+>   degradation note is no longer the working assumption. Re-measure before relying on it.
+> - **375px has NEVER completed a run in CI**; #1814 stays open and unmerged until one does.
+> - **The legal-name item is gone** - the module was deleted in the location purge. Do not re-raise.
+> - **NEW STANDING RULE, 2026-11-05: OWNER-RULES §15.** When the owner says he is sleeping, every
+>   seat decides alone on everything outside the five gates, and a blocker means find another path
+>   before asking him. He threatened to replace the PM seat over this. Read it.
 > - **Four seats:** PM/DevOps (sequencing; `main` and production with the owner's approval each
 >   release), Dev (application code), QA (every test, the `qa` and `staging` deploys, sign-off),
->   Marketing (Claude Cowork, folder `Documents\LiquidityHQ-Marketing`; PM keeps its `FACTS.md`).
->   Who merges and deploys: `CLAUDE.md`.
-> - **Payments are LIVE on production since 2026-10-28 16:47Z** (Whop only). A real-plan purchase has
->   still not been made — the $1 test plan short-circuits above every grant rule and proves nothing
->   about granting.
-> - **Owed by the owner, and he is the sole source:** his exact legal name. `lib/traderIdentity.ts`
->   holds `LEGAL_NAME_CONFIRMED = false` and a placeholder, and the seller identity is a legal
->   requirement for selling into the EU and UK. Everything else on those pages is finished.
-> - **Read next:** `docs/PRODUCT-FACTS.md` (audience, prices, payments state, support email),
->   `docs/OWNER-BACKLOG.md` (the owner's list, what waits on him, the order of work)
->   and `docs/WORK-QUEUE.md` (the lanes).
+>   Marketing (Claude Cowork). Who merges and deploys: `CLAUDE.md`.
+> - **Payments are LIVE on production since 2026-10-28** (Whop only).
+> - **Read next:** `docs/OWNER-RULES.md`, `docs/PRODUCT-FACTS.md`, `docs/OWNER-BACKLOG.md`,
+>   `docs/WORK-QUEUE.md`.
 
 > ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-27.
 >
