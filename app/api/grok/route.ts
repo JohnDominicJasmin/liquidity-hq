@@ -3,6 +3,7 @@ import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, type ChartData, type GrokContext } from '@/lib/grok';
 import { arenaContextCoinId, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
+import { arenaServerNumbers } from '@/lib/arenaServerNumbers';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
@@ -168,16 +169,21 @@ export async function POST(req: NextRequest) {
   const session = ctx.session;
   const tf      = chart.tf;
 
-  const prompt = buildArenaPrompt(ctx, chart, type, selection);
+  /* THE BOUND RUNS TWICE NOW, AND BOTH RUNS HAVE A JOB.
+     This first one measures the prompt as the CLIENT's context would build it, and it sits here -
+     before auth - on purpose: it is the guard against an oversized body, which is attacker-controlled
+     and must be refused without any upstream work. The second run is after the server's own numbers
+     have been merged in, below.
 
-  /* The 64,000-character bound is the one this route already applied, now measured against the text that
+     The 64,000-character bound is the one this route already applied, now measured against the text that
      actually goes to xAI rather than against a string the client assembled. The daily cap counts CALLS,
      not tokens, so without a bound one allowed call can cost an arbitrary amount upstream. A real read
      measures about 26,000 characters, so this is roughly 2.4x headroom; anything larger is not the app
      talking. Kept as a check rather than dropped because the per-field caps bound each of 61 fields, and
      61 fields at their individual ceilings still add up. */
-  if (prompt.length > 64_000) {
-    console.warn(`[grok] refused request body: assembled prompt ${prompt.length} chars`);
+  const clientPrompt = buildArenaPrompt(ctx, chart, type, selection);
+  if (clientPrompt.length > 64_000) {
+    console.warn(`[grok] refused request body: assembled prompt ${clientPrompt.length} chars`);
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   }
 
@@ -209,9 +215,11 @@ export async function POST(req: NextRequest) {
   // quick/deep cap below still applies, and a plan read that fails there too
   // bills the call against the free row.
   //
-  // This gates the timeframe the request DECLARES. The prompt itself is built
-  // in the browser (lib/grok.ts), so a hand-made request can still describe
-  // fast candles under tf=1h; closing that means building the prompt here.
+  // This gates the timeframe the request DECLARES. The prompt is ASSEMBLED here
+  // now, but `chart` still arrives from the browser, so a hand-made request can
+  // still describe fast candles under tf=1h. #1631 step 2 closed this for the
+  // twelve NUMERIC fields - see SERVER_SOURCED_FIELDS - and the candle data is
+  // the remaining half.
   if (isGatedTf(tf) && (await getEntitlementStatus(token!, userId)) === 'not_entitled') {
     return NextResponse.json(
       { error: 'PRO_REQUIRED', message: `Fast timeframes (${GATED_TFS.join(', ')}) are a Pro feature.` },
@@ -224,8 +232,9 @@ export async function POST(req: NextRequest) {
   // here and not only by a disabled button, because a page check can be bypassed and every call costs money at xAI. It runs BEFORE the usage
   // reservation below, so a refused request counts against no quota and makes no xAI request.
   //
-  // The coin is the one the request DECLARES. The prompt is built in the browser, so a hand-made request can still describe another coin under
-  // coin=btc; closing that means building the prompt on the server (the same limit the fast-timeframe gate above states). Names, spacing and
+  // The coin is the one the request DECLARES. The prompt is assembled on the server and, since #1631 step 2, its twelve numeric fields are read
+  // here too - so a hand-made request can no longer describe another coin's PRICES under coin=btc. What it can still describe is the candle
+  // array in `chart` and the non-numeric context fields, which is the remaining half of that limit. Names, spacing and
   // case do not matter: ' XRP ' and 'Xrp' are the locked coin 'xrp'. A request that names no coin is refused for anyone who has not paid.
   //
   // A plan read that FAILED is neither Free nor Pro: for a coin on the Free list it goes through as it always did, and for any other coin it is
@@ -240,6 +249,75 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Reload the page and try again.', code: 'COIN_REQUIRED' }, { status: 400 });
     }
     return NextResponse.json({ error: 'This coin is Pro only.', code: 'COIN_LOCKED' }, { status: 403 });
+  }
+
+  /* Anything from the request body is attacker-controlled text before it is a log field: a coin of "btc
+[grok] BAD_ANSWER ..."
+     writes a second line that reads like ours and forges whatever it likes into the record we debug from. Flagged by the automated
+     security review. Stripped to the characters a coin id or a timeframe can legitimately contain, and truncated.
+
+     MOVED UP from the reservation block below, because the gather's own log lines use it and a
+     `const` is not hoisted - calling it earlier would have been a TDZ ReferenceError on exactly the
+     failure paths nobody exercises by hand. */
+  const logTag = (v: unknown) => String(v ?? 'unknown').replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 24) || 'unknown';
+
+  // ── The numbers come from HERE, not from the browser (#1631 item 5, step 2) ──
+  //
+  // Placed AFTER auth, the fast-timeframe gate and the coin ladder, and BEFORE the usage
+  // reservation below. Both halves of that matter:
+  //   - after the gates, so an unauthenticated or refused request makes no upstream market call.
+  //     The gates are already ordered this way for xAI spend; the same reasoning covers Binance.
+  //   - before the reservation, so a feed outage costs the user no quota and makes no AI call. The
+  //     coin-ladder block above answers an unreadable plan with 503 PLAN_UNKNOWN for exactly this
+  //     reason: a read we cannot do safely is retried, never guessed at, and never billed.
+  //
+  // Both feeds are cached and shared with the polling market routes, so this usually adds no
+  // upstream traffic at all.
+  /* `coin` IS `string | null` AND THE NULL IS REFUSED, NOT ASSERTED AWAY.
+     `parseArenaContext` already requires `ctx.coin` to be a tracked `X/USDT` pair and rebuilds it
+     from the matched id, so `arenaContextCoinId` returning null here should be unreachable. But
+     "should be unreachable" is the argument for a `!`, and a `!` on a value that encodes a real
+     state is how an unreachable branch becomes a null flowing into a cache key. The ladder above
+     answers the same condition with COIN_REQUIRED for unpaid accounts; this answers it for
+     everyone, because `aiCoinAllowed` lets a paid tier through without looking at the id. */
+  if (!coin) {
+    console.warn('[grok] refused request body: context.coin yielded no tracked id');
+    return NextResponse.json({ error: 'Reload the page and try again.', code: 'COIN_REQUIRED' }, { status: 400 });
+  }
+
+  const gathered = await arenaServerNumbers(coin);
+  if (!gathered.ok) {
+    console.warn(`[grok] market data unavailable for ${logTag(coin)}: ${String(gathered.reason).slice(0, 200)}`);
+    return NextResponse.json(
+      { error: 'Live market data is unavailable right now. Try again in a moment.', code: 'MARKET_UNAVAILABLE' },
+      { status: 503 },
+    );
+  }
+
+  /* ONE COIN IS NOT COVERED AND IT IS LOGGED RATHER THAN HIDDEN. `hype` has no Binance perp, so
+     lib/marketSnapshotData.ts:91 leaves it out of SYMS while lib/coins.ts:64 still offers it. For
+     that coin `fields` is empty and the browser's numbers stand - today's behaviour for every coin,
+     kept for one. lib/arenaServerNumbers.ts argues the choice; this line makes it visible in the
+     logs, because a carve-out nobody can see is how it becomes permanent. */
+  if (gathered.coinOutsideCoverage) {
+    console.warn(`[grok] ${logTag(coin)} is outside server market coverage - prompt keeps client numbers`);
+  }
+  if (gathered.partial.length) {
+    console.warn(`[grok] market snapshot partial for ${logTag(coin)}: ${gathered.partial.map(logTag).join(',')}`);
+  }
+
+  /* THE PROMPT THE MODEL ACTUALLY SEES. The client's context with the server's numbers spread over
+     it - so for every covered coin, each of the twelve fields in SERVER_SOURCED_FIELDS is a value
+     this server read, and the client cannot influence it. The spread order is what enforces that:
+     server last. */
+  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, chart, type, selection);
+
+  /* The second bound. The server's fields are short formatted strings, so this cannot realistically
+     fire once the first bound passed - which is why it is worth having: if it ever does, the gather
+     is producing something it should not, and that is a thing to find here rather than at xAI. */
+  if (prompt.length > 64_000) {
+    console.error(`[grok] server-merged prompt exceeded the bound: ${prompt.length} chars`);
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   }
 
   // ── Rate limit check ──────────────────────────────────────────────────────
@@ -270,11 +348,6 @@ export async function POST(req: NextRequest) {
   /* The date the reservation is written under, captured HERE and reused for any refund - a Deep call can cross UTC midnight,
      and recomputing the date at refund time would credit a row that never paid. */
   const reservedOn = todayUtc();
-  /* Anything from the request body is attacker-controlled text before it is a log field: a coin of "btc
-[grok] BAD_ANSWER ..."
-     writes a second line that reads like ours and forges whatever it likes into the record we debug from. Flagged by the automated
-     security review. Stripped to the characters a coin id or a timeframe can legitimately contain, and truncated. */
-  const logTag = (v: unknown) => String(v ?? 'unknown').replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 24) || 'unknown';
   /* The HEAD of an unparseable answer, one line, 160 characters. Without it the log says a verdict could not be read and not what
      arrived instead, which is the difference between knowing and guessing - QA's candidate for #1721 is that the model now bolds the
      VALUE ("SIGNAL: **BULLISH**"), a shape these regexes reject while accepting every other markdown variant. This line settles that
