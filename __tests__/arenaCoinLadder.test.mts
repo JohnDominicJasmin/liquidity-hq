@@ -196,6 +196,16 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const owner = Object.values(PERSONAS).find((x) => x.id === eq('user_id'));
     return owner?.row ? (single ? json(200, owner.row) : json(200, [owner.row])) : (single ? noRow() : json(200, []));
   }
+  /* THE SNAPSHOT ROW, answered as ABSENT on purpose. `accountRatioFor` resolves the snapshot row
+     before the live fan-out (`feedFor` -> `resolveFeedSnapshot` -> `readSnapshot`), which is a
+     Supabase read, not an exchange call - so it belongs here and not in the market stand-in.
+     `noRow()` is the DOCUMENTED path: `readSnapshot` turns 406/PGRST116 into null, and
+     `resolveFeedSnapshot` then logs "no snapshot row yet - serving live" and falls through to the
+     fan-out. Answering absent therefore exercises BOTH halves of the resolution order in one run,
+     where seeding a row would exercise only the first and hide the second.
+     Found by Dev Team running #1912's control, which printed this path in `db.unknown` - neither of
+     us predicted it, and the gap report named it rather than letting it read as a route defect. */
+  if (table === T('market_snapshot') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('grok_usage') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('app_config') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('ai_call_log') && req.method === 'POST') { db.ledgerInserts++; return json(201, null); }
