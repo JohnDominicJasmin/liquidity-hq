@@ -217,9 +217,8 @@ export async function POST(req: NextRequest) {
   //
   // This gates the timeframe the request DECLARES. The prompt is ASSEMBLED here
   // now, but `chart` still arrives from the browser, so a hand-made request can
-  // still describe fast candles under tf=1h. #1631 step 2 closed this for the
-  // twelve NUMERIC fields - see SERVER_SOURCED_FIELDS - and the candle data is
-  // the remaining half.
+  // still describe fast candles under tf=1h. #1631 step 2 closed this for every
+  // field in SERVER_SOURCED_FIELDS, and the candle data is the remaining half.
   if (isGatedTf(tf) && (await getEntitlementStatus(token!, userId)) === 'not_entitled') {
     return NextResponse.json(
       { error: 'PRO_REQUIRED', message: `Fast timeframes (${GATED_TFS.join(', ')}) are a Pro feature.` },
@@ -232,7 +231,7 @@ export async function POST(req: NextRequest) {
   // here and not only by a disabled button, because a page check can be bypassed and every call costs money at xAI. It runs BEFORE the usage
   // reservation below, so a refused request counts against no quota and makes no xAI request.
   //
-  // The coin is the one the request DECLARES. The prompt is assembled on the server and, since #1631 step 2, its twelve numeric fields are read
+  // The coin is the one the request DECLARES. The prompt is assembled on the server and, since #1631 step 2, its numeric fields are read
   // here too - so a hand-made request can no longer describe another coin's PRICES under coin=btc. What it can still describe is the candle
   // array in `chart` and the non-numeric context fields, which is the remaining half of that limit. Names, spacing and
   // case do not matter: ' XRP ' and 'Xrp' are the locked coin 'xrp'. A request that names no coin is refused for anyone who has not paid.
@@ -307,9 +306,12 @@ export async function POST(req: NextRequest) {
   }
 
   /* THE PROMPT THE MODEL ACTUALLY SEES. The client's context with the server's numbers spread over
-     it - so for every covered coin, each of the twelve fields in SERVER_SOURCED_FIELDS is a value
-     this server read, and the client cannot influence it. The spread order is what enforces that:
-     server last. */
+     it - so for every covered coin, each field in SERVER_SOURCED_FIELDS is a value this server
+     read, and the client cannot influence it. The spread order is what enforces that: server last.
+
+     NO COUNT IN THIS SENTENCE, DELIBERATELY. It said "the twelve fields" and went stale within the
+     hour, when `longShortRatio` was sourced and the list became thirteen - the same count-is-a-copy
+     mistake #1889 fixed in three signpost comments. Naming the list cannot drift from it. */
   const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, chart, type, selection);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically

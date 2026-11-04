@@ -10,17 +10,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { bybitFanout } from '@/lib/bybitFanout';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
-import { parseRatioPair } from '@/lib/ratioPair';
+import { ACCOUNT_RATIO_PERIODS, accountRatioUrl, pickAccountRatio } from '@/lib/accountRatioParse';
 import { reportHealth } from '@/lib/apiHealth';
 import { feedFor } from '@/lib/marketFeeds';
 import { resolveFeedSnapshot } from '@/lib/marketSnapshot';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 
-/* Only the periods the app actually asks for. An allowlist rather than a
-   pass-through, because each distinct value is a separate cache entry and a
-   separate fan-out of 50 upstream calls - free-text here would be both a key
-   leak and an egress amplifier. */
-const PERIODS = new Set(['5min', '15min', '30min', '1h', '4h', '1d']);
+/* The allowlist moved to lib/accountRatioParse.ts with the parser, so a second caller cannot
+   disagree about which periods are allowed. The reasoning is unchanged and lives there: each
+   distinct value is a separate cache entry AND a separate fan-out of ~50 upstream calls, so free
+   text here would be both a cache-key leak and an egress amplifier. */
+const PERIODS = ACCOUNT_RATIO_PERIODS;
 
 export async function GET(req: NextRequest) {
   if (!rateLimit(`acct-ratio:${getClientIp(req)}`, 120, 60_000)) {
@@ -72,26 +72,11 @@ export async function GET(req: NextRequest) {
     const { data, ok, total, stopped } = await bybitFanout(
       `bybit:account-ratio:${period}`,
       120_000,
-      (sym) => `https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=${period}&limit=1`,
-      (body) => {
-        const item = (body as { result?: { list?: Array<Record<string, string>> } })?.result?.list?.[0];
-        if (!item) return null;
-        /* #1651: was `parseFloat(item.buyRatio || '0.5')` - a missing side became a plausible 50/50 at the edge, and every consumer
-           downstream then treated it as measured. Unknown is null; the pair is rejected together if it does not add up. */
-        const pair = parseRatioPair(item.buyRatio, item.sellRatio);
-        return {
-          longRatio:  pair?.longRatio  ?? null,
-          shortRatio: pair?.shortRatio ?? null,
-          /* ADDED, never a reshape (#1404, QA's review). Bybit stamps each item
-             with the time the ratio was measured, and this parser used to drop
-             it - so nothing downstream could tell a fresh figure from a stale
-             one. Every existing consumer reads longRatio/shortRatio by name
-             (BriefingTerminal, GrokChat, MarketProvider), so an extra field is
-             invisible to them; changing the shape would have fixed the snapshot
-             job by breaking the route nobody was watching. */
-          ts: Number(item.timestamp) || null,
-        };
-      },
+      /* SHARED - lib/accountRatioParse.ts. This parser and the ingest job's were byte-identical
+         copies, each carrying its own restatement of the #1651 reasoning. Measured identical before
+         merging them, so nothing here changes behaviour. */
+      (sym) => accountRatioUrl(sym, period),
+      pickAccountRatio,
     );
 
     reportHealth('bybit:account-ratio', 'market', !stopped, stopped ? `${ok}/${total} then rate-limited` : `${ok}/${total}`, ok);

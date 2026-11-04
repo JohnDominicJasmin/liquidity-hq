@@ -61,6 +61,7 @@
  */
 import { marketSnapshotData } from './marketSnapshotData.ts';
 import { rsiSnapshot } from './marketRsi.ts';
+import { accountRatioFor } from './accountRatioData.ts';
 import { arenaNumberFields, SERVER_SOURCED_FIELDS, type ServerSourcedField } from './arenaContextFields.ts';
 import type { CoinData } from './marketStore.ts';
 import type { GrokContext } from './grok.ts';
@@ -73,7 +74,7 @@ export type ArenaNumbersResult =
       ok: true;
       /** Keys to spread over the client's context. Empty means "keep what the client sent". */
       fields: ServerNumberFields;
-      /** Which of the twelve were sourced here. `[]` for a coin outside coverage. */
+      /** Which fields were sourced here. `[]` for a coin outside coverage. */
       sourced: readonly ServerSourcedField[];
       /** Snapshot sections that came back empty, passed through for logging. */
       partial: readonly string[];
@@ -93,7 +94,15 @@ export type ArenaNumbersResult =
 export async function arenaServerNumbers(coin: string): Promise<ArenaNumbersResult> {
   /* Independent feeds, so allSettled-style independence: an RSI failure must not cost the price.
      marketSnapshotData already returns a result rather than throwing; rsiSnapshot does too. */
-  const [snap, rsi] = await Promise.all([marketSnapshotData(), rsiSnapshot(false)]);
+  const [snap, rsi, acct] = await Promise.all([
+    marketSnapshotData(),
+    rsiSnapshot(false),
+    /* THE THIRTEENTH FIELD, from a third provider on purpose - see lib/accountRatioData.ts. The
+       formatter's sentence is written for Bybit's 1h ACCOUNT ratio, and the market snapshot's `lsr`
+       carries Binance's 5m GLOBAL ratio: the same slot holding a different quantity. Started
+       alongside the other two so it costs no extra latency. */
+    accountRatioFor(coin),
+  ]);
 
   if (!snap.ok) return { ok: false, reason: snap.reason };
 
@@ -129,12 +138,17 @@ export async function arenaServerNumbers(coin: string): Promise<ArenaNumbersResu
     rsi1h:         r?.rsi1h,
     rsi4h:         r?.rsi4h,
     rsiDaily:      r?.rsiDaily,
+    /* `entry` is null when the coin has no Bybit symbol, or the symbol was absent from the run -
+       not fetched, never "zero". That degrades this one field to '-' through the formatter's own
+       guard, which is what a per-field gap means here. It does not refuse the request: the price
+       and the candles came from a different provider entirely. */
+    longRatio:     acct.ok ? acct.entry?.longRatio  : undefined,
+    shortRatio:    acct.ok ? acct.entry?.shortRatio : undefined,
   };
 
-  /* The formatter produces all thirteen; this takes the twelve the server owns. `longShortRatio`
-     is formatted and then dropped on purpose - it reads the Bybit 1h ratio, which this row does
-     not carry. SERVER_SOURCED_FIELDS documents why, and the Pick is driven by that list so the day
-     it gains a thirteenth entry this loop covers it with no edit here. */
+  /* Driven by SERVER_SOURCED_FIELDS rather than by a literal list, which is why adding
+     `longShortRatio` to that constant was the whole wiring - this loop covered the thirteenth field
+     the moment the list did. */
   const all = arenaNumberFields(row);
   const fields: ServerNumberFields = {};
   for (const key of SERVER_SOURCED_FIELDS) fields[key] = all[key];
