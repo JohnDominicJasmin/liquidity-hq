@@ -2701,6 +2701,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [proposals, setProposals] = useState<DrawableStructure[]>([]);
   const [dsLoading, setDsLoading] = useState(false);
   const [dsError, setDsError] = useState<string | null>(null);
+  /* A SUCCESSFUL READ THAT PROPOSED NOTHING IS ITS OWN STATE, not an error and not the initial
+     one. Without it the panel below opens on `proposals.length > 0 || dsError`, so a response
+     carrying zero structures opened nothing at all: the button flicked from "Reading the
+     chart..." back to "Draw Structure" and the user - who has just spent one of a capped number
+     of AI calls - was shown no difference between that and a click that did not register.
+     `DRAW_STRUCTURE_NONE` was written for this and had no render site in the repository. */
+  const [dsNone, setDsNone] = useState(false);
   const proposalIds = useRef<string[]>([]);
 
   /* The two setState calls BAIL OUT when there is nothing to clear, returning the previous
@@ -2714,6 +2721,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     proposalIds.current = [];
     setProposals(prev => (prev.length === 0 ? prev : []));
     setDsError(prev => (prev === null ? prev : null));
+    /* Same bail-out as the two above, for the same reason: this runs from the coin/timeframe
+       effect, which is most of what this chart does. */
+    setDsNone(prev => (prev === false ? prev : false));
   }, []);
 
   /* Proposals are about ONE window. Changing coin or timeframe makes every index they were
@@ -2725,6 +2735,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const chart = chartRef.current;
     if (!chart || dsLoading) return;
     setDsError(null);
+    setDsNone(false);
     setDsLoading(true);
     try {
       const token = await getAuthToken();
@@ -2775,6 +2786,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       }
       proposalIds.current = ids;
       setProposals(list);
+      /* AFTER clearProposals(), which has just set this back to false. An empty `list` here is
+         the model answering "no structure on this window" - a real answer, and the only one the
+         user has no other way of seeing. */
+      setDsNone(list.length === 0);
     } catch {
       setDsError(tl('DRAW_STRUCTURE_FAILED'));
     } finally {
@@ -2943,10 +2958,16 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             >
               {dsLoading ? tl('DRAW_STRUCTURE_LOADING') : tl('DRAW_STRUCTURE_BUTTON')}
             </button>
-            {(proposals.length > 0 || dsError) && (
+            {(proposals.length > 0 || dsError || dsNone) && (
               <div className="klc-draw-menu">
                 {dsError
                   ? <div className="klc-draw-item">{dsError}</div>
+                  : dsNone
+                  /* NO "Discard all" ON THIS BRANCH. There is nothing to discard, and the
+                     message clears itself the way the error does - on the next request, or on
+                     the coin/timeframe effect. Same single-line shape as the error branch
+                     rather than a new one, so this adds no CSS: globals.css is landing-gated. */
+                  ? <div className="klc-draw-item">{tl('DRAW_STRUCTURE_NONE')}</div>
                   : (<>
                       <div className="klc-draw-item">{tl('DRAW_STRUCTURE_PANEL_TITLE')}</div>
                       <div className="klc-draw-item">{tl('DRAW_STRUCTURE_HINT')}</div>
