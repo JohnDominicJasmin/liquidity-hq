@@ -3,7 +3,6 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboarding } from './OnboardingProvider';
 import { useAuth } from './AuthProvider';
-import { activatable } from '@/lib/activatable';
 
 const ITEMS = [
   { key: 'telegram'   as const, label: 'Connect Telegram alerts', href: '/alerts' },
@@ -42,16 +41,33 @@ export default function SetupChecklist() {
   };
 
   if (collapsed) {
+    const expand = () => setCollapsed(false);
     return (
-      /* role/tabIndex rather than a <button> (#939): this element already
-         contains the dismiss <button>, and a button inside a button is
-         invalid. Expanding was click-only, so a keyboard user who collapsed
-         the checklist could never get it back. */
-      <div className="ob-checklist ob-checklist-mini" {...activatable(() => setCollapsed(false), false)}>
-        <span className="ob-cl-mini-text">Setup {doneCount}/4</span>
-        <div className="ob-cl-mini-track">
-          <div className="ob-cl-mini-fill" style={{ width: `${(doneCount / 4) * 100}%` }} />
-        </div>
+      /* The expand control and the dismiss control are SIBLING <button>s.
+         This pill used to be role="button" itself (#939) with the dismiss
+         <button> inside it - an interactive element nested in another, which
+         axe reports as nested-interactive (serious): a screen reader hears one
+         control and cannot reach the second. The pill's own onClick stays only
+         as a wider mouse target for its padding; the keyboard and screen
+         reader path is the expand <button>. The button is reset to look like
+         the plain row it replaced, and holds spans rather than divs because a
+         button may only contain phrasing content. */
+      <div className="ob-checklist ob-checklist-mini" onClick={expand}>
+        <button
+          type="button"
+          onClick={expand}
+          aria-expanded={false}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'none', border: 'none', padding: 0, margin: 0,
+            font: 'inherit', color: 'inherit', cursor: 'pointer',
+          }}
+        >
+          <span className="ob-cl-mini-text">Setup {doneCount}/4</span>
+          <span className="ob-cl-mini-track">
+            <span className="ob-cl-mini-fill" style={{ display: 'block', width: `${(doneCount / 4) * 100}%` }} />
+          </span>
+        </button>
         <button className="ob-cl-mini-close" onClick={dismissForGood} aria-label="Dismiss setup checklist">×</button>
       </div>
     );
