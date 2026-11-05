@@ -8,6 +8,7 @@ import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { exchangeFetch } from '@/lib/exchangeGuard';
+import { BINANCE_SPOT_SYMS } from '@/lib/coins';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Every visitor requesting the same asset+timeframe within this window gets
@@ -33,6 +34,29 @@ const SYMBOL_MAP: Record<string, string> = {
   OP: 'OPUSDT', ARB: 'ARBUSDT', SUI: 'SUIUSDT', TON: 'TONUSDT',
   PEPE: 'PEPEUSDT', WIF: 'WIFUSDT', BONK: 'BONKUSDT', FTM: 'FTMUSDT',
 };
+
+/* THE SYMBOLS THIS ROUTE MAY ASK BINANCE SPOT FOR, checked BEFORE any quota is reserved.
+ *
+ * `asset` is a charset check, not an allowlist - any `[A-Z0-9]{1,10}` became `<asset>USDT` and went
+ * straight to spot. That let a CALLER CHOOSE A GUARANTEED FAILURE, which matters because the
+ * failure path refunds: `FOO`, `SPX`, `MATIC` all 400 at Binance. Refusing here means the only
+ * refundable failures are ones the caller cannot pick.
+ *
+ * `BINANCE_SPOT_SYMS` PLUS PEPE AND BONK, and the two extras are the point. Both are real Binance
+ * spot pairs - measured against `api/v3/exchangeInfo` - but `BINANCE_HOLD` keeps them out of
+ * `BINANCE_SYMS` because Bybit and Binance disagree about 1000x quoting on FUTURES, and
+ * `BINANCE_SPOT_SYMS` inherits that futures-specific exclusion. A plain `BINANCE_SPOT_SYMS` check
+ * would have REJECTED two working assets; measured, 2 of the 5 `SYMBOL_MAP` entries it excludes
+ * work today. So `BINANCE_SPOT_SYMS` is "BINANCE_SYMS minus spot-unlisted", NOT "everything spot
+ * lists", and it is the wrong allowlist on its own.
+ *
+ * MATIC, TON and FTM are in `SYMBOL_MAP` and are NOT spot-listed today, so they are refused here.
+ * They already failed - with a 502 and a charge - so this is strictly better for them. */
+const SMC_CHARTABLE = new Set<string>([
+  ...Object.values(BINANCE_SPOT_SYMS),
+  'PEPEUSDT',
+  'BONKUSDT',
+]);
 
 function sb(token: string) {
   return userClient(token);
@@ -147,6 +171,13 @@ export async function POST(req: NextRequest) {
    * causes above. The box is a one-field object rather than a plain `let` for the reason #1965
    * records - TS control-flow analysis does not follow an assignment made inside the nested async
    * closure, and narrows a plain `if (reserved)` to `never`. */
+  if (!SMC_CHARTABLE.has(symbol)) {
+    return NextResponse.json(
+      { error: `'${asset}' is not an asset this app can chart on Binance spot` },
+      { status: 400 },
+    );
+  }
+
   const reserved: { current: { userId: string; on: string } | null } = { current: null };
 
   try {
@@ -179,6 +210,19 @@ export async function POST(req: NextRequest) {
         const err = await aiRes.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error ?? 'AI error');
       }
+
+      /* THE REFUND WINDOW CLOSES HERE, AND THIS LINE IS THE WHOLE POINT.
+       *
+       * xAI answered 2xx, so the tokens are billed and the money is gone. Everything after this -
+       * `aiRes.json()` throwing on a malformed body, `recordAiCall` failing, an empty `choices`
+       * array - would otherwise reach the catch and hand the user their read back for a call we
+       * PAID FOR. That is a real cap defeat, not a theoretical one: the response body is upstream
+       * data we do not control, so a caller cannot force it, but a bad deploy or an xAI format
+       * change would quietly start giving reads away.
+       *
+       * Before this line a refund is correct - a network error or a non-2xx from xAI bills nothing
+       * and leaves the user with no answer. After it, the charge stands. */
+      reserved.current = null;
 
       const aiData = await aiRes.json();
       await recordAiCall({ userId: authData.user.id, callType: 'smc_snapshot', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
