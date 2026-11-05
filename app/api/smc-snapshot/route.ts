@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { cached } from '@/lib/apiCache';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -124,6 +124,31 @@ export async function POST(req: NextRequest) {
 
   const symbol = SYMBOL_MAP[asset] ?? `${asset}USDT`;
 
+  /* A FAILURE THAT PRODUCED NOTHING GIVES THE READ BACK. Same fix as #1965 on draw-structure, and
+   * this route needed it more, because one of its failures was CERTAIN rather than occasional.
+   *
+   * `asset` is a charset check, not an allowlist: any `[A-Z0-9]{1,10}` becomes `<asset>USDT` and
+   * goes straight to Binance SPOT. `fetchCandles` throws on a non-2xx, and it runs INSIDE
+   * `cached()` AFTER `incrementToolUsage` has reserved a read - so the request consumed one of the
+   * user's daily SMC snapshots and answered `502 Request failed`. Two ways in:
+   *
+   *   - `SPX`: `SPXUSDT` is listed on Binance FUTURES and not on spot, so it was every time.
+   *   - any typo inside the charset (`FOO`, `BTCC`): a 400 from Binance.
+   *
+   * A REFUND RATHER THAN AN ALLOWLIST, and the first draft of this fix got that wrong. Checking
+   * `symbol` against `BINANCE_SPOT_SYMS` before reserving looks tidier and **would have broken
+   * PEPE and BONK**: both are real Binance spot pairs, but `BINANCE_HOLD` keeps them out of
+   * `BINANCE_SYMS` because Bybit and Binance disagree about 1000x quoting on FUTURES - a
+   * futures-specific exclusion that `BINANCE_SPOT_SYMS` inherits. Measured: of 24 `SYMBOL_MAP`
+   * entries the allowlist would have rejected 5, and 2 of those 5 work today.
+   *
+   * So the refund is the honest shape here: it does not require this route to predict which
+   * symbols a venue lists, and it covers a genuine transient upstream failure as well as the two
+   * causes above. The box is a one-field object rather than a plain `let` for the reason #1965
+   * records - TS control-flow analysis does not follow an assignment made inside the nested async
+   * closure, and narrows a plain `if (reserved)` to `never`. */
+  const reserved: { current: { userId: string; on: string } | null } = { current: null };
+
   try {
     const result = await cached(`smc-snapshot:${asset}:${tf}`, CACHE_TTL, async () => {
       // Only the cache-miss path spends on xAI, so only it needs the daily
@@ -133,6 +158,7 @@ export async function POST(req: NextRequest) {
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
+      reserved.current = { userId: authData.user.id, on: todayUtc() };
 
       const candles = await fetchCandles(symbol, tf, 50);
       if (candles.length < 20) throw new Error('Not enough candle data - try a different timeframe');
@@ -163,7 +189,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof RateLimitError) {
+      /* NO REFUND, AND THAT IS CORRECT RATHER THAN AN OMISSION. `incrementToolUsage` throws this
+       * when `usage.blocked`, which is BEFORE `reserved.current` is assigned - there is nothing to
+       * give back. The guard below would skip it anyway; saying so stops the next reader
+       * "fixing" it into a double credit. */
       return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+    }
+
+    /* `reserved.current` is null on a cache hit and on any refusal before the reservation, so this
+     * cannot credit a read nobody paid for. It carries the reservation DATE as well as the user id
+     * because refunding against today's date after a call crossed UTC midnight would credit a row
+     * that never paid. */
+    if (reserved.current) {
+      await refundToolUsage(reserved.current.userId, 'smcSnapshot', reserved.current.on);
     }
     return apiError('smc-snapshot', e, 502, 'Request failed');
   }

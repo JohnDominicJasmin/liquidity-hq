@@ -6,7 +6,7 @@ import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
 import { formatAlertTally } from '@/lib/alertTally';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
-import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { bootstrapReadings, trendBetween } from '@/lib/oiTrendWindow';
 import { isFeatureEnabled } from '@/lib/featureFlags';
@@ -1074,7 +1074,26 @@ interface TakerVolItem { buyVol: string; sellVol: string; timestamp: number }
 
 async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCounts): Promise<string[]> {
   const fired: string[] = [];
-  await runBatched(Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
+  /* SKIP A COIN SPOT CANNOT ANSWER FOR, INSTEAD OF ASKING AND COUNTING A SKIP.
+   *
+   * This check needs BOTH legs, and the first is Binance SPOT klines while `BINANCE_PERP` is just
+   * an alias for `BINANCE_SYMS` - a FUTURES map built from `fapi/v1/exchangeInfo`. `SPXUSDT` is on
+   * futures and not on spot, so that leg was a guaranteed 400 and `noteSkip` fired for SPX on every
+   * single run of the cron.
+   *
+   * Two reasons that is worth a line rather than leaving it to fail:
+   *
+   *   1. `skipCounts` exists to report TRANSIENT upstream trouble (#1270). A permanently impossible
+   *      request inflates it every run, which makes the number less useful for the thing it is for -
+   *      a real Binance outage now has to be spotted against a non-zero floor.
+   *   2. It spends a request and 7s of timeout budget on an answer that cannot exist.
+   *
+   * SPX genuinely has no CVD under this definition, because the spot klines leg has no source. That
+   * is a gap, not a fix - recorded here and on the PR rather than papered over with the futures
+   * klines, which would change what the number MEANS for one coin out of 46. */
+  const cvdCoins = Object.entries(BINANCE_PERP)
+    .filter(([coin]) => BINANCE_SPOT_SYMS[coin] !== undefined);
+  await runBatched(cvdCoins.map(([coin, sym]) => async () => {
     try {
       const [kRes, tvRes] = await Promise.allSettled([
         exchangeFetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=2`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
