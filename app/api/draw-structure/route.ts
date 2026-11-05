@@ -409,7 +409,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Could not read the chart. Try again.', code: 'UNDRAWABLE' }, { status: 502 });
     }
     if (e instanceof RateLimitError) {
-      /* `not_enabled` is not a rate limit and must not be sent as one: it means this tool's usage
+      /* NO REFUND HERE, AND THAT IS CORRECT RATHER THAN AN OMISSION. `incrementToolUsage` throws
+       * this when `usage.blocked`, which is BEFORE `reserved.current` is assigned - so there is
+       * nothing to give back. The guard below would also skip it, but saying so stops the next
+       * reader "fixing" it.
+       *
+       * `not_enabled` is not a rate limit and must not be sent as one: it means this tool's usage
        * column is missing, which is our deployment state, not the user's quota. 503 so a client
        * retry-after-reset heuristic does not treat it as "wait until tomorrow". */
       const notEnabled = e.reason === 'not_enabled';
@@ -417,6 +422,24 @@ export async function POST(req: NextRequest) {
         { error: e.message, code: notEnabled ? 'NOT_ENABLED' : 'RATE_LIMIT' },
         { status: notEnabled ? 503 : 429 },
       );
+    }
+
+    /* AN UNCLASSIFIED FAILURE REFUNDS TOO, and leaving it out was a real gap rather than a
+     * nicety - QA caught it on #1956.
+     *
+     * Everything reaching this line reserved a read and produced nothing: an xAI network error,
+     * a non-2xx from xAI, a body that would not parse, anything thrown inside `cached()`. The
+     * user is in exactly the position the two typed refusals above refund for, and the fact that
+     * we could not NAME the cause is not a reason to keep their quota. The grok route's own
+     * comment is the precedent and it records being wrong about this once already: "no refund,
+     * as for any failed xAI call" - which was wrong in the one case where the user had paid.
+     *
+     * `reserved.current` is null on a cache hit and on any refusal before the reservation, so
+     * this cannot credit a read nobody paid for. That is also why it is a box rather than a
+     * boolean: it carries the user id and the reservation DATE, and refunding against today's
+     * date after a call crossed UTC midnight would credit a row that never paid. */
+    if (reserved.current) {
+      await refundToolUsage(reserved.current.userId, 'drawStructure', reserved.current.on);
     }
     return apiError('draw-structure', e, 502, 'Request failed');
   }
