@@ -10,13 +10,53 @@ import { computeRSI14 } from '../lib/rsi.ts';
    CHANGED WITH #1626 C (owner, 2026-10-21: "Standard RSI"; Dev, intentionally): computeRSI14 is now the standard Wilder RSI, unrounded. Three
    cases pinned the OLD simple windowed mean and were rewritten to the new rule: "alternating" (Wilder lands near 50, not on it), "history
    counts" (was "reads only the last 14 changes": Wilder remembers the whole series, which is what TradingView shows), and "unrounded" (was
-   "rounded integer": rounding before a 30/70 comparison is what the owner ruled out). The 0/100/flat/15-close/30/70 cases are unchanged: with
-   exactly 15 closes Wilder's value IS its seed, the simple mean. */
+   "rounded integer": rounding before a 30/70 comparison is what the owner ruled out). The 0/100/15-close/30/70 cases are unchanged: with
+   exactly 15 closes Wilder's value IS its seed, the simple mean.
+
+   CHANGED WITH #2015 (Dev's fix, QA's cells): a FLAT series now has no RSI and returns null rather than 100. Two cells moved - the flat case
+   itself, and the close-count case whose fixtures were flat and so returned null for the wrong reason. A third was added asserting the pair,
+   since each half alone is satisfied by a fix that breaks the other.
+
+   WHAT THE MUTATION RUNS ACTUALLY SHOWED, including the part that did not go my way. Reverting the one changed expression in lib/rsi.ts turns
+   the flat cell and the pair control RED (3 fail with the parent suite, 9 pass) and leaves the close-count cell green - correct, since that cell
+   no longer depends on the flat rule. But breaking the close-count guard does NOT turn the close-count cell red either, so de-conflating its
+   fixture did not make it a guard test; only its `notEqual` half discriminates, and the cell says so. An assertion that cannot fail is worth
+   keeping as documentation and worth labelling as documentation.
+
+   The flat 100 was never observed on live data - Dev measured 235 readings across 47 coins and 5 timeframes, plus ~1000 real 1m closes on five
+   symbols, longest flat run 2-4 closes - so this is degenerate-input hardening justified by the direction of the failure rather than a sighting.
+   The argument for taking it anyway is in the flat cell: the old cell's own comment named the consumer hazard, and `checkRSI` turned out to have
+   it. */
 test('computeRSI14', async (t) => {
   await t.test('needs 15 closes to produce 14 changes', () => {
+    /* THE FIXTURES MUST NOT BE FLAT, AND THEY USED TO BE. Before #2015 this cell read
+       `Array(14).fill(100)` and `Array(15).fill(100)`, which was fine while a flat series
+       returned 100 - the only way to get null was to be short of closes. Now a flat series
+       returns null on its own merits, so a flat fixture returns null for a reason that has
+       nothing to do with the close count.
+
+       So both fixtures alternate up and down: they carry a gain AND a loss, which means null
+       cannot come from the flat rule.
+
+       BE PRECISE ABOUT WHAT THAT BOUGHT, BECAUSE I FIRST CLAIMED MORE THAN IT DID. Mutation
+       testing both halves against the real guard:
+
+         `notEqual(moving(15), null)`  IS load-bearing. Requiring 16 closes instead of 15
+                                      (`< period + 2`) turns it red with this message.
+         `equal(moving(14), null)`     CANNOT be driven red by breaking the close-count guard,
+                                      and the non-flat fixture does not change that. Deleting
+                                      the guard entirely still returns null, because
+                                      `wilderRsiSeries` assigns from `out[period]` upward and
+                                      so never writes `out[13]` - the last element of any
+                                      14-close series is NaN whatever the guard says.
+
+       So the first line documents the contract and would catch a rewrite of the indexing; it
+       is NOT a test of the length guard, and reading it as one would be the same mistake in a
+       new place. The guard is tested by the line below it. */
+    const moving = (n: number) => Array.from({ length: n }, (_, i) => 100 + (i % 2));
     assert.equal(computeRSI14([]), null);
-    assert.equal(computeRSI14(Array(14).fill(100)), null);
-    assert.notEqual(computeRSI14(Array(15).fill(100)), null);
+    assert.equal(computeRSI14(moving(14)), null, '14 closes give 13 changes - one short, so there is no RSI yet');
+    assert.notEqual(computeRSI14(moving(15)), null, '15 closes give exactly 14 changes, which is enough');
   });
 
   await t.test('a strictly rising series is 100', () => {
@@ -25,12 +65,39 @@ test('computeRSI14', async (t) => {
     assert.equal(computeRSI14(closes), 100);
   });
 
-  await t.test('a flat series is also 100', () => {
-    /* Every change is 0, so avgGain and avgLoss are both 0 and avgLoss === 0
-       wins. Documenting rather than endorsing: a flat market reading as
-       maximally overbought is a quirk of this formula, and anything consuming
-       rsi === 100 as a sell signal inherits it. */
-    assert.equal(computeRSI14(Array(20).fill(100)), 100);
+  await t.test('a flat series has NO rsi, and must not read 100 (#2015)', () => {
+    /* THIS CELL USED TO ASSERT 100, AND ITS OWN COMMENT ARGUED AGAINST ITSELF: "Documenting
+       rather than endorsing: a flat market reading as maximally overbought is a quirk of this
+       formula, and anything consuming rsi === 100 as a sell signal inherits it."
+
+       That caveat named the consumer hazard exactly, and then the hazard turned out to be
+       real: `checkRSI` compares `rsi >= loosestOb` - the loosest overbought threshold across
+       all current recipients - so a false 100 clears every threshold a user can set and fires
+       an exhaustion alert on a coin that has not moved. The comment is now the rule instead of
+       the warning.
+
+       WHY 0/0 IS NOT 100: avgGain and avgLoss are both 0, and `l === 0` alone cannot tell
+       "only up closes" (genuinely overbought) from "nothing moved at all" (undefined). The
+       formula returns NaN for the second, which `wilderRsi` turns into null via its
+       Number.isFinite guard, `formatRsi` renders as "-", and series consumers skip. */
+    assert.equal(computeRSI14(Array(20).fill(100)), null);
+  });
+
+  await t.test('CONTROL: flat is null WHILE gains-with-no-losses is still 100', () => {
+    /* THE PAIR IS THE CHANGE, AND EITHER HALF ALONE IS SATISFIED BY A WRONG FIX. Asserting
+       only that flat is null would pass against a naive `l === 0 ? NaN`, which would also
+       destroy genuine overbought - the reading this function exists to produce. Asserting only
+       that a rising series is 100 is what the cell above already does and is what let the flat
+       case read 100 for as long as it did.
+
+       So the two live in one cell, next to each other, because the property is the DISTINCTION
+       rather than either value. */
+    assert.equal(computeRSI14(Array(20).fill(100)), null, 'nothing moved: no RSI');
+
+    /* 19 flat closes then one up tick: 18 zero changes and a single gain, so avgLoss is 0 and
+       avgGain is not - the `g === 0` guard must NOT catch this one. */
+    const oneUpClose = [...Array(19).fill(100), 101];
+    assert.equal(computeRSI14(oneUpClose), 100, 'gains with zero losses: genuinely overbought, still 100');
   });
 
   await t.test('a strictly falling series is 0', () => {
