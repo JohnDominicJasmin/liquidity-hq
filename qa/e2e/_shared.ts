@@ -839,7 +839,18 @@ export async function startFailOnceServer(opts: {
    *  finding a new one and hiding the leak. */
   port?: number;
 }): Promise<{ baseURL: string; logs: string[]; stop: () => Promise<void> }> {
-  const port = opts.port ?? 3101;
+  /* PER-WORKER PORT, because a fixed one collides as soon as the suite runs parallel.
+   *
+   * This was `3101` flat, and CI failed with `EADDRINUSE: address already in use :::3101` - the
+   * child logged `[fail-once] armed` and then died on bind, so it started fine and simply had
+   * nowhere to listen. The suite runs 2 workers ("Running 640 tests using 2 workers"), and both
+   * the mobile and desktop legs exercise this helper, so two servers wanted the same port.
+   *
+   * `TEST_PARALLEL_INDEX` is Playwright's own answer to this: 0..workers-1, stable for the life of
+   * a worker, and documented for exactly this purpose - allocating a per-worker resource. Using
+   * `workerIndex` instead would keep climbing across retries and walk into whatever else is
+   * listening higher up. */
+  const port = opts.port ?? 3101 + Number(process.env.TEST_PARALLEL_INDEX ?? 0);
   const status = opts.status ?? 504;
   const logs: string[] = [];
 
@@ -864,10 +875,21 @@ export async function startFailOnceServer(opts: {
   child.stdout?.on('data', d => logs.push(String(d)));
   child.stderr?.on('data', d => logs.push(String(d)));
 
+  /* A DEAD CHILD IS NOT A SLOW ONE, and the old loop could not tell them apart.
+   *
+   * The EADDRINUSE failure spent the full 30 seconds polling a process that had already exited,
+   * then reported "never answered within 30s" - which reads as a timeout and sent me looking at
+   * boot time and runner load. The cause was in the log tail all along, two lines above the
+   * message. So record the exit and stop waiting the moment it happens. */
+  let exited: string | null = null;
+  child.once('exit', (code, signal) => { exited = `exited with code ${code}${signal ? ` (${signal})` : ''}`; });
+  child.once('error', (e) => { exited = `failed to spawn: ${e.message}`; });
+
   const baseURL = `http://localhost:${port}`;
-  const deadline = Date.now() + 30_000;
+  const WAIT_MS = 30_000;
+  const deadline = Date.now() + WAIT_MS;
   let ready = false;
-  while (Date.now() < deadline) {
+  while (Date.now() < deadline && exited === null) {
     try {
       await fetch(baseURL, { signal: AbortSignal.timeout(1_000) });
       ready = true;
@@ -876,8 +898,15 @@ export async function startFailOnceServer(opts: {
     await new Promise(r => setTimeout(r, 300));
   }
   if (!ready) {
+    /* Says WHICH of the two happened, because the remedies are opposite: a dead child is a bug to
+       read in the log tail, a genuine timeout is a slow runner to wait longer for. */
     throw new Error(
-      `fail-once server on :${port} never answered within 30s. Log tail:\n${logs.join('').slice(-2000)}`,
+      exited !== null
+        ? `fail-once server on :${port} ${exited} before it could answer - it did not time out. `
+          + `Port collisions land here: the port is ${port} (3101 + TEST_PARALLEL_INDEX `
+          + `${process.env.TEST_PARALLEL_INDEX ?? '0'}). Log tail:\n${logs.join('').slice(-2000)}`
+        : `fail-once server on :${port} never answered within ${WAIT_MS / 1000}s, and the child was `
+          + `still running - a genuine timeout. Log tail:\n${logs.join('').slice(-2000)}`,
     );
   }
   if (!logs.some(l => l.includes('[fail-once] armed'))) {

@@ -114,8 +114,27 @@ test('A4. the klines route keys a closed request by the candle and keeps it at l
      two lines sit relative to each other is not a property of anything. */
   assert.ok(/const closedOnly = q\.get\('closed'\) === '1';/.test(src),
     'closed keying is no longer opt-in from the `closed` query parameter');
-  assert.ok(/const ivMs = closedOnly \?/.test(src),
+  /* GATED ON `closedOnly`, AND THE LIVE BRANCH YIELDS null - matched across line breaks, because
+     the ternary's LAYOUT is not a property and pinning it cost a red `dev`.
+     This read `/const ivMs = closedOnly \?/`, requiring the `?` on the same line. #1985 added
+     Hyperliquid's ms lookup, which made the ternary three branches wide and wrapped it:
+         const ivMs = closedOnly
+           ? (source === 'okx' ? okxBarToMs(interval)
+             : source === 'hyperliquid' ? hlIntervalToMs(interval)
+             : intervalToMs(interval))
+           : null;
+     The gate was still there and still correct; only the formatting moved, and every open PR went
+     red on a cell whose own comment four lines up says "THE PROPERTY, NOT THE EXPRESSION: how the
+     surrounding ternary is spelled is the route's business - that is what pinning it cost." I wrote
+     that sentence and then pinned a ternary's spelling directly beneath it.
+     Two assertions rather than one, so each failure names what broke: the gate, or the live branch
+     no longer being null. A live request must compute NO boundary - that is what keeps `closedTag`
+     empty for it, which is what keeps the two kinds of caller off one cache key. */
+  assert.ok(/const ivMs = closedOnly\s*\?/.test(src),
     'ivMs is no longer gated on closedOnly, so a live request would compute a boundary it does not use');
+  assert.ok(/const ivMs = closedOnly[\s\S]{0,400}?:\s*null;/.test(src),
+    'the live branch of ivMs no longer yields null - without that, closedTag stops being empty for a '
+    + 'live request and the closed/live key separation this cell exists for is gone');
   assert.ok(!/closedCandleTtl\(/.test(src), 'the old read-timed TTL (the bug) is back');
 
   /* THE FALLBACK PROPERTY IS NOT HERE, AND THAT IS THE POINT. It is false on `dev`, so asserting it

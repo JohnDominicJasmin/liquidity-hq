@@ -62,7 +62,7 @@
  * remainder, not an oversight.
  */
 
-import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
+import { COINS, BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
 import { cached } from './apiCache.ts';
 import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { parseRatioPair } from './ratioPair.ts';
@@ -89,6 +89,42 @@ const SPOT_HOSTS    = ['https://api.binance.com', 'https://api1.binance.com', 'h
 const FUTURES_HOSTS = ['https://fapi.binance.com', 'https://fapi1.binance.com', 'https://fapi2.binance.com'];
 
 const SYMS = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
+
+/* TRACKED COINS THIS SNAPSHOT OWES AN ANSWER FOR AND CANNOT ASK BINANCE ABOUT.
+ *
+ * `pepe`, `bonk` and `xau`. Until now they had NO ENTRY in `ticker` or `klines` at all - measured
+ * on prod 2026-11-06, 46 of the 50 tracked coins were present - and nothing said so.
+ *
+ * The cause was that both fallback passes derived their work list from `SYMS`, i.e. from
+ * `BINANCE_SYMS`. `BINANCE_HOLD` keeps `pepe` and `bonk` out of that map because Bybit and Binance
+ * disagree about which memecoins they quote per 1000 tokens, and `xau` has no Binance column at
+ * all. So the three never reached the work list, never counted as "missing", and the Bybit
+ * single-shot that could serve all three was never asked for them. The fallback was not failing;
+ * it was never called.
+ *
+ * All three DO have Bybit linear perps - `1000PEPEUSDT`, `1000BONKUSDT`, `XAUUSDT` - and both
+ * fallback passes already apply `bybitPriceFactor`, so the 1000x denomination is handled by the
+ * code that was already there rather than by anything new here.
+ *
+ * DERIVED, NOT LISTED. `COINS` minus the ones Binance can answer for, so a coin added to or
+ * removed from `BINANCE_HOLD` moves between the two lists on its own. A hardcoded
+ * `['pepe','bonk','xau']` would be a third list to keep in step with the two that already
+ * disagree, which is the shape of the bug above.
+ *
+ * `fet` is deliberately NOT here and cannot be: it is the only one of 463 universe rows with no
+ * Bybit symbol, so there is nothing to ask. It is served from Binance and measured working
+ * (price 0.1495 on prod, 2026-11-06).
+ *
+ * `hype` is excluded from `SYMS` by name on the line above and so is not in `COINS`-minus-Binance
+ * either, since it HAS a Binance symbol. Its exclusion carries no recorded reason and the
+ * justification written elsewhere ("hype has no Binance perp") is false - HYPEUSDT is TRADING on
+ * both Binance futures and spot as of 2026-11-06. Left alone here and reported separately rather
+ * than quietly widened, because removing a filter whose purpose nobody has established is how a
+ * fix becomes an incident. */
+const BYBIT_ONLY_COINS: string[] = COINS.filter(c => !(c in BINANCE_SYMS) && Boolean(BYBIT_SYMS[c]));
+
+/** Every coin either pass owes an answer for - the Binance-reachable ones plus the Bybit-only ones. */
+const OWED_COINS: string[] = [...SYMS.map(([c]) => c), ...BYBIT_ONLY_COINS];
 
 /* THE SPOT BATCH GETS A SPOT SYMBOL LIST, WHICH IS NOT THE SAME LIST.
  *
@@ -273,20 +309,19 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
      getBybit() already proves, so this costs one extra call regardless of
      how many coins are missing rather than one per coin. */
   const viaFallback: string[] = [];
-  /* `SYMS`, NOT `SPOT_SYMS`, AND THAT IS DELIBERATE. QA's note on #1975 - do not tidy this line.
+  /* `OWED_COINS`, NOT `SPOT_SYMS`, AND THAT IS DELIBERATE. QA's note on #1975 - do not narrow it.
    *
-   * `SPOT_SYMS` is what the spot request above may ASK for; `SYMS` is what this snapshot owes an
+   * `SPOT_SYMS` is what the spot request above may ASK for; this list is what the snapshot OWES an
    * answer for. SPX is in the second and not the first, so it lands here as "missing" and the Bybit
-   * single-shot below fills it. Narrowing this to `SPOT_SYMS` to "match" the request would drop SPX
-   * from the work list entirely and it would silently lose its price - the coin would simply be
-   * absent rather than visibly broken.
+   * single-shot below fills it. Narrowing this to match the request would drop SPX from the work
+   * list and it would silently lose its price - absent rather than visibly broken.
    *
-   * The same mechanism is why `pepe`, `bonk` and `xau` have NO entry in this snapshot at all: they
-   * are held out of `BINANCE_SYMS` (see `BINANCE_HOLD`), so they never reach `SYMS`, so they never
-   * reach this list, so the Bybit fallback - which could serve all three - is never asked. Measured
-   * on prod 2026-11-06: 46 of the 50 rendered coins are present. Reported separately; not changed
-   * here, because widening the work list changes what every AI route sees. */
-  const missingCoins = SYMS.map(([c]) => c).filter(c => !out[c]);
+   * It reads `OWED_COINS` rather than `SYMS` because that same mechanism used to run the other way:
+   * `pepe`, `bonk` and `xau` are held out of `BINANCE_SYMS` (see `BINANCE_HOLD`), so they never
+   * reached `SYMS`, never counted as missing, and the Bybit fallback that can serve all three was
+   * never asked for them - 46 of the 50 rendered coins were present on prod on 2026-11-06. They are
+   * in `OWED_COINS`, so they are asked for now. `hype` is still out, by name, on the `SYMS` line. */
+  const missingCoins = OWED_COINS.filter(c => !out[c]);
   if (missingCoins.length > 0) {
     try {
       const bbBody = await get('https://api.bybit.com/v5/market/tickers?category=linear') as
@@ -337,9 +372,12 @@ async function buildKlines(): Promise<{ out: Record<string, KlineMetrics>; viaFa
      stop condition (isRateLimitStatus, which treats its 403 as fatal) - NOT
      isBinanceBackoff, the same distinction #1235 draws for the same reason. */
   const viaFallback: string[] = [];
-  const missing = SYMS.filter(([coin]) => !out[coin]);
+  /* COIN IDS, NOT [coin, sym] PAIRS, so the Bybit-only coins can be in this list - they have no
+     Binance symbol to pair with. The callback never read `sym` anyway; it resolves its own
+     `bbSym` from `BYBIT_SYMS`. */
+  const missing = OWED_COINS.filter(coin => !out[coin]);
   if (missing.length > 0) {
-    await runPool(missing, CONCURRENCY, async ([coin, sym]) => {
+    await runPool(missing, CONCURRENCY, async (coin) => {
       const bbSym = BYBIT_SYMS[coin];
       if (!bbSym) return; // fet - no Bybit linear perp (lib/coins.ts)
       const body = await get(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bbSym}&interval=15&limit=121`);
@@ -351,8 +389,11 @@ async function buildKlines(): Promise<{ out: Record<string, KlineMetrics>; viaFa
   }
 
   reportHealth('binance:klines', 'market', Object.keys(out).length > 0 && !banned,
-    (banned ? `418/429 after ${Object.keys(out).length}/${SYMS.length}`
-            : `${Object.keys(out).length}/${SYMS.length} via ${fut ? 'futures' : (spot ? 'spot' : 'none')}`)
+    /* DENOMINATOR IS `OWED_COINS`, NOT `SYMS` - the pass now owes an answer for the Bybit-only
+       coins too, and reporting "46/46 via futures" while three coins are absent is the kind of
+       complete-looking number that hid this for as long as it did. */
+    (banned ? `418/429 after ${Object.keys(out).length}/${OWED_COINS.length}`
+            : `${Object.keys(out).length}/${OWED_COINS.length} via ${fut ? 'futures' : (spot ? 'spot' : 'none')}`)
       + (viaFallback.length ? `, ${viaFallback.length} via bybit-fallback` : ''));
   return { out, viaFallback };
 }
