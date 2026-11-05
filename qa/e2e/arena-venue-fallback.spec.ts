@@ -46,10 +46,15 @@ import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
  * usage: E2E_BASE_URL=https://liquidity-hq-qa.onrender.com npx playwright test arena-venue-fallback --project=desktop */
 
 const FAILURE_TEXT = 'Signal unavailable right now';   // EMA_SIGNAL_FAILED, rendered at components/EMASignal.tsx:409
-const FALLBACK_LOG = '[useEMAStrategy]';               // emitted at lib/useEMAStrategy.ts:188 on a venue fallback
+/* THE FALLBACK LINE, NOT THE PREFIX. This was '[useEMAStrategy]', which matches THREE lines in that
+   file - the real fallback at :232 ("klines failed for X, falling back to Y"), plus 'compute failed:'
+   at :848 and 'kline fetch failed:' at :913. So case 3, which asserts NO fallback was attempted,
+   could see an unrelated error line and read it as a fallback. Matching the sentence that only the
+   fallback emits is the fix; a prefix is a namespace, not an event. */
+const FALLBACK_LOG = 'falling back to';                 // lib/useEMAStrategy.ts:232
 
 /** Force one or both venues to fail on the klines route the hook calls. */
-async function breakVenues(page: import('@playwright/test').Page, venues: Array<'bybit' | 'binance-futures'>) {
+async function breakVenues(page: import('@playwright/test').Page, venues: Array<'bybit' | 'binance-futures' | 'okx'>) {
   await page.route('**/api/market/klines**', async (route) => {
     const src = new URL(route.request().url()).searchParams.get('source') ?? '';
     if (venues.some((v) => src.includes(v))) {
@@ -73,10 +78,21 @@ async function arenaSignalState(page: import('@playwright/test').Page) {
 
 for (const scenario of [
   { name: '1. both-venue coin with Bybit down: the fallback runs and a signal renders', coin: 'btc', broken: ['bybit'] as const, expectFailure: false, expectLogs: 'some' as const },
-  { name: '2. both venues down: the failure message must STILL appear', coin: 'btc', broken: ['bybit', 'binance-futures'] as const, expectFailure: true, expectLogs: 'some' as const },
-  /* pepe, not hype: `1000PEPEUSDT` is Bybit-only AND 1000x-denominated, so one cell carries both. See the
-     header - the 1000x half is a guard for a future Binance entry, not a measurement of today's code. */
-  { name: '3. Bybit-only coin with Bybit down: the failure message and NO fallback attempt', coin: 'pepe', broken: ['bybit'] as const, expectFailure: true, expectLogs: 'none' as const },
+  /* OKX IS A THIRD VENUE NOW (#1948/#1985), so "both venues down" no longer means every venue down.
+     btc is BTC-USDT-SWAP on OKX, so leaving it up let the hook succeed there and no failure message
+     appeared - the cell measured a fallback working rather than the failure path it names. */
+  { name: '2. every venue down: the failure message must STILL appear', coin: 'btc', broken: ['bybit', 'binance-futures', 'okx'] as const, expectFailure: true, expectLogs: 'some' as const },
+  /* PEPE IS NO LONGER BYBIT-ONLY, so this cell's PREMISE changed and not just its venue list.
+     OKX lists it as `PEPE-USDT-SWAP` (#1948), measured - so a Bybit failure now DOES attempt a
+     fallback, and `expectLogs: 'none'` asserted the opposite of what the code does. Breaking okx
+     too makes the failure path reachable again, but the attempt is still made and still logged,
+     so this is now 'some'.
+     THE 1000x HALF IS WHY THIS COIN IS STILL RIGHT: `1000PEPEUSDT` is 1000x-denominated on Bybit,
+     so one cell carries both the no-Binance-source case and the scaling guard. See the header -
+     that half is a guard for a future Binance entry, not a measurement of today's code.
+     There is no Binance source for pepe (BINANCE_HOLD), so it is absent from `broken` by fact
+     rather than by choice. */
+  { name: '3. coin with no Binance source, Bybit and OKX down: the failure message after a fallback attempt', coin: 'pepe', broken: ['bybit', 'okx'] as const, expectFailure: true, expectLogs: 'some' as const },
 ]) {
   test(`#1767 ${scenario.name}`, async ({ browser }) => {
     test.skip(test.info().project.name !== 'desktop', 'sets its own viewport');
@@ -112,16 +128,18 @@ for (const scenario of [
           + 'makes a real outage look like a working signal is worse than the bug it replaced')
           .toBe(true);
 
-        /* THE DISCRIMINATOR. Cases 2 and 3 both end on the failure message, so the message alone cannot say
-           which path produced it. The log count can: case 2 had a second venue and announced the handover,
-           case 3 had none and must announce nothing. Without this, case 3 would pass on a coin that is not
-           Bybit-only, on a card that failed for an unrelated reason, or on a break that took too widely. */
-        if (scenario.expectLogs === 'none') {
-          expect(logs, `${scenario.coin} has no Binance symbol, so there is nothing to fall back to and no `
-            + '"falling back to" line may be logged - one here means the coin is not Bybit-only, which is the '
-            + 'entire premise of this cell')
-            .toEqual([]);
-        } else {
+        /* THE 'none' BRANCH IS GONE, BECAUSE NO COIN CAN REACH IT ANY MORE.
+           It asserted that a coin with only one venue logs no handover. Measured against lib/coins.ts
+           after OKX landed (#1948/#1985): of 50 coins, 45 have THREE venues and 5 have two.
+           ZERO have one. So "nothing to fall back to" is not a state the app has, and a branch for it
+           is dead code asserting an impossible case - which TypeScript said out loud once case 3
+           became 'some' (TS2367: '"some"' and '"none"' have no overlap).
+           Removed rather than kept for symmetry: a case that cannot occur reads to the next person as
+           a case that is covered. If a single-venue coin is ever added, this branch comes back WITH it
+           and with a coin that exercises it.
+           What remains is still a discriminator: every scenario now expects the handover to be
+           announced, so an empty log means the break did not take and the cell measured nothing. */
+        {
           expect(logs.length, 'both venues were broken, so the handover to the second must still have been '
             + 'announced before it failed too - no line means the Bybit break did not take')
             .toBeGreaterThan(0);
