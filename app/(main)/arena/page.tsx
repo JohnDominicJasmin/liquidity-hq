@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'rea
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
 import { useSearchParams } from 'next/navigation';
-import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
@@ -114,8 +114,31 @@ function ReasoningText({ text }: { text: string }) {
   );
 }
 
+/* TWO QUESTIONS THAT SHARE A SET TODAY AND ARE NOT THE SAME QUESTION.
+ *
+ * Both derive from `COINS`, so they are equal right now. They are kept apart on purpose: a
+ * convenient boolean used for two purposes is how a badge starts lying, and the day one of these
+ * changes without the other, a single flag would report the wrong one with no sign on screen.
+ *
+ * SIGNAL_COINS  - "do we have funding, open interest and RSI for this coin?" Everything outside
+ *                 it has price and 24h change and nothing else, because the rest comes from
+ *                 per-coin fan-outs and widening those to 463 is a ninefold cost nobody chose.
+ *                 Drives the `n/a` in the Status and Score columns - a squeeze score of 0 built
+ *                 from no funding is indistinguishable from a real neutral on screen.
+ *
+ * READABLE_COINS - "will /api/grok accept an AI read for this coin?" `parseArenaContext` checks
+ *                 membership of `COINS`, so an untracked coin is refused before any plan read,
+ *                 for every tier including Pro. Drives the selector's note and the error line.
+ *
+ * If these ever diverge, the comment above each is what says which badge was wrong. */
+const SIGNAL_COINS = new Set<string>(COINS);
+const READABLE_COINS = new Set<string>(COINS);
+
 const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', readonly CoinId[]> = {
-  all:    COINS,
+  /* Every instrument both venues trade, not the rendered 50 - this is the one surface the
+     owner asked to cover the whole market, and the search box and category tabs it already
+     has are what make 463 entries navigable without a new control. */
+  all:    UNIVERSE_COINS,
   majors: ['btc', 'eth', 'sol', 'xrp', 'bnb', 'ltc', 'bch', 'ada'],
   alts:   ['near', 'sui', 'avax', 'link', 'dot', 'atom', 'arb', 'op', 'apt', 'sei', 'inj', 'tia', 'trx', 'xlm', 'etc', 'fil', 'stx'],
   defi:   ['hype', 'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv', 'jup', 'wld', 'render', 'tao', 'fet', 'ondo', 'pyth', 'ena', 'dydx', 'xau', 'spx'],
@@ -1623,6 +1646,15 @@ function ArenaContent() {
       }
       /* #1596: the server refuses Quick/Deep on a coin outside BTC/ETH/SOL for an account that has not paid (403 COIN_LOCKED). Reachable
          when the plan was unknown to the page at click time. Same labelled line and Upgrade link as the lock above the chart. */
+      /* #1263: the selector offers every instrument both venues trade and the AI read covers the
+         tracked list only. The server's own sentence is "Invalid request.", in English, which blames
+         the user for picking a row WE rendered - so this gets a translated line naming what is
+         readable. The `n/a` marks in the selector are the same fact, said before they click. */
+      if ((e as { code?: string }).code === 'COIN_NOT_TRACKED') {
+        setReadError(t('ARENA_READ_COIN_NOT_TRACKED', { coin: selectedCoin.toUpperCase() }));
+        setReadProLocked(false);
+        return;
+      }
       if ((e as { code?: string }).code === 'COIN_LOCKED') {
         setReadError(t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }));
         setReadProLocked(true);
@@ -1723,7 +1755,7 @@ function ArenaContent() {
 
   /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
-  const scannerRows = COINS
+  const scannerRows = UNIVERSE_COINS
     .filter(c => coinCat === 'all' || (CAT_FILTER_COINS[coinCat] as readonly CoinId[]).includes(c))
     .map(c => {
       const coin   = store.coins[c];
@@ -1738,6 +1770,10 @@ function ArenaContent() {
       if (vsBtc != null && vsBtc >= 2)  badges.push({ key: 'ARENA_SCANNER_BADGE_BEATS_BTC', tone: 'good' });
       if (vsBtc != null && vsBtc <= -2) badges.push({ key: 'ARENA_SCANNER_BADGE_LAGS_BTC', tone: 'bad' });
       return {
+        /* Carried per row rather than checked at render, so one place decides and the cells
+           cannot disagree. Two flags, not one - see the comment on the two sets. */
+        hasSignals: SIGNAL_COINS.has(c),
+        canRead: READABLE_COINS.has(c),
         c, badges, vsBtc,
         sq:     computeSqueezeScore(coin),
         price:  coin?.price  ?? null,
@@ -1993,9 +2029,12 @@ function ArenaContent() {
             <div style={{ maxHeight: 380, overflowY: 'auto' }}>
             {visibleScannerRows.length === 0 ? (
               <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>{t('ARENA_SCANNER_NO_MATCH', { search: scannerSearch })}</div>
-            ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }) => {
+            ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges, hasSignals, canRead }) => {
               const isSelected  = c === selectedCoin;
-              const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
+              /* A row with no funding and no OI can never be active - and must not read as a
+                 calm market either. `isActive` stays false and the two signal cells below print
+                 an explicit unknown instead of 0 and a neutral dot. */
+              const isActive    = hasSignals && rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
               const statusLabel = rowSq.dir === 'SHORT_SQ' ? t('ARENA_SCANNER_STATUS_SQUEEZE') : rowSq.dir === 'LONG_LIQ' ? t('ARENA_SCANNER_STATUS_FLUSH') : t('ARENA_SCANNER_STATUS_NEUTRAL');
               const vsBtcColor  = vsBtc == null ? 'var(--txt3)' : vsBtc >= 2 ? 'var(--green-2)' : vsBtc <= -2 ? 'var(--red)' : 'var(--txt3)';
@@ -2045,7 +2084,12 @@ function ArenaContent() {
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1 }}>{t('ARENA_SCANNER_USDT_PERP')}</div>
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1 }}>
+                          {/* Said before the click, not after. A row with no AI read is still worth
+                              selecting - the chart and the price work - so this is a note, not a
+                              disabled control. */}
+                          {canRead ? t('ARENA_SCANNER_USDT_PERP') : t('ARENA_SCANNER_NO_AI_READ')}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2073,12 +2117,20 @@ function ArenaContent() {
                         {icon} {statusLabel}
                       </span>
                     ) : (
-                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_SCANNER_NEUTRAL_DOT')}</span>
+                      <span
+                        style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}
+                        title={hasSignals ? undefined : t('ARENA_SCANNER_NO_SIGNALS_TITLE')}
+                      >
+                        {hasSignals ? t('ARENA_SCANNER_NEUTRAL_DOT') : t('ARENA_SCANNER_NO_SIGNALS')}
+                      </span>
                     )}
                   </div>
                   {/* Score */}
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {rowSq.score}
+                  <span
+                    style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}
+                    title={hasSignals ? undefined : t('ARENA_SCANNER_NO_SIGNALS_TITLE')}
+                  >
+                    {hasSignals ? rowSq.score : t('ARENA_SCANNER_NO_SIGNALS')}
                   </span>
                 </button>
               );
