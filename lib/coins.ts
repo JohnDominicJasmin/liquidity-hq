@@ -18,6 +18,7 @@
  * failover for as long as that comment has been there, for no reason.
  */
 import { COIN_UNIVERSE, type CoinRow } from './coinUniverse.generated.ts';
+import { hlMultiplier } from './hyperliquid.ts';
 
 /* A coin id is now any string the generated universe contains, not a closed union.
  *
@@ -118,6 +119,20 @@ export const SCAN_LIMIT = 50;
    fails** - the same silent shape as the 18 coins an earlier version of this branch dropped. */
 export const SCANNED_COINS: CoinId[] = COINS;
 
+/* BYBIT SYMBOL -> COIN ID, FOR THE WHOLE UNIVERSE. Read this map; never iterate it.
+ *
+ * It exists so one bulk response can be indexed. `/api/proxy?type=bybit-tickers` returns every
+ * instrument in a single call, so walking THAT list and asking "is this one of ours" costs
+ * nothing extra and gives price and 24h change for all 463. Walking OUR list and asking the
+ * exchange per coin is the 462-request fan-out this file spent a commit removing.
+ *
+ * The distinction is the whole reason this is a reverse map rather than a second symbol table:
+ * the loop is bounded by the response, not by us, so no new call site can turn it into work.
+ * If you find yourself writing `Object.keys(UNIVERSE_SYM_TO_COIN)` as a work list, use COINS. */
+export const UNIVERSE_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
+  COIN_UNIVERSE.filter(r => r.bybit).map(r => [r.bybit as string, r.id]),
+);
+
 /** The row behind a coin, or undefined for an id this build does not serve. */
 export function coinRow(coin: string): CoinRow | undefined {
   return BY_ID.get(coin);
@@ -177,6 +192,77 @@ export const BINANCE_SYMS: Record<string, string> = Object.fromEntries(
     .filter(([, s]) => s) as [string, string][],
 );
 
+/* ── BINANCE_SYMS IS A **FUTURES** MAP, AND USING IT FOR A SPOT CALL IS A REAL DEFECT ──────────
+ *
+ * `scripts/generate-coins.mjs` builds the `binance` column from `fapi/v1/exchangeInfo` - FUTURES
+ * only. It never asks `api/v3/exchangeInfo`, so a symbol in `BINANCE_SYMS` is proof of a futures
+ * listing and says NOTHING about spot.
+ *
+ * `SPXUSDT` is the live case. Measured 2026-11-05 against both endpoints:
+ *
+ *     binance FUTURES exchangeInfo : SPXUSDT present
+ *     binance SPOT    exchangeInfo : SPXUSDT ABSENT
+ *
+ * ── WHY ONE MISSING SYMBOL COST ALL 46 ─────────────────────────────────────────────────────────
+ *
+ * Binance's batched `api/v3/ticker/24hr?symbols=[...]` fails the WHOLE request on one unlisted
+ * symbol - `400 {"code":-1121,"msg":"Invalid symbol."}`. QA measured it and ran the control:
+ *
+ *     all 46 symbols      -> HTTP 400, -1121
+ *     the same 46 less SPX -> HTTP 200, 45 entries
+ *
+ * The 200 on retry is what makes it a DATA error rather than a batch-size or weight limit.
+ *
+ * ── IT HAD NO SYMPTOM, WHICH IS WHY IT LASTED ──────────────────────────────────────────────────
+ *
+ * `lib/marketSnapshotData.ts` falls back to the futures ticker whenever the spot result is empty,
+ * and the spot result was ALWAYS empty. So the app always had prices and `source` was permanently
+ * `'futures'`. Three costs, none of them visible:
+ *
+ *   1. Every 24h volume in the app has been the degraded figure. That file's own comment says
+ *      "Perp volume is not identical to spot volume for the same pair, so this is a degraded
+ *      answer rather than an equal one - which is why it is a fallback and not the default."
+ *      It has been the default in practice.
+ *   2. The weight budgeted as "Weight 80 either way" bought a 400 on every TTL expiry.
+ *   3. The independent-bucket protection was gone in one direction: the fallback exists because
+ *      spot and futures fail independently (found with spot 418 while futures answered). With spot
+ *      permanently dead, a futures failure dropped straight to the Bybit single-shot at #1236.
+ *
+ * ── WHY SPX IS NOT SIMPLY REMOVED FROM BINANCE_SYMS ────────────────────────────────────────────
+ *
+ * Because its futures listing is REAL. Dropping it from the map would lose a working source to fix
+ * a problem that only exists on the other market. The venue fact differs per market, so the map
+ * has to differ per market - the same reasoning that split `bybitMult` from `binanceMult`.
+ *
+ * `BINANCE_HOLD`'s comment already considered SPX and set it aside: "SPX turned out to be a
+ * different problem entirely - it is SPX6900, a memecoin, and the app was calling it the S&P 500.
+ * That is fixed at the label and in the classifier, not here." That was right about the label and
+ * incomplete about the consequences: it also poisons the spot batch, which the fallback absorbed.
+ *
+ * ── HAND-MAINTAINED, AND GUARDED AT GENERATION ─────────────────────────────────────────────────
+ *
+ * `scripts/generate-coins.mjs` now fetches `api/v3/exchangeInfo` and REFUSES TO WRITE THE FILE if
+ * any symbol left in this map is not spot-listed, or if a symbol held out here has started trading
+ * on spot. So a future delisting cannot silently degrade the batch again, and this list cannot rot
+ * into excluding something that works - the same "refuse rather than go quietly wrong" mechanism
+ * the OKX agreement check already uses. */
+const BINANCE_SPOT_HOLD = new Set(['spx']);
+
+/**
+ * Binance **spot** symbols. Use this for `api.binance.com` / `api/v3/*`; use `BINANCE_SYMS` for
+ * `fapi.binance.com`.
+ *
+ * Deliberately a separate export rather than a filter at the call site, so a new spot consumer gets
+ * it right by reaching for the obvious name instead of rediscovering -1121.
+ */
+export const BINANCE_SPOT_SYMS: Record<string, string> = Object.fromEntries(
+  Object.entries(BINANCE_SYMS).filter(([id]) => !BINANCE_SPOT_HOLD.has(id)),
+);
+
+/** Coins with a Binance futures listing but no spot one - for a health or diagnostic surface. */
+export const BINANCE_SPOT_EXCLUDED: string[] = Object.keys(BINANCE_SYMS)
+  .filter(id => BINANCE_SPOT_HOLD.has(id));
+
 // Bybit linear perp symbols - includes the 1000x meme listings and the synthetics.
 export const BYBIT_SYMS: Record<string, string> = Object.fromEntries(
   RENDERED_IDS.map(id => [id, BY_ID.get(id)?.bybit]).filter(([, s]) => s) as [string, string][],
@@ -200,6 +286,72 @@ export const BYBIT_SYMS: Record<string, string> = Object.fromEntries(
 export const OKX_SYMS: Record<string, string> = Object.fromEntries(
   RENDERED_IDS.map(id => [id, BY_ID.get(id)?.okx]).filter(([, s]) => s) as [string, string][],
 );
+
+/* ── HYPERLIQUID NAMES, AND A REFUSED NAME GETS NO ENTRY RATHER THAN A WRONG PRICE ─────────────
+ *
+ * The FOURTH venue (#1651 D4). Hyperliquid names an instrument by its bare base - `BTC`, not
+ * `BTCUSDT` - and prefixes its 1000x listings with `k`: `kPEPE`, `kBONK`.
+ *
+ * HAND-LISTED RATHER THAN DERIVED FROM THE ID, for the reason `OKX_SYMS` is read from a generated
+ * column: a venue naming a DIFFERENT asset by a ticker we already use is the `BB`/`QNT` problem,
+ * which was off by factors of 1266 and 0.16. `name.toUpperCase()` would be right for 46 of these
+ * and silently wrong on the day it is not.
+ *
+ * VERIFIED, NOT ASSUMED. Every entry's Hyperliquid price was measured against Binance or Bybit
+ * per-token on 2026-11-06. All 48 agree to within **0.11%** - max disagreement `bonk` and `gmx` at
+ * 0.11%, and none without a reference. `scripts/generate-coins.mjs` re-measures this on every
+ * generation and refuses to write the file if any pair disagrees by more than 5%, so a collision
+ * arriving later stops the generator rather than reaching this map.
+ *
+ * `mana` and `xau` are absent: Hyperliquid lists neither. A coin missing here simply has no
+ * Hyperliquid fallback, exactly as one missing from `BINANCE_SYMS` has no Binance one.
+ *
+ * ── THE FILTER IS THE POINT, AND IT IS WHY THIS IS NOT A PLAIN LITERAL ────────────────────────
+ *
+ * `hlMultiplier` returns `null` for a `k`-prefixed name whose multiplier is not VERIFIED, and for
+ * any name on `HL_REFUSED` - today `kDOGS`, whose implied multiplier measured 4390 and then 4611
+ * hours apart, so no constant converts it. Those names are dropped here, so the map cannot hand a
+ * caller a name it must not price.
+ *
+ * That ordering is the contract PM/DevOps asked to see demonstrated first: **a null multiplier
+ * reaches the user as "no Hyperliquid source", never as a price at x1.** A caller cannot get it
+ * wrong by forgetting to check, because the entry does not exist. Proven by mutation rather than
+ * by assertion - see the PR: adding `kDOGS` to `HL_MULTIPLIER` does not re-admit it, and planting
+ * a refusal for a rendered coin drops that coin out of this map.
+ *
+ * No rendered coin is refused today, which is exactly why the mutation test matters: there is no
+ * live instance to notice a regression by. */
+const HL_NAMES: Readonly<Record<string, string>> = {
+  btc: 'BTC',    eth: 'ETH',    sol: 'SOL',    xrp: 'XRP',    bnb: 'BNB',
+  hype: 'HYPE',  near: 'NEAR',  sui: 'SUI',    doge: 'DOGE',  avax: 'AVAX',
+  link: 'LINK',  ada: 'ADA',    dot: 'DOT',    atom: 'ATOM',  wif: 'WIF',
+  pepe: 'kPEPE', bonk: 'kBONK', ltc: 'LTC',    bch: 'BCH',    trx: 'TRX',
+  xlm: 'XLM',    etc: 'ETC',    fil: 'FIL',    arb: 'ARB',    op: 'OP',
+  apt: 'APT',    sei: 'SEI',    inj: 'INJ',    tia: 'TIA',    aave: 'AAVE',
+  uni: 'UNI',    ldo: 'LDO',    rune: 'RUNE',  gmx: 'GMX',    crv: 'CRV',
+  stx: 'STX',    jup: 'JUP',    wld: 'WLD',    render: 'RENDER', tao: 'TAO',
+  fet: 'FET',    ondo: 'ONDO',  pyth: 'PYTH',  ena: 'ENA',    dydx: 'DYDX',
+  sand: 'SAND',  gmt: 'GMT',    spx: 'SPX',
+};
+
+/**
+ * Hyperliquid instrument names for the coins this app renders.
+ *
+ * Only coins whose multiplier is known: a name `hlMultiplier` refuses is absent, so there is
+ * nothing to price at the wrong scale. Use `hlMultiplier(HL_SYMS[coin])` to convert.
+ */
+export const HL_SYMS: Record<string, string> = Object.fromEntries(
+  RENDERED_IDS
+    .map(id => [id, HL_NAMES[id]])
+    .filter(([, name]) => typeof name === 'string' && hlMultiplier(name as string) !== null),
+);
+
+/* Names listed here but dropped by the refusal filter above - empty today, and exported so the
+   generator and a test can assert that a refusal actually removes something rather than trusting
+   that it would. An entry here is not a bug; it is the filter working, and worth seeing. */
+export const HL_SYMS_REFUSED: string[] = Object.entries(HL_NAMES)
+  .filter(([, name]) => hlMultiplier(name) === null)
+  .map(([id, name]) => `${id} -> ${name}`);
 
 /* IS THERE A SECOND SOURCE FOR THIS COIN? ANSWERED FROM THE SHIPPED MAPS, not from the
  * generated row, and the difference was a lie about the one thing this function exists to say.

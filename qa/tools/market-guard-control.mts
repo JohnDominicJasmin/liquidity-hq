@@ -5,7 +5,15 @@
  * here and run on the identical fakes. A control that only exercises the new code cannot show
  * that anything changed. */
 
-const SHARED = 'file:///C:/Users/Dominic/Documents/VS%20code/liquidity-hq-qa/liquidity-hq/qa/e2e/_shared.ts';
+/* RESOLVED FROM THIS FILE, NOT FROM AN ABSOLUTE PATH, and the reason is the whole point of the
+   tool. It read `file:///C:/Users/Dominic/Documents/VS code/liquidity-hq-qa/...` - one checkout on
+   one machine. Anywhere else that import fails; worse, on a machine that HAPPENS to have that path
+   it would certify a copy of `_shared.ts` nobody ships, and print the same green either way. A
+   control that can verify the wrong artifact is the failure mode this file exists to catch, so it
+   does not get to have it. Caught in review by PM/DevOps. */
+const SHARED = new URL('../e2e/_shared.ts', import.meta.url).href;
+console.log(`resolving _shared.ts from import.meta.url -> ${SHARED.replace(/^file:\/\/\//, '')}`);
+
 const { marketDataUnavailable } = await import(SHARED) as {
   marketDataUnavailable: (r: unknown, b?: string) => Promise<string | null>;
 };

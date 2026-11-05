@@ -432,6 +432,188 @@ if (dupes.length) {
   process.exit(2);
 }
 
+/* ── BINANCE SPOT LISTING: THE `binance` COLUMN IS A FUTURES FACT AND DOES NOT COVER SPOT ───────
+ *
+ * Every symbol in this file's `binance` column comes from `fapi/v1/exchangeInfo`. The app also
+ * calls SPOT endpoints (`api.binance.com/api/v3/*`) with those same symbols, and the two markets
+ * list different things. `SPXUSDT` is on futures and NOT on spot.
+ *
+ * That cost more than one coin, because Binance's batched `api/v3/ticker/24hr?symbols=[...]`
+ * rejects the ENTIRE request on one unlisted symbol with `400 -1121`. So the market snapshot's
+ * spot call returned nothing on every run for as long as SPX has been in the universe, the futures
+ * fallback always took over, and `source` was permanently `'futures'` - with no visible symptom,
+ * since the app still had prices. Found by QA on #1651.
+ *
+ * `lib/coins.ts` holds the exclusion by hand (`BINANCE_SPOT_HOLD`), because a hand list that names
+ * each coin is more honest than a derived one here would be - the `binance` column still means
+ * "futures", and overloading it would hide which market a symbol was proved on.
+ *
+ * SO THIS CHECKS BOTH DIRECTIONS, and the second one is the one that rots quietly:
+ *
+ *   - a symbol the app WILL send to spot that spot does not list -> the -1121 again, on every run
+ *   - a symbol held out of the spot list that HAS started trading on spot -> a working source
+ *     silently excluded forever, which nothing would ever surface
+ *
+ * REFUSES rather than warns, same as the unit-agreement check: a generation that writes a file
+ * whose spot batch is known-broken is worse than no generation. Exit 2 for the same reason as the
+ * duplicate-id guard - "do not commit what you just generated", not "regenerate".
+ *
+ * THE HOLD LIST IS READ FROM lib/coins.ts, NOT DUPLICATED HERE. A second copy would drift, and the
+ * drift would disable the check that exists to catch drift. */
+const spotInfo = await j('https://api.binance.com/api/v3/exchangeInfo');
+const spotListed = new Set(
+  (spotInfo.symbols ?? []).filter(s => s.status === 'TRADING').map(s => s.symbol),
+);
+if (spotListed.size === 0) {
+  console.error('binance SPOT exchangeInfo returned no TRADING symbols - refusing to judge the');
+  console.error('  spot list against an empty set, which would "pass" every symbol.');
+  process.exit(2);
+}
+
+const coinsSrc = readFileSync(new URL('../lib/coins.ts', import.meta.url), 'utf8');
+
+/* THREE LISTS, ALL READ FROM lib/coins.ts RATHER THAN COPIED. A copy would drift, and the drift
+   would disable the very check that exists to catch drift. */
+const listFromCoins = (decl, re) => {
+  const m = re.exec(coinsSrc);
+  if (!m) {
+    console.error(`could not find ${decl} in lib/coins.ts.`);
+    console.error('  This check reads it from there on purpose - a copy here would drift. If the');
+    console.error('  declaration was renamed, update this regex rather than hardcoding the list.');
+    process.exit(2);
+  }
+  return new Set([...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
+};
+const spotHold = listFromCoins('BINANCE_SPOT_HOLD',
+  /const BINANCE_SPOT_HOLD = new Set\(\[([^\]]*)\]\)/);
+const binanceHold = listFromCoins('BINANCE_HOLD',
+  /const BINANCE_HOLD = new Set\(\[([^\]]*)\]\)/);
+const renderedIds = listFromCoins('RENDERED_IDS',
+  /const RENDERED_IDS: readonly string\[\] = \[([\s\S]*?)\];/);
+if (renderedIds.size === 0) {
+  console.error('RENDERED_IDS parsed as empty - refusing to check an empty set, which passes everything.');
+  process.exit(2);
+}
+
+/* ONLY THE CURATED COINS, AND GETTING THIS WRONG IS WHY THE FIRST VERSION OF THIS CHECK WAS
+   USELESS. It looped every row in the 463-instrument universe and reported **137 problems** on a
+   tree that was perfectly fine - because `BINANCE_SYMS` is built from `RENDERED_IDS`, not from the
+   whole universe, so the app never sends those other 400-odd symbols to spot at all. A guard that
+   fires on every generation gets switched off, not obeyed.
+
+   Caught by running the negative control - the check against the unmodified tree - rather than only
+   the positive one. The positive control "passed" in the sense that it failed, which is exactly how
+   a guard this broken can look correct. */
+const spotProblems = [];
+for (const r of rows) {
+  if (!r.binance) continue;
+  if (!renderedIds.has(r.id)) continue;   // not rendered -> never sent to spot
+  if (binanceHold.has(r.id)) continue;    // not in BINANCE_SYMS at all, so not in the spot map
+  const held = spotHold.has(r.id);
+  const listed = spotListed.has(r.binance);
+  if (!held && !listed) {
+    spotProblems.push(
+      `${r.id} (${r.binance}): the app sends this to SPOT but spot does not list it. One such `
+      + 'symbol makes the whole batched ticker call fail with -1121. Add it to '
+      + "BINANCE_SPOT_HOLD in lib/coins.ts.",
+    );
+  } else if (held && listed) {
+    spotProblems.push(
+      `${r.id} (${r.binance}): held out of the spot list but spot DOES list it now. Remove it `
+      + 'from BINANCE_SPOT_HOLD - it is a working source being excluded for no reason.',
+    );
+  }
+}
+if (spotProblems.length) {
+  console.error(`BINANCE SPOT LIST DISAGREES WITH THE VENUE (${spotProblems.length}):`);
+  for (const p of spotProblems) console.error(`  - ${p}`);
+  process.exit(2);
+}
+console.log(`binance spot list agrees with the venue (${spotListed.size} spot symbols checked)`);
+
+/* ── HYPERLIQUID NAMES: THE SAME "DIFFERENT ASSET, SAME TICKER" CHECK AS THE OKX UNIT GUARD ────
+ *
+ * `lib/coins.ts`'s `HL_SYMS` is hand-listed, because Hyperliquid names an instrument by its bare
+ * base (`BTC`, `kPEPE`) and `id.toUpperCase()` would be right for 46 of 48 and silently wrong on
+ * the day a venue names a DIFFERENT asset by a ticker we already use. That is the `BB`/`QNT`
+ * problem, which was off by factors of 1266 and 0.16.
+ *
+ * A hand list cannot notice a collision arriving later, so this re-measures every entry against
+ * Binance or Bybit per-token on each generation and REFUSES to write the file if any pair
+ * disagrees by more than 5%. Measured 2026-11-06: all 48 agree to within 0.11%, so the band is
+ * loose enough never to fire on venue spread and tight enough that a different asset cannot hide.
+ *
+ * READS THE MAP FROM lib/coins.ts rather than rebuilding it, same as the spot-hold check above:
+ * a second copy would drift, and the drift would disable the check that exists to catch drift.
+ *
+ * SKIPPED, NOT FAILED, IF HYPERLIQUID IS UNREACHABLE. The other venues' checks guard data this
+ * file WRITES; this one guards a hand-maintained map in another file, so a venue outage must not
+ * block an unrelated regeneration. It says so loudly instead - a silent skip would be the
+ * "produces nothing, reads as all clear" shape this project has already paid for. */
+const HL_REFUSE_RATIO = 0.05;
+const hlNamesMatch = /const HL_NAMES: Readonly<Record<string, string>> = \{([\s\S]*?)\};/.exec(coinsSrc);
+if (!hlNamesMatch) {
+  console.error('could not find HL_NAMES in lib/coins.ts - update this regex rather than skipping the check.');
+  process.exit(2);
+}
+const hlPairs = [...hlNamesMatch[1].matchAll(/(\w+)\s*:\s*'([^']+)'/g)].map(m => [m[1], m[2]]);
+if (hlPairs.length === 0) {
+  console.error('HL_NAMES parsed as empty - refusing to "pass" a check with nothing in it.');
+  process.exit(2);
+}
+
+let hlCtx = null;
+try {
+  const r = await fetch('https://api.hyperliquid.xyz/info', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
+  });
+  if (r.ok) hlCtx = await r.json();
+} catch { /* handled below */ }
+
+if (!hlCtx || !Array.isArray(hlCtx) || hlCtx.length < 2) {
+  console.warn(`SKIPPED the hyperliquid agreement check - venue unreachable. ${hlPairs.length} HL_SYMS entries NOT verified this run.`);
+} else {
+  const [hlMeta, hlCtxs] = hlCtx;
+  const hlPx = new Map();
+  (hlMeta.universe ?? []).forEach((u, i) => {
+    const px = hlCtxs[i]?.markPx ?? hlCtxs[i]?.midPx;
+    if (px) hlPx.set(u.name, Number(px));
+  });
+  const hlProblems = [];
+  let hlChecked = 0, hlWorst = 0;
+  for (const [id, name] of hlPairs) {
+    const row = rows.find(r => r.id === id);
+    if (!row) { hlProblems.push(`${id} (${name}): HL_NAMES names an id the universe does not carry`); continue; }
+    const hl = hlPx.get(name);
+    if (hl == null) { hlProblems.push(`${id} (${name}): hyperliquid no longer lists this name`); continue; }
+    /* The `k` prefix is 1000 for every name in this map - kPEPE and kBONK - and lib/hyperliquid.ts
+       refuses any k-name whose multiplier is unverified, so an unverified one never reaches here. */
+    const perToken = /^k[A-Z]/.test(name) ? hl / 1000 : hl;
+    /* `venuePrices` is the SAME per-token helper the unit-agreement guard above uses, rather than a
+       second price lookup written for this check. It already applies each venue's own multiplier,
+       which is the part a hand-rolled reference would get wrong. */
+    const px = venuePrices(row);
+    if (px.length === 0) { hlProblems.push(`${id} (${name}): no cross-venue reference to check against`); continue; }
+    const [refVenue, ref] = px[0];
+    if (!(ref > 0)) { hlProblems.push(`${id} (${name}): reference venue ${refVenue} gave no usable price`); continue; }
+    const d = Math.abs(perToken - ref) / ref;
+    hlChecked++;
+    if (d > hlWorst) hlWorst = d;
+    if (d > HL_REFUSE_RATIO) {
+      hlProblems.push(`${id} (${name}): hyperliquid ${perToken} vs ${refVenue} ${ref} = ${(d * 100).toFixed(1)}% apart - probably a DIFFERENT ASSET by the same ticker`);
+    }
+  }
+  if (hlProblems.length) {
+    console.error(`HYPERLIQUID NAMES DISAGREE WITH THE VENUE (${hlProblems.length}):`);
+    for (const p of hlProblems) console.error(`  - ${p}`);
+    console.error('  Fix lib/coins.ts HL_NAMES. A name that disagrees must be REMOVED, not adjusted:');
+    console.error('  a multiplier that makes two different assets agree is a coincidence, not a conversion.');
+    process.exit(2);
+  }
+  console.log(`hyperliquid names agree with the venue (${hlChecked} checked, worst ${(hlWorst * 100).toFixed(2)}%)`);
+}
+
 const body = `/* GENERATED by scripts/generate-coins.mjs - DO NOT EDIT BY HAND.
  *
  * Every instrument both Bybit and Binance trade as a USDT perpetual, ranked by 24h turnover on

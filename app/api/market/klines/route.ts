@@ -45,7 +45,11 @@ import { intervalToMs, closedCandleKey, CLOSE_SKEW_MS } from '@/lib/candles';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
-import { BINANCE_SYMS, BYBIT_SYMS, OKX_SYMS, bybitPriceFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, OKX_SYMS, HL_SYMS, bybitPriceFactor } from '@/lib/coins';
+import {
+  HL_INFO_URL, HL_INTERVALS, hlIntervalToMs, hlCandleSnapshotBody, parseHlCandles,
+  hlCandlesToBareArray, hlMultiplier,
+} from '@/lib/hyperliquid';
 import { OKX_BARS, OKX_MAX_LIMIT, okxBarToMs, okxCandlesParams, okxCandlesToBareArray, okxPageCount, mergeOkxPages } from '@/lib/okx';
 import { shouldFailToBybit, canFailoverForRequest, bybitIntervalFor } from '@/lib/klinesFailover';
 import { polledCacheControl } from '@/lib/cacheHeaders';
@@ -54,7 +58,7 @@ import { exchangeFetch } from '@/lib/exchangeGuard';
 /* `okx` added for #1651. Its dialect, its response quirks and the five silent ways it returns the
    wrong window are all in `lib/okx.ts` rather than here - this route holds the plumbing, that
    module holds the decisions, and the decisions are unit-testable without a request. */
-type Source = 'bybit' | 'binance' | 'binance-futures' | 'okx';
+type Source = 'bybit' | 'binance' | 'binance-futures' | 'okx' | 'hyperliquid';
 
 // Reverse of BINANCE_SYMS, for #1077's failover: given the Binance symbol a
 // caller asked for, find which coin it is so BYBIT_SYMS/bybitPriceFactor can
@@ -106,12 +110,24 @@ function bybitKlinesToBinanceShape(body: unknown, priceFactor: number, limitRaw:
  * sources x symbols x intervals x buckets, which is bounded and small. */
 const SYMBOLS: Record<Source, Set<string>> = {
   bybit:             new Set(Object.values(BYBIT_SYMS)),
-  binance:           new Set(Object.values(BINANCE_SYMS)),
+  /* SPOT GETS THE SPOT MAP. `BINANCE_SYMS` is generated from `fapi/v1/exchangeInfo`, so it proves a
+     FUTURES listing and says nothing about spot - `SPXUSDT` is on futures and not on spot. This set
+     used to be `BINANCE_SYMS`, so `source=binance&symbol=SPXUSDT` was admitted and then 400'd at
+     Binance. The SPX chart still drew, because KLineProChart falls back to `binance-futures` when
+     the spot try fails (components/KLineProChart.tsx:1664-1668) - a real fallback hiding a request
+     that could never succeed, exactly as the market snapshot's futures fallback hid the same defect
+     in its batched ticker call. Now the refusal is ours and immediate, and the chart takes the same
+     fallback one upstream call sooner. See `BINANCE_SPOT_SYMS` in lib/coins.ts. */
+  binance:           new Set(Object.values(BINANCE_SPOT_SYMS)),
   'binance-futures': new Set(Object.values(BINANCE_SYMS)),
   /* 49 of the 50 rendered coins, from the generated `okx` column. Three ids the other two venues
      carry are deliberately absent because OKX names a different asset by that ticker - so this set
      being SMALLER than BYBIT_SYMS for a reason other than listing coverage is correct. */
   okx:               new Set(Object.values(OKX_SYMS)),
+  /* FROM `HL_SYMS`, WHICH IS ALREADY FILTERED. A Hyperliquid name whose multiplier is unverified
+     is absent from that map by construction, so it cannot be requested here and cannot be priced
+     at x1 - see `HL_SYMS` in lib/coins.ts. Mixed case on purpose: `kPEPE`, not `KPEPE`. */
+  hyperliquid:       new Set(Object.values(HL_SYMS)),
 };
 
 /* Bybit takes minutes as integers plus D/W/M; Binance takes suffixed strings.
@@ -127,6 +143,12 @@ const INTERVALS: Record<Source, Set<string>> = {
      the chain breaks half the timeframes and leaves the other half working. The list lives in
      lib/okx.ts so the allowlist here and the request builder there cannot disagree. */
   okx:               new Set<string>(OKX_BARS),
+  /* ALL FOURTEEN, CASE-SENSITIVE, AND `1m` AND `1M` ARE BOTH IN HERE. A minute and a month,
+     differing only by case - so nothing in this route may case-normalise the interval. It does
+     not today (`q.get('interval')` is used raw), and that is now load-bearing rather than
+     incidental: lowercasing would merge a one-minute series with a one-month one under a single
+     cache key. OKX had a case-sensitivity rule; this venue has a case COLLISION. */
+  hyperliquid:       new Set<string>(HL_INTERVALS),
 };
 
 const UPSTREAM: Record<Source, string> = {
@@ -134,6 +156,11 @@ const UPSTREAM: Record<Source, string> = {
   binance:           'https://api.binance.com/api/v3/klines',
   'binance-futures': 'https://fapi.binance.com/fapi/v1/klines',
   okx:               'https://www.okx.com/api/v5/market/candles',
+  /* ONE URL FOR EVERY QUERY, SELECTED BY A `type` FIELD IN A POSTED BODY - not a path and not a
+     query string. Present here so the `UPSTREAM[source]` existence check above still gates this
+     source, but `new URL(...)` + search params is NOT how this venue is called. See
+     `fetchHlCandles`. */
+  hyperliquid:       HL_INFO_URL,
 };
 
 /* Snap `limit` to the next bucket up rather than caching it verbatim.
@@ -251,7 +278,14 @@ export async function GET(req: NextRequest) {
 
   const q = req.nextUrl.searchParams;
   const source = (q.get('source') ?? 'bybit') as Source;
-  const symbol = (q.get('symbol') ?? '').toUpperCase();
+  /* UPPERCASED FOR EVERY VENUE BUT ONE. Hyperliquid names an instrument by its bare base and
+     spells its 1000x listings with a lower-case `k` - `kPEPE`, `kBONK`. `.toUpperCase()` turns
+     those into `KPEPE`/`KBONK`, which are not instruments, so the two coins this would break are
+     exactly the two where getting the scale wrong costs a factor of 1000.
+     Not a general relaxation: the allowlist below is `HL_SYMS`'s own values, so a caller still
+     cannot reach an arbitrary name - it must send the exact spelling this app ships. */
+  const rawSymbol = q.get('symbol') ?? '';
+  const symbol = source === 'hyperliquid' ? rawSymbol : rawSymbol.toUpperCase();
   const interval = q.get('interval') ?? '';
   const limitRaw = Number(q.get('limit') ?? '200');
   const start = q.get('start');
@@ -261,7 +295,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `unknown source '${source}'` }, { status: 400 });
   }
   if (!SYMBOLS[source].has(symbol)) {
-    return NextResponse.json({ error: `symbol '${symbol}' is not one this app tracks` }, { status: 400 });
+    /* NAMES THE SOURCE, because "not one this app tracks" is now reachable for a symbol the app
+       DOES track - just not on that venue's market. `SPXUSDT` on `source=binance` is the case. */
+    return NextResponse.json(
+      { error: `symbol '${symbol}' is not one this app tracks on '${source}'` }, { status: 400 },
+    );
   }
   if (!INTERVALS[source].has(interval)) {
     return NextResponse.json({ error: `interval '${interval}' is not valid for ${source}` }, { status: 400 });
@@ -446,6 +484,71 @@ export async function GET(req: NextRequest) {
    * Declared outside the try so the Bybit stand-in in the catch keeps the
    * same closed/live split (#1515 follow-up): before, its key had no closed
    * tag, so a closed=1 request and a live one shared one stand-in entry. */
+  /* HYPERLIQUID: A POSTED BODY, AN EXPLICIT WINDOW, AND A REFUSAL THAT CANNOT BECOME x1.
+   *
+   * Its own branch for the same reason OKX has one - this is a different REQUEST SHAPE, not a
+   * different response body. One URL, a `type` field, and a JSON body; `new URL()` plus search
+   * params does not reach it.
+   *
+   * THE WINDOW IS REQUIRED. `candleSnapshot` has no `limit` - both `startTime` and `endTime` are
+   * mandatory (a missing one is one of the measured 422s), so a limit-based request is converted
+   * into a window here. `limit + 2` bars back rather than `limit`: one for the forming bar that
+   * `closedOnly` may drop, one for the boundary case where `now` sits just inside a new bar.
+   * Asking for slightly more and slicing is what every other source here already does.
+   *
+   * THREE-PART ERROR CHECK, because `r.ok` alone is not enough on this venue (all measured):
+   *   unknown coin   HTTP 500, body is literally `null` - it PARSES, so a status-only check
+   *                  lets a falsy value through and `?? []` turns it into "no candles"
+   *   bad interval   HTTP 422, body is PLAIN TEXT - `JSON.parse` THROWS
+   * So the body is read as text, parsed inside a try, and handed to `parseHlCandles`, which
+   * throws on `null`, on a string, and on an all-unusable set rather than returning `[]`. An
+   * empty array would be cached as "this window has no candles", which is a legitimate answer
+   * and not this one - the #228 lesson this route already applies to non-2xx.
+   *
+   * THE MULTIPLIER IS REFUSED, NOT DEFAULTED. `hlMultiplier` returns null for a name whose
+   * factor is unverified. Passing that through as `undefined` would default to 1 inside
+   * `parseHlCandles` - a price out by a factor of 1000, which is the exact incident this venue's
+   * `k` prefix was measured to avoid. `SYMBOLS.hyperliquid` is built from the already-filtered
+   * `HL_SYMS`, so this should be unreachable; it throws anyway, because "should be unreachable"
+   * is the argument for a `!` and a `!` on a value that encodes a real state is how an
+   * unreachable branch becomes a wrong number. */
+  const fetchHlCandles = async () => {
+    const ms = hlIntervalToMs(interval);
+    if (ms == null) throw new Error(`hyperliquid: no ms for interval ${interval}`);
+
+    const mult = hlMultiplier(symbol);
+    if (mult == null) {
+      throw new Error(
+        `hyperliquid: refusing ${symbol} - its multiplier is unverified, so no price can be `
+        + 'derived from it. This name should not be in HL_SYMS.',
+      );
+    }
+
+    const endTime = end ? Number(end) : Date.now();
+    const startTime = start ? Number(start) : endTime - (limit + 2) * ms;
+    const r = await exchangeFetch(HL_INFO_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(hlCandleSnapshotBody(symbol, interval, startTime, endTime)),
+      cache: 'no-store',
+    });
+    const text = await r.text();
+    if (!r.ok) {
+      const err = new Error(`hyperliquid klines ${r.status}: ${text.slice(0, 120)}`);
+      (err as Error & { status?: number }).status = r.status;
+      throw err;
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new Error(`hyperliquid returned non-JSON on a 200: ${text.slice(0, 120)}`);
+    }
+    /* Oldest-first is PRESERVED by the parser, deliberately - the opposite of the OKX and Bybit
+       paths, which reverse. See parseHlCandles. */
+    return hlCandlesToBareArray(parseHlCandles(body, { closedOnly, multiplier: mult }));
+  };
+
   /* #1626 A: KEYED BY THE CANDLE, not timed from the read. This used `closedCandleTtl(..., Date.now())` as the TTL, and cached() compares an
      entry's age with the TTL of the request READING it - so a read just after a close asked "is this younger than the time to the NEXT close?",
      and an entry written before the close always was. Measured: the Arena ribbon EMAs and SL/TP read the pre-close 4h candles for the hour after
@@ -456,7 +559,15 @@ export async function GET(req: NextRequest) {
   /* OKX'S BARS NEED THEIR OWN ms LOOKUP. `intervalToMs` matches `/^(\d+)(m|h|d)$/` plus bare
      minutes and a bare `D`, all LOWERCASE - so 8 of OKX's 13 bars return null from it, including
      `4H` and `1D`, the two the Arena EMA signal asks for. */
-  const ivMs = closedOnly ? (source === 'okx' ? okxBarToMs(interval) : intervalToMs(interval)) : null;
+  /* EACH VENUE'S OWN ms LOOKUP, AND THIS LINE IS WHERE THE OKX CACHE COLLISION CAME FROM.
+     `intervalToMs` is lowercase-only, so it returns null for 8 of OKX's 13 bars and for 2 of
+     Hyperliquid's 14 (`1w`, `1M`) - measured, not assumed. A null here empties `closedTag` below,
+     which let a `closed=1` request and a live one share one cache key once already. */
+  const ivMs = closedOnly
+    ? (source === 'okx' ? okxBarToMs(interval)
+      : source === 'hyperliquid' ? hlIntervalToMs(interval)
+      : intervalToMs(interval))
+    : null;
   const ttl = ivMs != null ? Math.max(ivMs + CLOSE_SKEW_MS, ttlFor(interval)) : ttlFor(interval);
   /* THE TAG SEPARATES CLOSED FROM LIVE EVEN WHEN NO BOUNDARY CAN BE COMPUTED, and that `: ':closed'`
      is a security fix rather than tidying.
@@ -478,8 +589,18 @@ export async function GET(req: NextRequest) {
   try {
     const key = `klines:${source}:${symbol}:${interval}:${limit}${closedTag}`;
     const raw = isRange
-      ? await cached(`klines:range:${source}:${symbol}:${interval}:${limit}:${start ?? ''}:${end ?? ''}`, rangeTtl(interval, end), fetchUpstream, { failTtlMs: KLINES_FAIL_TTL_MS })
-      : await cached(key, ttl, source === 'okx' ? fetchOkxPaged : fetchUpstream, { failTtlMs: KLINES_FAIL_TTL_MS });
+      /* The range path gets the Hyperliquid fetcher too, unlike OKX's - `candleSnapshot` takes
+         `startTime`/`endTime` natively, so a range is its NATURAL shape rather than a paged
+         special case. `fetchUpstream` would build a URL this venue does not answer. */
+      ? await cached(`klines:range:${source}:${symbol}:${interval}:${limit}:${start ?? ''}:${end ?? ''}`,
+        rangeTtl(interval, end),
+        source === 'hyperliquid' ? fetchHlCandles : fetchUpstream,
+        { failTtlMs: KLINES_FAIL_TTL_MS })
+      : await cached(
+        key, ttl,
+        source === 'okx' ? fetchOkxPaged : source === 'hyperliquid' ? fetchHlCandles : fetchUpstream,
+        { failTtlMs: KLINES_FAIL_TTL_MS },
+      );
     /* Slice AFTER the cache read, using the caller's own limit. The cache holds
        one bucket-sized copy that every caller in that bucket shares; each gets
        back the length it asked for. Range requests are returned untouched -
