@@ -390,6 +390,37 @@ on:
         type: boolean
         default: false
 
+      # ── `specs` ──────────────────────────────────────────────────────────
+      #
+      # WHY: the release gate runs the whole suite against a locally built
+      # commit, and that is deliberate - it tests the candidate itself, and many
+      # specs depend on the server-side `api.x.ai` stub that only exists in the
+      # CI-booted app (PM/DevOps's ruling, 2026-11-05). But some paths can only
+      # be measured on a DEPLOYED service: the ones that need real Binance
+      # reach, which a GitHub runner does not have. Run 41935796786 is the
+      # example - 15 cells reported as product failures when the runner simply
+      # could not fetch a price.
+      #
+      # So this exists for ONE job: a few named spec files, against `base_url`,
+      # to measure what the gate structurally cannot. It is not a way to re-run
+      # the gate elsewhere, and a partial run is NOT a release signal - the
+      # result is evidence about those paths only, and the release PR says so.
+      #
+      # EMPTY ON EVERY AUTOMATIC EVENT, because `inputs` is empty outside a
+      # dispatch. So a push or a PR appends nothing and the gate is unchanged.
+      #
+      # VALIDATED BEFORE USE, in the step below. This value is interpolated into
+      # a shell command, so an unchecked input is a script-injection seam even
+      # though only collaborators can dispatch. The check requires every token
+      # to be a `qa/e2e/*.spec.ts` path that EXISTS, which also turns the most
+      # likely mistake - a typo'd filename - into a failure that names itself
+      # rather than a silent "0 tests ran" green. A run that matches nothing is
+      # the most dangerous shape here: it looks like a pass.
+      specs:
+        description: 'Only these spec files, space-separated (e.g. qa/e2e/real-yield.spec.ts). Blank = the whole suite.'
+        type: string
+        default: ''
+
 # Without this, every push to a PR stacked another run and the superseded one
 # carried on to completion. Nothing was ever cancelled. Costs no coverage.
 #
@@ -898,6 +929,36 @@ jobs:
       # These point at the DEV Supabase project, never prod, and carry the anon
       # key only - never the service-role key. The anon key is public by design
       # and the dev project holds no real user data.
+      # VALIDATES `inputs.specs` BEFORE IT REACHES A SHELL, and fails loudly
+      # rather than running less than asked.
+      #
+      # Two separate jobs, and the second is the one that matters more. The
+      # obvious one is injection: the value is interpolated into the `run:`
+      # below, so it must not be able to carry flags or shell metacharacters,
+      # even though only a collaborator can dispatch.
+      #
+      # The other is that a MISTYPED path makes Playwright match zero tests and
+      # exit 0. That is the worst outcome available here - a green run that
+      # measured nothing, reported as evidence about the paths it was supposed
+      # to cover. So every token must name a file that EXISTS, and a typo
+      # becomes a failure that prints the offending token.
+      - name: Validate the spec filter
+        if: inputs.specs != ''
+        env:
+          SPECS: ${{ inputs.specs }}
+        run: |
+          for s in $SPECS; do
+            case "$s" in
+              qa/e2e/*.spec.ts) ;;
+              *) echo "::error::'$s' is not a qa/e2e/*.spec.ts path. The filter takes spec FILES, not flags or globs."; exit 1 ;;
+            esac
+            if [ ! -f "$s" ]; then
+              echo "::error::'$s' does not exist. A filter that matches nothing makes Playwright exit 0 having run no tests - a green that measured nothing."
+              exit 1
+            fi
+          done
+          echo "spec filter accepted: $SPECS"
+
       - name: Run E2E
         # `--project` is what makes a leg a leg. Without it each one would run
         # the whole 1274 and the split would double the bill for nothing.
@@ -959,7 +1020,12 @@ jobs:
         # So the condition is "is this a run we actually care to see the end of", which both are.
         # The 25 branch is now unreachable and kept only so a future event that does fall through
         # inherits the bounded value rather than no cap at all.
-        run: npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && ((github.base_ref == 'main' || github.event_name == 'workflow_dispatch') && '--max-failures=50' || '--max-failures=25') || '' }}
+        #
+        # `$SPEC_FILTER` is UNQUOTED on purpose - the filter is a space-separated
+        # list and must word-split into several file arguments. It is validated in
+        # the step above and is empty on every automatic event, so the gate
+        # command is byte-for-byte what it was.
+        run: npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && ((github.base_ref == 'main' || github.event_name == 'workflow_dispatch') && '--max-failures=50' || '--max-failures=25') || '' }} $SPEC_FILTER
         # ── MOBILE IS NON-BLOCKING FOR ITS FIRST RUN. REVERT AFTER v2026.10.29c ──────
         #
         # ⚠️ TEMPORARY. Remove this line once the mobile leg has one completed run on
@@ -1000,6 +1066,10 @@ jobs:
           # skip the build entirely. See the input's own comment for why a remote
           # run is NOT the same measurement as the gate run.
           E2E_BASE_URL: ${{ inputs.base_url }}
+
+          # The validated spec filter, read by the `run:` above. Empty outside a
+          # dispatch, so it appends nothing to the gate's own command.
+          SPEC_FILTER: ${{ inputs.specs }}
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
