@@ -14,9 +14,15 @@ export default function MarketRead() {
   const [manualFund, setManualFund] = useState<FundingSide | null>(null);
   const [showOverride, setShowOverride] = useState(false);
   const [, setTick] = useState(0);
+  // The dashboard is prerendered, so the Day factor in the server HTML is the
+  // BUILD day, and suppressHydrationWarning keeps that text on screen rather
+  // than correcting it - it read "Saturday" on other days. Shown after mount
+  // only, the same `mounted` gate SessionCountdown and /hours use.
+  const [mounted, setMounted] = useState(false);
 
   // Re-derive every 60s so the time-of-day factor stays current without a reload.
   useEffect(() => {
+    setMounted(true);
     const timer = setInterval(() => setTick(n => n + 1), 60_000);
     return () => clearInterval(timer);
   }, []);
@@ -94,7 +100,7 @@ export default function MarketRead() {
         {read.factors.map(f => (
           <div key={f.key} className="mr-factor">
             <div className="mr-factor-k">{f.label}</div>
-            <div suppressHydrationWarning className="mr-factor-v">{f.value}</div>
+            <div suppressHydrationWarning className="mr-factor-v">{f.key === 'day' && !mounted ? '-' : f.value}</div>
             {f.sub && <div suppressHydrationWarning className="mr-factor-s">{f.sub}</div>}
           </div>
         ))}
