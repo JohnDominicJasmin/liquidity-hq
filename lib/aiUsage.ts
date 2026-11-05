@@ -10,9 +10,15 @@
 // does the check-and-increment as a single atomic UPDATE ... WHERE <col> <
 // limit, so Postgres's row lock serializes concurrent callers.
 //
-// No refund on a failed xAI call after a successful increment - see the
-// migration file's comment for why that tradeoff was chosen over a second
-// compensating-write path.
+// REFUNDS EXIST NOW, and this comment said the opposite until 2026-11-06. It read "No refund on a
+// failed xAI call after a successful increment", which was the design until 20261023a added
+// `refund_ai_usage` and #1956/#1965/#1978 wired `refundUsageColumn` into the routes.
+//
+// The rule, so the next reader does not have to infer it from four call sites: a reservation is
+// given back when the user paid and got NOTHING, and is NOT given back once xAI has answered 2xx
+// and billed us - unless the answer itself is unusable, which is a deliberate product decision
+// (an empty body or an unreadable verdict refunds; see the grok route's BAD_ANSWER paths).
+// `refund_ai_usage_impl` caps it at three refunds per user per UTC day.
 import { AI_LIMITS, type ExtraTool, type UsageTier } from '@/lib/limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isFeatureEnabled } from '@/lib/featureFlags';
