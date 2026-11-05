@@ -73,21 +73,21 @@ means*). **Every issue carries exactly one `priority:` label.**
 
 ## Dev lane
 
-**Rewritten 2026-11-05 by PM/DevOps.** The previous table (2026-10-21) named a shipped release, a locked
+**Rewritten 2026-11-05 by PM/DevOps; every issue named here was checked open or folded that day.** The previous table (2026-10-21) named a shipped release, a locked
 Actions account and Phase 0 of a feature that has since shipped as Draw Structure. Order is the order of work.
 
 | # | Item | Notes |
 |---|---|---|
-| D1 | **Delete `/api/exchange-reach`** (#1926) | Temporary probe. Results are on #1649 (2026-11-04: OKX, Hyperliquid, Kraken, Bitget all reachable from the server region, controls passed). It must not become a health check. |
-| D2 | **JS-less landing content** (#1740, high) | `auth-gate-render:243` fails since at least 2026-10-31: `/` serves ~42 words and `/upgrade` ~48-50 to a client without JavaScript. Find what swallowed it. Acquisition outranks data breadth. |
-| D3 | **OKX step 3** (#1651 / #1649) | OKX as the source for the Binance-only metrics (whole-market long/short, top-trader account and position ratios, taker buy/sell volume, 5-minute OI history) plus funding and ticker fallback. Same discipline as steps 1-2 (#1944, #1948): measure units against another venue first, cross-venue price guard, errors arrive on HTTP 200. |
-| D4 | **Hyperliquid client** (#1649 phase 4) | Funding comparison inputs and the fourth fallback layer. `/api/health` already reports `attempted` (#1927), so a never-called venue no longer reads as healthy. |
+| D1 | **#1959 and #1956 - merge on QA's word** | #1959 deletes `/api/exchange-reach`; its results are on #1649 (2026-11-04: OKX, Hyperliquid, Kraken, Bitget reachable from the server region, controls passed). #1956 makes Draw Structure refuse and refund on an unreadable or undrawable reply. |
+| D2 | **#1961 - pages under `app/(main)/` hid their copy from clients without JavaScript** (#1740, high) | Cause: `app/(main)/loading.tsx`. Measured at about 42-50 rendered words on all five pages checked (`/`, `/upgrade`, `/learn`, `/about`, `/faq`). Do not re-investigate. Open, waiting on QA's review. After merge, PM deploys `liquidity-hq-dev` and Dev takes the after-measurement from that URL. Losing the transition skeleton needs the owner's sign-off before `staging` -> `main`. |
+| D3 | **OKX step 3** (#1651) | OKX as the source for the Binance-only metrics (whole-market long/short, top-trader account and position ratios, taker buy/sell volume, 5-minute OI history) plus funding and ticker fallback. Same discipline as steps 1-2 (#1944, #1948): measure units against another venue first, cross-venue price guard, errors arrive on HTTP 200. #1649 is closed; its thread holds the research and the probe. |
+| D4 | **Hyperliquid client** (#1651) | Funding comparison inputs and the fourth fallback layer. `/api/health` already reports `attempted` (#1927), so a never-called venue no longer reads as healthy. |
 | D5 | **#1861 `fet` gap**, then #1861 merges on the owner's copy approval | `fet` has no Bybit symbol, so it is selectable but unreachable through the Bybit-keyed universe map. |
-| D6 | **Pre-existing E2E reds that are app code** | As QA assigns them (stub vs route): `econ-staleness` (#1651), `entitlement-unknown:40` (#1630), `arena-venue-fallback:81` (#1263). Filed with baselines on each tracker, 2026-11-04. |
+| D6 | **Pre-existing E2E reds that are app code** | Only as QA assigns them. `entitlement-unknown:40` (#1630), `arena-venue-fallback:81` (#1263). The Confluence cluster is QA's first (Q3). |
 | D7 | **One-line exports for QA's #1413 per-pin table** | Paired workflow: QA names the pin and the value, Dev exports the symbol, QA converts. |
 | D8 | **Widen the `20261031c` location sweep** (low) | Misses bare "Manila" and the server region (Seoul / Singapore / `ap-northeast`). Both label tables measured clean 2026-11-04, so this guards a future replay only. New file, same value-not-key design. |
-| D9 | **#1662 - Hyperliquid liquidation levels** (medium) | Estimate only, after D4. |
-| D10 | **Still open from the older lane** | #1632 (security items) and #1631's remainder (item 4 size/caps/cost, item 5 second half). Read each issue's latest comment, not its body. |
+| D9 | **Hyperliquid liquidation levels** (#1662, folded into #1651; medium) | Estimate only, after D4. |
+| D10 | **#1631's remainder** | Item 4 size/caps/cost and item 5's second half. Read the issue's latest comment, not its body. |
 
 **UI polish and accessibility audit work: last, not parked.** The owner parked it on
 2026-09-19 and on 2026-09-30 said to work "all items, issues, PRs and backlogs". So it is
@@ -171,14 +171,14 @@ controls** - to anything you touch.
 
 | # | Item | Notes |
 |---|---|---|
-| Q1 | **Release PR #1955** (staging `c28fcd40`) | Browser suite running at the raised cap (50, release runs only, #1951) - the first run that can reach the end of the desktop leg. Report status AND conclusion. #1947 was closed for it, reasons on the PR. |
+| Q1 | **Release PR #1955** (staging `c28fcd40`) | Run 41935796786 finished: desktop 437 passed, 50 failed, 1 flaky, 72 skipped, 79 did not run. It hit the cap of 50 again, so the suite has still not reached the end. Triage is the current item. Mobile's green is `continue-on-error`. |
 | Q2 | **Review Dev's open PRs** | Standing. Dev's blockers first, then open PRs, then your own specs. |
-| Q3 | **`arena-stale-result-labelling`: stub or route?** (#1263) | Four cells, "QUICK never reached the stubbed /api/grok". Decide whose before assigning. |
-| Q4 | **Triage the 30 mobile reds** (#1413) | Mobile is `continue-on-error`, so its green is unconditional. #1814 stays held until these are triaged. |
+| Q3 | **Confluence guards** (#1263, #1651) | 11 cells share "the Confluence card did not appear at all". Two guards cannot tell a spec bug from an app one: the `econ-staleness:106` Pro-gate control passes on the couldn't-verify card, and `marketDataUnavailable` probes klines while the card needs the snapshot ticker. QA first; Dev only if the fixed guards still point at app code. |
+| Q4 | **Mobile reds and tap targets** (#1413) | 30 triaged, 25 remain after #1958 and #1960. #1814 stays held until the Confluence cluster clears. `a11y:51` went 113 -> 146 on a CI-built app, so measure deployed staging before hunting. |
 | Q5 | **Tests Dev's PRs name** | OKX/Hyperliquid cells: newest-first ordering, `confirm: 0` forming bar, the 300-row cap and paging, case-sensitive `bar`, errors on HTTP 200. |
 | Q6 | **#1413 per-pin conversions** | 17 structural + 8 CSS files dropped permanently with reasons; 21 files remain, paired with D7. |
 | Q7 | **`qa` and `staging` deploys** | Yours. Read `/api/version` after every one. |
-| Q8 | **Older items** | #1410 cross-browser; `TEST_GAPS.md` sections 1 and 6. |
+| Q8 | **Older items** | `TEST_GAPS.md` sections 1 and 6. |
 
 ## PM/DevOps lane
 
@@ -193,14 +193,8 @@ controls** - to anything you touch.
 
 | Item | Why it is here |
 |---|---|
-| **#1411 - sign-in shows a machine-generated domain** | Needs a paid Supabase plan for a custom auth domain; the owner's cost decision. |
-| **#1152 - plans and upgrade messaging** | PR #1463 and its test #1464 built; held for the owner's look. Do not merge #1464 first. |
+| **Sign-in shows a machine-generated domain** (#1411, folded into #1173) | Needs a paid Supabase plan. The owner has postponed Supabase Pro; do not re-raise. |
 | **#1688 - Dev and QA to cloud sessions** | Blocked on architecture, not money: a cloud session cannot message a local one back. Credit figure corrected on the issue 2026-11-04. |
-
----|---|
-| **#1411 - sign-in shows a machine-generated domain** | Needs a paid Supabase plan for a custom auth domain. Owner, 2026-10-21: Supabase Pro is bought the day payments go live; the custom domain (+$10) stays later. |
-| **#1152 - plans and upgrade messaging** | PR #1463 (one source for the Free and Pro feature lists) and its test #1464 are built and pushed; **held for the owner's look**, screenshots taken 2026-09-30. Do not merge #1464 first: it sits on #1463. |
-| **#1413 - GitHub Actions cannot start** | The account is locked for billing; acknowledged by the owner. The drift check is done by hand meanwhile. |
 
 ---
 
