@@ -105,7 +105,7 @@ export const en: LandingDict = {
     sub: 'Live signals, alerts, and analysis - each tool built to answer one specific question.',
     openLabel: 'Open',
     cards: [
-      { title: 'AI Arena', desc: 'Multi-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX - all in one view.', pills: ['Grok 4.3', 'Multi-signal', '50 markets'] },
+      { title: 'AI Arena', desc: 'Multi-signal confluence engine with live chart and AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX - all in one view.', pills: ['AI', 'Multi-signal', '50 markets'] },
       { title: 'Telegram Alerts', desc: 'Auto-fire alerts for squeeze setups, whale trades, RSI extremes, EMA crosses, rapid price moves, open interest spikes, and breaking news.', pills: ['Squeeze alerts', 'Whale trades', 'Breaking news'] },
       { title: 'Morning Briefing', desc: 'Daily macro snapshot: BTC dominance, DXY, S&P correlation, ETF flows, economic calendar, and hot setups. Know the backdrop before the session opens.', pills: ['Macro events', 'ETF flows', 'Hot setups'] },
       { title: 'News Feed', desc: 'BBC, Al Jazeera, Fox News, Politico, CoinDesk, CoinTelegraph and more - all classified and scored. Breaking geo-political news that moves crypto.', pills: ['12+ sources', 'Auto-classify', '~1 min lag'] },
@@ -119,7 +119,7 @@ export const en: LandingDict = {
     steps: [
       { title: 'Connect Telegram', desc: 'Link your Telegram in Settings. Alerts fire automatically - squeeze setups, whale trades, FR extremes, breaking news.' },
       { title: 'Pick your coins', desc: 'Choose from 50 markets across majors, alts, meme, gold, and the S&P 500. The Squeeze Scanner watches all of them live, 24/7.' },
-      { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Quick or Deep. Grok reads dozens of live signals and gives you a plain-language read of where the market is leaning.' },
+      { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Quick or Deep. The AI reads dozens of live signals and gives you a plain-language read of where the market is leaning.' },
     ],
   },
   // #1152: the Free AND Pro feature rows now come from lib/planFeatures.ts, the
@@ -198,7 +198,7 @@ export const ko: LandingDict = {
     sub: '신호, 알림, 분석까지 - 각 도구는 하나의 질문에 답하도록 만들어졌습니다.',
     openLabel: '열기',
     cards: [
-      { title: 'AI 아레나', desc: '멀티 신호 합류 엔진에 실시간 차트와 Grok AI 분석까지. 펀딩비, CVD, 미결제약정 추세, 스퀴즈 점수, 고래 흐름, GEX를 한 화면에서 확인하세요.', pills: ['Grok 4.3', '멀티 신호', '50개 마켓'] },
+      { title: 'AI 아레나', desc: '멀티 신호 합류 엔진에 실시간 차트와 AI 분석까지. 펀딩비, CVD, 미결제약정 추세, 스퀴즈 점수, 고래 흐름, GEX를 한 화면에서 확인하세요.', pills: ['AI', '멀티 신호', '50개 마켓'] },
       { title: '텔레그램 알림', desc: '스퀴즈 셋업, 고래 거래, RSI 과열/과매도, EMA 교차, 급격한 가격 변동, 미결제약정 급등, 속보까지 자동으로 알려드립니다.', pills: ['스퀴즈 알림', '고래 거래', '속보'] },
       { title: '모닝 브리핑', desc: '매일의 매크로 스냅샷: BTC 도미넌스, 달러 지수(DXY), S&P 상관관계, ETF 자금 흐름, 경제 캘린더, 핫한 셋업까지. 장이 열리기 전에 배경을 파악하세요.', pills: ['매크로 이벤트', 'ETF 자금 흐름', '핫 셋업'] },
       { title: '뉴스 피드', desc: 'BBC, 알자지라, 폭스뉴스, 폴리티코, 코인데스크, 코인텔레그래프 등 - 모두 분류되고 점수화됩니다. 암호화폐를 움직이는 지정학적 속보까지.', pills: ['12개 이상 소스', '자동 분류', '약 1분 지연'] },
@@ -212,7 +212,7 @@ export const ko: LandingDict = {
     steps: [
       { title: '텔레그램 연결', desc: '설정에서 텔레그램을 연결하세요. 스퀴즈 셋업, 고래 거래, 펀딩비 극값, 속보까지 알림이 자동으로 발송됩니다.' },
       { title: '마켓 선택', desc: '메이저, 알트, 밈, 금, S&P 500까지 50개 마켓 중에서 선택하세요. 스퀴즈 스캐너가 24시간 실시간으로 모두 감시합니다.' },
-      { title: 'AI 분석 실행', desc: 'AI 아레나를 열고 마켓을 선택한 뒤 퀵 또는 딥을 누르세요. Grok이 수십 개의 신호를 읽고 시장이 어느 쪽으로 기울어 있는지 쉬운 말로 설명합니다.' },
+      { title: 'AI 분석 실행', desc: 'AI 아레나를 열고 마켓을 선택한 뒤 퀵 또는 딥을 누르세요. AI가 수십 개의 신호를 읽고 시장이 어느 쪽으로 기울어 있는지 쉬운 말로 설명합니다.' },
     ],
   },
   pricing: {
@@ -281,7 +281,7 @@ export const zh: LandingDict = {
     sub: '信号、提醒与分析--每个工具只为回答一个特定问题而生。',
     openLabel: '打开',
     cards: [
-      { title: 'AI Arena', desc: '多信号共振引擎,搭载实时图表与Grok AI分析。资金费率、CVD、未平仓合约趋势、挤压评分、巨鲸流向、GEX--尽在一屏。', pills: ['Grok 4.3', '多信号', '50个市场'] },
+      { title: 'AI Arena', desc: '多信号共振引擎,搭载实时图表与AI分析。资金费率、CVD、未平仓合约趋势、挤压评分、巨鲸流向、GEX--尽在一屏。', pills: ['AI', '多信号', '50个市场'] },
       { title: 'Telegram提醒', desc: '挤压形态、巨鲸交易、RSI极值、EMA交叉、价格快速波动、未平仓合约激增、突发新闻--自动提醒。', pills: ['挤压提醒', '巨鲸交易', '突发新闻'] },
       { title: '晨间简报', desc: '每日宏观快照:BTC市占率、美元指数(DXY)、标普关联性、ETF资金流向、经济日历及热门形态。开盘前先了解大局。', pills: ['宏观事件', 'ETF资金流', '热门形态'] },
       { title: '新闻资讯', desc: 'BBC、半岛电视台、福克斯新闻、Politico、CoinDesk、CoinTelegraph等--全部经过分类与评分。影响加密市场的地缘政治突发新闻。', pills: ['12+信息源', '自动分类', '约1分钟延迟'] },
@@ -295,7 +295,7 @@ export const zh: LandingDict = {
     steps: [
       { title: '连接Telegram', desc: '在设置中连接您的Telegram。警报将自动触发--挤压形态、巨鲸交易、资金费率极值、突发新闻。' },
       { title: '选择市场', desc: '从主流币、山寨币、meme币到黄金、标普500,共50个市场可供选择。挤压扫描器24/7实时监控全部市场。' },
-      { title: '运行AI分析', desc: '打开AI Arena,选择市场,点击快速或深度分析。Grok读取数十个信号,用通俗的语言说明市场目前的倾向。' },
+      { title: '运行AI分析', desc: '打开AI Arena,选择市场,点击快速或深度分析。AI读取数十个信号,用通俗的语言说明市场目前的倾向。' },
     ],
   },
   pricing: {
@@ -364,7 +364,7 @@ export const ar: LandingDict = {
     sub: 'إشارات وتنبيهات وتحليلات مباشرة - كل أداة مصمّمة للإجابة عن سؤال محدد بدقة تفوق أي بديل آخر. كل ذلك متاح مجانًا.',
     openLabel: 'افتح',
     cards: [
-      { title: 'AI Arena', desc: 'محرك تقارب من 35 إشارة مع مخطط مباشر وتحليل Grok للذكاء الاصطناعي. معدل التمويل، CVD، اتجاه الفائدة المفتوحة، درجة الانضغاط، تدفق الحيتان، GEX - كل ذلك في شاشة واحدة.', pills: ['Grok 4.3', '35 إشارة', '50 عملة'] },
+      { title: 'AI Arena', desc: 'محرك تقارب من 35 إشارة مع مخطط مباشر وتحليل الذكاء الاصطناعي. معدل التمويل، CVD، اتجاه الفائدة المفتوحة، درجة الانضغاط، تدفق الحيتان، GEX - كل ذلك في شاشة واحدة.', pills: ['AI', '35 إشارة', '50 عملة'] },
       { title: 'تنبيهات تيليجرام', desc: 'تنبيهات تلقائية لإعدادات الانضغاط، صفقات الحيتان، تطرف RSI، تقاطعات EMA، تحركات الأسعار السريعة، ارتفاعات الفائدة المفتوحة، والأخبار العاجلة - قبل الجميع.', pills: ['تنبيهات الانضغاط', 'صفقات الحيتان', 'أخبار عاجلة'] },
       { title: 'الموجز الصباحي', desc: 'لقطة اقتصادية يومية: هيمنة البيتكوين، مؤشر الدولار DXY، الارتباط مع S&P، تدفقات صناديق ETF، التقويم الاقتصادي، وأفضل الإعدادات. اعرف الخلفية قبل بدء الجلسة.', pills: ['أحداث اقتصادية كلية', 'تدفقات ETF', 'إعدادات رائجة'] },
       { title: 'خلاصة الأخبار', desc: 'رويترز، أسوشيتد برس، الجزيرة، فوكس نيوز، بوليتيكو، تروث سوشال، كوين ديسك، والمزيد - مصنّفة ومقيّمة بالكامل. أخبار جيوسياسية عاجلة تحرك سوق العملات الرقمية.', pills: ['+12 مصدر', 'تصنيف تلقائي', 'تأخير ~دقيقة واحدة'] },
@@ -378,7 +378,7 @@ export const ar: LandingDict = {
     steps: [
       { title: 'اربط تيليجرام', desc: 'اربط حساب تيليجرام في الإعدادات. تُرسَل التنبيهات تلقائيًا - إعدادات الانضغاط، صفقات الحيتان، تطرف معدل التمويل، الأخبار العاجلة.' },
       { title: 'اختر عملاتك', desc: 'اختر من بين 50 عملة تشمل العملات الرئيسية والبديلة وعملات الميم. يراقب ماسح الانضغاط جميعها مباشرة على مدار الساعة.' },
-      { title: 'شغّل تحليل الذكاء الاصطناعي', desc: 'افتح AI Arena، اختر عملة، واضغط تحليل. يقرأ Grok 35 إشارة مباشرة ويمنحك اتجاه تداول واضحًا وقابلاً للتنفيذ.' },
+      { title: 'شغّل تحليل الذكاء الاصطناعي', desc: 'افتح AI Arena، اختر عملة، واضغط تحليل. يقرأ الذكاء الاصطناعي 35 إشارة مباشرة ويمنحك اتجاه تداول واضحًا وقابلاً للتنفيذ.' },
     ],
   },
   pricing: {

@@ -40,13 +40,30 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { locale } = await params;
   if (!isSupportedLocale(locale)) return {};
   const dict = getDictionary(locale);
+  /* THE TITLE IS LOCALISED, AND IT IS BUILT FROM COPY THE OWNER ALREADY APPROVED.
+   *
+   * `/ko` and `/zh` both served the bare `'LiquidityHQ'` - 11 characters, in English, on the two
+   * pages most likely to be shared into a chat app, and the one line a search result shows. The
+   * English root sets a descriptive title and the template gives every other route one; these two
+   * got neither, because a local `title` REPLACES the root's rather than merging.
+   *
+   * COMPOSED FROM `hero.h1Line1` + `h1Line2` rather than written here. Those are the page's own
+   * headline, already translated and already approved in the copy batch, so this invents no new
+   * Korean or Chinese marketing copy - which is not mine to write. A translated equivalent of the
+   * English title ("Crypto Liquidity, Funding & Squeeze Analytics") would be exactly that.
+   *
+   * Twitter was absent entirely, so those two pages fell back to the root's English card. */
+  const localisedTitle = `${dict.hero.h1Line1} ${dict.hero.h1Line2} - LiquidityHQ`;
   return {
-    title: 'LiquidityHQ',
+    title: localisedTitle,
     description: dict.hero.sub,
     /* #1740 item 3: `images` was missing here for the same reason it was missing on /learn - a local openGraph object REPLACES the
        root layout's rather than merging with it, so naming a title and description dropped the root's picture. The Korean and
        Chinese landing pages are the two most likely to be shared into a chat app, and they were the two with no preview image. */
-    openGraph: { title: 'LiquidityHQ', description: dict.hero.sub, images: OG_IMAGES },
+    openGraph: { title: localisedTitle, description: dict.hero.sub, images: OG_IMAGES },
+    /* Twitter's card REPLACES rather than merges too, same as openGraph - so with no entry here
+       these two pages advertised themselves in English. `summary`, matching the root. */
+    twitter: { card: 'summary', title: localisedTitle, description: dict.hero.sub, images: OG_IMAGES },
     /* #1740: SELF-referencing - `/ko` canonicalises to `/ko`, not to `/`.
      *
      * Pointing a translation at the English page is the obvious-looking move and it is the wrong one: a
