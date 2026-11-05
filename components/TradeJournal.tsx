@@ -136,7 +136,7 @@ const SETUPS: SetupType[] = ['Squeeze', 'Breakout', 'Reversal', 'Range', 'News',
 
 function fmtUSD(v: number | null | undefined, showSign = true) {
   if (v == null) return '-';
-  const sign = showSign && v >= 0 ? '+' : '';
+  const sign = v < 0 ? '-' : showSign ? '+' : '';
   return sign + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
