@@ -19,8 +19,21 @@
 --     hypothesis_analyze_count   token_unlock_count       smc_snapshot_count
 --     dry_powder_count           macro_context_count      onchain_count
 --
--- Every refund path in the app today targets one of those twelve, so **no refund has ever
--- succeeded.** `smc_snapshot_count` is the newest and was added in the same breath as this file.
+-- **THE EXTRA TOOLS ONLY. Deep and Quick refunds WORK, and saying otherwise was wrong.** An
+-- earlier draft of this header said "no refund has ever succeeded", which reads as though
+-- 20261023a's prod apply on 2026-11-05 achieved nothing. It did not:
+--
+--     app/api/grok/route.ts:348   refunds `deep_count` or `quick_count`
+--     both are on the EXISTING allowlist, so they were never locked out
+--     line 358 calls `incrementUsageColumn(userId, role, column, limit)` - FOUR arguments, no
+--     `poolLimit`, so `p_pool_limit` is null and `tool_pool_count` is never bumped for them
+--
+-- So Deep and Quick are untouched by BOTH defects: on the allowlist, and never charged to the pool.
+-- They have worked since the function existed. Corrected here rather than quietly reworded, because
+-- a false claim in a migration header is the kind of thing that gets acted on later.
+--
+-- What IS broken is every refund for one of the twelve above - draw structure, smc snapshot and the
+-- ten others. `smc_snapshot_count` is the newest and was added in the same breath as this file.
 --
 -- **2. `search_count` IS NOT A COLUMN.** It is on the allowlist and does not exist on
 -- `lhq_grok_usage` in either project — the real one is `chat_search_count`. So that entry admits a
