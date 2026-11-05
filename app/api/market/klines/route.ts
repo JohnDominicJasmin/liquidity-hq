@@ -563,11 +563,11 @@ export async function GET(req: NextRequest) {
      `intervalToMs` is lowercase-only, so it returns null for 8 of OKX's 13 bars and for 2 of
      Hyperliquid's 14 (`1w`, `1M`) - measured, not assumed. A null here empties `closedTag` below,
      which let a `closed=1` request and a live one share one cache key once already. */
-  const ivMs = closedOnly
-    ? (source === 'okx' ? okxBarToMs(interval)
+  const ivMs = closedOnly ? (
+    source === 'okx' ? okxBarToMs(interval)
       : source === 'hyperliquid' ? hlIntervalToMs(interval)
-      : intervalToMs(interval))
-    : null;
+      : intervalToMs(interval)
+  ) : null;
   const ttl = ivMs != null ? Math.max(ivMs + CLOSE_SKEW_MS, ttlFor(interval)) : ttlFor(interval);
   /* THE TAG SEPARATES CLOSED FROM LIVE EVEN WHEN NO BOUNDARY CAN BE COMPUTED, and that `: ':closed'`
      is a security fix rather than tidying.
