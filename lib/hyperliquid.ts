@@ -173,11 +173,34 @@ export const HL_REFUSED: Readonly<Record<string, string>> = {
  * gap visible.
  */
 export function hlMultiplier(name: string): number | null {
+  /* A RECORDED REFUSAL BEATS A MULTIPLIER, AND THE ORDER IS THE WHOLE POINT. QA's catch on #1976.
+   *
+   * As first written this consulted `HL_MULTIPLIER` first and `HL_REFUSED` not at all - the
+   * refusal list was documentation nothing read. So the failure mode was precise and quiet:
+   * someone measures `kDOGS` ONCE, gets a number that looks like a constant, adds it to
+   * `HL_MULTIPLIER`, and their single reading silently outranks a recorded finding that two
+   * readings hours apart disagreed. The comment above `HL_REFUSED` would still be sitting there
+   * saying no constant converts it.
+   *
+   * Checking the refusal FIRST makes the two lists ordered rather than parallel: to start pricing
+   * a refused name you have to delete its entry and its reason, which is a deliberate act a
+   * reviewer can see, instead of an addition somewhere else that happens to win. */
+  if (HL_REFUSED[name] !== undefined) return null;
+
   const known = HL_MULTIPLIER[name];
   if (known !== undefined) return known;
   if (isKPrefixed(name)) return null; // unverified 1000x candidate: refuse rather than guess
   return 1;
 }
+
+/* THE TWO LISTS MUST NOT OVERLAP, and this is checked rather than trusted.
+ *
+ * An overlap is not ambiguous - the refusal wins by the order above - but it means someone added a
+ * multiplier for a name another line says cannot be converted, and silently getting the safe
+ * outcome would leave that contradiction in the file for the next reader to resolve. Exported so a
+ * test can assert it without importing internals; computed once, so it costs nothing at runtime. */
+export const HL_MULTIPLIER_REFUSED_OVERLAP: string[] = Object.keys(HL_MULTIPLIER)
+  .filter(n => HL_REFUSED[n] !== undefined);
 
 /* `k` followed by an upper-case letter. Deliberately narrow: `kPEPE` is a 1000x listing while a
    hypothetical `kava`-style lower-case name is an ordinary ticker, and the venue spells its
