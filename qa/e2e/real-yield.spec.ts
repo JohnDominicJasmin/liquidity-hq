@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { marketDataUnavailable, entitlementsUnresolved } from './_shared';
+import { installPaidAiFence } from './_no-paid-ai';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the 10Y REAL YIELD reach the Confluence card? (#60, #311, dev's PR #319)
@@ -135,6 +136,14 @@ test.describe('10Y real yield reaches the Confluence card', () => {
   test('a TIGHTENING yield puts a line on the card', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     await pinYield(page, 'tightening');
     const text = await cardText(page);
@@ -157,6 +166,14 @@ test.describe('10Y real yield reaches the Confluence card', () => {
   test('an EASING yield is deliberately SILENT', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     /* Past the same threshold as tightening, and renders nothing on purpose.
        This test exists so that "the easing case is missing" reads as a decision
@@ -175,6 +192,14 @@ test.describe('10Y real yield reaches the Confluence card', () => {
   test('a QUIET yield says nothing', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     await pinYield(page, 'neutral');
     const text = await cardText(page);
@@ -187,6 +212,14 @@ test.describe('10Y real yield reaches the Confluence card', () => {
   test('an UNAVAILABLE yield says so', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     await pinYield(page, 'unknown');
     const text = await cardText(page);
@@ -201,6 +234,14 @@ test.describe('10Y real yield reaches the Confluence card', () => {
   test('THE PAIR: a quiet yield and an unreadable one do not look the same', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     /* The four tests above each pass in isolation while the property that
        actually matters fails. Two of them assert absence and two assert

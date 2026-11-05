@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { marketDataUnavailable, entitlementsUnresolved } from './_shared';
+import { installPaidAiFence } from './_no-paid-ai';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the perps/spot reading move the Confluence Score? (#340)
@@ -249,6 +250,14 @@ test.describe('perps reading and the Confluence Score', () => {
   test('the score is decoupled from the perps reading (until step 3)', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
       const a = await readScore(page, 'leading');
       await page.unrouteAll({ behavior: 'ignoreErrors' });

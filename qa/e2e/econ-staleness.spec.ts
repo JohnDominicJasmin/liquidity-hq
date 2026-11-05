@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { gotoGuarded, marketDataUnavailable, entitlementsUnresolved } from './_shared';
+import { installPaidAiFence } from './_no-paid-ai';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the STALE-CALENDAR state reach the screen? (#298, dev's PR #307)
@@ -137,6 +138,14 @@ test.describe('stale econ calendar reaches the screen', () => {
   test('CONTROL: a FRESH calendar with nothing upcoming does NOT claim staleness', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     /* The load-bearing one. A build that renders the stale warning
        unconditionally satisfies every positive assertion below, and a permanent
@@ -154,6 +163,14 @@ test.describe('stale econ calendar reaches the screen', () => {
   test('CONTROL: a FRESH calendar WITH an upcoming release does not claim staleness', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     /* ONE hour, not three. At three the release sits outside computeMacroRisk's
        caution window, so the card legitimately says nothing about it - and the
@@ -186,6 +203,14 @@ test.describe('stale econ calendar reaches the screen', () => {
   test('a STALE calendar says so rather than reporting nothing', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     /* 48h - past dev's 24h threshold. The events array is deliberately EMPTY,
        because that is the defect: an old set does not show expired rows, it is
@@ -202,6 +227,14 @@ test.describe('stale econ calendar reaches the screen', () => {
   test('CONTROL: a STALE calendar with a real imminent event still reports the RISK', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     /* THE MUTATION THE OTHER FOUR CANNOT CATCH, and dev named it on the PR.
      *
@@ -245,6 +278,14 @@ test.describe('stale econ calendar reaches the screen', () => {
   test('an UNKNOWN age counts as stale', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
+         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
+         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
+         service that stub does not exist and the call is real and billed - which is the whole reason
+         a targeted staging run needed this first. Installed before the spec's own routes because
+         Playwright matches the most recently registered handler, so installing it last would swallow
+         the stubs instead (#1958). */
+      await installPaidAiFence(page);
     try {
     /* Dev's call, and the right one: we cannot show the set is complete, and
        claiming freshness we have not established is the failure being fixed. */
