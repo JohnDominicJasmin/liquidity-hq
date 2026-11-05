@@ -45,7 +45,7 @@ import { intervalToMs, closedCandleKey, CLOSE_SKEW_MS } from '@/lib/candles';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
-import { BINANCE_SYMS, BYBIT_SYMS, OKX_SYMS, bybitPriceFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, OKX_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { OKX_BARS, OKX_MAX_LIMIT, okxBarToMs, okxCandlesParams, okxCandlesToBareArray, okxPageCount, mergeOkxPages } from '@/lib/okx';
 import { shouldFailToBybit, canFailoverForRequest, bybitIntervalFor } from '@/lib/klinesFailover';
 import { polledCacheControl } from '@/lib/cacheHeaders';
@@ -106,7 +106,15 @@ function bybitKlinesToBinanceShape(body: unknown, priceFactor: number, limitRaw:
  * sources x symbols x intervals x buckets, which is bounded and small. */
 const SYMBOLS: Record<Source, Set<string>> = {
   bybit:             new Set(Object.values(BYBIT_SYMS)),
-  binance:           new Set(Object.values(BINANCE_SYMS)),
+  /* SPOT GETS THE SPOT MAP. `BINANCE_SYMS` is generated from `fapi/v1/exchangeInfo`, so it proves a
+     FUTURES listing and says nothing about spot - `SPXUSDT` is on futures and not on spot. This set
+     used to be `BINANCE_SYMS`, so `source=binance&symbol=SPXUSDT` was admitted and then 400'd at
+     Binance. The SPX chart still drew, because KLineProChart falls back to `binance-futures` when
+     the spot try fails (components/KLineProChart.tsx:1664-1668) - a real fallback hiding a request
+     that could never succeed, exactly as the market snapshot's futures fallback hid the same defect
+     in its batched ticker call. Now the refusal is ours and immediate, and the chart takes the same
+     fallback one upstream call sooner. See `BINANCE_SPOT_SYMS` in lib/coins.ts. */
+  binance:           new Set(Object.values(BINANCE_SPOT_SYMS)),
   'binance-futures': new Set(Object.values(BINANCE_SYMS)),
   /* 49 of the 50 rendered coins, from the generated `okx` column. Three ids the other two venues
      carry are deliberately absent because OKX names a different asset by that ticker - so this set
@@ -261,7 +269,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `unknown source '${source}'` }, { status: 400 });
   }
   if (!SYMBOLS[source].has(symbol)) {
-    return NextResponse.json({ error: `symbol '${symbol}' is not one this app tracks` }, { status: 400 });
+    /* NAMES THE SOURCE, because "not one this app tracks" is now reachable for a symbol the app
+       DOES track - just not on that venue's market. `SPXUSDT` on `source=binance` is the case. */
+    return NextResponse.json(
+      { error: `symbol '${symbol}' is not one this app tracks on '${source}'` }, { status: 400 },
+    );
   }
   if (!INTERVALS[source].has(interval)) {
     return NextResponse.json({ error: `interval '${interval}' is not valid for ${source}` }, { status: 400 });
