@@ -23,6 +23,29 @@ export const ROUTES = [
   '/hours', '/econ-calendar', '/playbook', '/arena', '/dashboard', '/scanner',
   '/correlation', '/funding', '/liq', '/research', '/briefing',
   '/journal', '/alerts', '/settings', '/offline', '/ops/login',
+  /* THE FIVE PAGES #1810 ADDED, WHICH NOTHING HAS EVER SWEPT. All five are real routes under
+     `app/(main)/` with their own `layout.tsx`, and not one of them appeared in this list, so every
+     ROUTES-driven sweep - contrast, axe, layout, h1, canonical, tap targets, duplicate controls,
+     RTL - has been reporting on 30 of 35 routes while reading as a whole-site pass. That is the
+     worst shape of green: complete-looking and partial.
+
+     THE NEW ROUTES WILL MOVE SIX BASELINES AND I AM DELIBERATELY NOT GUESSING THEM. `pagesWithoutH1`,
+     `pagesWithCanonical`, `contrast`, `tapTargetsUnder24`, `axeTargetSizeViolations` and
+     `controlsWithoutName` are all counts over ROUTES, so adding five routes moves them and the four
+     specs holding them go red until they are re-set from a run.
+
+     THAT RED IS THE MEASUREMENT, which is why this lands before the baselines rather than with
+     them. `seo.spec.ts` says so itself - *"raise BASELINE.pagesWithCanonical as they land"* - and the
+     failure names the route and the number. Raising the baselines first would mean inventing six
+     numbers, and a too-high baseline hides real offenders on these five pages forever.
+
+     ONLY CANONICAL IS PREDICTABLE FROM SOURCE, and only because it is a server metadata export: all
+     five declare `alternates.canonical` in their own `layout.tsx`, so withCanonical should go +5.
+     H1 IS NOT PREDICTABLE AND I CHECKED RATHER THAN ASSUMED: all five pages are `'use client'` with
+     early returns ahead of the heading, and `/upgrade` is the proof case - it has an
+     unconditional-looking `<h1>` in source sitting behind 14 early returns, and renders none. A grep
+     for `<h1` cannot tell these five apart from that, so the count comes from the browser. */
+  '/accessibility', '/changelog', '/help', '/security', '/status',
 ] as const;
 
 /* Hidden behind a redirect, and asserted as such by `hidden-routes.spec.ts`.
