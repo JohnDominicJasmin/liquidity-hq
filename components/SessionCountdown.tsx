@@ -82,8 +82,12 @@ export default function SessionCountdown() {
      was 2.23:1 there. globals.css had already replaced this exact literal in the
      landing-page scope and left the component copy behind, which is why a
      stylesheet sweep never caught it. */
-  const statusCol = current?.color ?? (dead ? 'var(--red)' : 'var(--txt3)');
-  const statusBg  = current?.bg    ?? (dead ? 'rgba(248,113,113,0.08)' : 'transparent');
+  /* Neutral until mount, like the blocks below. The badge used to render the
+     session from the server HTML - the BUILD time's session - and
+     suppressHydrationWarning kept that name and colour on screen until the
+     session changed on the client. */
+  const statusCol = !mounted ? 'var(--txt3)' : current?.color ?? (dead ? 'var(--red)' : 'var(--txt3)');
+  const statusBg  = !mounted ? 'transparent' : current?.bg    ?? (dead ? 'rgba(248,113,113,0.08)' : 'transparent');
 
   return (
     <div className="sc-wrap">
@@ -91,8 +95,8 @@ export default function SessionCountdown() {
       {/* Row 1 - active session or status */}
       <div className="sc-row-main">
         <div suppressHydrationWarning className="sc-badge" style={{ color: statusCol, background: statusBg, borderColor: withAlpha(statusCol, '44') }}>
-          {current
-            ? current.name.toUpperCase()
+          {!mounted ? '-'
+            : current ? current.name.toUpperCase()
             : dead ? t('SESSION_COUNTDOWN_DEAD_ZONE') : t('SESSION_COUNTDOWN_OFF_PEAK')}
         </div>
 
